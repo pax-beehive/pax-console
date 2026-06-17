@@ -1,36 +1,73 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PAX Console
 
-## Getting Started
+PAX Console is a fleet control plane and real-time agent workbench.
 
-First, run the development server:
+The project baseline is documented in [docs/pax-console-design.md](docs/pax-console-design.md).
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+Architecture notes:
+
+- Human-readable Chinese guide: [docs/architecture.zh.md](docs/architecture.zh.md)
+- Agent operating guide: [docs/agent-operating-guide.md](docs/agent-operating-guide.md)
+
+## Stack
+
+```txt
+Next.js App Router
+TypeScript
+Tailwind CSS + CSS variables
+shadcn/ui + Radix UI
+TanStack Query
+Zustand
+ahooks useRequest for local/action requests
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The current UI layer uses local primitives in `src/components/ui` for buttons, search, tooltips, and truncated text. Radix is used underneath where it matters; full shadcn component generation can be added later without replacing the project architecture.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Volta pins the local runtime:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```txt
+Node 24.14.1
+pnpm 10.33.0
+```
 
-## Learn More
+## Development
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+pnpm install
+pnpm dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+For normal local testing with Cloudflare Access, open [https://console.paxtech.net](https://console.paxtech.net), which tunnels to `http://localhost:3000`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Environment
 
-## Deploy on Vercel
+Copy `.env.example` to `.env.local` if you need to override defaults.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```txt
+NEXT_PUBLIC_PAX_API_BASE_URL=/api/pax
+NEXT_PUBLIC_PAX_USER_SCOPE=self
+PAX_MANAGER_URL=https://app.paxtech.net
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Cloudflare Access owns browser authentication. The frontend should not store or manually pass `CF_Authorization`; browser REST requests use `credentials: "include"`, and browser WebSocket handshakes rely on same-domain cookies.
+
+For local REST development against the protected backend, use the server-side dev proxy:
+
+```txt
+NEXT_PUBLIC_PAX_API_BASE_URL=/api/pax
+NEXT_PUBLIC_PAX_USER_SCOPE=self
+PAX_MANAGER_URL=https://app.paxtech.net
+PAX_CF_AUTHORIZATION=<local-only Cloudflare Access cookie value>
+```
+
+Do not commit `.env.local`. The proxy keeps the Cloudflare cookie on the Next.js server side and returns a clear 401 when it is missing.
+
+`next.config.ts` disables caching for `/_next/*` assets during tunnel-based development so browser/Cloudflare stale chunks do not hide UI changes.
+
+## Verification
+
+```bash
+pnpm lint
+pnpm typecheck
+pnpm test
+```

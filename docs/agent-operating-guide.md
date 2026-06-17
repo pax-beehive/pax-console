@@ -1,0 +1,275 @@
+# Agent Operating Guide
+
+This file is for coding agents working on PAX Console. Keep it short, factual, and current. When architecture or integration behavior changes, update this file together with `docs/architecture.zh.md`.
+
+## Non-Negotiable Project Facts
+
+- Project root: `/Users/jiahangzhang/code-base/project/pax-console`
+- Human architecture doc: `docs/architecture.zh.md`
+- Canonical design doc: `docs/pax-console-design.md`
+- API reference snapshot: `docs/api.json`
+- Local browser hostname: `https://console.paxtech.net`
+- PAX Manager upstream: `https://app.paxtech.net`
+- Default browser API base: `/api/pax`
+- Do not make browser REST calls directly to `https://app.paxtech.net` unless the user explicitly asks to debug CORS.
+
+## Required Mental Model
+
+```txt
+Browser
+  -> console.paxtech.net
+  -> Next.js app
+  -> /api/pax/* same-origin proxy
+  -> app.paxtech.net
+```
+
+Cloudflare Access and CORS complexity should be isolated in the Next route handler:
+
+```txt
+src/app/api/pax/[...path]/route.ts
+```
+
+Do not spread Cloudflare cookie handling into React components.
+
+## Local Development
+
+Expected local env:
+
+```txt
+NEXT_PUBLIC_PAX_API_BASE_URL=/api/pax
+NEXT_PUBLIC_PAX_USER_SCOPE=self
+PAX_MANAGER_URL=https://app.paxtech.net
+```
+
+`next.config.ts` must keep:
+
+```ts
+allowedDevOrigins: ["console.paxtech.net"]
+```
+
+It also sets `Cache-Control: no-store, max-age=0` for `/_next/:path*`. Keep this while developing through `console.paxtech.net`; otherwise Cloudflare/browser caching can serve stale Turbopack chunks after UI layout changes.
+
+Use `pnpm dev` for local development. If the app is accessed through Cloudflare Tunnel, open:
+
+```txt
+https://console.paxtech.net
+```
+
+not bare `http://localhost:3000`, unless the user asks for localhost-specific debugging.
+
+## State Ownership
+
+TanStack Query owns server data:
+
+```txt
+current user
+nodes
+agents
+sessions
+messages
+mailbox history
+metrics
+pagination
+cache/refetch/invalidation
+```
+
+Zustand owns client-only UI state:
+
+```txt
+active ids
+sidebar state
+drawer state
+composer drafts
+local filters
+temporary UI selections
+```
+
+Never duplicate server resources such as nodes, agents, sessions, or messages into Zustand.
+
+## REST API Rules
+
+Use:
+
+```ts
+apiFetch(userPath(userId, "/..."))
+```
+
+from:
+
+```txt
+src/features/api/client.ts
+src/features/api/resources.ts
+```
+
+Do not add `Content-Type: application/json` to GET requests. It can trigger unwanted CORS preflights if the base URL is ever remote.
+
+Keep resource hooks thin. Components should compose hooks rather than build URLs manually.
+
+## WebSocket Runtime Rules
+
+The current runtime files are:
+
+```txt
+src/features/runtime/agent-tunnel-runtime.ts
+src/features/runtime/use-agent-tunnel.ts
+src/features/runtime/normalize-tunnel-frame.ts
+src/features/runtime/session-events.ts
+```
+
+`AgentTunnelRuntime` owns ACP JSON-RPC. React components must not build or parse raw ACP frames. The implemented startup/send flow is:
+
+```txt
+connect wss://app.paxtech.net/api/v1/user/self/agents/{agent_id}/tunnel
+initialize
+authenticate, only when initialize returns a usable auth method
+session/new, lazily before the first prompt
+session/prompt, using the ACP/native session id
+session/update notifications -> normalized SessionEvent[]
+```
+
+Do not confuse the two session ids:
+
+```txt
+PAX Manager session id
+  Created by POST /sessions and used in URLs, REST message history, and product context.
+
+ACP/native session id
+  Created by session/new over WebSocket and kept private inside AgentTunnelRuntime.
+```
+
+Known gaps are event-shape hardening, interrupt/stop, approval-event linkage, and REST history refetch after reconnect.
+
+## UI Composition Rules
+
+Current screen layers:
+
+```txt
+src/app/*
+  route entrypoints
+
+src/components/shell/*
+  app chrome
+
+src/components/home/*
+  overview page
+
+src/components/resources/*
+  reusable resource pages for sidebar tabs
+
+src/components/sessions/*
+  session workbench
+
+src/components/ui/*
+  local UI primitives such as Button, SearchBox, Tooltip, TruncatedText
+
+src/features/*
+  API, auth, runtime, stateful business boundaries
+```
+
+Components should not know Cloudflare internals. Components may show errors, but auth/proxy behavior belongs in `features/api` or `app/api/pax`.
+
+Use `src/components/ui/button.tsx` for command buttons, `search-box.tsx` for search inputs, and `text.tsx` for long IDs/names. Agent ids, node ids, session ids, API key prefixes, endpoint paths, and file paths should be truncated with tooltip access to the full value.
+
+Sidebar collapsed state is client-only UI state and belongs in `useConsoleStore().sidebarCollapsed`.
+
+Sidebar layout rules:
+
+```txt
+ConsoleLayout uses flex, not CSS grid columns.
+Sidebar controls its own width with inline width 248/76px and overflow-hidden.
+Do not reintroduce dynamic Tailwind class strings like grid-cols-[76px_1fr] for shell width.
+Collapsed tabs show icons only; labels must remain available via Tooltip.
+```
+
+## Current Sidebar Routes
+
+These routes should remain clickable and should not all point back to `/`:
+
+```txt
+/                    Home
+/nodes               Nodes
+/nodes/[nodeId]      Node detail
+/agents              Agents
+/agents/[agentId]    Agent detail, normally with ?nodeId=
+/sessions            Sessions list
+/sessions/[sessionId] Session detail
+/approvals           Approvals and grants
+/monitor             Monitor
+/settings/api-keys   API Keys
+/settings/node-registration Node registration tokens
+```
+
+When adding a sidebar item, add both a real `src/app/**/page.tsx` route and an active-state mapping in `src/components/shell/sidebar.tsx`.
+
+Currently implemented API-backed actions:
+
+```txt
+Topbar New session
+  POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions
+
+Session workbench composer
+  ACP initialize/authenticate/session/new/session/prompt over user tunnel
+
+Node and agent details
+  GET /api/v1/user/{user_id}/nodes/{node_id}
+  GET /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}
+
+Monitor route
+  GET /api/v1/health
+
+API Keys route
+  GET    /api/v1/user/{user_id}/api-keys
+  POST   /api/v1/user/{user_id}/api-keys
+  DELETE /api/v1/user/{user_id}/api-keys/{key_id}
+
+Node registration route
+  POST /api/v1/user/{user_id}/node-registration-tokens
+
+Approvals route
+  GET  /api/v1/user/{user_id}/approvals
+  POST /api/v1/user/{user_id}/approvals/{approval_id}/decision
+  GET  /api/v1/user/{user_id}/approval-grants
+  POST /api/v1/user/{user_id}/approval-grants/{grant_id}/revoke
+```
+
+Do not regress these routes into placeholders.
+
+## Documentation Maintenance Requirement
+
+When an agent changes any of these, it must update both docs:
+
+```txt
+docs/architecture.zh.md
+docs/agent-operating-guide.md
+```
+
+Changes that require documentation updates:
+
+- API base URL behavior
+- Cloudflare Access behavior
+- local tunnel or dev hostname behavior
+- REST proxy behavior
+- WebSocket or ACP protocol behavior
+- shell layout, sidebar collapse, or UI primitive behavior
+- directory structure
+- state ownership boundaries
+- package/stack decisions
+- local setup commands
+
+If no doc update is needed, mention that explicitly in the final response.
+
+## Verification
+
+Prefer at least:
+
+```bash
+pnpm typecheck
+```
+
+For UI or integration changes, also run the relevant browser check against:
+
+```txt
+https://console.paxtech.net
+```
+
+Use the Browser plugin for visible app verification when available.
