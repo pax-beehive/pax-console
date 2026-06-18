@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 import { AlertCircle, ArrowLeft, FileCode, Radio, Send } from "lucide-react";
 import { ConsoleLayout } from "@/components/shell/console-layout";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MonoId, TruncatedText } from "@/components/ui/text";
 import {
@@ -13,8 +14,10 @@ import {
 } from "@/features/api/resources";
 import { User } from "@/features/api/types";
 import { normalizeMailboxMessage } from "@/features/runtime/normalize-mailbox-message";
+import { mergeEvents } from "@/features/runtime/merge-session-events";
 import { SessionEvent } from "@/features/runtime/session-events";
 import { useAgentTunnel } from "@/features/runtime/use-agent-tunnel";
+import { compactId } from "@/lib/format";
 
 type SessionWorkbenchProps = {
   user: User;
@@ -89,8 +92,8 @@ export function SessionWorkbench({
       nodes={nodes}
       user={user}
     >
-      <div className="grid min-h-[calc(100vh-56px)] grid-cols-[320px_minmax(0,1fr)] gap-4 p-5">
-        <aside className="rounded-xl border border-hairline bg-surface-1">
+      <div className="grid min-h-[calc(100vh-56px)] min-w-0 gap-4 p-5 lg:grid-cols-[300px_minmax(0,1fr)]">
+        <aside className="min-w-0 rounded-xl border border-hairline bg-surface-1">
           <div className="border-b border-hairline p-4">
             <Link
               className="inline-flex items-center gap-2 text-sm text-ink-subtle hover:text-ink"
@@ -99,8 +102,12 @@ export function SessionWorkbench({
               <ArrowLeft className="h-4 w-4" />
               Back to fleet
             </Link>
-            <TruncatedText className="mt-4 text-xl font-medium">{sessionId}</TruncatedText>
-            <MonoId className="mt-2">{activeAgentId ?? "No agent selected"}</MonoId>
+            <TruncatedText className="mt-4 text-xl font-medium" tooltip={sessionId}>
+              {compactId(sessionId)}
+            </TruncatedText>
+            <MonoId className="mt-2" tooltip={activeAgentId ?? "No agent selected"}>
+              {activeAgentId ? compactId(activeAgentId) : "No agent selected"}
+            </MonoId>
           </div>
 
           <div className="grid gap-3 p-4">
@@ -123,7 +130,7 @@ export function SessionWorkbench({
 
         <section className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-hairline bg-surface-1">
           <div className="flex items-center justify-between gap-4 border-b border-hairline p-4">
-            <div>
+            <div className="min-w-0">
               <div className="flex min-w-0 max-w-[52vw] gap-1 text-sm text-ink-tertiary">
                 <TruncatedText>
                   {activeNode?.name ?? activeNode?.hostname ?? "Unknown node"}
@@ -193,34 +200,51 @@ export function SessionWorkbench({
 function EventCard({ event }: { event: SessionEvent }) {
   if (event.type === "file_change") {
     return (
-      <article className="rounded-xl border border-hairline bg-surface-1 p-4">
+      <article className="min-w-0 rounded-xl border border-hairline bg-surface-1 p-4">
         <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-ink-tertiary">
           <FileCode className="h-4 w-4" />
           file change
         </div>
-        <MonoId className="mt-2 text-sm text-ink">{event.path}</MonoId>
+        <MonoId className="mt-2 text-sm text-ink" tooltip={event.path}>
+          {event.path}
+        </MonoId>
       </article>
     );
   }
 
   if (event.type === "tool_call") {
     return (
-      <article className="rounded-xl border border-hairline bg-surface-1 p-4">
+      <article className="min-w-0 rounded-xl border border-hairline bg-surface-1 p-4">
         <div className="text-xs uppercase tracking-wide text-ink-tertiary">
           tool call / {event.status}
         </div>
-        <MonoId className="mt-2 text-sm text-ink">{event.name}</MonoId>
+        <MonoId className="mt-2 text-sm text-ink" tooltip={event.name}>
+          {event.name}
+        </MonoId>
+      </article>
+    );
+  }
+
+  if (event.type === "progress") {
+    return (
+      <article className="min-w-0 rounded-xl border border-hairline bg-surface-1 p-4">
+        <div className="text-xs uppercase tracking-wide text-ink-tertiary">
+          thought
+        </div>
+        <div className="mt-2 whitespace-pre-wrap text-sm leading-7 text-ink-muted">
+          {event.content}
+        </div>
       </article>
     );
   }
 
   if (event.type === "token_usage" || event.type === "run_status") {
     return (
-      <article className="rounded-xl border border-hairline bg-surface-1 p-4">
+      <article className="min-w-0 rounded-xl border border-hairline bg-surface-1 p-4">
         <div className="text-xs uppercase tracking-wide text-ink-tertiary">
           {event.type}
         </div>
-        <pre className="mt-2 overflow-auto text-xs text-ink-muted">
+        <pre className="mt-2 max-w-full overflow-auto text-xs text-ink-muted">
           {JSON.stringify(event, null, 2)}
         </pre>
       </article>
@@ -229,7 +253,7 @@ function EventCard({ event }: { event: SessionEvent }) {
 
   return (
     <article
-      className={`max-w-[82%] rounded-xl border p-4 ${
+      className={`max-w-[min(82%,720px)] overflow-hidden rounded-xl border p-4 ${
         event.type === "user_message"
           ? "justify-self-end border-hairline-strong bg-surface-2"
           : "justify-self-start border-hairline bg-surface-1"
@@ -240,7 +264,7 @@ function EventCard({ event }: { event: SessionEvent }) {
         {" / "}
         {new Date(event.createdAt).toLocaleTimeString()}
       </div>
-      <div className="mt-2 whitespace-pre-wrap text-sm leading-7 text-ink-muted">
+      <div className="mt-2 overflow-hidden whitespace-pre-wrap break-words text-sm leading-7 text-ink-muted">
         {event.content}
       </div>
     </article>
@@ -249,18 +273,22 @@ function EventCard({ event }: { event: SessionEvent }) {
 
 function TunnelBadge({ status }: { status: string }) {
   return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-hairline bg-canvas px-3 py-1 text-xs text-ink-subtle">
+    <Badge className="max-w-36" tooltip={status}>
       <Radio className="h-3.5 w-3.5" />
       {status}
-    </div>
+    </Badge>
   );
 }
 
 function StatusRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-hairline bg-canvas p-3">
+    <div className="min-w-0 rounded-lg border border-hairline bg-canvas p-3">
       <div className="text-xs text-ink-tertiary">{label}</div>
-      <MonoId className="mt-1 text-ink-muted">{value}</MonoId>
+      <MonoId className="mt-1 text-ink-muted" tooltip={value}>
+        {value.includes("/agents/") || value.startsWith("agent_") || value.startsWith("sess_")
+          ? compactId(value, 18, 10)
+          : value}
+      </MonoId>
     </div>
   );
 }
@@ -281,15 +309,15 @@ function SessionErrors({
   const error = messagesError ?? sendError;
 
   return (
-    <div className="flex items-start gap-3 rounded-xl border border-hairline bg-surface-1 p-4 text-sm text-ink-muted">
+    <div className="flex min-w-0 items-start gap-3 rounded-xl border border-hairline bg-surface-1 p-4 text-sm text-ink-muted">
       <AlertCircle className="mt-0.5 h-4 w-4 text-warning" />
-      <div>
+      <div className="min-w-0">
         <div className="font-medium text-ink">Session connection notice</div>
-        <div className="mt-1 font-mono text-xs text-ink-tertiary">
+        <TruncatedText className="mt-1 font-mono text-xs text-ink-tertiary">
           {missingRouteState
             ? "Missing nodeId or agentId. Open a session from the fleet overview to connect both REST and WebSocket."
             : `${error?.name}: ${error?.message}`}
-        </div>
+        </TruncatedText>
       </div>
     </div>
   );
@@ -305,17 +333,4 @@ function queryState(query: { isLoading: boolean; isError: boolean }) {
   }
 
   return "loaded";
-}
-
-function mergeEvents(events: SessionEvent[]) {
-  // REST history and tunnel notifications can overlap. Keep the latest event
-  // per id, then sort chronologically for one stable transcript.
-  const byId = new Map<string, SessionEvent>();
-  for (const event of events) {
-    byId.set(event.id, event);
-  }
-
-  return [...byId.values()].sort(
-    (a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt),
-  );
 }

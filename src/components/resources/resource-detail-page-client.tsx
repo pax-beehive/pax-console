@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { AlertCircle, ArrowLeft, Bot, Server } from "lucide-react";
 import { ConsoleLayout } from "@/components/shell/console-layout";
+import { Badge } from "@/components/ui/badge";
 import { MonoId, TruncatedText } from "@/components/ui/text";
 import {
   useAgentSessions,
@@ -12,6 +13,7 @@ import {
   useNodes,
 } from "@/features/api/resources";
 import { Agent, Node, User } from "@/features/api/types";
+import { compactId } from "@/lib/format";
 
 type NodeDetailPageClientProps = {
   nodeId: string;
@@ -44,7 +46,7 @@ export function NodeDetailPageClient({
         icon={<Server className="h-4 w-4" />}
         title={node?.name ?? node?.hostname ?? nodeId}
       >
-        <div className="grid grid-cols-[minmax(0,1fr)_360px] gap-4">
+        <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
           <DetailCard
             rows={[
               ["Node ID", node?.node_id ?? nodeId],
@@ -64,7 +66,7 @@ export function NodeDetailPageClient({
 
         <section className="grid gap-3">
           <SectionHeader count={agents.length} title="Agents on this node" />
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-3 md:grid-cols-2">
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {agents.map((agent) => (
               <Link
                 className="min-w-0 rounded-xl border border-hairline bg-surface-1 p-4 transition hover:border-hairline-strong hover:bg-surface-2"
@@ -75,11 +77,13 @@ export function NodeDetailPageClient({
                   <TruncatedText className="text-base font-medium">
                     {agent.name ?? agent.agent_type ?? agent.agent_id}
                   </TruncatedText>
-                  <span className="rounded-full border border-hairline px-2 py-0.5 text-xs text-ink-subtle">
+                  <Badge>
                     {agent.status ?? "unknown"}
-                  </span>
+                  </Badge>
                 </div>
-                <MonoId className="mt-3">{agent.agent_id}</MonoId>
+                <MonoId className="mt-3" tooltip={agent.agent_id}>
+                  {compactId(agent.agent_id)}
+                </MonoId>
               </Link>
             ))}
           </div>
@@ -116,7 +120,7 @@ export function AgentDetailPageClient({
           <Notice message="No nodeId is available for this agent. Open an agent from a node or the agents list." />
         )}
 
-        <div className="grid grid-cols-[minmax(0,1fr)_360px] gap-4">
+        <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
           <DetailCard
             rows={[
               ["Agent ID", agent?.agent_id ?? agentId],
@@ -133,7 +137,7 @@ export function AgentDetailPageClient({
 
         <section className="grid gap-3">
           <SectionHeader count={sessions.length} title="Recent sessions" />
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
             {sessions.map((session) => (
               <Link
                 className="min-w-0 rounded-xl border border-hairline bg-surface-1 p-4 transition hover:border-hairline-strong hover:bg-surface-2"
@@ -144,9 +148,9 @@ export function AgentDetailPageClient({
                   <TruncatedText className="text-base font-medium">
                     {session.name ?? session.current_task ?? session.session_id}
                   </TruncatedText>
-                  <span className="rounded-full border border-hairline px-2 py-0.5 text-xs text-ink-subtle">
+                  <Badge>
                     {session.run_status ?? session.status ?? "unknown"}
-                  </span>
+                  </Badge>
                 </div>
                 <TruncatedText className="mt-2 text-sm text-ink-muted">
                   {session.preview ?? session.current_task ?? "Open session"}
@@ -178,7 +182,7 @@ function DetailShell({
   return (
     <div className="grid gap-4 p-5">
       <header className="flex items-center justify-between border-b border-hairline pb-4">
-        <div>
+        <div className="min-w-0">
           <Link
             className="inline-flex items-center gap-2 text-sm text-ink-subtle hover:text-ink"
             href={backHref}
@@ -203,13 +207,17 @@ function DetailShell({
 
 function DetailCard({ rows, title }: { rows: string[][]; title: string }) {
   return (
-    <section className="rounded-xl border border-hairline bg-surface-1 p-4">
+    <section className="min-w-0 rounded-xl border border-hairline bg-surface-1 p-4">
       <h2 className="text-base font-medium">{title}</h2>
       <div className="mt-4 grid gap-3">
         {rows.map(([label, value]) => (
-          <div className="grid grid-cols-[150px_minmax(0,1fr)] gap-4" key={label}>
-            <div className="text-xs text-ink-tertiary">{label}</div>
-            <MonoId className="text-ink-muted">{value}</MonoId>
+          <div className="grid min-w-0 grid-cols-[120px_minmax(0,1fr)] gap-4 sm:grid-cols-[150px_minmax(0,1fr)]" key={label}>
+            <TruncatedText className="text-xs text-ink-tertiary">{label}</TruncatedText>
+            <MonoId className="text-ink-muted" tooltip={value}>
+              {value.startsWith("node_") || value.startsWith("agent_") || value.startsWith("sess_")
+                ? compactId(value)
+                : value}
+            </MonoId>
           </div>
         ))}
       </div>
@@ -219,9 +227,9 @@ function DetailCard({ rows, title }: { rows: string[][]; title: string }) {
 
 function JsonCard({ title, value }: { title: string; value?: unknown }) {
   return (
-    <section className="rounded-xl border border-hairline bg-surface-1 p-4">
+    <section className="min-w-0 rounded-xl border border-hairline bg-surface-1 p-4">
       <h2 className="text-base font-medium">{title}</h2>
-      <pre className="mt-4 max-h-80 overflow-auto rounded-lg border border-hairline bg-canvas p-3 text-xs leading-6 text-ink-muted">
+      <pre className="mt-4 max-h-80 max-w-full overflow-auto rounded-lg border border-hairline bg-canvas p-3 text-xs leading-6 text-ink-muted">
         {JSON.stringify(value ?? {}, null, 2)}
       </pre>
     </section>
@@ -230,22 +238,22 @@ function JsonCard({ title, value }: { title: string; value?: unknown }) {
 
 function SectionHeader({ count, title }: { count: number; title: string }) {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <h2 className="text-base font-medium">{title}</h2>
-      <span className="rounded-full border border-hairline px-2 py-0.5 font-mono text-xs text-ink-subtle">
-        {count}
-      </span>
+    <div className="flex min-w-0 items-center justify-between gap-3">
+      <TruncatedText className="text-base font-medium">{title}</TruncatedText>
+      <Badge className="font-mono">{String(count)}</Badge>
     </div>
   );
 }
 
 function Notice({ message }: { message: string }) {
   return (
-    <div className="flex items-start gap-3 rounded-xl border border-hairline bg-surface-1 p-4 text-sm text-ink-muted">
+    <div className="flex min-w-0 items-start gap-3 rounded-xl border border-hairline bg-surface-1 p-4 text-sm text-ink-muted">
       <AlertCircle className="mt-0.5 h-4 w-4 text-warning" />
-      <div>
+      <div className="min-w-0">
         <div className="font-medium text-ink">Detail request notice</div>
-        <div className="mt-1 font-mono text-xs text-ink-tertiary">{message}</div>
+        <TruncatedText className="mt-1 font-mono text-xs text-ink-tertiary">
+          {message}
+        </TruncatedText>
       </div>
     </div>
   );

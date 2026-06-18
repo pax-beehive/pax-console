@@ -84,7 +84,7 @@ src/components/
   只放 UI 组件和页面组合。组件可以调用 feature hooks，但不要自己拼后端协议细节。
 
 src/components/ui/
-  本地 UI primitives。当前包括 Button、SearchBox、Tooltip、TruncatedText、MonoId。
+  本地 UI primitives。当前包括 Button、Badge、SearchBox、Tooltip、TruncatedText、MonoId。
   当前只把 Radix Tooltip/Slot 作为底层能力使用，还没有全面引入 shadcn 生成组件。
 
 src/components/home/
@@ -120,6 +120,10 @@ UI 约定：
 ```txt
 长 ID / endpoint / file path / API key prefix
   使用 TruncatedText 或 MonoId，hover tooltip 展示完整值。
+  卡片中的 node/agent/session id 可用 src/lib/format.ts 的 compactId 缩短显示，完整值放 tooltip。
+
+status / count pill
+  使用 Badge，避免每个页面手写 rounded-full 并漏掉 truncate/tooltip。
 
 按钮和搜索框
   优先使用 src/components/ui 下的 Button 和 SearchBox，避免每个页面重新手写尺寸。
@@ -277,6 +281,7 @@ ACP initialize / authenticate
 ACP session/new
 ACP session/prompt
 session/update/raw frame -> normalized SessionEvent
+agent_message_chunk / agent_thought_chunk -> streaming event merge
 ```
 
 Session workbench 现在有 composer。发送消息时，组件只调用：
@@ -294,7 +299,35 @@ tunnel.sendUserMessage(paxSessionId, content)
 4. 第一次发送前 session/new，得到 ACP/native session id
 5. 用 ACP/native session id 调 session/prompt
 6. 把 session/update 等通知归一化为 SessionEvent
+7. 给每次 prompt 分配 turn-scoped stream id，把流式 chunk 合并成一条持续增长的消息
 ```
+
+目前已经确认的真实 WebSocket 流式返回形状：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "session/update",
+  "params": {
+    "sessionId": "acp-session-id",
+    "update": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": { "type": "text", "text": "hello" }
+    }
+  }
+}
+```
+
+对应规则：
+
+```txt
+agent_message_chunk -> agent_message, streaming: true
+agent_thought_chunk -> progress, streaming: true
+usage_update        -> token_usage
+session_info_update -> run_status
+```
+
+chunk 合并在 `src/features/runtime/merge-session-events.ts`，不是在 React JSX 里做。组件只渲染归一化后的 SessionEvent。
 
 这里有两个 session，不要混淆：
 
@@ -309,7 +342,7 @@ ACP/native session
 仍待完善：
 
 ```txt
-更精确的 session/update 分型
+更多 ACP session/update 类型覆盖
 中断 / stop 协议
 approval event 和 approvals REST inbox 的联动
 重连后 REST history refetch 补洞

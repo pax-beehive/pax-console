@@ -32,8 +32,9 @@ Hard rules:
 - Keep Cloudflare Access and cookie forwarding inside the Next server route handler.
 - Keep server data in TanStack Query and client-only UI state in Zustand.
 - Keep ACP JSON-RPC isolated in `src/features/runtime/agent-tunnel-runtime.ts`; React components should call runtime methods, not build raw WebSocket frames.
+- Normalize ACP `session/update` frames in `src/features/runtime/normalize-tunnel-frame.ts` and merge streaming chunks in `src/features/runtime/merge-session-events.ts`; do not parse raw `agent_message_chunk` payloads inside React components.
 - Do not confuse PAX Manager sessions with ACP/native sessions. PAX sessions belong to REST/URLs/history; ACP sessions are created by `session/new` inside the runtime.
-- Use `src/components/ui` primitives for buttons, search, tooltip-backed truncation, and monospace IDs. Do not scatter one-off button/search/long-ID Tailwind patterns.
+- Use `src/components/ui` primitives for buttons, badges, search, tooltip-backed truncation, and monospace IDs. Do not scatter one-off button/search/status-pill/long-ID Tailwind patterns.
 - Sidebar collapse is `useConsoleStore().sidebarCollapsed`; keep shell layout flex-based with explicit sidebar width, not dynamic Tailwind grid columns.
 - If you change auth, proxy, API, WebSocket, state ownership, setup, or directory structure, update both:
 

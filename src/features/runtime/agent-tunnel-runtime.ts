@@ -24,6 +24,7 @@ type JsonRpcResponse = {
 };
 
 type PendingRequest = {
+  method: string;
   reject: (error: Error) => void;
   resolve: (value: unknown) => void;
   timeout: number;
@@ -43,6 +44,7 @@ export class AgentTunnelRuntime {
   private socket?: WebSocket;
   private agentId?: string;
   private acpSessionId?: string;
+  private activeStreamId?: string;
   private reconnectAttempts = 0;
   private requestId = 1;
   private shouldReconnect = false;
@@ -118,6 +120,7 @@ export class AgentTunnelRuntime {
   async sendUserMessage(paxSessionId: string, content: string) {
     await this.ensureReady();
     const acpSessionId = await this.ensureAcpSession();
+    this.activeStreamId = `${paxSessionId}:turn:${Date.now()}`;
 
     this.emitEvent({
       type: "user_message",
@@ -127,10 +130,14 @@ export class AgentTunnelRuntime {
       createdAt: new Date().toISOString(),
     });
 
-    await this.request("session/prompt", {
-      sessionId: acpSessionId,
-      prompt: [{ type: "text", text: content }],
-    });
+    try {
+      await this.request("session/prompt", {
+        sessionId: acpSessionId,
+        prompt: [{ type: "text", text: content }],
+      });
+    } finally {
+      this.activeStreamId = undefined;
+    }
   }
 
   subscribe(listener: SessionEventListener) {
@@ -207,7 +214,7 @@ export class AgentTunnelRuntime {
         reject(new Error(`ACP request timed out: ${method}`));
       }, 30_000);
 
-      this.pendingRequests.set(id, { reject, resolve, timeout });
+      this.pendingRequests.set(id, { method, reject, resolve, timeout });
       this.socket?.send(JSON.stringify(frame));
     });
   }
@@ -232,11 +239,21 @@ export class AgentTunnelRuntime {
           return;
         }
 
+        if (pending.method === "session/prompt") {
+          for (const event of normalizeTunnelFrame(frame, {
+            streamId: this.activeStreamId,
+          })) {
+            this.emitEvent(event);
+          }
+        }
+
         pending.resolve(frame.result);
         return;
       }
 
-      for (const event of normalizeTunnelFrame(frame)) {
+      for (const event of normalizeTunnelFrame(frame, {
+        streamId: this.activeStreamId,
+      })) {
         this.emitEvent(event);
       }
     } catch {

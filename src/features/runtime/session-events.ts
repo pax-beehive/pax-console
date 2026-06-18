@@ -19,6 +19,7 @@ export type SessionEvent =
       id: string;
       sessionId: string;
       content: string;
+      streaming?: boolean;
       createdAt: string;
     }
   | {

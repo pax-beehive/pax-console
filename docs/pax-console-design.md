@@ -40,7 +40,7 @@ Lint/Format      ESLint + Prettier
 Package Manager  pnpm
 ```
 
-Current implementation note: the project currently uses local primitives in `src/components/ui` on top of Radix where needed. `Tooltip` uses Radix Tooltip, `Button` uses Radix Slot for composition, and `SearchBox` / `TruncatedText` / `MonoId` are local wrappers. Do not replace these with ad hoc Tailwind copies; if shadcn components are introduced later, adapt these primitives deliberately.
+Current implementation note: the project currently uses local primitives in `src/components/ui` on top of Radix where needed. `Tooltip` uses Radix Tooltip, `Button` uses Radix Slot for composition, and `Badge` / `SearchBox` / `TruncatedText` / `MonoId` are local wrappers. Use `compactId` from `src/lib/format.ts` when node, agent, and session ids should be recognizable but not visually dominant. Do not replace these with ad hoc Tailwind copies; if shadcn components are introduced later, adapt these primitives deliberately.
 
 ### Library Boundaries
 
@@ -490,6 +490,7 @@ export type SessionEvent =
       id: string;
       sessionId: string;
       content: string;
+      streaming?: boolean;
       createdAt: string;
     }
   | {
@@ -558,9 +559,37 @@ Create two normalizers:
 ```txt
 normalizeMailboxMessage(message) -> SessionEvent[]
 normalizeTunnelFrame(frame)      -> SessionEvent[]
+mergeEvents(events)             -> append turn-scoped streaming chunks
 ```
 
 Both return the same UI event type.
+
+Observed ACP streaming frames use this shape:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "session/update",
+  "params": {
+    "sessionId": "acp-session-id",
+    "update": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": { "type": "text", "text": "hello" }
+    }
+  }
+}
+```
+
+Current mapping:
+
+```txt
+params.update.sessionUpdate = agent_message_chunk -> agent_message, streaming
+params.update.sessionUpdate = agent_thought_chunk -> progress, streaming
+params.update.sessionUpdate = usage_update        -> token_usage
+params.update.sessionUpdate = session_info_update -> run_status
+```
+
+The runtime assigns a turn-scoped stream id at `sendUserMessage` time. Chunks for the same turn share an id and `mergeEvents` appends their text. This prevents the workstream from rendering one card per token and prevents future prompts in the same PAX session from appending to the previous turn.
 
 ## Session Experience
 
@@ -719,11 +748,11 @@ Use TanStack Virtual for long session/event/message lists.
 src/features/runtime/
   agent-tunnel-runtime.ts
   tunnel-url.ts
-  tunnel-types.ts
-  acp-frame-types.ts
   normalize-tunnel-frame.ts
   normalize-mailbox-message.ts
   merge-session-events.ts
+  session-events.ts
+  use-agent-tunnel.ts
 ```
 
 The runtime should be framework-light. React hooks can wrap it, but the core tunnel code should not depend on component internals.

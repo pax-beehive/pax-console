@@ -113,6 +113,7 @@ The current runtime files are:
 src/features/runtime/agent-tunnel-runtime.ts
 src/features/runtime/use-agent-tunnel.ts
 src/features/runtime/normalize-tunnel-frame.ts
+src/features/runtime/merge-session-events.ts
 src/features/runtime/session-events.ts
 ```
 
@@ -125,7 +126,26 @@ authenticate, only when initialize returns a usable auth method
 session/new, lazily before the first prompt
 session/prompt, using the ACP/native session id
 session/update notifications -> normalized SessionEvent[]
+agent_message_chunk / agent_thought_chunk -> turn-scoped streaming events
 ```
+
+Actual ACP streaming frames observed from the backend look like:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "session/update",
+  "params": {
+    "sessionId": "acp-session-id",
+    "update": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": { "type": "text", "text": "hello" }
+    }
+  }
+}
+```
+
+`normalizeTunnelFrame` extracts `params.sessionId`, `params.update.sessionUpdate`, and `params.update.content.text`. `AgentTunnelRuntime` assigns a turn-scoped stream id when `sendUserMessage` starts. `merge-session-events.ts` appends chunks with the same stream id so the UI renders one growing message instead of one card per token.
 
 Do not confuse the two session ids:
 
@@ -137,7 +157,7 @@ ACP/native session id
   Created by session/new over WebSocket and kept private inside AgentTunnelRuntime.
 ```
 
-Known gaps are event-shape hardening, interrupt/stop, approval-event linkage, and REST history refetch after reconnect.
+Known gaps are broader ACP event coverage beyond observed text chunks, interrupt/stop, approval-event linkage, and REST history refetch after reconnect.
 
 ## UI Composition Rules
 
@@ -160,7 +180,7 @@ src/components/sessions/*
   session workbench
 
 src/components/ui/*
-  local UI primitives such as Button, SearchBox, Tooltip, TruncatedText
+  local UI primitives such as Button, Badge, SearchBox, Tooltip, TruncatedText
 
 src/features/*
   API, auth, runtime, stateful business boundaries
@@ -168,7 +188,7 @@ src/features/*
 
 Components should not know Cloudflare internals. Components may show errors, but auth/proxy behavior belongs in `features/api` or `app/api/pax`.
 
-Use `src/components/ui/button.tsx` for command buttons, `search-box.tsx` for search inputs, and `text.tsx` for long IDs/names. Agent ids, node ids, session ids, API key prefixes, endpoint paths, and file paths should be truncated with tooltip access to the full value.
+Use `src/components/ui/button.tsx` for command buttons, `badge.tsx` for compact status/count pills, `search-box.tsx` for search inputs, and `text.tsx` for long IDs/names. Agent ids, node ids, session ids, API key prefixes, endpoint paths, and file paths should be truncated with tooltip access to the full value. Prefer `compactId` from `src/lib/format.ts` when an id should be recognizable but not visually dominant.
 
 Sidebar collapsed state is client-only UI state and belongs in `useConsoleStore().sidebarCollapsed`.
 

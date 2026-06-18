@@ -15,6 +15,7 @@ import {
   TerminalSquare,
 } from "lucide-react";
 import { ConsoleLayout } from "@/components/shell/console-layout";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MonoId, TruncatedText } from "@/components/ui/text";
 import {
@@ -33,6 +34,7 @@ import {
 } from "@/features/api/resources";
 import { queryKeys } from "@/features/api/query-keys";
 import { Agent, AgentApproval, AgentSession, Node, User } from "@/features/api/types";
+import { compactId } from "@/lib/format";
 
 type ResourceKind =
   | "nodes"
@@ -117,8 +119,8 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
       user={user}
     >
       <div className="grid gap-4 p-5">
-        <header className="flex items-center justify-between border-b border-hairline pb-4">
-          <div>
+        <header className="flex min-w-0 items-center justify-between border-b border-hairline pb-4">
+          <div className="min-w-0">
             <div className="flex items-center gap-2 text-sm text-ink-tertiary">
               {meta.icon}
               {meta.eyebrow}
@@ -195,7 +197,7 @@ function NodeGrid({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 xl:grid-cols-3 md:grid-cols-2">
+    <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
       {nodes.map((node) => (
         <Link
           className="min-w-0 rounded-xl border border-hairline bg-surface-1 p-4 transition hover:border-hairline-strong hover:bg-surface-2"
@@ -206,13 +208,13 @@ function NodeGrid({
             <TruncatedText className="text-base font-medium">
               {node.name ?? node.hostname ?? node.node_id}
             </TruncatedText>
-            <span className="rounded-full border border-hairline px-2 py-0.5 text-xs text-ink-subtle">
+            <Badge tone={node.online ? "success" : "neutral"}>
               {node.online ? "online" : "offline"}
-            </span>
+            </Badge>
           </div>
           <div className="mt-3 grid min-w-0 gap-1">
             <MonoId>{node.os ?? "unknown os"} / {node.arch ?? "unknown arch"}</MonoId>
-            <MonoId>{node.node_id}</MonoId>
+            <MonoId tooltip={node.node_id}>{compactId(node.node_id)}</MonoId>
           </div>
         </Link>
       ))}
@@ -240,7 +242,7 @@ function AgentGrid({
         <span className="shrink-0">Active node:&nbsp;</span>
         <TruncatedText>{nodeLabel ?? "No node selected"}</TruncatedText>
       </div>
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3 md:grid-cols-2">
+      <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         {agents.map((agent) => (
           <Link
             className="min-w-0 rounded-xl border border-hairline bg-surface-1 p-4 transition hover:border-hairline-strong hover:bg-surface-2"
@@ -251,11 +253,13 @@ function AgentGrid({
               <TruncatedText className="text-base font-medium">
                 {agent.name ?? agent.agent_type ?? agent.agent_id}
               </TruncatedText>
-              <span className="rounded-full border border-hairline px-2 py-0.5 text-xs text-ink-subtle">
+              <Badge>
                 {agent.status ?? "unknown"}
-              </span>
+              </Badge>
             </div>
-            <MonoId className="mt-3">{agent.agent_id}</MonoId>
+            <MonoId className="mt-3" tooltip={agent.agent_id}>
+              {compactId(agent.agent_id)}
+            </MonoId>
           </Link>
         ))}
         {agents.length === 0 && <EmptyState label="No agents on active node" />}
@@ -276,7 +280,7 @@ function SessionGrid({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+    <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
       {sessions.map((session) => (
         <Link
           className="min-w-0 rounded-xl border border-hairline bg-surface-1 p-4 transition hover:border-hairline-strong hover:bg-surface-2"
@@ -287,14 +291,16 @@ function SessionGrid({
             <TruncatedText className="text-base font-medium">
               {session.name ?? session.current_task ?? session.session_id}
             </TruncatedText>
-            <span className="rounded-full border border-hairline px-2 py-0.5 text-xs text-ink-subtle">
+            <Badge>
               {session.run_status ?? session.status ?? "unknown"}
-            </span>
+            </Badge>
           </div>
           <TruncatedText className="mt-2 text-sm text-ink-muted">
             {session.preview ?? session.current_task ?? "Open session"}
           </TruncatedText>
-          <MonoId className="mt-3">{session.session_id}</MonoId>
+          <MonoId className="mt-3" tooltip={session.session_id}>
+            {compactId(session.session_id)}
+          </MonoId>
         </Link>
       ))}
       {sessions.length === 0 && <EmptyState label="No sessions on active agent" />}
@@ -319,7 +325,7 @@ function MonitorPanel({
   const activeAgents = agents.filter((agent) => agent.online || agent.status === "online").length;
 
   return (
-    <div className="grid grid-cols-4 gap-4">
+    <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <Metric
         label="PAX Manager"
         value={isHealthLoading ? "..." : health?.status ?? "unknown"}
@@ -345,8 +351,8 @@ function NodeRegistrationPanel({ userId }: { userId: string }) {
   return (
     <div className="grid gap-4">
       <section className="rounded-xl border border-hairline bg-surface-1 p-4">
-        <div className="flex items-end gap-3">
-          <label className="grid w-56 gap-2 text-sm text-ink-muted">
+        <div className="flex min-w-0 flex-wrap items-end gap-3">
+          <label className="grid w-56 max-w-full gap-2 text-sm text-ink-muted">
             TTL seconds
             <input
               className="min-h-9 rounded-lg border border-hairline bg-canvas px-3 font-mono text-sm text-ink"
@@ -380,7 +386,7 @@ function NodeRegistrationPanel({ userId }: { userId: string }) {
           <div className="text-sm font-medium text-ink">
             Copy this registration token now. It is one-time use.
           </div>
-          <div className="mt-3 break-all font-mono text-xs leading-6 text-ink-muted">
+          <div className="mt-3 max-h-40 overflow-auto break-all rounded-lg border border-hairline bg-canvas p-3 font-mono text-xs leading-6 text-ink-muted">
             {createdToken.token}
           </div>
           <div className="mt-3 font-mono text-xs text-ink-tertiary">
@@ -439,7 +445,7 @@ function ApprovalsPanel({
   const activeGrants = grants.filter((grant) => !grant.grant_revoked_at);
 
   return (
-    <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)] gap-4">
+    <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)]">
       <section className="grid gap-3">
         <SectionHeader
           count={pendingApprovals.length}
@@ -447,10 +453,10 @@ function ApprovalsPanel({
         />
         {pendingApprovals.map((approval) => (
           <article
-            className="rounded-xl border border-hairline bg-surface-1 p-4"
+            className="min-w-0 rounded-xl border border-hairline bg-surface-1 p-4"
             key={approval.approval_id}
           >
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex min-w-0 items-start justify-between gap-4">
               <div className="min-w-0">
                 <TruncatedText className="text-base font-medium">
                   {approval.title ?? approval.operation ?? approval.approval_id}
@@ -459,13 +465,26 @@ function ApprovalsPanel({
                   {approval.description ?? "No description provided."}
                 </p>
               </div>
-              <span className="rounded-full border border-hairline px-2 py-0.5 text-xs text-ink-subtle">
+              <Badge>
                 {approval.risk_level ?? approval.status ?? "pending"}
-              </span>
+              </Badge>
             </div>
             <div className="mt-3 grid min-w-0 gap-1">
-              <MonoId>{approval.domain ?? "unknown domain"} / {approval.operation ?? "unknown operation"}</MonoId>
-              <MonoId>{approval.resource_type ?? "resource"}: {approval.resource_ref ?? "unknown"}</MonoId>
+              <MonoId
+                tooltip={`${approval.domain ?? "unknown domain"} / ${
+                  approval.operation ?? "unknown operation"
+                }`}
+              >
+                {approval.domain ?? "unknown domain"} / {approval.operation ?? "unknown operation"}
+              </MonoId>
+              <MonoId
+                tooltip={`${approval.resource_type ?? "resource"}: ${
+                  approval.resource_ref ?? "unknown"
+                }`}
+              >
+                {approval.resource_type ?? "resource"}:{" "}
+                {approval.resource_ref ? compactId(approval.resource_ref) : "unknown"}
+              </MonoId>
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
               {approvalOptions(approval).map((option) => (
@@ -498,7 +517,7 @@ function ApprovalsPanel({
         <SectionHeader count={activeGrants.length} title="Active grants" />
         {activeGrants.map((grant) => (
           <article
-            className="rounded-xl border border-hairline bg-surface-1 p-4"
+            className="min-w-0 rounded-xl border border-hairline bg-surface-1 p-4"
             key={grant.approval_id}
           >
             <TruncatedText className="text-sm font-medium">
@@ -506,7 +525,11 @@ function ApprovalsPanel({
             </TruncatedText>
             <div className="mt-2 grid min-w-0 gap-1">
               <MonoId>{grant.decision_scope ?? "scope unknown"}</MonoId>
-              <MonoId>{grant.grant_agent_id ?? grant.request_agent_id ?? "agent unknown"}</MonoId>
+              <MonoId
+                tooltip={grant.grant_agent_id ?? grant.request_agent_id ?? "agent unknown"}
+              >
+                {compactId(grant.grant_agent_id ?? grant.request_agent_id ?? "agent unknown")}
+              </MonoId>
             </div>
             <Button
               className="mt-3"
@@ -559,7 +582,7 @@ function ApiKeysPanel({
   return (
     <div className="grid gap-4">
       <section className="rounded-xl border border-hairline bg-surface-1 p-4">
-        <div className="flex items-end gap-3">
+        <div className="flex min-w-0 flex-wrap items-end gap-3">
           <label className="grid flex-1 gap-2 text-sm text-ink-muted">
             Key name
             <input
@@ -569,7 +592,7 @@ function ApiKeysPanel({
             />
           </label>
           <Button
-            className="max-w-32"
+            className="min-w-36"
             disabled={createKey.isPending}
             icon={<Plus className="h-4 w-4" />}
             onClick={() => createKey.mutate()}
@@ -585,7 +608,7 @@ function ApiKeysPanel({
             <div className="text-sm font-medium text-ink">
               Copy this key now. It will not be shown again.
             </div>
-            <div className="mt-2 break-all font-mono text-xs text-ink-muted">
+            <div className="mt-2 max-h-32 overflow-auto break-all rounded-md border border-hairline bg-surface-1 p-2 font-mono text-xs text-ink-muted">
               {createdSecret}
             </div>
           </div>
@@ -596,15 +619,15 @@ function ApiKeysPanel({
         <SectionHeader count={apiKeys.length} title="Existing keys" />
         {apiKeys.map((apiKey) => (
           <article
-            className="flex items-center justify-between gap-4 rounded-xl border border-hairline bg-surface-1 p-4"
+            className="flex min-w-0 items-center justify-between gap-4 rounded-xl border border-hairline bg-surface-1 p-4"
             key={apiKey.key_id}
           >
             <div className="min-w-0 flex-1">
               <TruncatedText className="text-sm font-medium">
                 {apiKey.name ?? apiKey.key_id}
               </TruncatedText>
-              <MonoId className="mt-1">
-                {apiKey.prefix ?? apiKey.key_id}
+              <MonoId className="mt-1" tooltip={apiKey.key_id}>
+                {apiKey.prefix ?? compactId(apiKey.key_id)}
               </MonoId>
             </div>
             <Button
@@ -626,11 +649,9 @@ function ApiKeysPanel({
 
 function SectionHeader({ count, title }: { count: number; title: string }) {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <h2 className="text-base font-medium">{title}</h2>
-      <span className="rounded-full border border-hairline px-2 py-0.5 font-mono text-xs text-ink-subtle">
-        {count}
-      </span>
+    <div className="flex min-w-0 items-center justify-between gap-3">
+      <TruncatedText className="text-base font-medium">{title}</TruncatedText>
+      <Badge className="font-mono">{String(count)}</Badge>
     </div>
   );
 }
@@ -653,9 +674,11 @@ function approvalOptions(approval: AgentApproval) {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-hairline bg-surface-1 p-5">
+    <div className="min-w-0 rounded-xl border border-hairline bg-surface-1 p-5">
       <div className="text-xs text-ink-tertiary">{label}</div>
-      <div className="mt-2 font-mono text-3xl text-ink">{value}</div>
+      <TruncatedText className="mt-2 font-mono text-3xl text-ink">
+        {value}
+      </TruncatedText>
     </div>
   );
 }
@@ -674,13 +697,13 @@ function ApiNotice({ error }: { error: Error | null }) {
   }
 
   return (
-    <div className="flex items-start gap-3 rounded-xl border border-hairline bg-surface-1 p-4 text-sm text-ink-muted">
+    <div className="flex min-w-0 items-start gap-3 rounded-xl border border-hairline bg-surface-1 p-4 text-sm text-ink-muted">
       <AlertCircle className="mt-0.5 h-4 w-4 text-warning" />
-      <div>
+      <div className="min-w-0">
         <div className="font-medium text-ink">API request failed</div>
-        <div className="mt-1 font-mono text-xs text-ink-tertiary">
+        <TruncatedText className="mt-1 font-mono text-xs text-ink-tertiary">
           {error.name}: {error.message}
-        </div>
+        </TruncatedText>
       </div>
     </div>
   );
