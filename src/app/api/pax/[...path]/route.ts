@@ -33,21 +33,22 @@ async function proxyPaxRequest(request: NextRequest, context: RouteContext) {
   const targetUrl = new URL(`/${path.join("/")}`, PAX_MANAGER_URL);
   targetUrl.search = request.nextUrl.search;
 
-  // Local dev runs the browser at console.paxtech.net but keeps backend calls
-  // same-origin through this route. Cloudflare's Access cookie is HttpOnly, so
-  // the browser cannot manually pass it to app.paxtech.net; the server proxy can
-  // read the incoming cookie and forward it on the upstream request.
+  // In production, Cloudflare Access passes the verified user JWT to the
+  // origin as a header. Local or tunnel-based development can still use a
+  // CF_Authorization cookie, with PAX_CF_AUTHORIZATION as a server-side escape
+  // hatch for cases where the browser cannot send that cookie to this origin.
+  const accessJwt = request.headers.get("Cf-Access-Jwt-Assertion");
   const cfAuthorization =
     process.env.PAX_CF_AUTHORIZATION ??
     request.cookies.get("CF_Authorization")?.value;
 
-  if (!cfAuthorization) {
+  if (!accessJwt && !cfAuthorization) {
     return NextResponse.json(
       {
         code: 401,
         data: {},
         message:
-          "Missing PAX_CF_AUTHORIZATION for local dev proxy. Set it in .env.local or run the app on the Cloudflare-protected domain.",
+          "Missing Cloudflare Access identity. Expected Cf-Access-Jwt-Assertion from Cloudflare Access or CF_Authorization/PAX_CF_AUTHORIZATION for local development.",
       },
       { status: 401 },
     );
@@ -56,9 +57,14 @@ async function proxyPaxRequest(request: NextRequest, context: RouteContext) {
   const headers = new Headers(request.headers);
   headers.delete("host");
   headers.delete("content-length");
-  // Preserve the user Access session for pax-manager. In CI or token-based
-  // local testing, PAX_CF_AUTHORIZATION can override the browser cookie.
-  headers.set("cookie", `CF_Authorization=${cfAuthorization}`);
+  // Preserve the user Access identity for pax-manager. The JWT header is the
+  // production path; the cookie path keeps local development working.
+  if (accessJwt) {
+    headers.set("Cf-Access-Jwt-Assertion", accessJwt);
+  }
+  if (cfAuthorization) {
+    headers.set("cookie", `CF_Authorization=${cfAuthorization}`);
+  }
 
   const response = await fetch(targetUrl, {
     body: request.method === "GET" ? undefined : await request.arrayBuffer(),
