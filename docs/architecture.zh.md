@@ -210,6 +210,32 @@ Cache-Control: no-store, max-age=0
 
 这只影响开发期静态 chunk 缓存，不改变 PAX API 的数据缓存策略。
 
+## Cloud Run 部署
+
+生产部署推荐使用 Cloud Run 承载 Dockerized Next.js 服务，Cloudflare 继续负责
+`console.paxtech.net` 的 DNS、HTTPS、Access 和入口防护。
+
+当前根目录 `Dockerfile` 使用 Next.js standalone output：
+
+```txt
+next.config.ts output: "standalone"
+pnpm build
+node .next/standalone/server.js
+PORT=8080
+```
+
+Cloud Run 环境变量应保持：
+
+```txt
+NEXT_PUBLIC_PAX_API_BASE_URL=/api/pax
+NEXT_PUBLIC_PAX_USER_SCOPE=self
+PAX_MANAGER_URL=https://app.paxtech.net
+```
+
+生产环境不要固定设置 `PAX_CF_AUTHORIZATION`。浏览器应先经过 Cloudflare
+Access 访问 `console.paxtech.net`，Next route handler 再读取请求中的
+`CF_Authorization` cookie 并转发给 PAX Manager。
+
 ## 当前可交互路由
 
 Sidebar tabs 已经是实际路由，不再是纯视觉占位：

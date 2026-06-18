@@ -57,6 +57,25 @@ https://console.paxtech.net
 
 not bare `http://localhost:3000`, unless the user asks for localhost-specific debugging.
 
+## Cloud Run Deployment
+
+Production is expected to run as a Dockerized Next.js service on Cloud Run,
+usually created with Cloud Run "Connect repository" against the GitHub repo.
+The root `Dockerfile` builds `next.config.ts` with `output: "standalone"` and
+runs the generated `.next/standalone/server.js` on `PORT=8080`.
+
+Expected Cloud Run env:
+
+```txt
+NEXT_PUBLIC_PAX_API_BASE_URL=/api/pax
+NEXT_PUBLIC_PAX_USER_SCOPE=self
+PAX_MANAGER_URL=https://app.paxtech.net
+```
+
+Do not set `PAX_CF_AUTHORIZATION` as a production fixed secret. Production
+should receive the user's Cloudflare Access cookie at `console.paxtech.net` and
+forward it through the same-origin `/api/pax` proxy.
+
 ## State Ownership
 
 TanStack Query owns server data:

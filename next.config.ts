@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["console.paxtech.net"],
+  output: "standalone",
   async headers() {
     return [
       {

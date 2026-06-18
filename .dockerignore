@@ -1,0 +1,12 @@
+.env
+.env*.local
+.git
+.next
+node_modules
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+Dockerfile
+README.md
+tsconfig.tsbuildinfo
