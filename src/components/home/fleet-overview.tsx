@@ -12,7 +12,7 @@ import {
   useNodes,
 } from "@/features/api/resources";
 import { queryKeys } from "@/features/api/query-keys";
-import { User } from "@/features/api/types";
+import { Agent, Node, User } from "@/features/api/types";
 import { compactId } from "@/lib/format";
 
 type FleetOverviewProps = {
@@ -24,7 +24,11 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   // agent sessions. For now "active" means the first available item; the
   // Zustand store is already in place for explicit selection once the UI needs it.
   const nodesQuery = useNodes(user.user_id);
-  const nodes = nodesQuery.data?.nodes ?? [];
+  const nodes = sortOnlineFirst(
+    nodesQuery.data?.nodes ?? [],
+    (node) => node.online,
+    (node) => node.name ?? node.hostname ?? node.node_id,
+  );
   const agentQueries = useQueries({
     queries: nodes.map((node) => ({
       queryKey: queryKeys.agents(user.user_id, node.node_id),
@@ -32,7 +36,11 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       enabled: Boolean(user.user_id && node.node_id),
     })),
   });
-  const agents = agentQueries.flatMap((query) => query.data?.agents ?? []);
+  const agents = sortOnlineFirst(
+    agentQueries.flatMap((query) => query.data?.agents ?? []),
+    (agent) => agent.online,
+    (agent) => agent.name ?? agent.agent_type ?? agent.agent_id,
+  );
   const activeAgent = agents[0];
   const activeNode =
     nodes.find((node) => node.node_id === activeAgent?.node_id) ?? nodes[0];
@@ -113,7 +121,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                     </TruncatedText>
                     <CircleDot
                       className={`h-3 w-3 ${
-                        node.online ? "text-success" : "text-ink-tertiary"
+                        node.online ? "fill-success text-success" : "text-ink-tertiary"
                       }`}
                     />
                   </div>
@@ -138,7 +146,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                     <TruncatedText className="text-sm font-medium">
                       {agent.name ?? agent.agent_type ?? agent.agent_id}
                     </TruncatedText>
-                    <Badge>{agent.status ?? "unknown"}</Badge>
+                    <Badge tone={agent.online ? "success" : "neutral"}>
+                      {agent.online ? "online" : agent.status ?? "unknown"}
+                    </Badge>
                   </div>
                   <MonoId className="mt-1" tooltip={agent.agent_id}>
                     {compactId(agent.agent_id)}
@@ -246,4 +256,19 @@ function loadingValue(isLoading: boolean, value: number) {
 
 function firstQueryError(queries: Array<{ error: Error | null }>) {
   return queries.find((query) => query.error)?.error ?? null;
+}
+
+function sortOnlineFirst<T extends Agent | Node>(
+  items: T[],
+  isOnline: (item: T) => boolean | undefined,
+  label: (item: T) => string,
+) {
+  return [...items].sort((a, b) => {
+    const onlineDiff = Number(Boolean(isOnline(b))) - Number(Boolean(isOnline(a)));
+    if (onlineDiff !== 0) {
+      return onlineDiff;
+    }
+
+    return label(a).localeCompare(label(b));
+  });
 }
