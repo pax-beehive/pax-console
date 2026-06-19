@@ -16,7 +16,7 @@ export function AuthGate({ children }: AuthGateProps) {
   if (currentUser.isLoading) {
     return (
       <div className="grid min-h-screen place-items-center bg-canvas text-ink">
-        <div className="rounded-xl border border-hairline bg-surface-1 p-5">
+        <div className="rounded-lg border border-hairline bg-surface-1 p-5">
           <div className="text-sm text-ink-muted">Checking PAX access...</div>
         </div>
       </div>
@@ -26,7 +26,7 @@ export function AuthGate({ children }: AuthGateProps) {
   if (currentUser.isError || !currentUser.data) {
     return (
       <div className="grid min-h-screen place-items-center bg-canvas p-6 text-ink">
-        <section className="w-full max-w-xl rounded-xl border border-hairline bg-surface-1 p-6">
+        <section className="w-full max-w-xl rounded-lg border border-hairline bg-surface-1 p-6">
           <div className="text-sm font-medium text-ink-subtle">
             Cloudflare Access
           </div>
@@ -42,7 +42,7 @@ export function AuthGate({ children }: AuthGateProps) {
             {formatAuthError(currentUser.error)}
           </div>
           <a
-            className="mt-5 inline-flex min-h-9 items-center rounded-lg border border-primary bg-primary px-3 text-sm font-medium text-white"
+            className="mt-5 inline-flex min-h-9 items-center rounded-lg border border-primary bg-primary px-3 text-sm font-medium text-canvas hover:bg-primary-hover"
             href={API_BASE_URL}
           >
             Open PAX app

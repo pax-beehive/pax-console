@@ -38,7 +38,7 @@ export function Topbar({ user, nodes, activeNode, activeAgent }: TopbarProps) {
   });
 
   return (
-    <header className="flex h-14 min-w-0 items-center justify-between gap-4 border-b border-hairline bg-canvas/90 px-5 backdrop-blur">
+    <header className="flex h-12 min-w-0 items-center justify-between gap-4 border-b border-hairline bg-canvas/95 px-4 backdrop-blur">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <Button
           className="max-w-52"
@@ -49,8 +49,8 @@ export function Topbar({ user, nodes, activeNode, activeAgent }: TopbarProps) {
           {activeNode?.name ?? activeNode?.hostname ?? `${nodes.length} nodes`}
         </Button>
         <SearchBox
-          className="w-full max-w-[360px]"
-          placeholder="Search agents, sessions, tool calls"
+          className="w-full max-w-[340px]"
+          placeholder="Search threads and resources"
         />
       </div>
       <div className="flex min-w-0 items-center gap-3">

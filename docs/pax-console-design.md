@@ -91,17 +91,94 @@ Do not use ahooks as a second global API cache. Shared API data belongs in TanSt
 
 ## Visual Direction
 
-The visual design follows the existing prototype:
+The visual design should feel closer to the Codex desktop app in dark mode
+than to a generic AI dashboard. PAX Console is a working surface for agent
+sessions, review, approvals, logs, and live tunnel state. It should feel native,
+quiet, compact, and evidence-first.
 
 ```txt
-Tone             dark console, restrained, dense
-References       Linear, Vercel Dashboard, Raycast, modern devtools
-Layout           sidebar + topbar + workbench content
+Tone             dark native workbench, restrained, dense, reviewable
+References       Codex app dark mode, modern devtools, terminal-adjacent IDE panes
+Layout           sidebar + topbar + split workbench panes
 Component size   compact
 Radius           mostly 4 / 6 / 8 / 12px
-Color            black canvas, layered dark surfaces, indigo accent
+Color            neutral black/gray canvas, light hairlines, sparse accent
 Typography       Inter/SF style sans, JetBrains/SF Mono for technical text
 ```
+
+Avoid the common AI/SaaS dashboard pattern:
+
+```txt
+large marketing hero
+three KPI cards as the primary page shape
+rounded card grids for every resource group
+purple/indigo gradients as the main brand signal
+decorative glow/orb/backdrop effects
+status pills on ordinary metadata
+```
+
+Prefer a Codex-like workbench pattern:
+
+```txt
+thread-centered session surfaces
+compact resource rows
+split panes for context / workstream / evidence
+timelines for live events and mailbox history
+diff/log/file/approval panels for verifiable output
+composer-first interaction in session views
+hairlines, indentation, and typography over boxed sections
+```
+
+### Component Style Rules
+
+Use cards sparingly. A card is appropriate for a selectable entity, a modal, a
+small repeated item, or a self-contained tool. Page sections should usually be
+unframed panes, lists, timelines, or full-width workbench regions rather than
+floating rounded cards.
+
+Use grids for layout, not as the product metaphor. A two- or three-pane
+workbench layout is good. A dashboard made of equal-weight metric cards is not
+the default shape for Home, Sessions, Monitor, or Approvals.
+
+Prefer rows over cards for nodes, agents, sessions, API keys, approvals, and
+mailbox messages unless the item needs rich multi-line content. A good row
+shape is:
+
+```txt
+icon/status + primary name + muted metadata + trailing status/action
+```
+
+Use badges only for state that needs scanning or action:
+
+```txt
+connected
+running
+failed
+approval required
+revoked
+offline
+```
+
+Ordinary metadata such as ids, paths, timestamps, counts, endpoint names, and
+resource types should usually be muted text or monospace text, with tooltip
+access for full values.
+
+Session views should treat the composer as a primary control, similar to Codex.
+The surrounding UI should help the user understand:
+
+```txt
+which node and agent are active
+whether REST history is loaded
+whether the WebSocket tunnel is live
+what the agent is doing now
+what evidence exists: files, logs, approvals, diffs, token usage
+```
+
+Copy should be specific and operational. Avoid generic AI-control-plane
+language when a concrete engineering label is available. For example, prefer
+`Tunnel connected`, `3 files changed`, `Waiting for approval`, or
+`No sessions on this agent` over broad phrasing such as `Observe and steer
+agent work`.
 
 Design tokens should be implemented as CSS variables first, then exposed through Tailwind.
 

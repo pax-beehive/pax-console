@@ -123,14 +123,22 @@ UI 约定：
   卡片中的 node/agent/session id 可用 src/lib/format.ts 的 compactId 缩短显示，完整值放 tooltip。
 
 status / count pill
-  使用 Badge，避免每个页面手写 rounded-full 并漏掉 truncate/tooltip。
+  使用 Badge 表示需要扫读或行动的状态，例如 connected / running / failed / approval required / revoked / offline。
+  普通 metadata、数量、路径、endpoint、resource type 优先用 muted text 或 MonoId，不要都做成 pill。
 
 按钮和搜索框
   优先使用 src/components/ui 下的 Button 和 SearchBox，避免每个页面重新手写尺寸。
 
+整体界面风格
+  走 Codex-like dark workbench，而不是通用 dashboard。
+  优先使用 split panes、compact rows、timeline、evidence panel。
+  避免大 hero、KPI-card grid、每个 section 都套 rounded card、紫/蓝渐变装饰。
+  Cards 只用于可选择实体、modal、独立工具或确实需要框住的复杂内容。
+
 Sidebar 折叠
   使用 Zustand 的 sidebarCollapsed，不要放进 URL 或服务端数据。
   ConsoleLayout 使用 flex；Sidebar 自己用 width: 248/76px 控制展开/收起，并带 overflow-hidden。
+  Sidebar 自身使用安静的 surface、分隔线式 node context、compact nav rows。
   不要用动态 Tailwind grid-cols-[...] 字符串控制主布局列宽，容易被 dev cache / class 扫描影响。
 ```
 

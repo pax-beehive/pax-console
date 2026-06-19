@@ -15,13 +15,13 @@ type ButtonProps = ComponentPropsWithoutRef<"button"> & {
 
 const variants = {
   primary:
-    "border-primary bg-primary text-white hover:bg-primary-hover disabled:border-hairline disabled:bg-surface-2 disabled:text-ink-tertiary",
+    "border-primary bg-primary text-canvas hover:bg-primary-hover disabled:border-hairline disabled:bg-surface-2 disabled:text-ink-tertiary",
   secondary:
-    "border-hairline bg-canvas text-ink-muted hover:border-hairline-strong hover:bg-surface-1 hover:text-ink",
+    "border-hairline bg-surface-1 text-ink-muted hover:border-hairline-strong hover:bg-surface-2 hover:text-ink",
   ghost:
-    "border-transparent bg-transparent text-ink-subtle hover:bg-surface-1 hover:text-ink",
+    "border-transparent bg-transparent text-ink-subtle hover:bg-surface-2 hover:text-ink",
   danger:
-    "border-hairline bg-canvas text-ink-muted hover:border-warning hover:text-ink",
+    "border-hairline bg-surface-1 text-ink-muted hover:border-warning hover:text-ink",
 };
 
 const sizes = {

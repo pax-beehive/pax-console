@@ -92,8 +92,8 @@ export function SessionWorkbench({
       nodes={nodes}
       user={user}
     >
-      <div className="grid min-h-[calc(100vh-56px)] min-w-0 gap-4 p-5 lg:grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="min-w-0 rounded-xl border border-hairline bg-surface-1">
+      <div className="grid min-h-[calc(100vh-48px)] min-w-0 lg:grid-cols-[260px_minmax(0,1fr)_300px]">
+        <aside className="min-w-0 border-b border-hairline bg-surface-1 lg:border-b-0 lg:border-r">
           <div className="border-b border-hairline p-4">
             <Link
               className="inline-flex items-center gap-2 text-sm text-ink-subtle hover:text-ink"
@@ -110,26 +110,24 @@ export function SessionWorkbench({
             </MonoId>
           </div>
 
-          <div className="grid gap-3 p-4">
-            <StatusRow label="REST messages" value={queryState(messagesQuery)} />
-            <StatusRow label="WebSocket tunnel" value={tunnel.status} />
-            <StatusRow
-              label="Endpoint"
-              value={
-                activeAgentId
-                  ? `/api/v1/user/self/agents/${activeAgentId}/tunnel`
-                  : "waiting for agent"
-              }
+          <div className="grid gap-0 p-4">
+            <ContextRow
+              label="Node"
+              value={activeNode?.name ?? activeNode?.hostname ?? "unknown"}
             />
-            <StatusRow
+            <ContextRow
               label="Agent"
               value={activeAgent?.name ?? activeAgent?.agent_type ?? "unknown"}
+            />
+            <ContextRow
+              label="Session"
+              value={compactId(sessionId)}
             />
           </div>
         </aside>
 
-        <section className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-hairline bg-surface-1">
-          <div className="flex items-center justify-between gap-4 border-b border-hairline p-4">
+        <section className="flex min-w-0 flex-col overflow-hidden bg-canvas">
+          <div className="flex items-center justify-between gap-4 border-b border-hairline bg-surface-1 px-4 py-3">
             <div className="min-w-0">
               <div className="flex min-w-0 max-w-[52vw] gap-1 text-sm text-ink-tertiary">
                 <TruncatedText>
@@ -140,12 +138,12 @@ export function SessionWorkbench({
                   {activeAgent?.name ?? activeAgentId ?? "Unknown agent"}
                 </TruncatedText>
               </div>
-              <div className="mt-1 text-xl font-medium">Session workstream</div>
+              <div className="mt-1 text-lg font-medium">Workstream</div>
             </div>
             <TunnelBadge status={tunnel.status} />
           </div>
 
-          <div className="flex-1 overflow-auto bg-canvas p-5">
+          <div className="flex-1 overflow-auto bg-canvas p-4">
             <div className="mx-auto grid w-full max-w-4xl gap-4">
               <SessionErrors
                 messagesError={messagesQuery.error}
@@ -156,21 +154,20 @@ export function SessionWorkbench({
                 <EventCard event={event} key={event.id} />
               ))}
               {!messagesQuery.isLoading && timeline.length === 0 && (
-                <div className="rounded-xl border border-dashed border-hairline bg-surface-1 p-5 text-sm text-ink-tertiary">
-                  No historical messages yet. If the WebSocket connects, live
-                  tunnel events will appear here.
+                <div className="rounded-lg border border-dashed border-hairline bg-surface-1 p-4 text-sm text-ink-tertiary">
+                  No messages yet. Live tunnel events will appear here.
                 </div>
               )}
             </div>
           </div>
 
           <form
-            className="border-t border-hairline bg-surface-1 p-4"
+            className="border-t border-hairline bg-surface-1 p-3"
             onSubmit={handleSubmit}
           >
             <div className="mx-auto flex w-full max-w-4xl items-end gap-3">
               <textarea
-                className="min-h-20 flex-1 resize-none rounded-lg border border-hairline bg-canvas px-3 py-2 text-sm leading-6 text-ink outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20"
+                className="min-h-20 flex-1 resize-none rounded-lg border border-hairline bg-canvas px-3 py-2 text-sm leading-6 text-ink outline-none transition focus:border-primary-focus focus:ring-2 focus:ring-primary-focus/20"
                 disabled={!activeAgentId}
                 onChange={(event) => setDraft(event.target.value)}
                 placeholder={
@@ -192,6 +189,31 @@ export function SessionWorkbench({
             </div>
           </form>
         </section>
+
+        <aside className="min-w-0 border-t border-hairline bg-surface-1 lg:border-l lg:border-t-0">
+          <div className="border-b border-hairline p-4">
+            <div className="text-sm font-medium text-ink">Evidence</div>
+            <div className="mt-1 text-xs text-ink-tertiary">
+              REST history and tunnel state
+            </div>
+          </div>
+          <div className="grid gap-0 p-4">
+            <StatusRow label="REST messages" value={queryState(messagesQuery)} />
+            <StatusRow label="WebSocket tunnel" value={tunnel.status} />
+            <StatusRow
+              label="Endpoint"
+              value={
+                activeAgentId
+                  ? `/api/v1/user/self/agents/${activeAgentId}/tunnel`
+                  : "waiting for agent"
+              }
+            />
+            <StatusRow
+              label="Timeline events"
+              value={String(timeline.length)}
+            />
+          </div>
+        </aside>
       </div>
     </ConsoleLayout>
   );
@@ -200,7 +222,7 @@ export function SessionWorkbench({
 function EventCard({ event }: { event: SessionEvent }) {
   if (event.type === "file_change") {
     return (
-      <article className="min-w-0 rounded-xl border border-hairline bg-surface-1 p-4">
+      <article className="min-w-0 rounded-lg border border-hairline bg-surface-1 p-3">
         <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-ink-tertiary">
           <FileCode className="h-4 w-4" />
           file change
@@ -214,7 +236,7 @@ function EventCard({ event }: { event: SessionEvent }) {
 
   if (event.type === "tool_call") {
     return (
-      <article className="min-w-0 rounded-xl border border-hairline bg-surface-1 p-4">
+      <article className="min-w-0 rounded-lg border border-hairline bg-surface-1 p-3">
         <div className="text-xs uppercase tracking-wide text-ink-tertiary">
           tool call / {event.status}
         </div>
@@ -227,7 +249,7 @@ function EventCard({ event }: { event: SessionEvent }) {
 
   if (event.type === "progress") {
     return (
-      <article className="min-w-0 rounded-xl border border-hairline bg-surface-1 p-4">
+      <article className="min-w-0 rounded-lg border border-hairline bg-surface-1 p-3">
         <div className="text-xs uppercase tracking-wide text-ink-tertiary">
           thought
         </div>
@@ -240,7 +262,7 @@ function EventCard({ event }: { event: SessionEvent }) {
 
   if (event.type === "token_usage" || event.type === "run_status") {
     return (
-      <article className="min-w-0 rounded-xl border border-hairline bg-surface-1 p-4">
+      <article className="min-w-0 rounded-lg border border-hairline bg-surface-1 p-3">
         <div className="text-xs uppercase tracking-wide text-ink-tertiary">
           {event.type}
         </div>
@@ -253,7 +275,7 @@ function EventCard({ event }: { event: SessionEvent }) {
 
   return (
     <article
-      className={`max-w-[min(82%,720px)] overflow-hidden rounded-xl border p-4 ${
+      className={`max-w-[min(82%,720px)] overflow-hidden rounded-lg border p-3 ${
         event.type === "user_message"
           ? "justify-self-end border-hairline-strong bg-surface-2"
           : "justify-self-start border-hairline bg-surface-1"
@@ -282,13 +304,24 @@ function TunnelBadge({ status }: { status: string }) {
 
 function StatusRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-lg border border-hairline bg-canvas p-3">
+    <div className="min-w-0 border-b border-hairline py-3 last:border-b-0">
       <div className="text-xs text-ink-tertiary">{label}</div>
       <MonoId className="mt-1 text-ink-muted" tooltip={value}>
         {value.includes("/agents/") || value.startsWith("agent_") || value.startsWith("sess_")
           ? compactId(value, 18, 10)
           : value}
       </MonoId>
+    </div>
+  );
+}
+
+function ContextRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 border-b border-hairline py-3 last:border-b-0">
+      <div className="text-xs text-ink-tertiary">{label}</div>
+      <TruncatedText className="mt-1 text-sm text-ink-muted" tooltip={value}>
+        {value}
+      </TruncatedText>
     </div>
   );
 }
@@ -309,7 +342,7 @@ function SessionErrors({
   const error = messagesError ?? sendError;
 
   return (
-    <div className="flex min-w-0 items-start gap-3 rounded-xl border border-hairline bg-surface-1 p-4 text-sm text-ink-muted">
+    <div className="flex min-w-0 items-start gap-3 rounded-lg border border-hairline bg-surface-1 p-3 text-sm text-ink-muted">
       <AlertCircle className="mt-0.5 h-4 w-4 text-warning" />
       <div className="min-w-0">
         <div className="font-medium text-ink">Session connection notice</div>

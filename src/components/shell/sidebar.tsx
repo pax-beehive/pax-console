@@ -43,17 +43,17 @@ export function Sidebar({ activeNode }: SidebarProps) {
 
   return (
     <aside
-      className="flex min-h-screen shrink-0 flex-col overflow-hidden border-r border-hairline px-3 py-4 transition-[width] duration-200"
+      className="flex min-h-screen shrink-0 flex-col overflow-hidden border-r border-hairline bg-surface-1 px-2 py-3 transition-[width] duration-200"
       style={{ width: collapsed ? 76 : 248 }}
     >
       <div
-        className={`flex items-center border-b border-hairline pb-5 ${
+        className={`flex items-center border-b border-hairline px-1 pb-3 ${
           collapsed ? "justify-center px-0" : "gap-3 px-2"
         }`}
       >
         {!collapsed && (
           <Tooltip content="PAX Agent workspace">
-            <div className="h-[18px] w-[18px] shrink-0 rounded-[5px] bg-primary" />
+            <div className="h-[18px] w-[18px] shrink-0 rounded-[5px] border border-hairline-strong bg-canvas" />
           </Tooltip>
         )}
         {!collapsed && (
@@ -83,8 +83,8 @@ export function Sidebar({ activeNode }: SidebarProps) {
       </div>
 
       <div
-        className={`mt-5 rounded-lg border border-hairline bg-surface-1 ${
-          collapsed ? "flex h-10 items-center justify-center p-0" : "p-3"
+        className={`mt-3 border-b border-hairline ${
+          collapsed ? "flex h-12 items-center justify-center p-0" : "px-3 pb-3 pt-1"
         }`}
       >
         {!collapsed && (
@@ -123,16 +123,16 @@ export function Sidebar({ activeNode }: SidebarProps) {
         </div>
       </div>
 
-      <nav className="mt-5 grid gap-1">
+      <nav className="mt-3 grid gap-0.5">
         {navItems.map(([label, href, Icon]) => (
           <Tooltip content={collapsed ? label : undefined} key={label}>
             <Link
               aria-current={isActivePath(pathname, href) ? "page" : undefined}
-              className={`flex min-h-10 items-center gap-3 rounded-lg px-3 text-left text-sm transition hover:bg-surface-1 hover:text-ink ${
+              className={`flex min-h-9 items-center gap-3 rounded-md px-3 text-left text-sm transition hover:bg-surface-2 hover:text-ink ${
                 collapsed ? "justify-center" : ""
               } ${
                 isActivePath(pathname, href)
-                  ? "bg-surface-1 text-ink"
+                  ? "bg-surface-2 text-ink"
                   : "text-ink-subtle"
               }`}
               href={href}
