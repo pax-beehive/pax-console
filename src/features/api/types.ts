@@ -130,6 +130,40 @@ export type FileChange = {
   new_content?: string;
 };
 
+export type MessagePart = {
+  id?: number;
+  message_id?: string;
+  part_index: number;
+  part_type: string;
+  text?: string;
+  payload_json?: ApiRecord;
+  artifact_uri?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type HistoryMessage = {
+  id?: number;
+  message_id: string;
+  owner_user_id?: string;
+  node_id?: string;
+  agent_id?: string;
+  session_id?: string;
+  source?: string;
+  direction?: string;
+  role?: string;
+  status?: string;
+  message_type?: string;
+  parent_message_id?: string;
+  turn_id?: string;
+  response_id?: string;
+  logical_key?: string;
+  raw_json?: ApiRecord;
+  parts?: MessagePart[];
+  created_at?: string;
+  updated_at?: string;
+};
+
 export type AgentSession = {
   id?: number;
   session_id: string;

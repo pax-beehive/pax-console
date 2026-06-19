@@ -57,13 +57,13 @@ export function normalizeTunnelFrame(
     stringFromValue(frame.result, "session_id") ??
     "unknown-session";
   const createdAt = new Date().toISOString();
-  const id = getEventId(frame, sessionId, createdAt, context);
   const kind =
     frame.event_type ??
     frame.sessionUpdate ??
     frame.kind ??
     frame.type ??
     frame.method;
+  const id = getEventId(frame, sessionId, createdAt, context, kind);
   const content =
     extractText(frame.content) ??
     extractText(frame.message) ??
@@ -160,11 +160,7 @@ export function normalizeTunnelFrame(
         id,
         sessionId,
         content,
-        streaming:
-          kind?.includes("delta") ||
-          kind?.includes("stream") ||
-          kind?.endsWith("_chunk") ||
-          kind === "message/delta",
+        streaming: isStreamingKind(kind),
         createdAt,
       },
     ];
@@ -247,13 +243,8 @@ function getEventId(
   sessionId: string,
   createdAt: string,
   context: NormalizeContext,
+  kind: string | undefined,
 ) {
-  const kind =
-    frame.event_type ??
-    frame.sessionUpdate ??
-    frame.kind ??
-    frame.type ??
-    frame.method;
   const explicitId =
     frame.id ?? stringFromValue(frame.params, "id") ?? stringFromValue(frame.params, "messageId");
 
@@ -261,11 +252,20 @@ function getEventId(
     return String(explicitId);
   }
 
-  if (context.streamId && kind?.endsWith("_chunk")) {
-    return `${context.streamId}:${kind}`;
+  if (isStreamingKind(kind)) {
+    return [sessionId, kind, context.streamId].filter(Boolean).join(":");
   }
 
   return `${sessionId}:${kind ?? "event"}:${createdAt}`;
+}
+
+function isStreamingKind(kind: string | undefined) {
+  return (
+    kind?.includes("delta") ||
+    kind?.includes("stream") ||
+    kind?.endsWith("_chunk") ||
+    kind === "message/delta"
+  );
 }
 
 function extractText(value: unknown): string | undefined {

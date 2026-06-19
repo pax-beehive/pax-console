@@ -1,5 +1,7 @@
 import { SessionPageClient } from "@/components/sessions/session-page-client";
 
+export const dynamic = "force-dynamic";
+
 type SessionPageProps = {
   params: Promise<{
     sessionId: string;

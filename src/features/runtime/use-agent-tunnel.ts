@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AgentTunnelRuntime, TunnelStatus } from "./agent-tunnel-runtime";
 import { SessionEvent } from "./session-events";
 
-export function useAgentTunnel(agentId?: string) {
+export function useAgentTunnel(agentId?: string, sessionId?: string) {
   const runtimeRef = useRef<AgentTunnelRuntime | null>(null);
   const [status, setStatus] = useState<TunnelStatus>("idle");
   const [events, setEvents] = useState<SessionEvent[]>([]);
@@ -28,7 +28,7 @@ export function useAgentTunnel(agentId?: string) {
       }
     });
 
-    runtime.connect(agentId);
+    runtime.connect(agentId, sessionId);
 
     return () => {
       unsubscribeEvents();
@@ -36,7 +36,7 @@ export function useAgentTunnel(agentId?: string) {
       runtime.disconnect();
       runtimeRef.current = null;
     };
-  }, [agentId]);
+  }, [agentId, sessionId]);
 
   const sendUserMessage = useCallback(async (sessionId: string, content: string) => {
     try {

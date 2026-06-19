@@ -43,6 +43,7 @@ export class AgentTunnelRuntime {
   private readonly maxReconnectAttempts: number;
   private socket?: WebSocket;
   private agentId?: string;
+  private managerSessionId?: string;
   private acpSessionId?: string;
   private activeStreamId?: string;
   private reconnectAttempts = 0;
@@ -57,14 +58,15 @@ export class AgentTunnelRuntime {
     this.maxReconnectAttempts = options?.maxReconnectAttempts ?? 5;
   }
 
-  connect(agentId: string) {
+  connect(agentId: string, sessionId?: string) {
     this.socket?.close(1000);
     this.agentId = agentId;
-    this.acpSessionId = undefined;
+    this.managerSessionId = sessionId;
+    this.acpSessionId = sessionId;
     this.rejectPendingRequests(new Error("Agent tunnel reconnecting"));
     this.shouldReconnect = true;
     this.setStatus(this.socket ? "reconnecting" : "connecting");
-    this.socket = new WebSocket(getAgentTunnelUrl(agentId));
+    this.socket = new WebSocket(getAgentTunnelUrl(agentId, sessionId));
 
     this.readyPromise = new Promise((resolve, reject) => {
       if (!this.socket) {
@@ -91,7 +93,7 @@ export class AgentTunnelRuntime {
 
       this.socket.onclose = (event) => {
         this.socket = undefined;
-        this.acpSessionId = undefined;
+        this.acpSessionId = this.managerSessionId;
         this.rejectPendingRequests(new Error("Agent tunnel closed"));
 
         if (
@@ -113,7 +115,9 @@ export class AgentTunnelRuntime {
     this.rejectPendingRequests(new Error("Agent tunnel disconnected"));
     this.socket?.close(1000);
     this.socket = undefined;
+    this.managerSessionId = undefined;
     this.acpSessionId = undefined;
+    this.clearActiveStream();
     this.setStatus("closed");
   }
 
@@ -130,14 +134,10 @@ export class AgentTunnelRuntime {
       createdAt: new Date().toISOString(),
     });
 
-    try {
-      await this.request("session/prompt", {
-        sessionId: acpSessionId,
-        prompt: [{ type: "text", text: content }],
-      });
-    } finally {
-      this.activeStreamId = undefined;
-    }
+    await this.request("session/prompt", {
+      sessionId: acpSessionId,
+      prompt: [{ type: "text", text: content }],
+    });
   }
 
   subscribe(listener: SessionEventListener) {
@@ -179,6 +179,11 @@ export class AgentTunnelRuntime {
 
   private async ensureAcpSession() {
     if (this.acpSessionId) {
+      return this.acpSessionId;
+    }
+
+    if (this.managerSessionId) {
+      this.acpSessionId = this.managerSessionId;
       return this.acpSessionId;
     }
 
@@ -240,24 +245,25 @@ export class AgentTunnelRuntime {
         }
 
         if (pending.method === "session/prompt") {
-          for (const event of normalizeTunnelFrame(frame, {
-            streamId: this.activeStreamId,
-          })) {
-            this.emitEvent(event);
-          }
+          this.emitNormalizedEvents(frame);
         }
 
         pending.resolve(frame.result);
         return;
       }
 
-      for (const event of normalizeTunnelFrame(frame, {
-        streamId: this.activeStreamId,
-      })) {
-        this.emitEvent(event);
-      }
+      this.emitNormalizedEvents(frame);
     } catch {
       this.setStatus("error");
+    }
+  }
+
+  private emitNormalizedEvents(frame: unknown) {
+    for (const event of normalizeTunnelFrame(frame, {
+      streamId: this.activeStreamId,
+    })) {
+      this.emitEvent(event);
+      this.updateActiveStream(event);
     }
   }
 
@@ -265,6 +271,26 @@ export class AgentTunnelRuntime {
     for (const listener of this.eventListeners) {
       listener(event);
     }
+  }
+
+  private updateActiveStream(event: SessionEvent) {
+    if (
+      (event.type === "agent_message" || event.type === "progress") &&
+      event.streaming === true
+    ) {
+      return;
+    }
+
+    if (
+      event.type === "run_status" &&
+      (event.status === "done" || event.status === "error")
+    ) {
+      this.clearActiveStream();
+    }
+  }
+
+  private clearActiveStream() {
+    this.activeStreamId = undefined;
   }
 
   private rejectPendingRequests(error: Error) {
@@ -288,7 +314,7 @@ export class AgentTunnelRuntime {
 
     window.setTimeout(() => {
       if (this.shouldReconnect && this.agentId) {
-        this.connect(this.agentId);
+        this.connect(this.agentId, this.managerSessionId);
       }
     }, delay + Math.floor(Math.random() * 250));
   }

@@ -10,10 +10,10 @@ import { MonoId, TruncatedText } from "@/components/ui/text";
 import {
   useNodeAgents,
   useNodes,
-  useSessionMessages,
+  useSessionHistory,
 } from "@/features/api/resources";
 import { User } from "@/features/api/types";
-import { normalizeMailboxMessage } from "@/features/runtime/normalize-mailbox-message";
+import { normalizeHistoryMessage } from "@/features/runtime/normalize-history-message";
 import { mergeEvents } from "@/features/runtime/merge-session-events";
 import { SessionEvent } from "@/features/runtime/session-events";
 import { useAgentTunnel } from "@/features/runtime/use-agent-tunnel";
@@ -42,22 +42,21 @@ export function SessionWorkbench({
   const activeAgent = agents.find((agent) => agent.agent_id === activeAgentId);
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState<Error | null>(null);
-  const messagesQuery = useSessionMessages(
+  const historyQuery = useSessionHistory(
     user.user_id,
-    activeNodeId,
     activeAgentId,
     sessionId,
   );
-  const tunnel = useAgentTunnel(activeAgentId);
+  const tunnel = useAgentTunnel(activeAgentId, sessionId);
 
   // The timeline merges durable REST history with live WebSocket events. REST
   // gives refresh/resume safety; the tunnel gives low-latency streaming updates.
   const historyEvents = useMemo(
     () =>
-      (messagesQuery.data?.messages ?? []).flatMap((message) =>
-        normalizeMailboxMessage(message),
+      (historyQuery.data?.messages ?? []).flatMap((message) =>
+        normalizeHistoryMessage(message),
       ),
-    [messagesQuery.data?.messages],
+    [historyQuery.data?.messages],
   );
 
   const timeline = useMemo(
@@ -146,14 +145,14 @@ export function SessionWorkbench({
           <div className="flex-1 overflow-auto bg-canvas p-4">
             <div className="mx-auto grid w-full max-w-4xl gap-4">
               <SessionErrors
-                messagesError={messagesQuery.error}
+                messagesError={historyQuery.error}
                 missingRouteState={!activeNodeId || !activeAgentId}
                 sendError={sendError ?? tunnel.error}
               />
               {timeline.map((event) => (
                 <EventCard event={event} key={event.id} />
               ))}
-              {!messagesQuery.isLoading && timeline.length === 0 && (
+              {!historyQuery.isLoading && timeline.length === 0 && (
                 <div className="rounded-lg border border-dashed border-hairline bg-surface-1 p-4 text-sm text-ink-tertiary">
                   No messages yet. Live tunnel events will appear here.
                 </div>
@@ -198,13 +197,13 @@ export function SessionWorkbench({
             </div>
           </div>
           <div className="grid gap-0 p-4">
-            <StatusRow label="REST messages" value={queryState(messagesQuery)} />
+            <StatusRow label="REST history" value={queryState(historyQuery)} />
             <StatusRow label="WebSocket tunnel" value={tunnel.status} />
             <StatusRow
               label="Endpoint"
               value={
                 activeAgentId
-                  ? `/api/v1/user/self/agents/${activeAgentId}/tunnel`
+                  ? `/api/v1/user/self/agents/${activeAgentId}/sessions/${sessionId}/tunnel`
                   : "waiting for agent"
               }
             />

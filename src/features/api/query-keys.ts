@@ -47,4 +47,14 @@ export const queryKeys = {
       sessionId,
       "messages",
     ] as const,
+  sessionHistory: (userId: string, agentId: string, sessionId: string) =>
+    [
+      "users",
+      userId,
+      "agents",
+      agentId,
+      "sessions",
+      sessionId,
+      "history",
+    ] as const,
 };
