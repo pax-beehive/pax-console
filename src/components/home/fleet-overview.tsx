@@ -1,15 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { useQueries } from "@tanstack/react-query";
 import { AlertCircle, Bot, CircleDot, Server, TerminalSquare } from "lucide-react";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import { Badge } from "@/components/ui/badge";
 import { MonoId, TruncatedText } from "@/components/ui/text";
 import {
+  listNodeAgents,
   useAgentSessions,
-  useNodeAgents,
   useNodes,
 } from "@/features/api/resources";
+import { queryKeys } from "@/features/api/query-keys";
 import { User } from "@/features/api/types";
 import { compactId } from "@/lib/format";
 
@@ -18,15 +20,24 @@ type FleetOverviewProps = {
 };
 
 export function FleetOverview({ user }: FleetOverviewProps) {
-  // Overview loads progressively: user -> nodes -> active node agents -> active
+  // Overview loads progressively: user -> nodes -> all node agents -> active
   // agent sessions. For now "active" means the first available item; the
   // Zustand store is already in place for explicit selection once the UI needs it.
   const nodesQuery = useNodes(user.user_id);
   const nodes = nodesQuery.data?.nodes ?? [];
-  const activeNode = nodes[0];
-  const agentsQuery = useNodeAgents(user.user_id, activeNode?.node_id);
-  const agents = agentsQuery.data?.agents ?? [];
+  const agentQueries = useQueries({
+    queries: nodes.map((node) => ({
+      queryKey: queryKeys.agents(user.user_id, node.node_id),
+      queryFn: () => listNodeAgents(user.user_id, node.node_id),
+      enabled: Boolean(user.user_id && node.node_id),
+    })),
+  });
+  const agents = agentQueries.flatMap((query) => query.data?.agents ?? []);
   const activeAgent = agents[0];
+  const activeNode =
+    nodes.find((node) => node.node_id === activeAgent?.node_id) ?? nodes[0];
+  const agentsLoading =
+    nodesQuery.isLoading || agentQueries.some((query) => query.isLoading);
   const sessionsQuery = useAgentSessions(
     user.user_id,
     activeNode?.node_id,
@@ -64,9 +75,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
             />
             <MetricCard
               icon={<Bot className="h-4 w-4" />}
-              label="Agents on active node"
-              value={loadingValue(agentsQuery.isLoading, agents.length)}
-              sub={activeNode?.node_id ?? "No node selected"}
+              label="Agents"
+              value={loadingValue(agentsLoading, agents.length)}
+              sub={`${nodes.length} nodes scanned`}
             />
             <MetricCard
               icon={<TerminalSquare className="h-4 w-4" />}
@@ -80,7 +91,10 @@ export function FleetOverview({ user }: FleetOverviewProps) {
 
         <ApiState
           error={
-            nodesQuery.error ?? agentsQuery.error ?? sessionsQuery.error ?? null
+            nodesQuery.error ??
+            firstQueryError(agentQueries) ??
+            sessionsQuery.error ??
+            null
           }
         />
 
@@ -131,8 +145,8 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                   </MonoId>
                 </div>
               ))}
-              {!agentsQuery.isLoading && agents.length === 0 && (
-                <Empty label="No agents on active node" />
+              {!agentsLoading && agents.length === 0 && (
+                <Empty label="No agents" />
               )}
             </div>
           </section>
@@ -228,4 +242,8 @@ function ApiState({ error }: { error: Error | null }) {
 
 function loadingValue(isLoading: boolean, value: number) {
   return isLoading ? "..." : String(value);
+}
+
+function firstQueryError(queries: Array<{ error: Error | null }>) {
+  return queries.find((query) => query.error)?.error ?? null;
 }
