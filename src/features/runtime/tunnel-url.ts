@@ -13,9 +13,10 @@ export function getAgentTunnelUrl(agentId: string, sessionId?: string) {
   if (baseUrl.protocol === "https:") {
     baseUrl.protocol = "wss:";
   }
-  baseUrl.pathname = sessionId
-    ? `/api/v1/user/self/agents/${agentId}/sessions/${sessionId}/tunnel`
-    : `/api/v1/user/self/agents/${agentId}/tunnel`;
+  baseUrl.pathname = `/api/v1/user/self/agents/${agentId}/tunnel`;
   baseUrl.search = "";
+  if (sessionId) {
+    baseUrl.searchParams.set("session_id", sessionId);
+  }
   return baseUrl.toString();
 }

@@ -49,7 +49,7 @@ export function SessionWorkbench({
     activeAgentId,
     sessionId,
   );
-  const tunnel = useAgentTunnel(activeAgentId);
+  const tunnel = useAgentTunnel(activeAgentId, sessionId);
 
   // The timeline merges durable REST history with live WebSocket events. REST
   // gives refresh/resume safety; the tunnel gives low-latency streaming updates.
