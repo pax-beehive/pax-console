@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { AuthGate } from "@/features/auth/auth-gate";
 import { SessionWorkbench } from "./session-workbench";
 
@@ -14,12 +15,16 @@ export function SessionPageClient({
   nodeId,
   agentId,
 }: SessionPageClientProps) {
+  const searchParams = useSearchParams();
+  const resolvedAgentId = agentId ?? searchParams.get("agentId") ?? undefined;
+  const resolvedNodeId = nodeId ?? searchParams.get("nodeId") ?? undefined;
+
   return (
     <AuthGate>
       {(user) => (
         <SessionWorkbench
-          agentId={agentId}
-          nodeId={nodeId}
+          agentId={resolvedAgentId}
+          nodeId={resolvedNodeId}
           sessionId={sessionId}
           user={user}
         />

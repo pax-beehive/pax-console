@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ReactNode, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
   Bot,
@@ -23,13 +23,13 @@ import {
   createNodeRegistrationToken,
   decideApproval,
   deleteApiKey,
+  listNodeAgents,
   revokeApprovalGrant,
   useAgentSessions,
   useApiKeys,
   useApprovalGrants,
   useApprovals,
   useHealth,
-  useNodeAgents,
   useNodes,
 } from "@/features/api/resources";
 import { queryKeys } from "@/features/api/query-keys";
@@ -91,10 +91,19 @@ const copy: Record<ResourceKind, { title: string; eyebrow: string; icon: ReactNo
 export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
   const nodesQuery = useNodes(user.user_id);
   const nodes = nodesQuery.data?.nodes ?? [];
-  const activeNode = nodes[0];
-  const agentsQuery = useNodeAgents(user.user_id, activeNode?.node_id);
-  const agents = agentsQuery.data?.agents ?? [];
+  const agentQueries = useQueries({
+    queries: nodes.map((node) => ({
+      queryKey: queryKeys.agents(user.user_id, node.node_id),
+      queryFn: () => listNodeAgents(user.user_id, node.node_id),
+      enabled: Boolean(user.user_id && node.node_id),
+    })),
+  });
+  const agents = agentQueries.flatMap((query) => query.data?.agents ?? []);
   const activeAgent = agents[0];
+  const activeNode =
+    nodes.find((node) => node.node_id === activeAgent?.node_id) ?? nodes[0];
+  const agentsLoading =
+    nodesQuery.isLoading || agentQueries.some((query) => query.isLoading);
   const sessionsQuery = useAgentSessions(
     user.user_id,
     activeNode?.node_id,
@@ -133,7 +142,7 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
           <ApiNotice
           error={
             nodesQuery.error ??
-            agentsQuery.error ??
+            firstQueryError(agentQueries) ??
             sessionsQuery.error ??
             healthQuery.error ??
             apiKeysQuery.error ??
@@ -149,8 +158,8 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
         {kind === "agents" && (
           <AgentGrid
             agents={agents}
-            isLoading={agentsQuery.isLoading}
-            nodeLabel={activeNode?.name ?? activeNode?.hostname ?? activeNode?.node_id}
+            isLoading={agentsLoading}
+            nodeLabel={`${nodes.length} nodes scanned`}
           />
         )}
         {kind === "sessions" && (
@@ -245,7 +254,7 @@ function AgentGrid({
   return (
     <div className="grid gap-3">
       <div className="flex min-w-0 text-sm text-ink-tertiary">
-        <span className="shrink-0">Active node:&nbsp;</span>
+        <span className="shrink-0">Scope:&nbsp;</span>
         <TruncatedText>{nodeLabel ?? "No node selected"}</TruncatedText>
       </div>
       <div className="grid min-w-0 overflow-hidden rounded-lg border border-hairline">
@@ -264,11 +273,13 @@ function AgentGrid({
               {compactId(agent.agent_id)}
             </MonoId>
             <div className="flex items-start sm:justify-end">
-              <Badge>{agent.status ?? "unknown"}</Badge>
+              <Badge tone={agent.online ? "success" : "neutral"}>
+                {agent.online ? "online" : agent.status ?? "unknown"}
+              </Badge>
             </div>
           </Link>
         ))}
-        {agents.length === 0 && <EmptyState label="No agents on active node" />}
+        {agents.length === 0 && <EmptyState label="No agents" />}
       </div>
     </div>
   );
@@ -715,4 +726,8 @@ function ApiNotice({ error }: { error: Error | null }) {
       </div>
     </div>
   );
+}
+
+function firstQueryError(queries: Array<{ error: Error | null }>) {
+  return queries.find((query) => query.error)?.error ?? null;
 }

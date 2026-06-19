@@ -35,6 +35,11 @@ type AcpSessionResult = {
   session_id?: string;
 };
 
+type AcpPromptResult = {
+  stopReason?: string;
+  stop_reason?: string;
+};
+
 type InitializeResult = {
   authMethods?: unknown[];
 };
@@ -43,6 +48,7 @@ export class AgentTunnelRuntime {
   private readonly maxReconnectAttempts: number;
   private socket?: WebSocket;
   private agentId?: string;
+  private managerSessionId?: string;
   private acpSessionId?: string;
   private activeStreamId?: string;
   private reconnectAttempts = 0;
@@ -57,14 +63,15 @@ export class AgentTunnelRuntime {
     this.maxReconnectAttempts = options?.maxReconnectAttempts ?? 5;
   }
 
-  connect(agentId: string) {
+  connect(agentId: string, sessionId?: string) {
     this.socket?.close(1000);
     this.agentId = agentId;
-    this.acpSessionId = undefined;
+    this.managerSessionId = sessionId;
+    this.acpSessionId = sessionId;
     this.rejectPendingRequests(new Error("Agent tunnel reconnecting"));
     this.shouldReconnect = true;
     this.setStatus(this.socket ? "reconnecting" : "connecting");
-    this.socket = new WebSocket(getAgentTunnelUrl(agentId));
+    this.socket = new WebSocket(getAgentTunnelUrl(agentId, sessionId));
 
     this.readyPromise = new Promise((resolve, reject) => {
       if (!this.socket) {
@@ -91,7 +98,7 @@ export class AgentTunnelRuntime {
 
       this.socket.onclose = (event) => {
         this.socket = undefined;
-        this.acpSessionId = undefined;
+        this.acpSessionId = this.managerSessionId;
         this.rejectPendingRequests(new Error("Agent tunnel closed"));
 
         if (
@@ -113,31 +120,41 @@ export class AgentTunnelRuntime {
     this.rejectPendingRequests(new Error("Agent tunnel disconnected"));
     this.socket?.close(1000);
     this.socket = undefined;
+    this.managerSessionId = undefined;
     this.acpSessionId = undefined;
+    this.clearActiveStream();
     this.setStatus("closed");
   }
 
   async sendUserMessage(paxSessionId: string, content: string) {
     await this.ensureReady();
     const acpSessionId = await this.ensureAcpSession();
-    this.activeStreamId = `${paxSessionId}:turn:${Date.now()}`;
+    const resolvedSessionId = acpSessionId || paxSessionId;
+    const prompt = [{ type: "text", text: content }];
+    this.activeStreamId = `${resolvedSessionId}:turn:${Date.now()}`;
 
     this.emitEvent({
       type: "user_message",
-      id: `${paxSessionId}:user:${Date.now()}`,
-      sessionId: paxSessionId,
+      id: `${resolvedSessionId}:user:${Date.now()}`,
+      sessionId: resolvedSessionId,
       content,
       createdAt: new Date().toISOString(),
     });
 
-    try {
+    const result = (await this.request("session/prompt", {
+      sessionId: acpSessionId,
+      prompt,
+    })) as AcpPromptResult;
+
+    if (this.shouldBindNativeSessionAfterPrompt(result, acpSessionId)) {
+      const reboundSessionId = await this.createAcpSession();
       await this.request("session/prompt", {
-        sessionId: acpSessionId,
-        prompt: [{ type: "text", text: content }],
+        sessionId: reboundSessionId,
+        prompt,
       });
-    } finally {
-      this.activeStreamId = undefined;
     }
+
+    return { sessionId: resolvedSessionId };
   }
 
   subscribe(listener: SessionEventListener) {
@@ -182,6 +199,15 @@ export class AgentTunnelRuntime {
       return this.acpSessionId;
     }
 
+    if (this.managerSessionId) {
+      this.acpSessionId = this.managerSessionId;
+      return this.acpSessionId;
+    }
+
+    return this.createAcpSession();
+  }
+
+  private async createAcpSession() {
     const result = (await this.request("session/new", {
       cwd: "/tmp",
       mcpServers: [],
@@ -193,6 +219,18 @@ export class AgentTunnelRuntime {
 
     this.acpSessionId = sessionId;
     return sessionId;
+  }
+
+  private shouldBindNativeSessionAfterPrompt(
+    result: AcpPromptResult | undefined,
+    acpSessionId: string,
+  ) {
+    const stopReason = result?.stopReason ?? result?.stop_reason;
+    return Boolean(
+      this.managerSessionId &&
+        acpSessionId === this.managerSessionId &&
+        stopReason === "refusal",
+    );
   }
 
   private request(method: string, params?: unknown) {
@@ -240,24 +278,25 @@ export class AgentTunnelRuntime {
         }
 
         if (pending.method === "session/prompt") {
-          for (const event of normalizeTunnelFrame(frame, {
-            streamId: this.activeStreamId,
-          })) {
-            this.emitEvent(event);
-          }
+          this.emitNormalizedEvents(frame);
         }
 
         pending.resolve(frame.result);
         return;
       }
 
-      for (const event of normalizeTunnelFrame(frame, {
-        streamId: this.activeStreamId,
-      })) {
-        this.emitEvent(event);
-      }
+      this.emitNormalizedEvents(frame);
     } catch {
       this.setStatus("error");
+    }
+  }
+
+  private emitNormalizedEvents(frame: unknown) {
+    for (const event of normalizeTunnelFrame(frame, {
+      streamId: this.activeStreamId,
+    })) {
+      this.emitEvent(event);
+      this.updateActiveStream(event);
     }
   }
 
@@ -265,6 +304,26 @@ export class AgentTunnelRuntime {
     for (const listener of this.eventListeners) {
       listener(event);
     }
+  }
+
+  private updateActiveStream(event: SessionEvent) {
+    if (
+      (event.type === "agent_message" || event.type === "progress") &&
+      event.streaming === true
+    ) {
+      return;
+    }
+
+    if (
+      event.type === "run_status" &&
+      (event.status === "done" || event.status === "error")
+    ) {
+      this.clearActiveStream();
+    }
+  }
+
+  private clearActiveStream() {
+    this.activeStreamId = undefined;
   }
 
   private rejectPendingRequests(error: Error) {
@@ -288,7 +347,7 @@ export class AgentTunnelRuntime {
 
     window.setTimeout(() => {
       if (this.shouldReconnect && this.agentId) {
-        this.connect(this.agentId);
+        this.connect(this.agentId, this.managerSessionId);
       }
     }, delay + Math.floor(Math.random() * 250));
   }

@@ -11,6 +11,7 @@ import {
   CreatedNodeRegistrationToken,
   CreatedUserAPIKey,
   Health,
+  HistoryMessage,
   MailboxMessage,
   Node,
   UserAPIKey,
@@ -30,6 +31,10 @@ type SessionListData = {
 
 type MailboxListData = {
   messages: MailboxMessage[];
+};
+
+type HistoryListData = {
+  messages: HistoryMessage[];
 };
 
 type ApiKeyListData = {
@@ -87,6 +92,18 @@ export function listSessionMessages(
       userId,
       `/nodes/${nodeId}/agents/${agentId}/sessions/${sessionId}/messages`,
     ),
+  );
+}
+
+export function listSessionHistory(
+  userId: string,
+  agentId: string,
+  sessionId: string,
+  limit = 1000,
+) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  return apiFetch<HistoryListData>(
+    `${userPath(userId, `/agents/${agentId}/sessions/${sessionId}/history`)}?${params}`,
   );
 }
 
@@ -308,6 +325,24 @@ export function useSessionMessages(
         sessionId as string,
       ),
     enabled: Boolean(userId && nodeId && agentId && sessionId),
+    refetchOnWindowFocus: true,
+  });
+}
+
+export function useSessionHistory(
+  userId?: string,
+  agentId?: string,
+  sessionId?: string,
+) {
+  return useQuery({
+    queryKey: queryKeys.sessionHistory(
+      userId ?? "pending",
+      agentId ?? "pending",
+      sessionId ?? "pending",
+    ),
+    queryFn: () =>
+      listSessionHistory(userId as string, agentId as string, sessionId as string),
+    enabled: Boolean(userId && agentId && sessionId),
     refetchOnWindowFocus: true,
   });
 }
