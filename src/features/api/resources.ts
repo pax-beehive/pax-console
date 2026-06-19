@@ -7,6 +7,7 @@ import {
   Agent,
   AgentApproval,
   AgentSession,
+  ApprovedNodeRegistration,
   CreatedNodeRegistrationToken,
   CreatedUserAPIKey,
   Health,
@@ -124,14 +125,19 @@ export function createNodeRegistrationToken(
   );
 }
 
+export function approveNodeRegistration(userId: string, pairCode: string) {
+  return apiFetch<ApprovedNodeRegistration>(
+    userPath(userId, `/node-registrations/${pairCode}/approve`),
+    { method: "POST" },
+  );
+}
+
 export function listApprovals(userId: string) {
   return apiFetch<ApprovalListData>(userPath(userId, "/approvals"));
 }
 
 export function listApprovalGrants(userId: string) {
-  return apiFetch<ApprovalGrantListData>(
-    userPath(userId, "/approval-grants"),
-  );
+  return apiFetch<ApprovalGrantListData>(userPath(userId, "/approval-grants"));
 }
 
 export function decideApproval(
