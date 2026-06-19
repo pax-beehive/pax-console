@@ -64,6 +64,13 @@ export type CreatedNodeRegistrationToken = {
   token: string;
 };
 
+export type ApprovedNodeRegistration = {
+  expires_at?: string;
+  pair_code: string;
+  registration_id: string;
+  status: string;
+};
+
 export type ApprovalOption = {
   option_id?: string;
   label?: string;

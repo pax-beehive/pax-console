@@ -3,6 +3,14 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["console.paxtech.net"],
   output: "standalone",
+  async rewrites() {
+    return [
+      {
+        source: "/connect.html",
+        destination: "/connect",
+      },
+    ];
+  },
   async headers() {
     return [
       {
