@@ -66,24 +66,24 @@ export function NodeDetailPageClient({
 
         <section className="grid gap-3">
           <SectionHeader count={agents.length} title="Agents on this node" />
-          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid min-w-0 overflow-hidden rounded-lg border border-hairline">
             {agents.map((agent) => (
               <Link
-                className="min-w-0 rounded-xl border border-hairline bg-surface-1 p-4 transition hover:border-hairline-strong hover:bg-surface-2"
+                className="grid min-w-0 gap-3 border-b border-hairline bg-surface-1 px-3 py-2.5 transition last:border-b-0 hover:bg-surface-2 sm:grid-cols-[minmax(0,1fr)_180px_120px]"
                 href={`/agents/${agent.agent_id}?nodeId=${nodeId}`}
                 key={agent.agent_id}
               >
-                <div className="flex min-w-0 items-center justify-between gap-3">
+                <div className="min-w-0">
                   <TruncatedText className="text-base font-medium">
                     {agent.name ?? agent.agent_type ?? agent.agent_id}
                   </TruncatedText>
-                  <Badge>
-                    {agent.status ?? "unknown"}
-                  </Badge>
                 </div>
-                <MonoId className="mt-3" tooltip={agent.agent_id}>
+                <MonoId tooltip={agent.agent_id}>
                   {compactId(agent.agent_id)}
                 </MonoId>
+                <div className="flex items-start sm:justify-end">
+                  <Badge>{agent.status ?? "unknown"}</Badge>
+                </div>
               </Link>
             ))}
           </div>
@@ -137,24 +137,24 @@ export function AgentDetailPageClient({
 
         <section className="grid gap-3">
           <SectionHeader count={sessions.length} title="Recent sessions" />
-          <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
+          <div className="grid min-w-0 overflow-hidden rounded-lg border border-hairline">
             {sessions.map((session) => (
               <Link
-                className="min-w-0 rounded-xl border border-hairline bg-surface-1 p-4 transition hover:border-hairline-strong hover:bg-surface-2"
+                className="grid min-w-0 gap-3 border-b border-hairline bg-surface-1 px-3 py-2.5 transition last:border-b-0 hover:bg-surface-2 lg:grid-cols-[minmax(0,1fr)_120px]"
                 href={`/sessions/${session.session_id}?nodeId=${session.node_id}&agentId=${session.agent_id}`}
                 key={session.session_id}
               >
-                <div className="flex min-w-0 items-center justify-between gap-3">
+                <div className="min-w-0">
                   <TruncatedText className="text-base font-medium">
                     {session.name ?? session.current_task ?? session.session_id}
                   </TruncatedText>
-                  <Badge>
-                    {session.run_status ?? session.status ?? "unknown"}
-                  </Badge>
+                  <TruncatedText className="mt-1 text-sm text-ink-muted">
+                    {session.preview ?? session.current_task ?? "Open session"}
+                  </TruncatedText>
                 </div>
-                <TruncatedText className="mt-2 text-sm text-ink-muted">
-                  {session.preview ?? session.current_task ?? "Open session"}
-                </TruncatedText>
+                <div className="flex items-start lg:justify-end">
+                  <Badge>{session.run_status ?? session.status ?? "unknown"}</Badge>
+                </div>
               </Link>
             ))}
           </div>
@@ -180,7 +180,7 @@ function DetailShell({
   title: string;
 }) {
   return (
-    <div className="grid gap-4 p-5">
+    <div className="grid gap-5 p-5">
       <header className="flex items-center justify-between border-b border-hairline pb-4">
         <div className="min-w-0">
           <Link
@@ -207,11 +207,11 @@ function DetailShell({
 
 function DetailCard({ rows, title }: { rows: string[][]; title: string }) {
   return (
-    <section className="min-w-0 rounded-xl border border-hairline bg-surface-1 p-4">
+    <section className="min-w-0 rounded-lg border border-hairline bg-surface-1 p-3">
       <h2 className="text-base font-medium">{title}</h2>
-      <div className="mt-4 grid gap-3">
+      <div className="mt-3 grid overflow-hidden rounded-md border border-hairline">
         {rows.map(([label, value]) => (
-          <div className="grid min-w-0 grid-cols-[120px_minmax(0,1fr)] gap-4 sm:grid-cols-[150px_minmax(0,1fr)]" key={label}>
+          <div className="grid min-w-0 grid-cols-[120px_minmax(0,1fr)] gap-4 border-b border-hairline px-3 py-2 last:border-b-0 sm:grid-cols-[150px_minmax(0,1fr)]" key={label}>
             <TruncatedText className="text-xs text-ink-tertiary">{label}</TruncatedText>
             <MonoId className="text-ink-muted" tooltip={value}>
               {value.startsWith("node_") || value.startsWith("agent_") || value.startsWith("sess_")
@@ -227,9 +227,9 @@ function DetailCard({ rows, title }: { rows: string[][]; title: string }) {
 
 function JsonCard({ title, value }: { title: string; value?: unknown }) {
   return (
-    <section className="min-w-0 rounded-xl border border-hairline bg-surface-1 p-4">
+    <section className="min-w-0 rounded-lg border border-hairline bg-surface-1 p-3">
       <h2 className="text-base font-medium">{title}</h2>
-      <pre className="mt-4 max-h-80 max-w-full overflow-auto rounded-lg border border-hairline bg-canvas p-3 text-xs leading-6 text-ink-muted">
+      <pre className="mt-3 max-h-80 max-w-full overflow-auto rounded-md border border-hairline bg-canvas p-3 text-xs leading-6 text-ink-muted">
         {JSON.stringify(value ?? {}, null, 2)}
       </pre>
     </section>
@@ -247,7 +247,7 @@ function SectionHeader({ count, title }: { count: number; title: string }) {
 
 function Notice({ message }: { message: string }) {
   return (
-    <div className="flex min-w-0 items-start gap-3 rounded-xl border border-hairline bg-surface-1 p-4 text-sm text-ink-muted">
+    <div className="flex min-w-0 items-start gap-3 rounded-lg border border-hairline bg-surface-1 p-3 text-sm text-ink-muted">
       <AlertCircle className="mt-0.5 h-4 w-4 text-warning" />
       <div className="min-w-0">
         <div className="font-medium text-ink">Detail request notice</div>

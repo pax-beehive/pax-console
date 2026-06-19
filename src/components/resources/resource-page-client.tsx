@@ -118,8 +118,8 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
       nodes={nodes}
       user={user}
     >
-      <div className="grid gap-4 p-5">
-        <header className="flex min-w-0 items-center justify-between border-b border-hairline pb-4">
+      <div className="grid gap-0">
+        <header className="flex min-w-0 items-center justify-between border-b border-hairline px-5 py-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-sm text-ink-tertiary">
               {meta.icon}
@@ -129,7 +129,8 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
           </div>
         </header>
 
-        <ApiNotice
+        <div className="px-5 pt-4">
+          <ApiNotice
           error={
             nodesQuery.error ??
             agentsQuery.error ??
@@ -140,9 +141,11 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
             approvalGrantsQuery.error ??
             null
           }
-        />
+          />
+        </div>
 
-        {kind === "nodes" && <NodeGrid isLoading={nodesQuery.isLoading} nodes={nodes} />}
+        <div className="p-5">
+          {kind === "nodes" && <NodeGrid isLoading={nodesQuery.isLoading} nodes={nodes} />}
         {kind === "agents" && (
           <AgentGrid
             agents={agents}
@@ -180,6 +183,7 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
         {kind === "node-registration" && (
           <NodeRegistrationPanel userId={user.user_id} />
         )}
+        </div>
       </div>
     </ConsoleLayout>
   );
@@ -197,24 +201,26 @@ function NodeGrid({
   }
 
   return (
-    <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+    <div className="grid min-w-0 overflow-hidden rounded-lg border border-hairline">
       {nodes.map((node) => (
         <Link
-          className="min-w-0 rounded-xl border border-hairline bg-surface-1 p-4 transition hover:border-hairline-strong hover:bg-surface-2"
+          className="grid min-w-0 gap-3 border-b border-hairline bg-surface-1 px-3 py-2.5 transition last:border-b-0 hover:bg-surface-2 sm:grid-cols-[minmax(0,1fr)_180px_120px]"
           href={`/nodes/${node.node_id}`}
           key={node.node_id}
         >
-          <div className="flex min-w-0 items-center justify-between gap-3">
+          <div className="min-w-0">
             <TruncatedText className="text-base font-medium">
               {node.name ?? node.hostname ?? node.node_id}
             </TruncatedText>
+          </div>
+          <div className="grid min-w-0 gap-1">
+            <MonoId>{node.os ?? "unknown os"} / {node.arch ?? "unknown arch"}</MonoId>
+            <MonoId tooltip={node.node_id}>{compactId(node.node_id)}</MonoId>
+          </div>
+          <div className="flex items-start sm:justify-end">
             <Badge tone={node.online ? "success" : "neutral"}>
               {node.online ? "online" : "offline"}
             </Badge>
-          </div>
-          <div className="mt-3 grid min-w-0 gap-1">
-            <MonoId>{node.os ?? "unknown os"} / {node.arch ?? "unknown arch"}</MonoId>
-            <MonoId tooltip={node.node_id}>{compactId(node.node_id)}</MonoId>
           </div>
         </Link>
       ))}
@@ -242,24 +248,24 @@ function AgentGrid({
         <span className="shrink-0">Active node:&nbsp;</span>
         <TruncatedText>{nodeLabel ?? "No node selected"}</TruncatedText>
       </div>
-      <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid min-w-0 overflow-hidden rounded-lg border border-hairline">
         {agents.map((agent) => (
           <Link
-            className="min-w-0 rounded-xl border border-hairline bg-surface-1 p-4 transition hover:border-hairline-strong hover:bg-surface-2"
+            className="grid min-w-0 gap-3 border-b border-hairline bg-surface-1 px-3 py-2.5 transition last:border-b-0 hover:bg-surface-2 sm:grid-cols-[minmax(0,1fr)_180px_120px]"
             href={`/agents/${agent.agent_id}?nodeId=${agent.node_id}`}
             key={agent.agent_id}
           >
-            <div className="flex min-w-0 items-center justify-between gap-3">
+            <div className="min-w-0">
               <TruncatedText className="text-base font-medium">
                 {agent.name ?? agent.agent_type ?? agent.agent_id}
               </TruncatedText>
-              <Badge>
-                {agent.status ?? "unknown"}
-              </Badge>
             </div>
-            <MonoId className="mt-3" tooltip={agent.agent_id}>
+            <MonoId tooltip={agent.agent_id}>
               {compactId(agent.agent_id)}
             </MonoId>
+            <div className="flex items-start sm:justify-end">
+              <Badge>{agent.status ?? "unknown"}</Badge>
+            </div>
           </Link>
         ))}
         {agents.length === 0 && <EmptyState label="No agents on active node" />}
@@ -280,27 +286,27 @@ function SessionGrid({
   }
 
   return (
-    <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
+    <div className="grid min-w-0 overflow-hidden rounded-lg border border-hairline">
       {sessions.map((session) => (
         <Link
-          className="min-w-0 rounded-xl border border-hairline bg-surface-1 p-4 transition hover:border-hairline-strong hover:bg-surface-2"
+          className="grid min-w-0 gap-3 border-b border-hairline bg-surface-1 px-3 py-2.5 transition last:border-b-0 hover:bg-surface-2 lg:grid-cols-[minmax(0,1fr)_160px_120px]"
           href={`/sessions/${session.session_id}?nodeId=${session.node_id}&agentId=${session.agent_id}`}
           key={session.session_id}
         >
-          <div className="flex min-w-0 items-center justify-between gap-3">
+          <div className="min-w-0">
             <TruncatedText className="text-base font-medium">
               {session.name ?? session.current_task ?? session.session_id}
             </TruncatedText>
-            <Badge>
-              {session.run_status ?? session.status ?? "unknown"}
-            </Badge>
+            <TruncatedText className="mt-1 text-sm text-ink-muted">
+              {session.preview ?? session.current_task ?? "Open session"}
+            </TruncatedText>
           </div>
-          <TruncatedText className="mt-2 text-sm text-ink-muted">
-            {session.preview ?? session.current_task ?? "Open session"}
-          </TruncatedText>
-          <MonoId className="mt-3" tooltip={session.session_id}>
+          <MonoId tooltip={session.session_id}>
             {compactId(session.session_id)}
           </MonoId>
+          <div className="flex items-start lg:justify-end">
+            <Badge>{session.run_status ?? session.status ?? "unknown"}</Badge>
+          </div>
         </Link>
       ))}
       {sessions.length === 0 && <EmptyState label="No sessions on active agent" />}
@@ -325,7 +331,7 @@ function MonitorPanel({
   const activeAgents = agents.filter((agent) => agent.online || agent.status === "online").length;
 
   return (
-    <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid min-w-0 overflow-hidden rounded-lg border border-hairline sm:grid-cols-2 lg:grid-cols-4">
       <Metric
         label="PAX Manager"
         value={isHealthLoading ? "..." : health?.status ?? "unknown"}
@@ -350,7 +356,7 @@ function NodeRegistrationPanel({ userId }: { userId: string }) {
 
   return (
     <div className="grid gap-4">
-      <section className="rounded-xl border border-hairline bg-surface-1 p-4">
+      <section className="border border-hairline bg-surface-1 p-3">
         <div className="flex min-w-0 flex-wrap items-end gap-3">
           <label className="grid w-56 max-w-full gap-2 text-sm text-ink-muted">
             TTL seconds
@@ -382,7 +388,7 @@ function NodeRegistrationPanel({ userId }: { userId: string }) {
       )}
 
       {createdToken && (
-        <section className="rounded-xl border border-warning bg-surface-1 p-4">
+        <section className="rounded-lg border border-warning bg-surface-1 p-3">
           <div className="text-sm font-medium text-ink">
             Copy this registration token now. It is one-time use.
           </div>
@@ -445,7 +451,7 @@ function ApprovalsPanel({
   const activeGrants = grants.filter((grant) => !grant.grant_revoked_at);
 
   return (
-    <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)]">
+    <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)]">
       <section className="grid gap-3">
         <SectionHeader
           count={pendingApprovals.length}
@@ -453,7 +459,7 @@ function ApprovalsPanel({
         />
         {pendingApprovals.map((approval) => (
           <article
-            className="min-w-0 rounded-xl border border-hairline bg-surface-1 p-4"
+            className="min-w-0 rounded-lg border border-hairline bg-surface-1 p-3"
             key={approval.approval_id}
           >
             <div className="flex min-w-0 items-start justify-between gap-4">
@@ -517,7 +523,7 @@ function ApprovalsPanel({
         <SectionHeader count={activeGrants.length} title="Active grants" />
         {activeGrants.map((grant) => (
           <article
-            className="min-w-0 rounded-xl border border-hairline bg-surface-1 p-4"
+            className="min-w-0 border-b border-hairline bg-surface-1 py-3 last:border-b-0"
             key={grant.approval_id}
           >
             <TruncatedText className="text-sm font-medium">
@@ -581,7 +587,7 @@ function ApiKeysPanel({
 
   return (
     <div className="grid gap-4">
-      <section className="rounded-xl border border-hairline bg-surface-1 p-4">
+      <section className="border border-hairline bg-surface-1 p-3">
         <div className="flex min-w-0 flex-wrap items-end gap-3">
           <label className="grid flex-1 gap-2 text-sm text-ink-muted">
             Key name
@@ -617,9 +623,10 @@ function ApiKeysPanel({
 
       <section className="grid gap-3">
         <SectionHeader count={apiKeys.length} title="Existing keys" />
+        <div className="grid overflow-hidden rounded-lg border border-hairline">
         {apiKeys.map((apiKey) => (
           <article
-            className="flex min-w-0 items-center justify-between gap-4 rounded-xl border border-hairline bg-surface-1 p-4"
+            className="flex min-w-0 items-center justify-between gap-4 border-b border-hairline bg-surface-1 px-3 py-2.5 last:border-b-0"
             key={apiKey.key_id}
           >
             <div className="min-w-0 flex-1">
@@ -641,6 +648,7 @@ function ApiKeysPanel({
             </Button>
           </article>
         ))}
+        </div>
         {apiKeys.length === 0 && <EmptyState label="No API keys" />}
       </section>
     </div>
@@ -674,9 +682,9 @@ function approvalOptions(approval: AgentApproval) {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-xl border border-hairline bg-surface-1 p-5">
+    <div className="min-w-0 border-r border-hairline bg-surface-1 p-3 last:border-r-0">
       <div className="text-xs text-ink-tertiary">{label}</div>
-      <TruncatedText className="mt-2 font-mono text-3xl text-ink">
+      <TruncatedText className="mt-1 font-mono text-2xl text-ink">
         {value}
       </TruncatedText>
     </div>
@@ -685,7 +693,7 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 function EmptyState({ label }: { label: string }) {
   return (
-    <div className="rounded-xl border border-dashed border-hairline bg-surface-1 p-5 text-sm text-ink-tertiary">
+    <div className="rounded-lg border border-dashed border-hairline bg-surface-1 p-4 text-sm text-ink-tertiary">
       {label}
     </div>
   );
@@ -697,7 +705,7 @@ function ApiNotice({ error }: { error: Error | null }) {
   }
 
   return (
-    <div className="flex min-w-0 items-start gap-3 rounded-xl border border-hairline bg-surface-1 p-4 text-sm text-ink-muted">
+    <div className="flex min-w-0 items-start gap-3 rounded-lg border border-hairline bg-surface-1 p-3 text-sm text-ink-muted">
       <AlertCircle className="mt-0.5 h-4 w-4 text-warning" />
       <div className="min-w-0">
         <div className="font-medium text-ink">API request failed</div>

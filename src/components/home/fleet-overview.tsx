@@ -41,23 +41,21 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       nodes={nodes}
       user={user}
     >
-      <div className="grid gap-4 p-5">
-        <section className="grid min-w-0 gap-5 rounded-xl border border-hairline bg-surface-1 p-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(280px,0.8fr)]">
-          <div className="min-w-0">
-            <div className="text-sm font-medium text-ink-subtle">
-              Fleet control plane
+      <div className="grid gap-0">
+        <section className="border-b border-hairline px-5 py-4">
+          <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="min-w-0">
+              <div className="text-xs text-ink-tertiary">Fleet</div>
+              <h1 className="mt-1 text-2xl font-semibold tracking-normal">
+                Workbench
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-subtle">
+                PAX Manager data, live tunnel readiness, and recent agent
+                sessions in one place.
+              </p>
             </div>
-            <h1 className="mt-3 max-w-3xl text-4xl font-semibold leading-tight">
-              Observe, steer, and resume agent work across your nodes.
-            </h1>
-            <p className="mt-4 max-w-2xl text-lg leading-8 text-ink-muted">
-              This screen is now backed by the PAX Manager API. It starts with
-              Cloudflare Access, then loads nodes, agents, sessions, and live
-              tunnel status.
-            </p>
-          </div>
 
-          <div className="grid min-w-0 gap-3 md:grid-cols-3 lg:grid-cols-1">
+            <div className="grid min-w-0 gap-2 sm:grid-cols-3 lg:w-[520px]">
             <MetricCard
               icon={<Server className="h-4 w-4" />}
               label="Nodes"
@@ -76,6 +74,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
               value={loadingValue(sessionsQuery.isLoading, sessions.length)}
               sub={activeAgent?.agent_id ?? "No agent selected"}
             />
+            </div>
           </div>
         </section>
 
@@ -85,13 +84,13 @@ export function FleetOverview({ user }: FleetOverviewProps) {
           }
         />
 
-        <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-3">
-          <section className="min-w-0 rounded-xl border border-hairline bg-surface-1 p-5">
+        <div className="grid min-w-0 grid-cols-1 lg:grid-cols-3">
+          <section className="min-w-0 border-b border-hairline p-5 lg:border-b-0 lg:border-r">
             <SectionTitle title="Nodes" />
-            <div className="mt-4 grid gap-2">
+            <div className="mt-3 grid gap-0 overflow-hidden rounded-lg border border-hairline">
               {nodes.map((node) => (
                 <div
-                  className="min-w-0 rounded-lg border border-hairline bg-canvas p-3"
+                  className="min-w-0 border-b border-hairline bg-surface-1 px-3 py-2.5 last:border-b-0"
                   key={node.node_id}
                 >
                   <div className="flex min-w-0 items-center justify-between gap-3">
@@ -113,12 +112,12 @@ export function FleetOverview({ user }: FleetOverviewProps) {
             </div>
           </section>
 
-          <section className="min-w-0 rounded-xl border border-hairline bg-surface-1 p-5">
+          <section className="min-w-0 border-b border-hairline p-5 lg:border-b-0 lg:border-r">
             <SectionTitle title="Agents" />
-            <div className="mt-4 grid gap-2">
+            <div className="mt-3 grid gap-0 overflow-hidden rounded-lg border border-hairline">
               {agents.map((agent) => (
                 <div
-                  className="min-w-0 rounded-lg border border-hairline bg-canvas p-3"
+                  className="min-w-0 border-b border-hairline bg-surface-1 px-3 py-2.5 last:border-b-0"
                   key={agent.agent_id}
                 >
                   <div className="flex min-w-0 items-center justify-between gap-3">
@@ -138,12 +137,12 @@ export function FleetOverview({ user }: FleetOverviewProps) {
             </div>
           </section>
 
-          <section className="min-w-0 rounded-xl border border-hairline bg-surface-1 p-5">
+          <section className="min-w-0 p-5">
             <SectionTitle title="Recent sessions" />
-            <div className="mt-4 grid gap-2">
+            <div className="mt-3 grid gap-0 overflow-hidden rounded-lg border border-hairline">
               {sessions.map((session) => (
                 <Link
-                  className="block min-w-0 rounded-lg border border-hairline bg-canvas p-3 transition hover:border-hairline-strong hover:bg-surface-2"
+                  className="block min-w-0 border-b border-hairline bg-surface-1 px-3 py-2.5 transition last:border-b-0 hover:bg-surface-2"
                   href={`/sessions/${session.session_id}?nodeId=${session.node_id}&agentId=${session.agent_id}`}
                   key={session.session_id}
                 >
@@ -184,12 +183,12 @@ function MetricCard({
   sub: string;
 }) {
   return (
-    <div className="min-w-0 rounded-xl border border-hairline bg-canvas p-4">
+    <div className="min-w-0 rounded-lg border border-hairline bg-surface-1 px-3 py-2">
       <div className="flex items-center gap-2 text-xs text-ink-tertiary">
         {icon}
         {label}
       </div>
-      <div className="mt-2 font-mono text-2xl text-ink">{value}</div>
+      <div className="mt-1 font-mono text-xl text-ink">{value}</div>
       <TruncatedText className="mt-1 text-xs text-ink-subtle" tooltip={sub}>
         {sub.startsWith("node_") || sub.startsWith("agent_") ? compactId(sub) : sub}
       </TruncatedText>
@@ -203,7 +202,7 @@ function SectionTitle({ title }: { title: string }) {
 
 function Empty({ label }: { label: string }) {
   return (
-    <div className="rounded-lg border border-dashed border-hairline bg-canvas p-3 text-sm text-ink-tertiary">
+    <div className="bg-surface-1 px-3 py-2.5 text-sm text-ink-tertiary">
       {label}
     </div>
   );
@@ -215,7 +214,7 @@ function ApiState({ error }: { error: Error | null }) {
   }
 
   return (
-    <div className="flex items-start gap-3 rounded-xl border border-hairline bg-surface-1 p-4 text-sm text-ink-muted">
+    <div className="mx-5 mt-4 flex items-start gap-3 rounded-lg border border-hairline bg-surface-1 p-3 text-sm text-ink-muted">
       <AlertCircle className="mt-0.5 h-4 w-4 text-warning" />
       <div>
         <div className="font-medium text-ink">API request failed</div>

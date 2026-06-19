@@ -11,7 +11,7 @@ type BadgeProps = ComponentPropsWithoutRef<"span"> & {
 };
 
 const tones = {
-  neutral: "border-hairline bg-canvas text-ink-subtle",
+  neutral: "border-hairline bg-surface-2 text-ink-subtle",
   success: "border-success/30 bg-success/10 text-success",
   warning: "border-warning/30 bg-warning/10 text-warning",
   danger: "border-warning/40 bg-warning/10 text-ink",
@@ -30,7 +30,7 @@ export function Badge({
     <Tooltip content={tooltip ?? text}>
       <span
         className={cn(
-          "inline-flex max-w-32 shrink-0 items-center rounded-full border px-2 py-0.5 text-xs leading-5",
+          "inline-flex max-w-32 shrink-0 items-center gap-1.5 rounded-md border px-1.5 py-0.5 text-xs leading-5",
           tones[tone],
           className,
         )}

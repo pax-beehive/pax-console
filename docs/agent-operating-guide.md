@@ -207,7 +207,9 @@ src/features/*
 
 Components should not know Cloudflare internals. Components may show errors, but auth/proxy behavior belongs in `features/api` or `app/api/pax`.
 
-Use `src/components/ui/button.tsx` for command buttons, `badge.tsx` for compact status/count pills, `search-box.tsx` for search inputs, and `text.tsx` for long IDs/names. Agent ids, node ids, session ids, API key prefixes, endpoint paths, and file paths should be truncated with tooltip access to the full value. Prefer `compactId` from `src/lib/format.ts` when an id should be recognizable but not visually dominant.
+Use `src/components/ui/button.tsx` for command buttons, `badge.tsx` for compact actionable status labels, `search-box.tsx` for search inputs, and `text.tsx` for long IDs/names. Agent ids, node ids, session ids, API key prefixes, endpoint paths, and file paths should be truncated with tooltip access to the full value. Prefer `compactId` from `src/lib/format.ts` when an id should be recognizable but not visually dominant.
+
+The UI direction is Codex-like dark workbench, not a generic dashboard. Prefer split panes, compact rows, timelines, and evidence panels over large hero sections, KPI-card grids, and floating card sections. Cards are reserved for selectable entities, modals, and isolated tools. Ordinary metadata should be muted text or monospace text; use `Badge` for states that need scanning or action, such as connected, running, failed, approval required, revoked, or offline.
 
 Sidebar collapsed state is client-only UI state and belongs in `useConsoleStore().sidebarCollapsed`.
 
@@ -216,6 +218,7 @@ Sidebar layout rules:
 ```txt
 ConsoleLayout uses flex, not CSS grid columns.
 Sidebar controls its own width with inline width 248/76px and overflow-hidden.
+Sidebar uses a quiet surface with border-separated node context and compact nav rows.
 Do not reintroduce dynamic Tailwind class strings like grid-cols-[76px_1fr] for shell width.
 Collapsed tabs show icons only; labels must remain available via Tooltip.
 ```
