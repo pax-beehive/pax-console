@@ -35,6 +35,11 @@ type AcpSessionResult = {
   session_id?: string;
 };
 
+type AcpPromptResult = {
+  stopReason?: string;
+  stop_reason?: string;
+};
+
 type InitializeResult = {
   authMethods?: unknown[];
 };
@@ -125,6 +130,7 @@ export class AgentTunnelRuntime {
     await this.ensureReady();
     const acpSessionId = await this.ensureAcpSession();
     const resolvedSessionId = acpSessionId || paxSessionId;
+    const prompt = [{ type: "text", text: content }];
     this.activeStreamId = `${resolvedSessionId}:turn:${Date.now()}`;
 
     this.emitEvent({
@@ -135,10 +141,18 @@ export class AgentTunnelRuntime {
       createdAt: new Date().toISOString(),
     });
 
-    await this.request("session/prompt", {
+    const result = (await this.request("session/prompt", {
       sessionId: acpSessionId,
-      prompt: [{ type: "text", text: content }],
-    });
+      prompt,
+    })) as AcpPromptResult;
+
+    if (this.shouldBindNativeSessionAfterPrompt(result, acpSessionId)) {
+      const reboundSessionId = await this.createAcpSession();
+      await this.request("session/prompt", {
+        sessionId: reboundSessionId,
+        prompt,
+      });
+    }
 
     return { sessionId: resolvedSessionId };
   }
@@ -190,6 +204,10 @@ export class AgentTunnelRuntime {
       return this.acpSessionId;
     }
 
+    return this.createAcpSession();
+  }
+
+  private async createAcpSession() {
     const result = (await this.request("session/new", {
       cwd: "/tmp",
       mcpServers: [],
@@ -201,6 +219,18 @@ export class AgentTunnelRuntime {
 
     this.acpSessionId = sessionId;
     return sessionId;
+  }
+
+  private shouldBindNativeSessionAfterPrompt(
+    result: AcpPromptResult | undefined,
+    acpSessionId: string,
+  ) {
+    const stopReason = result?.stopReason ?? result?.stop_reason;
+    return Boolean(
+      this.managerSessionId &&
+        acpSessionId === this.managerSessionId &&
+        stopReason === "refusal",
+    );
   }
 
   private request(method: string, params?: unknown) {
