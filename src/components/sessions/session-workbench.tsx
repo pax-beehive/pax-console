@@ -47,7 +47,7 @@ export function SessionWorkbench({
     activeAgentId,
     sessionId,
   );
-  const tunnel = useAgentTunnel(activeAgentId, sessionId);
+  const tunnel = useAgentTunnel(activeAgentId);
 
   // The timeline merges durable REST history with live WebSocket events. REST
   // gives refresh/resume safety; the tunnel gives low-latency streaming updates.
@@ -203,7 +203,7 @@ export function SessionWorkbench({
               label="Endpoint"
               value={
                 activeAgentId
-                  ? `/api/v1/user/self/agents/${activeAgentId}/sessions/${sessionId}/tunnel`
+                  ? `/api/v1/user/self/agents/${activeAgentId}/tunnel`
                   : "waiting for agent"
               }
             />
