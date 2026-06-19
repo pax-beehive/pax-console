@@ -48,6 +48,7 @@ Browser
 NEXT_PUBLIC_PAX_API_BASE_URL=/api/pax
 NEXT_PUBLIC_PAX_USER_SCOPE=self
 PAX_MANAGER_URL=https://app.paxtech.net
+PAX_CF_AUTHORIZATION=<pnpm auth:local 自动写入>
 ```
 
 含义：
@@ -69,7 +70,9 @@ PAX_MANAGER_URL
 PAX_CF_AUTHORIZATION=<local-only CF_Authorization value>
 ```
 
-注意不要提交真实 token。
+运行 `pnpm dev` 时会先通过 `cloudflared access` 获取本地 Access token
+并写入 `.env.local`，再启动 Next.js。也可以单独运行 `pnpm auth:local`
+刷新 token。注意不要提交真实 token。
 
 ## 目录结构
 
@@ -384,7 +387,14 @@ approval event 和 approvals REST inbox 的联动
 
 ## Cloudflare 接入规则
 
-本地开发推荐：
+日常本地开发推荐：
+
+```txt
+http://localhost:3000 -> Next.js app -> /api/pax proxy -> app.paxtech.net
+```
+
+需要验证真实 Cloudflare Access 入口、cookie forwarding 或浏览器 WebSocket
+行为时，再使用 tunnel：
 
 ```txt
 https://console.paxtech.net -> Cloudflare Tunnel -> http://localhost:3000
@@ -394,8 +404,11 @@ Next dev server 需要允许这个 origin：
 
 ```ts
 // next.config.ts
-allowedDevOrigins: ["console.paxtech.net"]
+allowedDevOrigins: ["console.paxtech.net", "*.console-dev.paxtech.net"]
 ```
+
+团队多人本地开发优先使用 `localhost + pnpm dev` 自动刷新本地 token，不要
+要求每个成员维护一个 Cloudflare Tunnel。
 
 浏览器侧不要手动设置：
 

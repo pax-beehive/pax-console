@@ -37,7 +37,30 @@ pnpm install
 pnpm dev
 ```
 
-For normal local testing with Cloudflare Access, open [https://console.paxtech.net](https://console.paxtech.net), which tunnels to `http://localhost:3000`.
+For normal local development, open [http://localhost:3000](http://localhost:3000).
+`pnpm dev` uses `cloudflared access` to write a local-only
+`PAX_CF_AUTHORIZATION` token into `.env.local`, so browser REST requests can use
+the same-origin `/api/pax` proxy without a Cloudflare Tunnel.
+
+You can also run `pnpm auth:local` directly to refresh the token without
+starting the dev server. Set `PAX_SKIP_AUTH_LOCAL=1` to start Next.js without
+refreshing local auth.
+
+### Cloudflare Tunnel Mode
+
+Use Cloudflare Tunnel only when validating the real Cloudflare Access entrypoint,
+cookie forwarding, or browser WebSocket behavior:
+
+```txt
+Browser
+  -> https://console.paxtech.net
+  -> Cloudflare Tunnel
+  -> http://localhost:3000
+```
+
+Do not share one tunnel hostname across multiple active local machines unless
+you deliberately want Cloudflare to route that hostname to whichever connector is
+currently active.
 
 ## Environment
 
@@ -60,7 +83,9 @@ PAX_MANAGER_URL=https://app.paxtech.net
 PAX_CF_AUTHORIZATION=<local-only Cloudflare Access cookie value>
 ```
 
-Do not commit `.env.local`. The proxy keeps the Cloudflare cookie on the Next.js server side and returns a clear 401 when it is missing.
+Run `pnpm auth:local` to refresh `PAX_CF_AUTHORIZATION` manually. Do not commit
+`.env.local`. The proxy keeps the Cloudflare token on the Next.js server side
+and returns a clear 401 when it is missing.
 
 `next.config.ts` disables caching for `/_next/*` assets during tunnel-based development so browser/Cloudflare stale chunks do not hide UI changes.
 

@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ["console.paxtech.net"],
+  allowedDevOrigins: ["*.paxtech.net"],
   output: "standalone",
   async rewrites() {
     return [
