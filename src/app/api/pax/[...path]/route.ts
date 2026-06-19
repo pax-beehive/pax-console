@@ -57,6 +57,7 @@ async function proxyPaxRequest(request: NextRequest, context: RouteContext) {
   const headers = new Headers(request.headers);
   headers.delete("host");
   headers.delete("content-length");
+  headers.set("accept-encoding", "identity");
   // Preserve the user Access identity for pax-manager. The JWT header is the
   // production path; the cookie path keeps local development working.
   if (accessJwt) {
