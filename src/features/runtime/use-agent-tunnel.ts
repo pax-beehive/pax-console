@@ -41,7 +41,7 @@ export function useAgentTunnel(agentId?: string, sessionId?: string) {
   const sendUserMessage = useCallback(async (sessionId: string, content: string) => {
     try {
       setError(null);
-      await runtimeRef.current?.sendUserMessage(sessionId, content);
+      return await runtimeRef.current?.sendUserMessage(sessionId, content);
     } catch (caught) {
       const error = caught instanceof Error ? caught : new Error(String(caught));
       setError(error);

@@ -124,12 +124,13 @@ export class AgentTunnelRuntime {
   async sendUserMessage(paxSessionId: string, content: string) {
     await this.ensureReady();
     const acpSessionId = await this.ensureAcpSession();
-    this.activeStreamId = `${paxSessionId}:turn:${Date.now()}`;
+    const resolvedSessionId = acpSessionId || paxSessionId;
+    this.activeStreamId = `${resolvedSessionId}:turn:${Date.now()}`;
 
     this.emitEvent({
       type: "user_message",
-      id: `${paxSessionId}:user:${Date.now()}`,
-      sessionId: paxSessionId,
+      id: `${resolvedSessionId}:user:${Date.now()}`,
+      sessionId: resolvedSessionId,
       content,
       createdAt: new Date().toISOString(),
     });
@@ -138,6 +139,8 @@ export class AgentTunnelRuntime {
       sessionId: acpSessionId,
       prompt: [{ type: "text", text: content }],
     });
+
+    return { sessionId: resolvedSessionId };
   }
 
   subscribe(listener: SessionEventListener) {

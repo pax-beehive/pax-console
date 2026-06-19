@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AlertCircle, ArrowLeft, FileCode, Radio, Send } from "lucide-react";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +33,7 @@ export function SessionWorkbench({
   nodeId,
   agentId,
 }: SessionWorkbenchProps) {
+  const router = useRouter();
   const nodesQuery = useNodes(user.user_id);
   const nodes = nodesQuery.data?.nodes ?? [];
   const activeNodeId = nodeId ?? nodes[0]?.node_id;
@@ -77,8 +79,18 @@ export function SessionWorkbench({
 
     setSendError(null);
     try {
-      await tunnel.sendUserMessage(sessionId, content);
+      const result = await tunnel.sendUserMessage(sessionId, content);
       setDraft("");
+      if (result?.sessionId && result.sessionId !== sessionId) {
+        const params = new URLSearchParams();
+        if (activeNodeId) {
+          params.set("nodeId", activeNodeId);
+        }
+        if (activeAgentId) {
+          params.set("agentId", activeAgentId);
+        }
+        router.replace(`/sessions/${result.sessionId}?${params}`);
+      }
     } catch (caught) {
       setSendError(caught instanceof Error ? caught : new Error(String(caught)));
     }
