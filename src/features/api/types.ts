@@ -71,6 +71,47 @@ export type ApprovedNodeRegistration = {
   status: string;
 };
 
+export type ApprovedPaxlDeviceLogin = {
+  expires_at?: string;
+  login_id: string;
+  status: string;
+  user_code: string;
+};
+
+export type NodeRegistrationPreview = {
+  created_at?: string;
+  expires_at?: string;
+  network?: {
+    city?: string;
+    country?: string;
+    ip_address?: string;
+  };
+  pair_code: string;
+  registration_id: string;
+  request?: {
+    api_endpoint?: string;
+    arch?: string;
+    hostname?: string;
+    machine_type?: string;
+    os?: string;
+    paxd_version?: string;
+  };
+  status: string;
+};
+
+export type PaxdConnectPreview = {
+  apiEndpoint?: string;
+  arch?: string;
+  city?: string;
+  country?: string;
+  hostname?: string;
+  ipAddress?: string;
+  machineType?: string;
+  os?: string;
+  paxdVersion?: string;
+  requestedAt?: string;
+};
+
 export type ApprovalOption = {
   option_id?: string;
   label?: string;

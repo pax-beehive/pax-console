@@ -2,7 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
   CheckCircle2,
@@ -16,24 +16,15 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { AuthGate } from "@/features/auth/auth-gate";
-import { approveNodeRegistration } from "@/features/api/resources";
-import { User } from "@/features/api/types";
+import {
+  approveNodeRegistration,
+  getNodeRegistration,
+  toPaxdConnectPreview,
+} from "@/features/api/resources";
+import { PaxdConnectPreview, User } from "@/features/api/types";
 import { Button } from "@/components/ui/button";
 
 const pairCodePattern = /^[A-Z0-9]{6}$/;
-
-type NodePreview = {
-  apiEndpoint?: string;
-  arch?: string;
-  city?: string;
-  country?: string;
-  hostname?: string;
-  ipAddress?: string;
-  machineType?: string;
-  os?: string;
-  paxdVersion?: string;
-  requestedAt?: string;
-};
 
 export function PaxdConnectPageClient() {
   const searchParams = useSearchParams();
@@ -61,11 +52,18 @@ function PaxdConnectShell({
   user,
 }: {
   initialCode: string;
-  nodePreview?: NodePreview;
+  nodePreview?: PaxdConnectPreview;
   user: User;
 }) {
   const [pairCode, setPairCode] = useState(initialCode);
   const isValidCode = pairCodePattern.test(pairCode);
+  const preview = useQuery({
+    enabled: isValidCode && !nodePreview,
+    queryFn: () =>
+      getNodeRegistration(user.user_id, pairCode).then(toPaxdConnectPreview),
+    queryKey: ["node-registration", user.user_id, pairCode],
+    retry: false,
+  });
   const approve = useMutation({
     mutationFn: () => approveNodeRegistration(user.user_id, pairCode),
   });
@@ -102,7 +100,12 @@ function PaxdConnectShell({
             </p>
           </header>
 
-          <NodePreviewPanel preview={nodePreview} user={user} />
+          <NodePreviewPanel
+            preview={nodePreview ?? preview.data}
+            previewError={preview.error}
+            previewLoading={preview.isFetching}
+            user={user}
+          />
         </section>
 
         <aside className="border border-hairline bg-surface-1">
@@ -188,12 +191,23 @@ function PaxdConnectShell({
 
 function NodePreviewPanel({
   preview,
+  previewError,
+  previewLoading,
   user,
 }: {
-  preview?: NodePreview;
+  preview?: PaxdConnectPreview;
+  previewError?: Error | null;
+  previewLoading?: boolean;
   user: User;
 }) {
   const location = [preview?.city, preview?.country].filter(Boolean).join(", ");
+  const previewStatus = preview
+    ? "Observed from paxd"
+    : previewLoading
+      ? "Loading preview"
+      : previewError
+        ? "Preview unavailable"
+        : "Enter pair code";
 
   return (
     <section className="mt-5">
@@ -203,7 +217,7 @@ function NodePreviewPanel({
           Node identity
         </div>
         <div className="shrink-0 text-[11px] uppercase tracking-[0.08em] text-ink-tertiary">
-          {preview ? "Observed from paxd" : "Preview unavailable"}
+          {previewStatus}
         </div>
       </div>
 
@@ -270,7 +284,7 @@ function DetailRow({
   );
 }
 
-function formatPlatform(preview?: NodePreview) {
+function formatPlatform(preview?: PaxdConnectPreview) {
   if (!preview) {
     return "Pending manager support";
   }
