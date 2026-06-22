@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const PAX_MANAGER_URL = process.env.PAX_MANAGER_URL ?? "https://app.paxtech.net";
+const PAX_MANAGER_URL =
+  process.env.PAX_MANAGER_URL ?? "https://api.paxtech.net";
 
 type RouteContext = {
   params: Promise<{
