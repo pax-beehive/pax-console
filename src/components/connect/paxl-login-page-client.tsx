@@ -56,9 +56,7 @@ function PaxlLoginShell({
     return (
       <main className="grid min-h-screen place-items-center bg-canvas p-6 text-ink">
         <div className="grid gap-2 text-center">
-          <div className="text-base font-medium">
-            You have successfully logged in
-          </div>
+          <div className="text-base font-medium">Approval complete</div>
           <div className="text-sm text-ink-muted">You may close this page</div>
         </div>
       </main>
@@ -71,7 +69,7 @@ function PaxlLoginShell({
         <section className="min-w-0">
           <header className="border-b border-hairline pb-5">
             <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-ink-tertiary">
-              paxl login
+              device approval
             </div>
             <div className="mt-4 text-sm text-ink-tertiary">
               Hello{" "}
@@ -81,11 +79,11 @@ function PaxlLoginShell({
               ,
             </div>
             <h1 className="mt-2 text-3xl font-medium leading-[1.14] text-ink md:text-[2.6rem]">
-              Authorize this CLI.
+              Approve this device.
             </h1>
             <p className="mt-3 max-w-xl text-sm leading-6 text-ink-muted">
-              PAX Manager will issue a user API key to the paxl process waiting
-              in your terminal.
+              PAX Manager will issue a user-scoped credential to the paxl
+              process waiting in your terminal.
             </p>
           </header>
 
@@ -123,7 +121,7 @@ function PaxlLoginShell({
         <aside className="border border-hairline bg-surface-1">
           <div className="border-b border-hairline px-5 py-4">
             <div className="flex items-center justify-between gap-3">
-              <div className="text-[15px] font-medium">Approve login</div>
+              <div className="text-[15px] font-medium">Approve device</div>
               <div className="text-[11px] uppercase tracking-[0.08em] text-ink-tertiary">
                 pending
               </div>
@@ -133,7 +131,7 @@ function PaxlLoginShell({
           <form className="grid gap-5 p-5" onSubmit={onSubmit}>
             <div className="grid gap-2.5">
               <label className="grid gap-2.5 text-xs font-medium text-ink-subtle">
-                Login code
+                Approval code
                 <input
                   autoCapitalize="characters"
                   autoComplete="one-time-code"
@@ -173,7 +171,7 @@ function PaxlLoginShell({
               type="submit"
               variant="primary"
             >
-              {approve.isPending ? "Authorizing..." : "Authorize paxl"}
+              {approve.isPending ? "Approving..." : "Approve device"}
             </Button>
           </form>
 
