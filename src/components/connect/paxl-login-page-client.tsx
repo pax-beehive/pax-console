@@ -5,7 +5,6 @@ import { useSearchParams } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import {
   ArrowRight,
-  CheckCircle2,
   KeyRound,
   Loader2,
   ShieldCheck,
@@ -51,6 +50,19 @@ function PaxlLoginShell({
     if (isValidCode && !approve.isPending) {
       approve.mutate();
     }
+  }
+
+  if (approve.isSuccess) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-canvas p-6 text-ink">
+        <div className="grid gap-2 text-center">
+          <div className="text-base font-medium">
+            You have successfully logged in
+          </div>
+          <div className="text-sm text-ink-muted">You may close this page</div>
+        </div>
+      </main>
+    );
   }
 
   return (
@@ -113,7 +125,7 @@ function PaxlLoginShell({
             <div className="flex items-center justify-between gap-3">
               <div className="text-[15px] font-medium">Approve login</div>
               <div className="text-[11px] uppercase tracking-[0.08em] text-ink-tertiary">
-                {approve.isSuccess ? "approved" : "pending"}
+                pending
               </div>
             </div>
           </div>
@@ -148,21 +160,9 @@ function PaxlLoginShell({
               </div>
             )}
 
-            {approve.isSuccess && (
-              <div className="border border-success/30 bg-success/10 p-3 text-xs leading-5 text-success">
-                <div className="flex items-center gap-2 font-medium">
-                  <CheckCircle2 className="h-4 w-4" />
-                  paxl login approved
-                </div>
-                <div className="mt-1 font-mono text-[11px] text-ink-muted">
-                  login: {approve.data.login_id}
-                </div>
-              </div>
-            )}
-
             <Button
               className="w-full justify-center rounded-md"
-              disabled={!isValidCode || approve.isPending || approve.isSuccess}
+              disabled={!isValidCode || approve.isPending}
               icon={
                 approve.isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
