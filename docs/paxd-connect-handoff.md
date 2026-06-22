@@ -6,7 +6,7 @@ This note summarizes the frontend changes for the paxd interactive pairing entry
 
 ```txt
 paxd starts node registration
-  -> pax-manager returns https://ws.paxtech.net/connect.html?code=<PAIR_CODE>
+  -> pax-manager returns https://console.paxtech.net/connect.html?code=<PAIR_CODE>
   -> user opens the link and signs in through Cloudflare Access
   -> PAX Console shows the pairing page
   -> user reviews the pair code and node identity context
@@ -50,6 +50,15 @@ The public link shape is:
 ```
 
 This keeps the frontend compatible with pax-manager's verification URI while keeping the actual app route conventional.
+
+paxl uses a separate device-login entrypoint:
+
+```txt
+/paxl-login.html?code=ABC123
+```
+
+`next.config.ts` rewrites it to `/paxl-login`, and the page calls the paxl
+device-login approval API instead of the paxd node-registration API.
 
 ## API call
 

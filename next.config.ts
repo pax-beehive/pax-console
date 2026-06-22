@@ -9,6 +9,10 @@ const nextConfig: NextConfig = {
         source: "/connect.html",
         destination: "/connect",
       },
+      {
+        source: "/paxl-login.html",
+        destination: "/paxl-login",
+      },
     ];
   },
   async headers() {

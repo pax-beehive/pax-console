@@ -2,70 +2,47 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import {
   ArrowRight,
   CheckCircle2,
-  Clock3,
-  Cpu,
-  Globe2,
-  Laptop,
+  KeyRound,
   Loader2,
-  MapPin,
-  Network,
   ShieldCheck,
+  TerminalSquare,
 } from "lucide-react";
-import { AuthGate } from "@/features/auth/auth-gate";
-import {
-  approveNodeRegistration,
-  getNodeRegistration,
-  toPaxdConnectPreview,
-} from "@/features/api/resources";
-import { PaxdConnectPreview, User } from "@/features/api/types";
 import { Button } from "@/components/ui/button";
+import { approvePaxlDeviceLogin } from "@/features/api/resources";
+import { User } from "@/features/api/types";
+import { AuthGate } from "@/features/auth/auth-gate";
 
-const pairCodePattern = /^[A-Z0-9]{6}$/;
+const userCodePattern = /^[A-Z0-9]{6}$/;
 
-export function PaxdConnectPageClient() {
+export function PaxlLoginPageClient() {
   const searchParams = useSearchParams();
   const initialCode = useMemo(
-    () => normalizePairCode(searchParams.get("code") ?? ""),
+    () => normalizeUserCode(searchParams.get("code") ?? ""),
     [searchParams],
   );
 
   return (
     <AuthGate>
-      {(user) => (
-        <PaxdConnectShell
-          initialCode={initialCode}
-          key={initialCode}
-          user={user}
-        />
-      )}
+      {(user) => <PaxlLoginShell initialCode={initialCode} user={user} />}
     </AuthGate>
   );
 }
 
-function PaxdConnectShell({
+function PaxlLoginShell({
   initialCode,
-  nodePreview,
   user,
 }: {
   initialCode: string;
-  nodePreview?: PaxdConnectPreview;
   user: User;
 }) {
-  const [pairCode, setPairCode] = useState(initialCode);
-  const isValidCode = pairCodePattern.test(pairCode);
-  const preview = useQuery({
-    enabled: isValidCode && !nodePreview,
-    queryFn: () =>
-      getNodeRegistration(user.user_id, pairCode).then(toPaxdConnectPreview),
-    queryKey: ["node-registration", user.user_id, pairCode],
-    retry: false,
-  });
+  const [userCode, setUserCode] = useState(initialCode);
+  const isValidCode = userCodePattern.test(userCode);
   const approve = useMutation({
-    mutationFn: () => approveNodeRegistration(user.user_id, pairCode),
+    mutationFn: () => approvePaxlDeviceLogin(user.user_id, userCode),
   });
   const userLabel = user.email ?? user.name ?? user.user_id;
 
@@ -78,11 +55,11 @@ function PaxdConnectShell({
 
   return (
     <main className="min-h-screen bg-canvas text-ink">
-      <div className="mx-auto grid min-h-screen w-full max-w-5xl grid-cols-1 content-center gap-10 px-6 py-6 md:grid-cols-[minmax(0,1fr)_360px] md:px-8">
+      <div className="mx-auto grid min-h-screen w-full max-w-4xl grid-cols-1 content-center gap-8 px-6 py-6 md:grid-cols-[minmax(0,1fr)_360px] md:px-8">
         <section className="min-w-0">
           <header className="border-b border-hairline pb-5">
             <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-ink-tertiary">
-              paxd pairing
+              paxl login
             </div>
             <div className="mt-4 text-sm text-ink-tertiary">
               Hello{" "}
@@ -92,26 +69,49 @@ function PaxdConnectShell({
               ,
             </div>
             <h1 className="mt-2 text-3xl font-medium leading-[1.14] text-ink md:text-[2.6rem]">
-              Connect this node.
+              Authorize this CLI.
             </h1>
             <p className="mt-3 max-w-xl text-sm leading-6 text-ink-muted">
-              Review the device details before approving. PAX Manager will issue
-              a node API key to the paxd process waiting in your terminal.
+              PAX Manager will issue a user API key to the paxl process waiting
+              in your terminal.
             </p>
           </header>
 
-          <NodePreviewPanel
-            preview={nodePreview ?? preview.data}
-            previewError={preview.error}
-            previewLoading={preview.isFetching}
-            user={user}
-          />
+          <section className="mt-5">
+            <div className="flex items-center justify-between gap-4 py-2.5">
+              <div className="flex min-w-0 items-center gap-2 text-[15px] font-medium">
+                <TerminalSquare className="h-4 w-4 text-primary-hover" />
+                CLI identity
+              </div>
+              <div className="shrink-0 text-[11px] uppercase tracking-[0.08em] text-ink-tertiary">
+                User scoped
+              </div>
+            </div>
+
+            <div className="grid border-t border-l border-hairline sm:grid-cols-2">
+              <DetailRow
+                icon={<TerminalSquare className="h-4 w-4" />}
+                label="Client"
+                value="paxl"
+              />
+              <DetailRow
+                icon={<KeyRound className="h-4 w-4" />}
+                label="Credential"
+                value="User API key"
+              />
+              <DetailRow
+                icon={<ShieldCheck className="h-4 w-4" />}
+                label="Approving as"
+                value={userLabel}
+              />
+            </div>
+          </section>
         </section>
 
         <aside className="border border-hairline bg-surface-1">
           <div className="border-b border-hairline px-5 py-4">
             <div className="flex items-center justify-between gap-3">
-              <div className="text-[15px] font-medium">Approve pairing</div>
+              <div className="text-[15px] font-medium">Approve login</div>
               <div className="text-[11px] uppercase tracking-[0.08em] text-ink-tertiary">
                 {approve.isSuccess ? "approved" : "pending"}
               </div>
@@ -121,7 +121,7 @@ function PaxdConnectShell({
           <form className="grid gap-5 p-5" onSubmit={onSubmit}>
             <div className="grid gap-2.5">
               <label className="grid gap-2.5 text-xs font-medium text-ink-subtle">
-                Pair code
+                Login code
                 <input
                   autoCapitalize="characters"
                   autoComplete="one-time-code"
@@ -130,15 +130,15 @@ function PaxdConnectShell({
                   inputMode="text"
                   maxLength={6}
                   onChange={(event) => {
-                    setPairCode(normalizePairCode(event.target.value));
+                    setUserCode(normalizeUserCode(event.target.value));
                     approve.reset();
                   }}
                   placeholder="ABC123"
-                  value={pairCode}
+                  value={userCode}
                 />
               </label>
               <div className="text-xs leading-5 text-ink-tertiary">
-                Use the code shown by the paxd process you started.
+                Use the code shown by the paxl process you started.
               </div>
             </div>
 
@@ -152,10 +152,10 @@ function PaxdConnectShell({
               <div className="border border-success/30 bg-success/10 p-3 text-xs leading-5 text-success">
                 <div className="flex items-center gap-2 font-medium">
                   <CheckCircle2 className="h-4 w-4" />
-                  paxd approved
+                  paxl login approved
                 </div>
                 <div className="mt-1 font-mono text-[11px] text-ink-muted">
-                  registration: {approve.data.registration_id}
+                  login: {approve.data.login_id}
                 </div>
               </div>
             )}
@@ -173,92 +173,18 @@ function PaxdConnectShell({
               type="submit"
               variant="primary"
             >
-              {approve.isPending ? "Connecting..." : "Connect paxd"}
+              {approve.isPending ? "Authorizing..." : "Authorize paxl"}
             </Button>
           </form>
 
           <div className="border-t border-hairline px-5 py-4 text-xs leading-5 text-ink-tertiary">
             <div>
-              The code expires quickly and is consumed once paxd receives its
-              key.
+              This code is consumed once paxl receives its local credential.
             </div>
           </div>
         </aside>
       </div>
     </main>
-  );
-}
-
-function NodePreviewPanel({
-  preview,
-  previewError,
-  previewLoading,
-  user,
-}: {
-  preview?: PaxdConnectPreview;
-  previewError?: Error | null;
-  previewLoading?: boolean;
-  user: User;
-}) {
-  const location = [preview?.city, preview?.country].filter(Boolean).join(", ");
-  const previewStatus = preview
-    ? "Observed from paxd"
-    : previewLoading
-      ? "Loading preview"
-      : previewError
-        ? "Preview unavailable"
-        : "Enter pair code";
-
-  return (
-    <section className="mt-5">
-      <div className="flex items-center justify-between gap-4 py-2.5">
-        <div className="flex min-w-0 items-center gap-2 text-[15px] font-medium">
-          <Laptop className="h-4 w-4 text-primary-hover" />
-          Node identity
-        </div>
-        <div className="shrink-0 text-[11px] uppercase tracking-[0.08em] text-ink-tertiary">
-          {previewStatus}
-        </div>
-      </div>
-
-      <div className="grid border-t border-l border-hairline sm:grid-cols-2">
-        <DetailRow
-          icon={<Laptop className="h-4 w-4" />}
-          label="Host"
-          value={preview?.hostname ?? "Pending manager support"}
-        />
-        <DetailRow
-          icon={<Cpu className="h-4 w-4" />}
-          label="Platform"
-          value={formatPlatform(preview)}
-        />
-        <DetailRow
-          icon={<Network className="h-4 w-4" />}
-          label="Source IP"
-          value={preview?.ipAddress ?? "Not captured yet"}
-        />
-        <DetailRow
-          icon={<MapPin className="h-4 w-4" />}
-          label="Approx. location"
-          value={location || "Not resolved yet"}
-        />
-        <DetailRow
-          icon={<Globe2 className="h-4 w-4" />}
-          label="Cloud API"
-          value={preview?.apiEndpoint ?? "https://api.paxtech.net"}
-        />
-        <DetailRow
-          icon={<Clock3 className="h-4 w-4" />}
-          label="Requested"
-          value={preview?.requestedAt ?? "Within 5 minutes"}
-        />
-        <DetailRow
-          icon={<ShieldCheck className="h-4 w-4" />}
-          label="Approving as"
-          value={user.email ?? user.user_id}
-        />
-      </div>
-    </section>
   );
 }
 
@@ -284,17 +210,7 @@ function DetailRow({
   );
 }
 
-function formatPlatform(preview?: PaxdConnectPreview) {
-  if (!preview) {
-    return "Pending manager support";
-  }
-
-  return [preview.os, preview.arch, preview.machineType, preview.paxdVersion]
-    .filter(Boolean)
-    .join(" / ");
-}
-
-function normalizePairCode(value: string) {
+function normalizeUserCode(value: string) {
   return value
     .replace(/[^a-z0-9]/gi, "")
     .toUpperCase()

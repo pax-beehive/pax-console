@@ -8,12 +8,15 @@ import {
   AgentApproval,
   AgentSession,
   ApprovedNodeRegistration,
+  ApprovedPaxlDeviceLogin,
   CreatedNodeRegistrationToken,
   CreatedUserAPIKey,
   Health,
   HistoryMessage,
   MailboxMessage,
   Node,
+  NodeRegistrationPreview,
+  PaxdConnectPreview,
   UserAPIKey,
 } from "./types";
 
@@ -147,6 +150,36 @@ export function approveNodeRegistration(userId: string, pairCode: string) {
     userPath(userId, `/node-registrations/${pairCode}/approve`),
     { method: "POST" },
   );
+}
+
+export function approvePaxlDeviceLogin(userId: string, userCode: string) {
+  return apiFetch<ApprovedPaxlDeviceLogin>(
+    userPath(userId, `/paxl/device-logins/${userCode}/approve`),
+    { method: "POST" },
+  );
+}
+
+export function getNodeRegistration(userId: string, pairCode: string) {
+  return apiFetch<NodeRegistrationPreview>(
+    userPath(userId, `/node-registrations/${pairCode}`),
+  );
+}
+
+export function toPaxdConnectPreview(
+  registration: NodeRegistrationPreview,
+): PaxdConnectPreview {
+  return {
+    apiEndpoint: registration.request?.api_endpoint,
+    arch: registration.request?.arch,
+    city: registration.network?.city,
+    country: registration.network?.country,
+    hostname: registration.request?.hostname,
+    ipAddress: registration.network?.ip_address,
+    machineType: registration.request?.machine_type,
+    os: registration.request?.os,
+    paxdVersion: registration.request?.paxd_version,
+    requestedAt: registration.created_at,
+  };
 }
 
 export function listApprovals(userId: string) {
@@ -341,7 +374,11 @@ export function useSessionHistory(
       sessionId ?? "pending",
     ),
     queryFn: () =>
-      listSessionHistory(userId as string, agentId as string, sessionId as string),
+      listSessionHistory(
+        userId as string,
+        agentId as string,
+        sessionId as string,
+      ),
     enabled: Boolean(userId && agentId && sessionId),
     refetchOnWindowFocus: true,
   });
