@@ -119,6 +119,15 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
     kind === "approvals" ? user.user_id : undefined,
   );
   const meta = copy[kind];
+  const apiError =
+    nodesQuery.error ??
+    firstQueryError(agentQueries) ??
+    sessionsQuery.error ??
+    healthQuery.error ??
+    apiKeysQuery.error ??
+    approvalsQuery.error ??
+    approvalGrantsQuery.error ??
+    null;
 
   return (
     <ConsoleLayout
@@ -130,7 +139,7 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
       <div className="grid gap-0">
         <header className="flex min-w-0 items-center justify-between border-b border-hairline px-5 py-4">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-sm text-ink-tertiary">
+            <div className="flex items-center gap-2 text-xs text-ink-tertiary">
               {meta.icon}
               {meta.eyebrow}
             </div>
@@ -138,20 +147,11 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
           </div>
         </header>
 
-        <div className="px-5 pt-4">
-          <ApiNotice
-          error={
-            nodesQuery.error ??
-            firstQueryError(agentQueries) ??
-            sessionsQuery.error ??
-            healthQuery.error ??
-            apiKeysQuery.error ??
-            approvalsQuery.error ??
-            approvalGrantsQuery.error ??
-            null
-          }
-          />
-        </div>
+        {apiError && (
+          <div className="px-5 pt-4">
+            <ApiNotice error={apiError} />
+          </div>
+        )}
 
         <div className="p-5">
           {kind === "nodes" && <NodeGrid isLoading={nodesQuery.isLoading} nodes={nodes} />}
@@ -218,7 +218,7 @@ function NodeGrid({
           key={node.node_id}
         >
           <div className="min-w-0">
-            <TruncatedText className="text-base font-medium">
+            <TruncatedText className="text-sm font-medium">
               {node.name ?? node.hostname ?? node.node_id}
             </TruncatedText>
           </div>
@@ -265,7 +265,7 @@ function AgentGrid({
             key={agent.agent_id}
           >
             <div className="min-w-0">
-              <TruncatedText className="text-base font-medium">
+              <TruncatedText className="text-sm font-medium">
                 {agent.name ?? agent.agent_type ?? agent.agent_id}
               </TruncatedText>
             </div>
@@ -300,15 +300,15 @@ function SessionGrid({
     <div className="grid min-w-0 overflow-hidden rounded-lg border border-hairline">
       {sessions.map((session) => (
         <Link
-          className="grid min-w-0 gap-3 border-b border-hairline bg-surface-1 px-3 py-2.5 transition last:border-b-0 hover:bg-surface-2 lg:grid-cols-[minmax(0,1fr)_160px_120px]"
+          className="grid min-w-0 gap-3 border-b border-hairline bg-surface-1 px-3 py-3 transition last:border-b-0 hover:bg-surface-2 lg:grid-cols-[minmax(0,1fr)_160px_120px]"
           href={`/sessions/${session.session_id}?nodeId=${session.node_id}&agentId=${session.agent_id}`}
           key={session.session_id}
         >
           <div className="min-w-0">
-            <TruncatedText className="text-base font-medium">
+            <TruncatedText className="text-sm font-medium">
               {session.name ?? session.current_task ?? session.session_id}
             </TruncatedText>
-            <TruncatedText className="mt-1 text-sm text-ink-muted">
+            <TruncatedText className="mt-1 text-xs text-ink-muted">
               {session.preview ?? session.current_task ?? "Open session"}
             </TruncatedText>
           </div>
@@ -367,7 +367,7 @@ function NodeRegistrationPanel({ userId }: { userId: string }) {
 
   return (
     <div className="grid gap-4">
-      <section className="border border-hairline bg-surface-1 p-3">
+      <section className="rounded-lg border border-hairline bg-surface-1 p-3">
         <div className="flex min-w-0 flex-wrap items-end gap-3">
           <label className="grid w-56 max-w-full gap-2 text-sm text-ink-muted">
             TTL seconds
@@ -534,7 +534,7 @@ function ApprovalsPanel({
         <SectionHeader count={activeGrants.length} title="Active grants" />
         {activeGrants.map((grant) => (
           <article
-            className="min-w-0 border-b border-hairline bg-surface-1 py-3 last:border-b-0"
+            className="min-w-0 rounded-lg border border-hairline bg-surface-1 p-3"
             key={grant.approval_id}
           >
             <TruncatedText className="text-sm font-medium">
@@ -598,7 +598,7 @@ function ApiKeysPanel({
 
   return (
     <div className="grid gap-4">
-      <section className="border border-hairline bg-surface-1 p-3">
+      <section className="rounded-lg border border-hairline bg-surface-1 p-3">
         <div className="flex min-w-0 flex-wrap items-end gap-3">
           <label className="grid flex-1 gap-2 text-sm text-ink-muted">
             Key name
@@ -637,7 +637,7 @@ function ApiKeysPanel({
         <div className="grid overflow-hidden rounded-lg border border-hairline">
         {apiKeys.map((apiKey) => (
           <article
-            className="flex min-w-0 items-center justify-between gap-4 border-b border-hairline bg-surface-1 px-3 py-2.5 last:border-b-0"
+            className="flex min-w-0 items-center justify-between gap-4 border-b border-hairline bg-surface-1 px-3 py-3 last:border-b-0"
             key={apiKey.key_id}
           >
             <div className="min-w-0 flex-1">
@@ -693,9 +693,9 @@ function approvalOptions(approval: AgentApproval) {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 border-r border-hairline bg-surface-1 p-3 last:border-r-0">
+    <div className="min-w-0 border-r border-hairline bg-surface-1 px-3 py-2 last:border-r-0">
       <div className="text-xs text-ink-tertiary">{label}</div>
-      <TruncatedText className="mt-1 font-mono text-2xl text-ink">
+      <TruncatedText className="mt-1 font-mono text-xl text-ink">
         {value}
       </TruncatedText>
     </div>
