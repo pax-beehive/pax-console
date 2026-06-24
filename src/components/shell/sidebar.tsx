@@ -11,7 +11,6 @@ import {
   KeyRound,
   Radio,
   Server,
-  Settings2,
   ShieldCheck,
   TerminalSquare,
 } from "lucide-react";
@@ -29,7 +28,6 @@ const navItems = [
   ["Approvals", "/approvals", ShieldCheck],
   ["Monitor", "/monitor", Radio],
   ["API Keys", "/settings/api-keys", KeyRound],
-  ["Node Registration", "/settings/node-registration", Settings2],
 ] as const;
 
 type SidebarProps = {

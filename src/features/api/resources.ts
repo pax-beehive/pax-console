@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, userPath } from "./client";
+import { ApiError } from "./errors";
 import { queryKeys } from "./query-keys";
 import {
   Agent,
@@ -74,14 +75,23 @@ export function getNodeAgent(userId: string, nodeId: string, agentId: string) {
   );
 }
 
-export function listAgentSessions(
+export async function listAgentSessions(
   userId: string,
   nodeId: string,
   agentId: string,
-) {
-  return apiFetch<SessionListData>(
-    userPath(userId, `/nodes/${nodeId}/agents/${agentId}/sessions`),
-  );
+): Promise<SessionListData> {
+  try {
+    return await apiFetch<SessionListData>(
+      userPath(userId, `/nodes/${nodeId}/agents/${agentId}/sessions`),
+    );
+  } catch (error) {
+    // A missing sessions collection just means there are no sessions yet;
+    // treat 404 as an empty list instead of surfacing an error.
+    if (error instanceof ApiError && error.status === 404) {
+      return { sessions: [] };
+    }
+    throw error;
+  }
 }
 
 export function listSessionMessages(

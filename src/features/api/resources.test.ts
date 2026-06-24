@@ -1,5 +1,18 @@
-import { describe, expect, it } from "vitest";
-import { toPaxdConnectPreview } from "./resources";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "./errors";
+
+const apiFetch = vi.fn();
+
+vi.mock("./client", () => ({
+  apiFetch: (...args: unknown[]) => apiFetch(...args),
+  userPath: (userId: string, path: string) => `/api/v1/user/${userId}${path}`,
+}));
+
+const { listAgentSessions, toPaxdConnectPreview } = await import("./resources");
+
+afterEach(() => {
+  apiFetch.mockReset();
+});
 
 describe("toPaxdConnectPreview", () => {
   it("maps node registration network and request fields for the connect page", () => {
@@ -34,6 +47,32 @@ describe("toPaxdConnectPreview", () => {
       os: "darwin",
       paxdVersion: "0.1.2",
       requestedAt: "2026-06-22T04:00:00Z",
+    });
+  });
+});
+
+describe("listAgentSessions", () => {
+  it("returns an empty list when the sessions collection is missing (404)", async () => {
+    apiFetch.mockRejectedValueOnce(new ApiError("not found", 404, null));
+
+    await expect(listAgentSessions("u1", "n1", "a1")).resolves.toEqual({
+      sessions: [],
+    });
+  });
+
+  it("rethrows non-404 API errors", async () => {
+    apiFetch.mockRejectedValueOnce(new ApiError("boom", 500, null));
+
+    await expect(listAgentSessions("u1", "n1", "a1")).rejects.toMatchObject({
+      status: 500,
+    });
+  });
+
+  it("returns the sessions payload on success", async () => {
+    apiFetch.mockResolvedValueOnce({ sessions: [{ id: "s1" }] });
+
+    await expect(listAgentSessions("u1", "n1", "a1")).resolves.toEqual({
+      sessions: [{ id: "s1" }],
     });
   });
 });
