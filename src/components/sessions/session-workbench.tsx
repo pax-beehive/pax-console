@@ -103,7 +103,7 @@ export function SessionWorkbench({
       nodes={nodes}
       user={user}
     >
-      <div className="grid min-h-[calc(100vh-48px)] min-w-0 lg:grid-cols-[260px_minmax(0,1fr)_300px]">
+      <div className="grid min-h-[calc(100vh-var(--topbar-h))] min-w-0 lg:grid-cols-[260px_minmax(0,1fr)_300px]">
         <aside className="min-w-0 border-b border-hairline bg-surface-1 lg:border-b-0 lg:border-r">
           <div className="border-b border-hairline p-4">
             <Link

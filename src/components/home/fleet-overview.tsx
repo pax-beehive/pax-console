@@ -112,7 +112,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
             <div className="mt-3 grid gap-0 overflow-hidden rounded-lg border border-hairline">
               {nodes.map((node) => (
                 <div
-                  className="min-w-0 border-b border-hairline bg-surface-1 px-3 py-2.5 last:border-b-0"
+                  className="min-w-0 border-b border-hairline bg-surface-1 px-3 py-3 last:border-b-0"
                   key={node.node_id}
                 >
                   <div className="flex min-w-0 items-center justify-between gap-3">
@@ -139,7 +139,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
             <div className="mt-3 grid gap-0 overflow-hidden rounded-lg border border-hairline">
               {agents.map((agent) => (
                 <div
-                  className="min-w-0 border-b border-hairline bg-surface-1 px-3 py-2.5 last:border-b-0"
+                  className="min-w-0 border-b border-hairline bg-surface-1 px-3 py-3 last:border-b-0"
                   key={agent.agent_id}
                 >
                   <div className="flex min-w-0 items-center justify-between gap-3">
@@ -166,7 +166,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
             <div className="mt-3 grid gap-0 overflow-hidden rounded-lg border border-hairline">
               {sessions.map((session) => (
                 <Link
-                  className="block min-w-0 border-b border-hairline bg-surface-1 px-3 py-2.5 transition last:border-b-0 hover:bg-surface-2"
+                  className="block min-w-0 border-b border-hairline bg-surface-1 px-3 py-3 transition last:border-b-0 hover:bg-surface-2"
                   href={`/sessions/${session.session_id}?nodeId=${session.node_id}&agentId=${session.agent_id}`}
                   key={session.session_id}
                 >
