@@ -60,9 +60,19 @@ NEXT_PUBLIC_PAX_API_BASE_URL
 NEXT_PUBLIC_PAX_USER_SCOPE
   当前用 self，让后端按 Cloudflare Access 身份解析当前用户。
 
+NEXT_PUBLIC_PAX_LOGOUT_URL
+  顶栏「Sign out」跳转的地址，默认 /cdn-cgi/access/logout（Cloudflare Access
+  的同源登出端点，结束 console.paxtech.net 的 Access 会话）。仅当 console 由
+  其它入口托管时才需要覆盖。
+
 PAX_MANAGER_URL
   Next server-side proxy 的上游 PAX Manager 地址。
 ```
+
+登出链路：顶栏右上角的用户邮箱是一个下拉触发器（`src/components/shell/topbar.tsx`
+配合 `src/components/ui/dropdown-menu.tsx`），点击展开后的「Sign out」会把浏览器
+导航到 `LOGOUT_URL`（见 `src/features/api/client.ts`）。登出不经过 `/api/pax`
+proxy，由 Cloudflare Access 直接处理，组件不感知 Cloudflare 细节。
 
 如果未来需要无浏览器 cookie 的本地调试，可以增加：
 
