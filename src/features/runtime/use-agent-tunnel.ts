@@ -28,9 +28,17 @@ export function useAgentTunnel(agentId?: string, sessionId?: string) {
       }
     });
 
-    runtime.connect(agentId, sessionId);
+    let active = true;
+    void runtime.connect(agentId, sessionId).catch((caught) => {
+      if (!active) {
+        return;
+      }
+      const error = caught instanceof Error ? caught : new Error(String(caught));
+      setError(error);
+    });
 
     return () => {
+      active = false;
       unsubscribeEvents();
       unsubscribeStatus();
       runtime.disconnect();
