@@ -71,7 +71,8 @@ export class AgentTunnelRuntime {
     this.rejectPendingRequests(new Error("Agent tunnel reconnecting"));
     this.shouldReconnect = true;
     this.setStatus(this.socket ? "reconnecting" : "connecting");
-    this.socket = new WebSocket(getAgentTunnelUrl(agentId, sessionId));
+    const tunnelUrl = getAgentTunnelUrl(agentId, sessionId);
+    this.socket = new WebSocket(tunnelUrl);
 
     this.readyPromise = new Promise((resolve, reject) => {
       if (!this.socket) {
@@ -89,7 +90,7 @@ export class AgentTunnelRuntime {
 
       this.socket.onerror = () => {
         this.setStatus("error");
-        reject(new Error("Agent tunnel socket error"));
+        reject(new Error(`Agent tunnel socket error: ${tunnelUrl}`));
       };
 
       this.socket.onmessage = (message) => {
@@ -113,6 +114,8 @@ export class AgentTunnelRuntime {
         this.scheduleReconnect();
       };
     });
+
+    return this.readyPromise;
   }
 
   disconnect() {
@@ -347,7 +350,9 @@ export class AgentTunnelRuntime {
 
     window.setTimeout(() => {
       if (this.shouldReconnect && this.agentId) {
-        this.connect(this.agentId, this.managerSessionId);
+        void this.connect(this.agentId, this.managerSessionId).catch(() => {
+          // Connection state is already reflected through status listeners.
+        });
       }
     }, delay + Math.floor(Math.random() * 250));
   }
