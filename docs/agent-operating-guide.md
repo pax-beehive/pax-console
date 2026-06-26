@@ -232,6 +232,7 @@ Actual ACP streaming frames observed from the backend look like:
 ```
 
 `normalizeTunnelFrame` extracts `params.sessionId`, `params.update.sessionUpdate`, and `params.update.content.text`. `AgentTunnelRuntime` assigns a turn-scoped stream id when `sendUserMessage` starts. `merge-session-events.ts` appends chunks with the same stream id so the UI renders one growing message instead of one card per token.
+Unknown or control-only `session/update` values, such as generic `update` frames and unsupported `*_update` frames, are ignored by `normalizeTunnelFrame` so raw ACP protocol payloads do not render in the user-facing timeline.
 
 Do not confuse the two session ids:
 

@@ -68,12 +68,14 @@ export function normalizeTunnelFrame(
     extractText(frame.content) ??
     extractText(frame.message) ??
     extractText(frame.delta) ??
-    extractText(frame.text) ??
-    extractText(frame.params) ??
-    extractText(frame.result);
+    extractText(frame.text);
 
-  if (!kind && !content) {
+  if (!kind) {
     return normalizeJsonRpcResult(frame, sessionId, createdAt, id);
+  }
+
+  if (isIgnoredSessionUpdate(kind)) {
+    return [];
   }
 
   if (kind === "file/changed" && frame.path) {
@@ -327,6 +329,19 @@ function isStreamingKind(kind: string | undefined) {
     kind?.includes("stream") ||
     kind?.endsWith("_chunk") ||
     kind === "message/delta"
+  );
+}
+
+function isIgnoredSessionUpdate(kind: string | undefined) {
+  if (kind === "update") {
+    return true;
+  }
+
+  return Boolean(
+    kind &&
+      kind.endsWith("_update") &&
+      kind !== "usage_update" &&
+      kind !== "session_info_update",
   );
 }
 

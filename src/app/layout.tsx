@@ -17,7 +17,8 @@ export const metadata: Metadata = {
   title: "PAX Console",
   description: "Fleet control plane and agent workbench for PAX.",
   icons: {
-    icon: [{ url: "/pax-icon.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/pax-app-icon.png", type: "image/png" }],
+    icon: [{ url: "/pax-app-icon.png", type: "image/png" }],
   },
 };
 
