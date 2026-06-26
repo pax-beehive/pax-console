@@ -349,10 +349,12 @@ GET  /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}
 
 Sessions
 GET  /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions
-POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions
 GET  /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}
 GET  /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}/messages
 POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}/messages
+
+Conversation
+POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/conversation
 
 WebSocket
 GET /api/v1/user/self/agents/{agent_id}/tunnel
@@ -365,11 +367,11 @@ Implemented
 - Auth check through GET /me.
 - Fleet overview through nodes, agents, sessions.
 - Session detail history through session messages.
-- New session through POST /sessions.
+- New session opens `/sessions/new`; the first prompt creates `sess_*` through POST /conversation.
 - API key list/create/revoke.
 - Approval list, decision, grant list, grant revoke.
-- Session workbench composer through ACP WebSocket `session/prompt`.
-- ACP WebSocket startup through initialize, optional authenticate, and lazy session/new.
+- Session workbench composer through POST /conversation fetch streaming.
+- ACP frames from conversation envelopes are normalized through the existing tunnel-frame mapper.
 - Node detail through GET /nodes/{node_id}.
 - Agent detail through GET /nodes/{node_id}/agents/{agent_id}.
 - Node registration token creation.
@@ -436,7 +438,7 @@ The correct browser design is:
 
 ```ts
 new WebSocket(
-  `wss://app.paxtech.net/api/v1/user/self/agents/${agentId}/tunnel`
+  `wss://app.paxtech.net/api/v1/user/self/agents/${agentId}/tunnel`,
 );
 ```
 
@@ -458,7 +460,10 @@ The browser will include valid same-domain cookies during the WebSocket handshak
 All REST calls should go through one client.
 
 ```ts
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+export async function apiFetch<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     credentials: "include",
@@ -482,7 +487,38 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 }
 ```
 
+## Conversation Run Design
+
+The primary browser-facing live conversation endpoint:
+
+```txt
+POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/conversation
+Accept: text/event-stream
+Content-Type: application/json
+```
+
+New sessions send `{ "input": "..." }`; continued sessions send
+`{ "input": "...", "session_id": "sess_*" }`. Because this is POST with a JSON
+body, the frontend reads `response.body` with fetch streaming instead of
+EventSource.
+
+The stream uses default SSE data messages. Each data payload is a PAX envelope:
+
+```txt
+session  Save `session_id`; for new sessions replace the URL to /sessions/{session_id}.
+acp      Normalize `frame` with normalizeTunnelFrame and merge into the timeline.
+done     End the current streaming state.
+error    Show the message and end the current streaming state.
+```
+
+PAX Manager owns ACP initialize, optional authenticate, session/new,
+native-session binding, and session/prompt. The frontend should not expose
+model/options/auto_approve in the first version.
+
 ## WebSocket Design
+
+The direct tunnel endpoint is retained for runtime experiments and legacy
+coverage:
 
 The browser-facing tunnel endpoint:
 
@@ -509,10 +545,10 @@ The runtime deliberately keeps two session concepts separate:
 
 ```txt
 PAX Manager session
-  REST-created product session used by URLs, REST message history, and timeline context.
+  Conversation-created product session used by URLs, REST message history, and timeline context.
 
 ACP/native session
-  WebSocket-created runtime session returned by session/new and used for session/prompt.
+  Manager-created runtime session returned by session/new and used for session/prompt.
 ```
 
 ### Runtime States
@@ -735,7 +771,15 @@ export const queryKeys = {
   session: (nodeId: string, agentId: string, sessionId: string) =>
     ["nodes", nodeId, "agents", agentId, "sessions", sessionId] as const,
   sessionMessages: (nodeId: string, agentId: string, sessionId: string) =>
-    ["nodes", nodeId, "agents", agentId, "sessions", sessionId, "messages"] as const,
+    [
+      "nodes",
+      nodeId,
+      "agents",
+      agentId,
+      "sessions",
+      sessionId,
+      "messages",
+    ] as const,
 };
 ```
 
@@ -918,11 +962,11 @@ parse error        log raw frame in debug, keep session alive
 4. Node list and node detail.
 5. Agent list and agent detail.
 6. Session list and REST-backed message history.
-7. New session creation with `POST /sessions`.
+7. New session route that creates `sess_*` on first `POST /conversation`.
 8. API key list/create/revoke.
 9. Approval inbox and grant revocation.
-10. Composer with ACP WebSocket session/prompt.
-11. WebSocket tunnel runtime with initialize/authenticate/session/new.
+10. Composer with POST /conversation fetch streaming.
+11. Conversation envelope handling for session/acp/done/error.
 12. Normalize tunnel frames into session events.
 13. Tool call, progress, file change, and token usage event cards.
 14. Monitor page with mailbox/message timeline.

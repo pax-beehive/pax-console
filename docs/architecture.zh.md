@@ -84,6 +84,31 @@ PAX_CF_AUTHORIZATION=<local-only CF_Authorization value>
 并写入 `.env.local`，再启动 Next.js。也可以单独运行 `pnpm auth:local`
 刷新 token。注意不要提交真实 token。
 
+### 连接本地 pax-manager
+
+如果要让 console 连本地启动的 `pax-manager`，浏览器侧仍然保持同源
+`/api/pax`，只改 Next.js server-side proxy 的上游：
+
+```txt
+NEXT_PUBLIC_PAX_API_BASE_URL=/api/pax
+NEXT_PUBLIC_PAX_USER_SCOPE=self
+PAX_MANAGER_URL=http://localhost:19879
+PAX_CF_AUTHORIZATION=local-dev
+```
+
+把 `19879` 换成本地 manager 实际端口。启动 console 时使用：
+
+```bash
+PAX_SKIP_AUTH_LOCAL=1 pnpm dev
+```
+
+`PAX_SKIP_AUTH_LOCAL=1` 只是不运行 Cloudflare token 自动刷新，避免脚本把
+`.env.local` 改回远端 `https://app.paxtech.net`；它本身不会提供身份。
+`src/app/api/pax/[...path]/route.ts` 仍会检查 `Cf-Access-Jwt-Assertion`、
+浏览器 cookie 或 `PAX_CF_AUTHORIZATION`，所以本地模式也要保留一个
+`PAX_CF_AUTHORIZATION`。如果本地 manager 仍校验 Cloudflare JWT，就填真实
+token；如果本地 manager 开了 dev auth bypass，`local-dev` 占位值即可。
+
 ## 目录结构
 
 ```txt
@@ -307,15 +332,54 @@ GET  /api/v1/user/{user_id}/approval-grants
 POST /api/v1/user/{user_id}/approval-grants/{grant_id}/revoke
 ```
 
-Topbar 的 `New session` 已接：
+Topbar 的 `New session` 不再直接创建后端 session。它只打开：
 
 ```txt
-POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions
+/sessions/new?nodeId=...&agentId=...
 ```
 
-创建成功后会跳转到 `/sessions/{session_id}?nodeId=...&agentId=...`。
+用户发送第一条 prompt 时，Session workbench 通过新的 conversation run
+入口创建真实 manager session，并在收到 `type=session` 后把 URL 替换为
+`/sessions/{session_id}?nodeId=...&agentId=...`。
 
-## WebSocket / agent tunnel 状态
+## Conversation run / agent tunnel 状态
+
+Session workbench 的 composer 现在走用户侧 conversation run 入口：
+
+```txt
+POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/conversation
+Accept: text/event-stream
+Content-Type: application/json
+```
+
+请求体第一版只暴露：
+
+```json
+{ "input": "hello" }
+```
+
+续聊时附加：
+
+```json
+{ "input": "continue", "session_id": "sess_xxx" }
+```
+
+前端使用 fetch streaming 读取 response body，不能用原生 EventSource
+（这个接口是 POST + JSON body）。每条默认 SSE `data:` 是一个 PAX envelope：
+
+```txt
+type=session  保存 session_id；新会话 replaceState 到 /sessions/{session_id}
+type=acp      取 envelope.frame，继续走 normalizeTunnelFrame / timeline
+type=done     结束本次 streaming state
+type=error    展示错误并结束 streaming state
+```
+
+manager 负责代理 ACP initialize / session/new / session/prompt。续聊时必须传
+已有且属于当前用户、URL 中 node/agent 下的 `sess_*`，并且后端已有 native id 绑定。
+
+`src/features/runtime/agent-tunnel-runtime.ts` 仍保留直接 ACP tunnel runtime，
+主要用于旧路径和调试。正常 Session workbench 发送 prompt 应使用
+`src/features/runtime/use-conversation-run.ts`。
 
 `src/features/runtime/agent-tunnel-runtime.ts` 现在主要完成：
 
@@ -331,7 +395,7 @@ session/update/raw frame -> normalized SessionEvent
 agent_message_chunk / agent_thought_chunk -> streaming event merge
 ```
 
-Session workbench 现在有 composer。发送消息时，组件只调用：
+旧 direct tunnel composer 发送消息时，组件只调用：
 
 ```txt
 tunnel.sendUserMessage(paxSessionId, content)
@@ -380,10 +444,10 @@ chunk 合并在 `src/features/runtime/merge-session-events.ts`，不是在 React
 
 ```txt
 PAX Manager session
-  REST 创建，出现在 /sessions/{session_id} URL 中，用来承载产品上下文和历史消息。
+  conversation run 首次 prompt 创建，出现在 /sessions/{session_id} URL 中，用来承载产品上下文和历史消息。
 
 ACP/native session
-  WebSocket runtime 通过 session/new 创建，只在 runtime 内部使用，用来向 agent runtime 发送 session/prompt。
+  manager 通过 session/new 创建并绑定到 sess_*，对前端隐藏，用来向 agent runtime 发送 session/prompt。
 ```
 
 仍待完善：
@@ -414,7 +478,7 @@ Next dev server 需要允许这个 origin：
 
 ```ts
 // next.config.ts
-allowedDevOrigins: ["console.paxtech.net", "*.console-dev.paxtech.net"]
+allowedDevOrigins: ["console.paxtech.net", "*.console-dev.paxtech.net"];
 ```
 
 团队多人本地开发优先使用 `localhost + pnpm dev` 自动刷新本地 token，不要
