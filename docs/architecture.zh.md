@@ -436,6 +436,7 @@ agent_message_chunk -> agent_message, streaming: true
 agent_thought_chunk -> progress, streaming: true
 usage_update        -> token_usage
 session_info_update -> run_status
+未知或控制类 update -> 忽略，不渲染为 timeline 正文
 ```
 
 chunk 合并在 `src/features/runtime/merge-session-events.ts`，不是在 React JSX 里做。组件只渲染归一化后的 SessionEvent。

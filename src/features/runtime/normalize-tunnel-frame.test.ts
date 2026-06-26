@@ -222,6 +222,37 @@ describe("normalizeTunnelFrame", () => {
       },
     ]);
   });
+
+  it("ignores non-display ACP session updates instead of rendering raw frame content", () => {
+    const rawUpdate = normalizeTunnelFrame({
+      jsonrpc: "2.0",
+      method: "session/update",
+      params: {
+        sessionId: "sess_1",
+        update: {
+          sessionUpdate: "update",
+          content: {
+            text: '{"method":"session/update","params":{"update":true}}',
+            type: "text",
+          },
+        },
+      },
+    });
+    const unknownOutputUpdate = normalizeTunnelFrame({
+      jsonrpc: "2.0",
+      method: "session/update",
+      params: {
+        sessionId: "sess_1",
+        update: {
+          output: "internal status update",
+          sessionUpdate: "available_commands_update",
+        },
+      },
+    });
+
+    expect(rawUpdate).toStrictEqual([]);
+    expect(unknownOutputUpdate).toStrictEqual([]);
+  });
 });
 
 function sessionUpdate(sessionUpdate: string, text: string) {
