@@ -24,6 +24,7 @@ export function SessionPageClient({
       {(user) => (
         <SessionWorkbench
           agentId={resolvedAgentId}
+          key={`${sessionId}:${resolvedNodeId ?? ""}:${resolvedAgentId ?? ""}`}
           nodeId={resolvedNodeId}
           sessionId={sessionId}
           user={user}

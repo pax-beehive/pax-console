@@ -87,6 +87,30 @@ Run `pnpm auth:local` to refresh `PAX_CF_AUTHORIZATION` manually. Do not commit
 `.env.local`. The proxy keeps the Cloudflare token on the Next.js server side
 and returns a clear 401 when it is missing.
 
+### Local PAX Manager Mode
+
+To point the console at a local `pax-manager`, keep browser requests on the
+same-origin proxy and change only the proxy upstream:
+
+```txt
+NEXT_PUBLIC_PAX_API_BASE_URL=/api/pax
+NEXT_PUBLIC_PAX_USER_SCOPE=self
+PAX_MANAGER_URL=http://localhost:19879
+PAX_CF_AUTHORIZATION=local-dev
+```
+
+Replace `19879` with the local manager port. Start the console with:
+
+```bash
+PAX_SKIP_AUTH_LOCAL=1 pnpm dev
+```
+
+`PAX_SKIP_AUTH_LOCAL=1` only skips the Cloudflare token refresh script; it does
+not provide an identity by itself. Keep `PAX_CF_AUTHORIZATION` set so the
+Next.js `/api/pax` proxy accepts the request. If the local manager validates
+Cloudflare JWTs, use a real token instead of `local-dev`; if the local manager
+runs with dev auth bypassed, the placeholder value is enough.
+
 `next.config.ts` disables caching for `/_next/*` assets during tunnel-based development so browser/Cloudflare stale chunks do not hide UI changes.
 
 ## Verification

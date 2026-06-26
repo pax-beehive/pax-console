@@ -1,6 +1,5 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
 import { ChevronDown, LogOut, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -13,7 +12,6 @@ import {
 import { SearchBox } from "@/components/ui/search-box";
 import { TruncatedText } from "@/components/ui/text";
 import { LOGOUT_URL } from "@/features/api/client";
-import { createAgentSession } from "@/features/api/resources";
 import { Agent, Node, User } from "@/features/api/types";
 
 type TopbarProps = {
@@ -25,24 +23,6 @@ type TopbarProps = {
 
 export function Topbar({ user, nodes, activeNode, activeAgent }: TopbarProps) {
   const router = useRouter();
-  const createSession = useMutation({
-    mutationFn: () => {
-      if (!activeNode || !activeAgent) {
-        throw new Error("Select a node and agent before creating a session");
-      }
-
-      return createAgentSession(
-        user.user_id,
-        activeNode.node_id,
-        activeAgent.agent_id,
-      );
-    },
-    onSuccess: (session) => {
-      router.push(
-        `/sessions/${session.session_id}?nodeId=${session.node_id}&agentId=${session.agent_id}`,
-      );
-    },
-  });
 
   return (
     <header className="flex h-[var(--topbar-h)] min-w-0 items-center justify-between gap-4 border-b border-hairline bg-canvas/95 px-4 backdrop-blur">
@@ -50,7 +30,9 @@ export function Topbar({ user, nodes, activeNode, activeAgent }: TopbarProps) {
         <Button
           className="max-w-52"
           size="sm"
-          tooltip={activeNode?.name ?? activeNode?.hostname ?? `${nodes.length} nodes`}
+          tooltip={
+            activeNode?.name ?? activeNode?.hostname ?? `${nodes.length} nodes`
+          }
           type="button"
           variant="secondary"
         >
@@ -92,9 +74,17 @@ export function Topbar({ user, nodes, activeNode, activeAgent }: TopbarProps) {
         </DropdownMenu>
         <Button
           className="max-w-36"
-          disabled={!activeNode || !activeAgent || createSession.isPending}
+          disabled={!activeNode || !activeAgent}
           icon={<Plus className="h-3.5 w-3.5 shrink-0" />}
-          onClick={() => createSession.mutate()}
+          onClick={() => {
+            if (!activeNode || !activeAgent) {
+              return;
+            }
+
+            router.push(
+              `/sessions/new?nodeId=${activeNode.node_id}&agentId=${activeAgent.agent_id}`,
+            );
+          }}
           size="sm"
           tooltip={
             activeNode && activeAgent
@@ -104,7 +94,7 @@ export function Topbar({ user, nodes, activeNode, activeAgent }: TopbarProps) {
           type="button"
           variant="primary"
         >
-          {createSession.isPending ? "Creating..." : "New session"}
+          New session
         </Button>
       </div>
     </header>
