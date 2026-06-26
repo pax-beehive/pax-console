@@ -8,10 +8,18 @@ import {
   useMemo,
   useState,
 } from "react";
-import { AlertCircle, ArrowLeft, FileCode, Radio, Send } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  ChevronDown,
+  FileCode,
+  Radio,
+  Send,
+} from "lucide-react";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { MarkdownMessage } from "@/components/ui/markdown-message";
 import { MonoId, TruncatedText } from "@/components/ui/text";
 import {
   useNodeAgents,
@@ -318,14 +326,18 @@ function EventCard({ event }: { event: SessionEvent }) {
 
   if (event.type === "progress") {
     return (
-      <article className="min-w-0 rounded-lg border border-hairline bg-surface-1 p-3">
-        <div className="text-xs uppercase tracking-wide text-ink-tertiary">
-          thought
-        </div>
-        <div className="mt-2 whitespace-pre-wrap text-sm leading-7 text-ink-muted">
-          {event.content}
-        </div>
-      </article>
+      <details className="group min-w-0 py-1" open>
+        <summary className="flex cursor-pointer list-none items-center gap-2 text-sm text-ink-muted outline-none transition hover:text-ink [&::-webkit-details-marker]:hidden">
+          <PaxThoughtIcon />
+          <span>{event.streaming ? "思考中" : "已思考"}</span>
+          <ChevronDown className="h-3.5 w-3.5 -rotate-90 text-ink-tertiary transition group-open:rotate-0" />
+        </summary>
+        <MarkdownMessage
+          className="mt-4 pl-1 text-[13px] leading-7"
+          content={event.content}
+          muted
+        />
+      </details>
     );
   }
 
@@ -342,23 +354,44 @@ function EventCard({ event }: { event: SessionEvent }) {
     );
   }
 
+  if (event.type === "user_message") {
+    return (
+      <article className="grid min-w-0 justify-items-end py-1">
+        <div className="max-w-[min(82%,720px)] min-w-0 rounded-lg bg-surface-2 px-3 py-2">
+          <div className="mb-1 text-right text-xs text-ink-tertiary">你</div>
+          <MarkdownMessage
+            className="overflow-hidden text-sm leading-7"
+            content={event.content}
+          />
+        </div>
+      </article>
+    );
+  }
+
+  if (event.type === "agent_message") {
+    return (
+      <article className="min-w-0 justify-self-stretch py-1">
+        <MarkdownMessage
+          className="text-base leading-8 text-ink"
+          content={event.content}
+        />
+      </article>
+    );
+  }
+
+  return null;
+}
+
+function PaxThoughtIcon() {
   return (
-    <article
-      className={`max-w-[min(82%,720px)] overflow-hidden rounded-lg border p-3 ${
-        event.type === "user_message"
-          ? "justify-self-end border-hairline-strong bg-surface-2"
-          : "justify-self-start border-hairline bg-surface-1"
-      }`}
-    >
-      <div className="text-xs text-ink-tertiary">
-        {event.type === "user_message" ? "you" : "agent"}
-        {" / "}
-        {new Date(event.createdAt).toLocaleTimeString()}
-      </div>
-      <div className="mt-2 overflow-hidden whitespace-pre-wrap break-words text-sm leading-7 text-ink-muted">
-        {event.content}
-      </div>
-    </article>
+    <span
+      aria-hidden="true"
+      className="h-4 w-4 shrink-0 bg-primary-hover"
+      style={{
+        WebkitMask: "url('/pax-icon.svg') center / contain no-repeat",
+        mask: "url('/pax-icon.svg') center / contain no-repeat",
+      }}
+    />
   );
 }
 

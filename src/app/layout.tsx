@@ -16,6 +16,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "PAX Console",
   description: "Fleet control plane and agent workbench for PAX.",
+  icons: {
+    icon: [{ url: "/pax-icon.svg", type: "image/svg+xml" }],
+  },
 };
 
 export default function RootLayout({
