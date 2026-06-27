@@ -207,7 +207,7 @@ export function Sidebar({ activeNode }: SidebarProps) {
                   />
                 )}
               </div>
-              {!collapsed && active && groupOpen && item.children && (
+              {!collapsed && groupOpen && item.children && (
                 <div className="ml-5 grid gap-0.5 border-l border-hairline pl-2">
                   {item.children.map((child) => (
                     <Link

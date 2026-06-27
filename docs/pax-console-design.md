@@ -256,7 +256,8 @@ PAX Console
 ```
 
 The sidebar should expose coarse workspaces first, then show concrete resources
-as sidebar secondary tabs under the active workspace. Runtime owns nodes,
+as sidebar secondary tabs under each expanded workspace. First-level groups are
+independent disclosures, not an accordion. Runtime owns nodes,
 agents, sessions, approvals, and monitor as secondary tabs. Collaboration owns
 teams, friends, envelopes, and knowledge as secondary tabs; team invites stay
 inside the Teams surface as a team action queue. Deep links such as `/nodes`,

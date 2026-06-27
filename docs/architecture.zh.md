@@ -181,6 +181,7 @@ Sidebar 折叠
   ConsoleLayout 使用 flex；Sidebar 自己用 width: 248/76px 控制展开/收起，并带 overflow-hidden。
   Sidebar 自身使用安静的 surface、分隔线式 node context、compact nav rows。
   Sidebar 一级入口保持粗粒度：Home、Runtime、Collaboration、API Keys。
+  Runtime / Collaboration 是彼此独立的 disclosure，不是 accordion；多个一级组可以同时保持展开。
   Runtime 展开时在 Sidebar 二级导航承载 Nodes、Agents、Sessions、Approvals、Monitor。
   Collaboration 展开时在 Sidebar 二级导航承载 Teams、Friends、Envelopes、Knowledge。
   Team invites 属于 Teams 页面里的 team action queue，不作为 Collaboration 并列二级入口。

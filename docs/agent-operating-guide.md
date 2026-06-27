@@ -317,7 +317,9 @@ Collapsed tabs show icons only; labels must remain available via Tooltip.
 ## Current Sidebar Routes
 
 The sidebar is intentionally hierarchical. Keep first-level nav coarse, then
-render concrete resources as sidebar secondary tabs under the active workspace:
+render concrete resources as sidebar secondary tabs under each expanded
+workspace. First-level groups are independent disclosures, not an accordion;
+multiple groups may stay open at the same time.
 
 ```txt
 Home             /
