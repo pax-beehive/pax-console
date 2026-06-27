@@ -129,6 +129,11 @@ agents
 sessions
 messages
 mailbox history
+teams
+team members/invites/agents
+friends
+envelopes
+knowledge capsules/injections
 metrics
 pagination
 cache/refetch/invalidation
@@ -145,7 +150,8 @@ local filters
 temporary UI selections
 ```
 
-Never duplicate server resources such as nodes, agents, sessions, or messages into Zustand.
+Never duplicate server resources such as nodes, agents, sessions, messages,
+teams, friends, envelopes, or knowledge capsules into Zustand.
 
 ## REST API Rules
 
@@ -165,6 +171,23 @@ src/features/api/resources.ts
 Do not add `Content-Type: application/json` to GET requests. It can trigger unwanted CORS preflights if the base URL is ever remote.
 
 Keep resource hooks thin. Components should compose hooks rather than build URLs manually.
+
+Collaboration and knowledge resources are normal user-scoped REST resources:
+
+```txt
+/teams and /team-invites
+  Team membership, invites, and team agent grants. Invite UI must explicitly
+  send member/operator; do not rely on the backend default role.
+
+/friends
+  Accepted friend relationships gate envelope delivery.
+
+/envelopes
+  Mailbox-like cross-user delivery for knowledge capsule payloads.
+
+/knowledge-capsules and /sessions/{session_id}/knowledge-injections
+  Reusable session knowledge and system_handoff delivery into sessions.
+```
 
 ## Conversation Runtime Rules
 
@@ -293,7 +316,17 @@ Collapsed tabs show icons only; labels must remain available via Tooltip.
 
 ## Current Sidebar Routes
 
-These routes should remain clickable and should not all point back to `/`:
+The sidebar is intentionally hierarchical. Keep first-level nav coarse, then
+render concrete resources as sidebar secondary tabs under the active workspace:
+
+```txt
+Home             /
+Runtime          /nodes, active for /nodes /agents /sessions /approvals /monitor
+Collaboration    /teams, active for /teams /envelopes /knowledge
+API Keys         /settings/api-keys
+```
+
+These deep links should remain directly reachable:
 
 ```txt
 /                    Home
@@ -309,7 +342,11 @@ These routes should remain clickable and should not all point back to `/`:
 /settings/node-registration Node registration tokens
 ```
 
-When adding a sidebar item, add both a real `src/app/**/page.tsx` route and an active-state mapping in `src/components/shell/sidebar.tsx`.
+When adding a sidebar item, add both a real `src/app/**/page.tsx` route and an
+active-state mapping in `src/components/shell/sidebar.tsx`. Prefer adding a
+secondary tab to Runtime or Collaboration when the destination belongs to those
+workspaces. Do not add workspace-level subtabs inside page headers unless the
+page has local modes that are not part of global IA.
 
 Currently implemented API-backed actions:
 

@@ -2,10 +2,16 @@
 
 import Link from "next/link";
 import { useQueries } from "@tanstack/react-query";
-import { AlertCircle, Bot, CircleDot, Server, TerminalSquare } from "lucide-react";
+import {
+  AlertCircle,
+  Bot,
+  Server,
+  ShieldCheck,
+  TerminalSquare,
+  Users,
+} from "lucide-react";
 import { ConsoleLayout } from "@/components/shell/console-layout";
-import { Badge } from "@/components/ui/badge";
-import { MonoId, TruncatedText } from "@/components/ui/text";
+import { TruncatedText } from "@/components/ui/text";
 import {
   listNodeAgents,
   useAgentSessions,
@@ -69,30 +75,30 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 Workbench
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-subtle">
-                PAX Manager data, live tunnel readiness, and recent agent
-                sessions in one place.
+                A compact entry point for runtime work, collaboration, and
+                human review.
               </p>
             </div>
 
             <div className="grid min-w-0 gap-2 sm:grid-cols-3 lg:w-[520px]">
-            <MetricCard
-              icon={<Server className="h-4 w-4" />}
-              label="Nodes"
-              value={loadingValue(nodesQuery.isLoading, nodes.length)}
-              sub={`${nodes.filter((node) => node.online).length} online`}
-            />
-            <MetricCard
-              icon={<Bot className="h-4 w-4" />}
-              label="Agents"
-              value={loadingValue(agentsLoading, agents.length)}
-              sub={`${nodes.length} nodes scanned`}
-            />
-            <MetricCard
-              icon={<TerminalSquare className="h-4 w-4" />}
-              label="Sessions on active agent"
-              value={loadingValue(sessionsQuery.isLoading, sessions.length)}
-              sub={activeAgent?.agent_id ?? "No agent selected"}
-            />
+              <MetricCard
+                icon={<Server className="h-4 w-4" />}
+                label="Nodes"
+                value={loadingValue(nodesQuery.isLoading, nodes.length)}
+                sub={`${nodes.filter((node) => node.online).length} online`}
+              />
+              <MetricCard
+                icon={<Bot className="h-4 w-4" />}
+                label="Agents"
+                value={loadingValue(agentsLoading, agents.length)}
+                sub={`${nodes.length} nodes scanned`}
+              />
+              <MetricCard
+                icon={<TerminalSquare className="h-4 w-4" />}
+                label="Sessions"
+                value={loadingValue(sessionsQuery.isLoading, sessions.length)}
+                sub={activeAgent?.agent_id ?? "No agent selected"}
+              />
             </div>
           </div>
         </section>
@@ -106,89 +112,58 @@ export function FleetOverview({ user }: FleetOverviewProps) {
           }
         />
 
-        <div className="grid min-w-0 grid-cols-1 lg:grid-cols-3">
-          <section className="min-w-0 border-b border-hairline p-5 lg:border-b-0 lg:border-r">
-            <SectionTitle title="Nodes" />
-            <div className="mt-3 grid gap-0 overflow-hidden rounded-lg border border-hairline">
-              {nodes.map((node) => (
-                <div
-                  className="min-w-0 border-b border-hairline bg-surface-1 px-3 py-3 last:border-b-0"
-                  key={node.node_id}
-                >
-                  <div className="flex min-w-0 items-center justify-between gap-3">
-                    <TruncatedText className="text-sm font-medium">
-                      {node.name ?? node.hostname ?? node.node_id}
-                    </TruncatedText>
-                    <CircleDot
-                      className={`h-3 w-3 ${
-                        node.online ? "fill-success text-success" : "text-ink-tertiary"
-                      }`}
-                    />
-                  </div>
-                  <MonoId className="mt-1">
-                    {node.os ?? "unknown os"} / {node.arch ?? "unknown arch"}
-                  </MonoId>
-                </div>
-              ))}
-              {!nodesQuery.isLoading && nodes.length === 0 && <Empty label="No nodes" />}
+        <div className="grid min-w-0 gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <section className="grid content-start gap-3">
+            <div className="text-sm font-medium text-ink">Workspaces</div>
+            <div className="grid overflow-hidden rounded-lg border border-hairline">
+              <WorkspaceLink
+                description="Nodes, agents, sessions, approvals, and health in one operational workspace."
+                href="/nodes"
+                icon={<Server className="h-4 w-4" />}
+                label="Runtime"
+              />
+              <WorkspaceLink
+                description="Jump directly into recent agent sessions and continue work."
+                href="/sessions"
+                icon={<TerminalSquare className="h-4 w-4" />}
+                label="Sessions"
+              />
+              <WorkspaceLink
+                description="Teams, friends, envelopes, and reusable knowledge handoff."
+                href="/teams?view=teams"
+                icon={<Users className="h-4 w-4" />}
+                label="Collaboration"
+              />
+              <WorkspaceLink
+                description="Review pending human decisions and approval grants."
+                href="/approvals"
+                icon={<ShieldCheck className="h-4 w-4" />}
+                label="Approvals"
+              />
             </div>
           </section>
 
-          <section className="min-w-0 border-b border-hairline p-5 lg:border-b-0 lg:border-r">
-            <SectionTitle title="Agents" />
-            <div className="mt-3 grid gap-0 overflow-hidden rounded-lg border border-hairline">
-              {agents.map((agent) => (
-                <div
-                  className="min-w-0 border-b border-hairline bg-surface-1 px-3 py-3 last:border-b-0"
-                  key={agent.agent_id}
-                >
-                  <div className="flex min-w-0 items-center justify-between gap-3">
-                    <TruncatedText className="text-sm font-medium">
-                      {agent.name ?? agent.agent_type ?? agent.agent_id}
-                    </TruncatedText>
-                    <Badge tone={agent.online ? "success" : "neutral"}>
-                      {agent.online ? "online" : agent.status ?? "unknown"}
-                    </Badge>
-                  </div>
-                  <MonoId className="mt-1" tooltip={agent.agent_id}>
-                    {compactId(agent.agent_id)}
-                  </MonoId>
-                </div>
-              ))}
-              {!agentsLoading && agents.length === 0 && (
-                <Empty label="No agents" />
-              )}
+          <aside className="grid content-start gap-3">
+            <div className="text-sm font-medium text-ink">Current context</div>
+            <div className="grid rounded-lg border border-hairline bg-surface-1 p-3">
+              <ContextLine
+                label="Node"
+                value={activeNode?.name ?? activeNode?.hostname ?? "No node"}
+              />
+              <ContextLine
+                label="Agent"
+                value={
+                  activeAgent?.name ??
+                  activeAgent?.agent_type ??
+                  "No agent selected"
+                }
+              />
+              <ContextLine
+                label="Recent sessions"
+                value={loadingValue(sessionsQuery.isLoading, sessions.length)}
+              />
             </div>
-          </section>
-
-          <section className="min-w-0 p-5">
-            <SectionTitle title="Recent sessions" />
-            <div className="mt-3 grid gap-0 overflow-hidden rounded-lg border border-hairline">
-              {sessions.map((session) => (
-                <Link
-                  className="block min-w-0 border-b border-hairline bg-surface-1 px-3 py-3 transition last:border-b-0 hover:bg-surface-2"
-                  href={`/sessions/${session.session_id}?nodeId=${session.node_id}&agentId=${session.agent_id}`}
-                  key={session.session_id}
-                >
-                  <div className="flex min-w-0 items-center justify-between gap-3">
-                    <TruncatedText className="text-sm font-medium">
-                      {session.name ?? session.current_task ?? session.session_id}
-                    </TruncatedText>
-                    <Badge>{session.run_status ?? session.status ?? "unknown"}</Badge>
-                  </div>
-                  <TruncatedText className="mt-1 text-xs text-ink-tertiary">
-                    {session.preview ?? session.current_task ?? "Open session"}
-                  </TruncatedText>
-                  <MonoId className="mt-1" tooltip={session.session_id}>
-                    {compactId(session.session_id)}
-                  </MonoId>
-                </Link>
-              ))}
-              {!sessionsQuery.isLoading && sessions.length === 0 && (
-                <Empty label="No sessions on active agent" />
-              )}
-            </div>
-          </section>
+          </aside>
         </div>
       </div>
     </ConsoleLayout>
@@ -220,14 +195,40 @@ function MetricCard({
   );
 }
 
-function SectionTitle({ title }: { title: string }) {
-  return <h2 className="text-base font-medium">{title}</h2>;
+function WorkspaceLink({
+  description,
+  href,
+  icon,
+  label,
+}: {
+  description: string;
+  href: string;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <Link
+      className="grid min-w-0 gap-1 border-b border-hairline bg-surface-1 px-3 py-3 transition last:border-b-0 hover:bg-surface-2"
+      href={href}
+    >
+      <div className="flex items-center gap-2 text-sm font-medium text-ink">
+        {icon}
+        {label}
+      </div>
+      <TruncatedText className="text-xs text-ink-tertiary">
+        {description}
+      </TruncatedText>
+    </Link>
+  );
 }
 
-function Empty({ label }: { label: string }) {
+function ContextLine({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-surface-1 px-3 py-2.5 text-sm text-ink-tertiary">
-      {label}
+    <div className="min-w-0 border-b border-hairline py-3 first:pt-0 last:border-b-0 last:pb-0">
+      <div className="text-xs text-ink-tertiary">{label}</div>
+      <TruncatedText className="mt-1 text-sm text-ink-muted" tooltip={value}>
+        {value}
+      </TruncatedText>
     </div>
   );
 }

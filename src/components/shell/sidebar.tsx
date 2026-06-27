@@ -1,33 +1,67 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   Activity,
   Bot,
+  Brain,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   CircleDot,
+  Inbox,
   KeyRound,
+  MailPlus,
   Radio,
   Server,
   ShieldCheck,
   TerminalSquare,
+  Users,
 } from "lucide-react";
+import { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TruncatedText } from "@/components/ui/text";
 import { Tooltip } from "@/components/ui/tooltip";
 import { Node } from "@/features/api/types";
 import { useConsoleStore } from "@/stores/console-store";
 
-const navItems = [
-  ["Home", "/", Activity],
-  ["Nodes", "/nodes", Server],
-  ["Agents", "/agents", Bot],
-  ["Sessions", "/sessions", TerminalSquare],
-  ["Approvals", "/approvals", ShieldCheck],
-  ["Monitor", "/monitor", Radio],
-  ["API Keys", "/settings/api-keys", KeyRound],
+type NavItem = {
+  children?: readonly NavItem[];
+  href: string;
+  icon: LucideIcon;
+  label: string;
+  matches?: readonly string[];
+};
+
+const navItems: readonly NavItem[] = [
+  { href: "/", icon: Activity, label: "Home" },
+  {
+    href: "/nodes",
+    icon: Server,
+    label: "Runtime",
+    matches: ["/nodes", "/agents", "/sessions", "/approvals", "/monitor"],
+    children: [
+      { href: "/nodes", icon: Server, label: "Nodes" },
+      { href: "/agents", icon: Bot, label: "Agents" },
+      { href: "/sessions", icon: TerminalSquare, label: "Sessions" },
+      { href: "/approvals", icon: ShieldCheck, label: "Approvals" },
+      { href: "/monitor", icon: Radio, label: "Monitor" },
+    ],
+  },
+  {
+    href: "/teams?view=teams",
+    icon: Users,
+    label: "Collaboration",
+    matches: ["/teams", "/envelopes", "/knowledge"],
+    children: [
+      { href: "/teams?view=teams", icon: Users, label: "Teams" },
+      { href: "/teams?view=friends", icon: MailPlus, label: "Friends" },
+      { href: "/envelopes", icon: Inbox, label: "Envelopes" },
+      { href: "/knowledge", icon: Brain, label: "Knowledge" },
+    ],
+  },
+  { href: "/settings/api-keys", icon: KeyRound, label: "API Keys" },
 ] as const;
 
 type SidebarProps = {
@@ -36,8 +70,12 @@ type SidebarProps = {
 
 export function Sidebar({ activeNode }: SidebarProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const collapsed = useConsoleStore((state) => state.sidebarCollapsed);
+  const expandedGroups = useConsoleStore((state) => state.sidebarExpandedGroups);
   const setCollapsed = useConsoleStore((state) => state.setSidebarCollapsed);
+  const toggleSidebarGroup = useConsoleStore((state) => state.toggleSidebarGroup);
+  const queryString = searchParams.toString();
 
   return (
     <aside
@@ -122,27 +160,113 @@ export function Sidebar({ activeNode }: SidebarProps) {
       </div>
 
       <nav className="mt-3 grid gap-0.5">
-        {navItems.map(([label, href, Icon]) => (
-          <Tooltip content={collapsed ? label : undefined} key={label}>
-            <Link
-              aria-current={isActivePath(pathname, href) ? "page" : undefined}
-              className={`flex min-h-9 items-center gap-3 rounded-md px-3 text-left text-sm transition hover:bg-surface-2 hover:text-ink ${
-                collapsed ? "justify-center" : ""
-              } ${
-                isActivePath(pathname, href)
-                  ? "bg-surface-2 text-ink"
-                  : "text-ink-subtle"
-              }`}
-              href={href}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              {!collapsed && <span className="min-w-0 truncate">{label}</span>}
-            </Link>
-          </Tooltip>
-        ))}
+        {navItems.map((item) => {
+          const active = isActiveNavItem(pathname, item);
+          const groupOpen = expandedGroups[item.label] ?? active;
+          return (
+            <div className="grid gap-0.5" key={item.label}>
+              <div className="flex min-w-0 items-center gap-1">
+                <Tooltip content={collapsed ? item.label : undefined}>
+                  <Link
+                    aria-current={active ? "page" : undefined}
+                    className={`flex min-h-9 min-w-0 flex-1 items-center gap-3 rounded-md px-3 text-left text-sm transition hover:bg-surface-2 hover:text-ink ${
+                      collapsed ? "justify-center" : ""
+                    } ${active ? "bg-surface-2 text-ink" : "text-ink-subtle"}`}
+                    href={item.href}
+                  >
+                    <item.icon className="h-4 w-4 shrink-0" />
+                    {!collapsed && (
+                      <span className="min-w-0 truncate">{item.label}</span>
+                    )}
+                  </Link>
+                </Tooltip>
+                {!collapsed && item.children && (
+                  <Button
+                    aria-label={
+                      groupOpen
+                        ? `Collapse ${item.label}`
+                        : `Expand ${item.label}`
+                    }
+                    className="h-8 w-8"
+                    icon={
+                      <ChevronDown
+                        className={`h-3.5 w-3.5 transition ${
+                          groupOpen ? "" : "-rotate-90"
+                        }`}
+                      />
+                    }
+                    onClick={() => toggleSidebarGroup(item.label)}
+                    size="icon"
+                    tooltip={
+                      groupOpen
+                        ? `Collapse ${item.label}`
+                        : `Expand ${item.label}`
+                    }
+                    type="button"
+                    variant="ghost"
+                  />
+                )}
+              </div>
+              {!collapsed && active && groupOpen && item.children && (
+                <div className="ml-5 grid gap-0.5 border-l border-hairline pl-2">
+                  {item.children.map((child) => (
+                    <Link
+                      aria-current={
+                        isActiveChild(pathname, queryString, child.href)
+                          ? "page"
+                          : undefined
+                      }
+                      className={`flex min-h-8 items-center gap-2 rounded-md px-2 text-xs transition hover:bg-surface-2 hover:text-ink ${
+                        isActiveChild(pathname, queryString, child.href)
+                          ? "bg-surface-2 text-ink"
+                          : "text-ink-tertiary"
+                      }`}
+                      href={child.href}
+                      key={child.href}
+                    >
+                      <child.icon className="h-3.5 w-3.5 shrink-0" />
+                      <span className="min-w-0 truncate">{child.label}</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </nav>
     </aside>
   );
+}
+
+function isActiveNavItem(pathname: string, item: NavItem) {
+  return (item.matches ?? [item.href]).some((href) =>
+    isActivePath(pathname, href),
+  );
+}
+
+function isActiveChild(pathname: string, queryString: string, href: string) {
+  const [hrefPath, hrefQuery = ""] = href.split("?");
+  if (pathname !== hrefPath) {
+    return false;
+  }
+
+  if (!hrefQuery) {
+    return true;
+  }
+
+  const target = new URLSearchParams(hrefQuery);
+  const current = new URLSearchParams(queryString);
+  for (const [key, value] of target) {
+    if (key === "view" && value === "teams" && current.get(key) == null) {
+      continue;
+    }
+
+    if (current.get(key) !== value) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function isActivePath(pathname: string, href: string) {

@@ -12,12 +12,22 @@ import {
   ApprovedPaxlDeviceLogin,
   CreatedNodeRegistrationToken,
   CreatedUserAPIKey,
+  Envelope,
+  Friend,
   Health,
   HistoryMessage,
+  KnowledgeCapsule,
   MailboxMessage,
   Node,
   NodeRegistrationPreview,
   PaxdConnectPreview,
+  SessionKnowledgeInjection,
+  Team,
+  TeamAgent,
+  TeamInvite,
+  TeamMember,
+  TeamSummary,
+  TeamRole,
   UserAPIKey,
 } from "./types";
 
@@ -51,6 +61,42 @@ type ApprovalListData = {
 
 type ApprovalGrantListData = {
   grants: AgentApproval[];
+};
+
+type TeamListData = {
+  teams: TeamSummary[];
+};
+
+type TeamData = {
+  team: Team;
+};
+
+type TeamMemberListData = {
+  members: TeamMember[];
+};
+
+type TeamInviteListData = {
+  invites: TeamInvite[];
+};
+
+type TeamAgentListData = {
+  agents: TeamAgent[];
+};
+
+type FriendListData = {
+  friends: Friend[];
+};
+
+type EnvelopeListData = {
+  envelopes: Envelope[];
+};
+
+type KnowledgeCapsuleListData = {
+  capsules: KnowledgeCapsule[];
+};
+
+type KnowledgeInjectionListData = {
+  injections: SessionKnowledgeInjection[];
 };
 
 export function getHealth() {
@@ -253,6 +299,259 @@ export function createAgentSession(
   );
 }
 
+export function listTeams(userId: string) {
+  return apiFetch<TeamListData>(userPath(userId, "/teams"));
+}
+
+export function createTeam(userId: string, name: string) {
+  return apiFetch<TeamData>(userPath(userId, "/teams"), {
+    body: JSON.stringify({ name }),
+    method: "POST",
+  });
+}
+
+export function getTeam(userId: string, teamId: string) {
+  return apiFetch<TeamData>(userPath(userId, `/teams/${teamId}`));
+}
+
+export function listTeamMembers(userId: string, teamId: string) {
+  return apiFetch<TeamMemberListData>(
+    userPath(userId, `/teams/${teamId}/members`),
+  );
+}
+
+export function removeTeamMember(
+  userId: string,
+  teamId: string,
+  memberUserId: string,
+) {
+  return apiFetch<{ member: TeamMember }>(
+    userPath(userId, `/teams/${teamId}/members/${memberUserId}`),
+    { method: "DELETE" },
+  );
+}
+
+export function leaveTeam(userId: string, teamId: string) {
+  return apiFetch<{ member: TeamMember }>(
+    userPath(userId, `/teams/${teamId}/leave`),
+    { method: "POST" },
+  );
+}
+
+export function createTeamInvite(
+  userId: string,
+  teamId: string,
+  email: string,
+  role: Exclude<TeamRole, "owner"> = "member",
+) {
+  return apiFetch<{ invite: TeamInvite }>(
+    userPath(userId, `/teams/${teamId}/invites`),
+    {
+      body: JSON.stringify({ email, role }),
+      method: "POST",
+    },
+  );
+}
+
+export function listTeamInvites(userId: string) {
+  return apiFetch<TeamInviteListData>(userPath(userId, "/team-invites"));
+}
+
+export function acceptTeamInvite(userId: string, inviteId: string) {
+  return apiFetch<{ invite: TeamInvite }>(
+    userPath(userId, `/team-invites/${inviteId}/accept`),
+    { method: "POST" },
+  );
+}
+
+export function declineTeamInvite(userId: string, inviteId: string) {
+  return apiFetch<{ invite: TeamInvite }>(
+    userPath(userId, `/team-invites/${inviteId}/decline`),
+    { method: "POST" },
+  );
+}
+
+export function listTeamAgents(userId: string, teamId: string) {
+  return apiFetch<TeamAgentListData>(
+    userPath(userId, `/teams/${teamId}/agents`),
+  );
+}
+
+export function addTeamAgent(userId: string, teamId: string, agentId: string) {
+  return apiFetch<{ agent: TeamAgent }>(
+    userPath(userId, `/teams/${teamId}/agents`),
+    {
+      body: JSON.stringify({ agent_id: agentId }),
+      method: "POST",
+    },
+  );
+}
+
+export function removeTeamAgent(
+  userId: string,
+  teamId: string,
+  agentId: string,
+) {
+  return apiFetch<{ agent: TeamAgent }>(
+    userPath(userId, `/teams/${teamId}/agents/${agentId}`),
+    { method: "DELETE" },
+  );
+}
+
+export function listFriends(
+  userId: string,
+  filters: { alias?: string; direction?: string; status?: string } = {},
+) {
+  const params = compactSearchParams(filters);
+  return apiFetch<FriendListData>(
+    `${userPath(userId, "/friends")}${params ? `?${params}` : ""}`,
+  );
+}
+
+export function createFriend(userId: string, email: string, alias?: string) {
+  return apiFetch<{ friend: Friend }>(userPath(userId, "/friends"), {
+    body: JSON.stringify({ alias, email }),
+    method: "POST",
+  });
+}
+
+export function acceptFriend(userId: string, friendId: string, alias?: string) {
+  return apiFetch<{ friend: Friend }>(
+    userPath(userId, `/friends/${friendId}/accept`),
+    {
+      body: JSON.stringify({ alias }),
+      method: "POST",
+    },
+  );
+}
+
+export function updateFriendAlias(
+  userId: string,
+  friendId: string,
+  alias: string,
+) {
+  return apiFetch<{ friend: Friend }>(
+    userPath(userId, `/friends/${friendId}/alias`),
+    {
+      body: JSON.stringify({ alias }),
+      method: "POST",
+    },
+  );
+}
+
+export function removeFriend(userId: string, friendId: string) {
+  return apiFetch<{ friend: Friend }>(
+    userPath(userId, `/friends/${friendId}/remove`),
+    { method: "POST" },
+  );
+}
+
+export function blockFriend(userId: string, friendId: string) {
+  return apiFetch<{ friend: Friend }>(
+    userPath(userId, `/friends/${friendId}/block`),
+    { method: "POST" },
+  );
+}
+
+export function listEnvelopes(
+  userId: string,
+  filters: { direction?: string; status?: string } = {},
+) {
+  const params = compactSearchParams(filters);
+  return apiFetch<EnvelopeListData>(
+    `${userPath(userId, "/envelopes")}${params ? `?${params}` : ""}`,
+  );
+}
+
+export function createEnvelope(
+  userId: string,
+  input: {
+    message?: string;
+    payload_json: unknown;
+    payload_type?: "knowledge_capsule";
+    recipient_email: string;
+  },
+) {
+  return apiFetch<{ envelope: Envelope }>(userPath(userId, "/envelopes"), {
+    body: JSON.stringify({
+      message: input.message,
+      payload_json: input.payload_json,
+      payload_type: input.payload_type ?? "knowledge_capsule",
+      recipient_email: input.recipient_email,
+    }),
+    method: "POST",
+  });
+}
+
+export function acceptEnvelope(userId: string, envelopeId: string) {
+  return apiFetch<{ envelope: Envelope }>(
+    userPath(userId, `/envelopes/${envelopeId}/accept`),
+    { method: "POST" },
+  );
+}
+
+export function archiveEnvelope(userId: string, envelopeId: string) {
+  return apiFetch<{ envelope: Envelope }>(
+    userPath(userId, `/envelopes/${envelopeId}/archive`),
+    { method: "POST" },
+  );
+}
+
+export function listKnowledgeCapsules(
+  userId: string,
+  filters: {
+    keyword?: string;
+    source_session_id?: string;
+    status?: string;
+  } = {},
+) {
+  const params = compactSearchParams(filters);
+  return apiFetch<KnowledgeCapsuleListData>(
+    `${userPath(userId, "/knowledge-capsules")}${params ? `?${params}` : ""}`,
+  );
+}
+
+export function createKnowledgeCapsule(
+  userId: string,
+  sessionId: string,
+  keyword: string,
+) {
+  return apiFetch<{ capsule: KnowledgeCapsule }>(
+    userPath(userId, `/sessions/${sessionId}/knowledge-capsules`),
+    {
+      body: JSON.stringify({ keyword }),
+      method: "POST",
+    },
+  );
+}
+
+export function archiveKnowledgeCapsule(userId: string, capsuleId: string) {
+  return apiFetch<{ capsule: KnowledgeCapsule }>(
+    userPath(userId, `/knowledge-capsules/${capsuleId}/archive`),
+    { method: "POST" },
+  );
+}
+
+export function injectKnowledgeCapsule(
+  userId: string,
+  sessionId: string,
+  capsuleId: string,
+) {
+  return apiFetch<{
+    injection: SessionKnowledgeInjection;
+    message: MailboxMessage;
+  }>(userPath(userId, `/sessions/${sessionId}/knowledge-injections`), {
+    body: JSON.stringify({ capsule_id: capsuleId }),
+    method: "POST",
+  });
+}
+
+export function listKnowledgeInjections(userId: string, sessionId: string) {
+  return apiFetch<KnowledgeInjectionListData>(
+    userPath(userId, `/sessions/${sessionId}/knowledge-injections`),
+  );
+}
+
 export function useNodes(userId?: string) {
   // Hooks in this file are thin TanStack Query wrappers around pax-manager
   // resources. They own caching/loading state; components only compose results.
@@ -284,6 +583,85 @@ export function useApiKeys(userId?: string) {
   return useQuery({
     queryKey: queryKeys.apiKeys(userId ?? "pending"),
     queryFn: () => listApiKeys(userId as string),
+    enabled: Boolean(userId),
+  });
+}
+
+export function useTeams(userId?: string) {
+  return useQuery({
+    queryKey: queryKeys.teams(userId ?? "pending"),
+    queryFn: () => listTeams(userId as string),
+    enabled: Boolean(userId),
+  });
+}
+
+export function useTeam(userId?: string, teamId?: string) {
+  return useQuery({
+    queryKey: queryKeys.team(userId ?? "pending", teamId ?? "pending"),
+    queryFn: () => getTeam(userId as string, teamId as string),
+    enabled: Boolean(userId && teamId),
+  });
+}
+
+export function useTeamMembers(userId?: string, teamId?: string) {
+  return useQuery({
+    queryKey: queryKeys.teamMembers(userId ?? "pending", teamId ?? "pending"),
+    queryFn: () => listTeamMembers(userId as string, teamId as string),
+    enabled: Boolean(userId && teamId),
+  });
+}
+
+export function useTeamAgents(userId?: string, teamId?: string) {
+  return useQuery({
+    queryKey: queryKeys.teamAgents(userId ?? "pending", teamId ?? "pending"),
+    queryFn: () => listTeamAgents(userId as string, teamId as string),
+    enabled: Boolean(userId && teamId),
+  });
+}
+
+export function useTeamInvites(userId?: string) {
+  return useQuery({
+    queryKey: queryKeys.teamInvites(userId ?? "pending"),
+    queryFn: () => listTeamInvites(userId as string),
+    enabled: Boolean(userId),
+    refetchInterval: 30_000,
+  });
+}
+
+export function useFriends(
+  userId?: string,
+  filters: { alias?: string; direction?: string; status?: string } = {},
+) {
+  return useQuery({
+    queryKey: queryKeys.friends(userId ?? "pending", filters),
+    queryFn: () => listFriends(userId as string, filters),
+    enabled: Boolean(userId),
+  });
+}
+
+export function useEnvelopes(
+  userId?: string,
+  filters: { direction?: string; status?: string } = {},
+) {
+  return useQuery({
+    queryKey: queryKeys.envelopes(userId ?? "pending", filters),
+    queryFn: () => listEnvelopes(userId as string, filters),
+    enabled: Boolean(userId),
+    refetchInterval: filters.direction === "received" ? 30_000 : false,
+  });
+}
+
+export function useKnowledgeCapsules(
+  userId?: string,
+  filters: {
+    keyword?: string;
+    source_session_id?: string;
+    status?: string;
+  } = {},
+) {
+  return useQuery({
+    queryKey: queryKeys.knowledgeCapsules(userId ?? "pending", filters),
+    queryFn: () => listKnowledgeCapsules(userId as string, filters),
     enabled: Boolean(userId),
   });
 }
@@ -392,4 +770,29 @@ export function useSessionHistory(
     enabled: Boolean(userId && agentId && sessionId),
     refetchOnWindowFocus: true,
   });
+}
+
+export function useKnowledgeInjections(userId?: string, sessionId?: string) {
+  return useQuery({
+    queryKey: queryKeys.sessionKnowledgeInjections(
+      userId ?? "pending",
+      sessionId ?? "pending",
+    ),
+    queryFn: () =>
+      listKnowledgeInjections(userId as string, sessionId as string),
+    enabled: Boolean(userId && sessionId),
+    refetchOnWindowFocus: true,
+  });
+}
+
+function compactSearchParams(values: Record<string, string | undefined>) {
+  const params = new URLSearchParams();
+
+  Object.entries(values).forEach(([key, value]) => {
+    if (value?.trim()) {
+      params.set(key, value.trim());
+    }
+  });
+
+  return params.toString();
 }
