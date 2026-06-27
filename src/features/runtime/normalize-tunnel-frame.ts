@@ -68,11 +68,13 @@ export function normalizeTunnelFrame(
     extractText(frame.content) ??
     extractText(frame.message) ??
     extractText(frame.delta) ??
-    extractText(frame.text) ??
-    extractText(frame.params) ??
-    extractText(frame.result);
+    extractText(frame.text);
 
-  if (!kind && !content) {
+  if (!kind) {
+    return normalizeJsonRpcResult(frame, sessionId, createdAt, id);
+  }
+
+  if (isIgnoredSessionUpdate(kind)) {
     return [];
   }
 
@@ -104,7 +106,11 @@ export function normalizeTunnelFrame(
   }
 
   if (kind === "usage_update") {
-    const usage = asRecord(frame.update) ?? asRecord(frame.params) ?? asRecord(frame);
+    const usage =
+      asRecord(frame.update) ??
+      asRecord(valueFrom(frame.params, "update")) ??
+      asRecord(frame) ??
+      asRecord(frame.params);
     return [
       {
         type: "token_usage",
@@ -181,7 +187,7 @@ function normalizeNestedFrames(frame: TunnelFrame, context: NormalizeContext) {
             valueFrom(frame.params, "update") ??
               valueFrom(frame.params, "event") ??
               frame.params,
-            asRecord(frame.params) ?? frame,
+            frame,
           ),
         ]
       : [frame.update, frame.event, frame.data];
@@ -192,7 +198,9 @@ function normalizeNestedFrames(frame: TunnelFrame, context: NormalizeContext) {
       continue;
     }
 
-    events.push(...normalizeTunnelFrame(withFrameContext(value, frame), context));
+    events.push(
+      ...normalizeTunnelFrame(withFrameContext(value, frame), context),
+    );
   }
 
   return events;
@@ -204,9 +212,19 @@ function withFrameContext(value: unknown, parent: TunnelFrame) {
   }
 
   const record = value as Record<string, unknown>;
+  const params = asRecord(parent.params);
   return {
-    session_id: parent.session_id,
-    sessionId: parent.sessionId,
+    session_id:
+      parent.session_id ??
+      parent.sessionId ??
+      stringFromValue(parent.params, "session_id") ??
+      stringFromValue(parent.params, "sessionId"),
+    sessionId:
+      parent.sessionId ??
+      parent.session_id ??
+      stringFromValue(parent.params, "sessionId") ??
+      stringFromValue(parent.params, "session_id"),
+    ...(params ? { params } : {}),
     ...record,
   };
 }
@@ -238,6 +256,50 @@ function numberFromRecord(
   return typeof value === "number" ? value : undefined;
 }
 
+function normalizeJsonRpcResult(
+  frame: TunnelFrame,
+  sessionId: string,
+  createdAt: string,
+  id: string,
+) {
+  const result = asRecord(frame.result);
+  if (!result) {
+    return [];
+  }
+
+  const events: SessionEvent[] = [];
+  const usage = asRecord(result.usage);
+  if (usage) {
+    events.push({
+      type: "token_usage",
+      id: `${id}:usage`,
+      sessionId,
+      inputTokens: numberFromRecord(usage, "inputTokens"),
+      outputTokens: numberFromRecord(usage, "outputTokens"),
+      reasoningTokens:
+        numberFromRecord(usage, "reasoningTokens") ??
+        numberFromRecord(usage, "thoughtTokens"),
+      totalTokens: numberFromRecord(usage, "totalTokens"),
+      createdAt,
+    });
+  }
+
+  const stopReason =
+    stringFromValue(result, "stopReason") ??
+    stringFromValue(result, "stop_reason");
+  if (stopReason) {
+    events.push({
+      type: "run_status",
+      id: `${id}:status`,
+      sessionId,
+      status: stopReason === "end_turn" ? "done" : "running",
+      createdAt,
+    });
+  }
+
+  return events;
+}
+
 function getEventId(
   frame: TunnelFrame,
   sessionId: string,
@@ -246,7 +308,9 @@ function getEventId(
   kind: string | undefined,
 ) {
   const explicitId =
-    frame.id ?? stringFromValue(frame.params, "id") ?? stringFromValue(frame.params, "messageId");
+    frame.id ??
+    stringFromValue(frame.params, "id") ??
+    stringFromValue(frame.params, "messageId");
 
   if (explicitId !== undefined) {
     return String(explicitId);
@@ -265,6 +329,19 @@ function isStreamingKind(kind: string | undefined) {
     kind?.includes("stream") ||
     kind?.endsWith("_chunk") ||
     kind === "message/delta"
+  );
+}
+
+function isIgnoredSessionUpdate(kind: string | undefined) {
+  if (kind === "update") {
+    return true;
+  }
+
+  return Boolean(
+    kind &&
+      kind.endsWith("_update") &&
+      kind !== "usage_update" &&
+      kind !== "session_info_update",
   );
 }
 

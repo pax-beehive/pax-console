@@ -1,13 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import {
+  FormEvent,
+  KeyboardEvent,
+  useCallback,
+  useMemo,
+  useState,
+} from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, ArrowLeft, Brain, FileCode, Radio, Send } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  Brain,
+  ChevronDown,
+  FileCode,
+  Radio,
+  Send,
+} from "lucide-react";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { MarkdownMessage } from "@/components/ui/markdown-message";
 import { MonoId, TruncatedText } from "@/components/ui/text";
 import {
   createKnowledgeCapsule,
@@ -23,7 +37,7 @@ import { KnowledgeCapsule, SessionKnowledgeInjection, User } from "@/features/ap
 import { normalizeHistoryMessage } from "@/features/runtime/normalize-history-message";
 import { mergeEvents } from "@/features/runtime/merge-session-events";
 import { SessionEvent } from "@/features/runtime/session-events";
-import { useAgentTunnel } from "@/features/runtime/use-agent-tunnel";
+import { useConversationRun } from "@/features/runtime/use-conversation-run";
 import { compactId } from "@/lib/format";
 
 type SessionWorkbenchProps = {
@@ -39,68 +53,121 @@ export function SessionWorkbench({
   nodeId,
   agentId,
 }: SessionWorkbenchProps) {
-  const router = useRouter();
   const queryClient = useQueryClient();
   const nodesQuery = useNodes(user.user_id);
   const nodes = nodesQuery.data?.nodes ?? [];
   const activeNodeId = nodeId ?? nodes[0]?.node_id;
-  const activeNode = nodes.find((node) => node.node_id === activeNodeId) ?? nodes[0];
+  const activeNode =
+    nodes.find((node) => node.node_id === activeNodeId) ?? nodes[0];
   const agentsQuery = useNodeAgents(user.user_id, activeNodeId);
   const agents = agentsQuery.data?.agents ?? [];
   const activeAgentId = agentId ?? agents[0]?.agent_id;
   const activeAgent = agents.find((agent) => agent.agent_id === activeAgentId);
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState<Error | null>(null);
+  const routeSessionId = sessionId === "new" ? undefined : sessionId;
+  const [currentSessionId, setCurrentSessionId] = useState(routeSessionId);
+  const handleSessionAssigned = useCallback(
+    (nextSessionId: string) => {
+      setCurrentSessionId(nextSessionId);
+      const params = new URLSearchParams();
+      if (activeNodeId) {
+        params.set("nodeId", activeNodeId);
+      }
+      if (activeAgentId) {
+        params.set("agentId", activeAgentId);
+      }
+      const query = params.toString();
+      window.history.replaceState(
+        window.history.state,
+        "",
+        query
+          ? `/sessions/${nextSessionId}?${query}`
+          : `/sessions/${nextSessionId}`,
+      );
+    },
+    [activeAgentId, activeNodeId],
+  );
   const historyQuery = useSessionHistory(
     user.user_id,
     activeAgentId,
-    sessionId,
+    currentSessionId,
   );
   const capsulesQuery = useKnowledgeCapsules(user.user_id, { status: "active" });
-  const injectionsQuery = useKnowledgeInjections(user.user_id, sessionId);
+  const injectionsQuery = useKnowledgeInjections(
+    user.user_id,
+    currentSessionId,
+  );
   const [capsuleKeyword, setCapsuleKeyword] = useState("");
   const [selectedCapsuleId, setSelectedCapsuleId] = useState("");
   const activeCapsules = capsulesQuery.data?.capsules ?? [];
   const selectedInjectionCapsuleId =
     selectedCapsuleId || activeCapsules[0]?.capsule_id || "";
   const refreshKnowledge = () => {
+    if (!currentSessionId) {
+      return;
+    }
+
     void queryClient.invalidateQueries({
       queryKey: ["users", user.user_id, "knowledge-capsules"],
     });
     void queryClient.invalidateQueries({
-      queryKey: queryKeys.sessionKnowledgeInjections(user.user_id, sessionId),
+      queryKey: queryKeys.sessionKnowledgeInjections(
+        user.user_id,
+        currentSessionId,
+      ),
     });
     if (activeAgentId) {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.sessionHistory(
           user.user_id,
           activeAgentId,
-          sessionId,
+          currentSessionId,
         ),
       });
     }
   };
   const createCapsule = useMutation({
-    mutationFn: () =>
-      createKnowledgeCapsule(user.user_id, sessionId, capsuleKeyword.trim()),
+    mutationFn: () => {
+      if (!currentSessionId) {
+        throw new Error("Start the session before creating a capsule.");
+      }
+
+      return createKnowledgeCapsule(
+        user.user_id,
+        currentSessionId,
+        capsuleKeyword.trim(),
+      );
+    },
     onSuccess: () => {
       setCapsuleKeyword("");
       refreshKnowledge();
     },
   });
   const injectCapsule = useMutation({
-    mutationFn: () =>
-      injectKnowledgeCapsule(
+    mutationFn: () => {
+      if (!currentSessionId) {
+        throw new Error("Start the session before injecting a capsule.");
+      }
+
+      return injectKnowledgeCapsule(
         user.user_id,
-        sessionId,
+        currentSessionId,
         selectedInjectionCapsuleId,
-      ),
+      );
+    },
     onSuccess: refreshKnowledge,
   });
-  const tunnel = useAgentTunnel(activeAgentId, sessionId);
+  const conversationRun = useConversationRun({
+    agentId: activeAgentId,
+    nodeId: activeNodeId,
+    onSession: handleSessionAssigned,
+    sessionId: routeSessionId,
+    userId: user.user_id,
+  });
 
-  // The timeline merges durable REST history with live WebSocket events. REST
-  // gives refresh/resume safety; the tunnel gives low-latency streaming updates.
+  // The timeline merges durable REST history with live conversation events.
+  // REST gives refresh/resume safety; the run stream gives low-latency updates.
   const historyEvents = useMemo(
     () =>
       (historyQuery.data?.messages ?? []).flatMap((message) =>
@@ -110,38 +177,53 @@ export function SessionWorkbench({
   );
 
   const timeline = useMemo(
-    () => mergeEvents([...historyEvents, ...tunnel.events]),
-    [historyEvents, tunnel.events],
+    () => mergeEvents([...historyEvents, ...conversationRun.events]),
+    [conversationRun.events, historyEvents],
   );
   const canSend =
-    Boolean(activeAgentId) &&
-    tunnel.status === "connected" &&
+    Boolean(activeAgentId && activeNodeId) &&
+    conversationRun.status !== "streaming" &&
     draft.trim().length > 0;
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  const submitDraft = useCallback(async () => {
     const content = draft.trim();
-    if (!content || !activeAgentId) {
+    if (
+      !content ||
+      !activeAgentId ||
+      !activeNodeId ||
+      conversationRun.status === "streaming"
+    ) {
       return;
     }
 
     setSendError(null);
+    setDraft("");
     try {
-      const result = await tunnel.sendUserMessage(sessionId, content);
-      setDraft("");
-      if (result?.sessionId && result.sessionId !== sessionId) {
-        const params = new URLSearchParams();
-        if (activeNodeId) {
-          params.set("nodeId", activeNodeId);
-        }
-        if (activeAgentId) {
-          params.set("agentId", activeAgentId);
-        }
-        router.replace(`/sessions/${result.sessionId}?${params}`);
-      }
+      await conversationRun.sendMessage(content);
     } catch (caught) {
-      setSendError(caught instanceof Error ? caught : new Error(String(caught)));
+      setSendError(
+        caught instanceof Error ? caught : new Error(String(caught)),
+      );
     }
+  }, [activeAgentId, activeNodeId, conversationRun, draft]);
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void submitDraft();
+  }
+
+  function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (
+      event.key !== "Enter" ||
+      event.shiftKey ||
+      event.nativeEvent.isComposing ||
+      event.keyCode === 229
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    void submitDraft();
   }
 
   return (
@@ -161,10 +243,16 @@ export function SessionWorkbench({
               <ArrowLeft className="h-4 w-4" />
               Back to fleet
             </Link>
-            <TruncatedText className="mt-4 text-xl font-medium" tooltip={sessionId}>
-              {compactId(sessionId)}
+            <TruncatedText
+              className="mt-4 text-xl font-medium"
+              tooltip={currentSessionId ?? "New session"}
+            >
+              {currentSessionId ? compactId(currentSessionId) : "New session"}
             </TruncatedText>
-            <MonoId className="mt-2" tooltip={activeAgentId ?? "No agent selected"}>
+            <MonoId
+              className="mt-2"
+              tooltip={activeAgentId ?? "No agent selected"}
+            >
               {activeAgentId ? compactId(activeAgentId) : "No agent selected"}
             </MonoId>
           </div>
@@ -180,7 +268,7 @@ export function SessionWorkbench({
             />
             <ContextRow
               label="Session"
-              value={compactId(sessionId)}
+              value={currentSessionId ? compactId(currentSessionId) : "pending"}
             />
           </div>
         </aside>
@@ -199,7 +287,7 @@ export function SessionWorkbench({
               </div>
               <div className="mt-1 text-lg font-medium">Workstream</div>
             </div>
-            <TunnelBadge status={tunnel.status} />
+            <RunBadge status={conversationRun.status} />
           </div>
 
           <div className="flex-1 overflow-auto bg-canvas p-4">
@@ -207,7 +295,7 @@ export function SessionWorkbench({
               <SessionErrors
                 messagesError={historyQuery.error}
                 missingRouteState={!activeNodeId || !activeAgentId}
-                sendError={sendError ?? tunnel.error}
+                sendError={sendError ?? conversationRun.error}
               />
               {timeline.map((event) => (
                 <EventCard event={event} key={event.id} />
@@ -228,10 +316,11 @@ export function SessionWorkbench({
               <textarea
                 className="min-h-20 flex-1 resize-none rounded-lg border border-hairline bg-canvas px-3 py-2 text-sm leading-6 text-ink outline-none transition focus:border-primary-focus focus:ring-2 focus:ring-primary-focus/20"
                 disabled={!activeAgentId}
+                onKeyDown={handleComposerKeyDown}
                 onChange={(event) => setDraft(event.target.value)}
                 placeholder={
                   activeAgentId
-                    ? "Send a prompt through the ACP tunnel"
+                    ? "Send a prompt to this agent"
                     : "Select an agent before sending a prompt"
                 }
                 value={draft}
@@ -243,8 +332,7 @@ export function SessionWorkbench({
                 tooltip="Send prompt"
                 type="submit"
                 variant="primary"
-              >
-              </Button>
+              />
             </div>
           </form>
         </section>
@@ -253,17 +341,20 @@ export function SessionWorkbench({
           <div className="border-b border-hairline p-4">
             <div className="text-sm font-medium text-ink">Evidence</div>
             <div className="mt-1 text-xs text-ink-tertiary">
-              REST history and tunnel state
+              REST history and conversation run state
             </div>
           </div>
           <div className="grid gap-0 p-4">
             <StatusRow label="REST history" value={queryState(historyQuery)} />
-            <StatusRow label="WebSocket tunnel" value={tunnel.status} />
+            <StatusRow
+              label="Conversation run"
+              value={conversationRun.status}
+            />
             <StatusRow
               label="Endpoint"
               value={
-                activeAgentId
-                  ? `/api/v1/user/self/agents/${activeAgentId}/tunnel`
+                activeAgentId && activeNodeId
+                  ? `/api/v1/user/${user.user_id}/nodes/${activeNodeId}/agents/${activeAgentId}/conversation`
                   : "waiting for agent"
               }
             />
@@ -454,14 +545,18 @@ function EventCard({ event }: { event: SessionEvent }) {
 
   if (event.type === "progress") {
     return (
-      <article className="min-w-0 rounded-lg border border-hairline bg-surface-1 p-3">
-        <div className="text-xs uppercase tracking-wide text-ink-tertiary">
-          thought
-        </div>
-        <div className="mt-2 whitespace-pre-wrap text-sm leading-7 text-ink-muted">
-          {event.content}
-        </div>
-      </article>
+      <details className="group min-w-0 py-1" open>
+        <summary className="flex cursor-pointer list-none items-center gap-2 text-sm text-ink-muted outline-none transition hover:text-ink [&::-webkit-details-marker]:hidden">
+          <PaxThoughtIcon />
+          <span>{event.streaming ? "思考中" : "已思考"}</span>
+          <ChevronDown className="h-3.5 w-3.5 -rotate-90 text-ink-tertiary transition group-open:rotate-0" />
+        </summary>
+        <MarkdownMessage
+          className="mt-4 pl-1 text-[13px] leading-7"
+          content={event.content}
+          muted
+        />
+      </details>
     );
   }
 
@@ -478,27 +573,48 @@ function EventCard({ event }: { event: SessionEvent }) {
     );
   }
 
+  if (event.type === "user_message") {
+    return (
+      <article className="grid min-w-0 justify-items-end py-1">
+        <div className="max-w-[min(82%,720px)] min-w-0 rounded-lg bg-surface-2 px-3 py-2">
+          <div className="mb-1 text-right text-xs text-ink-tertiary">你</div>
+          <MarkdownMessage
+            className="overflow-hidden text-sm leading-7"
+            content={event.content}
+          />
+        </div>
+      </article>
+    );
+  }
+
+  if (event.type === "agent_message") {
+    return (
+      <article className="min-w-0 justify-self-stretch py-1">
+        <MarkdownMessage
+          className="text-base leading-8 text-ink"
+          content={event.content}
+        />
+      </article>
+    );
+  }
+
+  return null;
+}
+
+function PaxThoughtIcon() {
   return (
-    <article
-      className={`max-w-[min(82%,720px)] overflow-hidden rounded-lg border p-3 ${
-        event.type === "user_message"
-          ? "justify-self-end border-hairline-strong bg-surface-2"
-          : "justify-self-start border-hairline bg-surface-1"
-      }`}
-    >
-      <div className="text-xs text-ink-tertiary">
-        {event.type === "user_message" ? "you" : "agent"}
-        {" / "}
-        {new Date(event.createdAt).toLocaleTimeString()}
-      </div>
-      <div className="mt-2 overflow-hidden whitespace-pre-wrap break-words text-sm leading-7 text-ink-muted">
-        {event.content}
-      </div>
-    </article>
+    <span
+      aria-hidden="true"
+      className="h-4 w-4 shrink-0 bg-primary-hover"
+      style={{
+        WebkitMask: "url('/pax-icon.svg') center / contain no-repeat",
+        mask: "url('/pax-icon.svg') center / contain no-repeat",
+      }}
+    />
   );
 }
 
-function TunnelBadge({ status }: { status: string }) {
+function RunBadge({ status }: { status: string }) {
   return (
     <Badge className="max-w-36" tooltip={status}>
       <Radio className="h-3.5 w-3.5" />
@@ -512,7 +628,9 @@ function StatusRow({ label, value }: { label: string; value: string }) {
     <div className="min-w-0 border-b border-hairline py-3 last:border-b-0">
       <div className="text-xs text-ink-tertiary">{label}</div>
       <MonoId className="mt-1 text-ink-muted" tooltip={value}>
-        {value.includes("/agents/") || value.startsWith("agent_") || value.startsWith("sess_")
+        {value.includes("/agents/") ||
+        value.startsWith("agent_") ||
+        value.startsWith("sess_")
           ? compactId(value, 18, 10)
           : value}
       </MonoId>

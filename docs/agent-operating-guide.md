@@ -51,7 +51,7 @@ go through the `/api/pax` proxy.
 `next.config.ts` must keep:
 
 ```ts
-allowedDevOrigins: ["console.paxtech.net", "*.console-dev.paxtech.net"]
+allowedDevOrigins: ["console.paxtech.net", "*.console-dev.paxtech.net"];
 ```
 
 It also sets `Cache-Control: no-store, max-age=0` for `/_next/:path*`. Keep this while developing through `console.paxtech.net`; otherwise Cloudflare/browser caching can serve stale Turbopack chunks after UI layout changes.
@@ -76,6 +76,28 @@ forwarding, and browser WebSocket behavior.
 For team development, prefer localhost plus automatic `pnpm dev` auth sync over
 one Cloudflare Tunnel per developer. Use `PAX_SKIP_AUTH_LOCAL=1 pnpm dev` only
 when intentionally debugging without token refresh.
+
+To test against a local `pax-manager`, point the server-side proxy upstream at
+the local port and keep browser API calls on `/api/pax`:
+
+```txt
+NEXT_PUBLIC_PAX_API_BASE_URL=/api/pax
+NEXT_PUBLIC_PAX_USER_SCOPE=self
+PAX_MANAGER_URL=http://localhost:19879
+PAX_CF_AUTHORIZATION=local-dev
+```
+
+Then start:
+
+```bash
+PAX_SKIP_AUTH_LOCAL=1 pnpm dev
+```
+
+`PAX_SKIP_AUTH_LOCAL=1` only prevents `scripts/sync-cloudflare-access-token.mjs`
+from overwriting `.env.local`; it does not satisfy the proxy identity check.
+Keep `PAX_CF_AUTHORIZATION` set. Use a real Cloudflare token if the local
+manager validates JWTs; `local-dev` is only for local manager configurations
+with dev auth bypassed.
 
 ## Cloud Run Deployment
 
@@ -136,7 +158,7 @@ teams, friends, envelopes, or knowledge capsules into Zustand.
 Use:
 
 ```ts
-apiFetch(userPath(userId, "/..."))
+apiFetch(userPath(userId, "/..."));
 ```
 
 from:
@@ -167,19 +189,44 @@ Collaboration and knowledge resources are normal user-scoped REST resources:
   Reusable session knowledge and system_handoff delivery into sessions.
 ```
 
-## WebSocket Runtime Rules
+## Conversation Runtime Rules
 
 The current runtime files are:
 
 ```txt
 src/features/runtime/agent-tunnel-runtime.ts
 src/features/runtime/use-agent-tunnel.ts
+src/features/runtime/conversation-run.ts
+src/features/runtime/use-conversation-run.ts
 src/features/runtime/normalize-tunnel-frame.ts
 src/features/runtime/merge-session-events.ts
 src/features/runtime/session-events.ts
 ```
 
-`AgentTunnelRuntime` owns ACP JSON-RPC. React components must not build or parse raw ACP frames. The implemented startup/send flow is:
+The session workbench sends user prompts through the manager-side conversation
+run endpoint:
+
+```txt
+POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/conversation
+Accept: text/event-stream
+Content-Type: application/json
+```
+
+New sessions send `{ "input": "..." }`; continued sessions add
+`"session_id": "sess_*"`. The browser reads the POST response body as a stream
+of default SSE `data:` messages. Each message is a PAX envelope:
+
+```txt
+type=session  Save the returned manager session id and replace the URL.
+type=acp      Pass envelope.frame to normalizeTunnelFrame.
+type=done     End the streaming state.
+type=error    Surface the message and end the streaming state.
+```
+
+`AgentTunnelRuntime` is retained for direct ACP tunnel experiments and legacy
+coverage, but React session components should use `useConversationRun` for
+normal composer sends. Components must not build or parse raw ACP frames.
+The manager now owns this ACP startup/send flow:
 
 ```txt
 connect wss://app.paxtech.net/api/v1/user/self/agents/{agent_id}/tunnel
@@ -208,15 +255,16 @@ Actual ACP streaming frames observed from the backend look like:
 ```
 
 `normalizeTunnelFrame` extracts `params.sessionId`, `params.update.sessionUpdate`, and `params.update.content.text`. `AgentTunnelRuntime` assigns a turn-scoped stream id when `sendUserMessage` starts. `merge-session-events.ts` appends chunks with the same stream id so the UI renders one growing message instead of one card per token.
+Unknown or control-only `session/update` values, such as generic `update` frames and unsupported `*_update` frames, are ignored by `normalizeTunnelFrame` so raw ACP protocol payloads do not render in the user-facing timeline.
 
 Do not confuse the two session ids:
 
 ```txt
 PAX Manager session id
-  Created by POST /sessions and used in URLs, REST message history, and product context.
+  Created by POST /conversation on the first prompt and used in URLs, REST message history, and product context.
 
 ACP/native session id
-  Created by session/new over WebSocket and kept private inside AgentTunnelRuntime.
+  Created by session/new by PAX Manager and kept private behind the conversation endpoint.
 ```
 
 Known gaps are broader ACP event coverage beyond observed text chunks, interrupt/stop, approval-event linkage, and REST history refetch after reconnect.
@@ -290,10 +338,11 @@ Currently implemented API-backed actions:
 
 ```txt
 Topbar New session
-  POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions
+  Opens /sessions/new?nodeId=...&agentId=... without creating a server session
 
 Session workbench composer
-  ACP initialize/authenticate/session/new/session/prompt over user tunnel
+  POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/conversation
+  with fetch streaming; type=acp frames still go through normalizeTunnelFrame
 
 Node and agent details
   GET /api/v1/user/{user_id}/nodes/{node_id}

@@ -150,6 +150,109 @@ describe("normalizeTunnelFrame", () => {
       content: "你好",
     });
   });
+
+  it("normalizes conversation run usage updates and final prompt results", () => {
+    const streamId = "sess_f859:turn:1";
+    const chunk = normalizeTunnelFrame(
+      withSessionEnvelope(
+        "sess_f859",
+        sessionUpdate("agent_message_chunk", "?"),
+      ),
+      { streamId },
+    );
+    const usageUpdate = normalizeTunnelFrame(
+      withSessionEnvelope("sess_f859", {
+        jsonrpc: "2.0",
+        method: "session/update",
+        params: {
+          sessionId: "sess_f859",
+          update: {
+            sessionUpdate: "usage_update",
+            size: 1_000_000,
+            used: 14_863,
+          },
+        },
+      }),
+    );
+    const finalResult = normalizeTunnelFrame(
+      withSessionEnvelope("sess_f859", {
+        id: 3,
+        result: {
+          usage: {
+            inputTokens: 13_984,
+            totalTokens: 14_061,
+            outputTokens: 77,
+            thoughtTokens: 0,
+            cachedReadTokens: 2_048,
+          },
+          stopReason: "end_turn",
+        },
+        jsonrpc: "2.0",
+      }),
+    );
+
+    expect(chunk).toMatchObject([
+      {
+        type: "agent_message",
+        sessionId: "sess_f859",
+        content: "?",
+        streaming: true,
+      },
+    ]);
+    expect(usageUpdate).toMatchObject([
+      {
+        type: "token_usage",
+        sessionId: "sess_f859",
+        totalTokens: 14_863,
+      },
+    ]);
+    expect(finalResult).toMatchObject([
+      {
+        type: "token_usage",
+        sessionId: "sess_f859",
+        inputTokens: 13_984,
+        outputTokens: 77,
+        reasoningTokens: 0,
+        totalTokens: 14_061,
+      },
+      {
+        type: "run_status",
+        sessionId: "sess_f859",
+        status: "done",
+      },
+    ]);
+  });
+
+  it("ignores non-display ACP session updates instead of rendering raw frame content", () => {
+    const rawUpdate = normalizeTunnelFrame({
+      jsonrpc: "2.0",
+      method: "session/update",
+      params: {
+        sessionId: "sess_1",
+        update: {
+          sessionUpdate: "update",
+          content: {
+            text: '{"method":"session/update","params":{"update":true}}',
+            type: "text",
+          },
+        },
+      },
+    });
+    const unknownOutputUpdate = normalizeTunnelFrame({
+      jsonrpc: "2.0",
+      method: "session/update",
+      params: {
+        sessionId: "sess_1",
+        update: {
+          output: "internal status update",
+          sessionUpdate: "available_commands_update",
+        },
+      },
+    });
+
+    expect(rawUpdate).toStrictEqual([]);
+    expect(unknownOutputUpdate).toStrictEqual([]);
+  });
 });
 
 function sessionUpdate(sessionUpdate: string, text: string) {
@@ -166,5 +269,16 @@ function sessionUpdate(sessionUpdate: string, text: string) {
         sessionUpdate,
       },
     },
+  };
+}
+
+function withSessionEnvelope(
+  sessionId: string,
+  frame: Record<string, unknown>,
+) {
+  return {
+    ...frame,
+    session_id: sessionId,
+    sessionId,
   };
 }
