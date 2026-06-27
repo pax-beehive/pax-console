@@ -24,6 +24,7 @@ type EnvelopesPageClientProps = {
 };
 
 type EnvelopeMailbox = "inbox" | "sent" | "archived" | "pending";
+type EnvelopeWorkspace = "mailbox" | "compose";
 
 const mailboxFilters: Record<
   EnvelopeMailbox,
@@ -40,6 +41,7 @@ export function EnvelopesPageClient({ user }: EnvelopesPageClientProps) {
   const nodesQuery = useNodes(user.user_id);
   const nodes = nodesQuery.data?.nodes ?? [];
   const [mailbox, setMailbox] = useState<EnvelopeMailbox>("inbox");
+  const [workspace, setWorkspace] = useState<EnvelopeWorkspace>("mailbox");
   const envelopesQuery = useEnvelopes(user.user_id, mailboxFilters[mailbox]);
   const envelopes = envelopesQuery.data?.envelopes ?? [];
   const [selectedEnvelopeId, setSelectedEnvelopeId] = useState<string>();
@@ -68,24 +70,42 @@ export function EnvelopesPageClient({ user }: EnvelopesPageClientProps) {
           </header>
           <div className="grid gap-4 p-4">
             <MailboxTabs mailbox={mailbox} onChange={setMailbox} />
-            <CreateEnvelopePanel
-              onCreated={invalidateEnvelopes}
-              user={user}
-            />
+            <Button
+              icon={<Send className="h-4 w-4" />}
+              onClick={() => setWorkspace("compose")}
+              type="button"
+              variant={workspace === "compose" ? "primary" : "secondary"}
+            >
+              Compose
+            </Button>
             <EnvelopeList
               envelopes={envelopes}
               isLoading={envelopesQuery.isLoading}
-              onSelect={setSelectedEnvelopeId}
+              onSelect={(envelopeId) => {
+                setSelectedEnvelopeId(envelopeId);
+                setWorkspace("mailbox");
+              }}
               selectedEnvelopeId={selectedEnvelope?.envelope_id}
             />
           </div>
         </aside>
         <section className="min-w-0 bg-canvas">
-          <EnvelopeDetail
-            envelope={selectedEnvelope}
-            onChanged={invalidateEnvelopes}
-            user={user}
-          />
+          {workspace === "compose" ? (
+            <ComposeEnvelopeView
+              onCancel={() => setWorkspace("mailbox")}
+              onCreated={() => {
+                invalidateEnvelopes();
+                setWorkspace("mailbox");
+              }}
+              user={user}
+            />
+          ) : (
+            <EnvelopeDetail
+              envelope={selectedEnvelope}
+              onChanged={invalidateEnvelopes}
+              user={user}
+            />
+          )}
         </section>
       </div>
     </ConsoleLayout>
@@ -119,10 +139,12 @@ function MailboxTabs({
   );
 }
 
-function CreateEnvelopePanel({
+function ComposeEnvelopeView({
+  onCancel,
   onCreated,
   user,
 }: {
+  onCancel: () => void;
   onCreated: () => void;
   user: User;
 }) {
@@ -158,49 +180,91 @@ function CreateEnvelopePanel({
   }
 
   return (
-    <form className="grid gap-2" onSubmit={submit}>
-      <div className="text-sm font-medium">Send capsule</div>
-      <select
-        className="min-h-9 rounded-lg border border-hairline bg-canvas px-3 text-sm text-ink outline-none focus:border-primary-focus"
-        onChange={(event) => setFriendEmail(event.target.value)}
-        value={selectedFriendEmail}
+    <div className="grid min-w-0 gap-5 p-5">
+      <header className="flex min-w-0 items-start justify-between gap-4 border-b border-hairline pb-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-xs text-ink-tertiary">
+            <Send className="h-4 w-4" />
+            compose envelope
+          </div>
+          <h2 className="mt-2 text-2xl font-semibold">New envelope</h2>
+          <p className="mt-1 max-w-2xl text-sm text-ink-tertiary">
+            Send an active knowledge capsule to an accepted friend.
+          </p>
+        </div>
+        <Button onClick={onCancel} type="button">
+          Cancel
+        </Button>
+      </header>
+
+      <form
+        className="grid max-w-3xl gap-4 rounded-lg border border-hairline bg-surface-1 p-4"
+        onSubmit={submit}
       >
-        {friends.map((friend) => {
-          const email = friendRecipientEmail(friend, user);
-          return (
-            <option key={friend.friend_id} value={email}>
-              {email}
-            </option>
-          );
-        })}
-      </select>
-      <select
-        className="min-h-9 rounded-lg border border-hairline bg-canvas px-3 text-sm text-ink outline-none focus:border-primary-focus"
-        onChange={(event) => setCapsuleId(event.target.value)}
-        value={selectedCapsule?.capsule_id ?? ""}
-      >
-        {capsules.map((capsule) => (
-          <option key={capsule.capsule_id} value={capsule.capsule_id}>
-            {capsule.title || capsule.keyword}
-          </option>
-        ))}
-      </select>
-      <textarea
-        className="min-h-20 resize-none rounded-lg border border-hairline bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-focus"
-        onChange={(event) => setMessage(event.target.value)}
-        placeholder="Optional note"
-        value={message}
-      />
-      <Button
-        disabled={create.isPending || !selectedFriendEmail || !selectedCapsule}
-        icon={<Send className="h-4 w-4" />}
-        type="submit"
-        variant="primary"
-      >
-        Send envelope
-      </Button>
-      {create.error && <InlineError error={create.error} />}
-    </form>
+        <label className="grid gap-2">
+          <span className="text-xs text-ink-tertiary">To</span>
+          <select
+            className="min-h-10 rounded-lg border border-hairline bg-canvas px-3 text-sm text-ink outline-none focus:border-primary-focus"
+            onChange={(event) => setFriendEmail(event.target.value)}
+            value={selectedFriendEmail}
+          >
+            {friends.map((friend) => {
+              const email = friendRecipientEmail(friend, user);
+              return (
+                <option key={friend.friend_id} value={email}>
+                  {email}
+                </option>
+              );
+            })}
+          </select>
+        </label>
+        <label className="grid gap-2">
+          <span className="text-xs text-ink-tertiary">Capsule payload</span>
+          <select
+            className="min-h-10 rounded-lg border border-hairline bg-canvas px-3 text-sm text-ink outline-none focus:border-primary-focus"
+            onChange={(event) => setCapsuleId(event.target.value)}
+            value={selectedCapsule?.capsule_id ?? ""}
+          >
+            {capsules.map((capsule) => (
+              <option key={capsule.capsule_id} value={capsule.capsule_id}>
+                {capsule.title || capsule.keyword}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="grid gap-2">
+          <span className="text-xs text-ink-tertiary">Message</span>
+          <textarea
+            className="min-h-40 resize-none rounded-lg border border-hairline bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-focus"
+            onChange={(event) => setMessage(event.target.value)}
+            placeholder="Optional note"
+            value={message}
+          />
+        </label>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            disabled={create.isPending || !selectedFriendEmail || !selectedCapsule}
+            icon={<Send className="h-4 w-4" />}
+            type="submit"
+            variant="primary"
+          >
+            Send envelope
+          </Button>
+          <Button onClick={onCancel} type="button">
+            Discard
+          </Button>
+        </div>
+        {friendsQuery.isLoading && <EmptyState label="Loading friends" />}
+        {capsulesQuery.isLoading && <EmptyState label="Loading capsules" />}
+        {!friendsQuery.isLoading && friends.length === 0 && (
+          <EmptyState label="No accepted friends available" />
+        )}
+        {!capsulesQuery.isLoading && capsules.length === 0 && (
+          <EmptyState label="No active capsules available" />
+        )}
+        {create.error && <InlineError error={create.error} />}
+      </form>
+    </div>
   );
 }
 

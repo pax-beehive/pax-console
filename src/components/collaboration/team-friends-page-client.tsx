@@ -45,6 +45,8 @@ type TeamFriendsPageClientProps = {
   user: User;
 };
 
+type TeamWorkspace = "teams" | "friends" | "invites";
+
 export function TeamFriendsPageClient({ user }: TeamFriendsPageClientProps) {
   const queryClient = useQueryClient();
   const nodesQuery = useNodes(user.user_id);
@@ -72,6 +74,7 @@ export function TeamFriendsPageClient({ user }: TeamFriendsPageClientProps) {
   const teamAgentsQuery = useTeamAgents(user.user_id, selectedTeam?.team_id);
   const members = membersQuery.data?.members ?? [];
   const teamAgents = teamAgentsQuery.data?.agents ?? [];
+  const [workspace, setWorkspace] = useState<TeamWorkspace>("teams");
   const activeNode = nodes[0];
   const activeAgent = availableAgents[0];
   const invalidateTeams = () => {
@@ -100,51 +103,131 @@ export function TeamFriendsPageClient({ user }: TeamFriendsPageClientProps) {
           <header className="border-b border-hairline p-4">
             <div className="flex items-center gap-2 text-xs text-ink-tertiary">
               <Users className="h-4 w-4" />
-              trust boundary
+              collaboration
             </div>
             <h1 className="mt-2 text-2xl font-semibold">Teams</h1>
           </header>
           <div className="grid gap-4 p-4">
-            <CreateTeamForm
-              onCreated={invalidateTeams}
-              userId={user.user_id}
+            <TeamWorkspaceNav
+              counts={{
+                friends: friends.length,
+                invites: teamInvites.length,
+                teams: teams.length,
+              }}
+              onChange={setWorkspace}
+              workspace={workspace}
             />
-            <TeamList
-              isLoading={teamsQuery.isLoading}
-              onSelect={setSelectedTeamId}
-              selectedTeamId={selectedTeam?.team_id}
-              teams={teams}
-            />
-            <InviteQueue
-              invites={teamInvites}
-              isLoading={teamInvitesQuery.isLoading}
-              onChanged={invalidateTeams}
-              userId={user.user_id}
-            />
+            {workspace === "teams" && (
+              <TeamList
+                isLoading={teamsQuery.isLoading}
+                onSelect={setSelectedTeamId}
+                selectedTeamId={selectedTeam?.team_id}
+                teams={teams}
+              />
+            )}
+            {workspace === "friends" && (
+              <FriendList
+                friends={friends}
+                isLoading={friendsQuery.isLoading}
+                user={user}
+              />
+            )}
+            {workspace === "invites" && (
+              <InviteSummary
+                invites={teamInvites}
+                isLoading={teamInvitesQuery.isLoading}
+              />
+            )}
+          </div>
+        </aside>
+
+        <section className="min-w-0 bg-canvas">
+          {workspace === "teams" && (
+            <div className="grid min-w-0 gap-5 p-5">
+              <CreateTeamForm
+                onCreated={invalidateTeams}
+                userId={user.user_id}
+              />
+              <TeamDetail
+                agents={availableAgents}
+                isLoading={teamsQuery.isLoading}
+                members={members}
+                membersLoading={membersQuery.isLoading}
+                onChanged={invalidateTeams}
+                team={selectedTeam}
+                teamAgents={teamAgents}
+                teamAgentsLoading={teamAgentsQuery.isLoading}
+                user={user}
+              />
+            </div>
+          )}
+          {workspace === "friends" && (
             <FriendsPanel
               friends={friends}
               isLoading={friendsQuery.isLoading}
               onChanged={invalidateFriends}
               user={user}
             />
-          </div>
-        </aside>
-
-        <section className="min-w-0 bg-canvas">
-          <TeamDetail
-            agents={availableAgents}
-            isLoading={teamsQuery.isLoading}
-            members={members}
-            membersLoading={membersQuery.isLoading}
-            onChanged={invalidateTeams}
-            team={selectedTeam}
-            teamAgents={teamAgents}
-            teamAgentsLoading={teamAgentsQuery.isLoading}
-            user={user}
-          />
+          )}
+          {workspace === "invites" && (
+            <InviteWorkspace
+              invites={teamInvites}
+              isLoading={teamInvitesQuery.isLoading}
+              onChanged={invalidateTeams}
+              userId={user.user_id}
+            />
+          )}
         </section>
       </div>
     </ConsoleLayout>
+  );
+}
+
+function TeamWorkspaceNav({
+  counts,
+  onChange,
+  workspace,
+}: {
+  counts: Record<TeamWorkspace, number>;
+  onChange: (workspace: TeamWorkspace) => void;
+  workspace: TeamWorkspace;
+}) {
+  const items: Array<{
+    icon: typeof Users;
+    id: TeamWorkspace;
+    label: string;
+    meta: string;
+  }> = [
+    { icon: Users, id: "teams", label: "Teams", meta: "members and agents" },
+    { icon: MailPlus, id: "friends", label: "Friends", meta: "trusted people" },
+    { icon: Check, id: "invites", label: "Invites", meta: "action queue" },
+  ];
+
+  return (
+    <nav className="grid overflow-hidden rounded-lg border border-hairline">
+      {items.map((item) => {
+        const Icon = item.icon;
+        return (
+          <button
+            className={`flex min-w-0 items-center gap-3 border-b border-hairline px-3 py-3 text-left transition last:border-b-0 ${
+              workspace === item.id
+                ? "bg-surface-2 text-ink"
+                : "bg-surface-1 text-ink-muted hover:bg-surface-2"
+            }`}
+            key={item.id}
+            onClick={() => onChange(item.id)}
+            type="button"
+          >
+            <Icon className="h-4 w-4 shrink-0 text-ink-tertiary" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium">{item.label}</span>
+              <span className="block text-xs text-ink-tertiary">{item.meta}</span>
+            </span>
+            <Badge className="font-mono">{String(counts[item.id])}</Badge>
+          </button>
+        );
+      })}
+    </nav>
   );
 }
 
@@ -309,6 +392,118 @@ function InviteQueue({
   );
 }
 
+function InviteSummary({
+  invites,
+  isLoading,
+}: {
+  invites: TeamInvite[];
+  isLoading: boolean;
+}) {
+  if (isLoading) {
+    return <EmptyState label="Loading invites" />;
+  }
+
+  return (
+    <section className="grid gap-2">
+      <SectionTitle count={invites.length} title="Pending invites" />
+      <div className="grid overflow-hidden rounded-lg border border-hairline">
+        {invites.map((invite) => (
+          <div
+            className="grid min-w-0 gap-1 border-b border-hairline bg-surface-1 px-3 py-2.5 last:border-b-0"
+            key={invite.invite_id}
+          >
+            <div className="flex min-w-0 items-center justify-between gap-3">
+              <TruncatedText className="text-sm font-medium">
+                {invite.email}
+              </TruncatedText>
+              <Badge tone="warning">{invite.role}</Badge>
+            </div>
+            <MonoId tooltip={invite.team_id}>{compactId(invite.team_id)}</MonoId>
+          </div>
+        ))}
+        {invites.length === 0 && <EmptyState label="No pending invites" />}
+      </div>
+    </section>
+  );
+}
+
+function InviteWorkspace({
+  invites,
+  isLoading,
+  onChanged,
+  userId,
+}: {
+  invites: TeamInvite[];
+  isLoading: boolean;
+  onChanged: () => void;
+  userId: string;
+}) {
+  return (
+    <div className="grid min-w-0 gap-5 p-5">
+      <header className="border-b border-hairline pb-4">
+        <div className="flex items-center gap-2 text-xs text-ink-tertiary">
+          <Check className="h-4 w-4" />
+          invitation queue
+        </div>
+        <h2 className="mt-2 text-2xl font-semibold">Invites</h2>
+        <p className="mt-1 max-w-2xl text-sm text-ink-tertiary">
+          Review pending team invitations separately from team administration and
+          friend management.
+        </p>
+      </header>
+      <div className="max-w-2xl">
+        <InviteQueue
+          invites={invites}
+          isLoading={isLoading}
+          onChanged={onChanged}
+          userId={userId}
+        />
+      </div>
+    </div>
+  );
+}
+
+function FriendList({
+  friends,
+  isLoading,
+  user,
+}: {
+  friends: Friend[];
+  isLoading: boolean;
+  user: User;
+}) {
+  if (isLoading) {
+    return <EmptyState label="Loading friends" />;
+  }
+
+  return (
+    <section className="grid gap-2">
+      <SectionTitle count={friends.length} title="Friends" />
+      <div className="grid overflow-hidden rounded-lg border border-hairline">
+        {friends.map((friend) => (
+          <div
+            className="grid min-w-0 gap-1 border-b border-hairline bg-surface-1 px-3 py-2.5 last:border-b-0"
+            key={friend.friend_id}
+          >
+            <div className="flex min-w-0 items-center justify-between gap-3">
+              <TruncatedText className="text-sm font-medium">
+                {friendCounterpartyEmail(friend, user)}
+              </TruncatedText>
+              <Badge tone={friend.status === "accepted" ? "success" : "warning"}>
+                {friend.status}
+              </Badge>
+            </div>
+            <TruncatedText className="text-xs text-ink-tertiary">
+              {friendAlias(friend, user) || "No alias"}
+            </TruncatedText>
+          </div>
+        ))}
+        {friends.length === 0 && <EmptyState label="No friends" />}
+      </div>
+    </section>
+  );
+}
+
 function FriendsPanel({
   friends,
   isLoading,
@@ -339,19 +534,33 @@ function FriendsPanel({
   }
 
   return (
-    <section className="grid gap-2">
-      <SectionTitle count={friends.length} title="Friends" />
-      <form className="grid gap-2" onSubmit={submit}>
-        <input
-          className="min-h-9 rounded-lg border border-hairline bg-canvas px-3 text-sm text-ink outline-none focus:border-primary-focus"
-          onChange={(event) => setEmail(event.target.value)}
-          placeholder="friend@example.com"
-          type="email"
-          value={email}
-        />
-        <div className="flex min-w-0 gap-2">
+    <div className="grid min-w-0 gap-5 p-5">
+      <header className="border-b border-hairline pb-4">
+        <div className="flex items-center gap-2 text-xs text-ink-tertiary">
+          <MailPlus className="h-4 w-4" />
+          friend graph
+        </div>
+        <h2 className="mt-2 text-2xl font-semibold">Friends</h2>
+        <p className="mt-1 max-w-2xl text-sm text-ink-tertiary">
+          Manage direct trust relationships used for envelope delivery.
+        </p>
+      </header>
+
+      <form
+        className="grid max-w-2xl gap-2 rounded-lg border border-hairline bg-surface-1 p-3"
+        onSubmit={submit}
+      >
+        <label className="text-xs text-ink-tertiary">Create friend request</label>
+        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,220px)_auto]">
           <input
-            className="min-h-9 min-w-0 flex-1 rounded-lg border border-hairline bg-canvas px-3 text-sm text-ink outline-none focus:border-primary-focus"
+            className="min-h-9 min-w-0 rounded-lg border border-hairline bg-canvas px-3 text-sm text-ink outline-none focus:border-primary-focus"
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="friend@example.com"
+            type="email"
+            value={email}
+          />
+          <input
+            className="min-h-9 min-w-0 rounded-lg border border-hairline bg-canvas px-3 text-sm text-ink outline-none focus:border-primary-focus"
             onChange={(event) => setAlias(event.target.value)}
             placeholder="Alias"
             value={alias}
@@ -359,25 +568,31 @@ function FriendsPanel({
           <Button
             disabled={create.isPending || !email.trim()}
             icon={<MailPlus className="h-4 w-4" />}
-            size="icon"
-            tooltip="Create friend request"
             type="submit"
             variant="primary"
-          />
+          >
+            Request
+          </Button>
         </div>
         {create.error && <InlineError error={create.error} />}
       </form>
-      {isLoading && <EmptyState label="Loading friends" />}
-      {!isLoading && friends.length === 0 && <EmptyState label="No friends" />}
-      {friends.map((friend) => (
-        <FriendRow
-          friend={friend}
-          key={friend.friend_id}
-          onChanged={onChanged}
-          user={user}
-        />
-      ))}
-    </section>
+
+      <section className="grid gap-3">
+        <SectionTitle count={friends.length} title="Friend records" />
+        {isLoading && <EmptyState label="Loading friends" />}
+        {!isLoading && friends.length === 0 && <EmptyState label="No friends" />}
+        <div className="grid gap-2 xl:grid-cols-2">
+          {friends.map((friend) => (
+            <FriendRow
+              friend={friend}
+              key={friend.friend_id}
+              onChanged={onChanged}
+              user={user}
+            />
+          ))}
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -506,7 +721,7 @@ function TeamDetail({
   }
 
   return (
-    <div className="grid min-w-0 gap-5 p-5">
+    <div className="grid min-w-0 gap-5">
       <header className="flex min-w-0 items-start justify-between gap-4 border-b border-hairline pb-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs text-ink-tertiary">
