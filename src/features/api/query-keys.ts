@@ -2,6 +2,29 @@ export const queryKeys = {
   health: () => ["health"] as const,
   me: () => ["me"] as const,
   apiKeys: (userId: string) => ["users", userId, "api-keys"] as const,
+  envelopes: (userId: string, filters?: Record<string, string | undefined>) =>
+    ["users", userId, "envelopes", filters ?? {}] as const,
+  envelope: (userId: string, envelopeId: string) =>
+    ["users", userId, "envelopes", envelopeId] as const,
+  friends: (userId: string, filters?: Record<string, string | undefined>) =>
+    ["users", userId, "friends", filters ?? {}] as const,
+  knowledgeCapsules: (
+    userId: string,
+    filters?: Record<string, string | undefined>,
+  ) => ["users", userId, "knowledge-capsules", filters ?? {}] as const,
+  knowledgeCapsule: (userId: string, capsuleId: string) =>
+    ["users", userId, "knowledge-capsules", capsuleId] as const,
+  sessionKnowledgeInjections: (userId: string, sessionId: string) =>
+    ["users", userId, "sessions", sessionId, "knowledge-injections"] as const,
+  teams: (userId: string) => ["users", userId, "teams"] as const,
+  team: (userId: string, teamId: string) =>
+    ["users", userId, "teams", teamId] as const,
+  teamAgents: (userId: string, teamId: string) =>
+    ["users", userId, "teams", teamId, "agents"] as const,
+  teamInvites: (userId: string) =>
+    ["users", userId, "team-invites"] as const,
+  teamMembers: (userId: string, teamId: string) =>
+    ["users", userId, "teams", teamId, "members"] as const,
   approvals: (userId: string) => ["users", userId, "approvals"] as const,
   approvalGrants: (userId: string) =>
     ["users", userId, "approval-grants"] as const,

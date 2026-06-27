@@ -5,14 +5,17 @@ import { usePathname } from "next/navigation";
 import {
   Activity,
   Bot,
+  Brain,
   ChevronLeft,
   ChevronRight,
   CircleDot,
+  Inbox,
   KeyRound,
   Radio,
   Server,
   ShieldCheck,
   TerminalSquare,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TruncatedText } from "@/components/ui/text";
@@ -25,6 +28,9 @@ const navItems = [
   ["Nodes", "/nodes", Server],
   ["Agents", "/agents", Bot],
   ["Sessions", "/sessions", TerminalSquare],
+  ["Teams", "/teams", Users],
+  ["Envelopes", "/envelopes", Inbox],
+  ["Knowledge", "/knowledge", Brain],
   ["Approvals", "/approvals", ShieldCheck],
   ["Monitor", "/monitor", Radio],
   ["API Keys", "/settings/api-keys", KeyRound],

@@ -107,6 +107,11 @@ agents
 sessions
 messages
 mailbox history
+teams
+team members/invites/agents
+friends
+envelopes
+knowledge capsules/injections
 metrics
 pagination
 cache/refetch/invalidation
@@ -123,7 +128,8 @@ local filters
 temporary UI selections
 ```
 
-Never duplicate server resources such as nodes, agents, sessions, or messages into Zustand.
+Never duplicate server resources such as nodes, agents, sessions, messages,
+teams, friends, envelopes, or knowledge capsules into Zustand.
 
 ## REST API Rules
 
@@ -143,6 +149,23 @@ src/features/api/resources.ts
 Do not add `Content-Type: application/json` to GET requests. It can trigger unwanted CORS preflights if the base URL is ever remote.
 
 Keep resource hooks thin. Components should compose hooks rather than build URLs manually.
+
+Collaboration and knowledge resources are normal user-scoped REST resources:
+
+```txt
+/teams and /team-invites
+  Team membership, invites, and team agent grants. Invite UI must explicitly
+  send member/operator; do not rely on the backend default role.
+
+/friends
+  Accepted friend relationships gate envelope delivery.
+
+/envelopes
+  Mailbox-like cross-user delivery for knowledge capsule payloads.
+
+/knowledge-capsules and /sessions/{session_id}/knowledge-injections
+  Reusable session knowledge and system_handoff delivery into sessions.
+```
 
 ## WebSocket Runtime Rules
 

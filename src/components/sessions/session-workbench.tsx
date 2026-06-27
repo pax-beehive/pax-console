@@ -3,17 +3,23 @@
 import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, ArrowLeft, FileCode, Radio, Send } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { AlertCircle, ArrowLeft, Brain, FileCode, Radio, Send } from "lucide-react";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MonoId, TruncatedText } from "@/components/ui/text";
 import {
+  createKnowledgeCapsule,
+  injectKnowledgeCapsule,
+  useKnowledgeCapsules,
+  useKnowledgeInjections,
   useNodeAgents,
   useNodes,
   useSessionHistory,
 } from "@/features/api/resources";
-import { User } from "@/features/api/types";
+import { queryKeys } from "@/features/api/query-keys";
+import { KnowledgeCapsule, SessionKnowledgeInjection, User } from "@/features/api/types";
 import { normalizeHistoryMessage } from "@/features/runtime/normalize-history-message";
 import { mergeEvents } from "@/features/runtime/merge-session-events";
 import { SessionEvent } from "@/features/runtime/session-events";
@@ -34,6 +40,7 @@ export function SessionWorkbench({
   agentId,
 }: SessionWorkbenchProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const nodesQuery = useNodes(user.user_id);
   const nodes = nodesQuery.data?.nodes ?? [];
   const activeNodeId = nodeId ?? nodes[0]?.node_id;
@@ -49,6 +56,47 @@ export function SessionWorkbench({
     activeAgentId,
     sessionId,
   );
+  const capsulesQuery = useKnowledgeCapsules(user.user_id, { status: "active" });
+  const injectionsQuery = useKnowledgeInjections(user.user_id, sessionId);
+  const [capsuleKeyword, setCapsuleKeyword] = useState("");
+  const [selectedCapsuleId, setSelectedCapsuleId] = useState("");
+  const activeCapsules = capsulesQuery.data?.capsules ?? [];
+  const selectedInjectionCapsuleId =
+    selectedCapsuleId || activeCapsules[0]?.capsule_id || "";
+  const refreshKnowledge = () => {
+    void queryClient.invalidateQueries({
+      queryKey: ["users", user.user_id, "knowledge-capsules"],
+    });
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.sessionKnowledgeInjections(user.user_id, sessionId),
+    });
+    if (activeAgentId) {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.sessionHistory(
+          user.user_id,
+          activeAgentId,
+          sessionId,
+        ),
+      });
+    }
+  };
+  const createCapsule = useMutation({
+    mutationFn: () =>
+      createKnowledgeCapsule(user.user_id, sessionId, capsuleKeyword.trim()),
+    onSuccess: () => {
+      setCapsuleKeyword("");
+      refreshKnowledge();
+    },
+  });
+  const injectCapsule = useMutation({
+    mutationFn: () =>
+      injectKnowledgeCapsule(
+        user.user_id,
+        sessionId,
+        selectedInjectionCapsuleId,
+      ),
+    onSuccess: refreshKnowledge,
+  });
   const tunnel = useAgentTunnel(activeAgentId, sessionId);
 
   // The timeline merges durable REST history with live WebSocket events. REST
@@ -224,9 +272,155 @@ export function SessionWorkbench({
               value={String(timeline.length)}
             />
           </div>
+          <div className="border-t border-hairline p-4">
+            <KnowledgeTools
+              capsules={activeCapsules}
+              capsuleKeyword={capsuleKeyword}
+              createError={createCapsule.error}
+              createPending={createCapsule.isPending}
+              injectError={injectCapsule.error}
+              injectPending={injectCapsule.isPending}
+              injections={injectionsQuery.data?.injections ?? []}
+              injectionsLoading={injectionsQuery.isLoading}
+              onCreate={() => createCapsule.mutate()}
+              onInject={() => injectCapsule.mutate()}
+              onKeywordChange={setCapsuleKeyword}
+              onSelectedCapsuleChange={setSelectedCapsuleId}
+              selectedCapsuleId={selectedInjectionCapsuleId}
+            />
+          </div>
         </aside>
       </div>
     </ConsoleLayout>
+  );
+}
+
+function KnowledgeTools({
+  capsules,
+  capsuleKeyword,
+  createError,
+  createPending,
+  injectError,
+  injectPending,
+  injections,
+  injectionsLoading,
+  onCreate,
+  onInject,
+  onKeywordChange,
+  onSelectedCapsuleChange,
+  selectedCapsuleId,
+}: {
+  capsules: KnowledgeCapsule[];
+  capsuleKeyword: string;
+  createError: Error | null;
+  createPending: boolean;
+  injectError: Error | null;
+  injectPending: boolean;
+  injections: SessionKnowledgeInjection[];
+  injectionsLoading: boolean;
+  onCreate: () => void;
+  onInject: () => void;
+  onKeywordChange: (value: string) => void;
+  onSelectedCapsuleChange: (capsuleId: string) => void;
+  selectedCapsuleId: string;
+}) {
+  function create(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (capsuleKeyword.trim()) {
+      onCreate();
+    }
+  }
+
+  function inject(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (selectedCapsuleId) {
+      onInject();
+    }
+  }
+
+  return (
+    <div className="grid gap-4">
+      <div>
+        <div className="flex items-center gap-2 text-sm font-medium text-ink">
+          <Brain className="h-4 w-4" />
+          Knowledge
+        </div>
+        <div className="mt-1 text-xs text-ink-tertiary">
+          Capsules and system handoff injections
+        </div>
+      </div>
+
+      <form className="grid gap-2" onSubmit={create}>
+        <input
+          className="min-h-9 rounded-lg border border-hairline bg-canvas px-3 text-sm text-ink outline-none focus:border-primary-focus"
+          onChange={(event) => onKeywordChange(event.target.value)}
+          placeholder="Keyword for capsule"
+          value={capsuleKeyword}
+        />
+        <Button
+          disabled={createPending || !capsuleKeyword.trim()}
+          type="submit"
+          variant="primary"
+        >
+          Create capsule
+        </Button>
+        {createError && <InlineError error={createError} />}
+      </form>
+
+      <form className="grid gap-2" onSubmit={inject}>
+        <select
+          className="min-h-9 rounded-lg border border-hairline bg-canvas px-3 text-sm text-ink outline-none focus:border-primary-focus"
+          onChange={(event) => onSelectedCapsuleChange(event.target.value)}
+          value={selectedCapsuleId}
+        >
+          {capsules.map((capsule) => (
+            <option key={capsule.capsule_id} value={capsule.capsule_id}>
+              {capsule.title || capsule.keyword}
+            </option>
+          ))}
+        </select>
+        <Button
+          disabled={injectPending || !selectedCapsuleId}
+          type="submit"
+        >
+          Inject capsule
+        </Button>
+        {injectError && <InlineError error={injectError} />}
+      </form>
+
+      <section className="grid gap-2">
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          <TruncatedText className="text-sm font-medium">Injections</TruncatedText>
+          <Badge className="font-mono">{String(injections.length)}</Badge>
+        </div>
+        {injectionsLoading && (
+          <div className="text-xs text-ink-tertiary">Loading injections</div>
+        )}
+        {injections.map((injection) => (
+          <div
+            className="grid gap-1 rounded-lg border border-hairline bg-canvas p-2"
+            key={injection.injection_id}
+          >
+            <div className="flex min-w-0 items-center justify-between gap-2">
+              <MonoId tooltip={injection.capsule_id}>
+                {compactId(injection.capsule_id)}
+              </MonoId>
+              <Badge>{injection.status}</Badge>
+            </div>
+            <MonoId tooltip={injection.delivery_message_id ?? "pending"}>
+              {injection.delivery_message_id
+                ? compactId(injection.delivery_message_id)
+                : "pending delivery"}
+            </MonoId>
+          </div>
+        ))}
+        {!injectionsLoading && injections.length === 0 && (
+          <div className="rounded-lg border border-dashed border-hairline bg-canvas p-2 text-xs text-ink-tertiary">
+            No injections for this session
+          </div>
+        )}
+      </section>
+    </div>
   );
 }
 
@@ -364,6 +558,14 @@ function SessionErrors({
         </TruncatedText>
       </div>
     </div>
+  );
+}
+
+function InlineError({ error }: { error: Error }) {
+  return (
+    <TruncatedText className="text-xs text-warning">
+      {error.name}: {error.message}
+    </TruncatedText>
   );
 }
 

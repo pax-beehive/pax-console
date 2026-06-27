@@ -221,9 +221,6 @@
           "name": {
             "type": "string"
           },
-          "native_id": {
-            "type": "string"
-          },
           "node_id": {
             "type": "string"
           },
@@ -697,6 +694,32 @@
         },
         "type": "object"
       },
+      "CreateSecretData": {
+        "properties": {
+          "secret": {
+            "$ref": "#/components/schemas/Secret"
+          },
+          "version": {
+            "$ref": "#/components/schemas/SecretVersion"
+          }
+        },
+        "type": "object"
+      },
+      "CreateSecretResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CreateSecretData"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "CreateUserAPIKeyData": {
         "properties": {
           "api_key": {
@@ -729,6 +752,29 @@
             "$ref": "#/components/schemas/CreateUserAPIKeyData"
           },
           "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CreateUserSecretRequest": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "value": {
             "type": "string"
           }
         },
@@ -890,6 +936,17 @@
       "GetUserApprovalRequest": {
         "properties": {
           "approval_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "GetUserSecretRequest": {
+        "properties": {
+          "secret_id": {
             "type": "string"
           },
           "user_id": {
@@ -1081,6 +1138,14 @@
           "status": {
             "type": "string"
           },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ListUserSecretsRequest": {
+        "properties": {
           "user_id": {
             "type": "string"
           }
@@ -1580,6 +1645,65 @@
         },
         "type": "object"
       },
+      "ResolveNodeSecretRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "secret_id": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ResolveSecretData": {
+        "properties": {
+          "approval": {
+            "$ref": "#/components/schemas/AgentApproval"
+          },
+          "approval_id": {
+            "type": "string"
+          },
+          "secret_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "version_id": {
+            "type": "string"
+          },
+          "version_number": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ResolveSecretResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ResolveSecretData"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "RevokeUserAPIKeyRequest": {
         "properties": {
           "key_id": {
@@ -1601,6 +1725,122 @@
           },
           "user_id": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Secret": {
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "current_version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "current_version_id": {
+            "type": "string"
+          },
+          "deleted_at": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          },
+          "owner_user_id": {
+            "type": "string"
+          },
+          "secret_id": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SecretListData": {
+        "properties": {
+          "secrets": {
+            "items": {
+              "$ref": "#/components/schemas/Secret"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "SecretListResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SecretListData"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SecretResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Secret"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SecretVersion": {
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "created_by_agent_id": {
+            "type": "string"
+          },
+          "created_by_node_id": {
+            "type": "string"
+          },
+          "created_by_user_id": {
+            "type": "string"
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "key_id": {
+            "type": "string"
+          },
+          "secret_id": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "version_id": {
+            "type": "string"
+          },
+          "version_number": {
+            "format": "int64",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -1819,6 +2059,77 @@
           }
         },
         "type": "object"
+      },
+      "WriteNodeSecretVersionRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "expected_current_version_id": {
+            "type": "string"
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "make_current": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "secret_id": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "WriteSecretVersionData": {
+        "properties": {
+          "approval": {
+            "$ref": "#/components/schemas/AgentApproval"
+          },
+          "approval_id": {
+            "type": "string"
+          },
+          "current": {
+            "type": "boolean"
+          },
+          "secret_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "version_id": {
+            "type": "string"
+          },
+          "version_number": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "WriteSecretVersionResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/WriteSecretVersionData"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -1827,6 +2138,12 @@
         "in": "header",
         "name": "Cf-Access-Jwt-Assertion",
         "type": "apiKey"
+      },
+      "googleIam": {
+        "bearerFormat": "Google ID token",
+        "description": "Google-signed identity token for an allowed IAM principal.",
+        "scheme": "bearer",
+        "type": "http"
       },
       "nodeBearer": {
         "description": "Node API key returned during registration.",
@@ -1842,6 +2159,91 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/admin/artifacts": {
+      "post": {
+        "description": "Records metadata for a product binary already uploaded to GCS. The caller must present a Google-signed identity token for an allowed IAM principal.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "required": [
+                  "product",
+                  "platform",
+                  "version",
+                  "bucket",
+                  "object",
+                  "sha256"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Artifact metadata recorded."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "403": {
+            "description": "Principal is not allowed."
+          }
+        },
+        "security": [
+          {
+            "googleIam": []
+          }
+        ],
+        "summary": "Publish artifact metadata",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/api/v1/admin/paxd/artifacts": {
+      "post": {
+        "description": "Compatibility alias for the generic artifact publish endpoint with product=paxd. The caller must present a Google-signed identity token for an allowed IAM principal.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "required": [
+                  "platform",
+                  "version",
+                  "bucket",
+                  "object",
+                  "sha256"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Artifact metadata recorded."
+          },
+          "401": {
+            "description": "Missing or invalid Google identity token."
+          },
+          "403": {
+            "description": "IAM principal is not allowed."
+          }
+        },
+        "security": [
+          {
+            "googleIam": []
+          }
+        ],
+        "summary": "Publish paxd artifact metadata",
+        "tags": [
+          "paxd"
+        ]
+      }
+    },
     "/api/v1/agent/tunnel": {
       "get": {
         "description": "Upgrades to a WebSocket used by paxd to forward ACP JSON-RPC frames between pax-manager and a local ACP server.",
@@ -1859,6 +2261,15 @@
             "description": "Local runtime instance ID. Defaults to default.",
             "in": "query",
             "name": "instance_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "ACP session ID served by this tunnel.",
+            "in": "query",
+            "name": "session_id",
             "required": false,
             "schema": {
               "type": "string"
@@ -3079,6 +3490,189 @@
         ]
       }
     },
+    "/api/v1/node/secrets/resolve": {
+      "post": {
+        "description": "Returns a secret value to an authenticated node only after an approval grant exists.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveNodeSecretRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolveSecretResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "nodeBearer": []
+          }
+        ],
+        "summary": "Resolve secret value",
+        "tags": [
+          "node"
+        ]
+      }
+    },
+    "/api/v1/node/secrets/{secret_id}/versions": {
+      "post": {
+        "description": "Creates a new encrypted secret version and optionally promotes it with an optimistic lock.",
+        "parameters": [
+          {
+            "description": "Secret identifier.",
+            "in": "path",
+            "name": "secret_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WriteNodeSecretVersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WriteSecretVersionResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "nodeBearer": []
+          }
+        ],
+        "summary": "Write secret version",
+        "tags": [
+          "node"
+        ]
+      }
+    },
     "/api/v1/node/status": {
       "post": {
         "description": "Upserts node, hosted agents, and agent session status.",
@@ -3165,6 +3759,282 @@
         ]
       }
     },
+    "/api/v1/public/artifacts/download": {
+      "get": {
+        "description": "Returns a short-lived signed GCS URL for the newest binary matching the requested product, platform, and tags.",
+        "parameters": [
+          {
+            "description": "Product such as paxd or paxl.",
+            "in": "query",
+            "name": "product",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Platform such as linux/amd64 or darwin/arm64.",
+            "in": "query",
+            "name": "platform",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required tags. Multiple values use AND semantics.",
+            "in": "query",
+            "name": "tags",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Signed download URL."
+          },
+          "404": {
+            "description": "No matching artifact."
+          }
+        },
+        "summary": "Get signed artifact download URL",
+        "tags": [
+          "artifacts"
+        ]
+      }
+    },
+    "/api/v1/public/paxd/download": {
+      "get": {
+        "description": "Compatibility alias for the generic artifact resolver with product=paxd.",
+        "parameters": [
+          {
+            "description": "Platform such as linux/amd64 or darwin/arm64.",
+            "in": "query",
+            "name": "platform",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required tags. Multiple values use AND semantics.",
+            "in": "query",
+            "name": "tags",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Signed download URL."
+          },
+          "404": {
+            "description": "No matching paxd artifact."
+          }
+        },
+        "summary": "Get signed paxd download URL",
+        "tags": [
+          "paxd"
+        ]
+      }
+    },
+    "/api/v1/public/paxd/install.sh": {
+      "get": {
+        "description": "Redirects to a short-lived signed GCS URL for the latest stable paxd installer shell script.",
+        "responses": {
+          "302": {
+            "description": "Redirect to signed installer URL."
+          }
+        },
+        "summary": "Redirect to paxd installer script",
+        "tags": [
+          "paxd"
+        ]
+      }
+    },
+    "/api/v1/public/paxl/download": {
+      "get": {
+        "description": "Friendly alias for the generic artifact resolver with product=paxl.",
+        "parameters": [
+          {
+            "description": "Platform such as linux/amd64 or darwin/arm64.",
+            "in": "query",
+            "name": "platform",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required tags. Multiple values use AND semantics.",
+            "in": "query",
+            "name": "tags",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Signed download URL."
+          },
+          "404": {
+            "description": "No matching paxl artifact."
+          }
+        },
+        "summary": "Get signed paxl download URL",
+        "tags": [
+          "paxl"
+        ]
+      }
+    },
+    "/api/v1/public/paxl/install.sh": {
+      "get": {
+        "description": "Redirects to a short-lived signed GCS URL for the latest stable paxl installer shell script.",
+        "responses": {
+          "302": {
+            "description": "Redirect to signed installer URL."
+          }
+        },
+        "summary": "Redirect to paxl installer script",
+        "tags": [
+          "paxl"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/history": {
+      "get": {
+        "description": "Lists durable session history messages with their message parts for a specific session under an agent visible to the current user.",
+        "parameters": [
+          {
+            "description": "User ID or self.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Agent identifier.",
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session identifier.",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum number of history messages to return. Defaults to 1000.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 1000,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session history messages."
+          },
+          "401": {
+            "description": "User authentication failed."
+          },
+          "404": {
+            "description": "Agent or session not found."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "List agent session history",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/tunnel": {
+      "get": {
+        "description": "Upgrades to a WebSocket used by an ACP client to exchange JSON-RPC frames with a connected paxd agent tunnel for one ACP session.",
+        "parameters": [
+          {
+            "description": "User ID or self.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Agent ID to connect to.",
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "ACP session ID to connect to.",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "101": {
+            "description": "WebSocket tunnel established."
+          },
+          "401": {
+            "description": "User authentication failed."
+          },
+          "404": {
+            "description": "Agent tunnel is not connected."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Connect ACP user tunnel for a session",
+        "tags": [
+          "ACP"
+        ],
+        "x-websocket": true
+      }
+    },
     "/api/v1/user/{user_id}/agents/{agent_id}/tunnel": {
       "get": {
         "description": "Upgrades to a WebSocket used by an ACP client to exchange JSON-RPC frames with a connected paxd agent tunnel.",
@@ -3183,6 +4053,15 @@
             "in": "path",
             "name": "agent_id",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "ACP session ID to connect to. Omit only for tunnels registered without a session ID.",
+            "in": "query",
+            "name": "session_id",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -4021,6 +4900,197 @@
         ]
       }
     },
+    "/api/v1/user/{user_id}/envelopes": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Envelope list."
+          }
+        },
+        "summary": "List envelopes",
+        "tags": [
+          "user"
+        ]
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Created envelope."
+          }
+        },
+        "summary": "Create envelope",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/envelopes/{envelope_id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Envelope detail."
+          }
+        },
+        "summary": "Get envelope",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/envelopes/{envelope_id}/accept": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Accepted envelope."
+          }
+        },
+        "summary": "Accept envelope",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/envelopes/{envelope_id}/archive": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Archived envelope."
+          }
+        },
+        "summary": "Archive envelope",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/friends": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Friend list."
+          }
+        },
+        "summary": "List friends",
+        "tags": [
+          "user"
+        ]
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Created friend request."
+          }
+        },
+        "summary": "Create friend",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/friends/{friend_id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Friend detail."
+          }
+        },
+        "summary": "Get friend",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/friends/{friend_id}/accept": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Accepted friend request."
+          }
+        },
+        "summary": "Accept friend",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/friends/{friend_id}/alias": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Updated friend alias."
+          }
+        },
+        "summary": "Update friend alias",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/friends/{friend_id}/block": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Blocked friend."
+          }
+        },
+        "summary": "Block friend",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/friends/{friend_id}/remove": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Removed friend."
+          }
+        },
+        "summary": "Remove friend",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/knowledge-capsules": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Knowledge capsule list."
+          }
+        },
+        "summary": "List knowledge capsules",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/knowledge-capsules/{capsule_id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Knowledge capsule detail."
+          }
+        },
+        "summary": "Get knowledge capsule",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/knowledge-capsules/{capsule_id}/archive": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Archived knowledge capsule."
+          }
+        },
+        "summary": "Archive knowledge capsule",
+        "tags": [
+          "user"
+        ]
+      }
+    },
     "/api/v1/user/{user_id}/me": {
       "get": {
         "description": "Returns the authenticated user profile and authorization flags.",
@@ -4210,6 +5280,208 @@
           }
         ],
         "summary": "Create node registration token",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/sessions/{session_id}/knowledge-capsules": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Created knowledge capsule from session history."
+          }
+        },
+        "summary": "Create knowledge capsule",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/sessions/{session_id}/knowledge-injections": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Knowledge injection list."
+          }
+        },
+        "summary": "List knowledge injections",
+        "tags": [
+          "user"
+        ]
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Created knowledge injection."
+          }
+        },
+        "summary": "Inject knowledge capsule",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/team-invites": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Pending team invite list."
+          }
+        },
+        "summary": "List team invites",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/team-invites/{invite_id}/accept": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Accepted team invite."
+          }
+        },
+        "summary": "Accept team invite",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/team-invites/{invite_id}/decline": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Declined team invite."
+          }
+        },
+        "summary": "Decline team invite",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/teams": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Team summary list."
+          }
+        },
+        "summary": "List teams",
+        "tags": [
+          "user"
+        ]
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Created team."
+          }
+        },
+        "summary": "Create team",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/teams/{team_id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Team detail."
+          }
+        },
+        "summary": "Get team",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/teams/{team_id}/agents": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Team agent list."
+          }
+        },
+        "summary": "List team agents",
+        "tags": [
+          "user"
+        ]
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Added team agent."
+          }
+        },
+        "summary": "Add team agent",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/teams/{team_id}/agents/{agent_id}": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "Removed team agent."
+          }
+        },
+        "summary": "Remove team agent",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/teams/{team_id}/invites": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Created team invite."
+          }
+        },
+        "summary": "Create team invite",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/teams/{team_id}/leave": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Left team."
+          }
+        },
+        "summary": "Leave team",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/teams/{team_id}/members": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Team member list."
+          }
+        },
+        "summary": "List team members",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/teams/{team_id}/members/{member_user_id}": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "Removed team member."
+          }
+        },
+        "summary": "Remove team member",
         "tags": [
           "user"
         ]
@@ -5592,6 +6864,304 @@
           }
         ],
         "summary": "Create node agent session message",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/secrets": {
+      "get": {
+        "description": "Lists secret metadata visible to the current user without returning plaintext values.",
+        "parameters": [
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListUserSecretsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretListResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "List secrets",
+        "tags": [
+          "user"
+        ]
+      },
+      "post": {
+        "description": "Creates an encrypted secret with its first version. The plaintext value is not returned.",
+        "parameters": [
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserSecretRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateSecretResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Create secret",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/secrets/{secret_id}": {
+      "get": {
+        "description": "Returns secret metadata without returning plaintext values.",
+        "parameters": [
+          {
+            "description": "Secret identifier.",
+            "in": "path",
+            "name": "secret_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetUserSecretRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Get secret",
         "tags": [
           "user"
         ]

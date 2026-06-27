@@ -34,6 +34,7 @@ export type Agent = {
   agent_id: string;
   node_id: string;
   name?: string;
+  hostname?: string;
   agent_type?: string;
   status?: string;
   online?: boolean;
@@ -253,4 +254,130 @@ export type MailboxMessage = {
   created_at?: string;
   delivered_at?: string;
   completed_at?: string;
+};
+
+export type TeamRole = "owner" | "operator" | "member";
+
+export type Team = {
+  team_id: string;
+  owner_user_id: string;
+  name: string;
+  status: "active" | "archived" | string;
+  created_at?: string;
+  archived_at?: string;
+};
+
+export type TeamSummary = Team & {
+  my_role: TeamRole | string;
+  member_count: number;
+  agent_count: number;
+};
+
+export type TeamMember = {
+  team_id: string;
+  user_id: string;
+  email?: string;
+  role: TeamRole | string;
+  status: "active" | "removed" | string;
+  invited_by_user_id?: string;
+  joined_at?: string;
+  removed_at?: string;
+  removed_by_user_id?: string;
+};
+
+export type TeamInvite = {
+  invite_id: string;
+  team_id: string;
+  email: string;
+  recipient_user_id?: string;
+  role: Exclude<TeamRole, "owner"> | string;
+  status: "pending" | "accepted" | "declined" | string;
+  invited_by_user_id?: string;
+  created_at?: string;
+  accepted_at?: string;
+  declined_at?: string;
+};
+
+export type TeamAgent = {
+  team_id: string;
+  agent_id: string;
+  agent_owner_user_id: string;
+  added_by_user_id?: string;
+  added_at?: string;
+  removed_at?: string;
+  removed_by_user_id?: string;
+  agent?: Agent;
+};
+
+export type Friend = {
+  friend_id: string;
+  requester_user_id: string;
+  requester_email: string;
+  requester_alias?: string;
+  recipient_user_id?: string;
+  recipient_email: string;
+  recipient_alias?: string;
+  status: "pending" | "accepted" | "removed" | "blocked" | string;
+  created_at?: string;
+  accepted_at?: string;
+  removed_at?: string;
+  blocked_at?: string;
+};
+
+export type KnowledgeCapsule = {
+  capsule_id: string;
+  owner_user_id: string;
+  source_session_id: string;
+  source_agent_id: string;
+  source_node_id?: string;
+  created_by_user_id: string;
+  keyword: string;
+  title: string;
+  summary: string;
+  content: string;
+  suggested_skills?: unknown;
+  references?: unknown;
+  open_questions?: unknown;
+  risks?: unknown;
+  redactions?: unknown;
+  status: "active" | "archived" | string;
+  truncated?: boolean;
+  original_estimated_chars?: number;
+  created_at?: string;
+  archived_at?: string;
+};
+
+export type SessionKnowledgeInjection = {
+  injection_id: string;
+  owner_user_id: string;
+  capsule_id: string;
+  target_session_id: string;
+  target_agent_id: string;
+  target_node_id?: string;
+  created_by_user_id: string;
+  delivered_as_user_id?: string;
+  delivery_method?: string;
+  delivery_message_id?: string;
+  delivery_message_type?: string;
+  status: "pending" | "delivered" | "failed" | "revoked" | string;
+  created_at?: string;
+  delivered_at?: string;
+  failed_at?: string;
+  revoked_at?: string;
+  error?: string;
+};
+
+export type Envelope = {
+  envelope_id: string;
+  sender_user_id: string;
+  sender_email: string;
+  recipient_user_id?: string;
+  recipient_email: string;
+  payload_type: "knowledge_capsule" | string;
+  payload_json: unknown;
+  message?: string;
+  status: "pending" | "accepted" | "archived" | string;
+  created_at?: string;
+  accepted_at?: string;
+  archived_at?: string;
 };

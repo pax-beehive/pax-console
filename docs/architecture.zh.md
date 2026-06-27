@@ -166,6 +166,11 @@ agents
 sessions
 messages
 mailbox history
+teams
+team members / invites / agents
+friends
+envelopes
+knowledge capsules / injections
 metrics
 pagination
 refetch
@@ -186,6 +191,31 @@ local filters
 ```
 
 不要把 nodes、agents、sessions、messages 复制进 Zustand。否则会出现两个 truth source。
+同理，teams、friends、envelopes、knowledge capsules/injections 也属于服务端数据，
+只通过 TanStack Query 缓存和失效刷新。
+
+## 协作与知识资源
+
+Console 现在把 pax-manager 的协作和知识交接能力接成三个一级入口：
+
+```txt
+Teams
+  team 列表、成员、team invites、team agents，以及 friends 管理。
+  Team invite 前端必须显式提交 member/operator，不依赖后端默认 role。
+
+Envelopes
+  类邮箱的收发箱。Envelope 当前承载 knowledge_capsule payload。
+  创建 envelope 前需要 accepted friend；accept 后后端会 unpack 成 knowledge capsule。
+
+Knowledge
+  knowledge capsules 列表、详情和 archive。
+  Session workbench 可从当前 session 创建 capsule，也可把 capsule 注入当前 session。
+  注入通过 /sessions/{session_id}/knowledge-injections 创建 system_handoff 消息，
+  UI 仍然通过 REST history 和 runtime events 渲染时间线。
+```
+
+这些 API 仍然走浏览器同源 `/api/pax` proxy；不要从组件直连
+`https://app.paxtech.net`。
 
 ## 当前 REST 数据流
 
