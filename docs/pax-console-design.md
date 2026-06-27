@@ -207,39 +207,61 @@ Initial token shape:
 ```txt
 PAX Console
 +-- Home
-|   +-- current user overview
-|   +-- node health summary
-|   +-- agent activity summary
-|   +-- recent sessions
-+-- Nodes
-|   +-- node list
-|   +-- node detail
-|   +-- paxd status
-|   +-- system metadata
-|   +-- registration tokens
-+-- Agents
-|   +-- agent list
-|   +-- agent detail
-|   +-- capabilities
-|   +-- sessions
-|   +-- bootstrap agent
-+-- Sessions
-|   +-- session list
-|   +-- live agent conversation
-|   +-- tool calls
-|   +-- file changes
-|   +-- token usage
-|   +-- run status
-+-- Monitor
-|   +-- mailbox timeline
-|   +-- tool/message events
-|   +-- token/cost metrics
-|   +-- latency/error views
-|   +-- node/agent heartbeat
+|   +-- compact fleet summary
+|   +-- workspace entry rows
+|   +-- current node / agent context
++-- Runtime
+|   +-- Nodes
+|   |   +-- node list
+|   |   +-- node detail
+|   |   +-- paxd status
+|   |   +-- system metadata
+|   |   +-- registration tokens
+|   +-- Agents
+|   |   +-- agent list
+|   |   +-- agent detail
+|   |   +-- capabilities
+|   |   +-- sessions
+|   |   +-- bootstrap agent
+|   +-- Sessions
+|   |   +-- session list
+|   |   +-- live agent conversation
+|   |   +-- tool calls
+|   |   +-- file changes
+|   |   +-- token usage
+|   |   +-- run status
+|   +-- Approvals
+|   |   +-- pending approval requests
+|   |   +-- active approval grants
+|   +-- Monitor
+|       +-- mailbox timeline
+|       +-- tool/message events
+|       +-- token/cost metrics
+|       +-- latency/error views
+|       +-- node/agent heartbeat
++-- Collaboration
+|   +-- Teams & Friends
+|   |   +-- teams
+|   |   +-- team invites
+|   |   +-- friends
+|   +-- Envelopes
+|   |   +-- inbox / sent / pending / archived
+|   |   +-- compose
+|   +-- Knowledge
+|       +-- capsules
+|       +-- session injections
 +-- Settings
     +-- API keys
     +-- node registration
 ```
+
+The sidebar should expose coarse workspaces first, then show concrete resources
+as sidebar secondary tabs under the active workspace. Runtime owns nodes,
+agents, sessions, approvals, and monitor as secondary tabs. Collaboration owns
+teams, friends, envelopes, and knowledge as secondary tabs; team invites stay
+inside the Teams surface as a team action queue. Deep links such as `/nodes`,
+`/sessions`, `/approvals`, `/teams?view=friends`, and
+`/knowledge` remain valid.
 
 ## Routes
 

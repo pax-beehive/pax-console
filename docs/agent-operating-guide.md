@@ -316,7 +316,17 @@ Collapsed tabs show icons only; labels must remain available via Tooltip.
 
 ## Current Sidebar Routes
 
-These routes should remain clickable and should not all point back to `/`:
+The sidebar is intentionally hierarchical. Keep first-level nav coarse, then
+render concrete resources as sidebar secondary tabs under the active workspace:
+
+```txt
+Home             /
+Runtime          /nodes, active for /nodes /agents /sessions /approvals /monitor
+Collaboration    /teams, active for /teams /envelopes /knowledge
+API Keys         /settings/api-keys
+```
+
+These deep links should remain directly reachable:
 
 ```txt
 /                    Home
@@ -332,7 +342,11 @@ These routes should remain clickable and should not all point back to `/`:
 /settings/node-registration Node registration tokens
 ```
 
-When adding a sidebar item, add both a real `src/app/**/page.tsx` route and an active-state mapping in `src/components/shell/sidebar.tsx`.
+When adding a sidebar item, add both a real `src/app/**/page.tsx` route and an
+active-state mapping in `src/components/shell/sidebar.tsx`. Prefer adding a
+secondary tab to Runtime or Collaboration when the destination belongs to those
+workspaces. Do not add workspace-level subtabs inside page headers unless the
+page has local modes that are not part of global IA.
 
 Currently implemented API-backed actions:
 

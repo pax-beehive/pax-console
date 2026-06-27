@@ -126,10 +126,13 @@ src/components/ui/
   当前只把 Radix Tooltip/Slot 作为底层能力使用，还没有全面引入 shadcn 生成组件。
 
 src/components/home/
-  Overview 页面。当前展示 nodes、agents、sessions 的真实 API 数据。
+  Overview 页面。当前只展示 fleet 摘要、工作区入口和当前上下文；nodes、
+  agents、sessions 的详细列表放在 Runtime 子页里。
 
 src/components/resources/
-  Sidebar tabs 对应的资源列表页。Nodes、Agents、Sessions、Approvals、Monitor、API Keys 都通过这里复用认证、布局和基础数据加载。
+  Runtime / Settings 下的资源页。Nodes、Agents、Sessions、Approvals、Monitor
+  作为 Runtime 的 sidebar 二级 tabs 复用认证、布局和基础数据加载；API Keys 和
+  Node Registration 仍属于 settings 类资源。
 
 src/components/sessions/
   Session workbench。把 REST 历史消息和 WebSocket live events 合成时间线。
@@ -177,6 +180,11 @@ Sidebar 折叠
   使用 Zustand 的 sidebarCollapsed，不要放进 URL 或服务端数据。
   ConsoleLayout 使用 flex；Sidebar 自己用 width: 248/76px 控制展开/收起，并带 overflow-hidden。
   Sidebar 自身使用安静的 surface、分隔线式 node context、compact nav rows。
+  Sidebar 一级入口保持粗粒度：Home、Runtime、Collaboration、API Keys。
+  Runtime 展开时在 Sidebar 二级导航承载 Nodes、Agents、Sessions、Approvals、Monitor。
+  Collaboration 展开时在 Sidebar 二级导航承载 Teams、Friends、Envelopes、Knowledge。
+  Team invites 属于 Teams 页面里的 team action queue，不作为 Collaboration 并列二级入口。
+  不要把这些全局二级 tabs 放进具体页面 header 或页面组件内部。
   不要用动态 Tailwind grid-cols-[...] 字符串控制主布局列宽，容易被 dev cache / class 扫描影响。
 ```
 
@@ -221,10 +229,10 @@ local filters
 
 ## 协作与知识资源
 
-Console 现在把 pax-manager 的协作和知识交接能力接成三个一级入口：
+Console 现在把 pax-manager 的协作和知识交接能力放在 Collaboration 一级入口下：
 
 ```txt
-Teams
+Teams & Friends
   team 列表、成员、team invites、team agents，以及 friends 管理。
   Team invite 前端必须显式提交 member/operator，不依赖后端默认 role。
 
@@ -314,18 +322,22 @@ Access 访问 `console.paxtech.net`，Next route handler 再读取请求中的
 
 ## 当前可交互路由
 
-Sidebar tabs 已经是实际路由，不再是纯视觉占位：
+Sidebar 一级入口是粗粒度工作区；下面这些实际路由仍保留为 deep links
+或 Sidebar 二级 tabs：
 
 ```txt
 /                    Home overview
-/nodes               Nodes list
+/nodes               Runtime / Nodes list
 /nodes/[id]          Node detail
-/agents              Agents on active node
+/agents              Runtime / Agents on active node
 /agents/[id]         Agent detail, expects nodeId query when opened from list
-/sessions            Sessions on active agent
+/sessions            Runtime / Sessions on active agent
 /sessions/[id]       Session workbench
-/approvals           Pending approvals and active approval grants
-/monitor             PAX Manager health and fleet summary
+/approvals           Runtime / pending approvals and active approval grants
+/monitor             Runtime / PAX Manager health and fleet summary
+/teams               Collaboration / Teams & Friends
+/envelopes           Collaboration / mailbox-style envelopes
+/knowledge           Collaboration / knowledge capsules
 /settings/api-keys   API key list/create/revoke
 /settings/node-registration  Node registration token minting
 ```

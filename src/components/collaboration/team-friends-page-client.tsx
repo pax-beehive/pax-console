@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
 import {
   Bot,
@@ -45,7 +46,15 @@ type TeamFriendsPageClientProps = {
   user: User;
 };
 
-type TeamWorkspace = "teams" | "friends" | "invites";
+type TeamWorkspace = "teams" | "friends";
+
+function teamWorkspaceFromQuery(value: string | null): TeamWorkspace {
+  if (value === "friends") {
+    return value;
+  }
+
+  return "teams";
+}
 
 export function TeamFriendsPageClient({ user }: TeamFriendsPageClientProps) {
   const queryClient = useQueryClient();
@@ -74,9 +83,13 @@ export function TeamFriendsPageClient({ user }: TeamFriendsPageClientProps) {
   const teamAgentsQuery = useTeamAgents(user.user_id, selectedTeam?.team_id);
   const members = membersQuery.data?.members ?? [];
   const teamAgents = teamAgentsQuery.data?.agents ?? [];
-  const [workspace, setWorkspace] = useState<TeamWorkspace>("teams");
+  const searchParams = useSearchParams();
+  const workspace = teamWorkspaceFromQuery(searchParams.get("view"));
   const activeNode = nodes[0];
   const activeAgent = availableAgents[0];
+  const pageTitle = workspace === "friends" ? "Friends" : "Teams";
+  const pageEyebrow =
+    workspace === "friends" ? "trusted people" : "team workspace";
   const invalidateTeams = () => {
     void queryClient.invalidateQueries({
       queryKey: ["users", user.user_id, "teams"],
@@ -103,39 +116,32 @@ export function TeamFriendsPageClient({ user }: TeamFriendsPageClientProps) {
           <header className="border-b border-hairline p-4">
             <div className="flex items-center gap-2 text-xs text-ink-tertiary">
               <Users className="h-4 w-4" />
-              collaboration
+              {pageEyebrow}
             </div>
-            <h1 className="mt-2 text-2xl font-semibold">Teams</h1>
+            <h1 className="mt-2 text-2xl font-semibold">{pageTitle}</h1>
           </header>
           <div className="grid gap-4 p-4">
-            <TeamWorkspaceNav
-              counts={{
-                friends: friends.length,
-                invites: teamInvites.length,
-                teams: teams.length,
-              }}
-              onChange={setWorkspace}
-              workspace={workspace}
-            />
             {workspace === "teams" && (
-              <TeamList
-                isLoading={teamsQuery.isLoading}
-                onSelect={setSelectedTeamId}
-                selectedTeamId={selectedTeam?.team_id}
-                teams={teams}
-              />
+              <>
+                <TeamList
+                  isLoading={teamsQuery.isLoading}
+                  onSelect={setSelectedTeamId}
+                  selectedTeamId={selectedTeam?.team_id}
+                  teams={teams}
+                />
+                <InviteQueue
+                  invites={teamInvites}
+                  isLoading={teamInvitesQuery.isLoading}
+                  onChanged={invalidateTeams}
+                  userId={user.user_id}
+                />
+              </>
             )}
             {workspace === "friends" && (
               <FriendList
                 friends={friends}
                 isLoading={friendsQuery.isLoading}
                 user={user}
-              />
-            )}
-            {workspace === "invites" && (
-              <InviteSummary
-                invites={teamInvites}
-                isLoading={teamInvitesQuery.isLoading}
               />
             )}
           </div>
@@ -169,65 +175,9 @@ export function TeamFriendsPageClient({ user }: TeamFriendsPageClientProps) {
               user={user}
             />
           )}
-          {workspace === "invites" && (
-            <InviteWorkspace
-              invites={teamInvites}
-              isLoading={teamInvitesQuery.isLoading}
-              onChanged={invalidateTeams}
-              userId={user.user_id}
-            />
-          )}
         </section>
       </div>
     </ConsoleLayout>
-  );
-}
-
-function TeamWorkspaceNav({
-  counts,
-  onChange,
-  workspace,
-}: {
-  counts: Record<TeamWorkspace, number>;
-  onChange: (workspace: TeamWorkspace) => void;
-  workspace: TeamWorkspace;
-}) {
-  const items: Array<{
-    icon: typeof Users;
-    id: TeamWorkspace;
-    label: string;
-    meta: string;
-  }> = [
-    { icon: Users, id: "teams", label: "Teams", meta: "members and agents" },
-    { icon: MailPlus, id: "friends", label: "Friends", meta: "trusted people" },
-    { icon: Check, id: "invites", label: "Invites", meta: "action queue" },
-  ];
-
-  return (
-    <nav className="grid overflow-hidden rounded-lg border border-hairline">
-      {items.map((item) => {
-        const Icon = item.icon;
-        return (
-          <button
-            className={`flex min-w-0 items-center gap-3 border-b border-hairline px-3 py-3 text-left transition last:border-b-0 ${
-              workspace === item.id
-                ? "bg-surface-2 text-ink"
-                : "bg-surface-1 text-ink-muted hover:bg-surface-2"
-            }`}
-            key={item.id}
-            onClick={() => onChange(item.id)}
-            type="button"
-          >
-            <Icon className="h-4 w-4 shrink-0 text-ink-tertiary" />
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-medium">{item.label}</span>
-              <span className="block text-xs text-ink-tertiary">{item.meta}</span>
-            </span>
-            <Badge className="font-mono">{String(counts[item.id])}</Badge>
-          </button>
-        );
-      })}
-    </nav>
   );
 }
 
@@ -389,77 +339,6 @@ function InviteQueue({
         </article>
       ))}
     </section>
-  );
-}
-
-function InviteSummary({
-  invites,
-  isLoading,
-}: {
-  invites: TeamInvite[];
-  isLoading: boolean;
-}) {
-  if (isLoading) {
-    return <EmptyState label="Loading invites" />;
-  }
-
-  return (
-    <section className="grid gap-2">
-      <SectionTitle count={invites.length} title="Pending invites" />
-      <div className="grid overflow-hidden rounded-lg border border-hairline">
-        {invites.map((invite) => (
-          <div
-            className="grid min-w-0 gap-1 border-b border-hairline bg-surface-1 px-3 py-2.5 last:border-b-0"
-            key={invite.invite_id}
-          >
-            <div className="flex min-w-0 items-center justify-between gap-3">
-              <TruncatedText className="text-sm font-medium">
-                {invite.email}
-              </TruncatedText>
-              <Badge tone="warning">{invite.role}</Badge>
-            </div>
-            <MonoId tooltip={invite.team_id}>{compactId(invite.team_id)}</MonoId>
-          </div>
-        ))}
-        {invites.length === 0 && <EmptyState label="No pending invites" />}
-      </div>
-    </section>
-  );
-}
-
-function InviteWorkspace({
-  invites,
-  isLoading,
-  onChanged,
-  userId,
-}: {
-  invites: TeamInvite[];
-  isLoading: boolean;
-  onChanged: () => void;
-  userId: string;
-}) {
-  return (
-    <div className="grid min-w-0 gap-5 p-5">
-      <header className="border-b border-hairline pb-4">
-        <div className="flex items-center gap-2 text-xs text-ink-tertiary">
-          <Check className="h-4 w-4" />
-          invitation queue
-        </div>
-        <h2 className="mt-2 text-2xl font-semibold">Invites</h2>
-        <p className="mt-1 max-w-2xl text-sm text-ink-tertiary">
-          Review pending team invitations separately from team administration and
-          friend management.
-        </p>
-      </header>
-      <div className="max-w-2xl">
-        <InviteQueue
-          invites={invites}
-          isLoading={isLoading}
-          onChanged={onChanged}
-          userId={userId}
-        />
-      </div>
-    </div>
   );
 }
 
