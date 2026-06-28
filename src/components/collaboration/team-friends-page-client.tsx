@@ -4,11 +4,14 @@ import { FormEvent, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
 import {
+  Archive,
   Bot,
   Check,
+  Clock3,
   MailPlus,
   Plus,
   Shield,
+  UserCog,
   Users,
   X,
 } from "lucide-react";
@@ -20,6 +23,7 @@ import {
   acceptFriend,
   acceptTeamInvite,
   addTeamAgent,
+  archiveTeam,
   blockFriend,
   createFriend,
   createTeam,
@@ -31,15 +35,27 @@ import {
   removeTeamAgent,
   removeTeamMember,
   updateFriendAlias,
+  updateTeamMemberRole,
   useFriends,
   useNodes,
+  useTeamAuditEvents,
   useTeamAgents,
   useTeamInvites,
   useTeamMembers,
   useTeams,
 } from "@/features/api/resources";
 import { queryKeys } from "@/features/api/query-keys";
-import { Agent, Friend, TeamAgent, TeamInvite, TeamMember, TeamRole, TeamSummary, User } from "@/features/api/types";
+import {
+  Agent,
+  Friend,
+  TeamAgent,
+  TeamAuditEvent,
+  TeamInvite,
+  TeamMember,
+  TeamRole,
+  TeamSummary,
+  User,
+} from "@/features/api/types";
 import { compactId } from "@/lib/format";
 
 type TeamFriendsPageClientProps = {
@@ -47,6 +63,7 @@ type TeamFriendsPageClientProps = {
 };
 
 type TeamWorkspace = "teams" | "friends";
+type TeamDetailTab = "members" | "agents" | "audit";
 
 function teamWorkspaceFromQuery(value: string | null): TeamWorkspace {
   if (value === "friends") {
@@ -81,8 +98,13 @@ export function TeamFriendsPageClient({ user }: TeamFriendsPageClientProps) {
     teams.find((team) => team.team_id === selectedTeamId) ?? teams[0];
   const membersQuery = useTeamMembers(user.user_id, selectedTeam?.team_id);
   const teamAgentsQuery = useTeamAgents(user.user_id, selectedTeam?.team_id);
+  const teamAuditQuery = useTeamAuditEvents(
+    user.user_id,
+    selectedTeam?.team_id,
+  );
   const members = membersQuery.data?.members ?? [];
   const teamAgents = teamAgentsQuery.data?.agents ?? [];
+  const auditEvents = teamAuditQuery.data?.events ?? [];
   const searchParams = useSearchParams();
   const workspace = teamWorkspaceFromQuery(searchParams.get("view"));
   const activeNode = nodes[0];
@@ -90,13 +112,27 @@ export function TeamFriendsPageClient({ user }: TeamFriendsPageClientProps) {
   const pageTitle = workspace === "friends" ? "Friends" : "Teams";
   const pageEyebrow =
     workspace === "friends" ? "trusted people" : "team workspace";
-  const invalidateTeams = () => {
+  const invalidateTeams = (teamId = selectedTeam?.team_id) => {
     void queryClient.invalidateQueries({
-      queryKey: ["users", user.user_id, "teams"],
+      queryKey: queryKeys.teams(user.user_id),
     });
     void queryClient.invalidateQueries({
       queryKey: queryKeys.teamInvites(user.user_id),
     });
+    if (teamId) {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.team(user.user_id, teamId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.teamMembers(user.user_id, teamId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.teamAgents(user.user_id, teamId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.teamAudit(user.user_id, teamId, 50),
+      });
+    }
   };
   const invalidateFriends = () => {
     void queryClient.invalidateQueries({
@@ -123,6 +159,10 @@ export function TeamFriendsPageClient({ user }: TeamFriendsPageClientProps) {
           <div className="grid gap-4 p-4">
             {workspace === "teams" && (
               <>
+                <CreateTeamForm
+                  onCreated={() => invalidateTeams()}
+                  userId={user.user_id}
+                />
                 <TeamList
                   isLoading={teamsQuery.isLoading}
                   onSelect={setSelectedTeamId}
@@ -150,16 +190,14 @@ export function TeamFriendsPageClient({ user }: TeamFriendsPageClientProps) {
         <section className="min-w-0 bg-canvas">
           {workspace === "teams" && (
             <div className="grid min-w-0 gap-5 p-5">
-              <CreateTeamForm
-                onCreated={invalidateTeams}
-                userId={user.user_id}
-              />
               <TeamDetail
                 agents={availableAgents}
+                auditEvents={auditEvents}
+                auditLoading={teamAuditQuery.isLoading}
                 isLoading={teamsQuery.isLoading}
                 members={members}
                 membersLoading={membersQuery.isLoading}
-                onChanged={invalidateTeams}
+                onChanged={() => invalidateTeams()}
                 team={selectedTeam}
                 teamAgents={teamAgents}
                 teamAgentsLoading={teamAgentsQuery.isLoading}
@@ -205,15 +243,12 @@ function CreateTeamForm({
   }
 
   return (
-    <form className="grid gap-2" onSubmit={submit}>
-      <label className="text-xs text-ink-tertiary">Create team</label>
-      <div className="flex min-w-0 gap-2">
-        <input
-          className="min-h-9 min-w-0 flex-1 rounded-lg border border-hairline bg-canvas px-3 text-sm text-ink outline-none focus:border-primary-focus"
-          onChange={(event) => setName(event.target.value)}
-          placeholder="Team name"
-          value={name}
-        />
+    <form
+      className="grid gap-2 rounded-lg border border-hairline bg-canvas p-3"
+      onSubmit={submit}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <label className="text-sm font-medium text-ink">Create team</label>
         <Button
           disabled={create.isPending || !name.trim()}
           icon={<Plus className="h-4 w-4" />}
@@ -221,6 +256,14 @@ function CreateTeamForm({
           tooltip="Create team"
           type="submit"
           variant="primary"
+        />
+      </div>
+      <div className="flex min-w-0 gap-2">
+        <input
+          className="min-h-9 min-w-0 flex-1 rounded-lg border border-hairline bg-surface-1 px-3 text-sm text-ink outline-none focus:border-primary-focus"
+          onChange={(event) => setName(event.target.value)}
+          placeholder="Team name"
+          value={name}
         />
       </div>
       {create.error && <InlineError error={create.error} />}
@@ -262,7 +305,7 @@ function TeamList({
               <TruncatedText className="text-sm font-medium">
                 {team.name}
               </TruncatedText>
-              <Badge>{team.my_role}</Badge>
+              <Badge>{displayTeamRole(teamRole(team))}</Badge>
             </div>
             <MonoId tooltip={team.team_id}>{compactId(team.team_id)}</MonoId>
             <div className="text-xs text-ink-tertiary">
@@ -312,7 +355,7 @@ function InviteQueue({
             <TruncatedText className="text-sm font-medium">
               {invite.email}
             </TruncatedText>
-            <Badge tone="warning">{invite.role}</Badge>
+            <Badge tone="warning">{displayTeamRole(invite.role)}</Badge>
           </div>
           <MonoId tooltip={invite.team_id}>{compactId(invite.team_id)}</MonoId>
           <div className="flex gap-2">
@@ -368,7 +411,9 @@ function FriendList({
               <TruncatedText className="text-sm font-medium">
                 {friendCounterpartyEmail(friend, user)}
               </TruncatedText>
-              <Badge tone={friend.status === "accepted" ? "success" : "warning"}>
+              <Badge
+                tone={friend.status === "accepted" ? "success" : "warning"}
+              >
                 {friend.status}
               </Badge>
             </div>
@@ -429,7 +474,9 @@ function FriendsPanel({
         className="grid max-w-2xl gap-2 rounded-lg border border-hairline bg-surface-1 p-3"
         onSubmit={submit}
       >
-        <label className="text-xs text-ink-tertiary">Create friend request</label>
+        <label className="text-xs text-ink-tertiary">
+          Create friend request
+        </label>
         <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,220px)_auto]">
           <input
             className="min-h-9 min-w-0 rounded-lg border border-hairline bg-canvas px-3 text-sm text-ink outline-none focus:border-primary-focus"
@@ -459,7 +506,9 @@ function FriendsPanel({
       <section className="grid gap-3">
         <SectionTitle count={friends.length} title="Friend records" />
         {isLoading && <EmptyState label="Loading friends" />}
-        {!isLoading && friends.length === 0 && <EmptyState label="No friends" />}
+        {!isLoading && friends.length === 0 && (
+          <EmptyState label="No friends" />
+        )}
         <div className="grid gap-2 xl:grid-cols-2">
           {friends.map((friend) => (
             <FriendRow
@@ -490,7 +539,8 @@ function FriendRow({
     friend.recipient_email === user.email;
   const isPending = friend.status === "pending";
   const accept = useMutation({
-    mutationFn: () => acceptFriend(user.user_id, friend.friend_id, alias.trim()),
+    mutationFn: () =>
+      acceptFriend(user.user_id, friend.friend_id, alias.trim()),
     onSuccess: onChanged,
   });
   const saveAlias = useMutation({
@@ -569,6 +619,8 @@ function FriendRow({
 
 function TeamDetail({
   agents,
+  auditEvents,
+  auditLoading,
   isLoading,
   members,
   membersLoading,
@@ -579,6 +631,8 @@ function TeamDetail({
   user,
 }: {
   agents: Agent[];
+  auditEvents: TeamAuditEvent[];
+  auditLoading: boolean;
   isLoading: boolean;
   members: TeamMember[];
   membersLoading: boolean;
@@ -588,15 +642,51 @@ function TeamDetail({
   teamAgentsLoading: boolean;
   user: User;
 }) {
-  const isOwner = team?.my_role === "owner";
-  const canManageOwnAgents = team?.my_role === "owner" || team?.my_role === "operator";
+  const [activeTab, setActiveTab] = useState<TeamDetailTab>("members");
+  const role = team ? teamRole(team) : undefined;
+  const isOwner = role === "owner";
+  const canManageOwnAgents = role === "owner" || role === "operator";
+  const archive = useMutation({
+    mutationFn: () => archiveTeam(user.user_id, team?.team_id ?? ""),
+    onSuccess: onChanged,
+  });
+  const leave = useMutation({
+    mutationFn: () => leaveTeam(user.user_id, team?.team_id ?? ""),
+    onSuccess: onChanged,
+  });
+
+  function confirmArchive() {
+    if (!team) {
+      return;
+    }
+    if (window.confirm(`Archive ${team.name}?`)) {
+      archive.mutate();
+    }
+  }
+
+  function confirmLeave() {
+    if (!team) {
+      return;
+    }
+    if (window.confirm(`Leave ${team.name}?`)) {
+      leave.mutate();
+    }
+  }
 
   if (isLoading) {
-    return <div className="p-5"><EmptyState label="Loading team detail" /></div>;
+    return (
+      <div className="p-5">
+        <EmptyState label="Loading team detail" />
+      </div>
+    );
   }
 
   if (!team) {
-    return <div className="p-5"><EmptyState label="Select or create a team" /></div>;
+    return (
+      <div className="p-5">
+        <EmptyState label="Select or create a team" />
+      </div>
+    );
   }
 
   return (
@@ -605,7 +695,7 @@ function TeamDetail({
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs text-ink-tertiary">
             <Shield className="h-4 w-4" />
-            team detail
+            team workspace
           </div>
           <TruncatedText className="mt-2 text-2xl font-semibold">
             {team.name}
@@ -614,24 +704,65 @@ function TeamDetail({
             {compactId(team.team_id)}
           </MonoId>
         </div>
-        <Badge>{team.my_role}</Badge>
-      </header>
-
-      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <section className="grid gap-3">
-          <SectionTitle count={members.length} title="Members" />
+        <div className="flex shrink-0 flex-wrap justify-end gap-2">
+          <Badge>{displayTeamRole(role)}</Badge>
           {isOwner && (
-            <InviteMemberForm
-              onChanged={onChanged}
-              teamId={team.team_id}
-              userId={user.user_id}
-            />
+            <Button
+              disabled={archive.isPending}
+              icon={<Archive className="h-4 w-4" />}
+              onClick={confirmArchive}
+              size="sm"
+              tooltip="Archive team"
+              type="button"
+              variant="danger"
+            >
+              Archive
+            </Button>
           )}
+          {!isOwner && (
+            <Button
+              disabled={leave.isPending}
+              onClick={confirmLeave}
+              size="sm"
+              type="button"
+              variant="danger"
+            >
+              Leave
+            </Button>
+          )}
+        </div>
+      </header>
+      {archive.error && <InlineError error={archive.error} />}
+      {leave.error && <InlineError error={leave.error} />}
+
+      <TeamOverview team={team} role={role ?? "member"} />
+
+      <TeamDetailTabs
+        activeTab={activeTab}
+        auditCount={auditEvents.length}
+        memberCount={members.length}
+        onChange={setActiveTab}
+        teamAgentCount={teamAgents.length}
+      />
+
+      {activeTab === "members" && (
+        <section className="grid gap-3">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+            <SectionTitle count={members.length} title="Members" />
+            {isOwner && (
+              <InviteMemberForm
+                onChanged={onChanged}
+                teamId={team.team_id}
+                userId={user.user_id}
+              />
+            )}
+          </div>
           {membersLoading && <EmptyState label="Loading members" />}
           <div className="grid overflow-hidden rounded-lg border border-hairline">
             {members.map((member) => (
               <MemberRow
                 canRemove={isOwner && member.role !== "owner"}
+                canUpdateRole={isOwner && member.role !== "owner"}
                 key={member.user_id}
                 member={member}
                 onChanged={onChanged}
@@ -644,20 +775,24 @@ function TeamDetail({
             )}
           </div>
         </section>
+      )}
 
-        <section className="grid content-start gap-3">
-          <SectionTitle count={teamAgents.length} title="Team agents" />
-          {canManageOwnAgents && (
-            <AddAgentForm
-              agents={agents}
-              onChanged={onChanged}
-              teamAgents={teamAgents}
-              teamId={team.team_id}
-              userId={user.user_id}
-            />
-          )}
+      {activeTab === "agents" && (
+        <section className="grid gap-3">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+            <SectionTitle count={teamAgents.length} title="Team agents" />
+            {canManageOwnAgents && (
+              <AddAgentForm
+                agents={agents}
+                onChanged={onChanged}
+                teamAgents={teamAgents}
+                teamId={team.team_id}
+                userId={user.user_id}
+              />
+            )}
+          </div>
           {teamAgentsLoading && <EmptyState label="Loading team agents" />}
-          <div className="grid gap-2">
+          <div className="grid gap-2 xl:grid-cols-2">
             {teamAgents.map((teamAgent) => (
               <TeamAgentRow
                 canRemove={
@@ -674,16 +809,98 @@ function TeamDetail({
               <EmptyState label="No agents added" />
             )}
           </div>
-          <Button
-            disabled={team.my_role === "owner"}
-            onClick={() => void leaveTeam(user.user_id, team.team_id).then(onChanged)}
-            type="button"
-            variant="danger"
-          >
-            Leave team
-          </Button>
         </section>
-      </div>
+      )}
+
+      {activeTab === "audit" && (
+        <section className="grid gap-3">
+          <SectionTitle count={auditEvents.length} title="Audit" />
+          {auditLoading && <EmptyState label="Loading audit events" />}
+          {!auditLoading && auditEvents.length === 0 && (
+            <EmptyState label="No audit events" />
+          )}
+          <div className="grid gap-2 xl:grid-cols-2">
+            {auditEvents.map((event) => (
+              <AuditEventRow event={event} key={event.event_id} />
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function TeamOverview({ role, team }: { role: string; team: TeamSummary }) {
+  return (
+    <section className="grid overflow-hidden rounded-lg border border-hairline sm:grid-cols-4">
+      <TeamMetric label="Your role" value={displayTeamRole(role)} />
+      <TeamMetric label="Members" value={String(team.member_count)} />
+      <TeamMetric label="Agents" value={String(team.agent_count)} />
+      <TeamMetric label="Created" value={compactDate(team.created_at)} />
+    </section>
+  );
+}
+
+function TeamMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid min-w-0 gap-1 border-b border-hairline bg-surface-1 p-3 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0">
+      <div className="text-xs text-ink-tertiary">{label}</div>
+      <TruncatedText className="text-sm font-medium text-ink">
+        {value}
+      </TruncatedText>
+    </div>
+  );
+}
+
+function TeamDetailTabs({
+  activeTab,
+  auditCount,
+  memberCount,
+  onChange,
+  teamAgentCount,
+}: {
+  activeTab: TeamDetailTab;
+  auditCount: number;
+  memberCount: number;
+  onChange: (tab: TeamDetailTab) => void;
+  teamAgentCount: number;
+}) {
+  const tabs: Array<{ count: number; label: string; value: TeamDetailTab }> = [
+    { count: memberCount, label: "Members", value: "members" },
+    { count: teamAgentCount, label: "Agents", value: "agents" },
+    { count: auditCount, label: "Audit", value: "audit" },
+  ];
+
+  return (
+    <div
+      aria-label="Team detail sections"
+      className="inline-flex w-full max-w-xl overflow-hidden rounded-lg border border-hairline bg-surface-1"
+      role="tablist"
+    >
+      {tabs.map((tab) => {
+        const selected = activeTab === tab.value;
+
+        return (
+          <button
+            aria-label={`${tab.label} (${tab.count})`}
+            aria-selected={selected}
+            className={`flex min-h-10 min-w-0 flex-1 items-center justify-center gap-2 border-r border-hairline px-3 text-sm transition last:border-r-0 ${
+              selected
+                ? "bg-surface-3 text-ink"
+                : "text-ink-muted hover:bg-surface-2 hover:text-ink"
+            }`}
+            key={tab.value}
+            onClick={() => onChange(tab.value)}
+            role="tab"
+            type="button"
+          >
+            <span className="min-w-0 truncate">{tab.label}</span>
+            <Badge className="min-w-[1.75rem] justify-center font-mono">
+              {String(tab.count)}
+            </Badge>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -716,18 +933,22 @@ function InviteMemberForm({
   }
 
   return (
-    <form className="flex min-w-0 flex-wrap items-end gap-2" onSubmit={submit}>
-      <label className="grid min-w-56 flex-1 gap-1 text-xs text-ink-tertiary">
-        Invite email
+    <form
+      className="grid w-full gap-2 rounded-lg border border-hairline bg-surface-1 p-3 xl:w-auto xl:min-w-[520px]"
+      onSubmit={submit}
+    >
+      <div className="flex items-center gap-2 text-sm font-medium">
+        <MailPlus className="h-4 w-4 text-ink-tertiary" />
+        Invite member
+      </div>
+      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_140px_auto]">
         <input
-          className="min-h-9 rounded-lg border border-hairline bg-canvas px-3 text-sm text-ink outline-none focus:border-primary-focus"
+          className="min-h-9 min-w-0 rounded-lg border border-hairline bg-canvas px-3 text-sm text-ink outline-none focus:border-primary-focus"
           onChange={(event) => setEmail(event.target.value)}
+          placeholder="person@example.com"
           type="email"
           value={email}
         />
-      </label>
-      <label className="grid w-36 gap-1 text-xs text-ink-tertiary">
-        Role
         <select
           className="min-h-9 rounded-lg border border-hairline bg-canvas px-3 text-sm text-ink outline-none focus:border-primary-focus"
           onChange={(event) =>
@@ -735,18 +956,18 @@ function InviteMemberForm({
           }
           value={role}
         >
-          <option value="member">member</option>
-          <option value="operator">operator</option>
+          <option value="member">Member</option>
+          <option value="operator">Operator</option>
         </select>
-      </label>
-      <Button
-        disabled={invite.isPending || !email.trim()}
-        icon={<MailPlus className="h-4 w-4" />}
-        type="submit"
-        variant="primary"
-      >
-        Invite
-      </Button>
+        <Button
+          disabled={invite.isPending || !email.trim()}
+          icon={<MailPlus className="h-4 w-4" />}
+          type="submit"
+          variant="primary"
+        >
+          Invite
+        </Button>
+      </div>
       {invite.error && <InlineError error={invite.error} />}
     </form>
   );
@@ -754,12 +975,14 @@ function InviteMemberForm({
 
 function MemberRow({
   canRemove,
+  canUpdateRole,
   member,
   onChanged,
   teamId,
   userId,
 }: {
   canRemove: boolean;
+  canUpdateRole: boolean;
   member: TeamMember;
   onChanged: () => void;
   teamId: string;
@@ -769,27 +992,94 @@ function MemberRow({
     mutationFn: () => removeTeamMember(userId, teamId, member.user_id),
     onSuccess: onChanged,
   });
+  const updateRole = useMutation({
+    mutationFn: (role: Exclude<TeamRole, "owner">) =>
+      updateTeamMemberRole(userId, teamId, member.user_id, role),
+    onSuccess: onChanged,
+  });
+  const assignableRole = isAssignableTeamRole(member.role)
+    ? member.role
+    : undefined;
+  const canChangeRole = canUpdateRole && Boolean(assignableRole);
 
   return (
-    <article className="grid min-w-0 gap-3 border-b border-hairline bg-surface-1 px-3 py-2.5 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_120px_88px]">
+    <article className="grid min-w-0 gap-3 border-b border-hairline bg-surface-1 px-3 py-2.5 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_190px_92px] sm:items-center">
       <div className="min-w-0">
         <TruncatedText className="text-sm font-medium">
           {member.email ?? member.user_id}
         </TruncatedText>
         <MonoId tooltip={member.user_id}>{compactId(member.user_id)}</MonoId>
       </div>
-      <Badge>{member.role}</Badge>
+      {canChangeRole ? (
+        <RoleSegment
+          disabled={updateRole.isPending}
+          onChange={(role) => updateRole.mutate(role)}
+          value={assignableRole ?? "member"}
+        />
+      ) : (
+        <Badge className="w-full max-w-full justify-center">
+          {displayTeamRole(member.role)}
+        </Badge>
+      )}
       <Button
         disabled={!canRemove || remove.isPending}
         onClick={() => remove.mutate()}
         size="sm"
-        tooltip={canRemove ? "Remove member" : "Only owners can remove non-owner members"}
+        tooltip={
+          canRemove
+            ? "Remove member"
+            : "Only owners can remove non-owner members"
+        }
         type="button"
         variant="danger"
       >
         Remove
       </Button>
+      {updateRole.error && <InlineError error={updateRole.error} />}
     </article>
+  );
+}
+
+function RoleSegment({
+  disabled,
+  onChange,
+  value,
+}: {
+  disabled: boolean;
+  onChange: (role: Exclude<TeamRole, "owner">) => void;
+  value: Exclude<TeamRole, "owner">;
+}) {
+  const roles: Array<{
+    label: string;
+    value: Exclude<TeamRole, "owner">;
+  }> = [
+    { label: "Member", value: "member" },
+    { label: "Operator", value: "operator" },
+  ];
+
+  return (
+    <div className="inline-flex min-h-8 w-full min-w-[176px] overflow-hidden rounded-md border border-hairline bg-canvas">
+      {roles.map((role) => {
+        const selected = value === role.value;
+
+        return (
+          <button
+            aria-label={`Set role to ${role.label}`}
+            className={`min-w-[88px] flex-1 px-3 text-xs font-medium transition ${
+              selected
+                ? "bg-surface-3 text-ink"
+                : "text-ink-muted hover:bg-surface-2 hover:text-ink"
+            }`}
+            disabled={disabled || selected}
+            key={role.value}
+            onClick={() => onChange(role.value)}
+            type="button"
+          >
+            {role.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -825,26 +1115,39 @@ function AddAgentForm({
   }
 
   return (
-    <form className="flex min-w-0 gap-2" onSubmit={submit}>
-      <select
-        className="min-h-9 min-w-0 flex-1 rounded-lg border border-hairline bg-canvas px-3 text-sm text-ink outline-none focus:border-primary-focus"
-        onChange={(event) => setAgentId(event.target.value)}
-        value={selectedAgentId}
-      >
-        {availableAgents.map((agent) => (
-          <option key={agent.agent_id} value={agent.agent_id}>
-            {agentDisplayName(agent)}
-          </option>
-        ))}
-      </select>
-      <Button
-        disabled={add.isPending || !selectedAgentId}
-        icon={<Bot className="h-4 w-4" />}
-        size="icon"
-        tooltip="Add agent"
-        type="submit"
-        variant="primary"
-      />
+    <form
+      className="grid w-full gap-2 rounded-lg border border-hairline bg-surface-1 p-3 xl:w-auto xl:min-w-[420px]"
+      onSubmit={submit}
+    >
+      <div className="flex items-center gap-2 text-sm font-medium">
+        <Bot className="h-4 w-4 text-ink-tertiary" />
+        Add agent
+      </div>
+      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+        <select
+          className="min-h-9 min-w-0 flex-1 rounded-lg border border-hairline bg-canvas px-3 text-sm text-ink outline-none focus:border-primary-focus"
+          onChange={(event) => setAgentId(event.target.value)}
+          value={selectedAgentId}
+        >
+          {availableAgents.map((agent) => (
+            <option key={agent.agent_id} value={agent.agent_id}>
+              {agentDisplayName(agent)}
+            </option>
+          ))}
+          {availableAgents.length === 0 && (
+            <option value="">No available agents</option>
+          )}
+        </select>
+        <Button
+          disabled={add.isPending || !selectedAgentId}
+          icon={<Bot className="h-4 w-4" />}
+          type="submit"
+          variant="primary"
+        >
+          Add
+        </Button>
+      </div>
+      {add.error && <InlineError error={add.error} />}
     </form>
   );
 }
@@ -866,12 +1169,21 @@ function TeamAgentRow({
     mutationFn: () => removeTeamAgent(userId, teamId, teamAgent.agent_id),
     onSuccess: onChanged,
   });
+  const agent = teamAgent.agent;
+  const ownerLabel =
+    teamAgent.agent_owner_email || compactId(teamAgent.agent_owner_user_id);
+  const agentMeta = [
+    agent?.agent_type,
+    agent?.machine_type,
+    agent?.os,
+    agent?.status,
+  ].filter(Boolean);
 
   return (
     <article className="grid gap-2 rounded-lg border border-hairline bg-surface-1 p-3">
       <div className="flex min-w-0 items-center justify-between gap-3">
         <TruncatedText className="text-sm font-medium">
-          {teamAgent.agent ? agentDisplayName(teamAgent.agent) : teamAgent.agent_id}
+          {agent ? agentDisplayName(agent) : teamAgent.agent_id}
         </TruncatedText>
         <Button
           disabled={!canRemove || remove.isPending}
@@ -891,9 +1203,50 @@ function TeamAgentRow({
       <MonoId tooltip={teamAgent.agent_id}>
         {compactId(teamAgent.agent_id)}
       </MonoId>
-      <MonoId tooltip={teamAgent.agent_owner_user_id}>
-        owner {compactId(teamAgent.agent_owner_user_id)}
+      <TruncatedText className="text-xs text-ink-tertiary">
+        owner {ownerLabel}
+      </TruncatedText>
+      {agentMeta.length > 0 && (
+        <TruncatedText className="text-xs text-ink-tertiary">
+          {agentMeta.join(" / ")}
+        </TruncatedText>
+      )}
+      {remove.error && <InlineError error={remove.error} />}
+    </article>
+  );
+}
+
+function AuditEventRow({ event }: { event: TeamAuditEvent }) {
+  const target = auditEventTarget(event);
+  const metadata = auditEventMetadata(event);
+
+  return (
+    <article className="grid gap-2 rounded-lg border border-hairline bg-surface-1 p-3">
+      <div className="flex min-w-0 items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <UserCog className="h-4 w-4 shrink-0 text-ink-tertiary" />
+          <TruncatedText className="text-sm font-medium">
+            {auditActionLabel(event.action)}
+          </TruncatedText>
+        </div>
+        <div className="flex shrink-0 items-center gap-1 text-xs text-ink-tertiary">
+          <Clock3 className="h-3.5 w-3.5" />
+          {compactAuditTime(event.created_at)}
+        </div>
+      </div>
+      <MonoId tooltip={event.actor_user_id}>
+        actor {compactId(event.actor_user_id)}
       </MonoId>
+      {target && (
+        <TruncatedText className="text-xs text-ink-tertiary">
+          {target}
+        </TruncatedText>
+      )}
+      {metadata && (
+        <TruncatedText className="text-xs text-ink-tertiary">
+          {metadata}
+        </TruncatedText>
+      )}
     </article>
   );
 }
@@ -902,7 +1255,9 @@ function SectionTitle({ count, title }: { count: number; title: string }) {
   return (
     <div className="flex min-w-0 items-center justify-between gap-3">
       <TruncatedText className="text-sm font-medium">{title}</TruncatedText>
-      <Badge className="font-mono">{String(count)}</Badge>
+      <Badge className="min-w-[1.75rem] justify-center font-mono">
+        {String(count)}
+      </Badge>
     </div>
   );
 }
@@ -925,6 +1280,109 @@ function InlineError({ error }: { error: Error }) {
 
 function agentDisplayName(agent: Agent) {
   return agent.name ?? agent.hostname ?? agent.agent_id;
+}
+
+function teamRole(team: TeamSummary) {
+  return team.my_role ?? team.role ?? "member";
+}
+
+function displayTeamRole(role?: string) {
+  switch (role) {
+    case "owner":
+      return "Owner";
+    case "operator":
+      return "Operator";
+    case "member":
+      return "Member";
+    default:
+      return role ?? "Member";
+  }
+}
+
+function isAssignableTeamRole(
+  role: string,
+): role is Exclude<TeamRole, "owner"> {
+  return role === "member" || role === "operator";
+}
+
+function auditActionLabel(action: string) {
+  switch (action) {
+    case "team.created":
+      return "Team created";
+    case "team.archived":
+      return "Team archived";
+    case "invite.created":
+      return "Invite created";
+    case "invite.accepted":
+      return "Invite accepted";
+    case "invite.declined":
+      return "Invite declined";
+    case "invite.canceled":
+      return "Invite canceled";
+    case "member.role_updated":
+      return "Member role updated";
+    case "member.removed":
+      return "Member removed";
+    case "agent.added":
+      return "Agent added";
+    case "agent.removed":
+      return "Agent removed";
+    default:
+      return action;
+  }
+}
+
+function auditEventTarget(event: TeamAuditEvent) {
+  if (event.target_user_id) {
+    return `user ${compactId(event.target_user_id)}`;
+  }
+  if (event.target_agent_id) {
+    return `agent ${compactId(event.target_agent_id)}`;
+  }
+  if (event.target_invite_id) {
+    return `invite ${compactId(event.target_invite_id)}`;
+  }
+  return "";
+}
+
+function auditEventMetadata(event: TeamAuditEvent) {
+  const previousRole = event.metadata?.previous_role;
+  const role = event.metadata?.role;
+  if (typeof previousRole === "string" && typeof role === "string") {
+    return `${displayTeamRole(previousRole)} -> ${displayTeamRole(role)}`;
+  }
+  return "";
+}
+
+function compactDate(value?: string) {
+  if (!value) {
+    return "unknown";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleDateString(undefined, {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function compactAuditTime(value?: string) {
+  if (!value) {
+    return "now";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleString(undefined, {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "short",
+  });
 }
 
 function friendCounterpartyEmail(friend: Friend, user: User) {

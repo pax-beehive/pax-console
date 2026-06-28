@@ -21,8 +21,9 @@ export const queryKeys = {
     ["users", userId, "teams", teamId] as const,
   teamAgents: (userId: string, teamId: string) =>
     ["users", userId, "teams", teamId, "agents"] as const,
-  teamInvites: (userId: string) =>
-    ["users", userId, "team-invites"] as const,
+  teamAudit: (userId: string, teamId: string, limit?: number) =>
+    ["users", userId, "teams", teamId, "audit", limit ?? "default"] as const,
+  teamInvites: (userId: string) => ["users", userId, "team-invites"] as const,
   teamMembers: (userId: string, teamId: string) =>
     ["users", userId, "teams", teamId, "members"] as const,
   approvals: (userId: string) => ["users", userId, "approvals"] as const,

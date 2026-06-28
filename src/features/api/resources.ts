@@ -24,6 +24,7 @@ import {
   SessionKnowledgeInjection,
   Team,
   TeamAgent,
+  TeamAuditEvent,
   TeamInvite,
   TeamMember,
   TeamSummary,
@@ -81,6 +82,10 @@ type TeamInviteListData = {
 
 type TeamAgentListData = {
   agents: TeamAgent[];
+};
+
+type TeamAuditEventListData = {
+  events: TeamAuditEvent[];
 };
 
 type FriendListData = {
@@ -310,6 +315,12 @@ export function createTeam(userId: string, name: string) {
   });
 }
 
+export function archiveTeam(userId: string, teamId: string) {
+  return apiFetch<TeamData>(userPath(userId, `/teams/${teamId}/archive`), {
+    method: "POST",
+  });
+}
+
 export function getTeam(userId: string, teamId: string) {
   return apiFetch<TeamData>(userPath(userId, `/teams/${teamId}`));
 }
@@ -328,6 +339,21 @@ export function removeTeamMember(
   return apiFetch<{ member: TeamMember }>(
     userPath(userId, `/teams/${teamId}/members/${memberUserId}`),
     { method: "DELETE" },
+  );
+}
+
+export function updateTeamMemberRole(
+  userId: string,
+  teamId: string,
+  memberUserId: string,
+  role: Exclude<TeamRole, "owner">,
+) {
+  return apiFetch<{ member: TeamMember }>(
+    userPath(userId, `/teams/${teamId}/members/${memberUserId}/role`),
+    {
+      body: JSON.stringify({ role }),
+      method: "POST",
+    },
   );
 }
 
@@ -371,6 +397,17 @@ export function declineTeamInvite(userId: string, inviteId: string) {
   );
 }
 
+export function cancelTeamInvite(
+  userId: string,
+  teamId: string,
+  inviteId: string,
+) {
+  return apiFetch<{ invite: TeamInvite }>(
+    userPath(userId, `/teams/${teamId}/invites/${inviteId}/cancel`),
+    { method: "POST" },
+  );
+}
+
 export function listTeamAgents(userId: string, teamId: string) {
   return apiFetch<TeamAgentListData>(
     userPath(userId, `/teams/${teamId}/agents`),
@@ -395,6 +432,17 @@ export function removeTeamAgent(
   return apiFetch<{ agent: TeamAgent }>(
     userPath(userId, `/teams/${teamId}/agents/${agentId}`),
     { method: "DELETE" },
+  );
+}
+
+export function listTeamAuditEvents(
+  userId: string,
+  teamId: string,
+  limit = 50,
+) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  return apiFetch<TeamAuditEventListData>(
+    `${userPath(userId, `/teams/${teamId}/audit`)}?${params}`,
   );
 }
 
@@ -615,6 +663,23 @@ export function useTeamAgents(userId?: string, teamId?: string) {
   return useQuery({
     queryKey: queryKeys.teamAgents(userId ?? "pending", teamId ?? "pending"),
     queryFn: () => listTeamAgents(userId as string, teamId as string),
+    enabled: Boolean(userId && teamId),
+  });
+}
+
+export function useTeamAuditEvents(
+  userId?: string,
+  teamId?: string,
+  limit = 50,
+) {
+  return useQuery({
+    queryKey: queryKeys.teamAudit(
+      userId ?? "pending",
+      teamId ?? "pending",
+      limit,
+    ),
+    queryFn: () =>
+      listTeamAuditEvents(userId as string, teamId as string, limit),
     enabled: Boolean(userId && teamId),
   });
 }

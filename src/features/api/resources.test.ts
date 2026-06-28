@@ -9,6 +9,8 @@ vi.mock("./client", () => ({
 }));
 
 const {
+  archiveTeam,
+  cancelTeamInvite,
   createEnvelope,
   createKnowledgeCapsule,
   createTeamInvite,
@@ -17,8 +19,10 @@ const {
   listEnvelopes,
   listFriends,
   listKnowledgeCapsules,
+  listTeamAuditEvents,
   listTeams,
   toPaxdConnectPreview,
+  updateTeamMemberRole,
 } = await import("./resources");
 
 afterEach(() => {
@@ -102,10 +106,48 @@ describe("collaboration resources", () => {
 
     await createTeamInvite("usr_1", "team_1", "person@example.com");
 
-    expect(apiFetch).toHaveBeenCalledWith("/api/v1/user/usr_1/teams/team_1/invites", {
-      body: JSON.stringify({ email: "person@example.com", role: "member" }),
-      method: "POST",
-    });
+    expect(apiFetch).toHaveBeenCalledWith(
+      "/api/v1/user/usr_1/teams/team_1/invites",
+      {
+        body: JSON.stringify({ email: "person@example.com", role: "member" }),
+        method: "POST",
+      },
+    );
+  });
+
+  it("calls team management endpoints added for archive, roles, cancel, and audit", async () => {
+    apiFetch.mockResolvedValueOnce({ team: { team_id: "team_1" } });
+    apiFetch.mockResolvedValueOnce({ member: { user_id: "usr_2" } });
+    apiFetch.mockResolvedValueOnce({ invite: { invite_id: "tinv_1" } });
+    apiFetch.mockResolvedValueOnce({ events: [] });
+
+    await archiveTeam("usr_1", "team_1");
+    await updateTeamMemberRole("usr_1", "team_1", "usr_2", "operator");
+    await cancelTeamInvite("usr_1", "team_1", "tinv_1");
+    await listTeamAuditEvents("usr_1", "team_1", 25);
+
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/user/usr_1/teams/team_1/archive",
+      { method: "POST" },
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/user/usr_1/teams/team_1/members/usr_2/role",
+      {
+        body: JSON.stringify({ role: "operator" }),
+        method: "POST",
+      },
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      3,
+      "/api/v1/user/usr_1/teams/team_1/invites/tinv_1/cancel",
+      { method: "POST" },
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      4,
+      "/api/v1/user/usr_1/teams/team_1/audit?limit=25",
+    );
   });
 
   it("lists friends and envelopes with compact query filters", async () => {
@@ -127,7 +169,9 @@ describe("collaboration resources", () => {
 
   it("creates envelopes with a knowledge capsule payload", async () => {
     apiFetch.mockResolvedValueOnce({ envelope: { envelope_id: "env_1" } });
-    const payload = { schema_version: "paxl.envelope_payload.knowledge_capsule.v2" };
+    const payload = {
+      schema_version: "paxl.envelope_payload.knowledge_capsule.v2",
+    };
 
     await createEnvelope("usr_1", {
       message: "handoff",

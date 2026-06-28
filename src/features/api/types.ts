@@ -33,9 +33,12 @@ export type Health = {
 export type Agent = {
   agent_id: string;
   node_id: string;
+  owner_user_id?: string;
   name?: string;
   hostname?: string;
   agent_type?: string;
+  machine_type?: string;
+  os?: string;
   status?: string;
   online?: boolean;
   capabilities?: ApiRecord;
@@ -268,7 +271,8 @@ export type Team = {
 };
 
 export type TeamSummary = Team & {
-  my_role: TeamRole | string;
+  my_role?: TeamRole | string;
+  role?: TeamRole | string;
   member_count: number;
   agent_count: number;
 };
@@ -291,22 +295,49 @@ export type TeamInvite = {
   email: string;
   recipient_user_id?: string;
   role: Exclude<TeamRole, "owner"> | string;
-  status: "pending" | "accepted" | "declined" | string;
+  status: "pending" | "accepted" | "declined" | "canceled" | string;
   invited_by_user_id?: string;
   created_at?: string;
   accepted_at?: string;
   declined_at?: string;
+  canceled_at?: string;
 };
 
 export type TeamAgent = {
   team_id: string;
   agent_id: string;
   agent_owner_user_id: string;
+  agent_owner_email?: string;
   added_by_user_id?: string;
   added_at?: string;
   removed_at?: string;
   removed_by_user_id?: string;
   agent?: Agent;
+};
+
+export type TeamAuditAction =
+  | "team.created"
+  | "team.archived"
+  | "invite.created"
+  | "invite.accepted"
+  | "invite.declined"
+  | "invite.canceled"
+  | "member.role_updated"
+  | "member.removed"
+  | "agent.added"
+  | "agent.removed"
+  | string;
+
+export type TeamAuditEvent = {
+  event_id: string;
+  team_id: string;
+  actor_user_id: string;
+  action: TeamAuditAction;
+  target_user_id?: string;
+  target_agent_id?: string;
+  target_invite_id?: string;
+  metadata?: ApiRecord;
+  created_at?: string;
 };
 
 export type Friend = {
