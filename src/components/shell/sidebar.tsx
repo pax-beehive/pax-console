@@ -36,15 +36,15 @@ type NavItem = {
 
 const navItems: readonly NavItem[] = [
   { href: "/", icon: Activity, label: "Home" },
+  { href: "/sessions", icon: TerminalSquare, label: "Sessions" },
   {
     href: "/nodes",
     icon: Server,
     label: "Runtime",
-    matches: ["/nodes", "/agents", "/sessions", "/approvals", "/monitor"],
+    matches: ["/nodes", "/agents", "/approvals", "/monitor"],
     children: [
       { href: "/nodes", icon: Server, label: "Nodes" },
       { href: "/agents", icon: Bot, label: "Agents" },
-      { href: "/sessions", icon: TerminalSquare, label: "Sessions" },
       { href: "/approvals", icon: ShieldCheck, label: "Approvals" },
       { href: "/monitor", icon: Radio, label: "Monitor" },
     ],
@@ -72,9 +72,13 @@ export function Sidebar({ activeNode }: SidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const collapsed = useConsoleStore((state) => state.sidebarCollapsed);
-  const expandedGroups = useConsoleStore((state) => state.sidebarExpandedGroups);
+  const expandedGroups = useConsoleStore(
+    (state) => state.sidebarExpandedGroups,
+  );
   const setCollapsed = useConsoleStore((state) => state.setSidebarCollapsed);
-  const toggleSidebarGroup = useConsoleStore((state) => state.toggleSidebarGroup);
+  const toggleSidebarGroup = useConsoleStore(
+    (state) => state.toggleSidebarGroup,
+  );
   const queryString = searchParams.toString();
 
   return (
@@ -120,7 +124,9 @@ export function Sidebar({ activeNode }: SidebarProps) {
 
       <div
         className={`mt-3 border-b border-hairline ${
-          collapsed ? "flex h-12 items-center justify-center p-0" : "px-3 pb-3 pt-1"
+          collapsed
+            ? "flex h-12 items-center justify-center p-0"
+            : "px-3 pb-3 pt-1"
         }`}
       >
         {!collapsed && (
