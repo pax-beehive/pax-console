@@ -21,6 +21,9 @@ export type Node = {
   api_endpoint?: string;
   online?: boolean;
   status?: string;
+  created_at?: string;
+  updated_at?: string;
+  last_active_at?: string;
   last_heartbeat?: string;
   registered_at?: string;
   metadata?: ApiRecord;
@@ -40,6 +43,9 @@ export type Agent = {
   online?: boolean;
   capabilities?: ApiRecord;
   metadata?: ApiRecord;
+  created_at?: string;
+  updated_at?: string;
+  last_active_at?: string;
   last_heartbeat?: string;
   registered_at?: string;
 };
@@ -228,6 +234,7 @@ export type AgentSession = {
   metadata?: ApiRecord;
   created_at?: string;
   updated_at?: string;
+  last_active_at?: string;
   last_message_at?: string;
 };
 

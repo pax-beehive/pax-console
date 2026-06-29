@@ -210,6 +210,13 @@ PAX Console
 |   +-- compact fleet summary
 |   +-- workspace entry rows
 |   +-- current node / agent context
++-- Sessions
+|   +-- globally sorted session list
+|   +-- live agent conversation
+|   +-- tool calls
+|   +-- file changes
+|   +-- token usage
+|   +-- run status
 +-- Runtime
 |   +-- Nodes
 |   |   +-- node list
@@ -223,13 +230,6 @@ PAX Console
 |   |   +-- capabilities
 |   |   +-- sessions
 |   |   +-- bootstrap agent
-|   +-- Sessions
-|   |   +-- session list
-|   |   +-- live agent conversation
-|   |   +-- tool calls
-|   |   +-- file changes
-|   |   +-- token usage
-|   |   +-- run status
 |   +-- Approvals
 |   |   +-- pending approval requests
 |   |   +-- active approval grants
@@ -256,13 +256,13 @@ PAX Console
 ```
 
 The sidebar should expose coarse workspaces first, then show concrete resources
-as sidebar secondary tabs under each expanded workspace. First-level groups are
-independent disclosures, not an accordion. Runtime owns nodes,
-agents, sessions, approvals, and monitor as secondary tabs. Collaboration owns
-teams, friends, envelopes, and knowledge as secondary tabs; team invites stay
-inside the Teams surface as a team action queue. Deep links such as `/nodes`,
-`/sessions`, `/approvals`, `/teams?view=friends`, and
-`/knowledge` remain valid.
+as sidebar secondary tabs under each expanded workspace, except Sessions which
+is promoted to a first-level work surface next to Home. First-level groups are
+independent disclosures, not an accordion. Runtime owns nodes, agents,
+approvals, and monitor as secondary tabs. Collaboration owns teams, friends,
+envelopes, and knowledge as secondary tabs; team invites stay inside the Teams
+surface as a team action queue. Deep links such as `/nodes`, `/sessions`,
+`/approvals`, `/teams?view=friends`, and `/knowledge` remain valid.
 
 ## Routes
 
@@ -375,6 +375,12 @@ GET  /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions
 GET  /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}
 GET  /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}/messages
 POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}/messages
+
+Current frontend note: PAX Manager does not yet expose a flat
+`GET /api/v1/user/{user_id}/sessions` list. The Sessions page therefore scans
+visible nodes and agents, fetches each agent's session collection, flattens the
+results, then sorts sessions by `updated_at` descending. When a flat sessions
+endpoint exists, replace only the resource fetch/composition layer.
 
 Conversation
 POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/conversation

@@ -29,7 +29,8 @@ export function Tooltip({
       <TooltipPrimitive.Portal>
         <TooltipPrimitive.Content
           className={cn(
-            "z-50 max-w-80 rounded-md border border-hairline bg-surface-3 px-2.5 py-1.5",
+            "z-50 w-max max-w-[min(80vw,48rem)] rounded-md border border-hairline bg-surface-3 px-2.5 py-1.5",
+            "[overflow-wrap:anywhere]",
             "text-xs leading-5 text-ink-muted shadow-xl shadow-black/30",
           )}
           sideOffset={8}

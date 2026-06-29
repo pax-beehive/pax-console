@@ -323,7 +323,8 @@ multiple groups may stay open at the same time.
 
 ```txt
 Home             /
-Runtime          /nodes, active for /nodes /agents /sessions /approvals /monitor
+Sessions         /sessions
+Runtime          /nodes, active for /nodes /agents /approvals /monitor
 Collaboration    /teams, active for /teams /envelopes /knowledge
 API Keys         /settings/api-keys
 ```
@@ -336,7 +337,7 @@ These deep links should remain directly reachable:
 /nodes/[nodeId]      Node detail
 /agents              Agents
 /agents/[agentId]    Agent detail, normally with ?nodeId=
-/sessions            Sessions list
+/sessions            Sessions list, flattened across visible agents
 /sessions/[sessionId] Session detail
 /approvals           Approvals and grants
 /monitor             Monitor
@@ -347,8 +348,16 @@ These deep links should remain directly reachable:
 When adding a sidebar item, add both a real `src/app/**/page.tsx` route and an
 active-state mapping in `src/components/shell/sidebar.tsx`. Prefer adding a
 secondary tab to Runtime or Collaboration when the destination belongs to those
-workspaces. Do not add workspace-level subtabs inside page headers unless the
-page has local modes that are not part of global IA.
+workspaces; Sessions is intentionally first-level. Do not add workspace-level
+subtabs inside page headers unless the page has local modes that are not part
+of global IA.
+
+PAX Manager currently exposes sessions only under
+`/nodes/{node_id}/agents/{agent_id}/sessions`, not as a flat user session list.
+The Sessions page scans visible nodes and agents, fetches each agent's sessions,
+flattens the rows, tags them with readable agent/node labels, and sorts by
+`updated_at` descending. Replace that composition layer when the backend grows a
+flat sessions endpoint.
 
 Currently implemented API-backed actions:
 
