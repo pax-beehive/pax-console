@@ -3,6 +3,27 @@ export type PermissionDecision = {
   status: "approved" | "denied";
 };
 
+export type PermissionRequestEvent = {
+  type: "permission_request";
+  id: string;
+  sessionId: string;
+  approvalId?: string;
+  description?: string;
+  requestId: string;
+  title: string;
+  toolCallId?: string;
+  toolKind?: string;
+  rawInput?: unknown;
+  options: {
+    optionId: string;
+    kind?: string;
+    name: string;
+  }[];
+  decision?: PermissionDecision;
+  decidedAt?: string;
+  createdAt: string;
+};
+
 export type SessionEvent =
   | {
       type: "user_message";
@@ -37,6 +58,7 @@ export type SessionEvent =
       status: "queued" | "running" | "done" | "error";
       sessionUpdate?: string;
       toolCallId?: string;
+      permissions?: PermissionRequestEvent[];
       input?: unknown;
       output?: unknown;
       durationMs?: number;
@@ -52,26 +74,7 @@ export type SessionEvent =
       newContent?: string;
       createdAt: string;
     }
-  | {
-      type: "permission_request";
-      id: string;
-      sessionId: string;
-      approvalId?: string;
-      description?: string;
-      requestId: string;
-      title: string;
-      toolCallId?: string;
-      toolKind?: string;
-      rawInput?: unknown;
-      options: {
-        optionId: string;
-        kind?: string;
-        name: string;
-      }[];
-      decision?: PermissionDecision;
-      decidedAt?: string;
-      createdAt: string;
-    }
+  | PermissionRequestEvent
   | {
       type: "permission_decision";
       id: string;

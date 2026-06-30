@@ -173,6 +173,83 @@ describe("mergeEvents", () => {
     ]);
   });
 
+  it("attaches permission requests wrapped by a tool call to that tool event", () => {
+    const events: SessionEvent[] = [
+      {
+        type: "tool_call",
+        id: "sess_1:tool:tc_1",
+        sessionId: "sess_1",
+        name: "terminal: rm /Tmp/tttt/secret.txt",
+        status: "running",
+        sessionUpdate: "tool_call",
+        toolCallId: "tc_1",
+        createdAt: "2026-06-29T20:37:09.480Z",
+      },
+      {
+        type: "permission_request",
+        id: "perm_0",
+        sessionId: "sess_1",
+        requestId: "0",
+        title: "delete in root path: rm /Tmp/tttt/secret.txt",
+        toolCallId: "perm-check-1",
+        toolKind: "execute",
+        options: [],
+        createdAt: "2026-06-29T20:37:09.588Z",
+      },
+      {
+        type: "permission_decision",
+        id: "perm_0:decision",
+        sessionId: "sess_1",
+        requestId: "0",
+        decision: {
+          decisionOption: "allow_once",
+          status: "approved",
+        },
+        createdAt: "2026-06-29T20:37:12.416Z",
+      },
+      {
+        type: "tool_call",
+        id: "sess_1:tool:tc_1",
+        sessionId: "sess_1",
+        name: "tc_1",
+        status: "done",
+        sessionUpdate: "tool_call_update",
+        toolCallId: "tc_1",
+        output: [
+          {
+            content: {
+              text: "terminal result\n- **approval:** approved",
+              type: "text",
+            },
+            type: "content",
+          },
+        ],
+        createdAt: "2026-06-29T20:37:12.476Z",
+      },
+    ];
+
+    const merged = mergeEvents(events);
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toMatchObject({
+      type: "tool_call",
+      id: "sess_1:tool:tc_1",
+      name: "terminal: rm /Tmp/tttt/secret.txt",
+      status: "done",
+      permissions: [
+        {
+          type: "permission_request",
+          requestId: "0",
+          title: "delete in root path: rm /Tmp/tttt/secret.txt",
+          decision: {
+            decisionOption: "allow_once",
+            status: "approved",
+          },
+        },
+      ],
+    });
+  });
+
   it("does not split message chunks around hidden runtime events", () => {
     const events: SessionEvent[] = [
       {

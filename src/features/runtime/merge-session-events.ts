@@ -88,7 +88,7 @@ export function mergeEvents(events: SessionEvent[]) {
     merged.push(event);
   }
 
-  return merged;
+  return attachAdjacentPermissionsToTools(merged);
 }
 
 function mergeToolCallEvent(
@@ -103,9 +103,74 @@ function mergeToolCallEvent(
     input: event.input ?? existing.input,
     name: existing.name || event.name,
     output: event.output ?? existing.output,
+    permissions: mergePermissionLists(existing.permissions, event.permissions),
     sessionId: existing.sessionId,
     toolCallId: existing.toolCallId ?? event.toolCallId,
   } satisfies SessionEvent;
+}
+
+function attachAdjacentPermissionsToTools(events: SessionEvent[]) {
+  const attached: SessionEvent[] = [];
+
+  for (let index = 0; index < events.length; index += 1) {
+    const event = events[index];
+    if (event.type !== "tool_call") {
+      attached.push(event);
+      continue;
+    }
+
+    const permissions = [...(event.permissions ?? [])];
+    let nextIndex = index + 1;
+    while (events[nextIndex]?.type === "permission_request") {
+      permissions.push(
+        events[nextIndex] as Extract<SessionEvent, { type: "permission_request" }>,
+      );
+      nextIndex += 1;
+    }
+
+    attached.push(
+      permissions.length > 0
+        ? {
+            ...event,
+            permissions: mergePermissionLists(event.permissions, permissions),
+          }
+        : event,
+    );
+    index = nextIndex - 1;
+  }
+
+  return attached;
+}
+
+function mergePermissionLists(
+  existing:
+    | Extract<SessionEvent, { type: "tool_call" }>["permissions"]
+    | undefined,
+  incoming:
+    | Extract<SessionEvent, { type: "tool_call" }>["permissions"]
+    | undefined,
+) {
+  const byKey = new Map<
+    string,
+    Extract<SessionEvent, { type: "permission_request" }>
+  >();
+  for (const permission of [...(existing ?? []), ...(incoming ?? [])]) {
+    byKey.set(
+      `${permission.sessionId}:${permission.requestId}`,
+      byKey.get(`${permission.sessionId}:${permission.requestId}`)
+        ? {
+            ...byKey.get(`${permission.sessionId}:${permission.requestId}`)!,
+            ...permission,
+            decision:
+              permission.decision ??
+              byKey.get(`${permission.sessionId}:${permission.requestId}`)!
+                .decision,
+          }
+        : permission,
+    );
+  }
+
+  return byKey.size > 0 ? [...byKey.values()] : undefined;
 }
 
 function lastVisibleEvent(events: SessionEvent[]) {
