@@ -37,7 +37,10 @@ import {
 } from "@/features/api/types";
 import { normalizeHistoryMessage } from "@/features/runtime/normalize-history-message";
 import { mergeEvents } from "@/features/runtime/merge-session-events";
-import { groupWorkstreamEvents } from "@/features/runtime/session-events";
+import {
+  groupWorkstreamEvents,
+  SessionEvent,
+} from "@/features/runtime/session-events";
 import { useConversationRun } from "@/features/runtime/use-conversation-run";
 import { compactId } from "@/lib/format";
 
@@ -218,9 +221,16 @@ export function SessionWorkbench({
     [historyQuery.data?.messages],
   );
 
-  const timeline = useMemo(
-    () => mergeEvents([...historyEvents, ...conversationRun.events]),
+  const liveEvents = useMemo(
+    () => filterLiveEventsAlreadyInHistory(
+      conversationRun.events,
+      historyEvents,
+    ),
     [conversationRun.events, historyEvents],
+  );
+  const timeline = useMemo(
+    () => mergeEvents([...historyEvents, ...liveEvents]),
+    [historyEvents, liveEvents],
   );
   const workstreamItems = useMemo(
     () => groupWorkstreamEvents(timeline),
@@ -281,8 +291,8 @@ export function SessionWorkbench({
       nodes={nodes}
       user={user}
     >
-      <div className="grid min-h-[calc(100vh-var(--topbar-h))] min-w-0 lg:grid-cols-[260px_minmax(0,1fr)_300px]">
-        <aside className="min-w-0 border-b border-hairline bg-surface-1 lg:border-b-0 lg:border-r">
+      <div className="grid h-[calc(100vh-var(--topbar-h))] min-h-0 min-w-0 overflow-hidden lg:grid-cols-[260px_minmax(0,1fr)_300px]">
+        <aside className="min-h-0 min-w-0 overflow-auto border-b border-hairline bg-surface-1 lg:border-b-0 lg:border-r">
           <div className="border-b border-hairline p-4">
             <Link
               className="inline-flex items-center gap-2 text-sm text-ink-subtle hover:text-ink"
@@ -321,7 +331,7 @@ export function SessionWorkbench({
           </div>
         </aside>
 
-        <section className="flex min-w-0 flex-col overflow-hidden bg-canvas">
+        <section className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-canvas">
           <div className="flex items-center justify-between gap-4 border-b border-hairline bg-surface-1 px-4 py-3">
             <div className="min-w-0">
               <div className="flex min-w-0 max-w-[52vw] gap-1 text-sm text-ink-tertiary">
@@ -338,7 +348,7 @@ export function SessionWorkbench({
             <RunBadge status={conversationRun.status} />
           </div>
 
-          <div className="flex-1 overflow-auto bg-canvas p-4">
+          <div className="min-h-0 flex-1 overflow-auto bg-canvas p-4">
             <div className="mx-auto grid w-full max-w-4xl gap-4">
               <SessionErrors
                 messagesError={historyQuery.error}
@@ -399,7 +409,7 @@ export function SessionWorkbench({
           </form>
         </section>
 
-        <aside className="min-w-0 border-t border-hairline bg-surface-1 lg:border-l lg:border-t-0">
+        <aside className="min-h-0 min-w-0 overflow-auto border-t border-hairline bg-surface-1 lg:border-l lg:border-t-0">
           <div className="border-b border-hairline p-4">
             <div className="text-sm font-medium text-ink">Evidence</div>
             <div className="mt-1 text-xs text-ink-tertiary">
@@ -609,6 +619,39 @@ function ContextRow({ label, value }: { label: string; value: string }) {
       </TruncatedText>
     </div>
   );
+}
+
+function filterLiveEventsAlreadyInHistory(
+  liveEvents: SessionEvent[],
+  historyEvents: SessionEvent[],
+) {
+  const historyTextKeys = new Set(
+    historyEvents.map(textEventKey).filter((key): key is string => Boolean(key)),
+  );
+  if (historyTextKeys.size === 0) {
+    return liveEvents;
+  }
+
+  return liveEvents.filter((event) => {
+    const key = textEventKey(event);
+    return !key || !historyTextKeys.has(key);
+  });
+}
+
+function textEventKey(event: SessionEvent) {
+  if (
+    event.type !== "user_message" &&
+    event.type !== "agent_message" &&
+    event.type !== "progress"
+  ) {
+    return undefined;
+  }
+
+  return `${event.type}:${event.sessionId}:${normalizeTimelineText(event.content)}`;
+}
+
+function normalizeTimelineText(content: string) {
+  return content.replace(/\s+/g, " ").trim();
 }
 
 function SessionErrors({

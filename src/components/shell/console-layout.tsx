@@ -24,14 +24,14 @@ export function ConsoleLayout({
   const sidebarCollapsed = useConsoleStore((state) => state.sidebarCollapsed);
 
   return (
-    <main className="flex min-h-screen bg-canvas text-ink">
+    <main className="flex h-screen overflow-hidden bg-canvas text-ink">
       <div
         className="shrink-0 overflow-hidden transition-[width] duration-200"
         style={{ width: sidebarCollapsed ? 76 : 248 }}
       >
         <Sidebar activeNode={activeNode} />
       </div>
-      <section className="min-w-0 flex-1">
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <Topbar
           activeAgent={activeAgent}
           activeNode={activeNode}

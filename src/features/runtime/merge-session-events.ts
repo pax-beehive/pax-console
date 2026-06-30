@@ -13,6 +13,10 @@ export function mergeEvents(events: SessionEvent[]) {
   for (const event of events) {
     const eventKey = eventMergeKey(event);
 
+    if (event.type === "run_status") {
+      closeOpenToolCallsForRunStatus(merged, event.status);
+    }
+
     if (isContiguousTextChunk(event)) {
       const chunkKey = chunkMergeKey(event);
       const previousChunkIndex = lastTextChunkIndexByKey.get(chunkKey);
@@ -89,6 +93,29 @@ export function mergeEvents(events: SessionEvent[]) {
   }
 
   return attachAdjacentPermissionsToTools(merged);
+}
+
+function closeOpenToolCallsForRunStatus(
+  events: SessionEvent[],
+  status: Extract<SessionEvent, { type: "run_status" }>["status"],
+) {
+  if (status !== "done" && status !== "error") {
+    return;
+  }
+
+  const nextStatus = status === "done" ? "done" : "error";
+  for (let index = 0; index < events.length; index += 1) {
+    const event = events[index];
+    if (
+      event.type === "tool_call" &&
+      (event.status === "queued" || event.status === "running")
+    ) {
+      events[index] = {
+        ...event,
+        status: nextStatus,
+      };
+    }
+  }
 }
 
 function mergeToolCallEvent(

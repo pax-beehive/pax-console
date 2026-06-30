@@ -51,9 +51,7 @@ export function useConversationRun({
   }, []);
 
   useEffect(() => {
-    if (sessionId) {
-      sessionIdRef.current = sessionId;
-    }
+    sessionIdRef.current = sessionId;
   }, [sessionId]);
 
   const sendMessage = useCallback(
@@ -226,6 +224,9 @@ export function handleConversationEnvelope(
   },
 ) {
   if (envelope.type === "session") {
+    setEvents((current) =>
+      current.map((event) => reassignPendingSession(event, envelope.session_id)),
+    );
     onSession(envelope.session_id);
     return;
   }
@@ -238,7 +239,7 @@ export function handleConversationEnvelope(
       },
     );
     if (events.length > 0) {
-      setEvents((current) => [...current, ...events]);
+      setEvents((current) => appendUniqueEvents(current, events));
     }
     return;
   }
@@ -255,7 +256,7 @@ export function handleConversationEnvelope(
         : event,
     );
     if (events.length > 0) {
-      setEvents((current) => [...current, ...events]);
+      setEvents((current) => appendUniqueEvents(current, events));
     }
     setStatus("waiting_approval");
     return;
@@ -271,6 +272,17 @@ export function handleConversationEnvelope(
   }
 
   if (envelope.type === "done") {
+    setEvents((current) =>
+      appendUniqueEvents(current, [
+        {
+          type: "run_status",
+          id: `${envelope.session_id}:done`,
+          sessionId: envelope.session_id,
+          status: "done",
+          createdAt: new Date().toISOString(),
+        },
+      ]),
+    );
     setStatus((current) => (current === "error" ? current : "done"));
     return;
   }
@@ -282,21 +294,74 @@ export function handleConversationEnvelope(
     const nextError = new Error(envelope.message);
     nextError.name = "ConversationRunError";
     setError(nextError);
-    setEvents((current) => [
-      ...current,
-      {
-        type: "run_status",
-        id: `${envelope.session_id ?? "unknown-session"}:error:${Date.now()}`,
-        sessionId: envelope.session_id ?? "unknown-session",
-        status: "error",
-        createdAt: new Date().toISOString(),
-      },
-    ]);
+    setEvents((current) =>
+      appendUniqueEvents(current, [
+        {
+          type: "run_status",
+          id: `${envelope.session_id ?? "unknown-session"}:error:${Date.now()}`,
+          sessionId: envelope.session_id ?? "unknown-session",
+          status: "error",
+          createdAt: new Date().toISOString(),
+        },
+      ]),
+    );
     setStatus("error");
     return;
   }
 
   throw new Error("Unknown conversation stream event");
+}
+
+function appendUniqueEvents(current: SessionEvent[], incoming: SessionEvent[]) {
+  const seen = new Set(current.map(eventSignature));
+  const next = [...current];
+  for (const event of incoming) {
+    const signature = eventSignature(event);
+    if (seen.has(signature)) {
+      continue;
+    }
+
+    seen.add(signature);
+    next.push(event);
+  }
+
+  return next;
+}
+
+function eventSignature(event: SessionEvent) {
+  if (
+    event.type === "agent_message" ||
+    event.type === "progress" ||
+    event.type === "user_message"
+  ) {
+    return `${event.type}:${event.id}:${event.sessionId}:${event.content}`;
+  }
+
+  if (event.type === "tool_call") {
+    const payload = JSON.stringify(event.output ?? event.input ?? "");
+    return `${event.type}:${event.id}:${event.toolCallId ?? ""}:${event.status}:${payload}`;
+  }
+
+  if (event.type === "permission_request") {
+    return `${event.type}:${event.sessionId}:${event.requestId}:${event.approvalId ?? ""}`;
+  }
+
+  return `${event.type}:${event.id}`;
+}
+
+function reassignPendingSession(
+  event: SessionEvent,
+  nextSessionId: string,
+): SessionEvent {
+  if (event.sessionId !== "pending-session") {
+    return event;
+  }
+
+  return {
+    ...event,
+    id: event.id.replace("pending-session", nextSessionId),
+    sessionId: nextSessionId,
+  } as SessionEvent;
 }
 
 function withApproval(

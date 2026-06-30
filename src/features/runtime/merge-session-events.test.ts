@@ -250,6 +250,72 @@ describe("mergeEvents", () => {
     });
   });
 
+  it("marks open tool calls done when the run finishes without a tool update", () => {
+    const events: SessionEvent[] = [
+      {
+        type: "tool_call",
+        id: "sess_1:tool:tc_read",
+        sessionId: "sess_1",
+        name: "read: /tmp/tttt/secret.txt",
+        status: "running",
+        sessionUpdate: "tool_call",
+        toolCallId: "tc_read",
+        createdAt: "2026-06-29T18:00:00.000Z",
+      },
+      {
+        type: "run_status",
+        id: "sess_1:done",
+        sessionId: "sess_1",
+        status: "done",
+        createdAt: "2026-06-29T18:00:01.000Z",
+      },
+    ];
+
+    const merged = mergeEvents(events);
+
+    expect(merged).toMatchObject([
+      {
+        type: "tool_call",
+        id: "sess_1:tool:tc_read",
+        status: "done",
+      },
+      {
+        type: "run_status",
+        status: "done",
+      },
+    ]);
+  });
+
+  it("marks open tool calls failed when the run errors before a tool update", () => {
+    const events: SessionEvent[] = [
+      {
+        type: "tool_call",
+        id: "sess_1:tool:tc_read",
+        sessionId: "sess_1",
+        name: "read: /tmp/tttt/secret.txt",
+        status: "running",
+        sessionUpdate: "tool_call",
+        toolCallId: "tc_read",
+        createdAt: "2026-06-29T18:00:00.000Z",
+      },
+      {
+        type: "run_status",
+        id: "sess_1:error",
+        sessionId: "sess_1",
+        status: "error",
+        createdAt: "2026-06-29T18:00:01.000Z",
+      },
+    ];
+
+    const merged = mergeEvents(events);
+
+    expect(merged[0]).toMatchObject({
+      type: "tool_call",
+      id: "sess_1:tool:tc_read",
+      status: "error",
+    });
+  });
+
   it("does not split message chunks around hidden runtime events", () => {
     const events: SessionEvent[] = [
       {
