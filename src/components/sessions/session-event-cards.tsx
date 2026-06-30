@@ -68,7 +68,12 @@ export function WorkstreamItemCard({
   permissionDecision: PermissionDecisionState;
 }) {
   if (item.type === "tool_group") {
-    return <ToolGroupCard events={item.events} />;
+    return (
+      <ToolGroupCard
+        events={item.events}
+        permissionDecision={permissionDecision}
+      />
+    );
   }
 
   return (
@@ -183,7 +188,13 @@ function AgentMessageCard({
   );
 }
 
-function ToolGroupCard({ events }: { events: ToolCallEvent[] }) {
+function ToolGroupCard({
+  events,
+  permissionDecision,
+}: {
+  events: ToolCallEvent[];
+  permissionDecision: PermissionDecisionState;
+}) {
   const runningCount = events.filter(
     (event) => event.status === "running",
   ).length;
@@ -207,25 +218,118 @@ function ToolGroupCard({ events }: { events: ToolCallEvent[] }) {
       </summary>
       <div className="mt-3 overflow-hidden rounded-lg border border-hairline bg-surface-1">
         {events.map((event) => (
-          <ToolEventRow event={event} key={event.id} />
+          <ToolEventRow
+            event={event}
+            key={event.id}
+            permissionDecision={permissionDecision}
+          />
         ))}
       </div>
     </details>
   );
 }
 
-function ToolEventRow({ event }: { event: ToolCallEvent }) {
+function ToolEventRow({
+  event,
+  permissionDecision,
+}: {
+  event: ToolCallEvent;
+  permissionDecision: PermissionDecisionState;
+}) {
+  const approvedByUser = event.permissions?.some((permission) => {
+    const decision =
+      permission.decision ??
+      (permission.approvalId
+        ? permissionDecision.decisions[permission.approvalId]
+        : undefined);
+    return decision?.status === "approved";
+  });
+  const hasPendingPermission = event.permissions?.some((permission) => {
+    const decision =
+      permission.decision ??
+      (permission.approvalId
+        ? permissionDecision.decisions[permission.approvalId]
+        : undefined);
+    return !decision;
+  });
+
   return (
-    <div className="grid min-h-9 min-w-0 grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-2 border-b border-hairline px-3 py-1.5 last:border-b-0">
-      <ToolStatusMark status={event.status} />
-      <TruncatedText
-        className="font-mono text-xs text-ink-muted"
-        tooltip={event.name}
-      >
-        {event.name}
-      </TruncatedText>
-      <ToolStatusBadge status={event.status} />
-    </div>
+    <details
+      className="group/tool min-w-0 border-b border-hairline last:border-b-0"
+      open={hasPendingPermission}
+    >
+      <summary className="grid min-h-9 cursor-pointer list-none grid-cols-[16px_minmax(0,1fr)_auto_auto] items-center gap-2 px-3 py-1.5 outline-none transition hover:bg-canvas/70 [&::-webkit-details-marker]:hidden">
+        <ToolStatusMark status={event.status} />
+        <TruncatedText
+          className="font-mono text-xs text-ink-muted"
+          tooltip={event.name}
+        >
+          {event.name}
+        </TruncatedText>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <ToolStatusBadge status={event.status} />
+          {approvedByUser && <Badge tone="success">approved by user</Badge>}
+        </div>
+        <ChevronDown className="h-3.5 w-3.5 -rotate-90 text-ink-tertiary transition group-open/tool:rotate-0" />
+      </summary>
+      <div className="grid gap-3 border-t border-hairline bg-canvas/60 p-3">
+        {event.permissions && event.permissions.length > 0 && (
+          <section className="grid gap-2">
+            <div className="text-xs uppercase tracking-wide text-ink-tertiary">
+              Approval request
+            </div>
+            {event.permissions.map((permission) => (
+              <PermissionRequestCard
+                compactApproved={false}
+                event={permission}
+                key={permission.id}
+                permissionDecision={permissionDecision}
+              />
+            ))}
+          </section>
+        )}
+        <ToolPayloadSection label="Input" value={event.input} />
+        <ToolPayloadSection
+          fallback={event.status === "done" ? "Success" : undefined}
+          label="Output"
+          value={event.output}
+        />
+      </div>
+    </details>
+  );
+}
+
+function ToolPayloadSection({
+  fallback,
+  label,
+  value,
+}: {
+  fallback?: string;
+  label: string;
+  value: unknown;
+}) {
+  if (value === undefined && !fallback) {
+    return null;
+  }
+
+  const text = textFromPayload(value) ?? fallback;
+  return (
+    <section className="grid gap-2">
+      <div className="text-xs uppercase tracking-wide text-ink-tertiary">
+        {label}
+      </div>
+      {text ? (
+        <MarkdownMessage
+          className="rounded-md border border-hairline bg-surface-1 px-3 py-2 text-xs leading-6 text-ink-muted"
+          content={text}
+          muted
+        />
+      ) : (
+        <pre className="max-h-56 overflow-auto rounded-md border border-hairline bg-surface-1 p-3 text-xs leading-5 text-ink-muted">
+          {JSON.stringify(value, null, 2)}
+        </pre>
+      )}
+    </section>
   );
 }
 
@@ -267,9 +371,11 @@ function ToolStatusMark({ status }: { status: ToolCallEvent["status"] }) {
 }
 
 function PermissionRequestCard({
+  compactApproved = true,
   event,
   permissionDecision,
 }: {
+  compactApproved?: boolean;
   event: Extract<SessionEvent, { type: "permission_request" }>;
   permissionDecision: PermissionDecisionState;
 }) {
@@ -284,7 +390,7 @@ function PermissionRequestCard({
   const canDecide =
     Boolean(event.approvalId) && !permissionDecision.pending && !decided;
 
-  if (approved) {
+  if (approved && compactApproved) {
     return (
       <article className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-success/70 bg-success/5 px-3 py-2.5">
         <div className="flex min-w-0 items-center gap-2">
@@ -307,14 +413,22 @@ function PermissionRequestCard({
   return (
     <article
       className={
-        denied
+        approved
+          ? "min-w-0 rounded-lg border border-success/60 bg-success/5 p-3"
+          : denied
             ? "min-w-0 rounded-lg border border-warning/50 bg-warning/5 p-3"
             : "min-w-0 rounded-lg border border-warning/40 bg-surface-1 p-3"
       }
     >
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <ShieldCheck className="h-4 w-4 shrink-0 text-warning" />
+          <ShieldCheck
+            className={
+              approved
+                ? "h-4 w-4 shrink-0 text-success"
+                : "h-4 w-4 shrink-0 text-warning"
+            }
+          />
           <TruncatedText
             className="text-sm font-medium text-ink"
             tooltip={event.title}
@@ -322,7 +436,9 @@ function PermissionRequestCard({
             {event.title}
           </TruncatedText>
         </div>
-        {denied ? (
+        {approved ? (
+          <Badge tone="success">approved</Badge>
+        ) : denied ? (
           <Badge tone="warning">denied</Badge>
         ) : (
           <Badge tone="warning">permission</Badge>
@@ -330,35 +446,40 @@ function PermissionRequestCard({
       </div>
       {decided && (
         <div className="mt-3 rounded-md border border-hairline bg-canvas px-3 py-2 text-sm text-ink-muted">
-          Permission denied ·{" "}
+          {approved ? "Permission approved" : "Permission denied"} ·{" "}
           <span className="font-mono text-xs">{decided.decisionOption}</span>
         </div>
       )}
-      <div className="mt-3 grid min-w-0 gap-1">
-        {event.approvalId && (
-          <MonoId tooltip={`approval ${event.approvalId}`}>
-            approval: {event.approvalId}
-          </MonoId>
-        )}
-        <MonoId tooltip={`request ${event.requestId}`}>
-          request: {event.requestId}
-        </MonoId>
-        {event.toolCallId && (
-          <MonoId tooltip={`tool call ${event.toolCallId}`}>
-            tool: {event.toolCallId}
-          </MonoId>
-        )}
-        {event.toolKind && <MonoId>kind: {event.toolKind}</MonoId>}
-      </div>
+      {event.toolKind && event.toolKind !== "execute" && (
+        <div className="mt-3 grid min-w-0 gap-1">
+          <MonoId>kind: {event.toolKind}</MonoId>
+        </div>
+      )}
       {event.description && (
         <p className="mt-3 text-sm leading-6 text-ink-muted">
           {event.description}
         </p>
       )}
       {event.rawInput !== undefined && (
-        <pre className="mt-3 max-h-40 max-w-full overflow-auto rounded-md border border-hairline bg-canvas p-2 text-xs leading-5 text-ink-muted">
-          {JSON.stringify(event.rawInput, null, 2)}
-        </pre>
+        <div className="mt-3">
+          <div className="mb-1 text-xs uppercase tracking-wide text-ink-tertiary">
+            Request asked for
+          </div>
+          {(() => {
+            const requestText = textFromPayload(event.rawInput);
+            return requestText ? (
+            <MarkdownMessage
+              className="rounded-md border border-hairline bg-canvas p-2 text-xs leading-5 text-ink-muted"
+              content={requestText}
+              muted
+            />
+            ) : (
+            <pre className="max-h-40 max-w-full overflow-auto rounded-md border border-hairline bg-canvas p-2 text-xs leading-5 text-ink-muted">
+              {JSON.stringify(event.rawInput, null, 2)}
+            </pre>
+            );
+          })()}
+        </div>
       )}
       <div className="mt-4 flex flex-wrap gap-2">
         {permissionDecisionOptions.map((option) => (
@@ -418,4 +539,49 @@ function InlineError({ error }: { error: Error }) {
       {error.name}: {error.message}
     </TruncatedText>
   );
+}
+
+function textFromPayload(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    const text = value.map(textFromPayload).filter(Boolean).join("\n");
+    return text || undefined;
+  }
+
+  if (typeof value !== "object" || value === null) {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  const description = stringValue(record, "description");
+  const command = stringValue(record, "command");
+  if (description && command) {
+    return `${description}\n\n\`${command}\``;
+  }
+
+  const directText =
+    stringValue(record, "text") ??
+    command ??
+    description ??
+    stringValue(record, "output");
+  if (directText) {
+    return directText;
+  }
+
+  for (const key of ["content", "result", "rawInput", "raw_input"]) {
+    const text = textFromPayload(record[key]);
+    if (text) {
+      return text;
+    }
+  }
+
+  return undefined;
+}
+
+function stringValue(record: Record<string, unknown>, key: string) {
+  const value = record[key];
+  return typeof value === "string" ? value : undefined;
 }
