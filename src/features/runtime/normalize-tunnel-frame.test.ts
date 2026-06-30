@@ -29,6 +29,7 @@ describe("normalizeTunnelFrame", () => {
         sessionId: "77921871-8997-4d7c-b3a7-9bdf3dd7c492",
         content: " I",
         streaming: true,
+        sessionUpdate: "agent_thought_chunk",
       },
     ]);
     expect(firstMessage).toMatchObject([
@@ -38,6 +39,7 @@ describe("normalizeTunnelFrame", () => {
         sessionId: "77921871-8997-4d7c-b3a7-9bdf3dd7c492",
         content: "Hey",
         streaming: true,
+        sessionUpdate: "agent_message_chunk",
       },
     ]);
 
@@ -221,6 +223,252 @@ describe("normalizeTunnelFrame", () => {
         status: "done",
       },
     ]);
+  });
+
+  it("normalizes ACP permission requests from official session/request_permission frames", () => {
+    const events = normalizeTunnelFrame({
+      jsonrpc: "2.0",
+      id: "perm-1",
+      method: "session/request_permission",
+      params: {
+        sessionId: "sess-acp-runtime",
+        approval_id: "appr-1",
+        toolCall: {
+          toolCallId: "call-1",
+          kind: "execute",
+          title: "go test ./...",
+          rawInput: {
+            command: "go test ./...",
+          },
+        },
+        options: [
+          { optionId: "allow", kind: "allow_once", name: "Allow" },
+          { optionId: "reject", kind: "reject_once", name: "Reject" },
+        ],
+      },
+    });
+
+    expect(events).toMatchObject([
+      {
+        type: "permission_request",
+        id: "perm-1",
+        sessionId: "sess-acp-runtime",
+        approvalId: "appr-1",
+        requestId: "perm-1",
+        title: "go test ./...",
+        toolCallId: "call-1",
+        toolKind: "execute",
+        rawInput: {
+          command: "go test ./...",
+        },
+        options: [
+          { optionId: "allow", kind: "allow_once", name: "Allow" },
+          { optionId: "reject", kind: "reject_once", name: "Reject" },
+        ],
+      },
+    ]);
+  });
+
+  it("normalizes ACP tool update and output session updates as tool call rows", () => {
+    const toolUpdate = normalizeTunnelFrame({
+      jsonrpc: "2.0",
+      method: "session/update",
+      params: {
+        sessionId: "sess_1",
+        update: {
+          name: "Read",
+          sessionUpdate: "tool_update",
+          status: "running",
+        },
+      },
+    });
+    const toolOutput = normalizeTunnelFrame({
+      jsonrpc: "2.0",
+      method: "session/update",
+      params: {
+        sessionId: "sess_1",
+        update: {
+          name: "Read",
+          result: {
+            text: "done",
+          },
+          sessionUpdate: "tool_output",
+          status: "done",
+        },
+      },
+    });
+
+    expect(toolUpdate).toMatchObject([
+      {
+        type: "tool_call",
+        sessionId: "sess_1",
+        name: "Read",
+        status: "running",
+      },
+    ]);
+    expect(toolOutput).toMatchObject([
+      {
+        type: "tool_call",
+        sessionId: "sess_1",
+        name: "Read",
+        status: "done",
+        output: {
+          text: "done",
+        },
+      },
+    ]);
+  });
+
+  it("merges ACP tool_call updates by toolCallId instead of appending rows", () => {
+    const started = normalizeTunnelFrame({
+      jsonrpc: "2.0",
+      method: "session/update",
+      params: {
+        sessionId: "sess_c9ac",
+        update: {
+          content: [
+            {
+              content: {
+                text: '$ sleep 5 && echo "睡醒了！"',
+                type: "text",
+              },
+              type: "content",
+            },
+          ],
+          kind: "execute",
+          locations: [],
+          sessionUpdate: "tool_call",
+          title: 'terminal: sleep 5 && echo "睡醒了！"',
+          toolCallId: "tc-d4d628ddf0bc",
+        },
+      },
+    });
+    const completed = normalizeTunnelFrame({
+      jsonrpc: "2.0",
+      method: "session/update",
+      params: {
+        sessionId: "sess_c9ac",
+        update: {
+          content: [
+            {
+              content: {
+                text: "terminal result\n- **output:** 睡醒了！\n- **exit_code:** 0",
+                type: "text",
+              },
+              type: "content",
+            },
+          ],
+          kind: "execute",
+          sessionUpdate: "tool_call_update",
+          status: "completed",
+          toolCallId: "tc-d4d628ddf0bc",
+        },
+      },
+    });
+
+    expect(started).toMatchObject([
+      {
+        type: "tool_call",
+        id: "sess_c9ac:tool:tc-d4d628ddf0bc",
+        sessionId: "sess_c9ac",
+        name: 'terminal: sleep 5 && echo "睡醒了！"',
+        status: "running",
+        sessionUpdate: "tool_call",
+        toolCallId: "tc-d4d628ddf0bc",
+      },
+    ]);
+    expect(completed).toMatchObject([
+      {
+        type: "tool_call",
+        id: "sess_c9ac:tool:tc-d4d628ddf0bc",
+        sessionId: "sess_c9ac",
+        status: "done",
+        sessionUpdate: "tool_call_update",
+        toolCallId: "tc-d4d628ddf0bc",
+      },
+    ]);
+
+    const merged = mergeEvents([...started, ...completed]);
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toMatchObject({
+      type: "tool_call",
+      id: "sess_c9ac:tool:tc-d4d628ddf0bc",
+      name: 'terminal: sleep 5 && echo "睡醒了！"',
+      status: "done",
+      toolCallId: "tc-d4d628ddf0bc",
+      output: [
+        {
+          content: {
+            text: "terminal result\n- **output:** 睡醒了！\n- **exit_code:** 0",
+            type: "text",
+          },
+          type: "content",
+        },
+      ],
+    });
+  });
+
+  it("merges tool updates by toolCallId when session ids differ", () => {
+    const started = normalizeTunnelFrame({
+      jsonrpc: "2.0",
+      method: "session/update",
+      session_id: "sess_manager",
+      params: {
+        sessionId: "native_session",
+        update: {
+          content: [
+            { content: { text: "cmd", type: "text" }, type: "content" },
+          ],
+          sessionUpdate: "tool_call",
+          title: "terminal: cmd",
+          toolCallId: "tc-shared",
+        },
+      },
+    });
+    const completed = normalizeTunnelFrame({
+      jsonrpc: "2.0",
+      method: "session/update",
+      session_id: "native_session",
+      params: {
+        sessionId: "native_session",
+        update: {
+          content: [
+            {
+              content: { text: "terminal result", type: "text" },
+              type: "content",
+            },
+          ],
+          sessionUpdate: "tool_call_update",
+          toolCallId: "tc-shared",
+        },
+      },
+    });
+
+    expect(completed).toMatchObject([
+      {
+        type: "tool_call",
+        status: "done",
+        toolCallId: "tc-shared",
+      },
+    ]);
+
+    const merged = mergeEvents([...started, ...completed]);
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toMatchObject({
+      type: "tool_call",
+      id: "sess_manager:tool:tc-shared",
+      sessionId: "sess_manager",
+      name: "terminal: cmd",
+      status: "done",
+      output: [
+        {
+          content: { text: "terminal result", type: "text" },
+          type: "content",
+        },
+      ],
+    });
   });
 
   it("ignores non-display ACP session updates instead of rendering raw frame content", () => {

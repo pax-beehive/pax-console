@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ReactNode, useState } from "react";
+import { ReactNode, useMemo, useState } from "react";
 import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
@@ -23,9 +23,9 @@ import {
   createNodeRegistrationToken,
   decideApproval,
   deleteApiKey,
+  listAgentSessions,
   listNodeAgents,
   revokeApprovalGrant,
-  useAgentSessions,
   useApiKeys,
   useApprovalGrants,
   useApprovals,
@@ -33,8 +33,26 @@ import {
   useNodes,
 } from "@/features/api/resources";
 import { queryKeys } from "@/features/api/query-keys";
-import { Agent, AgentApproval, AgentSession, Node, User } from "@/features/api/types";
+import {
+  Agent,
+  AgentApproval,
+  AgentSession,
+  Node,
+  User,
+} from "@/features/api/types";
 import { compactId } from "@/lib/format";
+import {
+  agentLabel,
+  buildSessionRows,
+  byLastActiveDesc,
+  isActiveAgent,
+  isActiveNode,
+  isActiveSession,
+  nodeLabel,
+  resourceLastActiveAt,
+  sessionUpdatedAt,
+  SessionRow,
+} from "./resource-models";
 
 type ResourceKind =
   | "nodes"
@@ -50,7 +68,10 @@ type ResourcePageClientProps = {
   user: User;
 };
 
-const copy: Record<ResourceKind, { title: string; eyebrow: string; icon: ReactNode }> = {
+const copy: Record<
+  ResourceKind,
+  { title: string; eyebrow: string; icon: ReactNode }
+> = {
   nodes: {
     title: "Nodes",
     eyebrow: "paxd fleet",
@@ -88,30 +109,90 @@ const copy: Record<ResourceKind, { title: string; eyebrow: string; icon: ReactNo
   },
 };
 
+const emptyNodes: Node[] = [];
+
 export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
+  const [showAllResources, setShowAllResources] = useState(false);
   const nodesQuery = useNodes(user.user_id);
-  const nodes = nodesQuery.data?.nodes ?? [];
+  const allNodes = nodesQuery.data?.nodes ?? emptyNodes;
+  const sortedNodes = useMemo(
+    () =>
+      byLastActiveDesc(allNodes, resourceLastActiveAt, (node) =>
+        nodeLabel(node),
+      ),
+    [allNodes],
+  );
+  const nodes = useMemo(
+    () =>
+      showAllResources
+        ? sortedNodes
+        : sortedNodes.filter((node) => isActiveNode(node)),
+    [showAllResources, sortedNodes],
+  );
   const agentQueries = useQueries({
-    queries: nodes.map((node) => ({
+    queries: sortedNodes.map((node) => ({
       queryKey: queryKeys.agents(user.user_id, node.node_id),
       queryFn: () => listNodeAgents(user.user_id, node.node_id),
       enabled: Boolean(user.user_id && node.node_id),
     })),
   });
-  const agents = agentQueries.flatMap((query) => query.data?.agents ?? []);
+  const allAgents = agentQueries.flatMap((query) => query.data?.agents ?? []);
+  const sortedAgents = useMemo(
+    () =>
+      byLastActiveDesc(allAgents, resourceLastActiveAt, (agent) =>
+        agentLabel(agent),
+      ),
+    [allAgents],
+  );
+  const agents = useMemo(
+    () =>
+      showAllResources
+        ? sortedAgents
+        : sortedAgents.filter((agent) => isActiveAgent(agent)),
+    [showAllResources, sortedAgents],
+  );
   const activeAgent = agents[0];
   const activeNode =
-    nodes.find((node) => node.node_id === activeAgent?.node_id) ?? nodes[0];
+    sortedNodes.find((node) => node.node_id === activeAgent?.node_id) ??
+    nodes[0] ??
+    sortedNodes[0];
   const agentsLoading =
     nodesQuery.isLoading || agentQueries.some((query) => query.isLoading);
-  const sessionsQuery = useAgentSessions(
-    user.user_id,
-    activeNode?.node_id,
-    activeAgent?.agent_id,
+  const sessionQueries = useQueries({
+    queries: sortedAgents.map((agent) => ({
+      queryKey: queryKeys.sessions(user.user_id, agent.node_id, agent.agent_id),
+      queryFn: () =>
+        listAgentSessions(user.user_id, agent.node_id, agent.agent_id),
+      enabled:
+        Boolean(user.user_id && agent.node_id && agent.agent_id) &&
+        (kind === "sessions" || kind === "monitor"),
+    })),
+  });
+  const allSessions = sessionQueries.flatMap(
+    (query) => query.data?.sessions ?? [],
   );
-  const sessions = sessionsQuery.data?.sessions ?? [];
+  const sortedSessionRows = useMemo(
+    () =>
+      byLastActiveDesc(
+        buildSessionRows(allSessions, sortedAgents, sortedNodes),
+        sessionUpdatedAt,
+        (session) => session.name ?? session.session_id,
+      ),
+    [allSessions, sortedAgents, sortedNodes],
+  );
+  const sessionRows = useMemo(
+    () =>
+      showAllResources
+        ? sortedSessionRows
+        : sortedSessionRows.filter((session) => isActiveSession(session)),
+    [showAllResources, sortedSessionRows],
+  );
+  const sessionsLoading =
+    agentsLoading || sessionQueries.some((query) => query.isLoading);
   const healthQuery = useHealth(kind === "monitor");
-  const apiKeysQuery = useApiKeys(kind === "api-keys" ? user.user_id : undefined);
+  const apiKeysQuery = useApiKeys(
+    kind === "api-keys" ? user.user_id : undefined,
+  );
   const approvalsQuery = useApprovals(
     kind === "approvals" ? user.user_id : undefined,
   );
@@ -122,7 +203,7 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
   const apiError =
     nodesQuery.error ??
     firstQueryError(agentQueries) ??
-    sessionsQuery.error ??
+    firstQueryError(sessionQueries) ??
     healthQuery.error ??
     apiKeysQuery.error ??
     approvalsQuery.error ??
@@ -145,6 +226,12 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
             </div>
             <h1 className="mt-2 text-2xl font-semibold">{meta.title}</h1>
           </div>
+          {supportsActiveFilter(kind) && (
+            <ActiveFilterToggle
+              checked={showAllResources}
+              onChange={setShowAllResources}
+            />
+          )}
         </header>
 
         {apiError && (
@@ -154,44 +241,57 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
         )}
 
         <div className="p-5">
-          {kind === "nodes" && <NodeGrid isLoading={nodesQuery.isLoading} nodes={nodes} />}
-        {kind === "agents" && (
-          <AgentGrid
-            agents={agents}
-            isLoading={agentsLoading}
-            nodeLabel={`${nodes.length} nodes scanned`}
-          />
-        )}
-        {kind === "sessions" && (
-          <SessionGrid isLoading={sessionsQuery.isLoading} sessions={sessions} />
-        )}
-        {kind === "approvals" && (
-          <ApprovalsPanel
-            approvals={approvalsQuery.data?.approvals ?? []}
-            grants={approvalGrantsQuery.data?.grants ?? []}
-            isLoading={approvalsQuery.isLoading || approvalGrantsQuery.isLoading}
-            userId={user.user_id}
-          />
-        )}
-        {kind === "monitor" && (
-          <MonitorPanel
-            agents={agents}
-            health={healthQuery.data}
-            isHealthLoading={healthQuery.isLoading}
-            nodes={nodes}
-            sessions={sessions}
-          />
-        )}
-        {kind === "api-keys" && (
-          <ApiKeysPanel
-            apiKeys={apiKeysQuery.data?.api_keys ?? []}
-            isLoading={apiKeysQuery.isLoading}
-            userId={user.user_id}
-          />
-        )}
-        {kind === "node-registration" && (
-          <NodeRegistrationPanel userId={user.user_id} />
-        )}
+          {kind === "nodes" && (
+            <NodeGrid
+              isLoading={nodesQuery.isLoading}
+              nodes={nodes}
+              totalCount={sortedNodes.length}
+            />
+          )}
+          {kind === "agents" && (
+            <AgentGrid
+              agents={agents}
+              isLoading={agentsLoading}
+              nodeLabel={`${nodes.length}/${sortedNodes.length} nodes in scope`}
+              totalCount={sortedAgents.length}
+            />
+          )}
+          {kind === "sessions" && (
+            <SessionGrid
+              isLoading={sessionsLoading}
+              sessions={sessionRows}
+              totalCount={sortedSessionRows.length}
+            />
+          )}
+          {kind === "approvals" && (
+            <ApprovalsPanel
+              approvals={approvalsQuery.data?.approvals ?? []}
+              grants={approvalGrantsQuery.data?.grants ?? []}
+              isLoading={
+                approvalsQuery.isLoading || approvalGrantsQuery.isLoading
+              }
+              userId={user.user_id}
+            />
+          )}
+          {kind === "monitor" && (
+            <MonitorPanel
+              agents={agents}
+              health={healthQuery.data}
+              isHealthLoading={healthQuery.isLoading}
+              nodes={nodes}
+              sessions={sessionRows}
+            />
+          )}
+          {kind === "api-keys" && (
+            <ApiKeysPanel
+              apiKeys={apiKeysQuery.data?.api_keys ?? []}
+              isLoading={apiKeysQuery.isLoading}
+              userId={user.user_id}
+            />
+          )}
+          {kind === "node-registration" && (
+            <NodeRegistrationPanel userId={user.user_id} />
+          )}
         </div>
       </div>
     </ConsoleLayout>
@@ -201,9 +301,11 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
 function NodeGrid({
   isLoading,
   nodes,
+  totalCount,
 }: {
   isLoading: boolean;
   nodes: Node[];
+  totalCount: number;
 }) {
   if (isLoading) {
     return <EmptyState label="Loading nodes" />;
@@ -228,7 +330,9 @@ function NodeGrid({
             )}
           </div>
           <div className="grid min-w-0 gap-1">
-            <MonoId>{node.os ?? "unknown os"} / {node.arch ?? "unknown arch"}</MonoId>
+            <MonoId>
+              {node.os ?? "unknown os"} / {node.arch ?? "unknown arch"}
+            </MonoId>
             <MonoId tooltip={node.node_id}>{compactId(node.node_id)}</MonoId>
           </div>
           <div className="flex items-start sm:justify-end">
@@ -238,7 +342,9 @@ function NodeGrid({
           </div>
         </Link>
       ))}
-      {nodes.length === 0 && <EmptyState label="No nodes" />}
+      {nodes.length === 0 && (
+        <EmptyState label={totalCount > 0 ? "No active nodes" : "No nodes"} />
+      )}
     </div>
   );
 }
@@ -247,10 +353,12 @@ function AgentGrid({
   agents,
   isLoading,
   nodeLabel,
+  totalCount,
 }: {
   agents: Agent[];
   isLoading: boolean;
   nodeLabel?: string;
+  totalCount: number;
 }) {
   if (isLoading) {
     return <EmptyState label="Loading agents" />;
@@ -282,12 +390,16 @@ function AgentGrid({
             </MonoId>
             <div className="flex items-start sm:justify-end">
               <Badge tone={agent.online ? "success" : "neutral"}>
-                {agent.online ? "online" : agent.status ?? "unknown"}
+                {agent.online ? "online" : (agent.status ?? "unknown")}
               </Badge>
             </div>
           </Link>
         ))}
-        {agents.length === 0 && <EmptyState label="No agents" />}
+        {agents.length === 0 && (
+          <EmptyState
+            label={totalCount > 0 ? "No active agents" : "No agents"}
+          />
+        )}
       </div>
     </div>
   );
@@ -296,9 +408,11 @@ function AgentGrid({
 function SessionGrid({
   isLoading,
   sessions,
+  totalCount,
 }: {
   isLoading: boolean;
-  sessions: AgentSession[];
+  sessions: SessionRow[];
+  totalCount: number;
 }) {
   if (isLoading) {
     return <EmptyState label="Loading sessions" />;
@@ -308,7 +422,7 @@ function SessionGrid({
     <div className="grid min-w-0 overflow-hidden rounded-lg border border-hairline">
       {sessions.map((session) => (
         <Link
-          className="grid min-w-0 gap-3 border-b border-hairline bg-surface-1 px-3 py-3 transition last:border-b-0 hover:bg-surface-2 lg:grid-cols-[minmax(0,1fr)_160px_120px]"
+          className="grid min-w-0 gap-3 border-b border-hairline bg-surface-1 px-3 py-3 transition last:border-b-0 hover:bg-surface-2 lg:grid-cols-[minmax(0,1fr)_220px_120px]"
           href={`/sessions/${session.session_id}?nodeId=${session.node_id}&agentId=${session.agent_id}`}
           key={session.session_id}
         >
@@ -320,15 +434,40 @@ function SessionGrid({
               {session.preview ?? session.current_task ?? "Open session"}
             </TruncatedText>
           </div>
-          <MonoId tooltip={session.session_id}>
-            {compactId(session.session_id)}
-          </MonoId>
+          <div className="grid min-w-0 content-start gap-1">
+            <div className="flex min-w-0 items-start gap-1.5">
+              <Badge
+                className="min-w-0 max-w-none flex-1"
+                tone={session.agentActive ? "success" : "neutral"}
+                tooltip={session.agent_id}
+              >
+                Agent: {session.agentLabel}
+              </Badge>
+              <Badge
+                className="min-w-0 max-w-none flex-1"
+                tone={session.nodeActive ? "success" : "neutral"}
+                tooltip={session.node_id}
+              >
+                Node: {session.nodeLabel}
+              </Badge>
+            </div>
+            <MonoId
+              className="w-fit max-w-full rounded-md border border-hairline bg-canvas px-1.5 py-0.5"
+              tooltip={session.session_id}
+            >
+              {compactId(session.session_id)}
+            </MonoId>
+          </div>
           <div className="flex items-start lg:justify-end">
             <Badge>{session.run_status ?? session.status ?? "unknown"}</Badge>
           </div>
         </Link>
       ))}
-      {sessions.length === 0 && <EmptyState label="No sessions on active agent" />}
+      {sessions.length === 0 && (
+        <EmptyState
+          label={totalCount > 0 ? "No active sessions" : "No sessions"}
+        />
+      )}
     </div>
   );
 }
@@ -347,16 +486,21 @@ function MonitorPanel({
   sessions: AgentSession[];
 }) {
   const onlineNodes = nodes.filter((node) => node.online).length;
-  const activeAgents = agents.filter((agent) => agent.online || agent.status === "online").length;
+  const activeAgents = agents.filter(
+    (agent) => agent.online || agent.status === "online",
+  ).length;
 
   return (
     <div className="grid min-w-0 overflow-hidden rounded-lg border border-hairline sm:grid-cols-2 lg:grid-cols-4">
       <Metric
         label="PAX Manager"
-        value={isHealthLoading ? "..." : health?.status ?? "unknown"}
+        value={isHealthLoading ? "..." : (health?.status ?? "unknown")}
       />
       <Metric label="Online nodes" value={`${onlineNodes}/${nodes.length}`} />
-      <Metric label="Active agents" value={`${activeAgents}/${agents.length}`} />
+      <Metric
+        label="Active agents"
+        value={`${activeAgents}/${agents.length}`}
+      />
       <Metric label="Recent sessions" value={String(sessions.length)} />
     </div>
   );
@@ -402,9 +546,7 @@ function NodeRegistrationPanel({ userId }: { userId: string }) {
         </div>
       </section>
 
-      {createToken.error && (
-        <ApiNotice error={createToken.error} />
-      )}
+      {createToken.error && <ApiNotice error={createToken.error} />}
 
       {createdToken && (
         <section className="rounded-lg border border-warning bg-surface-1 p-3">
@@ -444,7 +586,9 @@ function ApprovalsPanel({
       optionId: string;
     }) => decideApproval(userId, approvalId, optionId),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.approvals(userId) });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.approvals(userId),
+      });
       void queryClient.invalidateQueries({
         queryKey: queryKeys.approvalGrants(userId),
       });
@@ -453,7 +597,9 @@ function ApprovalsPanel({
   const revoke = useMutation({
     mutationFn: (grantId: string) => revokeApprovalGrant(userId, grantId),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.approvals(userId) });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.approvals(userId),
+      });
       void queryClient.invalidateQueries({
         queryKey: queryKeys.approvalGrants(userId),
       });
@@ -500,7 +646,8 @@ function ApprovalsPanel({
                   approval.operation ?? "unknown operation"
                 }`}
               >
-                {approval.domain ?? "unknown domain"} / {approval.operation ?? "unknown operation"}
+                {approval.domain ?? "unknown domain"} /{" "}
+                {approval.operation ?? "unknown operation"}
               </MonoId>
               <MonoId
                 tooltip={`${approval.resource_type ?? "resource"}: ${
@@ -508,7 +655,9 @@ function ApprovalsPanel({
                 }`}
               >
                 {approval.resource_type ?? "resource"}:{" "}
-                {approval.resource_ref ? compactId(approval.resource_ref) : "unknown"}
+                {approval.resource_ref
+                  ? compactId(approval.resource_ref)
+                  : "unknown"}
               </MonoId>
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
@@ -551,9 +700,17 @@ function ApprovalsPanel({
             <div className="mt-2 grid min-w-0 gap-1">
               <MonoId>{grant.decision_scope ?? "scope unknown"}</MonoId>
               <MonoId
-                tooltip={grant.grant_agent_id ?? grant.request_agent_id ?? "agent unknown"}
+                tooltip={
+                  grant.grant_agent_id ??
+                  grant.request_agent_id ??
+                  "agent unknown"
+                }
               >
-                {compactId(grant.grant_agent_id ?? grant.request_agent_id ?? "agent unknown")}
+                {compactId(
+                  grant.grant_agent_id ??
+                    grant.request_agent_id ??
+                    "agent unknown",
+                )}
               </MonoId>
             </div>
             <Button
@@ -579,7 +736,12 @@ function ApiKeysPanel({
   isLoading,
   userId,
 }: {
-  apiKeys: { key_id: string; name?: string; prefix?: string; created_at?: string }[];
+  apiKeys: {
+    key_id: string;
+    name?: string;
+    prefix?: string;
+    created_at?: string;
+  }[];
   isLoading: boolean;
   userId: string;
 }) {
@@ -590,13 +752,17 @@ function ApiKeysPanel({
     mutationFn: () => createApiKey(userId, name.trim() || "Console key"),
     onSuccess: (data) => {
       setCreatedSecret(data.key);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.apiKeys(userId) });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.apiKeys(userId),
+      });
     },
   });
   const deleteKey = useMutation({
     mutationFn: (keyId: string) => deleteApiKey(userId, keyId),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.apiKeys(userId) });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.apiKeys(userId),
+      });
     },
   });
 
@@ -643,30 +809,30 @@ function ApiKeysPanel({
       <section className="grid gap-3">
         <SectionHeader count={apiKeys.length} title="Existing keys" />
         <div className="grid overflow-hidden rounded-lg border border-hairline">
-        {apiKeys.map((apiKey) => (
-          <article
-            className="flex min-w-0 items-center justify-between gap-4 border-b border-hairline bg-surface-1 px-3 py-3 last:border-b-0"
-            key={apiKey.key_id}
-          >
-            <div className="min-w-0 flex-1">
-              <TruncatedText className="text-sm font-medium">
-                {apiKey.name ?? apiKey.key_id}
-              </TruncatedText>
-              <MonoId className="mt-1" tooltip={apiKey.key_id}>
-                {apiKey.prefix ?? compactId(apiKey.key_id)}
-              </MonoId>
-            </div>
-            <Button
-              disabled={deleteKey.isPending}
-              onClick={() => deleteKey.mutate(apiKey.key_id)}
-              size="sm"
-              type="button"
-              variant="danger"
+          {apiKeys.map((apiKey) => (
+            <article
+              className="flex min-w-0 items-center justify-between gap-4 border-b border-hairline bg-surface-1 px-3 py-3 last:border-b-0"
+              key={apiKey.key_id}
             >
-              Revoke
-            </Button>
-          </article>
-        ))}
+              <div className="min-w-0 flex-1">
+                <TruncatedText className="text-sm font-medium">
+                  {apiKey.name ?? apiKey.key_id}
+                </TruncatedText>
+                <MonoId className="mt-1" tooltip={apiKey.key_id}>
+                  {apiKey.prefix ?? compactId(apiKey.key_id)}
+                </MonoId>
+              </div>
+              <Button
+                disabled={deleteKey.isPending}
+                onClick={() => deleteKey.mutate(apiKey.key_id)}
+                size="sm"
+                type="button"
+                variant="danger"
+              >
+                Revoke
+              </Button>
+            </article>
+          ))}
         </div>
         {apiKeys.length === 0 && <EmptyState label="No API keys" />}
       </section>
@@ -681,6 +847,42 @@ function SectionHeader({ count, title }: { count: number; title: string }) {
       <Badge className="font-mono">{String(count)}</Badge>
     </div>
   );
+}
+
+function ActiveFilterToggle({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="flex shrink-0 items-center gap-2 text-xs text-ink-muted">
+      <span>Show all</span>
+      <button
+        aria-checked={checked}
+        aria-label="Show all resources"
+        className={`relative h-5 w-9 rounded-full border transition ${
+          checked
+            ? "border-primary bg-primary"
+            : "border-hairline-strong bg-surface-2"
+        }`}
+        onClick={() => onChange(!checked)}
+        role="switch"
+        type="button"
+      >
+        <span
+          className={`absolute top-0.5 h-4 w-4 rounded-full bg-ink transition ${
+            checked ? "left-4" : "left-0.5"
+          }`}
+        />
+      </button>
+    </label>
+  );
+}
+
+function supportsActiveFilter(kind: ResourceKind) {
+  return kind === "nodes" || kind === "agents" || kind === "sessions";
 }
 
 function approvalOptions(approval: AgentApproval) {

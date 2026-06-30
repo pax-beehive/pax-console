@@ -127,12 +127,12 @@ src/components/ui/
 
 src/components/home/
   Overview 页面。当前只展示 fleet 摘要、工作区入口和当前上下文；nodes、
-  agents、sessions 的详细列表放在 Runtime 子页里。
+  agents 的详细列表放在 Runtime 子页里，sessions 是 Home 同级的一级工作区。
 
 src/components/resources/
-  Runtime / Settings 下的资源页。Nodes、Agents、Sessions、Approvals、Monitor
-  作为 Runtime 的 sidebar 二级 tabs 复用认证、布局和基础数据加载；API Keys 和
-  Node Registration 仍属于 settings 类资源。
+  Runtime / Sessions / Settings 下的资源页。Nodes、Agents、Approvals、Monitor
+  作为 Runtime 的 sidebar 二级 tabs 复用认证、布局和基础数据加载；Sessions
+  是 sidebar 一级入口；API Keys 和 Node Registration 仍属于 settings 类资源。
 
 src/components/sessions/
   Session workbench。把 REST 历史消息和 WebSocket live events 合成时间线。
@@ -180,9 +180,9 @@ Sidebar 折叠
   使用 Zustand 的 sidebarCollapsed，不要放进 URL 或服务端数据。
   ConsoleLayout 使用 flex；Sidebar 自己用 width: 248/76px 控制展开/收起，并带 overflow-hidden。
   Sidebar 自身使用安静的 surface、分隔线式 node context、compact nav rows。
-  Sidebar 一级入口保持粗粒度：Home、Runtime、Collaboration、API Keys。
+  Sidebar 一级入口保持粗粒度：Home、Sessions、Runtime、Collaboration、API Keys。
   Runtime / Collaboration 是彼此独立的 disclosure，不是 accordion；多个一级组可以同时保持展开。
-  Runtime 展开时在 Sidebar 二级导航承载 Nodes、Agents、Sessions、Approvals、Monitor。
+  Runtime 展开时在 Sidebar 二级导航承载 Nodes、Agents、Approvals、Monitor。
   Collaboration 展开时在 Sidebar 二级导航承载 Teams、Friends、Envelopes、Knowledge。
   Team invites 属于 Teams 页面里的 team action queue，不作为 Collaboration 并列二级入口。
   不要把这些全局二级 tabs 放进具体页面 header 或页面组件内部。
@@ -265,6 +265,20 @@ AuthGate
   -> useAgentSessions(user.user_id, activeNode.node_id, activeAgent.agent_id)
 ```
 
+Sessions 一级列表：
+
+```txt
+AuthGate
+  -> useCurrentUser()
+  -> useNodes(user.user_id)
+  -> listNodeAgents(user.user_id, node.node_id) for each visible node
+  -> listAgentSessions(user.user_id, agent.node_id, agent.agent_id) for each agent
+  -> flatten sessions, attach agent/node labels, sort by updated_at desc
+```
+
+当前 pax-manager 还没有 `GET /api/v1/user/{user_id}/sessions` 这种扁平
+sessions list。等后端补齐后，替换上面的前端聚合即可。
+
 现在 active node / active agent 暂时取第一个可用项。等 UI 有 selector 后，再把 selection 接到 Zustand。
 
 ## 当前 Shell / UI 状态
@@ -332,7 +346,7 @@ Sidebar 一级入口是粗粒度工作区；下面这些实际路由仍保留为
 /nodes/[id]          Node detail
 /agents              Runtime / Agents on active node
 /agents/[id]         Agent detail, expects nodeId query when opened from list
-/sessions            Runtime / Sessions on active agent
+/sessions            Sessions list, flattened across visible agents
 /sessions/[id]       Session workbench
 /approvals           Runtime / pending approvals and active approval grants
 /monitor             Runtime / PAX Manager health and fleet summary
@@ -482,6 +496,52 @@ session_info_update -> run_status
 未知或控制类 update -> 忽略，不渲染为 timeline 正文
 ```
 
+ACP permission prompt 不是 `session/update`，而是 agent 发给 client 的
+JSON-RPC request：
+
+```txt
+method: session/request_permission
+params.sessionId
+params.toolCall
+params.options[]，每个 option 使用 optionId / name / kind
+```
+
+manager-side conversation stream 会先发 `approval_required`，再发
+`interrupted`，其中 `reason=permission_required`。Session workbench 会把
+这个中断展示成 permission card。用户点击决策后，前端先调用：
+
+```txt
+POST /api/v1/user/{user_id}/approvals/{approval_id}/decision
+```
+
+固定 `decision_option` 为：
+
+```txt
+deny
+allow_once
+allow_for_this_agent
+allow_for_this_node
+allow_always_on_all_agents
+```
+
+前端不要传 `resume_reason`，也不要用 `native_id` resume；`native_id` 是底层
+ACP permission request id，由后端内部使用。如果 conversation event 里的
+`approval.options` 暂时包含 `allow_for_this_session` 或
+`allow_always_on_this_node` 这类旧名字，workbench 仍只按上面的 decision API
+allowlist 提交。
+
+decision 成功后，workbench 会重新打开当前 conversation stream，并发送：
+
+```json
+{
+  "session_id": "sess_*",
+  "resume": { "approval_id": "appr_*" }
+}
+```
+
+PAX Manager 负责把已决定的 approval 转回原始 ACP permission request 的
+JSON-RPC response。
+
 chunk 合并在 `src/features/runtime/merge-session-events.ts`，不是在 React JSX 里做。组件只渲染归一化后的 SessionEvent。
 
 这里有两个 session，不要混淆：
@@ -499,7 +559,6 @@ ACP/native session
 ```txt
 更多 ACP session/update 类型覆盖
 中断 / stop 协议
-approval event 和 approvals REST inbox 的联动
 重连后 REST history refetch 补洞
 ```
 

@@ -9,22 +9,19 @@ import {
   useState,
 } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  AlertCircle,
-  ArrowLeft,
-  Brain,
-  ChevronDown,
-  FileCode,
-  Radio,
-  Send,
-} from "lucide-react";
+import { AlertCircle, ArrowLeft, Brain, Radio, Send } from "lucide-react";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MarkdownMessage } from "@/components/ui/markdown-message";
 import { MonoId, TruncatedText } from "@/components/ui/text";
 import {
+  PermissionDecisionOption,
+  PermissionDecisionResult,
+  WorkstreamItemCard,
+} from "@/components/sessions/session-event-cards";
+import {
   createKnowledgeCapsule,
+  decideApproval,
   injectKnowledgeCapsule,
   useKnowledgeCapsules,
   useKnowledgeInjections,
@@ -33,10 +30,17 @@ import {
   useSessionHistory,
 } from "@/features/api/resources";
 import { queryKeys } from "@/features/api/query-keys";
-import { KnowledgeCapsule, SessionKnowledgeInjection, User } from "@/features/api/types";
+import {
+  KnowledgeCapsule,
+  SessionKnowledgeInjection,
+  User,
+} from "@/features/api/types";
 import { normalizeHistoryMessage } from "@/features/runtime/normalize-history-message";
 import { mergeEvents } from "@/features/runtime/merge-session-events";
-import { SessionEvent } from "@/features/runtime/session-events";
+import {
+  groupWorkstreamEvents,
+  SessionEvent,
+} from "@/features/runtime/session-events";
 import { useConversationRun } from "@/features/runtime/use-conversation-run";
 import { compactId } from "@/lib/format";
 
@@ -65,6 +69,9 @@ export function SessionWorkbench({
   const activeAgent = agents.find((agent) => agent.agent_id === activeAgentId);
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState<Error | null>(null);
+  const [permissionDecisions, setPermissionDecisions] = useState<
+    Record<string, PermissionDecisionResult>
+  >({});
   const routeSessionId = sessionId === "new" ? undefined : sessionId;
   const [currentSessionId, setCurrentSessionId] = useState(routeSessionId);
   const handleSessionAssigned = useCallback(
@@ -93,7 +100,9 @@ export function SessionWorkbench({
     activeAgentId,
     currentSessionId,
   );
-  const capsulesQuery = useKnowledgeCapsules(user.user_id, { status: "active" });
+  const capsulesQuery = useKnowledgeCapsules(user.user_id, {
+    status: "active",
+  });
   const injectionsQuery = useKnowledgeInjections(
     user.user_id,
     currentSessionId,
@@ -165,6 +174,42 @@ export function SessionWorkbench({
     sessionId: routeSessionId,
     userId: user.user_id,
   });
+  const decidePermission = useMutation({
+    mutationFn: async ({
+      approvalId,
+      decisionOption,
+    }: {
+      approvalId: string;
+      decisionOption: PermissionDecisionOption;
+    }) => {
+      await decideApproval(user.user_id, approvalId, decisionOption);
+      setPermissionDecisions((current) => ({
+        ...current,
+        [approvalId]: {
+          decisionOption,
+          status: decisionOption === "deny" ? "denied" : "approved",
+        },
+      }));
+      return conversationRun.resumePermission(approvalId);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.approvals(user.user_id),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.approvalGrants(user.user_id),
+      });
+      if (activeAgentId && currentSessionId) {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.sessionHistory(
+            user.user_id,
+            activeAgentId,
+            currentSessionId,
+          ),
+        });
+      }
+    },
+  });
 
   // The timeline merges durable REST history with live conversation events.
   // REST gives refresh/resume safety; the run stream gives low-latency updates.
@@ -176,13 +221,25 @@ export function SessionWorkbench({
     [historyQuery.data?.messages],
   );
 
-  const timeline = useMemo(
-    () => mergeEvents([...historyEvents, ...conversationRun.events]),
+  const liveEvents = useMemo(
+    () => filterLiveEventsAlreadyInHistory(
+      conversationRun.events,
+      historyEvents,
+    ),
     [conversationRun.events, historyEvents],
+  );
+  const timeline = useMemo(
+    () => mergeEvents([...historyEvents, ...liveEvents]),
+    [historyEvents, liveEvents],
+  );
+  const workstreamItems = useMemo(
+    () => groupWorkstreamEvents(timeline),
+    [timeline],
   );
   const canSend =
     Boolean(activeAgentId && activeNodeId) &&
     conversationRun.status !== "streaming" &&
+    conversationRun.status !== "waiting_approval" &&
     draft.trim().length > 0;
 
   const submitDraft = useCallback(async () => {
@@ -191,7 +248,8 @@ export function SessionWorkbench({
       !content ||
       !activeAgentId ||
       !activeNodeId ||
-      conversationRun.status === "streaming"
+      conversationRun.status === "streaming" ||
+      conversationRun.status === "waiting_approval"
     ) {
       return;
     }
@@ -233,8 +291,8 @@ export function SessionWorkbench({
       nodes={nodes}
       user={user}
     >
-      <div className="grid min-h-[calc(100vh-var(--topbar-h))] min-w-0 lg:grid-cols-[260px_minmax(0,1fr)_300px]">
-        <aside className="min-w-0 border-b border-hairline bg-surface-1 lg:border-b-0 lg:border-r">
+      <div className="grid h-[calc(100vh-var(--topbar-h))] min-h-0 min-w-0 overflow-hidden lg:grid-cols-[260px_minmax(0,1fr)_300px]">
+        <aside className="min-h-0 min-w-0 overflow-auto border-b border-hairline bg-surface-1 lg:border-b-0 lg:border-r">
           <div className="border-b border-hairline p-4">
             <Link
               className="inline-flex items-center gap-2 text-sm text-ink-subtle hover:text-ink"
@@ -273,7 +331,7 @@ export function SessionWorkbench({
           </div>
         </aside>
 
-        <section className="flex min-w-0 flex-col overflow-hidden bg-canvas">
+        <section className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-canvas">
           <div className="flex items-center justify-between gap-4 border-b border-hairline bg-surface-1 px-4 py-3">
             <div className="min-w-0">
               <div className="flex min-w-0 max-w-[52vw] gap-1 text-sm text-ink-tertiary">
@@ -290,17 +348,31 @@ export function SessionWorkbench({
             <RunBadge status={conversationRun.status} />
           </div>
 
-          <div className="flex-1 overflow-auto bg-canvas p-4">
+          <div className="min-h-0 flex-1 overflow-auto bg-canvas p-4">
             <div className="mx-auto grid w-full max-w-4xl gap-4">
               <SessionErrors
                 messagesError={historyQuery.error}
                 missingRouteState={!activeNodeId || !activeAgentId}
                 sendError={sendError ?? conversationRun.error}
               />
-              {timeline.map((event) => (
-                <EventCard event={event} key={event.id} />
+              {workstreamItems.map((item) => (
+                <WorkstreamItemCard
+                  item={item}
+                  key={item.id}
+                  permissionDecision={{
+                    decisions: permissionDecisions,
+                    error: decidePermission.error,
+                    pendingApprovalId: decidePermission.variables?.approvalId,
+                    pending: decidePermission.isPending,
+                    onDecision: (approvalId, decisionOption) =>
+                      decidePermission.mutate({
+                        approvalId,
+                        decisionOption,
+                      }),
+                  }}
+                />
               ))}
-              {!historyQuery.isLoading && timeline.length === 0 && (
+              {!historyQuery.isLoading && workstreamItems.length === 0 && (
                 <div className="rounded-lg border border-dashed border-hairline bg-surface-1 p-4 text-sm text-ink-tertiary">
                   No messages yet. Live tunnel events will appear here.
                 </div>
@@ -337,7 +409,7 @@ export function SessionWorkbench({
           </form>
         </section>
 
-        <aside className="min-w-0 border-t border-hairline bg-surface-1 lg:border-l lg:border-t-0">
+        <aside className="min-h-0 min-w-0 overflow-auto border-t border-hairline bg-surface-1 lg:border-l lg:border-t-0">
           <div className="border-b border-hairline p-4">
             <div className="text-sm font-medium text-ink">Evidence</div>
             <div className="mt-1 text-xs text-ink-tertiary">
@@ -470,10 +542,7 @@ function KnowledgeTools({
             </option>
           ))}
         </select>
-        <Button
-          disabled={injectPending || !selectedCapsuleId}
-          type="submit"
-        >
+        <Button disabled={injectPending || !selectedCapsuleId} type="submit">
           Inject capsule
         </Button>
         {injectError && <InlineError error={injectError} />}
@@ -481,7 +550,9 @@ function KnowledgeTools({
 
       <section className="grid gap-2">
         <div className="flex min-w-0 items-center justify-between gap-3">
-          <TruncatedText className="text-sm font-medium">Injections</TruncatedText>
+          <TruncatedText className="text-sm font-medium">
+            Injections
+          </TruncatedText>
           <Badge className="font-mono">{String(injections.length)}</Badge>
         </div>
         {injectionsLoading && (
@@ -512,105 +583,6 @@ function KnowledgeTools({
         )}
       </section>
     </div>
-  );
-}
-
-function EventCard({ event }: { event: SessionEvent }) {
-  if (event.type === "file_change") {
-    return (
-      <article className="min-w-0 rounded-lg border border-hairline bg-surface-1 p-3">
-        <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-ink-tertiary">
-          <FileCode className="h-4 w-4" />
-          file change
-        </div>
-        <MonoId className="mt-2 text-sm text-ink" tooltip={event.path}>
-          {event.path}
-        </MonoId>
-      </article>
-    );
-  }
-
-  if (event.type === "tool_call") {
-    return (
-      <article className="min-w-0 rounded-lg border border-hairline bg-surface-1 p-3">
-        <div className="text-xs uppercase tracking-wide text-ink-tertiary">
-          tool call / {event.status}
-        </div>
-        <MonoId className="mt-2 text-sm text-ink" tooltip={event.name}>
-          {event.name}
-        </MonoId>
-      </article>
-    );
-  }
-
-  if (event.type === "progress") {
-    return (
-      <details className="group min-w-0 py-1" open>
-        <summary className="flex cursor-pointer list-none items-center gap-2 text-sm text-ink-muted outline-none transition hover:text-ink [&::-webkit-details-marker]:hidden">
-          <PaxThoughtIcon />
-          <span>{event.streaming ? "思考中" : "已思考"}</span>
-          <ChevronDown className="h-3.5 w-3.5 -rotate-90 text-ink-tertiary transition group-open:rotate-0" />
-        </summary>
-        <MarkdownMessage
-          className="mt-4 pl-1 text-[13px] leading-7"
-          content={event.content}
-          muted
-        />
-      </details>
-    );
-  }
-
-  if (event.type === "token_usage" || event.type === "run_status") {
-    return (
-      <article className="min-w-0 rounded-lg border border-hairline bg-surface-1 p-3">
-        <div className="text-xs uppercase tracking-wide text-ink-tertiary">
-          {event.type}
-        </div>
-        <pre className="mt-2 max-w-full overflow-auto text-xs text-ink-muted">
-          {JSON.stringify(event, null, 2)}
-        </pre>
-      </article>
-    );
-  }
-
-  if (event.type === "user_message") {
-    return (
-      <article className="grid min-w-0 justify-items-end py-1">
-        <div className="max-w-[min(82%,720px)] min-w-0 rounded-lg bg-surface-2 px-3 py-2">
-          <div className="mb-1 text-right text-xs text-ink-tertiary">你</div>
-          <MarkdownMessage
-            className="overflow-hidden text-sm leading-7"
-            content={event.content}
-          />
-        </div>
-      </article>
-    );
-  }
-
-  if (event.type === "agent_message") {
-    return (
-      <article className="min-w-0 justify-self-stretch py-1">
-        <MarkdownMessage
-          className="text-base leading-8 text-ink"
-          content={event.content}
-        />
-      </article>
-    );
-  }
-
-  return null;
-}
-
-function PaxThoughtIcon() {
-  return (
-    <span
-      aria-hidden="true"
-      className="h-4 w-4 shrink-0 bg-primary-hover"
-      style={{
-        WebkitMask: "url('/pax-icon.svg') center / contain no-repeat",
-        mask: "url('/pax-icon.svg') center / contain no-repeat",
-      }}
-    />
   );
 }
 
@@ -647,6 +619,39 @@ function ContextRow({ label, value }: { label: string; value: string }) {
       </TruncatedText>
     </div>
   );
+}
+
+function filterLiveEventsAlreadyInHistory(
+  liveEvents: SessionEvent[],
+  historyEvents: SessionEvent[],
+) {
+  const historyTextKeys = new Set(
+    historyEvents.map(textEventKey).filter((key): key is string => Boolean(key)),
+  );
+  if (historyTextKeys.size === 0) {
+    return liveEvents;
+  }
+
+  return liveEvents.filter((event) => {
+    const key = textEventKey(event);
+    return !key || !historyTextKeys.has(key);
+  });
+}
+
+function textEventKey(event: SessionEvent) {
+  if (
+    event.type !== "user_message" &&
+    event.type !== "agent_message" &&
+    event.type !== "progress"
+  ) {
+    return undefined;
+  }
+
+  return `${event.type}:${event.sessionId}:${normalizeTimelineText(event.content)}`;
+}
+
+function normalizeTimelineText(content: string) {
+  return content.replace(/\s+/g, " ").trim();
 }
 
 function SessionErrors({
