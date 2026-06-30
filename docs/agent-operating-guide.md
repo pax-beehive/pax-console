@@ -257,6 +257,52 @@ Actual ACP streaming frames observed from the backend look like:
 `normalizeTunnelFrame` extracts `params.sessionId`, `params.update.sessionUpdate`, and `params.update.content.text`. `AgentTunnelRuntime` assigns a turn-scoped stream id when `sendUserMessage` starts. `merge-session-events.ts` appends chunks with the same stream id so the UI renders one growing message instead of one card per token.
 Unknown or control-only `session/update` values, such as generic `update` frames and unsupported `*_update` frames, are ignored by `normalizeTunnelFrame` so raw ACP protocol payloads do not render in the user-facing timeline.
 
+ACP permission prompts are JSON-RPC requests, not `session/update` notifications:
+
+```txt
+method: session/request_permission
+params.sessionId
+params.toolCall
+params.options[] with optionId, name, kind
+```
+
+The manager-side conversation stream emits `approval_required` followed by
+`interrupted` with `reason=permission_required`. The workstream renders this as
+a permission card. Clicking a decision first calls:
+
+```txt
+POST /api/v1/user/{user_id}/approvals/{approval_id}/decision
+```
+
+The fixed `decision_option` values are:
+
+```txt
+deny
+allow_once
+allow_for_this_agent
+allow_for_this_node
+allow_always_on_all_agents
+```
+
+Do not pass `resume_reason`, and do not resume by `native_id`; `native_id` is
+the lower-level ACP permission request id and is manager-internal. If
+`approval.options` from the conversation event contains older names such as
+`allow_for_this_session` or `allow_always_on_this_node`, the workbench should
+still submit only the decision API allowlist above.
+
+After the decision succeeds, the workbench resumes the current conversation
+stream with:
+
+```json
+{
+  "session_id": "sess_*",
+  "resume": { "approval_id": "appr_*" }
+}
+```
+
+PAX Manager converts the decided approval back into the ACP JSON-RPC response
+for the original permission request.
+
 Do not confuse the two session ids:
 
 ```txt
@@ -267,7 +313,7 @@ ACP/native session id
   Created by session/new by PAX Manager and kept private behind the conversation endpoint.
 ```
 
-Known gaps are broader ACP event coverage beyond observed text chunks, interrupt/stop, approval-event linkage, and REST history refetch after reconnect.
+Known gaps are broader ACP event coverage beyond observed text chunks, interrupt/stop, and REST history refetch after reconnect.
 
 ## UI Composition Rules
 

@@ -1,3 +1,8 @@
+export type PermissionDecision = {
+  decisionOption: string;
+  status: "approved" | "denied";
+};
+
 export type SessionEvent =
   | {
       type: "user_message";
@@ -12,6 +17,7 @@ export type SessionEvent =
       sessionId: string;
       content: string;
       streaming?: boolean;
+      sessionUpdate?: string;
       createdAt: string;
     }
   | {
@@ -20,6 +26,7 @@ export type SessionEvent =
       sessionId: string;
       content: string;
       streaming?: boolean;
+      sessionUpdate?: string;
       createdAt: string;
     }
   | {
@@ -28,6 +35,8 @@ export type SessionEvent =
       sessionId: string;
       name: string;
       status: "queued" | "running" | "done" | "error";
+      sessionUpdate?: string;
+      toolCallId?: string;
       input?: unknown;
       output?: unknown;
       durationMs?: number;
@@ -41,6 +50,34 @@ export type SessionEvent =
       tool?: string;
       oldContent?: string;
       newContent?: string;
+      createdAt: string;
+    }
+  | {
+      type: "permission_request";
+      id: string;
+      sessionId: string;
+      approvalId?: string;
+      description?: string;
+      requestId: string;
+      title: string;
+      toolCallId?: string;
+      toolKind?: string;
+      rawInput?: unknown;
+      options: {
+        optionId: string;
+        kind?: string;
+        name: string;
+      }[];
+      decision?: PermissionDecision;
+      decidedAt?: string;
+      createdAt: string;
+    }
+  | {
+      type: "permission_decision";
+      id: string;
+      sessionId: string;
+      requestId: string;
+      decision: PermissionDecision;
       createdAt: string;
     }
   | {
@@ -63,3 +100,65 @@ export type SessionEvent =
     };
 
 export type SessionEventListener = (event: SessionEvent) => void;
+
+export type ToolCallEvent = Extract<SessionEvent, { type: "tool_call" }>;
+
+export type WorkstreamItem =
+  | {
+      type: "event";
+      id: string;
+      event: Exclude<SessionEvent, ToolCallEvent>;
+    }
+  | {
+      type: "tool_group";
+      id: string;
+      sessionId: string;
+      createdAt: string;
+      events: ToolCallEvent[];
+    };
+
+export function isVisibleTimelineEvent(event: SessionEvent) {
+  return (
+    event.type !== "run_status" &&
+    event.type !== "token_usage" &&
+    event.type !== "permission_decision"
+  );
+}
+
+export function groupWorkstreamEvents(
+  events: SessionEvent[],
+): WorkstreamItem[] {
+  const items: WorkstreamItem[] = [];
+  let toolGroup: Extract<WorkstreamItem, { type: "tool_group" }> | undefined;
+
+  for (const event of events) {
+    if (!isVisibleTimelineEvent(event)) {
+      continue;
+    }
+
+    if (event.type === "tool_call") {
+      if (!toolGroup) {
+        toolGroup = {
+          type: "tool_group",
+          id: `tool_group:${event.id}`,
+          sessionId: event.sessionId,
+          createdAt: event.createdAt,
+          events: [],
+        };
+        items.push(toolGroup);
+      }
+
+      toolGroup.events.push(event);
+      continue;
+    }
+
+    toolGroup = undefined;
+    items.push({
+      type: "event",
+      id: event.id,
+      event,
+    });
+  }
+
+  return items;
+}

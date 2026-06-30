@@ -1,5 +1,6 @@
 import { API_BASE_URL, userPath } from "../api/client";
 import { ApiError, AuthError } from "../api/errors";
+import type { AgentApproval } from "../api/types";
 
 export type ConversationRunEnvelope =
   | {
@@ -14,6 +15,23 @@ export type ConversationRunEnvelope =
       agent_id: string;
       session_id: string;
       frame: unknown;
+    }
+  | {
+      type: "approval_required";
+      node_id: string;
+      agent_id: string;
+      session_id: string;
+      approval_id: string;
+      approval?: AgentApproval;
+      frame: unknown;
+    }
+  | {
+      type: "interrupted";
+      node_id?: string;
+      agent_id?: string;
+      session_id?: string;
+      approval_id?: string;
+      reason: string;
     }
   | {
       type: "done";
@@ -31,9 +49,12 @@ export type ConversationRunEnvelope =
 
 export type StreamConversationRunOptions = {
   agentId: string;
-  input: string;
+  input?: string;
   nodeId: string;
   onEnvelope: (envelope: ConversationRunEnvelope) => void;
+  resume?: {
+    approvalId: string;
+  };
   sessionId?: string;
   signal?: AbortSignal;
   userId: string;
@@ -44,6 +65,7 @@ export async function streamConversationRun({
   input,
   nodeId,
   onEnvelope,
+  resume,
   sessionId,
   signal,
   userId,
@@ -55,8 +77,9 @@ export async function streamConversationRun({
     )}`,
     {
       body: JSON.stringify({
-        input,
+        ...(input ? { input } : {}),
         ...(sessionId ? { session_id: sessionId } : {}),
+        ...(resume ? { resume: { approval_id: resume.approvalId } } : {}),
       }),
       credentials: "include",
       headers: {

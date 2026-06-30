@@ -18,6 +18,32 @@ describe("parseConversationRunSseBlock", () => {
       session_id: "sess_1",
     });
   });
+
+  it("parses approval and interruption envelopes", () => {
+    const approval = parseConversationRunSseBlock(
+      'data: {"type":"approval_required","node_id":"node_1","agent_id":"agent_1","session_id":"sess_1","approval_id":"appr_1","approval":{"approval_id":"appr_1","title":"Run command"},"frame":{"jsonrpc":"2.0","id":"perm_1","method":"session/request_permission"}}',
+    );
+    const interrupted = parseConversationRunSseBlock(
+      'data: {"type":"interrupted","node_id":"node_1","agent_id":"agent_1","session_id":"sess_1","approval_id":"appr_1","reason":"permission_required"}',
+    );
+
+    expect(approval).toMatchObject({
+      type: "approval_required",
+      approval_id: "appr_1",
+      approval: {
+        approval_id: "appr_1",
+        title: "Run command",
+      },
+    });
+    expect(interrupted).toEqual({
+      type: "interrupted",
+      node_id: "node_1",
+      agent_id: "agent_1",
+      session_id: "sess_1",
+      approval_id: "appr_1",
+      reason: "permission_required",
+    });
+  });
 });
 
 describe("streamConversationRun", () => {
@@ -76,6 +102,39 @@ describe("streamConversationRun", () => {
         session_id: "sess_1",
       },
     ]);
+  });
+
+  it("posts resume JSON for a decided permission approval", async () => {
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        streamFromChunks([
+          'data: {"type":"session","node_id":"node_1","agent_id":"agent_1","session_id":"sess_existing"}\n\n',
+          'data: {"type":"done","node_id":"node_1","agent_id":"agent_1","session_id":"sess_existing"}\n\n',
+        ]),
+        {
+          headers: { "content-type": "text/event-stream" },
+          status: 200,
+        },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await streamConversationRun({
+      agentId: "agent_1",
+      nodeId: "node_1",
+      onEnvelope: vi.fn(),
+      resume: { approvalId: "appr_1" },
+      sessionId: "sess_existing",
+      userId: "self",
+    });
+
+    const [, init] = (fetchMock as Mock).mock.calls[0] as [string, RequestInit];
+    expect(init.body).toBe(
+      JSON.stringify({
+        session_id: "sess_existing",
+        resume: { approval_id: "appr_1" },
+      }),
+    );
   });
 });
 

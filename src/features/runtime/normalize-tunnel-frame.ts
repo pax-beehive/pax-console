@@ -18,17 +18,21 @@ type TunnelFrame = {
   label?: string;
   detail?: string;
   name?: string;
+  title?: string;
   status?: string;
   path?: string;
   callId?: string;
+  toolCallId?: string;
   params?: unknown;
   result?: unknown;
+  output?: unknown;
   update?: unknown;
   event?: unknown;
   data?: unknown;
 };
 
 type NormalizeContext = {
+  createdAt?: string;
   streamId?: string;
 };
 
@@ -56,7 +60,7 @@ export function normalizeTunnelFrame(
     stringFromValue(frame.result, "sessionId") ??
     stringFromValue(frame.result, "session_id") ??
     "unknown-session";
-  const createdAt = new Date().toISOString();
+  const createdAt = context.createdAt ?? new Date().toISOString();
   const kind =
     frame.event_type ??
     frame.sessionUpdate ??
@@ -78,6 +82,10 @@ export function normalizeTunnelFrame(
     return [];
   }
 
+  if (kind === "session/request_permission") {
+    return normalizePermissionRequest(frame, sessionId, createdAt, id);
+  }
+
   if (kind === "file/changed" && frame.path) {
     return [
       {
@@ -91,18 +99,7 @@ export function normalizeTunnelFrame(
   }
 
   if (kind?.includes("tool")) {
-    return [
-      {
-        type: "tool_call",
-        id,
-        sessionId,
-        name: frame.name ?? stringFromValue(frame.params, "name") ?? kind,
-        status: normalizeToolStatus(frame.status),
-        input: frame.params,
-        output: frame.result,
-        createdAt,
-      },
-    ];
+    return normalizeToolCall(frame, sessionId, createdAt, id, kind);
   }
 
   if (kind === "usage_update") {
@@ -155,6 +152,7 @@ export function normalizeTunnelFrame(
           sessionId,
           content,
           streaming: true,
+          sessionUpdate: kind,
           createdAt,
         },
       ];
@@ -167,12 +165,130 @@ export function normalizeTunnelFrame(
         sessionId,
         content,
         streaming: isStreamingKind(kind),
+        ...(frame.sessionUpdate ? { sessionUpdate: frame.sessionUpdate } : {}),
         createdAt,
       },
     ];
   }
 
   return [];
+}
+
+function normalizeToolCall(
+  frame: TunnelFrame,
+  sessionId: string,
+  createdAt: string,
+  id: string,
+  kind: string,
+) {
+  const payload = firstDefined(frame.result, frame.output, frame.content);
+  const status = normalizeToolStatus(frame.status, kind, payload);
+  const toolCallId = toolCallIdFromFrame(frame);
+  const event: Extract<SessionEvent, { type: "tool_call" }> = {
+    type: "tool_call",
+    id,
+    sessionId,
+    name:
+      frame.title ??
+      frame.name ??
+      stringFromValue(frame.params, "title") ??
+      stringFromValue(frame.params, "name") ??
+      toolCallId ??
+      kind,
+    status,
+    ...(frame.sessionUpdate ? { sessionUpdate: frame.sessionUpdate } : {}),
+    ...(toolCallId ? { toolCallId } : {}),
+    createdAt,
+  };
+
+  if (kind === "tool_call" || status === "running" || status === "queued") {
+    event.input = payload;
+  } else if (payload !== undefined) {
+    event.output = payload;
+  }
+
+  return [event] satisfies SessionEvent[];
+}
+
+function normalizePermissionRequest(
+  frame: TunnelFrame,
+  sessionId: string,
+  createdAt: string,
+  id: string,
+) {
+  const params = asRecord(frame.params);
+  const toolCall = asRecord(params?.toolCall) ?? asRecord(params?.tool_call);
+  const requestId = frame.id !== undefined ? String(frame.id) : id;
+  const approvalId =
+    stringFromValue(params, "approval_id") ??
+    stringFromValue(params, "approvalId");
+  const title =
+    stringFromValue(toolCall, "title") ??
+    stringFromValue(params, "title") ??
+    stringFromValue(toolCall, "name") ??
+    "Permission requested";
+  const description =
+    stringFromValue(params, "description") ??
+    stringFromValue(toolCall, "description");
+  const options = normalizePermissionOptions(valueFrom(params, "options"));
+
+  return [
+    {
+      type: "permission_request",
+      id,
+      sessionId,
+      approvalId,
+      description,
+      requestId,
+      title,
+      toolCallId:
+        stringFromValue(toolCall, "toolCallId") ??
+        stringFromValue(toolCall, "tool_call_id"),
+      toolKind: stringFromValue(toolCall, "kind"),
+      rawInput:
+        valueFrom(toolCall, "rawInput") ?? valueFrom(toolCall, "raw_input"),
+      options,
+      createdAt,
+    },
+  ] satisfies SessionEvent[];
+}
+
+function normalizePermissionOptions(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((option) => {
+      if (typeof option === "string") {
+        return { optionId: option, name: option };
+      }
+
+      const record = asRecord(option);
+      const optionId =
+        stringFromValue(record, "optionId") ??
+        stringFromValue(record, "option_id") ??
+        stringFromValue(record, "id") ??
+        stringFromValue(record, "value") ??
+        stringFromValue(record, "kind") ??
+        stringFromValue(record, "name");
+      if (!optionId) {
+        return undefined;
+      }
+
+      return {
+        optionId,
+        kind: stringFromValue(record, "kind"),
+        name:
+          stringFromValue(record, "name") ??
+          stringFromValue(record, "label") ??
+          optionId,
+      };
+    })
+    .filter(
+      (option): option is { optionId: string; kind?: string; name: string } =>
+        Boolean(option),
+    );
 }
 
 function isTunnelFrame(value: unknown): value is TunnelFrame {
@@ -238,6 +354,10 @@ function stringFromValue(value: unknown, key: string) {
 function valueFrom(value: unknown, key: string) {
   const record = asRecord(value);
   return record?.[key];
+}
+
+function firstDefined(...values: unknown[]) {
+  return values.find((value) => value !== undefined);
 }
 
 function asRecord(value: unknown) {
@@ -316,6 +436,13 @@ function getEventId(
     return String(explicitId);
   }
 
+  if (kind?.includes("tool")) {
+    const toolCallId = toolCallIdFromFrame(frame);
+    if (toolCallId) {
+      return `${sessionId}:tool:${toolCallId}`;
+    }
+  }
+
   if (isStreamingKind(kind)) {
     return [sessionId, kind, context.streamId].filter(Boolean).join(":");
   }
@@ -339,9 +466,10 @@ function isIgnoredSessionUpdate(kind: string | undefined) {
 
   return Boolean(
     kind &&
-      kind.endsWith("_update") &&
-      kind !== "usage_update" &&
-      kind !== "session_info_update",
+    kind.endsWith("_update") &&
+    !kind.includes("tool") &&
+    kind !== "usage_update" &&
+    kind !== "session_info_update",
   );
 }
 
@@ -378,9 +506,42 @@ function extractText(value: unknown): string | undefined {
   return undefined;
 }
 
-function normalizeToolStatus(status: string | undefined) {
-  if (status === "done" || status === "error" || status === "queued") {
+function toolCallIdFromFrame(frame: TunnelFrame) {
+  return (
+    frame.toolCallId ??
+    frame.callId ??
+    stringFromValue(frame.params, "toolCallId") ??
+    stringFromValue(frame.params, "tool_call_id") ??
+    stringFromValue(frame.params, "callId") ??
+    stringFromValue(frame.params, "call_id")
+  );
+}
+
+function normalizeToolStatus(
+  status: string | undefined,
+  kind?: string,
+  payload?: unknown,
+) {
+  if (status === "error" || status === "queued") {
     return status;
+  }
+
+  if (
+    status === "done" ||
+    status === "completed" ||
+    status === "complete" ||
+    status === "success" ||
+    status === "succeeded"
+  ) {
+    return "done";
+  }
+
+  if (status === "failed" || status === "failure") {
+    return "error";
+  }
+
+  if (status === undefined && kind?.includes("tool_call_update") && payload) {
+    return "done";
   }
 
   return "running";
