@@ -82,7 +82,7 @@ export function Topbar({ user, nodes, activeNode, activeAgent }: TopbarProps) {
             }
 
             router.push(
-              `/sessions/new?nodeId=${activeNode.node_id}&agentId=${activeAgent.agent_id}`,
+              `/sessions/new?nodeId=${activeNode.node_id}&agentId=${activeAgent.agent_id}&nonce=${Date.now()}`,
             );
           }}
           size="sm"

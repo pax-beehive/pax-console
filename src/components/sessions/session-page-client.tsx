@@ -18,13 +18,14 @@ export function SessionPageClient({
   const searchParams = useSearchParams();
   const resolvedAgentId = agentId ?? searchParams.get("agentId") ?? undefined;
   const resolvedNodeId = nodeId ?? searchParams.get("nodeId") ?? undefined;
+  const newSessionNonce = searchParams.get("nonce") ?? "";
 
   return (
     <AuthGate>
       {(user) => (
         <SessionWorkbench
           agentId={resolvedAgentId}
-          key={`${sessionId}:${resolvedNodeId ?? ""}:${resolvedAgentId ?? ""}`}
+          key={`${sessionId}:${resolvedNodeId ?? ""}:${resolvedAgentId ?? ""}:${newSessionNonce}`}
           nodeId={resolvedNodeId}
           sessionId={sessionId}
           user={user}
