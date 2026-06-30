@@ -221,6 +221,11 @@ function NodeGrid({
             <TruncatedText className="text-sm font-medium">
               {node.name ?? node.hostname ?? node.node_id}
             </TruncatedText>
+            {node.description && (
+              <TruncatedText className="mt-1 text-xs text-ink-muted">
+                {node.description}
+              </TruncatedText>
+            )}
           </div>
           <div className="grid min-w-0 gap-1">
             <MonoId>{node.os ?? "unknown os"} / {node.arch ?? "unknown arch"}</MonoId>
@@ -267,6 +272,9 @@ function AgentGrid({
             <div className="min-w-0">
               <TruncatedText className="text-sm font-medium">
                 {agent.name ?? agent.agent_type ?? agent.agent_id}
+              </TruncatedText>
+              <TruncatedText className="mt-1 text-xs text-ink-muted">
+                {agent.description ?? agentCardSummary(agent)}
               </TruncatedText>
             </div>
             <MonoId tooltip={agent.agent_id}>
@@ -730,4 +738,20 @@ function ApiNotice({ error }: { error: Error | null }) {
 
 function firstQueryError(queries: Array<{ error: Error | null }>) {
   return queries.find((query) => query.error)?.error ?? null;
+}
+
+function agentCardSummary(agent: Agent) {
+  const tags = [
+    ...stringArray(agent.card?.routing_tags),
+    ...stringArray(agent.card?.skills),
+    ...stringArray(agent.card?.specialties),
+  ];
+
+  return tags.length > 0 ? tags.slice(0, 4).join(" / ") : "No profile card";
+}
+
+function stringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
 }

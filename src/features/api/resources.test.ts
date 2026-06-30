@@ -22,6 +22,8 @@ const {
   listTeamAuditEvents,
   listTeams,
   toPaxdConnectPreview,
+  updateNodeAgentProfile,
+  updateNodeProfile,
   updateTeamMemberRole,
 } = await import("./resources");
 
@@ -93,6 +95,49 @@ describe("listAgentSessions", () => {
 });
 
 describe("collaboration resources", () => {
+  it("updates node and agent user-maintained profile fields", async () => {
+    apiFetch.mockResolvedValueOnce({ node_id: "node_1" });
+    apiFetch.mockResolvedValueOnce({ agent_id: "agent_1" });
+
+    await updateNodeProfile("usr_1", "node_1", {
+      description: "Main workstation",
+      name: "desk mac",
+      user_metadata: { labels: ["primary"] },
+    });
+    await updateNodeAgentProfile("usr_1", "node_1", "agent_1", {
+      card: { routing_tags: ["review"], skills: ["tests"] },
+      description: "Reviews risky changes",
+      name: "reviewer",
+      user_metadata: { priority: "high" },
+    });
+
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/user/usr_1/nodes/node_1",
+      {
+        body: JSON.stringify({
+          description: "Main workstation",
+          name: "desk mac",
+          user_metadata: { labels: ["primary"] },
+        }),
+        method: "PATCH",
+      },
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/user/usr_1/nodes/node_1/agents/agent_1",
+      {
+        body: JSON.stringify({
+          card: { routing_tags: ["review"], skills: ["tests"] },
+          description: "Reviews risky changes",
+          name: "reviewer",
+          user_metadata: { priority: "high" },
+        }),
+        method: "PATCH",
+      },
+    );
+  });
+
   it("lists teams through the user-scoped PAX API path", async () => {
     apiFetch.mockResolvedValueOnce({ teams: [] });
 

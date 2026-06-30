@@ -5,6 +5,7 @@ import { apiFetch, userPath } from "./client";
 import { ApiError } from "./errors";
 import { queryKeys } from "./query-keys";
 import {
+  ApiRecord,
   Agent,
   AgentApproval,
   AgentSession,
@@ -104,6 +105,19 @@ type KnowledgeInjectionListData = {
   injections: SessionKnowledgeInjection[];
 };
 
+export type UpdateNodeProfileInput = {
+  description?: string;
+  name?: string;
+  user_metadata?: ApiRecord;
+};
+
+export type UpdateAgentProfileInput = {
+  card?: ApiRecord;
+  description?: string;
+  name?: string;
+  user_metadata?: ApiRecord;
+};
+
 export function getHealth() {
   return apiFetch<Health>("/api/v1/health");
 }
@@ -116,6 +130,17 @@ export function getNode(userId: string, nodeId: string) {
   return apiFetch<Node>(userPath(userId, `/nodes/${nodeId}`));
 }
 
+export function updateNodeProfile(
+  userId: string,
+  nodeId: string,
+  input: UpdateNodeProfileInput,
+) {
+  return apiFetch<Node>(userPath(userId, `/nodes/${nodeId}`), {
+    body: JSON.stringify(input),
+    method: "PATCH",
+  });
+}
+
 export function listNodeAgents(userId: string, nodeId: string) {
   return apiFetch<AgentListData>(userPath(userId, `/nodes/${nodeId}/agents`));
 }
@@ -123,6 +148,21 @@ export function listNodeAgents(userId: string, nodeId: string) {
 export function getNodeAgent(userId: string, nodeId: string, agentId: string) {
   return apiFetch<Agent>(
     userPath(userId, `/nodes/${nodeId}/agents/${agentId}`),
+  );
+}
+
+export function updateNodeAgentProfile(
+  userId: string,
+  nodeId: string,
+  agentId: string,
+  input: UpdateAgentProfileInput,
+) {
+  return apiFetch<Agent>(
+    userPath(userId, `/nodes/${nodeId}/agents/${agentId}`),
+    {
+      body: JSON.stringify(input),
+      method: "PATCH",
+    },
   );
 }
 

@@ -12,6 +12,12 @@
           "capabilities": {
             "type": "object"
           },
+          "card": {
+            "type": "object"
+          },
+          "description": {
+            "type": "string"
+          },
           "last_heartbeat": {
             "type": "string"
           },
@@ -35,6 +41,9 @@
           },
           "status": {
             "type": "string"
+          },
+          "user_metadata": {
+            "type": "object"
           }
         },
         "type": "object"
@@ -286,6 +295,12 @@
           "capabilities": {
             "type": "object"
           },
+          "card": {
+            "type": "object"
+          },
+          "description": {
+            "type": "string"
+          },
           "last_heartbeat": {
             "type": "string"
           },
@@ -503,6 +518,12 @@
           "capabilities": {
             "type": "object"
           },
+          "card": {
+            "type": "object"
+          },
+          "description": {
+            "type": "string"
+          },
           "metadata": {
             "type": "object"
           },
@@ -514,6 +535,9 @@
           },
           "user_id": {
             "type": "string"
+          },
+          "user_metadata": {
+            "type": "object"
           }
         },
         "type": "object"
@@ -1311,6 +1335,9 @@
           "arch": {
             "type": "string"
           },
+          "description": {
+            "type": "string"
+          },
           "hostname": {
             "type": "string"
           },
@@ -1346,6 +1373,9 @@
           },
           "status": {
             "type": "string"
+          },
+          "user_metadata": {
+            "type": "object"
           }
         },
         "type": "object"
@@ -1568,6 +1598,9 @@
           "arch": {
             "type": "string"
           },
+          "description": {
+            "type": "string"
+          },
           "hostname": {
             "type": "string"
           },
@@ -1585,6 +1618,9 @@
           },
           "paxd_version": {
             "type": "string"
+          },
+          "user_metadata": {
+            "type": "object"
           }
         },
         "type": "object"
@@ -2127,6 +2163,52 @@
           },
           "message": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateNodeAgentRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "card": {
+            "type": "object"
+          },
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "user_metadata": {
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateNodeRequest": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "user_metadata": {
+            "type": "object"
           }
         },
         "type": "object"
@@ -5688,6 +5770,110 @@
         "tags": [
           "user"
         ]
+      },
+      "patch": {
+        "description": "Updates user-maintained node name, description, and metadata.",
+        "parameters": [
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNodeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Update node profile",
+        "tags": [
+          "user"
+        ]
       }
     },
     "/api/v1/user/{user_id}/nodes/{node_id}/agents": {
@@ -6010,6 +6196,119 @@
           }
         ],
         "summary": "Get node agent",
+        "tags": [
+          "user"
+        ]
+      },
+      "patch": {
+        "description": "Updates user-maintained agent name, description, card, and metadata.",
+        "parameters": [
+          {
+            "description": "Agent identifier.",
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNodeAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Update node agent profile",
         "tags": [
           "user"
         ]

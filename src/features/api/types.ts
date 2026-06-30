@@ -13,6 +13,7 @@ export type User = {
 export type Node = {
   node_id: string;
   name?: string;
+  description?: string;
   hostname?: string;
   os?: string;
   arch?: string;
@@ -24,6 +25,7 @@ export type Node = {
   last_heartbeat?: string;
   registered_at?: string;
   metadata?: ApiRecord;
+  user_metadata?: ApiRecord;
 };
 
 export type Health = {
@@ -35,14 +37,17 @@ export type Agent = {
   node_id: string;
   owner_user_id?: string;
   name?: string;
+  description?: string;
   hostname?: string;
   agent_type?: string;
   machine_type?: string;
   os?: string;
   status?: string;
   online?: boolean;
+  card?: ApiRecord;
   capabilities?: ApiRecord;
   metadata?: ApiRecord;
+  user_metadata?: ApiRecord;
   last_heartbeat?: string;
   registered_at?: string;
 };
