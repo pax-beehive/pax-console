@@ -496,6 +496,52 @@ session_info_update -> run_status
 未知或控制类 update -> 忽略，不渲染为 timeline 正文
 ```
 
+ACP permission prompt 不是 `session/update`，而是 agent 发给 client 的
+JSON-RPC request：
+
+```txt
+method: session/request_permission
+params.sessionId
+params.toolCall
+params.options[]，每个 option 使用 optionId / name / kind
+```
+
+manager-side conversation stream 会先发 `approval_required`，再发
+`interrupted`，其中 `reason=permission_required`。Session workbench 会把
+这个中断展示成 permission card。用户点击决策后，前端先调用：
+
+```txt
+POST /api/v1/user/{user_id}/approvals/{approval_id}/decision
+```
+
+固定 `decision_option` 为：
+
+```txt
+deny
+allow_once
+allow_for_this_agent
+allow_for_this_node
+allow_always_on_all_agents
+```
+
+前端不要传 `resume_reason`，也不要用 `native_id` resume；`native_id` 是底层
+ACP permission request id，由后端内部使用。如果 conversation event 里的
+`approval.options` 暂时包含 `allow_for_this_session` 或
+`allow_always_on_this_node` 这类旧名字，workbench 仍只按上面的 decision API
+allowlist 提交。
+
+decision 成功后，workbench 会重新打开当前 conversation stream，并发送：
+
+```json
+{
+  "session_id": "sess_*",
+  "resume": { "approval_id": "appr_*" }
+}
+```
+
+PAX Manager 负责把已决定的 approval 转回原始 ACP permission request 的
+JSON-RPC response。
+
 chunk 合并在 `src/features/runtime/merge-session-events.ts`，不是在 React JSX 里做。组件只渲染归一化后的 SessionEvent。
 
 这里有两个 session，不要混淆：
@@ -513,7 +559,6 @@ ACP/native session
 ```txt
 更多 ACP session/update 类型覆盖
 中断 / stop 协议
-approval event 和 approvals REST inbox 的联动
 重连后 REST history refetch 补洞
 ```
 

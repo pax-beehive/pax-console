@@ -1,0 +1,257 @@
+import { describe, expect, it } from "vitest";
+import { mergeEvents } from "./merge-session-events";
+import { SessionEvent } from "./session-events";
+
+describe("mergeEvents", () => {
+  it("keeps tool calls between assistant message streaming segments", () => {
+    const events: SessionEvent[] = [
+      {
+        type: "agent_message",
+        id: "sess_1:agent_message_chunk:turn_1",
+        sessionId: "sess_1",
+        content: "我先跑一下：",
+        streaming: true,
+        sessionUpdate: "agent_message_chunk",
+        createdAt: "2026-06-29T18:00:00.000Z",
+      },
+      {
+        type: "tool_call",
+        id: "sess_1:tool:tc_1",
+        sessionId: "sess_1",
+        name: "terminal: pnpm test",
+        status: "running",
+        toolCallId: "tc_1",
+        createdAt: "2026-06-29T18:00:01.000Z",
+      },
+      {
+        type: "agent_message",
+        id: "sess_1:agent_message_chunk:turn_1",
+        sessionId: "sess_1",
+        content: "跑完了，继续解释。",
+        streaming: true,
+        sessionUpdate: "agent_message_chunk",
+        createdAt: "2026-06-29T18:00:02.000Z",
+      },
+      {
+        type: "tool_call",
+        id: "sess_1:tool:tc_1",
+        sessionId: "sess_1",
+        name: "tc_1",
+        status: "done",
+        toolCallId: "tc_1",
+        output: [{ content: { text: "ok", type: "text" }, type: "content" }],
+        createdAt: "2026-06-29T18:00:03.000Z",
+      },
+    ];
+
+    const merged = mergeEvents(events);
+
+    expect(merged).toMatchObject([
+      {
+        type: "agent_message",
+        id: "sess_1:agent_message_chunk:turn_1",
+        content: "我先跑一下：",
+      },
+      {
+        type: "tool_call",
+        id: "sess_1:tool:tc_1",
+        name: "terminal: pnpm test",
+        status: "done",
+        output: [{ content: { text: "ok", type: "text" }, type: "content" }],
+      },
+      {
+        type: "agent_message",
+        id: "sess_1:agent_message_chunk:turn_1:segment:1",
+        content: "跑完了，继续解释。",
+      },
+    ]);
+  });
+
+  it("keeps tool calls between thought streaming segments", () => {
+    const events: SessionEvent[] = [
+      {
+        type: "progress",
+        id: "sess_1:agent_thought_chunk:turn_1",
+        sessionId: "sess_1",
+        content: "先分析一下。",
+        streaming: true,
+        sessionUpdate: "agent_thought_chunk",
+        createdAt: "2026-06-29T18:00:00.000Z",
+      },
+      {
+        type: "tool_call",
+        id: "sess_1:tool:tc_1",
+        sessionId: "sess_1",
+        name: "terminal: pnpm test",
+        status: "running",
+        toolCallId: "tc_1",
+        createdAt: "2026-06-29T18:00:01.000Z",
+      },
+      {
+        type: "progress",
+        id: "sess_1:agent_thought_chunk:turn_1",
+        sessionId: "sess_1",
+        content: "工具回来后继续想。",
+        streaming: true,
+        sessionUpdate: "agent_thought_chunk",
+        createdAt: "2026-06-29T18:00:02.000Z",
+      },
+      {
+        type: "tool_call",
+        id: "sess_1:tool:tc_1",
+        sessionId: "sess_1",
+        name: "terminal: pnpm test",
+        status: "done",
+        toolCallId: "tc_1",
+        output: [{ content: { text: "ok", type: "text" }, type: "content" }],
+        createdAt: "2026-06-29T18:00:03.000Z",
+      },
+    ];
+
+    const merged = mergeEvents(events);
+
+    expect(merged).toMatchObject([
+      {
+        type: "progress",
+        id: "sess_1:agent_thought_chunk:turn_1",
+        content: "先分析一下。",
+      },
+      {
+        type: "tool_call",
+        id: "sess_1:tool:tc_1",
+        status: "done",
+      },
+      {
+        type: "progress",
+        id: "sess_1:agent_thought_chunk:turn_1:segment:1",
+        content: "工具回来后继续想。",
+      },
+    ]);
+  });
+
+  it("does not split thought chunks around hidden runtime events", () => {
+    const events: SessionEvent[] = [
+      {
+        type: "progress",
+        id: "sess_1:agent_thought_chunk:turn_1",
+        sessionId: "sess_1",
+        content: "先想一下。",
+        streaming: true,
+        sessionUpdate: "agent_thought_chunk",
+        createdAt: "2026-06-29T18:00:00.000Z",
+      },
+      {
+        type: "token_usage",
+        id: "sess_1:usage:thought",
+        sessionId: "sess_1",
+        totalTokens: 256,
+        createdAt: "2026-06-29T18:00:01.000Z",
+      },
+      {
+        type: "progress",
+        id: "sess_1:agent_thought_chunk:turn_1",
+        sessionId: "sess_1",
+        content: "继续想。",
+        streaming: true,
+        sessionUpdate: "agent_thought_chunk",
+        createdAt: "2026-06-29T18:00:02.000Z",
+      },
+    ];
+
+    const merged = mergeEvents(events);
+
+    expect(merged).toMatchObject([
+      {
+        type: "progress",
+        id: "sess_1:agent_thought_chunk:turn_1",
+        content: "先想一下。继续想。",
+      },
+      {
+        type: "token_usage",
+        totalTokens: 256,
+      },
+    ]);
+  });
+
+  it("does not split message chunks around hidden runtime events", () => {
+    const events: SessionEvent[] = [
+      {
+        type: "agent_message",
+        id: "sess_1:agent_message_chunk:turn_1",
+        sessionId: "sess_1",
+        content: "第一段",
+        streaming: true,
+        sessionUpdate: "agent_message_chunk",
+        createdAt: "2026-06-29T18:00:00.000Z",
+      },
+      {
+        type: "token_usage",
+        id: "sess_1:usage:1",
+        sessionId: "sess_1",
+        totalTokens: 128,
+        createdAt: "2026-06-29T18:00:01.000Z",
+      },
+      {
+        type: "run_status",
+        id: "sess_1:status:1",
+        sessionId: "sess_1",
+        status: "running",
+        createdAt: "2026-06-29T18:00:02.000Z",
+      },
+      {
+        type: "agent_message",
+        id: "sess_1:agent_message_chunk:turn_1",
+        sessionId: "sess_1",
+        content: "第二段",
+        streaming: true,
+        sessionUpdate: "agent_message_chunk",
+        createdAt: "2026-06-29T18:00:03.000Z",
+      },
+    ];
+
+    const merged = mergeEvents(events);
+
+    expect(merged).toMatchObject([
+      {
+        type: "agent_message",
+        id: "sess_1:agent_message_chunk:turn_1",
+        content: "第一段第二段",
+      },
+      {
+        type: "token_usage",
+        totalTokens: 128,
+      },
+      {
+        type: "run_status",
+        status: "running",
+      },
+    ]);
+  });
+
+  it("preserves input order instead of sorting by timestamps", () => {
+    const events: SessionEvent[] = [
+      {
+        type: "agent_message",
+        id: "message-later-time",
+        sessionId: "sess_1",
+        content: "first from history",
+        createdAt: "2026-06-29T18:00:02.000Z",
+      },
+      {
+        type: "tool_call",
+        id: "tool-earlier-time",
+        sessionId: "sess_1",
+        name: "terminal: echo ok",
+        status: "done",
+        createdAt: "2026-06-29T18:00:01.000Z",
+      },
+    ];
+
+    const merged = mergeEvents(events);
+
+    expect(merged.map((event) => event.id)).toEqual([
+      "message-later-time",
+      "tool-earlier-time",
+    ]);
+  });
+});
