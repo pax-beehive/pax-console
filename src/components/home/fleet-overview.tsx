@@ -1,34 +1,138 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { FormEvent, useMemo, useRef, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
 import {
+  Archive,
   AlertCircle,
+  ArrowUp,
   Bot,
-  Server,
+  ChevronDown,
+  Image as ImageIcon,
+  Inbox,
+  ListFilter,
+  MessageSquare,
+  Mic,
+  MoreHorizontal,
+  Paperclip,
+  Plus,
+  Radio,
   ShieldCheck,
+  Sparkles,
   TerminalSquare,
   Users,
+  X,
 } from "lucide-react";
 import { ConsoleLayout } from "@/components/shell/console-layout";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { TruncatedText } from "@/components/ui/text";
 import {
+  listAgentSessions,
   listNodeAgents,
-  useAgentSessions,
+  useApprovals,
+  useEnvelopes,
   useNodes,
+  useTeamInvites,
 } from "@/features/api/resources";
 import { queryKeys } from "@/features/api/query-keys";
-import { Agent, Node, User } from "@/features/api/types";
+import {
+  Agent,
+  AgentApproval,
+  AgentSession,
+  Envelope,
+  Node,
+  TeamInvite,
+  User,
+} from "@/features/api/types";
 import { compactId } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 type FleetOverviewProps = {
   user: User;
 };
 
+type WorkItemKind =
+  | "approval"
+  | "envelope"
+  | "inquiry"
+  | "invite"
+  | "session"
+  | "system";
+type InboxFilter = "all" | "inquiries" | "needs-action" | "sessions";
+type InboxOrder = "recent" | "priority";
+type ComposerMode = "clean" | "comment-draft" | "summarize-note";
+type InquiryState = "draft-ready" | "needs-draft" | "needs-summary";
+
+type InquiryTurn = {
+  body: string;
+  speaker: string;
+};
+
+type WorkItem = {
+  actionHref?: string;
+  actionLabel: string;
+  agentId?: string;
+  background?: string;
+  context: string;
+  createdAt?: string;
+  detail: string;
+  draft?: string;
+  href: string;
+  id: string;
+  inquiryState?: InquiryState;
+  kind: WorkItemKind;
+  nodeId?: string;
+  ownerAlias?: string;
+  priority: "high" | "medium" | "low";
+  question?: string;
+  conversationTurns?: InquiryTurn[];
+  source: string;
+  title: string;
+};
+
+const inboxFilters: Array<{ label: string; value: InboxFilter }> = [
+  { label: "All", value: "all" },
+  { label: "Inquiries", value: "inquiries" },
+  { label: "Needs action", value: "needs-action" },
+  { label: "Sessions", value: "sessions" },
+];
+
+const inboxOrders: Array<{ label: string; value: InboxOrder }> = [
+  { label: "Recent", value: "recent" },
+  { label: "Priority", value: "priority" },
+];
+
+const kindIcon: Record<WorkItemKind, React.ReactNode> = {
+  approval: <ShieldCheck className="h-4 w-4" />,
+  envelope: <Inbox className="h-4 w-4" />,
+  inquiry: <MessageSquare className="h-4 w-4" />,
+  invite: <Users className="h-4 w-4" />,
+  session: <TerminalSquare className="h-4 w-4" />,
+  system: <Radio className="h-4 w-4" />,
+};
+
 export function FleetOverview({ user }: FleetOverviewProps) {
-  // Overview loads progressively: user -> nodes -> all node agents -> active
-  // agent sessions. For now "active" means the first available item; the
-  // Zustand store is already in place for explicit selection once the UI needs it.
+  const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [composerMode, setComposerMode] = useState<ComposerMode>("clean");
+  const [draft, setDraft] = useState("");
+  const [generatedDrafts, setGeneratedDrafts] = useState<
+    Record<string, string>
+  >({});
+  const [approveAllTools, setApproveAllTools] = useState(false);
+  const [attachmentName, setAttachmentName] = useState("");
+  const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
+  const [archivedWorkItemIds, setArchivedWorkItemIds] = useState<string[]>([]);
+  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
+  const [inboxFilter, setInboxFilter] = useState<InboxFilter>("all");
+  const [inboxOrder, setInboxOrder] = useState<InboxOrder>("recent");
+  const [contextClosed, setContextClosed] = useState(false);
+  const [orderMenuOpen, setOrderMenuOpen] = useState(false);
+  const [selectedWorkItemId, setSelectedWorkItemId] = useState("");
+
   const nodesQuery = useNodes(user.user_id);
   const nodes = sortOnlineFirst(
     nodesQuery.data?.nodes ?? [],
@@ -47,17 +151,116 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     (agent) => agent.online,
     (agent) => agent.name ?? agent.agent_type ?? agent.agent_id,
   );
-  const activeAgent = agents[0];
+  const [selectedAgentId, setSelectedAgentId] = useState("");
+  const activeAgent =
+    agents.find((agent) => agent.agent_id === selectedAgentId) ?? agents[0];
   const activeNode =
     nodes.find((node) => node.node_id === activeAgent?.node_id) ?? nodes[0];
   const agentsLoading =
     nodesQuery.isLoading || agentQueries.some((query) => query.isLoading);
-  const sessionsQuery = useAgentSessions(
-    user.user_id,
-    activeNode?.node_id,
-    activeAgent?.agent_id,
+
+  const sessionQueries = useQueries({
+    queries: agents.slice(0, 8).map((agent) => ({
+      queryKey: queryKeys.sessions(user.user_id, agent.node_id, agent.agent_id),
+      queryFn: () =>
+        listAgentSessions(user.user_id, agent.node_id, agent.agent_id),
+      enabled: Boolean(user.user_id && agent.node_id && agent.agent_id),
+    })),
+  });
+  const sessions = useMemo(
+    () =>
+      byRecent(
+        sessionQueries.flatMap((query) => query.data?.sessions ?? []),
+        sessionTimestamp,
+      ).slice(0, 6),
+    [sessionQueries],
   );
-  const sessions = sessionsQuery.data?.sessions ?? [];
+  const approvalsQuery = useApprovals(user.user_id);
+  const envelopesQuery = useEnvelopes(user.user_id, {
+    direction: "received",
+    status: "pending",
+  });
+  const invitesQuery = useTeamInvites(user.user_id);
+  const showMockInquiries = canShowMockInquiries(user);
+
+  const workItems = useMemo(
+    () =>
+      buildWorkItems({
+        agents,
+        approvals: approvalsQuery.data?.approvals ?? [],
+        envelopes: envelopesQuery.data?.envelopes ?? [],
+        invites: invitesQuery.data?.invites ?? [],
+        nodes,
+        showMockInquiries,
+        sessions,
+      }),
+    [
+      agents,
+      approvalsQuery.data?.approvals,
+      envelopesQuery.data?.envelopes,
+      invitesQuery.data?.invites,
+      nodes,
+      showMockInquiries,
+      sessions,
+    ],
+  );
+  const activeWorkItems = useMemo(
+    () => removeArchivedWorkItems(workItems, archivedWorkItemIds),
+    [archivedWorkItemIds, workItems],
+  );
+  const visibleWorkItems = useMemo(
+    () => filterAndOrderWorkItems(activeWorkItems, inboxFilter, inboxOrder),
+    [activeWorkItems, inboxFilter, inboxOrder],
+  );
+  const selectedWorkItem =
+    visibleWorkItems.find((item) => item.id === selectedWorkItemId) ??
+    visibleWorkItems[0];
+  const composerContextItem = contextClosed ? undefined : selectedWorkItem;
+  const selectedGeneratedDraft = composerContextItem
+    ? generatedDrafts[composerContextItem.id]
+    : undefined;
+  const selectedInquiry =
+    composerContextItem?.kind === "inquiry" ? composerContextItem : undefined;
+  const needsActionCount = activeWorkItems.filter(
+    (item) => item.kind !== "session",
+  ).length;
+  const apiError =
+    nodesQuery.error ??
+    firstQueryError(agentQueries) ??
+    firstQueryError(sessionQueries) ??
+    approvalsQuery.error ??
+    envelopesQuery.error ??
+    invitesQuery.error ??
+    null;
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (composerMode === "summarize-note" && selectedInquiry) {
+      setGeneratedDrafts((current) => ({
+        ...current,
+        [selectedInquiry.id]: draftFromInquiry(selectedInquiry, draft),
+      }));
+      setComposerMode("clean");
+      setDraft("");
+      return;
+    }
+
+    if (composerMode === "comment-draft" && selectedInquiry) {
+      setComposerMode("clean");
+      setDraft("");
+      return;
+    }
+
+    if (!activeAgent?.agent_id || !activeAgent.node_id) {
+      return;
+    }
+
+    const params = new URLSearchParams({
+      agentId: activeAgent.agent_id,
+      nodeId: activeAgent.node_id,
+    });
+    router.push(`/sessions/new?${params.toString()}`);
+  }
 
   return (
     <ConsoleLayout
@@ -66,178 +269,749 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       nodes={nodes}
       user={user}
     >
-      <div className="grid gap-0">
-        <section className="border-b border-hairline px-5 py-4">
-          <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div className="flex h-[calc(100vh-var(--topbar-h))] min-h-0 flex-col overflow-hidden bg-canvas">
+        <header className="border-b border-hairline bg-surface-1 px-5 py-4">
+          <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0">
-              <div className="text-xs text-ink-tertiary">Fleet</div>
-              <h1 className="mt-1 text-2xl font-semibold tracking-normal">
-                Workbench
-              </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-subtle">
-                A compact entry point for runtime work, collaboration, and
-                human review.
-              </p>
+              <div className="flex items-center gap-2 text-xs text-ink-tertiary">
+                <Sparkles className="h-4 w-4" />
+                Home
+              </div>
+              <h1 className="mt-2 text-2xl font-semibold">Workbench</h1>
             </div>
-
             <div className="grid min-w-0 gap-2 sm:grid-cols-3 lg:w-[520px]">
-              <MetricCard
-                icon={<Server className="h-4 w-4" />}
-                label="Nodes"
-                value={loadingValue(nodesQuery.isLoading, nodes.length)}
-                sub={`${nodes.filter((node) => node.online).length} online`}
+              <Metric
+                icon={<Inbox className="h-4 w-4" />}
+                label="Inbox"
+                value={loadingValue(
+                  approvalsQuery.isLoading || envelopesQuery.isLoading,
+                  needsActionCount,
+                )}
               />
-              <MetricCard
+              <Metric
+                icon={<TerminalSquare className="h-4 w-4" />}
+                label="Sessions"
+                value={loadingValue(
+                  sessionQueries.some((query) => query.isLoading),
+                  sessions.length,
+                )}
+              />
+              <Metric
                 icon={<Bot className="h-4 w-4" />}
                 label="Agents"
                 value={loadingValue(agentsLoading, agents.length)}
-                sub={`${nodes.length} nodes scanned`}
-              />
-              <MetricCard
-                icon={<TerminalSquare className="h-4 w-4" />}
-                label="Sessions"
-                value={loadingValue(sessionsQuery.isLoading, sessions.length)}
-                sub={activeAgent?.agent_id ?? "No agent selected"}
               />
             </div>
           </div>
-        </section>
+        </header>
 
-        <ApiState
-          error={
-            nodesQuery.error ??
-            firstQueryError(agentQueries) ??
-            sessionsQuery.error ??
-            null
-          }
-        />
+        {apiError && <ApiState error={apiError} />}
 
-        <div className="grid min-w-0 gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_360px]">
-          <section className="grid content-start gap-3">
-            <div className="text-sm font-medium text-ink">Workspaces</div>
-            <div className="grid overflow-hidden rounded-lg border border-hairline">
-              <WorkspaceLink
-                description="Nodes, agents, sessions, approvals, and health in one operational workspace."
-                href="/nodes"
-                icon={<Server className="h-4 w-4" />}
-                label="Runtime"
-              />
-              <WorkspaceLink
-                description="Jump directly into recent agent sessions and continue work."
-                href="/sessions"
-                icon={<TerminalSquare className="h-4 w-4" />}
-                label="Sessions"
-              />
-              <WorkspaceLink
-                description="Teams, friends, envelopes, and reusable knowledge handoff."
-                href="/teams?view=teams"
-                icon={<Users className="h-4 w-4" />}
-                label="Collaboration"
-              />
-              <WorkspaceLink
-                description="Review pending human decisions and approval grants."
-                href="/approvals"
-                icon={<ShieldCheck className="h-4 w-4" />}
-                label="Approvals"
-              />
+        <main className="grid min-h-0 flex-1 overflow-hidden lg:grid-cols-[minmax(320px,420px)_minmax(0,1fr)]">
+          <section className="min-h-0 overflow-auto border-b border-hairline bg-surface-1 lg:border-b-0 lg:border-r">
+            <div className="sticky top-0 z-10 border-b border-hairline bg-surface-1 px-4 py-3">
+              <div className="flex min-w-0 items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <div className="text-sm font-medium">Inbox queue</div>
+                    <Badge className="max-w-24">
+                      {visibleWorkItems.length}
+                    </Badge>
+                  </div>
+                  <div className="mt-1 text-xs text-ink-tertiary">
+                    {filterLabel(inboxFilter)} · {orderLabel(inboxOrder)}
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  <InboxMenu
+                    icon={<ListFilter className="h-4 w-4" />}
+                    label="Filter by"
+                    onOpenChange={setFilterMenuOpen}
+                    open={filterMenuOpen}
+                    options={inboxFilters}
+                    selectedValue={inboxFilter}
+                    onSelect={(value) => {
+                      setInboxFilter(value as InboxFilter);
+                      setFilterMenuOpen(false);
+                      setSelectedWorkItemId("");
+                      setContextClosed(false);
+                      setComposerMode("clean");
+                    }}
+                  />
+                  <InboxMenu
+                    icon={<MoreHorizontal className="h-4 w-4 rotate-90" />}
+                    label="Order by"
+                    onOpenChange={setOrderMenuOpen}
+                    open={orderMenuOpen}
+                    options={inboxOrders}
+                    selectedValue={inboxOrder}
+                    onSelect={(value) => {
+                      setInboxOrder(value as InboxOrder);
+                      setOrderMenuOpen(false);
+                      setSelectedWorkItemId("");
+                      setContextClosed(false);
+                      setComposerMode("clean");
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="grid">
+              {visibleWorkItems.map((item) => (
+                <WorkItemRow
+                  item={item}
+                  key={item.id}
+                  onSelect={() => {
+                    setSelectedWorkItemId(item.id);
+                    setContextClosed(false);
+                    setComposerMode("clean");
+                  }}
+                  selected={item.id === selectedWorkItem?.id}
+                />
+              ))}
+              {visibleWorkItems.length === 0 && (
+                <div className="p-4 text-sm text-ink-tertiary">
+                  No items match this view.
+                </div>
+              )}
             </div>
           </section>
 
-          <aside className="grid content-start gap-3">
-            <div className="text-sm font-medium text-ink">Current context</div>
-            <div className="grid rounded-lg border border-hairline bg-surface-1 p-3">
-              <ContextLine
-                label="Node"
-                value={activeNode?.name ?? activeNode?.hostname ?? "No node"}
-              />
-              <ContextLine
-                label="Agent"
-                value={
-                  activeAgent?.name ??
-                  activeAgent?.agent_type ??
-                  "No agent selected"
-                }
-              />
-              <ContextLine
-                label="Recent sessions"
-                value={loadingValue(sessionsQuery.isLoading, sessions.length)}
-              />
+          <section className="flex min-h-0 min-w-0 flex-col overflow-hidden">
+            <div className="min-h-0 flex-1 overflow-auto p-5">
+              <div className="mx-auto grid w-full max-w-4xl gap-4">
+                <SelectedContext
+                  generatedDraft={selectedGeneratedDraft}
+                  item={composerContextItem}
+                  onArchive={() => {
+                    if (composerContextItem) {
+                      setArchivedWorkItemIds((current) => [
+                        ...current,
+                        composerContextItem.id,
+                      ]);
+                    }
+                    setContextClosed(false);
+                    setAttachmentName("");
+                    setComposerMode("clean");
+                    setDraft("");
+                  }}
+                  onCommentOnDraft={() => {
+                    setComposerMode("comment-draft");
+                    setDraft("");
+                  }}
+                  onClose={() => {
+                    setContextClosed(true);
+                    setAttachmentName("");
+                    setComposerMode("clean");
+                    setDraft("");
+                  }}
+                  onGenerateDraft={() => {
+                    if (selectedInquiry) {
+                      setGeneratedDrafts((current) => ({
+                        ...current,
+                        [selectedInquiry.id]: draftFromInquiry(
+                          selectedInquiry,
+                          "",
+                        ),
+                      }));
+                    }
+                  }}
+                  onSummarizeWithNote={() => {
+                    setComposerMode("summarize-note");
+                    setDraft("");
+                  }}
+                />
+              </div>
             </div>
-          </aside>
-        </div>
+
+            <form
+              className="border-t border-hairline bg-surface-1 p-3"
+              onSubmit={submit}
+            >
+              <div className="mx-auto w-full max-w-4xl rounded-[22px] border border-hairline bg-surface-2 px-3 py-2 shadow-lg shadow-black/20">
+                <ComposerModeHint
+                  mode={composerMode}
+                  onClear={() => {
+                    setComposerMode("clean");
+                    setDraft("");
+                  }}
+                />
+                <textarea
+                  className="max-h-40 min-h-14 w-full resize-none bg-transparent px-1 py-1 text-sm leading-6 text-ink outline-none placeholder:text-ink-tertiary"
+                  onChange={(event) => setDraft(event.target.value)}
+                  placeholder={composerPlaceholder(composerMode)}
+                  value={draft}
+                />
+                <div className="flex min-w-0 items-center gap-2">
+                  <div className="relative">
+                    <Button
+                      icon={<Plus className="h-4 w-4" />}
+                      onClick={() => setAttachmentMenuOpen((open) => !open)}
+                      size="icon"
+                      tooltip="Add context or upload image"
+                      type="button"
+                      variant="ghost"
+                    />
+                    {attachmentMenuOpen && (
+                      <div className="absolute bottom-11 left-0 z-20 grid w-52 overflow-hidden rounded-lg border border-hairline bg-surface-1 shadow-xl shadow-black/30">
+                        <button
+                          className="flex min-h-9 items-center gap-2 px-3 text-left text-sm text-ink-muted hover:bg-surface-2 hover:text-ink"
+                          onClick={() => {
+                            fileInputRef.current?.click();
+                            setAttachmentMenuOpen(false);
+                          }}
+                          type="button"
+                        >
+                          <ImageIcon className="h-4 w-4" />
+                          Upload image
+                        </button>
+                        <button
+                          className="flex min-h-9 items-center gap-2 px-3 text-left text-sm text-ink-muted hover:bg-surface-2 hover:text-ink"
+                          onClick={() => {
+                            if (selectedInquiry) {
+                              setComposerMode("summarize-note");
+                              setAttachmentName("summarize note");
+                            }
+                            setAttachmentMenuOpen(false);
+                          }}
+                          disabled={!selectedInquiry}
+                          type="button"
+                        >
+                          <Paperclip className="h-4 w-4" />
+                          Summarize with note
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <input
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(event) =>
+                      setAttachmentName(event.target.files?.[0]?.name ?? "")
+                    }
+                    ref={fileInputRef}
+                    type="file"
+                  />
+                  <button
+                    className={cn(
+                      "inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg px-2.5 text-sm transition",
+                      approveAllTools
+                        ? "bg-success/10 text-success"
+                        : "text-primary-hover hover:bg-surface-3",
+                    )}
+                    onClick={() => setApproveAllTools((approved) => !approved)}
+                    type="button"
+                  >
+                    <ShieldCheck className="h-4 w-4" />
+                    <span className="hidden sm:inline">
+                      Approve for all tool calls
+                    </span>
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </button>
+                  {attachmentName && (
+                    <Badge className="max-w-40" tooltip={attachmentName}>
+                      {attachmentName}
+                    </Badge>
+                  )}
+                  <div className="min-w-0 flex-1" />
+                  <AgentSelector
+                    agents={agents}
+                    selectedAgentId={activeAgent?.agent_id}
+                    onChange={setSelectedAgentId}
+                  />
+                  <Button
+                    disabled
+                    icon={<Mic className="h-4 w-4" />}
+                    size="icon"
+                    tooltip="Voice input is not available yet"
+                    type="button"
+                    variant="ghost"
+                  />
+                  <Button
+                    disabled={!activeAgent?.agent_id}
+                    icon={<ArrowUp className="h-5 w-5" />}
+                    size="icon"
+                    tooltip="Start session"
+                    type="submit"
+                    variant="primary"
+                  />
+                </div>
+              </div>
+            </form>
+          </section>
+        </main>
       </div>
     </ConsoleLayout>
   );
 }
 
-function MetricCard({
+function WorkItemRow({
+  item,
+  onSelect,
+  selected,
+}: {
+  item: WorkItem;
+  onSelect: () => void;
+  selected: boolean;
+}) {
+  return (
+    <button
+      className={cn(
+        "grid min-w-0 gap-2 border-b border-hairline px-4 py-3 text-left transition hover:bg-surface-2",
+        selected ? "bg-surface-2" : "bg-surface-1",
+      )}
+      onClick={onSelect}
+      type="button"
+    >
+      <div className="flex min-w-0 items-start gap-3">
+        <span
+          className={cn(
+            "mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border",
+            item.priority === "high"
+              ? "border-warning/30 bg-warning/10 text-warning"
+              : "border-hairline bg-canvas text-ink-subtle",
+          )}
+        >
+          {kindIcon[item.kind]}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <TruncatedText className="text-sm font-medium text-ink">
+              {item.title}
+            </TruncatedText>
+            <Badge
+              className="max-w-24"
+              tone={item.priority === "high" ? "warning" : "neutral"}
+            >
+              {item.kind}
+            </Badge>
+          </div>
+          <TruncatedText className="mt-1 text-xs text-ink-tertiary">
+            {item.source} · {relativeTime(item.createdAt)}
+          </TruncatedText>
+        </div>
+        <MoreHorizontal className="mt-1 h-4 w-4 shrink-0 text-ink-tertiary" />
+      </div>
+      <div className="flex min-w-0 items-center justify-between gap-3 pl-10">
+        <TruncatedText className="text-xs text-ink-subtle">
+          {item.context}
+        </TruncatedText>
+        <span className="shrink-0 text-xs text-primary-hover">
+          {item.actionLabel}
+        </span>
+      </div>
+    </button>
+  );
+}
+
+function InboxMenu({
+  icon,
+  label,
+  onOpenChange,
+  onSelect,
+  open,
+  options,
+  selectedValue,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onOpenChange: (open: boolean) => void;
+  onSelect: (value: string) => void;
+  open: boolean;
+  options: Array<{ label: string; value: string }>;
+  selectedValue: string;
+}) {
+  const selected = options.find((option) => option.value === selectedValue);
+
+  return (
+    <div className="relative">
+      <Button
+        icon={icon}
+        onClick={() => onOpenChange(!open)}
+        size="icon"
+        tooltip={`${label}: ${selected?.label ?? selectedValue}`}
+        type="button"
+        variant="ghost"
+      />
+      {open && (
+        <div className="absolute right-0 top-10 z-20 grid w-44 overflow-hidden rounded-lg border border-hairline bg-surface-1 shadow-xl shadow-black/30">
+          <div className="border-b border-hairline px-3 py-2 text-xs text-ink-tertiary">
+            {label}
+          </div>
+          {options.map((option) => (
+            <button
+              className={cn(
+                "flex min-h-9 items-center justify-between gap-3 px-3 text-left text-sm transition hover:bg-surface-2 hover:text-ink",
+                option.value === selectedValue ? "text-ink" : "text-ink-muted",
+              )}
+              key={option.value}
+              onClick={() => onSelect(option.value)}
+              type="button"
+            >
+              <span>{option.label}</span>
+              {option.value === selectedValue && (
+                <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ComposerModeHint({
+  mode,
+  onClear,
+}: {
+  mode: ComposerMode;
+  onClear: () => void;
+}) {
+  if (mode === "clean") {
+    return (
+      <div className="mb-1 px-1 text-xs text-ink-tertiary">Clean session</div>
+    );
+  }
+
+  return (
+    <div className="mb-2 flex min-w-0 items-center gap-2 rounded-2xl border border-hairline bg-canvas px-3 py-2">
+      <div className="min-w-0 flex-1">
+        <div className="text-[11px] uppercase tracking-wide text-ink-tertiary">
+          {mode === "summarize-note"
+            ? "Summarize with note"
+            : "Comment on draft"}
+        </div>
+        <div className="text-sm text-ink-muted">
+          {mode === "summarize-note"
+            ? "Add notes to guide the generated draft."
+            : "Tell the agent what to change in the draft."}
+        </div>
+      </div>
+      <Button
+        icon={<X className="h-4 w-4" />}
+        onClick={onClear}
+        size="icon"
+        tooltip="Remove context from composer"
+        type="button"
+        variant="ghost"
+      />
+    </div>
+  );
+}
+
+function SelectedContext({
+  generatedDraft,
+  item,
+  onArchive,
+  onCommentOnDraft,
+  onClose,
+  onGenerateDraft,
+  onSummarizeWithNote,
+}: {
+  generatedDraft?: string;
+  item?: WorkItem;
+  onArchive: () => void;
+  onCommentOnDraft: () => void;
+  onClose: () => void;
+  onGenerateDraft: () => void;
+  onSummarizeWithNote: () => void;
+}) {
+  if (!item) {
+    return (
+      <section className="rounded-lg border border-dashed border-hairline bg-surface-1 p-4">
+        <div className="text-sm font-medium">Clean session</div>
+        <div className="mt-2 text-sm text-ink-tertiary">
+          No inquiry context is attached. The next prompt starts from a blank
+          session with the selected agent.
+        </div>
+      </section>
+    );
+  }
+
+  if (item.kind === "inquiry") {
+    const draft = generatedDraft ?? item.draft;
+    const needsSummary = item.inquiryState === "needs-summary";
+    const statusLabel = draft
+      ? "draft ready"
+      : needsSummary
+        ? "ready to summarize"
+        : "ready to draft";
+    const emptyDraftLabel = needsSummary
+      ? "conversation ready"
+      : "empty session";
+    const emptyDraftText = needsSummary
+      ? "No draft yet. Summarize the conversation into a response draft, or add a note first."
+      : "No draft yet. This inquiry has no conversation yet, so generate a draft from the background and question.";
+
+    return (
+      <section className="grid gap-4 rounded-lg border border-hairline bg-surface-1 p-4">
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-xs text-ink-tertiary">
+              {kindIcon[item.kind]}
+              Inquiry
+            </div>
+            <TruncatedText
+              className="mt-2 text-xl font-medium"
+              tooltip={item.title}
+            >
+              {item.title}
+            </TruncatedText>
+            <TruncatedText className="mt-2 text-sm text-ink-tertiary">
+              {item.context}
+              {item.ownerAlias ? ` · owner ${item.ownerAlias}` : ""}
+            </TruncatedText>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <Badge tone={draft ? "success" : "warning"}>{statusLabel}</Badge>
+            <Button
+              icon={<Archive className="h-4 w-4" />}
+              onClick={onArchive}
+              size="icon"
+              tooltip="Archive inquiry"
+              type="button"
+              variant="ghost"
+            />
+            <Button
+              icon={<X className="h-4 w-4" />}
+              onClick={onClose}
+              size="icon"
+              tooltip="Detach inquiry from composer"
+              type="button"
+              variant="ghost"
+            />
+          </div>
+        </div>
+
+        <div className="grid gap-3 rounded-lg border border-hairline bg-canvas p-3">
+          <div>
+            <div className="text-xs text-ink-tertiary">Background</div>
+            <div className="mt-1 text-sm leading-6 text-ink-muted">
+              {item.background ?? item.detail}
+            </div>
+          </div>
+          <div>
+            <div className="text-xs text-ink-tertiary">Question</div>
+            <div className="mt-1 text-sm leading-6 text-ink">
+              {item.question ?? item.title}
+            </div>
+          </div>
+        </div>
+
+        {item.conversationTurns && item.conversationTurns.length > 0 && (
+          <div className="grid gap-2 rounded-lg border border-hairline bg-canvas p-3">
+            <div className="text-xs text-ink-tertiary">Conversation</div>
+            <div className="grid gap-2">
+              {item.conversationTurns.map((turn, index) => (
+                <div className="grid gap-1" key={`${turn.speaker}-${index}`}>
+                  <div className="text-xs font-medium text-ink-muted">
+                    {turn.speaker}
+                  </div>
+                  <div className="text-sm leading-6 text-ink-muted">
+                    {turn.body}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="grid gap-2 rounded-lg border border-hairline bg-canvas p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-xs text-ink-tertiary">Draft response</div>
+            <Badge>{draft ? "ready" : emptyDraftLabel}</Badge>
+          </div>
+          <div className="text-sm leading-6 text-ink-muted">
+            {draft ?? emptyDraftText}
+          </div>
+        </div>
+
+        <div className="flex min-w-0 flex-wrap gap-2">
+          {draft ? (
+            <>
+              <button
+                className="inline-flex min-h-8 max-w-full shrink-0 items-center gap-2 rounded-lg border border-primary bg-primary px-2.5 text-xs font-medium text-canvas transition hover:bg-primary-hover"
+                type="button"
+              >
+                Send
+              </button>
+              <button
+                className="inline-flex min-h-8 max-w-full shrink-0 items-center gap-2 rounded-lg border border-hairline bg-surface-1 px-2.5 text-xs font-medium text-ink-muted transition hover:border-hairline-strong hover:bg-surface-2 hover:text-ink"
+                onClick={onCommentOnDraft}
+                type="button"
+              >
+                Comment
+              </button>
+            </>
+          ) : (
+            <NoDraftInquiryActions
+              needsSummary={needsSummary}
+              onGenerateDraft={onGenerateDraft}
+              onSummarizeWithNote={onSummarizeWithNote}
+            />
+          )}
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="grid gap-4 rounded-lg border border-hairline bg-surface-1 p-4">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-xs text-ink-tertiary">
+            {kindIcon[item.kind]}
+            Selected context
+          </div>
+          <TruncatedText
+            className="mt-2 text-xl font-medium"
+            tooltip={item.title}
+          >
+            {item.title}
+          </TruncatedText>
+          <TruncatedText className="mt-2 text-sm leading-6 text-ink-muted">
+            {item.detail}
+          </TruncatedText>
+        </div>
+        <Badge tone={item.priority === "high" ? "warning" : "neutral"}>
+          {item.priority}
+        </Badge>
+      </div>
+      <div className="grid gap-2 rounded-lg border border-hairline bg-canvas p-3">
+        <ContextLine label="Source" value={item.source} />
+        <ContextLine label="Context" value={item.context} />
+        <ContextLine label="Suggested action" value={item.actionLabel} />
+        {item.nodeId && (
+          <ContextLine label="Node" value={compactId(item.nodeId)} />
+        )}
+        {item.agentId && (
+          <ContextLine label="Agent" value={compactId(item.agentId)} />
+        )}
+      </div>
+      <div className="flex min-w-0 flex-wrap gap-2">
+        <Link
+          className="inline-flex min-h-8 max-w-full shrink-0 items-center gap-2 rounded-lg border border-hairline bg-surface-1 px-2.5 text-xs font-medium text-ink-muted transition hover:border-hairline-strong hover:bg-surface-2 hover:text-ink"
+          href={item.href}
+        >
+          Open
+        </Link>
+        {item.actionHref && (
+          <Link
+            className="inline-flex min-h-8 max-w-full shrink-0 items-center gap-2 rounded-lg border border-primary bg-primary px-2.5 text-xs font-medium text-canvas transition hover:bg-primary-hover"
+            href={item.actionHref}
+          >
+            {item.actionLabel}
+          </Link>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function NoDraftInquiryActions({
+  needsSummary,
+  onGenerateDraft,
+  onSummarizeWithNote,
+}: {
+  needsSummary: boolean;
+  onGenerateDraft: () => void;
+  onSummarizeWithNote: () => void;
+}) {
+  if (needsSummary) {
+    return (
+      <div className="inline-flex min-h-8 overflow-hidden rounded-lg border border-primary bg-primary text-xs font-medium text-canvas">
+        <button
+          className="inline-flex items-center px-2.5 transition hover:bg-primary-hover"
+          onClick={onGenerateDraft}
+          type="button"
+        >
+          Summarize draft
+        </button>
+        <button
+          className="inline-flex w-8 items-center justify-center border-l border-canvas/20 transition hover:bg-primary-hover"
+          onClick={onSummarizeWithNote}
+          type="button"
+          aria-label="Summarize with note"
+        >
+          <ChevronDown className="h-4 w-4" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      className="inline-flex min-h-8 max-w-full shrink-0 items-center gap-2 rounded-lg border border-primary bg-primary px-2.5 text-xs font-medium text-canvas transition hover:bg-primary-hover"
+      onClick={onGenerateDraft}
+      type="button"
+    >
+      Generate draft
+    </button>
+  );
+}
+
+function AgentSelector({
+  agents,
+  onChange,
+  selectedAgentId,
+}: {
+  agents: Agent[];
+  onChange: (agentId: string) => void;
+  selectedAgentId?: string;
+}) {
+  return (
+    <label className="relative min-w-0">
+      <span className="sr-only">Agent</span>
+      <select
+        className="min-h-9 max-w-44 appearance-none rounded-lg border border-transparent bg-transparent py-1 pl-8 pr-7 text-sm text-ink-muted outline-none transition hover:bg-surface-3 focus:border-hairline-strong"
+        onChange={(event) => onChange(event.target.value)}
+        value={selectedAgentId ?? ""}
+      >
+        {agents.length === 0 && <option value="">No agent</option>}
+        {agents.map((agent) => (
+          <option key={agent.agent_id} value={agent.agent_id}>
+            {agent.name ?? agent.agent_type ?? compactId(agent.agent_id)}
+          </option>
+        ))}
+      </select>
+      <Bot className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-ink-tertiary" />
+      <ChevronDown className="pointer-events-none absolute right-2 top-2.5 h-4 w-4 text-ink-tertiary" />
+    </label>
+  );
+}
+
+function Metric({
   icon,
   label,
   value,
-  sub,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
-  sub: string;
 }) {
   return (
-    <div className="min-w-0 rounded-lg border border-hairline bg-surface-1 px-3 py-2">
+    <div className="min-w-0 rounded-lg border border-hairline bg-canvas px-3 py-2">
       <div className="flex items-center gap-2 text-xs text-ink-tertiary">
         {icon}
         {label}
       </div>
       <div className="mt-1 font-mono text-xl text-ink">{value}</div>
-      <TruncatedText className="mt-1 text-xs text-ink-subtle" tooltip={sub}>
-        {sub.startsWith("node_") || sub.startsWith("agent_") ? compactId(sub) : sub}
-      </TruncatedText>
     </div>
-  );
-}
-
-function WorkspaceLink({
-  description,
-  href,
-  icon,
-  label,
-}: {
-  description: string;
-  href: string;
-  icon: React.ReactNode;
-  label: string;
-}) {
-  return (
-    <Link
-      className="grid min-w-0 gap-1 border-b border-hairline bg-surface-1 px-3 py-3 transition last:border-b-0 hover:bg-surface-2"
-      href={href}
-    >
-      <div className="flex items-center gap-2 text-sm font-medium text-ink">
-        {icon}
-        {label}
-      </div>
-      <TruncatedText className="text-xs text-ink-tertiary">
-        {description}
-      </TruncatedText>
-    </Link>
   );
 }
 
 function ContextLine({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 border-b border-hairline py-3 first:pt-0 last:border-b-0 last:pb-0">
-      <div className="text-xs text-ink-tertiary">{label}</div>
-      <TruncatedText className="mt-1 text-sm text-ink-muted" tooltip={value}>
+    <div className="grid min-w-0 grid-cols-[110px_minmax(0,1fr)] gap-3 text-xs">
+      <div className="text-ink-tertiary">{label}</div>
+      <TruncatedText className="text-ink-muted" tooltip={value}>
         {value}
       </TruncatedText>
     </div>
   );
 }
 
-function ApiState({ error }: { error: Error | null }) {
-  if (!error) {
-    return null;
-  }
-
+function ApiState({ error }: { error: Error }) {
   return (
     <div className="mx-5 mt-4 flex items-start gap-3 rounded-lg border border-hairline bg-surface-1 p-3 text-sm text-ink-muted">
       <AlertCircle className="mt-0.5 h-4 w-4 text-warning" />
@@ -251,25 +1025,388 @@ function ApiState({ error }: { error: Error | null }) {
   );
 }
 
+function buildWorkItems({
+  agents,
+  approvals,
+  envelopes,
+  invites,
+  nodes,
+  showMockInquiries,
+  sessions,
+}: {
+  agents: Agent[];
+  approvals: AgentApproval[];
+  envelopes: Envelope[];
+  invites: TeamInvite[];
+  nodes: Node[];
+  showMockInquiries: boolean;
+  sessions: AgentSession[];
+}) {
+  const agentsById = new Map(agents.map((agent) => [agent.agent_id, agent]));
+  const nodesById = new Map(nodes.map((node) => [node.node_id, node]));
+  const pendingApprovals = approvals.filter(
+    (approval) => (approval.status ?? "pending") === "pending",
+  );
+  const pendingInvites = invites.filter(
+    (invite) => invite.status === "pending",
+  );
+
+  return byRecent(
+    [
+      ...(showMockInquiries ? fakeInquiryWorkItems(agents, nodes) : []),
+      ...pendingApprovals.map((approval): WorkItem => {
+        const agent = approval.request_agent_id
+          ? agentsById.get(approval.request_agent_id)
+          : undefined;
+        const node = approval.request_node_id
+          ? nodesById.get(approval.request_node_id)
+          : undefined;
+
+        return {
+          actionHref: "/approvals",
+          actionLabel: "Review",
+          agentId: approval.request_agent_id,
+          context: [
+            agent?.name ?? approval.request_agent_id,
+            node?.name ?? node?.hostname ?? approval.request_node_id,
+          ]
+            .filter(Boolean)
+            .join(" · "),
+          createdAt: approval.created_at,
+          detail:
+            approval.description ??
+            approval.operation ??
+            "A tool call is waiting for human approval.",
+          href: "/approvals",
+          id: `approval:${approval.approval_id}`,
+          kind: "approval",
+          nodeId: approval.request_node_id,
+          priority: "high",
+          source: approval.domain ?? "Approval request",
+          title: approval.title ?? approval.operation ?? "Approval required",
+        };
+      }),
+      ...envelopes.map(
+        (envelope): WorkItem => ({
+          actionHref: "/envelopes",
+          actionLabel: "Review",
+          context: envelope.message ?? envelope.payload_type,
+          createdAt: envelope.created_at,
+          detail:
+            envelope.message ??
+            "A received envelope can be reviewed from the envelope mailbox.",
+          href: "/envelopes",
+          id: `envelope:${envelope.envelope_id}`,
+          kind: "envelope",
+          priority: "medium",
+          source: envelope.sender_email,
+          title:
+            envelope.payload_type === "knowledge_capsule"
+              ? "Knowledge envelope received"
+              : "Envelope received",
+        }),
+      ),
+      ...pendingInvites.map(
+        (invite): WorkItem => ({
+          actionHref: "/teams?view=teams",
+          actionLabel: "Review",
+          context: `Role: ${invite.role}`,
+          createdAt: invite.created_at,
+          detail: `You were invited to join team ${invite.team_id}.`,
+          href: "/teams?view=teams",
+          id: `invite:${invite.invite_id}`,
+          kind: "invite",
+          priority: "medium",
+          source: invite.email,
+          title: "Team invite",
+        }),
+      ),
+      ...sessions.map((session): WorkItem => {
+        const agent = agentsById.get(session.agent_id);
+        const node = nodesById.get(session.node_id);
+
+        return {
+          actionHref: `/sessions/${session.session_id}?nodeId=${session.node_id}&agentId=${session.agent_id}`,
+          actionLabel: "Resume",
+          agentId: session.agent_id,
+          context: [
+            agent?.name ?? agent?.agent_type ?? session.agent_id,
+            node?.name ?? node?.hostname ?? session.node_id,
+          ].join(" · "),
+          createdAt: sessionTimestamp(session),
+          detail:
+            session.preview ??
+            session.current_task ??
+            "Continue this agent work session.",
+          href: `/sessions/${session.session_id}?nodeId=${session.node_id}&agentId=${session.agent_id}`,
+          id: `session:${session.session_id}`,
+          kind: "session",
+          nodeId: session.node_id,
+          priority: session.run_status === "waiting_approval" ? "high" : "low",
+          source: session.run_status ?? session.status ?? "Recent session",
+          title: session.name ?? session.current_task ?? session.session_id,
+        };
+      }),
+    ],
+    (item) => item.createdAt,
+  );
+}
+
+function canShowMockInquiries(user: User) {
+  const role = user.role?.toLowerCase();
+  const isAdmin = Boolean(
+    user.is_admin || role === "admin" || role === "owner",
+  );
+  const isLocalDebug = process.env.NODE_ENV !== "production";
+  return isAdmin || isLocalDebug;
+}
+
+function fakeInquiryWorkItems(agents: Agent[], nodes: Node[]): WorkItem[] {
+  const primaryAgent = agents[0];
+  const primaryNode =
+    nodes.find((node) => node.node_id === primaryAgent?.node_id) ?? nodes[0];
+  const metadata = [
+    primaryAgent?.name ?? primaryAgent?.agent_type ?? "Codex",
+    primaryNode?.name ?? primaryNode?.hostname ?? "desk mac",
+  ].join(" · ");
+
+  return [
+    {
+      actionLabel: "Generate draft",
+      agentId: primaryAgent?.agent_id,
+      background:
+        "The agent has enough context to answer a straightforward product question. The session is empty, so generating a draft should be cheap and safe.",
+      context: metadata,
+      createdAt: "2026-07-02T06:45:00Z",
+      detail:
+        "The user wants a concise explanation of the clean-session behavior before shipping the Home composer changes.",
+      href: "/",
+      id: "inquiry:home-composer-plan",
+      inquiryState: "needs-draft",
+      kind: "inquiry",
+      nodeId: primaryAgent?.node_id ?? primaryNode?.node_id,
+      ownerAlias: "kai",
+      priority: "high",
+      question:
+        "Can you summarize why clean sessions should stay separate from inquiry context?",
+      source: "Kai · product inquiry",
+      title: "Explain clean session behavior",
+    },
+    {
+      actionLabel: "Send",
+      agentId: primaryAgent?.agent_id,
+      background:
+        "The agent already produced a short reply draft from a simple inquiry. The human only needs to review or comment on the draft.",
+      context: "Design review · clean session behavior",
+      createdAt: "2026-07-02T06:18:00Z",
+      detail:
+        "Review the generated response and either send it or leave a comment for the agent.",
+      draft:
+        "Clean sessions should be the default so users can start fresh without accidentally carrying inbox context. Inquiry context should stay explicit and visible in the inquiry box.",
+      href: "/",
+      id: "inquiry:clean-session-design",
+      inquiryState: "draft-ready",
+      kind: "inquiry",
+      nodeId: primaryAgent?.node_id ?? primaryNode?.node_id,
+      ownerAlias: "sam",
+      priority: "medium",
+      question:
+        "Should inquiry context attach automatically when a row is selected?",
+      source: "PAX Console · inquiry draft",
+      title: "Clarify clean session versus inquiry context",
+    },
+    {
+      actionLabel: "Summarize draft",
+      agentId: primaryAgent?.agent_id,
+      background:
+        "The agent already discussed the request with the human. The remaining work is to turn the conversation into a concise response draft.",
+      conversationTurns: [
+        {
+          body: "Can we approve a read-only investigation here, or should we ask them to narrow the scope first?",
+          speaker: "Morgan",
+        },
+        {
+          body: "Read-only is fine, but require a short plan before running anything expensive or touching private workspace data.",
+          speaker: primaryAgent?.name ?? primaryAgent?.agent_type ?? "Codex",
+        },
+      ],
+      context: metadata,
+      createdAt: "2026-07-02T05:52:00Z",
+      detail:
+        "Summarize the prior conversation into a response the requester can use.",
+      href: "/",
+      id: "inquiry:needs-human-note",
+      inquiryState: "needs-summary",
+      kind: "inquiry",
+      nodeId: primaryAgent?.node_id ?? primaryNode?.node_id,
+      ownerAlias: "morgan",
+      priority: "medium",
+      question:
+        "Can we tell the requester to proceed, but only in read-only mode and with a plan first?",
+      source: "Morgan · engineering inquiry",
+      title: "Approve read-only investigation wording",
+    },
+  ];
+}
+
+function draftFromInquiry(inquiry: WorkItem, note: string) {
+  const noteSuffix = note.trim() ? ` Notes included: ${note.trim()}` : "";
+  if (inquiry.inquiryState === "needs-summary") {
+    return `Summarized draft: approve a read-only investigation, ask for a short plan first, and avoid expensive runs or private workspace data unless explicitly approved.${noteSuffix}`;
+  }
+
+  return `Draft reply: ${inquiry.question ?? inquiry.title} Keep the reply concise and explicit about the requested next step.${noteSuffix}`;
+}
+
+function composerPlaceholder(mode: ComposerMode) {
+  if (mode === "summarize-note") {
+    return "Add notes to guide the draft...";
+  }
+
+  if (mode === "comment-draft") {
+    return "Tell the agent what to change in the draft...";
+  }
+
+  return "Ask an agent to do something";
+}
+
+function filterAndOrderWorkItems(
+  items: WorkItem[],
+  filter: InboxFilter,
+  order: InboxOrder,
+) {
+  const filtered = items.filter((item) => {
+    if (filter === "inquiries") {
+      return item.kind === "inquiry";
+    }
+
+    if (filter === "needs-action") {
+      return item.kind !== "session";
+    }
+
+    if (filter === "sessions") {
+      return item.kind === "session";
+    }
+
+    return true;
+  });
+
+  if (order === "priority") {
+    return [...filtered].sort((left, right) => {
+      const priorityDelta =
+        priorityRank(right.priority) - priorityRank(left.priority);
+      if (priorityDelta !== 0) {
+        return priorityDelta;
+      }
+
+      return timeValue(right.createdAt) - timeValue(left.createdAt);
+    });
+  }
+
+  return byRecent(filtered, (item) => item.createdAt);
+}
+
+function removeArchivedWorkItems(items: WorkItem[], archivedIds: string[]) {
+  if (archivedIds.length === 0) {
+    return items;
+  }
+
+  const archived = new Set(archivedIds);
+  return items.filter((item) => !archived.has(item.id));
+}
+
+function filterLabel(filter: InboxFilter) {
+  return (
+    inboxFilters.find((option) => option.value === filter)?.label ?? filter
+  );
+}
+
+function orderLabel(order: InboxOrder) {
+  const label = inboxOrders.find((option) => option.value === order)?.label;
+  return `Order: ${label ?? order}`;
+}
+
+function priorityRank(priority: WorkItem["priority"]) {
+  if (priority === "high") {
+    return 3;
+  }
+
+  if (priority === "medium") {
+    return 2;
+  }
+
+  return 1;
+}
+
+function sortOnlineFirst<T>(
+  items: T[],
+  isOnline: (item: T) => boolean | undefined,
+  label: (item: T) => string,
+) {
+  return [...items].sort((left, right) => {
+    const onlineDelta =
+      Number(Boolean(isOnline(right))) - Number(Boolean(isOnline(left)));
+    if (onlineDelta !== 0) {
+      return onlineDelta;
+    }
+
+    return label(left).localeCompare(label(right));
+  });
+}
+
+function byRecent<T>(items: T[], timestamp: (item: T) => string | undefined) {
+  return [...items].sort(
+    (left, right) => timeValue(timestamp(right)) - timeValue(timestamp(left)),
+  );
+}
+
+function sessionTimestamp(session: AgentSession) {
+  return (
+    session.updated_at ?? session.last_active_at ?? session.last_message_at
+  );
+}
+
+function timeValue(value?: string) {
+  if (!value) {
+    return Number.NEGATIVE_INFINITY;
+  }
+
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp;
+}
+
+function relativeTime(value?: string) {
+  if (!value) {
+    return "unknown";
+  }
+
+  const timestamp = Date.parse(value);
+  if (Number.isNaN(timestamp)) {
+    return "unknown";
+  }
+
+  const seconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
+  if (seconds < 60) {
+    return "now";
+  }
+
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) {
+    return `${hours}h ago`;
+  }
+
+  return `${Math.round(hours / 24)}d ago`;
+}
+
 function loadingValue(isLoading: boolean, value: number) {
   return isLoading ? "..." : String(value);
 }
 
 function firstQueryError(queries: Array<{ error: Error | null }>) {
   return queries.find((query) => query.error)?.error ?? null;
-}
-
-function sortOnlineFirst<T extends Agent | Node>(
-  items: T[],
-  isOnline: (item: T) => boolean | undefined,
-  label: (item: T) => string,
-) {
-  return [...items].sort((a, b) => {
-    const onlineDiff = Number(Boolean(isOnline(b))) - Number(Boolean(isOnline(a)));
-    if (onlineDiff !== 0) {
-      return onlineDiff;
-    }
-
-    return label(a).localeCompare(label(b));
-  });
 }

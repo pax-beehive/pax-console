@@ -42,7 +42,9 @@ import {
 } from "@/features/api/types";
 import { compactId } from "@/lib/format";
 import {
+  AgentRow,
   agentLabel,
+  buildAgentRows,
   buildSessionRows,
   byLastActiveDesc,
   isActiveAgent,
@@ -151,6 +153,10 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
         : sortedAgents.filter((agent) => isActiveAgent(agent)),
     [showAllResources, sortedAgents],
   );
+  const agentRows = useMemo(
+    () => buildAgentRows(agents, sortedNodes),
+    [agents, sortedNodes],
+  );
   const activeAgent = agents[0];
   const activeNode =
     sortedNodes.find((node) => node.node_id === activeAgent?.node_id) ??
@@ -250,7 +256,7 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
           )}
           {kind === "agents" && (
             <AgentGrid
-              agents={agents}
+              agents={agentRows}
               isLoading={agentsLoading}
               nodeLabel={`${nodes.length}/${sortedNodes.length} nodes in scope`}
               totalCount={sortedAgents.length}
@@ -355,7 +361,7 @@ function AgentGrid({
   nodeLabel,
   totalCount,
 }: {
-  agents: Agent[];
+  agents: AgentRow[];
   isLoading: boolean;
   nodeLabel?: string;
   totalCount: number;
@@ -373,7 +379,7 @@ function AgentGrid({
       <div className="grid min-w-0 overflow-hidden rounded-lg border border-hairline">
         {agents.map((agent) => (
           <Link
-            className="grid min-w-0 gap-3 border-b border-hairline bg-surface-1 px-3 py-2.5 transition last:border-b-0 hover:bg-surface-2 sm:grid-cols-[minmax(0,1fr)_180px_120px]"
+            className="grid min-w-0 gap-3 border-b border-hairline bg-surface-1 px-3 py-2.5 transition last:border-b-0 hover:bg-surface-2 sm:grid-cols-[minmax(0,1fr)_220px_120px]"
             href={`/agents/${agent.agent_id}?nodeId=${agent.node_id}`}
             key={agent.agent_id}
           >
@@ -385,9 +391,22 @@ function AgentGrid({
                 {agent.description ?? agentCardSummary(agent)}
               </TruncatedText>
             </div>
-            <MonoId tooltip={agent.agent_id}>
-              {compactId(agent.agent_id)}
-            </MonoId>
+            <div className="grid min-w-0 content-start gap-1">
+              <TruncatedText
+                className="text-xs text-ink-muted"
+                tooltip={agent.nodeLabel}
+              >
+                Node: {agent.nodeLabel}
+              </TruncatedText>
+              <div className="flex min-w-0 flex-wrap gap-x-2 gap-y-1">
+                <MonoId tooltip={agent.node_id}>
+                  node {compactId(agent.node_id)}
+                </MonoId>
+                <MonoId tooltip={agent.agent_id}>
+                  agent {compactId(agent.agent_id)}
+                </MonoId>
+              </div>
+            </div>
             <div className="flex items-start sm:justify-end">
               <Badge tone={agent.online ? "success" : "neutral"}>
                 {agent.online ? "online" : (agent.status ?? "unknown")}

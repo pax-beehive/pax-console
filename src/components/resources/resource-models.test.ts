@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Agent, AgentSession, Node } from "@/features/api/types";
 import {
+  buildAgentRows,
   buildSessionRows,
   byLastActiveDesc,
   isActiveAgent,
@@ -123,6 +124,42 @@ describe("resource list models", () => {
         nodeActive: false,
         nodeLabel: "node_unknown",
         session_id: "session_2",
+      },
+    ]);
+  });
+
+  it("adds readable node labels to flattened agents", () => {
+    const agents: Agent[] = [
+      {
+        agent_id: "agent_codex",
+        name: "Codex",
+        node_id: "node_mac",
+      },
+      {
+        agent_id: "agent_remote",
+        node_id: "node_unknown",
+      },
+    ];
+    const nodes: Node[] = [
+      {
+        name: "desk mac",
+        node_id: "node_mac",
+        online: true,
+      },
+    ];
+
+    const rows = buildAgentRows(agents, nodes);
+
+    expect(rows).toMatchObject([
+      {
+        agent_id: "agent_codex",
+        nodeActive: true,
+        nodeLabel: "desk mac",
+      },
+      {
+        agent_id: "agent_remote",
+        nodeActive: false,
+        nodeLabel: "node_unknown",
       },
     ]);
   });

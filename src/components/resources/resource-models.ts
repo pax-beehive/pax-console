@@ -7,6 +7,11 @@ export type SessionRow = AgentSession & {
   nodeLabel: string;
 };
 
+export type AgentRow = Agent & {
+  nodeActive: boolean;
+  nodeLabel: string;
+};
+
 const activeStatuses = new Set([
   "active",
   "connected",
@@ -117,6 +122,23 @@ export function buildSessionRows(
       agentLabel: agent ? agentLabel(agent) : session.agent_id,
       nodeActive: node ? isActiveNode(node) : false,
       nodeLabel: node ? nodeLabel(node) : session.node_id,
+    };
+  });
+}
+
+export function buildAgentRows(
+  agents: readonly Agent[],
+  nodes: readonly Node[],
+) {
+  const nodesById = new Map(nodes.map((node) => [node.node_id, node]));
+
+  return agents.map((agent): AgentRow => {
+    const node = nodesById.get(agent.node_id);
+
+    return {
+      ...agent,
+      nodeActive: node ? isActiveNode(node) : false,
+      nodeLabel: node ? nodeLabel(node) : agent.node_id,
     };
   });
 }

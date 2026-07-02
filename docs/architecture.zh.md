@@ -126,8 +126,16 @@ src/components/ui/
   当前只把 Radix Tooltip/Slot 作为底层能力使用，还没有全面引入 shadcn 生成组件。
 
 src/components/home/
-  Overview 页面。当前只展示 fleet 摘要、工作区入口和当前上下文；nodes、
-  agents 的详细列表放在 Runtime 子页里，sessions 是 Home 同级的一级工作区。
+  Home 工作台。聚合 approvals、received envelopes、team invites、recent sessions
+  和 inquiry 草稿状态成一个可扫的 inbox queue；选中一项后显示上下文，
+  inquiry 可从空 session 生成 draft、从已有 conversation 总结 draft、
+  通过小三角带 note 总结，或对已有 draft 留 comment；右上角关闭 inquiry
+  context 后，composer 回到 clean session；archive inquiry 则把它从 queue
+  中移除，表示当前用户不处理。当前 fake inquiry 只在 admin 用户或本地 debug
+  构建中注入，避免普通生产用户看到演示数据。
+  底部 composer 保持 clean session 默认入口，并提供 agent 选择、附件入口和
+  tool-call approval 偏好。nodes / agents 的详细列表仍放在 Runtime 子页里，
+  sessions 是 Home 同级的一级工作区。
 
 src/components/resources/
   Runtime / Sessions / Settings 下的资源页。Nodes、Agents、Approvals、Monitor
@@ -253,7 +261,7 @@ Knowledge
 
 ## 当前 REST 数据流
 
-首页 overview：
+Home 工作台：
 
 ```txt
 AuthGate
@@ -261,8 +269,11 @@ AuthGate
   -> GET /api/v1/user/self/me
   -> FleetOverview
   -> useNodes(user.user_id)
-  -> useNodeAgents(user.user_id, activeNode.node_id)
-  -> useAgentSessions(user.user_id, activeNode.node_id, activeAgent.agent_id)
+  -> listNodeAgents(user.user_id, node.node_id) for each visible node
+  -> listAgentSessions(user.user_id, agent.node_id, agent.agent_id) for recent work
+  -> useApprovals(user.user_id)
+  -> useEnvelopes(user.user_id, direction=received, status=pending)
+  -> useTeamInvites(user.user_id)
 ```
 
 Sessions 一级列表：
@@ -341,7 +352,7 @@ Sidebar 一级入口是粗粒度工作区；下面这些实际路由仍保留为
 或 Sidebar 二级 tabs：
 
 ```txt
-/                    Home overview
+/                    Home workbench
 /nodes               Runtime / Nodes list
 /nodes/[id]          Node detail
 /agents              Runtime / Agents on active node
