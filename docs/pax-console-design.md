@@ -207,9 +207,12 @@ Initial token shape:
 ```txt
 PAX Console
 +-- Home
-|   +-- compact fleet summary
-|   +-- workspace entry rows
-|   +-- current node / agent context
+|   +-- action inbox queue
+|   +-- selected inquiry / draft preview
+|   +-- inquiry actions for generate draft, summarize draft, comment, and send
+|   +-- detach inquiry context to return the composer to a clean session
+|   +-- archive inquiry to ignore it and remove it from the queue
+|   +-- composer with context attachment, agent select, and tool approval preference
 +-- Sessions
 |   +-- globally sorted session list
 |   +-- live agent conversation
@@ -394,7 +397,7 @@ Current implemented frontend coverage:
 ```txt
 Implemented
 - Auth check through GET /me.
-- Fleet overview through nodes, agents, sessions.
+- Home workbench through nodes, agents, sessions, approvals, envelopes, and team invites.
 - Session detail history through session messages.
 - New session opens `/sessions/new`; the first prompt creates `sess_*` through POST /conversation.
 - API key list/create/revoke.

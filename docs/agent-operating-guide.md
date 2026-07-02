@@ -327,7 +327,7 @@ src/components/shell/*
   app chrome
 
 src/components/home/*
-  overview page
+  Home action inbox and context composer
 
 src/components/resources/*
   reusable resource pages for sidebar tabs

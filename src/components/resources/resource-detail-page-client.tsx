@@ -20,6 +20,7 @@ import {
 import { queryKeys } from "@/features/api/query-keys";
 import { Agent, ApiRecord, Node, User } from "@/features/api/types";
 import { compactId } from "@/lib/format";
+import { nodeLabel } from "./resource-models";
 
 type NodeDetailPageClientProps = {
   nodeId: string;
@@ -140,6 +141,12 @@ export function AgentDetailPageClient({
             <DetailCard
               rows={[
                 ["Agent ID", agent?.agent_id ?? agentId],
+                [
+                  "Node",
+                  node
+                    ? nodeLabel(node)
+                    : (agent?.node_id ?? activeNodeId ?? "unknown"),
+                ],
                 ["Node ID", agent?.node_id ?? activeNodeId ?? "unknown"],
                 ["Type", agent?.agent_type ?? "unknown"],
                 ["Status", agentStatus(agent)],
