@@ -3,6 +3,7 @@ import {
   ConversationRunStatus,
   handleConversationEnvelope,
 } from "./use-conversation-run";
+import { mergeEvents } from "./merge-session-events";
 import { SessionEvent } from "./session-events";
 
 describe("handleConversationEnvelope", () => {
@@ -183,7 +184,7 @@ describe("handleConversationEnvelope", () => {
     ]);
   });
 
-  it("ignores duplicate ACP events from the same stream", () => {
+  it("keeps repeated ACP text chunks from the same stream", () => {
     let sessionId = "";
     let error: Error | null = null;
     let status: ConversationRunStatus = "streaming";
@@ -230,14 +231,105 @@ describe("handleConversationEnvelope", () => {
     handleConversationEnvelope(envelope, handlerOptions);
 
     expect(sessionId).toBe("");
-    expect(events).toHaveLength(1);
+    expect(events).toHaveLength(2);
     expect(events[0]).toMatchObject({
       type: "agent_message",
       content: "Hello",
       id: "sess_1:agent_message_chunk:sess_1:turn:1",
     });
+    expect(mergeEvents(events)).toMatchObject([
+      {
+        type: "agent_message",
+        content: "HelloHello",
+        id: "sess_1:agent_message_chunk:sess_1:turn:1",
+      },
+    ]);
+  });
+
+  it("preserves blank-line ACP chunks before streamed markdown headings", () => {
+    let sessionId = "";
+    let error: Error | null = null;
+    let status: ConversationRunStatus = "streaming";
+    let events: SessionEvent[] = [];
+    const handlerOptions = handlers({
+      getError: () => error,
+      getEvents: () => events,
+      getStatus: () => status,
+      setError: (nextError) => {
+        error = nextError;
+      },
+      setEvents: (nextEvents) => {
+        events = nextEvents;
+      },
+      setSessionId: (nextSessionId) => {
+        sessionId = nextSessionId;
+      },
+      setStatus: (nextStatus) => {
+        status = nextStatus;
+      },
+    });
+
+    for (const text of ["第一", "梯队", "：", "最", "主流", "\n\n", "####"]) {
+      handleConversationEnvelope(
+        acpTextChunkEnvelope({
+          sessionId: "sess_1",
+          text,
+        }),
+        handlerOptions,
+      );
+    }
+
+    expect(sessionId).toBe("");
+    const textEvents = events.filter(
+      (event): event is Extract<SessionEvent, { type: "agent_message" }> =>
+        event.type === "agent_message",
+    );
+    expect(textEvents.map((event) => event.content)).toEqual([
+      "第一",
+      "梯队",
+      "：",
+      "最",
+      "主流",
+      "\n\n",
+      "####",
+    ]);
+    expect(mergeEvents(events)).toMatchObject([
+      {
+        type: "agent_message",
+        content: "第一梯队：最主流\n\n####",
+      },
+    ]);
   });
 });
+
+function acpTextChunkEnvelope({
+  sessionId,
+  text,
+}: {
+  sessionId: string;
+  text: string;
+}) {
+  return {
+    type: "acp" as const,
+    node_id: "node_1",
+    agent_id: "agent_1",
+    session_id: sessionId,
+    frame: {
+      jsonrpc: "2.0",
+      method: "session/update",
+      params: {
+        sessionId,
+        update: {
+          content: {
+            text,
+            type: "text",
+          },
+          sessionUpdate: "agent_message_chunk",
+        },
+      },
+    },
+  };
+}
 
 function handlers({
   getError,

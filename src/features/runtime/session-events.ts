@@ -84,7 +84,7 @@ export type SessionEvent =
       id: string;
       sessionId: string;
       name: string;
-      status: "queued" | "running" | "done" | "error";
+      status: "called" | "queued" | "running" | "done" | "error";
       sessionUpdate?: string;
       toolCallId?: string;
       permissions?: PermissionRequestEvent[];
