@@ -4,11 +4,13 @@ import Link from "next/link";
 import ReactMarkdown, { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
+import { normalizeStreamingMarkdown } from "@/lib/streaming-markdown";
 
 type MarkdownMessageProps = {
   className?: string;
   content: string;
   muted?: boolean;
+  streaming?: boolean;
 };
 
 const markdownComponents: Components = {
@@ -165,7 +167,12 @@ export function MarkdownMessage({
   className,
   content,
   muted,
+  streaming,
 }: MarkdownMessageProps) {
+  const renderedContent = streaming
+    ? normalizeStreamingMarkdown(content)
+    : content;
+
   return (
     <div
       className={cn(
@@ -179,7 +186,7 @@ export function MarkdownMessage({
         components={markdownComponents}
         remarkPlugins={[remarkGfm]}
       >
-        {content}
+        {renderedContent}
       </ReactMarkdown>
     </div>
   );

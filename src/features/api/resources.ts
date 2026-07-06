@@ -7,7 +7,10 @@ import { queryKeys } from "./query-keys";
 import {
   ApiRecord,
   Agent,
+  AgentOwnerInfo,
+  AgentInquiryResult,
   AgentApproval,
+  AgentProfile,
   AgentSession,
   ApprovedNodeRegistration,
   ApprovedPaxlDeviceLogin,
@@ -22,6 +25,7 @@ import {
   Node,
   NodeRegistrationPreview,
   PaxdConnectPreview,
+  RepresentativeAgent,
   SessionKnowledgeInjection,
   Team,
   TeamAgent,
@@ -103,6 +107,28 @@ type KnowledgeCapsuleListData = {
 
 type KnowledgeInjectionListData = {
   injections: SessionKnowledgeInjection[];
+};
+
+type RepresentativeAgentListData = {
+  representative_agents: RepresentativeAgent[];
+};
+
+type RepresentativeAgentData = {
+  profile: AgentProfile;
+  representative_agent: RepresentativeAgent;
+};
+
+type ConversationMessagesData = {
+  messages: HistoryMessage[];
+};
+
+type AgentOwnerInfoData = {
+  owner_info: AgentOwnerInfo;
+};
+
+export type AgentOwnerInfoLookup = {
+  agentId?: string;
+  representativeAgentId?: string;
 };
 
 export type UpdateNodeProfileInput = {
@@ -209,6 +235,99 @@ export function listSessionHistory(
   return apiFetch<HistoryListData>(
     `${userPath(userId, `/agents/${agentId}/sessions/${sessionId}/history`)}?${params}`,
   );
+}
+
+export function listRepresentativeAgents(
+  userId: string,
+  runtimeAgentId?: string,
+) {
+  const params = compactSearchParams({ runtime_agent_id: runtimeAgentId });
+  return apiFetch<RepresentativeAgentListData>(
+    `${userPath(userId, "/representative-agents")}${params ? `?${params}` : ""}`,
+  );
+}
+
+export function upsertRepresentativeAgent(
+  userId: string,
+  input: {
+    description?: string;
+    display_name?: string;
+    runtime_agent_id: string;
+  },
+) {
+  return apiFetch<RepresentativeAgentData>(
+    userPath(userId, "/representative-agents"),
+    {
+      body: JSON.stringify(input),
+      method: "POST",
+    },
+  );
+}
+
+export function startAgentInquiry(
+  userId: string,
+  nodeId: string,
+  agentId: string,
+  input: {
+    conversation_id?: string;
+    from_representative_agent_id?: string;
+    input: string;
+    max_turns?: number;
+    to_representative_agent_id: string;
+  },
+) {
+  return apiFetch<AgentInquiryResult>(
+    userPath(userId, `/nodes/${nodeId}/agents/${agentId}/inquiries`),
+    {
+      body: JSON.stringify(input),
+      method: "POST",
+    },
+  );
+}
+
+export function listConversationMessages(
+  userId: string,
+  conversationId: string,
+  limit = 100,
+) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  return apiFetch<ConversationMessagesData>(
+    `${userPath(userId, `/conversations/${conversationId}/messages`)}?${params}`,
+  );
+}
+
+export async function listAgentOwnerInfos(
+  userId: string,
+  lookups: AgentOwnerInfoLookup[],
+) {
+  const uniqueLookups = uniqueAgentOwnerLookups(lookups);
+  const entries = await Promise.all(
+    uniqueLookups.map(async (lookup) => {
+      const params = new URLSearchParams(
+        lookup.representativeAgentId
+          ? { representative_agent_id: lookup.representativeAgentId }
+          : { agent_id: lookup.agentId ?? "" },
+      );
+      const data = await apiFetch<AgentOwnerInfoData>(
+        `${userPath(userId, "/agent-owner-info")}?${params}`,
+      );
+      return [lookup, data.owner_info] as const;
+    }),
+  );
+
+  const byKey: Record<string, AgentOwnerInfo> = {};
+  for (const [lookup, ownerInfo] of entries) {
+    byKey[agentOwnerLookupKey(lookup)] = ownerInfo;
+    if (ownerInfo.representative_agent?.representative_agent_id) {
+      byKey[`rep:${ownerInfo.representative_agent.representative_agent_id}`] =
+        ownerInfo;
+    }
+    if (ownerInfo.agent.agent_id) {
+      byKey[`agent:${ownerInfo.agent.agent_id}`] = ownerInfo;
+    }
+  }
+
+  return byKey;
 }
 
 export function listApiKeys(userId: string) {
@@ -667,6 +786,54 @@ export function useNode(userId?: string, nodeId?: string) {
   });
 }
 
+export function useRepresentativeAgents(
+  userId?: string,
+  runtimeAgentId?: string,
+) {
+  return useQuery({
+    queryKey: queryKeys.representativeAgents(
+      userId ?? "pending",
+      runtimeAgentId,
+    ),
+    queryFn: () =>
+      listRepresentativeAgents(userId as string, runtimeAgentId as string),
+    enabled: Boolean(userId && runtimeAgentId),
+  });
+}
+
+export function useConversationMessages(
+  userId?: string,
+  conversationId?: string,
+  limit = 100,
+) {
+  return useQuery({
+    queryKey: queryKeys.conversationMessages(
+      userId ?? "pending",
+      conversationId ?? "pending",
+    ),
+    queryFn: () =>
+      listConversationMessages(
+        userId as string,
+        conversationId as string,
+        limit,
+      ),
+    enabled: Boolean(userId && conversationId),
+  });
+}
+
+export function useAgentOwnerInfos(
+  userId?: string,
+  lookups: AgentOwnerInfoLookup[] = [],
+) {
+  const uniqueLookups = uniqueAgentOwnerLookups(lookups);
+  const lookupKeys = uniqueLookups.map(agentOwnerLookupKey);
+  return useQuery({
+    queryKey: queryKeys.agentOwnerInfos(userId ?? "pending", lookupKeys),
+    queryFn: () => listAgentOwnerInfos(userId as string, uniqueLookups),
+    enabled: Boolean(userId && uniqueLookups.length > 0),
+  });
+}
+
 export function useApiKeys(userId?: string) {
   return useQuery({
     queryKey: queryKeys.apiKeys(userId ?? "pending"),
@@ -900,4 +1067,29 @@ function compactSearchParams(values: Record<string, string | undefined>) {
   });
 
   return params.toString();
+}
+
+function uniqueAgentOwnerLookups(lookups: AgentOwnerInfoLookup[]) {
+  const byKey = new Map<string, AgentOwnerInfoLookup>();
+  for (const lookup of lookups) {
+    const normalized = {
+      agentId: lookup.agentId?.trim(),
+      representativeAgentId: lookup.representativeAgentId?.trim(),
+    };
+    if (!normalized.agentId && !normalized.representativeAgentId) {
+      continue;
+    }
+
+    byKey.set(agentOwnerLookupKey(normalized), normalized);
+  }
+
+  return [...byKey.values()].sort((a, b) =>
+    agentOwnerLookupKey(a).localeCompare(agentOwnerLookupKey(b)),
+  );
+}
+
+function agentOwnerLookupKey(lookup: AgentOwnerInfoLookup) {
+  return lookup.representativeAgentId
+    ? `rep:${lookup.representativeAgentId}`
+    : `agent:${lookup.agentId ?? ""}`;
 }

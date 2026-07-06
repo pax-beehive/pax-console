@@ -257,6 +257,18 @@ Actual ACP streaming frames observed from the backend look like:
 `normalizeTunnelFrame` extracts `params.sessionId`, `params.update.sessionUpdate`, and `params.update.content.text`. `AgentTunnelRuntime` assigns a turn-scoped stream id when `sendUserMessage` starts. `merge-session-events.ts` appends chunks with the same stream id so the UI renders one growing message instead of one card per token.
 Unknown or control-only `session/update` values, such as generic `update` frames and unsupported `*_update` frames, are ignored by `normalizeTunnelFrame` so raw ACP protocol payloads do not render in the user-facing timeline.
 
+PAX invocation display messages use `message_type = "pax:invocation"`.
+Intermediate invocation cards use `message_type = "pax:invocation_pending"`;
+they render immediately and are replaced when the final `pax:invocation`
+lists the pending message id in `raw_json.replaces_message_ids`.
+History normalization first projects the message list through the invocation
+display contract: render each invocation at `parent_message_id`, hide
+`raw_json.replaces_message_ids`, and hide the parent when that list is absent.
+Live `session/update` frames with `message_type = "pax:invocation"` or
+`message_type = "pax:invocation_pending"` normalize to the same invocation
+timeline event, and `merge-session-events.ts` applies the same replacement
+rule if the real or pending event has already rendered.
+
 ACP permission prompts are JSON-RPC requests, not `session/update` notifications:
 
 ```txt
@@ -370,7 +382,7 @@ multiple groups may stay open at the same time.
 ```txt
 Home             /
 Sessions         /sessions
-Runtime          /nodes, active for /nodes /agents /approvals /monitor
+Runtime          /nodes, active for /nodes /agents /inquiries /approvals /monitor
 Collaboration    /teams, active for /teams /envelopes /knowledge
 API Keys         /settings/api-keys
 ```
@@ -383,6 +395,7 @@ These deep links should remain directly reachable:
 /nodes/[nodeId]      Node detail
 /agents              Agents
 /agents/[agentId]    Agent detail, normally with ?nodeId=
+/inquiries           Agent-to-agent inquiry composer
 /sessions            Sessions list, flattened across visible agents
 /sessions/[sessionId] Session detail
 /approvals           Approvals and grants
@@ -435,6 +448,13 @@ Approvals route
   POST /api/v1/user/{user_id}/approvals/{approval_id}/decision
   GET  /api/v1/user/{user_id}/approval-grants
   POST /api/v1/user/{user_id}/approval-grants/{grant_id}/revoke
+
+Inquiries route
+  GET  /api/v1/user/{user_id}/agent-owner-info?agent_id=...
+  GET  /api/v1/user/{user_id}/representative-agents?runtime_agent_id=...
+  POST /api/v1/user/{user_id}/representative-agents
+  POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/inquiries
+  GET  /api/v1/user/{user_id}/conversations/{conversation_id}/messages
 ```
 
 Do not regress these routes into placeholders.

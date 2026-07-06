@@ -3,6 +3,108 @@ import { mergeEvents } from "./merge-session-events";
 import { SessionEvent } from "./session-events";
 
 describe("mergeEvents", () => {
+  it("replaces an already-rendered parent event with a pax invocation event", () => {
+    const events: SessionEvent[] = [
+      {
+        type: "agent_message",
+        id: "msg_tool_done",
+        sessionId: "sess_1",
+        content: "raw tool result",
+        createdAt: "2026-07-04T10:00:00.000Z",
+      },
+      {
+        type: "invocation",
+        id: "msg_invocation",
+        sessionId: "sess_1",
+        content: "Asked Agent B to review the request contract.",
+        parentMessageId: "msg_tool_done",
+        replacesMessageIds: ["msg_tool_done"],
+        createdAt: "2026-07-04T10:00:01.000Z",
+      },
+    ];
+
+    const merged = mergeEvents(events);
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toMatchObject({
+      type: "invocation",
+      id: "msg_invocation",
+      content: "Asked Agent B to review the request contract.",
+    });
+  });
+
+  it("replaces a pending pax invocation event with the final invocation event", () => {
+    const events: SessionEvent[] = [
+      {
+        type: "agent_message",
+        id: "msg_tool_done",
+        sessionId: "sess_1",
+        content: "raw tool result",
+        createdAt: "2026-07-04T10:00:00.000Z",
+      },
+      {
+        type: "invocation",
+        id: "msg_invocation_pending",
+        sessionId: "sess_1",
+        content: "Asked Review Agent for input.",
+        parentMessageId: "msg_tool_done",
+        state: "pending",
+        side: "source",
+        replacesMessageIds: [],
+        createdAt: "2026-07-04T10:00:01.000Z",
+      },
+      {
+        type: "invocation",
+        id: "msg_invocation_final",
+        sessionId: "sess_1",
+        content: "It is rainy in New York.",
+        state: "complete",
+        side: "source",
+        replacesMessageIds: ["msg_invocation_pending"],
+        createdAt: "2026-07-04T10:00:02.000Z",
+      },
+    ];
+
+    const merged = mergeEvents(events);
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toMatchObject({
+      type: "invocation",
+      id: "msg_invocation_final",
+      content: "It is rainy in New York.",
+      replacesMessageIds: ["msg_invocation_pending"],
+    });
+  });
+
+  it("skips real events that arrive after their pax invocation replacement", () => {
+    const events: SessionEvent[] = [
+      {
+        type: "invocation",
+        id: "msg_invocation",
+        sessionId: "sess_1",
+        content: "Agent A asked you to review the request contract.",
+        parentMessageId: "msg_real_prompt",
+        replacesMessageIds: [],
+        createdAt: "2026-07-04T10:00:00.000Z",
+      },
+      {
+        type: "user_message",
+        id: "msg_real_prompt",
+        sessionId: "sess_1",
+        content: "wrapped raw prompt",
+        createdAt: "2026-07-04T10:00:01.000Z",
+      },
+    ];
+
+    const merged = mergeEvents(events);
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toMatchObject({
+      type: "invocation",
+      id: "msg_invocation",
+    });
+  });
+
   it("keeps tool calls between assistant message streaming segments", () => {
     const events: SessionEvent[] = [
       {

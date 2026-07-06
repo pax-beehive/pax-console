@@ -225,7 +225,9 @@ export function handleConversationEnvelope(
 ) {
   if (envelope.type === "session") {
     setEvents((current) =>
-      current.map((event) => reassignPendingSession(event, envelope.session_id)),
+      current.map((event) =>
+        reassignPendingSession(event, envelope.session_id),
+      ),
     );
     onSession(envelope.session_id);
     return;
@@ -332,7 +334,8 @@ function eventSignature(event: SessionEvent) {
   if (
     event.type === "agent_message" ||
     event.type === "progress" ||
-    event.type === "user_message"
+    event.type === "user_message" ||
+    event.type === "invocation"
   ) {
     return `${event.type}:${event.id}:${event.sessionId}:${event.content}`;
   }

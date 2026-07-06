@@ -145,6 +145,17 @@ src/components/resources/
 src/components/sessions/
   Session workbench。把 REST 历史消息和 WebSocket live events 合成时间线。
 
+  `pax:invocation` 是 PAX 为 agent-to-agent 调用生成的展示替身消息。
+  `pax:invocation_pending` 是同一展示模型的中间态，会先渲染到 timeline；
+  后续最终态 `pax:invocation` 通过 `raw_json.replaces_message_ids` 指向 pending
+  message id 时，会在 history projection 和 live merge 中替换掉 pending 卡片。
+  history 进入时间线前会先按 display contract 投影：把 invocation 渲染在
+  `parent_message_id` 的位置，隐藏 `raw_json.replaces_message_ids` 指向的真实
+  transcript 消息；如果没有 replaces 列表，则隐藏 parent。live `session/update`
+  里新增的 `message_type = "pax:invocation"` / `pax:invocation_pending` frame
+  也会归一成同一种 timeline event，并在 merge 阶段替换已经显示过的 parent
+  或 pending event。
+
 src/components/shell/
   Console 外壳：sidebar、topbar、主布局。
 
@@ -190,7 +201,7 @@ Sidebar 折叠
   Sidebar 自身使用安静的 surface、分隔线式 node context、compact nav rows。
   Sidebar 一级入口保持粗粒度：Home、Sessions、Runtime、Collaboration、API Keys。
   Runtime / Collaboration 是彼此独立的 disclosure，不是 accordion；多个一级组可以同时保持展开。
-  Runtime 展开时在 Sidebar 二级导航承载 Nodes、Agents、Approvals、Monitor。
+  Runtime 展开时在 Sidebar 二级导航承载 Nodes、Agents、Inquiries、Approvals、Monitor。
   Collaboration 展开时在 Sidebar 二级导航承载 Teams、Friends、Envelopes、Knowledge。
   Team invites 属于 Teams 页面里的 team action queue，不作为 Collaboration 并列二级入口。
   不要把这些全局二级 tabs 放进具体页面 header 或页面组件内部。
@@ -357,6 +368,7 @@ Sidebar 一级入口是粗粒度工作区；下面这些实际路由仍保留为
 /nodes/[id]          Node detail
 /agents              Runtime / Agents on active node
 /agents/[id]         Agent detail, expects nodeId query when opened from list
+/inquiries           Runtime / agent-to-agent inquiry composer
 /sessions            Sessions list, flattened across visible agents
 /sessions/[id]       Session workbench
 /approvals           Runtime / pending approvals and active approval grants
@@ -398,6 +410,16 @@ GET  /api/v1/user/{user_id}/approvals
 POST /api/v1/user/{user_id}/approvals/{approval_id}/decision
 GET  /api/v1/user/{user_id}/approval-grants
 POST /api/v1/user/{user_id}/approval-grants/{grant_id}/revoke
+```
+
+`/inquiries` 已接 agent-to-agent inquiry 相关 API：
+
+```txt
+GET  /api/v1/user/{user_id}/agent-owner-info?agent_id=...
+GET  /api/v1/user/{user_id}/representative-agents?runtime_agent_id=...
+POST /api/v1/user/{user_id}/representative-agents
+POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/inquiries
+GET  /api/v1/user/{user_id}/conversations/{conversation_id}/messages
 ```
 
 Topbar 的 `New session` 不再直接创建后端 session。它只打开：

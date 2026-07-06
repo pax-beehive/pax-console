@@ -1,4 +1,6 @@
 import {
+  ArrowDown,
+  ArrowUp,
   CheckCircle2,
   ChevronDown,
   FileCode,
@@ -9,12 +11,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MarkdownMessage } from "@/components/ui/markdown-message";
 import { MonoId, TruncatedText } from "@/components/ui/text";
+import { AgentOwnerInfo } from "@/features/api/types";
 import {
   PermissionDecision,
   SessionEvent,
   ToolCallEvent,
   WorkstreamItem,
 } from "@/features/runtime/session-events";
+import { invocationBodyContent } from "@/features/runtime/invocation-body-content";
 
 export type PermissionDecisionOption =
   | "deny"
@@ -61,9 +65,11 @@ const permissionDecisionOptions: {
 ];
 
 export function WorkstreamItemCard({
+  agentOwnerInfos,
   item,
   permissionDecision,
 }: {
+  agentOwnerInfos?: Record<string, AgentOwnerInfo>;
   item: WorkstreamItem;
   permissionDecision: PermissionDecisionState;
 }) {
@@ -77,14 +83,20 @@ export function WorkstreamItemCard({
   }
 
   return (
-    <EventCard event={item.event} permissionDecision={permissionDecision} />
+    <EventCard
+      agentOwnerInfos={agentOwnerInfos}
+      event={item.event}
+      permissionDecision={permissionDecision}
+    />
   );
 }
 
 function EventCard({
+  agentOwnerInfos,
   event,
   permissionDecision,
 }: {
+  agentOwnerInfos?: Record<string, AgentOwnerInfo>;
   event: Exclude<SessionEvent, ToolCallEvent>;
   permissionDecision: PermissionDecisionState;
 }) {
@@ -111,6 +123,10 @@ function EventCard({
 
   if (event.type === "agent_message") {
     return <AgentMessageCard event={event} />;
+  }
+
+  if (event.type === "invocation") {
+    return <InvocationCard agentOwnerInfos={agentOwnerInfos} event={event} />;
   }
 
   return null;
@@ -150,6 +166,7 @@ function ThoughtCard({
         className="mt-4 pl-1 text-[13px] leading-7"
         content={event.content}
         muted
+        streaming={event.streaming}
       />
     </details>
   );
@@ -183,9 +200,159 @@ function AgentMessageCard({
       <MarkdownMessage
         className="text-base leading-8 text-ink"
         content={event.content}
+        streaming={event.streaming}
       />
     </article>
   );
+}
+
+function InvocationCard({
+  agentOwnerInfos = {},
+  event,
+}: {
+  agentOwnerInfos?: Record<string, AgentOwnerInfo>;
+  event: Extract<SessionEvent, { type: "invocation" }>;
+}) {
+  const sender = invocationParticipant(
+    event.sender,
+    agentOwnerInfoForEndpoint(event.sender, agentOwnerInfos),
+    "Source agent",
+  );
+  const receiver = invocationParticipant(
+    event.receiver,
+    agentOwnerInfoForEndpoint(event.receiver, agentOwnerInfos),
+    "Target agent",
+  );
+  const isReceived = event.side === "target";
+  const isSent = event.side === "source";
+  const isPending = event.state === "pending";
+  const primary = isReceived ? sender : receiver;
+  const label = isPending
+    ? isReceived
+      ? "Receiving from"
+      : isSent
+        ? "Sending to"
+        : "Pending"
+    : isReceived
+      ? "Received from"
+      : isSent
+        ? "Sent to"
+        : "Invoked";
+  const content = invocationBodyContent(event, agentOwnerInfos);
+  const DirectionIcon = isReceived ? ArrowDown : ArrowUp;
+
+  return (
+    <article
+      className={
+        isReceived
+          ? "min-w-0 border-l-2 border-primary-hover py-2 pl-4"
+          : "min-w-0 border-l-2 border-hairline-strong py-2 pl-4"
+      }
+    >
+      <div className="flex min-w-0 items-start gap-3">
+        <span
+          className={
+            isReceived
+              ? "mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full border border-primary-hover/50 bg-primary-hover/10 text-primary-hover"
+              : "mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full border border-hairline-strong bg-surface-1 text-ink-tertiary"
+          }
+        >
+          <DirectionIcon className="h-3.5 w-3.5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="text-xs text-ink-tertiary">{label}</div>
+          <InvocationParticipantView participant={primary} />
+        </div>
+      </div>
+      {content && (
+        <MarkdownMessage
+          className="mt-3 pl-9 text-sm leading-7 text-ink-muted"
+          content={content}
+          muted
+        />
+      )}
+    </article>
+  );
+}
+
+function InvocationParticipantView({
+  align = "left",
+  participant,
+}: {
+  align?: "left" | "right";
+  participant: { agentName: string; userName?: string };
+}) {
+  return (
+    <div
+      className={
+        align === "right"
+          ? "min-w-0 justify-self-end text-right"
+          : "min-w-0 justify-self-start"
+      }
+    >
+      <TruncatedText className="text-sm font-medium text-ink">
+        {participant.agentName}
+      </TruncatedText>
+      {participant.userName && (
+        <TruncatedText className="mt-0.5 text-xs text-ink-tertiary">
+          {participant.userName}
+        </TruncatedText>
+      )}
+    </div>
+  );
+}
+
+function invocationParticipant(
+  endpoint: Extract<SessionEvent, { type: "invocation" }>["sender"],
+  ownerInfo: AgentOwnerInfo | undefined,
+  fallback: string,
+) {
+  const resolved = Boolean(
+    ownerInfo?.profile?.display_name ??
+    ownerInfo?.agent.name ??
+    endpoint?.agentName ??
+    endpoint?.userName,
+  );
+  return {
+    agentName:
+      ownerInfo?.profile?.display_name ??
+      ownerInfo?.agent.name ??
+      endpoint?.agentName ??
+      (endpoint?.agentId || endpoint?.representativeAgentId
+        ? "Resolving agent..."
+        : fallback),
+    resolved,
+    userName: ownerDisplayName(ownerInfo) ?? endpoint?.userName,
+  };
+}
+
+function agentOwnerInfoForEndpoint(
+  endpoint: Extract<SessionEvent, { type: "invocation" }>["sender"],
+  ownerInfos: Record<string, AgentOwnerInfo>,
+) {
+  if (endpoint?.representativeAgentId) {
+    return ownerInfos[`rep:${endpoint.representativeAgentId}`];
+  }
+
+  return endpoint?.agentId
+    ? ownerInfos[`agent:${endpoint.agentId}`]
+    : undefined;
+}
+
+function ownerDisplayName(ownerInfo: AgentOwnerInfo | undefined) {
+  if (!ownerInfo) {
+    return undefined;
+  }
+
+  if (ownerInfo.owner.user) {
+    return (
+      ownerInfo.owner.user.display_name ??
+      ownerInfo.owner.user.name ??
+      ownerInfo.owner.user.email
+    );
+  }
+
+  return ownerInfo.owner.team?.name;
 }
 
 function ToolGroupCard({
@@ -382,9 +549,11 @@ function PermissionRequestCard({
   const pending =
     permissionDecision.pending &&
     permissionDecision.pendingApprovalId === event.approvalId;
-  const decided = event.decision ?? (event.approvalId
-    ? permissionDecision.decisions[event.approvalId]
-    : undefined);
+  const decided =
+    event.decision ??
+    (event.approvalId
+      ? permissionDecision.decisions[event.approvalId]
+      : undefined);
   const approved = decided?.status === "approved";
   const denied = decided?.status === "denied";
   const canDecide =
@@ -468,15 +637,15 @@ function PermissionRequestCard({
           {(() => {
             const requestText = textFromPayload(event.rawInput);
             return requestText ? (
-            <MarkdownMessage
-              className="rounded-md border border-hairline bg-canvas p-2 text-xs leading-5 text-ink-muted"
-              content={requestText}
-              muted
-            />
+              <MarkdownMessage
+                className="rounded-md border border-hairline bg-canvas p-2 text-xs leading-5 text-ink-muted"
+                content={requestText}
+                muted
+              />
             ) : (
-            <pre className="max-h-40 max-w-full overflow-auto rounded-md border border-hairline bg-canvas p-2 text-xs leading-5 text-ink-muted">
-              {JSON.stringify(event.rawInput, null, 2)}
-            </pre>
+              <pre className="max-h-40 max-w-full overflow-auto rounded-md border border-hairline bg-canvas p-2 text-xs leading-5 text-ink-muted">
+                {JSON.stringify(event.rawInput, null, 2)}
+              </pre>
             );
           })()}
         </div>

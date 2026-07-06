@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { mergeEvents } from "./merge-session-events";
-import { normalizeHistoryMessage } from "./normalize-history-message";
+import {
+  normalizeHistoryMessage,
+  normalizeHistoryMessages,
+} from "./normalize-history-message";
 
 describe("normalizeHistoryMessage", () => {
   it("restores aggregated text from ordered message parts", () => {
@@ -86,6 +89,270 @@ describe("normalizeHistoryMessage", () => {
         content: "Thinking from stored history.",
       },
     ]);
+  });
+
+  it("renders pax invocation messages at the parent position and hides replaced history", () => {
+    const events = normalizeHistoryMessages([
+      {
+        message_id: "msg_tool_call",
+        session_id: "sess_1",
+        role: "assistant",
+        message_type: "tool_call",
+        created_at: "2026-07-04T10:00:00.000Z",
+        parts: [
+          {
+            message_id: "msg_tool_call",
+            part_index: 0,
+            part_type: "text",
+            text: "raw tool call",
+          },
+        ],
+      },
+      {
+        message_id: "msg_tool_done",
+        session_id: "sess_1",
+        role: "assistant",
+        message_type: "tool_call_update",
+        created_at: "2026-07-04T10:00:01.000Z",
+        parts: [
+          {
+            message_id: "msg_tool_done",
+            part_index: 0,
+            part_type: "text",
+            text: "raw tool result",
+          },
+        ],
+      },
+      {
+        message_id: "msg_invocation",
+        session_id: "sess_1",
+        message_type: "pax:invocation",
+        parent_message_id: "msg_tool_done",
+        created_at: "2026-07-04T10:00:02.000Z",
+        raw_json: {
+          invocation_id: "inv_123",
+          phase: "inquiry",
+          side: "source",
+          replaces_message_ids: ["msg_tool_call", "msg_tool_done"],
+          sender: {
+            agent_id: "agent_a",
+            agent_name: "Contract Writer",
+            representative_agent_id: "rep_source",
+            session_id: "sess_a",
+            user_name: "Ada",
+          },
+          receiver: {
+            agent_id: "agent_b",
+            agent_name: "Review Agent",
+            representative_agent_id: "rep_target",
+            session_id: "sess_b",
+            user_name: "Grace",
+          },
+          content: {
+            display_text: "Asked Agent B to review the request contract.",
+            original_text: "Please review the request contract.",
+          },
+        },
+      },
+    ]);
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      type: "invocation",
+      id: "msg_invocation",
+      sessionId: "sess_1",
+      content: "Asked Agent B to review the request contract.",
+      originalContent: "Please review the request contract.",
+      invocationId: "inv_123",
+      phase: "inquiry",
+      side: "source",
+      parentMessageId: "msg_tool_done",
+      replacesMessageIds: ["msg_tool_call", "msg_tool_done"],
+      sender: {
+        agentId: "agent_a",
+        agentName: "Contract Writer",
+        representativeAgentId: "rep_source",
+        sessionId: "sess_a",
+        userName: "Ada",
+      },
+      receiver: {
+        agentId: "agent_b",
+        agentName: "Review Agent",
+        representativeAgentId: "rep_target",
+        sessionId: "sess_b",
+        userName: "Grace",
+      },
+    });
+  });
+
+  it("hides the invocation parent when replaces_message_ids is absent", () => {
+    const events = normalizeHistoryMessages([
+      {
+        message_id: "msg_real_prompt",
+        session_id: "sess_1",
+        role: "user",
+        created_at: "2026-07-04T10:00:00.000Z",
+        parts: [
+          {
+            message_id: "msg_real_prompt",
+            part_index: 0,
+            part_type: "text",
+            text: "wrapped raw prompt",
+          },
+        ],
+      },
+      {
+        message_id: "msg_invocation",
+        session_id: "sess_1",
+        message_type: "pax:invocation",
+        parent_message_id: "msg_real_prompt",
+        created_at: "2026-07-04T10:00:01.000Z",
+        raw_json: {
+          content: {
+            display_text: "Agent A asked you to review the request contract.",
+          },
+        },
+      },
+    ]);
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      type: "invocation",
+      content: "Agent A asked you to review the request contract.",
+      parentMessageId: "msg_real_prompt",
+      replacesMessageIds: [],
+    });
+  });
+
+  it("renders pax invocation pending messages until a final replacement arrives", () => {
+    const events = normalizeHistoryMessages([
+      {
+        message_id: "msg_tool_done",
+        session_id: "sess_1",
+        role: "assistant",
+        message_type: "tool_call_update",
+        created_at: "2026-07-04T10:00:00.000Z",
+        parts: [
+          {
+            message_id: "msg_tool_done",
+            part_index: 0,
+            part_type: "text",
+            text: "raw tool result",
+          },
+        ],
+      },
+      {
+        message_id: "msg_invocation_pending",
+        session_id: "sess_1",
+        message_type: "pax:invocation_pending",
+        parent_message_id: "msg_tool_done",
+        created_at: "2026-07-04T10:00:01.000Z",
+        raw_json: {
+          phase: "inquiry",
+          side: "source",
+          receiver: {
+            agent_id: "agent_b",
+            agent_name: "Review Agent",
+            representative_agent_id: "rep_target",
+          },
+          content: {
+            display_text: "Asked Review Agent for input.",
+            original_text: "Please review the request contract.",
+          },
+        },
+      },
+    ]);
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      type: "invocation",
+      id: "msg_invocation_pending",
+      state: "pending",
+      side: "source",
+      parentMessageId: "msg_tool_done",
+      content: "Asked Review Agent for input.",
+      originalContent: "Please review the request contract.",
+      receiver: {
+        agentId: "agent_b",
+        agentName: "Review Agent",
+        representativeAgentId: "rep_target",
+      },
+    });
+  });
+
+  it("replaces pax invocation pending messages with final invocation messages in history", () => {
+    const events = normalizeHistoryMessages([
+      {
+        message_id: "msg_invocation_pending",
+        session_id: "sess_1",
+        message_type: "pax:invocation_pending",
+        created_at: "2026-07-04T10:00:01.000Z",
+        raw_json: {
+          phase: "inquiry",
+          side: "source",
+          receiver: { agent_name: "Review Agent" },
+          content: {
+            display_text: "Asked Review Agent for input.",
+            original_text: "How is the weather?",
+          },
+        },
+      },
+      {
+        message_id: "msg_invocation_final",
+        session_id: "sess_1",
+        message_type: "pax:invocation",
+        created_at: "2026-07-04T10:00:03.000Z",
+        raw_json: {
+          phase: "reply",
+          side: "source",
+          replaces_message_ids: ["msg_invocation_pending"],
+          receiver: { agent_name: "Review Agent" },
+          content: {
+            display_text: "It is rainy in New York.",
+            original_text: "How is the weather?",
+          },
+        },
+      },
+    ]);
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      type: "invocation",
+      id: "msg_invocation_final",
+      state: "complete",
+      content: "It is rainy in New York.",
+      replacesMessageIds: ["msg_invocation_pending"],
+    });
+  });
+
+  it("infers the remote agent id from target-side invocation display text", () => {
+    const events = normalizeHistoryMessages([
+      {
+        message_id: "msg_invocation",
+        session_id: "sess_1",
+        message_type: "pax:invocation",
+        parent_message_id: "msg_real_reply",
+        created_at: "2026-07-04T10:00:01.000Z",
+        raw_json: {
+          phase: "reply",
+          side: "target",
+          content: {
+            display_text:
+              "Received a Pax conversation reply from agent_2f0851ab56e19ab5a04c5ac695cddcccaca294a75898d1a0.",
+          },
+        },
+      },
+    ]);
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      type: "invocation",
+      side: "target",
+      sender: {
+        agentId: "agent_2f0851ab56e19ab5a04c5ac695cddcccaca294a75898d1a0",
+      },
+      receiver: undefined,
+    });
   });
 
   it("restores stored ACP tool calls from history frames", () => {
