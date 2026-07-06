@@ -1,6 +1,7 @@
 export const queryKeys = {
   health: () => ["health"] as const,
   me: () => ["me"] as const,
+  user: (userId: string) => ["users", userId] as const,
   apiKeys: (userId: string) => ["users", userId, "api-keys"] as const,
   envelopes: (userId: string, filters?: Record<string, string | undefined>) =>
     ["users", userId, "envelopes", filters ?? {}] as const,
@@ -34,6 +35,7 @@ export const queryKeys = {
     ["users", userId, "nodes", nodeId] as const,
   agents: (userId: string, nodeId: string) =>
     ["users", userId, "nodes", nodeId, "agents"] as const,
+  userAgents: (userId: string) => ["users", userId, "agents"] as const,
   representativeAgents: (userId: string, runtimeAgentId?: string) =>
     [
       "users",
@@ -47,6 +49,8 @@ export const queryKeys = {
     ["users", userId, "agent-owner-info", [...lookupKeys].sort()] as const,
   agent: (userId: string, nodeId: string, agentId: string) =>
     ["users", userId, "nodes", nodeId, "agents", agentId] as const,
+  userAgent: (userId: string, agentId: string) =>
+    ["users", userId, "agents", agentId] as const,
   sessions: (userId: string, nodeId: string, agentId: string) =>
     ["users", userId, "nodes", nodeId, "agents", agentId, "sessions"] as const,
   session: (

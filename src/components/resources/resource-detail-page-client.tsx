@@ -1,19 +1,32 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, ArrowLeft, Bot, Save, Server, Undo2 } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  Bot,
+  Save,
+  Server,
+  Trash2,
+  Undo2,
+} from "lucide-react";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { MonoId, TruncatedText } from "@/components/ui/text";
 import {
+  deleteAgent,
+  deleteNode,
+  deleteNodeAgent,
   updateNodeAgentProfile,
   updateNodeProfile,
+  useAgent,
   useAgentSessions,
   useNode,
-  useNodeAgent,
   useNodeAgents,
   useNodes,
 } from "@/features/api/resources";
@@ -37,12 +50,36 @@ export function NodeDetailPageClient({
   nodeId,
   user,
 }: NodeDetailPageClientProps) {
+  const queryClient = useQueryClient();
+  const router = useRouter();
+  const [nodeDeleteOpen, setNodeDeleteOpen] = useState(false);
+  const [agentToDelete, setAgentToDelete] = useState<Agent | null>(null);
   const nodesQuery = useNodes(user.user_id);
   const nodeQuery = useNode(user.user_id, nodeId);
   const agentsQuery = useNodeAgents(user.user_id, nodeId);
   const nodes = nodesQuery.data?.nodes ?? [];
   const node = nodeQuery.data;
   const agents = agentsQuery.data?.agents ?? [];
+  const removeNode = useMutation({
+    mutationFn: () => deleteNode(user.user_id, nodeId),
+    onSuccess: () => {
+      setNodeDeleteOpen(false);
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.user(user.user_id),
+      });
+      router.push("/nodes");
+    },
+  });
+  const removeNodeAgent = useMutation({
+    mutationFn: (agent: Agent) =>
+      deleteNodeAgent(user.user_id, nodeId, agent.agent_id),
+    onSuccess: () => {
+      setAgentToDelete(null);
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.user(user.user_id),
+      });
+    },
+  });
 
   return (
     <ConsoleLayout activeNode={node} nodes={nodes} user={user}>
@@ -76,33 +113,111 @@ export function NodeDetailPageClient({
 
         <section className="grid gap-3">
           <SectionHeader count={agents.length} title="Agents on this node" />
+          {removeNodeAgent.error && (
+            <Notice
+              message={`${removeNodeAgent.error.name}: ${removeNodeAgent.error.message}`}
+            />
+          )}
           <div className="grid min-w-0 overflow-hidden rounded-lg border border-hairline">
             {agents.map((agent) => (
-              <Link
-                className="grid min-w-0 gap-3 border-b border-hairline bg-surface-1 px-3 py-2.5 transition last:border-b-0 hover:bg-surface-2 sm:grid-cols-[minmax(0,1fr)_180px_120px]"
-                href={`/agents/${agent.agent_id}?nodeId=${nodeId}`}
+              <article
+                className="grid min-w-0 gap-3 border-b border-hairline bg-surface-1 px-3 py-2.5 transition last:border-b-0 hover:bg-surface-2 sm:grid-cols-[minmax(0,1fr)_180px_120px_40px]"
                 key={agent.agent_id}
               >
-                <div className="min-w-0">
-                  <TruncatedText className="text-base font-medium">
-                    {agent.name ?? agent.agent_type ?? agent.agent_id}
-                  </TruncatedText>
-                  {agent.description && (
-                    <TruncatedText className="mt-1 text-sm text-ink-muted">
-                      {agent.description}
+                <Link
+                  className="contents"
+                  href={`/agents/${agent.agent_id}?nodeId=${nodeId}`}
+                >
+                  <div className="min-w-0">
+                    <TruncatedText className="text-base font-medium">
+                      {agent.name ?? agent.agent_type ?? agent.agent_id}
                     </TruncatedText>
-                  )}
+                    {agent.description && (
+                      <TruncatedText className="mt-1 text-sm text-ink-muted">
+                        {agent.description}
+                      </TruncatedText>
+                    )}
+                  </div>
+                  <MonoId tooltip={agent.agent_id}>
+                    {compactId(agent.agent_id)}
+                  </MonoId>
+                  <div className="flex items-start sm:justify-end">
+                    <Badge>{agent.status ?? "unknown"}</Badge>
+                  </div>
+                </Link>
+                <div className="flex items-start justify-end">
+                  <ConfirmDialog
+                    confirmLabel={
+                      removeNodeAgent.isPending ? "Deleting..." : "Delete agent"
+                    }
+                    description={
+                      <>
+                        This removes{" "}
+                        <span className="font-medium text-ink">
+                          {agentToDelete?.name ??
+                            agentToDelete?.agent_type ??
+                            agentToDelete?.agent_id}
+                        </span>{" "}
+                        from this node. Other agents on the node are not
+                        affected.
+                      </>
+                    }
+                    disabled={removeNodeAgent.isPending}
+                    onConfirm={() => {
+                      if (agentToDelete) {
+                        removeNodeAgent.mutate(agentToDelete);
+                      }
+                    }}
+                    onOpenChange={(open) => {
+                      if (!open) {
+                        setAgentToDelete(null);
+                      }
+                    }}
+                    open={agentToDelete?.agent_id === agent.agent_id}
+                    title="Delete agent?"
+                  >
+                    <Button
+                      disabled={removeNodeAgent.isPending}
+                      icon={<Trash2 className="h-4 w-4" />}
+                      onClick={() => setAgentToDelete(agent)}
+                      size="icon"
+                      tooltip="Delete hosted agent"
+                      type="button"
+                      variant="danger"
+                    />
+                  </ConfirmDialog>
                 </div>
-                <MonoId tooltip={agent.agent_id}>
-                  {compactId(agent.agent_id)}
-                </MonoId>
-                <div className="flex items-start sm:justify-end">
-                  <Badge>{agent.status ?? "unknown"}</Badge>
-                </div>
-              </Link>
+              </article>
             ))}
           </div>
         </section>
+
+        <CleanupActionCard
+          actionLabel={removeNode.isPending ? "Deleting..." : "Delete node"}
+          description="This removes the node from the fleet view and cleans up agents hosted on this node."
+          disabled={!node || removeNode.isPending}
+          error={removeNode.error}
+          onDelete={() => setNodeDeleteOpen(true)}
+          title="Cleanup node"
+        />
+        <ConfirmDialog
+          confirmLabel={removeNode.isPending ? "Deleting..." : "Delete node"}
+          description={
+            <>
+              This removes{" "}
+              <span className="font-medium text-ink">
+                {node?.name ?? node?.hostname ?? nodeId}
+              </span>{" "}
+              from the fleet view. Agents hosted on this node will be cleaned up
+              at the same time.
+            </>
+          }
+          disabled={!node || removeNode.isPending}
+          onConfirm={() => removeNode.mutate()}
+          onOpenChange={setNodeDeleteOpen}
+          open={nodeDeleteOpen}
+          title="Delete node?"
+        />
       </DetailShell>
     </ConsoleLayout>
   );
@@ -113,17 +228,35 @@ export function AgentDetailPageClient({
   nodeId,
   user,
 }: AgentDetailPageClientProps) {
+  const queryClient = useQueryClient();
+  const router = useRouter();
+  const [agentDeleteOpen, setAgentDeleteOpen] = useState(false);
   const nodesQuery = useNodes(user.user_id);
   const nodes = nodesQuery.data?.nodes ?? [];
-  const activeNodeId = nodeId ?? nodes[0]?.node_id;
-  const node = nodes.find((candidate) => candidate.node_id === activeNodeId);
-  const agentQuery = useNodeAgent(user.user_id, activeNodeId, agentId);
+  const agentQuery = useAgent(user.user_id, agentId);
   const agent = agentQuery.data;
+  const activeNodeId = agent?.node_id ?? nodeId;
+  const node = nodes.find((candidate) => candidate.node_id === activeNodeId);
   const sessionsQuery = useAgentSessions(user.user_id, activeNodeId, agentId);
   const sessions = sessionsQuery.data?.sessions ?? [];
+  const removeAgent = useMutation({
+    mutationFn: () => deleteAgent(user.user_id, agentId),
+    onSuccess: () => {
+      setAgentDeleteOpen(false);
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.user(user.user_id),
+      });
+      router.push("/agents");
+    },
+  });
 
   return (
-    <ConsoleLayout activeAgent={agent} activeNode={node} nodes={nodes} user={user}>
+    <ConsoleLayout
+      activeAgent={agent}
+      activeNode={node}
+      nodes={nodes}
+      user={user}
+    >
       <DetailShell
         backHref="/agents"
         error={agentQuery.error ?? sessionsQuery.error}
@@ -132,7 +265,7 @@ export function AgentDetailPageClient({
         title={agent?.name ?? agent?.agent_type ?? agentId}
       >
         {!activeNodeId && (
-          <Notice message="No nodeId is available for this agent. Open an agent from a node or the agents list." />
+          <Notice message="Agent runtime node is not loaded yet. Sessions and profile edits will appear once the agent detail is available." />
         )}
 
         <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -178,24 +311,47 @@ export function AgentDetailPageClient({
                   </TruncatedText>
                 </div>
                 <div className="flex items-start lg:justify-end">
-                  <Badge>{session.run_status ?? session.status ?? "unknown"}</Badge>
+                  <Badge>
+                    {session.run_status ?? session.status ?? "unknown"}
+                  </Badge>
                 </div>
               </Link>
             ))}
           </div>
         </section>
+
+        <CleanupActionCard
+          actionLabel={removeAgent.isPending ? "Deleting..." : "Delete agent"}
+          description="This removes the agent from the agents list. Existing sessions remain as history."
+          disabled={!agent || removeAgent.isPending}
+          error={removeAgent.error}
+          onDelete={() => setAgentDeleteOpen(true)}
+          title="Cleanup agent"
+        />
+        <ConfirmDialog
+          confirmLabel={removeAgent.isPending ? "Deleting..." : "Delete agent"}
+          description={
+            <>
+              This removes{" "}
+              <span className="font-medium text-ink">
+                {agent?.name ?? agent?.agent_type ?? agentId}
+              </span>{" "}
+              from the agents list. Other agents on the same node are not
+              affected.
+            </>
+          }
+          disabled={!agent || removeAgent.isPending}
+          onConfirm={() => removeAgent.mutate()}
+          onOpenChange={setAgentDeleteOpen}
+          open={agentDeleteOpen}
+          title="Delete agent?"
+        />
       </DetailShell>
     </ConsoleLayout>
   );
 }
 
-function NodeProfileEditor({
-  node,
-  userId,
-}: {
-  node?: Node;
-  userId: string;
-}) {
+function NodeProfileEditor({ node, userId }: { node?: Node; userId: string }) {
   return (
     <NodeProfileForm
       initialDescription={node?.description ?? ""}
@@ -553,6 +709,47 @@ function ProfileForm({
   );
 }
 
+function CleanupActionCard({
+  actionLabel,
+  description,
+  disabled,
+  error,
+  onDelete,
+  title,
+}: {
+  actionLabel: string;
+  description: string;
+  disabled: boolean;
+  error: Error | null;
+  onDelete: () => void;
+  title: string;
+}) {
+  return (
+    <section className="min-w-0 rounded-lg border border-warning bg-surface-1 p-3">
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-base font-medium">{title}</h2>
+          <p className="mt-1 text-sm leading-6 text-ink-muted">{description}</p>
+        </div>
+        <Button
+          disabled={disabled}
+          icon={<Trash2 className="h-4 w-4" />}
+          onClick={onDelete}
+          type="button"
+          variant="danger"
+        >
+          {actionLabel}
+        </Button>
+      </div>
+      {error && (
+        <div className="mt-3 rounded-lg border border-warning bg-canvas p-2 text-xs text-ink-muted">
+          {error.message}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function TextField({
   disabled,
   label,
@@ -654,10 +851,17 @@ function DetailCard({ rows, title }: { rows: string[][]; title: string }) {
       <h2 className="text-base font-medium">{title}</h2>
       <div className="mt-3 grid overflow-hidden rounded-md border border-hairline">
         {rows.map(([label, value]) => (
-          <div className="grid min-w-0 grid-cols-[120px_minmax(0,1fr)] gap-4 border-b border-hairline px-3 py-2 last:border-b-0 sm:grid-cols-[150px_minmax(0,1fr)]" key={label}>
-            <TruncatedText className="text-xs text-ink-tertiary">{label}</TruncatedText>
+          <div
+            className="grid min-w-0 grid-cols-[120px_minmax(0,1fr)] gap-4 border-b border-hairline px-3 py-2 last:border-b-0 sm:grid-cols-[150px_minmax(0,1fr)]"
+            key={label}
+          >
+            <TruncatedText className="text-xs text-ink-tertiary">
+              {label}
+            </TruncatedText>
             <MonoId className="text-ink-muted" tooltip={value}>
-              {value.startsWith("node_") || value.startsWith("agent_") || value.startsWith("sess_")
+              {value.startsWith("node_") ||
+              value.startsWith("agent_") ||
+              value.startsWith("sess_")
                 ? compactId(value)
                 : value}
             </MonoId>
@@ -709,7 +913,11 @@ function MetadataValue({ value }: { value: unknown }) {
 
   if (Array.isArray(value) && value.every(isScalar)) {
     if (value.length === 0) {
-      return <TruncatedText className="text-sm text-ink-tertiary">Empty</TruncatedText>;
+      return (
+        <TruncatedText className="text-sm text-ink-tertiary">
+          Empty
+        </TruncatedText>
+      );
     }
 
     return (

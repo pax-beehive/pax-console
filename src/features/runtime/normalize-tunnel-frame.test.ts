@@ -467,7 +467,7 @@ describe("normalizeTunnelFrame", () => {
         id: "sess_c9ac:tool:tc-d4d628ddf0bc",
         sessionId: "sess_c9ac",
         name: 'terminal: sleep 5 && echo "睡醒了！"',
-        status: "running",
+        status: "called",
         sessionUpdate: "tool_call",
         toolCallId: "tc-d4d628ddf0bc",
       },
@@ -543,7 +543,7 @@ describe("normalizeTunnelFrame", () => {
     expect(completed).toMatchObject([
       {
         type: "tool_call",
-        status: "done",
+        status: "called",
         toolCallId: "tc-shared",
       },
     ]);
@@ -556,7 +556,7 @@ describe("normalizeTunnelFrame", () => {
       id: "sess_manager:tool:tc-shared",
       sessionId: "sess_manager",
       name: "terminal: cmd",
-      status: "done",
+      status: "called",
       output: [
         {
           content: { text: "terminal result", type: "text" },
@@ -606,7 +606,7 @@ describe("normalizeTunnelFrame", () => {
         id: "sess_1:tool:tc-read",
         sessionId: "sess_1",
         name: "read: /tmp/tttt/secret.txt",
-        status: "running",
+        status: "called",
         sessionUpdate: "tool_call_content_chunk",
         toolCallId: "tc-read",
         output: {
@@ -623,7 +623,7 @@ describe("normalizeTunnelFrame", () => {
       type: "tool_call",
       id: "sess_1:tool:tc-read",
       name: "read: /tmp/tttt/secret.txt",
-      status: "running",
+      status: "called",
       sessionUpdate: "tool_call_content_chunk",
       toolCallId: "tc-read",
       output: "line one",

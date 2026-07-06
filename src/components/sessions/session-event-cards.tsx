@@ -513,6 +513,10 @@ function ToolStatusBadge({ status }: { status: ToolCallEvent["status"] }) {
     return <Badge>queued</Badge>;
   }
 
+  if (status === "called") {
+    return <Badge>called</Badge>;
+  }
+
   return <Badge>running</Badge>;
 }
 
@@ -530,7 +534,7 @@ function ToolStatusMark({ status }: { status: ToolCallEvent["status"] }) {
     return <span className="h-2 w-2 rounded-full bg-warning" />;
   }
 
-  if (status === "queued") {
+  if (status === "queued" || status === "called") {
     return <span className="h-2 w-2 rounded-full bg-ink-tertiary" />;
   }
 

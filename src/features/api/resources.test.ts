@@ -14,7 +14,12 @@ const {
   createEnvelope,
   createKnowledgeCapsule,
   createTeamInvite,
+  deleteAgent,
+  deleteNode,
+  deleteNodeAgent,
+  getAgent,
   injectKnowledgeCapsule,
+  listAgents,
   listAgentOwnerInfos,
   listAgentSessions,
   listEnvelopes,
@@ -159,6 +164,46 @@ describe("listAgentOwnerInfos", () => {
 });
 
 describe("collaboration resources", () => {
+  it("uses v1 fleet cleanup paths for nodes and agents", async () => {
+    apiFetch.mockResolvedValueOnce({ node_id: "node_1" });
+    apiFetch.mockResolvedValueOnce({ agent_id: "agent_1" });
+    apiFetch.mockResolvedValueOnce({ agent_id: "agent_2" });
+
+    await deleteNode("usr_1", "node_1");
+    await deleteAgent("usr_1", "agent_1");
+    await deleteNodeAgent("usr_1", "node_1", "agent_2");
+
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/user/usr_1/nodes/node_1",
+      { method: "DELETE" },
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/user/usr_1/agents/agent_1",
+      { method: "DELETE" },
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      3,
+      "/api/v1/user/usr_1/nodes/node_1/agents/agent_2",
+      { method: "DELETE" },
+    );
+  });
+
+  it("uses flat v1 agent list and detail paths", async () => {
+    apiFetch.mockResolvedValueOnce({ agents: [] });
+    apiFetch.mockResolvedValueOnce({ agent_id: "agent_1" });
+
+    await listAgents("usr_1");
+    await getAgent("usr_1", "agent_1");
+
+    expect(apiFetch).toHaveBeenNthCalledWith(1, "/api/v1/user/usr_1/agents");
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/user/usr_1/agents/agent_1",
+    );
+  });
+
   it("updates node and agent user-maintained profile fields", async () => {
     apiFetch.mockResolvedValueOnce({ node_id: "node_1" });
     apiFetch.mockResolvedValueOnce({ agent_id: "agent_1" });

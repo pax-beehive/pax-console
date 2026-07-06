@@ -156,6 +156,12 @@ export function getNode(userId: string, nodeId: string) {
   return apiFetch<Node>(userPath(userId, `/nodes/${nodeId}`));
 }
 
+export function deleteNode(userId: string, nodeId: string) {
+  return apiFetch<Node>(userPath(userId, `/nodes/${nodeId}`), {
+    method: "DELETE",
+  });
+}
+
 export function updateNodeProfile(
   userId: string,
   nodeId: string,
@@ -171,9 +177,34 @@ export function listNodeAgents(userId: string, nodeId: string) {
   return apiFetch<AgentListData>(userPath(userId, `/nodes/${nodeId}/agents`));
 }
 
+export function listAgents(userId: string) {
+  return apiFetch<AgentListData>(userPath(userId, "/agents"));
+}
+
+export function getAgent(userId: string, agentId: string) {
+  return apiFetch<Agent>(userPath(userId, `/agents/${agentId}`));
+}
+
+export function deleteAgent(userId: string, agentId: string) {
+  return apiFetch<Agent>(userPath(userId, `/agents/${agentId}`), {
+    method: "DELETE",
+  });
+}
+
 export function getNodeAgent(userId: string, nodeId: string, agentId: string) {
   return apiFetch<Agent>(
     userPath(userId, `/nodes/${nodeId}/agents/${agentId}`),
+  );
+}
+
+export function deleteNodeAgent(
+  userId: string,
+  nodeId: string,
+  agentId: string,
+) {
+  return apiFetch<Agent>(
+    userPath(userId, `/nodes/${nodeId}/agents/${agentId}`),
+    { method: "DELETE" },
   );
 }
 
@@ -769,6 +800,14 @@ export function useNodes(userId?: string) {
   });
 }
 
+export function useAgents(userId?: string) {
+  return useQuery({
+    queryKey: queryKeys.userAgents(userId ?? "pending"),
+    queryFn: () => listAgents(userId as string),
+    enabled: Boolean(userId),
+  });
+}
+
 export function useHealth(enabled = true) {
   return useQuery({
     queryKey: queryKeys.health(),
@@ -783,6 +822,14 @@ export function useNode(userId?: string, nodeId?: string) {
     queryKey: queryKeys.node(userId ?? "pending", nodeId ?? "pending"),
     queryFn: () => getNode(userId as string, nodeId as string),
     enabled: Boolean(userId && nodeId),
+  });
+}
+
+export function useAgent(userId?: string, agentId?: string) {
+  return useQuery({
+    queryKey: queryKeys.userAgent(userId ?? "pending", agentId ?? "pending"),
+    queryFn: () => getAgent(userId as string, agentId as string),
+    enabled: Boolean(userId && agentId),
   });
 }
 
