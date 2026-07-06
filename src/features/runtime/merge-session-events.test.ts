@@ -418,6 +418,36 @@ describe("mergeEvents", () => {
     });
   });
 
+  it("leaves called tool calls neutral when the run finishes", () => {
+    const events: SessionEvent[] = [
+      {
+        type: "tool_call",
+        id: "sess_1:tool:tc_read",
+        sessionId: "sess_1",
+        name: "read: /tmp/tttt/secret.txt",
+        status: "called",
+        sessionUpdate: "tool_call",
+        toolCallId: "tc_read",
+        createdAt: "2026-06-29T18:00:00.000Z",
+      },
+      {
+        type: "run_status",
+        id: "sess_1:done",
+        sessionId: "sess_1",
+        status: "done",
+        createdAt: "2026-06-29T18:00:01.000Z",
+      },
+    ];
+
+    const merged = mergeEvents(events);
+
+    expect(merged[0]).toMatchObject({
+      type: "tool_call",
+      id: "sess_1:tool:tc_read",
+      status: "called",
+    });
+  });
+
   it("does not split message chunks around hidden runtime events", () => {
     const events: SessionEvent[] = [
       {

@@ -318,6 +318,11 @@ function appendUniqueEvents(current: SessionEvent[], incoming: SessionEvent[]) {
   const seen = new Set(current.map(eventSignature));
   const next = [...current];
   for (const event of incoming) {
+    if (isAppendOnlyChunk(event)) {
+      next.push(event);
+      continue;
+    }
+
     const signature = eventSignature(event);
     if (seen.has(signature)) {
       continue;
@@ -328,6 +333,18 @@ function appendUniqueEvents(current: SessionEvent[], incoming: SessionEvent[]) {
   }
 
   return next;
+}
+
+function isAppendOnlyChunk(event: SessionEvent) {
+  return (
+    ((event.type === "agent_message" || event.type === "progress") &&
+      event.streaming === true &&
+      (event.sessionUpdate === "agent_message_chunk" ||
+        event.sessionUpdate === "agent_thought_chunk" ||
+        event.sessionUpdate === undefined)) ||
+    (event.type === "tool_call" &&
+      event.sessionUpdate === "tool_call_content_chunk")
+  );
 }
 
 function eventSignature(event: SessionEvent) {

@@ -206,7 +206,7 @@ function normalizeToolCall(
   kind: string,
 ) {
   const payload = firstDefined(frame.result, frame.output, frame.content);
-  const status = normalizeToolStatus(frame.status, kind, payload);
+  const status = normalizeToolStatus(frame.status);
   const toolCallId = toolCallIdFromFrame(frame);
   const event: Extract<SessionEvent, { type: "tool_call" }> = {
     type: "tool_call",
@@ -547,12 +547,8 @@ function toolCallIdFromFrame(frame: TunnelFrame) {
   );
 }
 
-function normalizeToolStatus(
-  status: string | undefined,
-  kind?: string,
-  payload?: unknown,
-) {
-  if (status === "error" || status === "queued") {
+function normalizeToolStatus(status: string | undefined) {
+  if (status === "error" || status === "queued" || status === "running") {
     return status;
   }
 
@@ -570,11 +566,7 @@ function normalizeToolStatus(
     return "error";
   }
 
-  if (status === undefined && kind?.includes("tool_call_update") && payload) {
-    return "done";
-  }
-
-  return "running";
+  return "called";
 }
 
 function normalizeRunStatus(status: string | undefined) {
