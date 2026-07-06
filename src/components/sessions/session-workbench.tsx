@@ -1,15 +1,17 @@
 "use client";
 
-import Link from "next/link";
 import {
   FormEvent,
   KeyboardEvent,
+  ReactNode,
   useCallback,
+  useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, ArrowLeft, Brain, Radio, Send } from "lucide-react";
+import { AlertCircle, Brain, PanelRight, Radio, Send, X } from "lucide-react";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,6 +25,7 @@ import {
   createKnowledgeCapsule,
   decideApproval,
   injectKnowledgeCapsule,
+  useAgentOwnerInfos,
   useKnowledgeCapsules,
   useKnowledgeInjections,
   useNodeAgents,
@@ -35,7 +38,7 @@ import {
   SessionKnowledgeInjection,
   User,
 } from "@/features/api/types";
-import { normalizeHistoryMessage } from "@/features/runtime/normalize-history-message";
+import { normalizeHistoryMessages } from "@/features/runtime/normalize-history-message";
 import { mergeEvents } from "@/features/runtime/merge-session-events";
 import {
   groupWorkstreamEvents,
@@ -49,6 +52,18 @@ type SessionWorkbenchProps = {
   sessionId: string;
   nodeId?: string;
   agentId?: string;
+  initialPrompt?: string;
+  initialPromptKey?: string;
+};
+
+type SessionSidePanelId = "knowledge";
+
+type SessionSidePanel = {
+  id: SessionSidePanelId;
+  label: string;
+  description: string;
+  icon: ReactNode;
+  content: ReactNode;
 };
 
 export function SessionWorkbench({
@@ -56,6 +71,8 @@ export function SessionWorkbench({
   sessionId,
   nodeId,
   agentId,
+  initialPrompt,
+  initialPromptKey,
 }: SessionWorkbenchProps) {
   const queryClient = useQueryClient();
   const nodesQuery = useNodes(user.user_id);
@@ -68,7 +85,13 @@ export function SessionWorkbench({
   const activeAgentId = agentId ?? agents[0]?.agent_id;
   const activeAgent = agents.find((agent) => agent.agent_id === activeAgentId);
   const [draft, setDraft] = useState("");
+  const pendingInitialPromptRef = useRef(
+    readInitialPrompt(initialPrompt, initialPromptKey),
+  );
+  const initialPromptSentRef = useRef(false);
   const [sendError, setSendError] = useState<Error | null>(null);
+  const [activeSidePanelId, setActiveSidePanelId] =
+    useState<SessionSidePanelId | null>(null);
   const [permissionDecisions, setPermissionDecisions] = useState<
     Record<string, PermissionDecisionResult>
   >({});
@@ -174,6 +197,7 @@ export function SessionWorkbench({
     sessionId: routeSessionId,
     userId: user.user_id,
   });
+
   const decidePermission = useMutation({
     mutationFn: async ({
       approvalId,
@@ -214,23 +238,26 @@ export function SessionWorkbench({
   // The timeline merges durable REST history with live conversation events.
   // REST gives refresh/resume safety; the run stream gives low-latency updates.
   const historyEvents = useMemo(
-    () =>
-      (historyQuery.data?.messages ?? []).flatMap((message) =>
-        normalizeHistoryMessage(message),
-      ),
+    () => normalizeHistoryMessages(historyQuery.data?.messages ?? []),
     [historyQuery.data?.messages],
   );
 
   const liveEvents = useMemo(
-    () => filterLiveEventsAlreadyInHistory(
-      conversationRun.events,
-      historyEvents,
-    ),
+    () =>
+      filterLiveEventsAlreadyInHistory(conversationRun.events, historyEvents),
     [conversationRun.events, historyEvents],
   );
   const timeline = useMemo(
     () => mergeEvents([...historyEvents, ...liveEvents]),
     [historyEvents, liveEvents],
+  );
+  const invocationOwnerLookups = useMemo(
+    () => agentOwnerLookupsFromInvocations(timeline),
+    [timeline],
+  );
+  const agentOwnerInfosQuery = useAgentOwnerInfos(
+    user.user_id,
+    invocationOwnerLookups,
   );
   const workstreamItems = useMemo(
     () => groupWorkstreamEvents(timeline),
@@ -265,6 +292,50 @@ export function SessionWorkbench({
     }
   }, [activeAgentId, activeNodeId, conversationRun, draft]);
 
+  useEffect(() => {
+    const content = pendingInitialPromptRef.current.trim();
+    if (
+      initialPromptSentRef.current ||
+      sessionId !== "new" ||
+      !content ||
+      !activeAgentId ||
+      !activeNodeId ||
+      conversationRun.status !== "idle"
+    ) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      if (initialPromptSentRef.current) {
+        return;
+      }
+
+      initialPromptSentRef.current = true;
+      setSendError(null);
+      void conversationRun
+        .sendMessage(content)
+        .then(() => {
+          removeStoredInitialPrompt(initialPromptKey);
+        })
+        .catch((caught) => {
+          setSendError(
+            caught instanceof Error ? caught : new Error(String(caught)),
+          );
+        });
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    activeAgentId,
+    activeNodeId,
+    conversationRun,
+    conversationRun.status,
+    initialPromptKey,
+    sessionId,
+  ]);
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void submitDraft();
@@ -284,6 +355,35 @@ export function SessionWorkbench({
     void submitDraft();
   }
 
+  const sidePanels: SessionSidePanel[] = [
+    {
+      id: "knowledge",
+      label: "Knowledge",
+      description: "Capsules and system handoff injections",
+      icon: <Brain className="h-4 w-4" />,
+      content: (
+        <KnowledgeTools
+          capsules={activeCapsules}
+          capsuleKeyword={capsuleKeyword}
+          createError={createCapsule.error}
+          createPending={createCapsule.isPending}
+          injectError={injectCapsule.error}
+          injectPending={injectCapsule.isPending}
+          injections={injectionsQuery.data?.injections ?? []}
+          injectionsLoading={injectionsQuery.isLoading}
+          onCreate={() => createCapsule.mutate()}
+          onInject={() => injectCapsule.mutate()}
+          onKeywordChange={setCapsuleKeyword}
+          onSelectedCapsuleChange={setSelectedCapsuleId}
+          selectedCapsuleId={selectedInjectionCapsuleId}
+        />
+      ),
+    },
+  ];
+  const activeSidePanel = sidePanels.find(
+    (panel) => panel.id === activeSidePanelId,
+  );
+
   return (
     <ConsoleLayout
       activeAgent={activeAgent}
@@ -291,47 +391,8 @@ export function SessionWorkbench({
       nodes={nodes}
       user={user}
     >
-      <div className="grid h-[calc(100vh-var(--topbar-h))] min-h-0 min-w-0 overflow-hidden lg:grid-cols-[260px_minmax(0,1fr)_300px]">
-        <aside className="min-h-0 min-w-0 overflow-auto border-b border-hairline bg-surface-1 lg:border-b-0 lg:border-r">
-          <div className="border-b border-hairline p-4">
-            <Link
-              className="inline-flex items-center gap-2 text-sm text-ink-subtle hover:text-ink"
-              href="/"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to fleet
-            </Link>
-            <TruncatedText
-              className="mt-4 text-xl font-medium"
-              tooltip={currentSessionId ?? "New session"}
-            >
-              {currentSessionId ? compactId(currentSessionId) : "New session"}
-            </TruncatedText>
-            <MonoId
-              className="mt-2"
-              tooltip={activeAgentId ?? "No agent selected"}
-            >
-              {activeAgentId ? compactId(activeAgentId) : "No agent selected"}
-            </MonoId>
-          </div>
-
-          <div className="grid gap-0 p-4">
-            <ContextRow
-              label="Node"
-              value={activeNode?.name ?? activeNode?.hostname ?? "unknown"}
-            />
-            <ContextRow
-              label="Agent"
-              value={activeAgent?.name ?? activeAgent?.agent_type ?? "unknown"}
-            />
-            <ContextRow
-              label="Session"
-              value={currentSessionId ? compactId(currentSessionId) : "pending"}
-            />
-          </div>
-        </aside>
-
-        <section className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-canvas">
+      <div className="relative flex h-[calc(100vh-var(--topbar-h))] min-h-0 min-w-0 overflow-hidden bg-canvas">
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-canvas">
           <div className="flex items-center justify-between gap-4 border-b border-hairline bg-surface-1 px-4 py-3">
             <div className="min-w-0">
               <div className="flex min-w-0 max-w-[52vw] gap-1 text-sm text-ink-tertiary">
@@ -343,9 +404,34 @@ export function SessionWorkbench({
                   {activeAgent?.name ?? activeAgentId ?? "Unknown agent"}
                 </TruncatedText>
               </div>
-              <div className="mt-1 text-lg font-medium">Workstream</div>
+              <div className="mt-1 flex min-w-0 items-center gap-2">
+                <TruncatedText
+                  className="text-lg font-medium"
+                  tooltip={currentSessionId ?? "New session"}
+                >
+                  {currentSessionId
+                    ? compactId(currentSessionId)
+                    : "New session"}
+                </TruncatedText>
+              </div>
             </div>
-            <RunBadge status={conversationRun.status} />
+            <div className="flex shrink-0 items-center gap-2">
+              <RunBadge status={conversationRun.status} />
+              <Button
+                icon={<PanelRight className="h-4 w-4" />}
+                onClick={() =>
+                  setActiveSidePanelId((current) =>
+                    current ? null : sidePanels[0]?.id ?? null,
+                  )
+                }
+                size="icon"
+                tooltip={
+                  activeSidePanel ? "Hide context panel" : "Show context panel"
+                }
+                type="button"
+                variant={activeSidePanel ? "secondary" : "ghost"}
+              />
+            </div>
           </div>
 
           <div className="min-h-0 flex-1 overflow-auto bg-canvas p-4">
@@ -357,6 +443,7 @@ export function SessionWorkbench({
               />
               {workstreamItems.map((item) => (
                 <WorkstreamItemCard
+                  agentOwnerInfos={agentOwnerInfosQuery.data ?? {}}
                   item={item}
                   key={item.id}
                   permissionDecision={{
@@ -409,53 +496,61 @@ export function SessionWorkbench({
           </form>
         </section>
 
-        <aside className="min-h-0 min-w-0 overflow-auto border-t border-hairline bg-surface-1 lg:border-l lg:border-t-0">
-          <div className="border-b border-hairline p-4">
-            <div className="text-sm font-medium text-ink">Evidence</div>
-            <div className="mt-1 text-xs text-ink-tertiary">
-              REST history and conversation run state
+        {activeSidePanel && (
+          <aside className="absolute inset-y-0 right-0 z-20 min-h-0 w-[min(100vw,320px)] overflow-auto border-l border-hairline bg-surface-1 shadow-2xl shadow-black/40 lg:relative lg:inset-auto lg:z-auto lg:w-[300px] lg:shadow-none">
+            <div className="flex min-w-0 items-start justify-between gap-3 border-b border-hairline p-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-sm font-medium text-ink">
+                  {activeSidePanel.icon}
+                  {activeSidePanel.label}
+                </div>
+                <div className="mt-1 text-xs text-ink-tertiary">
+                  {activeSidePanel.description}
+                </div>
+              </div>
+              <Button
+                icon={<X className="h-4 w-4" />}
+                onClick={() => setActiveSidePanelId(null)}
+                size="icon"
+                tooltip={`Hide ${activeSidePanel.label}`}
+                type="button"
+                variant="ghost"
+              />
             </div>
-          </div>
-          <div className="grid gap-0 p-4">
-            <StatusRow label="REST history" value={queryState(historyQuery)} />
-            <StatusRow
-              label="Conversation run"
-              value={conversationRun.status}
-            />
-            <StatusRow
-              label="Endpoint"
-              value={
-                activeAgentId && activeNodeId
-                  ? `/api/v1/user/${user.user_id}/nodes/${activeNodeId}/agents/${activeAgentId}/conversation`
-                  : "waiting for agent"
-              }
-            />
-            <StatusRow
-              label="Timeline events"
-              value={String(timeline.length)}
-            />
-          </div>
-          <div className="border-t border-hairline p-4">
-            <KnowledgeTools
-              capsules={activeCapsules}
-              capsuleKeyword={capsuleKeyword}
-              createError={createCapsule.error}
-              createPending={createCapsule.isPending}
-              injectError={injectCapsule.error}
-              injectPending={injectCapsule.isPending}
-              injections={injectionsQuery.data?.injections ?? []}
-              injectionsLoading={injectionsQuery.isLoading}
-              onCreate={() => createCapsule.mutate()}
-              onInject={() => injectCapsule.mutate()}
-              onKeywordChange={setCapsuleKeyword}
-              onSelectedCapsuleChange={setSelectedCapsuleId}
-              selectedCapsuleId={selectedInjectionCapsuleId}
-            />
-          </div>
-        </aside>
+            <div className="p-4">{activeSidePanel.content}</div>
+          </aside>
+        )}
       </div>
     </ConsoleLayout>
   );
+}
+
+function readInitialPrompt(initialPrompt?: string, initialPromptKey?: string) {
+  if (initialPrompt) {
+    return initialPrompt;
+  }
+
+  if (!initialPromptKey || typeof window === "undefined") {
+    return "";
+  }
+
+  try {
+    return window.sessionStorage.getItem(initialPromptKey) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function removeStoredInitialPrompt(initialPromptKey?: string) {
+  if (!initialPromptKey || typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.sessionStorage.removeItem(initialPromptKey);
+  } catch {
+    // Ignore storage cleanup failures; the prompt has already been sent.
+  }
 }
 
 function KnowledgeTools({
@@ -503,16 +598,6 @@ function KnowledgeTools({
 
   return (
     <div className="grid gap-4">
-      <div>
-        <div className="flex items-center gap-2 text-sm font-medium text-ink">
-          <Brain className="h-4 w-4" />
-          Knowledge
-        </div>
-        <div className="mt-1 text-xs text-ink-tertiary">
-          Capsules and system handoff injections
-        </div>
-      </div>
-
       <form className="grid gap-2" onSubmit={create}>
         <input
           className="min-h-9 rounded-lg border border-hairline bg-canvas px-3 text-sm text-ink outline-none focus:border-primary-focus"
@@ -595,38 +680,14 @@ function RunBadge({ status }: { status: string }) {
   );
 }
 
-function StatusRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0 border-b border-hairline py-3 last:border-b-0">
-      <div className="text-xs text-ink-tertiary">{label}</div>
-      <MonoId className="mt-1 text-ink-muted" tooltip={value}>
-        {value.includes("/agents/") ||
-        value.startsWith("agent_") ||
-        value.startsWith("sess_")
-          ? compactId(value, 18, 10)
-          : value}
-      </MonoId>
-    </div>
-  );
-}
-
-function ContextRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0 border-b border-hairline py-3 last:border-b-0">
-      <div className="text-xs text-ink-tertiary">{label}</div>
-      <TruncatedText className="mt-1 text-sm text-ink-muted" tooltip={value}>
-        {value}
-      </TruncatedText>
-    </div>
-  );
-}
-
 function filterLiveEventsAlreadyInHistory(
   liveEvents: SessionEvent[],
   historyEvents: SessionEvent[],
 ) {
   const historyTextKeys = new Set(
-    historyEvents.map(textEventKey).filter((key): key is string => Boolean(key)),
+    historyEvents
+      .map(textEventKey)
+      .filter((key): key is string => Boolean(key)),
   );
   if (historyTextKeys.size === 0) {
     return liveEvents;
@@ -638,11 +699,40 @@ function filterLiveEventsAlreadyInHistory(
   });
 }
 
+function agentOwnerLookupsFromInvocations(events: SessionEvent[]) {
+  const lookups = new Map<
+    string,
+    { agentId?: string; representativeAgentId?: string }
+  >();
+  for (const event of events) {
+    if (event.type !== "invocation") {
+      continue;
+    }
+
+    for (const endpoint of [event.sender, event.receiver]) {
+      if (!endpoint?.agentId && !endpoint?.representativeAgentId) {
+        continue;
+      }
+
+      const key = endpoint.representativeAgentId
+        ? `rep:${endpoint.representativeAgentId}`
+        : `agent:${endpoint.agentId}`;
+      lookups.set(key, {
+        agentId: endpoint.agentId,
+        representativeAgentId: endpoint.representativeAgentId,
+      });
+    }
+  }
+
+  return [...lookups.values()];
+}
+
 function textEventKey(event: SessionEvent) {
   if (
     event.type !== "user_message" &&
     event.type !== "agent_message" &&
-    event.type !== "progress"
+    event.type !== "progress" &&
+    event.type !== "invocation"
   ) {
     return undefined;
   }
@@ -690,16 +780,4 @@ function InlineError({ error }: { error: Error }) {
       {error.name}: {error.message}
     </TruncatedText>
   );
-}
-
-function queryState(query: { isLoading: boolean; isError: boolean }) {
-  if (query.isLoading) {
-    return "loading";
-  }
-
-  if (query.isError) {
-    return "error";
-  }
-
-  return "loaded";
 }

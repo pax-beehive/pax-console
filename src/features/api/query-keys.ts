@@ -34,6 +34,17 @@ export const queryKeys = {
     ["users", userId, "nodes", nodeId] as const,
   agents: (userId: string, nodeId: string) =>
     ["users", userId, "nodes", nodeId, "agents"] as const,
+  representativeAgents: (userId: string, runtimeAgentId?: string) =>
+    [
+      "users",
+      userId,
+      "representative-agents",
+      runtimeAgentId ?? "all",
+    ] as const,
+  conversationMessages: (userId: string, conversationId: string) =>
+    ["users", userId, "conversations", conversationId, "messages"] as const,
+  agentOwnerInfos: (userId: string, lookupKeys: string[]) =>
+    ["users", userId, "agent-owner-info", [...lookupKeys].sort()] as const,
   agent: (userId: string, nodeId: string, agentId: string) =>
     ["users", userId, "nodes", nodeId, "agents", agentId] as const,
   sessions: (userId: string, nodeId: string, agentId: string) =>

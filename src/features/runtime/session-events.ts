@@ -51,6 +51,35 @@ export type SessionEvent =
       createdAt: string;
     }
   | {
+      type: "invocation";
+      id: string;
+      sessionId: string;
+      content: string;
+      originalContent?: string;
+      invocationId?: string;
+      invocationType?: string;
+      phase?: string;
+      state?: "complete" | "pending";
+      side?: string;
+      parentMessageId?: string;
+      replacesMessageIds: string[];
+      sender?: {
+        agentId?: string;
+        agentName?: string;
+        representativeAgentId?: string;
+        sessionId?: string;
+        userName?: string;
+      };
+      receiver?: {
+        agentId?: string;
+        agentName?: string;
+        representativeAgentId?: string;
+        sessionId?: string;
+        userName?: string;
+      };
+      createdAt: string;
+    }
+  | {
       type: "tool_call";
       id: string;
       sessionId: string;

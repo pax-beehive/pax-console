@@ -3,6 +3,7 @@ export type ApiRecord = Record<string, unknown>;
 export type User = {
   user_id: string;
   email?: string;
+  display_name?: string;
   name?: string;
   role?: string;
   is_admin?: boolean;
@@ -201,6 +202,7 @@ export type MessagePart = {
 export type HistoryMessage = {
   id?: number;
   message_id: string;
+  conversation_id?: string;
   owner_user_id?: string;
   node_id?: string;
   agent_id?: string;
@@ -244,6 +246,99 @@ export type AgentSession = {
   updated_at?: string;
   last_active_at?: string;
   last_message_at?: string;
+};
+
+export type AgentProfile = {
+  profile_id: string;
+  owner_type?: string;
+  owner_id?: string;
+  display_name?: string;
+  description?: string;
+  card?: ApiRecord;
+  metadata?: ApiRecord;
+  status?: string;
+  created_by_user_id?: string;
+  created_at?: string;
+  updated_at?: string;
+  archived_at?: string;
+};
+
+export type RepresentativeAgent = {
+  representative_agent_id: string;
+  profile_id: string;
+  runtime_agent_id: string;
+  represents_type?: string;
+  represents_id?: string;
+  approval_policy_id?: string;
+  status?: string;
+  created_by_user_id?: string;
+  created_at?: string;
+  updated_at?: string;
+  archived_at?: string;
+};
+
+export type Conversation = {
+  conversation_id: string;
+  conversation_type?: string;
+  boundary_type?: string;
+  boundary_id?: string;
+  history_policy?: string;
+  status?: string;
+  created_at?: string;
+  archived_at?: string;
+};
+
+export type ConversationAgentBinding = {
+  binding_id: string;
+  conversation_id: string;
+  representative_agent_id: string;
+  relationship_type?: string;
+  added_by_user_id?: string;
+  access_mode?: string;
+  status?: string;
+  created_at?: string;
+  archived_at?: string;
+};
+
+export type ConversationAgentInvocation = {
+  invocation_id: string;
+  conversation_id: string;
+  representative_agent_id: string;
+  session_id?: string;
+  requested_by_user_id?: string;
+  access_mode?: string;
+  max_turns?: number;
+  remaining_turns?: number;
+  status?: string;
+  created_at?: string;
+};
+
+export type AgentConversationDelivery = {
+  status: "delivered" | "pending" | string;
+  error?: string;
+};
+
+export type AgentInquiryResult = {
+  bindings: ConversationAgentBinding[];
+  conversation: Conversation;
+  delivery: AgentConversationDelivery;
+  invocation: ConversationAgentInvocation;
+  prompt_message: HistoryMessage;
+  source_session: AgentSession;
+  target_session: AgentSession;
+};
+
+export type AgentOwnerSubject = {
+  kind: "user" | "team" | string;
+  user?: User;
+  team?: TeamSummary;
+};
+
+export type AgentOwnerInfo = {
+  agent: Agent;
+  owner: AgentOwnerSubject;
+  profile?: AgentProfile;
+  representative_agent?: RepresentativeAgent;
 };
 
 export type MailboxMessage = {

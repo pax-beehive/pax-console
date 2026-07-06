@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useMemo, useRef, useState } from "react";
+import { FormEvent, KeyboardEvent, useMemo, useRef, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
 import {
   Archive,
@@ -258,8 +258,34 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     const params = new URLSearchParams({
       agentId: activeAgent.agent_id,
       nodeId: activeAgent.node_id,
+      nonce: String(Date.now()),
     });
+    const initialPrompt = draft.trim();
+    if (initialPrompt) {
+      const promptKey = `pax-console:initial-prompt:${globalThis.crypto?.randomUUID?.() ?? Date.now()}`;
+      try {
+        window.sessionStorage.setItem(promptKey, initialPrompt);
+        params.set("promptKey", promptKey);
+      } catch {
+        params.set("prompt", initialPrompt);
+      }
+    }
+
     router.push(`/sessions/new?${params.toString()}`);
+  }
+
+  function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (
+      event.key !== "Enter" ||
+      event.shiftKey ||
+      event.nativeEvent.isComposing ||
+      event.keyCode === 229
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    event.currentTarget.form?.requestSubmit();
   }
 
   return (
@@ -438,6 +464,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 />
                 <textarea
                   className="max-h-40 min-h-14 w-full resize-none bg-transparent px-1 py-1 text-sm leading-6 text-ink outline-none placeholder:text-ink-tertiary"
+                  onKeyDown={handleComposerKeyDown}
                   onChange={(event) => setDraft(event.target.value)}
                   placeholder={composerPlaceholder(composerMode)}
                   value={draft}

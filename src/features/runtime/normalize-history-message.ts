@@ -1,6 +1,20 @@
 import { HistoryMessage } from "@/features/api/types";
+import {
+  createInvocationEvent,
+  invocationStateFromType,
+  isPaxInvocationDisplayType,
+  projectHistoryMessagesForDisplay,
+} from "./invocation-display";
 import { normalizeTunnelFrame } from "./normalize-tunnel-frame";
 import { SessionEvent } from "./session-events";
+
+export function normalizeHistoryMessages(
+  messages: HistoryMessage[],
+): SessionEvent[] {
+  return projectHistoryMessagesForDisplay(messages).flatMap((message) =>
+    normalizeHistoryMessage(message),
+  );
+}
 
 export function normalizeHistoryMessage(
   message: HistoryMessage,
@@ -8,6 +22,18 @@ export function normalizeHistoryMessage(
   const sessionId = message.session_id ?? "unknown-session";
   const createdAt = message.created_at ?? new Date().toISOString();
   const id = message.message_id ?? String(message.id ?? crypto.randomUUID());
+  if (isPaxInvocationDisplayType(message.message_type)) {
+    return createInvocationEvent({
+      id,
+      sessionId,
+      createdAt,
+      state: invocationStateFromType(message.message_type),
+      rawJson: message.raw_json,
+      parentMessageId: message.parent_message_id,
+      fallbackContent: textFromParts(message, isTextPartType),
+    });
+  }
+
   if (message.message_type === "permission_response") {
     const events = normalizePermissionResponse(message, sessionId, createdAt);
     if (events.length > 0) {

@@ -15,6 +15,7 @@ const {
   createKnowledgeCapsule,
   createTeamInvite,
   injectKnowledgeCapsule,
+  listAgentOwnerInfos,
   listAgentSessions,
   listEnvelopes,
   listFriends,
@@ -90,6 +91,69 @@ describe("listAgentSessions", () => {
 
     await expect(listAgentSessions("u1", "n1", "a1")).resolves.toEqual({
       sessions: [{ id: "s1" }],
+    });
+  });
+});
+
+describe("listAgentOwnerInfos", () => {
+  it("fetches owner info by agent id and returns a map keyed by agent id", async () => {
+    apiFetch.mockResolvedValueOnce({
+      owner_info: {
+        agent: { agent_id: "agent_a", name: "Contract Writer" },
+        owner: {
+          kind: "user",
+          user: {
+            display_name: "Ada",
+            email: "ada@example.com",
+            user_id: "usr_ada",
+          },
+        },
+      },
+    });
+    apiFetch.mockResolvedValueOnce({
+      owner_info: {
+        agent: { agent_id: "agent_b", name: "Review Agent" },
+        owner: {
+          kind: "team",
+          team: {
+            agent_count: 1,
+            member_count: 2,
+            name: "Contracts",
+            owner_user_id: "usr_owner",
+            status: "active",
+            team_id: "team_contracts",
+          },
+        },
+      },
+    });
+
+    const infos = await listAgentOwnerInfos("usr_1", [
+      { representativeAgentId: "rep_b", agentId: "agent_b" },
+      { agentId: "agent_a" },
+      { agentId: "agent_a" },
+    ]);
+
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/user/usr_1/agent-owner-info?agent_id=agent_a",
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/user/usr_1/agent-owner-info?representative_agent_id=rep_b",
+    );
+    expect(infos).toMatchObject({
+      "agent:agent_a": {
+        agent: { name: "Contract Writer" },
+        owner: { user: { display_name: "Ada" } },
+      },
+      "agent:agent_b": {
+        agent: { name: "Review Agent" },
+        owner: { team: { name: "Contracts" } },
+      },
+      "rep:rep_b": {
+        agent: { name: "Review Agent" },
+        owner: { team: { name: "Contracts" } },
+      },
     });
   });
 });

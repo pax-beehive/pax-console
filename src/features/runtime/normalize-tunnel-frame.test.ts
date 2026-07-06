@@ -225,6 +225,101 @@ describe("normalizeTunnelFrame", () => {
     ]);
   });
 
+  it("normalizes live pax invocation session updates", () => {
+    const events = normalizeTunnelFrame({
+      jsonrpc: "2.0",
+      method: "session/update",
+      params: {
+        sessionId: "sess_live",
+        update: {
+          message_id: "msg_invocation_live",
+          message_type: "pax:invocation",
+          parent_message_id: "msg_tool_done",
+          raw_json: {
+            invocation_id: "inv_live",
+            invocation_type: "agent_conversation",
+            phase: "reply",
+            side: "target",
+            replaces_message_ids: ["msg_tool_call", "msg_tool_done"],
+            sender: {
+              agent_name: "Review Agent",
+              agent_user_name: "Grace",
+            },
+            receiver: {
+              agent_name: "Contract Writer",
+              agent_user_name: "Ada",
+            },
+            content: {
+              display_text: "Agent B replied with contract feedback.",
+              original_text: "The contract should include retry details.",
+            },
+          },
+        },
+      },
+    });
+
+    expect(events).toMatchObject([
+      {
+        type: "invocation",
+        id: "msg_invocation_live",
+        sessionId: "sess_live",
+        content: "Agent B replied with contract feedback.",
+        originalContent: "The contract should include retry details.",
+        invocationId: "inv_live",
+        invocationType: "agent_conversation",
+        phase: "reply",
+        side: "target",
+        parentMessageId: "msg_tool_done",
+        replacesMessageIds: ["msg_tool_call", "msg_tool_done"],
+        sender: { agentName: "Review Agent", userName: "Grace" },
+        receiver: { agentName: "Contract Writer", userName: "Ada" },
+      },
+    ]);
+  });
+
+  it("normalizes live pax invocation pending session updates", () => {
+    const events = normalizeTunnelFrame({
+      jsonrpc: "2.0",
+      method: "session/update",
+      params: {
+        sessionId: "sess_live",
+        update: {
+          message_id: "msg_invocation_pending",
+          message_type: "pax:invocation_pending",
+          raw_json: {
+            invocation_id: "inv_live",
+            invocation_type: "agent_conversation",
+            phase: "inquiry",
+            side: "source",
+            receiver: {
+              agent_id: "agent_b",
+              representative_agent_id: "rep_target",
+            },
+            content: {
+              display_text: "Asked Review Agent for input.",
+              original_text: "Please review the request contract.",
+            },
+          },
+        },
+      },
+    });
+
+    expect(events).toMatchObject([
+      {
+        type: "invocation",
+        id: "msg_invocation_pending",
+        sessionId: "sess_live",
+        state: "pending",
+        content: "Asked Review Agent for input.",
+        originalContent: "Please review the request contract.",
+        receiver: {
+          agentId: "agent_b",
+          representativeAgentId: "rep_target",
+        },
+      },
+    ]);
+  });
+
   it("normalizes ACP permission requests from official session/request_permission frames", () => {
     const events = normalizeTunnelFrame({
       jsonrpc: "2.0",
@@ -468,6 +563,70 @@ describe("normalizeTunnelFrame", () => {
           type: "content",
         },
       ],
+    });
+  });
+
+  it("joins consecutive ACP tool call content chunks", () => {
+    const firstChunk = normalizeTunnelFrame({
+      jsonrpc: "2.0",
+      method: "session/update",
+      params: {
+        sessionId: "sess_1",
+        update: {
+          content: {
+            text: "line ",
+            type: "text",
+          },
+          sessionUpdate: "tool_call_content_chunk",
+          title: "read: /tmp/tttt/secret.txt",
+          toolCallId: "tc-read",
+        },
+      },
+    });
+    const secondChunk = normalizeTunnelFrame({
+      jsonrpc: "2.0",
+      method: "session/update",
+      params: {
+        sessionId: "sess_1",
+        update: {
+          content: {
+            text: "one",
+            type: "text",
+          },
+          sessionUpdate: "tool_call_content_chunk",
+          title: "read: /tmp/tttt/secret.txt",
+          toolCallId: "tc-read",
+        },
+      },
+    });
+
+    expect(firstChunk).toMatchObject([
+      {
+        type: "tool_call",
+        id: "sess_1:tool:tc-read",
+        sessionId: "sess_1",
+        name: "read: /tmp/tttt/secret.txt",
+        status: "running",
+        sessionUpdate: "tool_call_content_chunk",
+        toolCallId: "tc-read",
+        output: {
+          text: "line ",
+          type: "text",
+        },
+      },
+    ]);
+
+    const merged = mergeEvents([...firstChunk, ...secondChunk]);
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toMatchObject({
+      type: "tool_call",
+      id: "sess_1:tool:tc-read",
+      name: "read: /tmp/tttt/secret.txt",
+      status: "running",
+      sessionUpdate: "tool_call_content_chunk",
+      toolCallId: "tc-read",
+      output: "line one",
     });
   });
 

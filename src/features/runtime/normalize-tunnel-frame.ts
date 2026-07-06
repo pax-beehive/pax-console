@@ -1,8 +1,15 @@
 import { SessionEvent } from "./session-events";
+import {
+  createInvocationEvent,
+  invocationStateFromType,
+  isPaxInvocationDisplayType,
+} from "./invocation-display";
 
 type TunnelFrame = {
   id?: string | number;
+  message_id?: string;
   type?: string;
+  message_type?: string;
   method?: string;
   kind?: string;
   sessionUpdate?: string;
@@ -23,12 +30,14 @@ type TunnelFrame = {
   path?: string;
   callId?: string;
   toolCallId?: string;
+  parent_message_id?: string;
   params?: unknown;
   result?: unknown;
   output?: unknown;
   update?: unknown;
   event?: unknown;
   data?: unknown;
+  raw_json?: unknown;
 };
 
 type NormalizeContext = {
@@ -65,6 +74,7 @@ export function normalizeTunnelFrame(
     frame.event_type ??
     frame.sessionUpdate ??
     frame.kind ??
+    frame.message_type ??
     frame.type ??
     frame.method;
   const id = getEventId(frame, sessionId, createdAt, context, kind);
@@ -76,6 +86,20 @@ export function normalizeTunnelFrame(
 
   if (!kind) {
     return normalizeJsonRpcResult(frame, sessionId, createdAt, id);
+  }
+
+  if (isPaxInvocationDisplayType(kind)) {
+    return createInvocationEvent({
+      id,
+      sessionId,
+      createdAt,
+      state: invocationStateFromType(kind),
+      rawJson: frame.raw_json ?? frame,
+      parentMessageId:
+        frame.parent_message_id ??
+        stringFromValue(frame.params, "parent_message_id"),
+      fallbackContent: content,
+    });
   }
 
   if (isIgnoredSessionUpdate(kind)) {
@@ -201,7 +225,11 @@ function normalizeToolCall(
     createdAt,
   };
 
-  if (kind === "tool_call" || status === "running" || status === "queued") {
+  if (
+    kind === "tool_call" ||
+    (kind !== "tool_call_content_chunk" &&
+      (status === "running" || status === "queued"))
+  ) {
     event.input = payload;
   } else if (payload !== undefined) {
     event.output = payload;
@@ -429,8 +457,10 @@ function getEventId(
 ) {
   const explicitId =
     frame.id ??
+    frame.message_id ??
     stringFromValue(frame.params, "id") ??
-    stringFromValue(frame.params, "messageId");
+    stringFromValue(frame.params, "messageId") ??
+    stringFromValue(frame.params, "message_id");
 
   if (explicitId !== undefined) {
     return String(explicitId);

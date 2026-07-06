@@ -9,12 +9,30 @@ export function mergeEvents(events: SessionEvent[]) {
   const indexByKey = new Map<string, number>();
   const lastTextChunkIndexByKey = new Map<string, number>();
   const streamSegmentCounts = new Map<string, number>();
+  const hiddenEventIds = new Set<string>();
 
   for (const event of events) {
+    if (hiddenEventIds.has(event.id)) {
+      continue;
+    }
+
     const eventKey = eventMergeKey(event);
 
     if (event.type === "run_status") {
       closeOpenToolCallsForRunStatus(merged, event.status);
+    }
+
+    if (event.type === "invocation") {
+      for (const hiddenId of invocationHiddenEventIds(event)) {
+        hiddenEventIds.add(hiddenId);
+      }
+
+      const replacementIndex = invocationReplacementIndex(merged, event);
+      if (replacementIndex >= 0) {
+        merged[replacementIndex] = event;
+        indexByKey.set(eventKey, replacementIndex);
+        continue;
+      }
     }
 
     if (isContiguousTextChunk(event)) {
@@ -92,7 +110,35 @@ export function mergeEvents(events: SessionEvent[]) {
     merged.push(event);
   }
 
-  return attachAdjacentPermissionsToTools(merged);
+  return attachAdjacentPermissionsToTools(
+    merged.filter((event) => !hiddenEventIds.has(event.id)),
+  );
+}
+
+function invocationHiddenEventIds(
+  event: Extract<SessionEvent, { type: "invocation" }>,
+) {
+  if (event.replacesMessageIds.length > 0) {
+    return event.replacesMessageIds;
+  }
+
+  return event.parentMessageId ? [event.parentMessageId] : [];
+}
+
+function invocationReplacementIndex(
+  events: SessionEvent[],
+  event: Extract<SessionEvent, { type: "invocation" }>,
+) {
+  const replacedIndex = events.findIndex((candidate) =>
+    event.replacesMessageIds.includes(candidate.id),
+  );
+  if (replacedIndex >= 0) {
+    return replacedIndex;
+  }
+
+  return event.parentMessageId
+    ? events.findIndex((candidate) => candidate.id === event.parentMessageId)
+    : -1;
 }
 
 function closeOpenToolCallsForRunStatus(
@@ -127,13 +173,88 @@ function mergeToolCallEvent(
     ...event,
     createdAt: existing.createdAt,
     id: existing.id,
-    input: event.input ?? existing.input,
+    input: mergeToolPayload(existing, event, "input"),
     name: existing.name || event.name,
-    output: event.output ?? existing.output,
+    output: mergeToolPayload(existing, event, "output"),
     permissions: mergePermissionLists(existing.permissions, event.permissions),
     sessionId: existing.sessionId,
     toolCallId: existing.toolCallId ?? event.toolCallId,
   } satisfies SessionEvent;
+}
+
+function mergeToolPayload(
+  existing: Extract<SessionEvent, { type: "tool_call" }>,
+  event: Extract<SessionEvent, { type: "tool_call" }>,
+  field: "input" | "output",
+) {
+  const incoming = event[field];
+  if (incoming === undefined) {
+    return existing[field];
+  }
+
+  if (event.sessionUpdate !== "tool_call_content_chunk") {
+    return incoming;
+  }
+
+  const current = existing[field];
+  if (current === undefined) {
+    return incoming;
+  }
+
+  if (existing.sessionUpdate !== "tool_call_content_chunk") {
+    return incoming;
+  }
+
+  return appendPayloadText(current, incoming) ?? incoming;
+}
+
+function appendPayloadText(current: unknown, incoming: unknown) {
+  const currentText = textFromPayload(current);
+  const incomingText = textFromPayload(incoming);
+  if (currentText === undefined || incomingText === undefined) {
+    return undefined;
+  }
+
+  return `${currentText}${incomingText}`;
+}
+
+function textFromPayload(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    const text = value.map(textFromPayload).filter(Boolean).join("");
+    return text || undefined;
+  }
+
+  if (typeof value !== "object" || value === null) {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  const directText =
+    stringValue(record, "text") ??
+    stringValue(record, "output") ??
+    stringValue(record, "command") ??
+    stringValue(record, "description");
+  if (directText) {
+    return directText;
+  }
+
+  for (const key of ["content", "result", "rawInput", "raw_input"]) {
+    const text = textFromPayload(record[key]);
+    if (text) {
+      return text;
+    }
+  }
+
+  return undefined;
+}
+
+function stringValue(record: Record<string, unknown>, key: string) {
+  const value = record[key];
+  return typeof value === "string" ? value : undefined;
 }
 
 function attachAdjacentPermissionsToTools(events: SessionEvent[]) {
@@ -150,7 +271,10 @@ function attachAdjacentPermissionsToTools(events: SessionEvent[]) {
     let nextIndex = index + 1;
     while (events[nextIndex]?.type === "permission_request") {
       permissions.push(
-        events[nextIndex] as Extract<SessionEvent, { type: "permission_request" }>,
+        events[nextIndex] as Extract<
+          SessionEvent,
+          { type: "permission_request" }
+        >,
       );
       nextIndex += 1;
     }
@@ -256,12 +380,12 @@ type TextChunkEvent = Extract<
 
 function isContiguousTextChunk(event: SessionEvent): event is TextChunkEvent {
   return (
-    ((event.type === "agent_message" &&
+    (event.type === "agent_message" &&
       event.streaming === true &&
       (event.sessionUpdate === "agent_message_chunk" ||
         event.sessionUpdate === undefined)) ||
-      (event.type === "progress" &&
-        event.streaming === true &&
-        event.sessionUpdate === "agent_thought_chunk"))
+    (event.type === "progress" &&
+      event.streaming === true &&
+      event.sessionUpdate === "agent_thought_chunk")
   );
 }
