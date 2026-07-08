@@ -323,6 +323,19 @@ function appendUniqueEvents(current: SessionEvent[], incoming: SessionEvent[]) {
       continue;
     }
 
+    const permissionIndex = findPermissionRequestIndex(next, event);
+    if (permissionIndex !== -1 && event.type === "permission_request") {
+      next[permissionIndex] = mergePermissionRequest(
+        next[permissionIndex] as Extract<
+          SessionEvent,
+          { type: "permission_request" }
+        >,
+        event,
+      );
+      seen.add(eventSignature(next[permissionIndex]));
+      continue;
+    }
+
     const signature = eventSignature(event);
     if (seen.has(signature)) {
       continue;
@@ -333,6 +346,35 @@ function appendUniqueEvents(current: SessionEvent[], incoming: SessionEvent[]) {
   }
 
   return next;
+}
+
+function findPermissionRequestIndex(
+  eventList: SessionEvent[],
+  incoming: SessionEvent,
+) {
+  if (incoming.type !== "permission_request") {
+    return -1;
+  }
+
+  return eventList.findIndex(
+    (event) =>
+      event.type === "permission_request" &&
+      event.sessionId === incoming.sessionId &&
+      event.requestId === incoming.requestId,
+  );
+}
+
+function mergePermissionRequest(
+  current: Extract<SessionEvent, { type: "permission_request" }>,
+  incoming: Extract<SessionEvent, { type: "permission_request" }>,
+) {
+  return {
+    ...current,
+    ...incoming,
+    approvalId: incoming.approvalId ?? current.approvalId,
+    decision: incoming.decision ?? current.decision,
+    decidedAt: incoming.decidedAt ?? current.decidedAt,
+  } satisfies SessionEvent;
 }
 
 function isAppendOnlyChunk(event: SessionEvent) {
