@@ -30,6 +30,8 @@ type TunnelFrame = {
   path?: string;
   callId?: string;
   toolCallId?: string;
+  approval_id?: string;
+  approvalId?: string;
   parent_message_id?: string;
   params?: unknown;
   result?: unknown;
@@ -249,7 +251,9 @@ function normalizePermissionRequest(
   const requestId = frame.id !== undefined ? String(frame.id) : id;
   const approvalId =
     stringFromValue(params, "approval_id") ??
-    stringFromValue(params, "approvalId");
+    stringFromValue(params, "approvalId") ??
+    frame.approval_id ??
+    frame.approvalId;
   const title =
     stringFromValue(toolCall, "title") ??
     stringFromValue(params, "title") ??

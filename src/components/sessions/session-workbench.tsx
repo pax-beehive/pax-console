@@ -6,12 +6,23 @@ import {
   ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, Brain, PanelRight, Radio, Send, X } from "lucide-react";
+import {
+  AlertCircle,
+  Brain,
+  CheckCircle2,
+  Circle,
+  LoaderCircle,
+  PanelRight,
+  ShieldAlert,
+  Send,
+  X,
+} from "lucide-react";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,6 +49,7 @@ import {
   SessionKnowledgeInjection,
   User,
 } from "@/features/api/types";
+import { filterLiveEventsAlreadyInHistory } from "@/features/runtime/filter-live-history-events";
 import { normalizeHistoryMessages } from "@/features/runtime/normalize-history-message";
 import { mergeEvents } from "@/features/runtime/merge-session-events";
 import {
@@ -90,6 +102,11 @@ export function SessionWorkbench({
   );
   const initialPromptSentRef = useRef(false);
   const [sendError, setSendError] = useState<Error | null>(null);
+  const timelineScrollRef = useRef<HTMLDivElement>(null);
+  const timelineBottomRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLFormElement>(null);
+  const shouldStickToBottomRef = useRef(true);
+  const [composerSafeArea, setComposerSafeArea] = useState(112);
   const [activeSidePanelId, setActiveSidePanelId] =
     useState<SessionSidePanelId | null>(null);
   const [permissionDecisions, setPermissionDecisions] = useState<
@@ -269,6 +286,19 @@ export function SessionWorkbench({
     conversationRun.status !== "waiting_approval" &&
     draft.trim().length > 0;
 
+  const updateTimelineStickiness = useCallback(() => {
+    const scrollElement = timelineScrollRef.current;
+    if (!scrollElement) {
+      return;
+    }
+
+    const distanceFromBottom =
+      scrollElement.scrollHeight -
+      scrollElement.scrollTop -
+      scrollElement.clientHeight;
+    shouldStickToBottomRef.current = distanceFromBottom < 96;
+  }, []);
+
   const submitDraft = useCallback(async () => {
     const content = draft.trim();
     if (
@@ -335,6 +365,35 @@ export function SessionWorkbench({
     initialPromptKey,
     sessionId,
   ]);
+
+  useLayoutEffect(() => {
+    const composerElement = composerRef.current;
+    if (!composerElement) {
+      return;
+    }
+
+    const syncComposerSafeArea = () => {
+      setComposerSafeArea(Math.ceil(composerElement.offsetHeight + 16));
+    };
+
+    syncComposerSafeArea();
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const observer = new ResizeObserver(syncComposerSafeArea);
+    observer.observe(composerElement);
+    return () => observer.disconnect();
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!shouldStickToBottomRef.current) {
+      return;
+    }
+
+    timelineBottomRef.current?.scrollIntoView({ block: "end" });
+    shouldStickToBottomRef.current = true;
+  }, [composerSafeArea, workstreamItems]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -421,7 +480,7 @@ export function SessionWorkbench({
                 icon={<PanelRight className="h-4 w-4" />}
                 onClick={() =>
                   setActiveSidePanelId((current) =>
-                    current ? null : sidePanels[0]?.id ?? null,
+                    current ? null : (sidePanels[0]?.id ?? null),
                   )
                 }
                 size="icon"
@@ -434,7 +493,11 @@ export function SessionWorkbench({
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-auto bg-canvas p-4">
+          <div
+            className="min-h-0 flex-1 overflow-auto bg-canvas p-4"
+            onScroll={updateTimelineStickiness}
+            ref={timelineScrollRef}
+          >
             <div className="mx-auto grid w-full max-w-4xl gap-4">
               <SessionErrors
                 messagesError={historyQuery.error}
@@ -464,12 +527,19 @@ export function SessionWorkbench({
                   No messages yet. Live tunnel events will appear here.
                 </div>
               )}
+              <div
+                aria-hidden="true"
+                className="min-h-px"
+                ref={timelineBottomRef}
+                style={{ height: composerSafeArea }}
+              />
             </div>
           </div>
 
           <form
-            className="border-t border-hairline bg-surface-1 p-3"
+            className="relative z-10 border-t border-hairline bg-surface-1 p-3"
             onSubmit={handleSubmit}
+            ref={composerRef}
           >
             <div className="mx-auto flex w-full max-w-4xl items-end gap-3">
               <textarea
@@ -671,32 +741,54 @@ function KnowledgeTools({
   );
 }
 
-function RunBadge({ status }: { status: string }) {
+function RunBadge({
+  status,
+}: {
+  status: "idle" | "streaming" | "waiting_approval" | "done" | "error";
+}) {
+  const statusConfig = {
+    idle: {
+      icon: <Circle className="h-3.5 w-3.5" />,
+      label: "idle",
+      tone: "neutral" as const,
+      tooltip: "Ready for a prompt",
+    },
+    streaming: {
+      icon: <LoaderCircle className="h-3.5 w-3.5 animate-spin" />,
+      label: "running",
+      tone: "warning" as const,
+      tooltip: "Agent is responding",
+    },
+    waiting_approval: {
+      icon: <ShieldAlert className="h-3.5 w-3.5" />,
+      label: "approval",
+      tone: "warning" as const,
+      tooltip: "Waiting for approval",
+    },
+    done: {
+      icon: <CheckCircle2 className="h-3.5 w-3.5" />,
+      label: "done",
+      tone: "success" as const,
+      tooltip: "Run completed",
+    },
+    error: {
+      icon: <AlertCircle className="h-3.5 w-3.5" />,
+      label: "error",
+      tone: "danger" as const,
+      tooltip: "Run failed",
+    },
+  }[status];
+
   return (
-    <Badge className="max-w-36" tooltip={status}>
-      <Radio className="h-3.5 w-3.5" />
-      {status}
+    <Badge
+      className="max-w-40 px-2 py-1 font-medium"
+      tone={statusConfig.tone}
+      tooltip={statusConfig.tooltip}
+    >
+      {statusConfig.icon}
+      {statusConfig.label}
     </Badge>
   );
-}
-
-function filterLiveEventsAlreadyInHistory(
-  liveEvents: SessionEvent[],
-  historyEvents: SessionEvent[],
-) {
-  const historyTextKeys = new Set(
-    historyEvents
-      .map(textEventKey)
-      .filter((key): key is string => Boolean(key)),
-  );
-  if (historyTextKeys.size === 0) {
-    return liveEvents;
-  }
-
-  return liveEvents.filter((event) => {
-    const key = textEventKey(event);
-    return !key || !historyTextKeys.has(key);
-  });
 }
 
 function agentOwnerLookupsFromInvocations(events: SessionEvent[]) {
@@ -725,23 +817,6 @@ function agentOwnerLookupsFromInvocations(events: SessionEvent[]) {
   }
 
   return [...lookups.values()];
-}
-
-function textEventKey(event: SessionEvent) {
-  if (
-    event.type !== "user_message" &&
-    event.type !== "agent_message" &&
-    event.type !== "progress" &&
-    event.type !== "invocation"
-  ) {
-    return undefined;
-  }
-
-  return `${event.type}:${event.sessionId}:${normalizeTimelineText(event.content)}`;
-}
-
-function normalizeTimelineText(content: string) {
-  return content.replace(/\s+/g, " ").trim();
 }
 
 function SessionErrors({
