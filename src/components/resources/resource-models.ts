@@ -72,7 +72,7 @@ export function resourceLastActiveAt(resource: {
 
 export function sessionUpdatedAt(session: AgentSession) {
   return (
-    session.updated_at ?? session.last_active_at ?? session.last_message_at
+    session.last_active_at ?? session.last_message_at ?? session.updated_at
   );
 }
 
@@ -90,6 +90,27 @@ export function byLastActiveDesc<T>(
 
     return getTieBreaker(left).localeCompare(getTieBreaker(right));
   });
+}
+
+export function paginateItems<T>(
+  items: readonly T[],
+  page: number,
+  pageSize: number,
+) {
+  const safePageSize = Math.max(1, Math.floor(pageSize));
+  const pageCount = Math.max(1, Math.ceil(items.length / safePageSize));
+  const currentPage = Math.min(Math.max(1, Math.floor(page)), pageCount);
+  const startOffset = (currentPage - 1) * safePageSize;
+  const endOffset = Math.min(startOffset + safePageSize, items.length);
+
+  return {
+    currentPage,
+    endIndex: items.length === 0 ? 0 : endOffset,
+    items: items.slice(startOffset, endOffset),
+    pageCount,
+    startIndex: items.length === 0 ? 0 : startOffset + 1,
+    totalCount: items.length,
+  };
 }
 
 export function isActiveNode(node: Node) {
