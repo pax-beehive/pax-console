@@ -35,9 +35,7 @@ describe("handleConversationEnvelope", () => {
         },
         setStatus: (nextStatus) => {
           status =
-            typeof nextStatus === "function"
-              ? nextStatus(status)
-              : nextStatus;
+            typeof nextStatus === "function" ? nextStatus(status) : nextStatus;
         },
         streamId: "sess_1:turn:1",
       },
@@ -78,9 +76,7 @@ describe("handleConversationEnvelope", () => {
         },
         setStatus: (nextStatus) => {
           status =
-            typeof nextStatus === "function"
-              ? nextStatus(status)
-              : nextStatus;
+            typeof nextStatus === "function" ? nextStatus(status) : nextStatus;
         },
         streamId: "sess_1:turn:1",
       },
@@ -182,6 +178,84 @@ describe("handleConversationEnvelope", () => {
         status: "done",
       },
     ]);
+  });
+
+  it("updates a permission request when manager approval metadata arrives", () => {
+    let sessionId = "";
+    let error: Error | null = null;
+    let status: ConversationRunStatus = "streaming";
+    let events: SessionEvent[] = [];
+    const handlerOptions = handlers({
+      getError: () => error,
+      getEvents: () => events,
+      getStatus: () => status,
+      setError: (nextError) => {
+        error = nextError;
+      },
+      setEvents: (nextEvents) => {
+        events = nextEvents;
+      },
+      setSessionId: (nextSessionId) => {
+        sessionId = nextSessionId;
+      },
+      setStatus: (nextStatus) => {
+        status = nextStatus;
+      },
+    });
+
+    handleConversationEnvelope(
+      {
+        type: "acp",
+        node_id: "node_1",
+        agent_id: "agent_1",
+        session_id: "sess_1",
+        frame: permissionRequestFrame(),
+      },
+      handlerOptions,
+    );
+    handleConversationEnvelope(
+      {
+        type: "approval_required",
+        node_id: "node_1",
+        agent_id: "agent_1",
+        session_id: "sess_1",
+        approval_id: "appr_1",
+        approval: {
+          approval_id: "appr_1",
+          title: "Run tests",
+          description: "go test ./...",
+          options: [
+            {
+              option_id: "allow_once",
+              label: "Allow once",
+              decision: "allow",
+              scope: "once",
+            },
+          ],
+        },
+        frame: permissionRequestFrame(),
+      },
+      handlerOptions,
+    );
+
+    expect(sessionId).toBe("");
+    expect(status).toBe("waiting_approval");
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      type: "permission_request",
+      sessionId: "sess_1",
+      requestId: "perm_1",
+      approvalId: "appr_1",
+      title: "Run tests",
+      description: "go test ./...",
+      options: [
+        {
+          optionId: "allow_once",
+          kind: "allow",
+          name: "Allow once",
+        },
+      ],
+    });
   });
 
   it("keeps repeated ACP text chunks from the same stream", () => {
@@ -301,6 +375,29 @@ describe("handleConversationEnvelope", () => {
     ]);
   });
 });
+
+function permissionRequestFrame() {
+  return {
+    jsonrpc: "2.0",
+    id: "perm_1",
+    method: "session/request_permission",
+    params: {
+      sessionId: "native_session",
+      toolCall: {
+        kind: "execute",
+        title: "go test ./...",
+        rawInput: {
+          command: "go test ./...",
+        },
+        toolCallId: "call_1",
+      },
+      options: [
+        { kind: "allow_once", name: "Allow once", optionId: "allow_once" },
+        { kind: "reject_once", name: "Deny", optionId: "deny" },
+      ],
+    },
+  };
+}
 
 function acpTextChunkEnvelope({
   sessionId,
