@@ -7,6 +7,7 @@ import {
   isActiveAgent,
   isActiveNode,
   isActiveSession,
+  paginateItems,
   resourceLastActiveAt,
   sessionUpdatedAt,
 } from "./resource-models";
@@ -43,7 +44,7 @@ describe("resource list models", () => {
     ]);
   });
 
-  it("sorts sessions by updated_at before fallback timestamps", () => {
+  it("sorts sessions by activity timestamp before report update time", () => {
     const sessions: AgentSession[] = [
       {
         agent_id: "agent_1",
@@ -72,10 +73,35 @@ describe("resource list models", () => {
     );
 
     expect(sorted.map((session) => session.session_id)).toEqual([
-      "session_new_updated",
       "session_old_updated",
+      "session_new_updated",
       "session_missing_time",
     ]);
+  });
+
+  it("paginates sessions and clamps the requested page", () => {
+    const sessions: AgentSession[] = Array.from({ length: 7 }, (_, index) => ({
+      agent_id: "agent_1",
+      node_id: "node_1",
+      session_id: `session_${index + 1}`,
+    }));
+
+    const secondPage = paginateItems(sessions, 2, 3);
+
+    expect(secondPage).toMatchObject({
+      currentPage: 2,
+      endIndex: 6,
+      pageCount: 3,
+      startIndex: 4,
+      totalCount: 7,
+    });
+    expect(secondPage.items.map((session) => session.session_id)).toEqual([
+      "session_4",
+      "session_5",
+      "session_6",
+    ]);
+
+    expect(paginateItems(sessions, 99, 3).currentPage).toBe(3);
   });
 
   it("adds readable agent and node labels to flattened sessions", () => {

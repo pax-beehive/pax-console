@@ -1389,7 +1389,7 @@ function byRecent<T>(items: T[], timestamp: (item: T) => string | undefined) {
 
 function sessionTimestamp(session: AgentSession) {
   return (
-    session.updated_at ?? session.last_active_at ?? session.last_message_at
+    session.last_active_at ?? session.last_message_at ?? session.updated_at
   );
 }
 

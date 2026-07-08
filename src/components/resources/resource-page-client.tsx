@@ -6,6 +6,8 @@ import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
   Bot,
+  ChevronLeft,
+  ChevronRight,
   KeyRound,
   Plus,
   Radio,
@@ -55,6 +57,7 @@ import {
   isActiveNode,
   isActiveSession,
   nodeLabel,
+  paginateItems,
   resourceLastActiveAt,
   sessionUpdatedAt,
   SessionRow,
@@ -117,9 +120,11 @@ const copy: Record<
 
 const emptyNodes: Node[] = [];
 const emptyAgents: Agent[] = [];
+const sessionPageSize = 50;
 
 export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
   const [showAllResources, setShowAllResources] = useState(false);
+  const [sessionPage, setSessionPage] = useState(1);
   const nodesQuery = useNodes(user.user_id);
   const shouldLoadAgents =
     kind === "agents" || kind === "sessions" || kind === "monitor";
@@ -193,6 +198,10 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
         : sortedSessionRows.filter((session) => isActiveSession(session)),
     [showAllResources, sortedSessionRows],
   );
+  const paginatedSessions = useMemo(
+    () => paginateItems(sessionRows, sessionPage, sessionPageSize),
+    [sessionPage, sessionRows],
+  );
   const sessionsLoading =
     agentsLoading || sessionQueries.some((query) => query.isLoading);
   const healthQuery = useHealth(kind === "monitor");
@@ -216,6 +225,11 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
     approvalGrantsQuery.error ??
     null;
 
+  function handleShowAllResourcesChange(checked: boolean) {
+    setShowAllResources(checked);
+    setSessionPage(1);
+  }
+
   return (
     <ConsoleLayout
       activeAgent={activeAgent}
@@ -223,7 +237,7 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
       nodes={nodes}
       user={user}
     >
-      <div className="grid gap-0">
+      <div className="flex min-h-0 flex-1 flex-col">
         <header className="flex min-w-0 items-center justify-between border-b border-hairline px-5 py-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-xs text-ink-tertiary">
@@ -235,7 +249,7 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
           {supportsActiveFilter(kind) && (
             <ActiveFilterToggle
               checked={showAllResources}
-              onChange={setShowAllResources}
+              onChange={handleShowAllResourcesChange}
             />
           )}
         </header>
@@ -246,7 +260,7 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
           </div>
         )}
 
-        <div className="p-5">
+        <div className="min-h-0 flex-1 overflow-auto p-5">
           {kind === "nodes" && (
             <NodeGrid
               isLoading={nodesQuery.isLoading}
@@ -266,8 +280,14 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
           )}
           {kind === "sessions" && (
             <SessionGrid
+              filteredCount={sessionRows.length}
               isLoading={sessionsLoading}
-              sessions={sessionRows}
+              onPageChange={setSessionPage}
+              page={paginatedSessions.currentPage}
+              pageCount={paginatedSessions.pageCount}
+              pageEnd={paginatedSessions.endIndex}
+              pageStart={paginatedSessions.startIndex}
+              sessions={paginatedSessions.items}
               totalCount={sortedSessionRows.length}
             />
           )}
@@ -556,11 +576,23 @@ function AgentGrid({
 }
 
 function SessionGrid({
+  filteredCount,
   isLoading,
+  onPageChange,
+  page,
+  pageCount,
+  pageEnd,
+  pageStart,
   sessions,
   totalCount,
 }: {
+  filteredCount: number;
   isLoading: boolean;
+  onPageChange: (page: number) => void;
+  page: number;
+  pageCount: number;
+  pageEnd: number;
+  pageStart: number;
   sessions: SessionRow[];
   totalCount: number;
 }) {
@@ -569,55 +601,87 @@ function SessionGrid({
   }
 
   return (
-    <div className="grid min-w-0 overflow-hidden rounded-lg border border-hairline">
-      {sessions.map((session) => (
-        <Link
-          className="grid min-w-0 gap-3 border-b border-hairline bg-surface-1 px-3 py-3 transition last:border-b-0 hover:bg-surface-2 lg:grid-cols-[minmax(0,1fr)_220px_120px]"
-          href={`/sessions/${session.session_id}?nodeId=${session.node_id}&agentId=${session.agent_id}`}
-          key={session.session_id}
-        >
-          <div className="min-w-0">
-            <TruncatedText className="text-sm font-medium">
-              {session.name ?? session.current_task ?? session.session_id}
-            </TruncatedText>
-            <TruncatedText className="mt-1 text-xs text-ink-muted">
-              {session.preview ?? session.current_task ?? "Open session"}
-            </TruncatedText>
+    <div className="grid min-w-0 gap-3">
+      {filteredCount > 0 && (
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 text-sm text-ink-tertiary">
+          <span className="min-w-0">
+            Showing {pageStart}-{pageEnd} of {filteredCount}
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              disabled={page <= 1}
+              icon={<ChevronLeft className="h-4 w-4" />}
+              onClick={() => onPageChange(page - 1)}
+              size="icon"
+              tooltip="Previous page"
+              type="button"
+              variant="secondary"
+            />
+            <span className="min-w-16 text-center text-xs text-ink-muted">
+              {page}/{pageCount}
+            </span>
+            <Button
+              disabled={page >= pageCount}
+              icon={<ChevronRight className="h-4 w-4" />}
+              onClick={() => onPageChange(page + 1)}
+              size="icon"
+              tooltip="Next page"
+              type="button"
+              variant="secondary"
+            />
           </div>
-          <div className="grid min-w-0 content-start gap-1">
-            <div className="flex min-w-0 items-start gap-1.5">
-              <Badge
-                className="min-w-0 max-w-none flex-1"
-                tone={session.agentActive ? "success" : "neutral"}
-                tooltip={session.agent_id}
-              >
-                Agent: {session.agentLabel}
-              </Badge>
-              <Badge
-                className="min-w-0 max-w-none flex-1"
-                tone={session.nodeActive ? "success" : "neutral"}
-                tooltip={session.node_id}
-              >
-                Node: {session.nodeLabel}
-              </Badge>
-            </div>
-            <MonoId
-              className="w-fit max-w-full rounded-md border border-hairline bg-canvas px-1.5 py-0.5"
-              tooltip={session.session_id}
-            >
-              {compactId(session.session_id)}
-            </MonoId>
-          </div>
-          <div className="flex items-start lg:justify-end">
-            <Badge>{session.run_status ?? session.status ?? "unknown"}</Badge>
-          </div>
-        </Link>
-      ))}
-      {sessions.length === 0 && (
-        <EmptyState
-          label={totalCount > 0 ? "No active sessions" : "No sessions"}
-        />
+        </div>
       )}
+      <div className="grid min-w-0 overflow-hidden rounded-lg border border-hairline">
+        {sessions.map((session) => (
+          <Link
+            className="grid min-w-0 gap-3 border-b border-hairline bg-surface-1 px-3 py-3 transition last:border-b-0 hover:bg-surface-2 lg:grid-cols-[minmax(0,1fr)_220px_120px]"
+            href={`/sessions/${session.session_id}?nodeId=${session.node_id}&agentId=${session.agent_id}`}
+            key={session.session_id}
+          >
+            <div className="min-w-0">
+              <TruncatedText className="text-sm font-medium">
+                {session.name ?? session.current_task ?? session.session_id}
+              </TruncatedText>
+              <TruncatedText className="mt-1 text-xs text-ink-muted">
+                {session.preview ?? session.current_task ?? "Open session"}
+              </TruncatedText>
+            </div>
+            <div className="grid min-w-0 content-start gap-1">
+              <div className="flex min-w-0 items-start gap-1.5">
+                <Badge
+                  className="min-w-0 max-w-none flex-1"
+                  tone={session.agentActive ? "success" : "neutral"}
+                  tooltip={session.agent_id}
+                >
+                  Agent: {session.agentLabel}
+                </Badge>
+                <Badge
+                  className="min-w-0 max-w-none flex-1"
+                  tone={session.nodeActive ? "success" : "neutral"}
+                  tooltip={session.node_id}
+                >
+                  Node: {session.nodeLabel}
+                </Badge>
+              </div>
+              <MonoId
+                className="w-fit max-w-full rounded-md border border-hairline bg-canvas px-1.5 py-0.5"
+                tooltip={session.session_id}
+              >
+                {compactId(session.session_id)}
+              </MonoId>
+            </div>
+            <div className="flex items-start lg:justify-end">
+              <Badge>{session.run_status ?? session.status ?? "unknown"}</Badge>
+            </div>
+          </Link>
+        ))}
+        {sessions.length === 0 && (
+          <EmptyState
+            label={totalCount > 0 ? "No active sessions" : "No sessions"}
+          />
+        )}
+      </div>
     </div>
   );
 }
