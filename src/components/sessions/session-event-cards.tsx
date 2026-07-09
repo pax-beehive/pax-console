@@ -92,6 +92,7 @@ export function WorkstreamItemCard({
       agentOwnerInfos={agentOwnerInfos}
       event={item.event}
       permissionDecision={permissionDecision}
+      showActions={item.showActions}
     />
   );
 }
@@ -100,10 +101,12 @@ function EventCard({
   agentOwnerInfos,
   event,
   permissionDecision,
+  showActions,
 }: {
   agentOwnerInfos?: Record<string, AgentOwnerInfo>;
   event: Exclude<SessionEvent, ToolCallEvent>;
   permissionDecision: PermissionDecisionState;
+  showActions?: boolean;
 }) {
   if (event.type === "file_change") {
     return <FileChangeCard event={event} />;
@@ -127,7 +130,7 @@ function EventCard({
   }
 
   if (event.type === "agent_message") {
-    return <AgentMessageCard event={event} />;
+    return <AgentMessageCard event={event} showActions={showActions} />;
   }
 
   if (event.type === "invocation") {
@@ -197,10 +200,13 @@ function UserMessageCard({
 
 function AgentMessageCard({
   event,
+  showActions,
 }: {
   event: Extract<SessionEvent, { type: "agent_message" }>;
+  showActions?: boolean;
 }) {
-  const showActions = !event.streaming && event.content.trim().length > 0;
+  const shouldShowActions =
+    showActions === true && !event.streaming && event.content.trim().length > 0;
 
   return (
     <article className="min-w-0 justify-self-stretch py-1">
@@ -209,7 +215,7 @@ function AgentMessageCard({
         content={event.content}
         streaming={event.streaming}
       />
-      {showActions && <AgentMessageActions content={event.content} />}
+      {shouldShowActions && <AgentMessageActions content={event.content} />}
     </article>
   );
 }

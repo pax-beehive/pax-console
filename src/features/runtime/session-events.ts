@@ -140,6 +140,7 @@ export type WorkstreamItem =
       type: "event";
       id: string;
       event: Exclude<SessionEvent, ToolCallEvent>;
+      showActions?: boolean;
     }
   | {
       type: "tool_group";
@@ -162,10 +163,32 @@ export function groupWorkstreamEvents(
 ): WorkstreamItem[] {
   const items: WorkstreamItem[] = [];
   let toolGroup: Extract<WorkstreamItem, { type: "tool_group" }> | undefined;
+  let lastAgentMessageItem:
+    | Extract<WorkstreamItem, { type: "event" }>
+    | undefined;
+
+  const markAgentTurnEnded = () => {
+    if (lastAgentMessageItem?.event.type === "agent_message") {
+      lastAgentMessageItem.showActions = true;
+    }
+    lastAgentMessageItem = undefined;
+  };
 
   for (const event of events) {
+    if (
+      event.type === "run_status" &&
+      (event.status === "done" || event.status === "error")
+    ) {
+      markAgentTurnEnded();
+      continue;
+    }
+
     if (!isVisibleTimelineEvent(event)) {
       continue;
+    }
+
+    if (event.type === "user_message") {
+      markAgentTurnEnded();
     }
 
     if (event.type === "tool_call") {
@@ -185,12 +208,19 @@ export function groupWorkstreamEvents(
     }
 
     toolGroup = undefined;
-    items.push({
+    const item: Extract<WorkstreamItem, { type: "event" }> = {
       type: "event",
       id: event.id,
       event,
-    });
+    };
+    items.push(item);
+
+    if (event.type === "agent_message") {
+      lastAgentMessageItem = item;
+    }
   }
+
+  markAgentTurnEnded();
 
   return items;
 }
