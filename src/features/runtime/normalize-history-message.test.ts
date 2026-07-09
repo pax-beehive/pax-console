@@ -486,6 +486,9 @@ describe("normalizeHistoryMessage", () => {
             optionId: "allow_once",
           },
         },
+        grant_body: {
+          approval_mode: "auto_approve_all",
+        },
         jsonrpc: "2.0",
       },
     });
@@ -500,6 +503,69 @@ describe("normalizeHistoryMessage", () => {
       title: "delete in root path: rm /Tmp/tttt/secret.txt",
       decision: {
         decisionOption: "allow_once",
+        source: "auto",
+        status: "approved",
+      },
+    });
+  });
+
+  it("marks stored user-approved permission responses as user decisions", () => {
+    const requested = normalizeHistoryMessage({
+      message_id: "msg_permission_request",
+      session_id: "sess_history",
+      message_type: "session/request_permission",
+      role: "assistant",
+      created_at: "2026-06-29T20:37:09.000Z",
+      raw_json: {
+        id: 0,
+        method: "session/request_permission",
+        params: {
+          sessionId: "native_session",
+          toolCall: {
+            kind: "execute",
+            title: "go test ./...",
+            toolCallId: "perm-check-1",
+          },
+          options: [
+            {
+              kind: "allow_once",
+              name: "Allow once",
+              optionId: "allow_once",
+            },
+          ],
+        },
+        jsonrpc: "2.0",
+      },
+    });
+    const responded = normalizeHistoryMessage({
+      message_id: "msg_permission_response",
+      session_id: "sess_history",
+      message_type: "permission_response",
+      role: "user",
+      created_at: "2026-06-29T20:37:12.000Z",
+      raw_json: {
+        id: 0,
+        decided_by_user_id: "usr_manual",
+        result: {
+          outcome: {
+            outcome: "selected",
+            optionId: "allow_once",
+          },
+        },
+        jsonrpc: "2.0",
+      },
+    });
+
+    const merged = mergeEvents([...requested, ...responded]);
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toMatchObject({
+      type: "permission_request",
+      sessionId: "sess_history",
+      requestId: "0",
+      decision: {
+        decisionOption: "allow_once",
+        source: "user",
         status: "approved",
       },
     });

@@ -32,6 +32,10 @@ type TunnelFrame = {
   toolCallId?: string;
   approval_id?: string;
   approvalId?: string;
+  decided_by_user_id?: string;
+  decidedByUserId?: string;
+  grant_body?: unknown;
+  grantBody?: unknown;
   parent_message_id?: string;
   params?: unknown;
   result?: unknown;
@@ -420,6 +424,29 @@ function normalizeJsonRpcResult(
   }
 
   const events: SessionEvent[] = [];
+  const outcome = asRecord(result.outcome);
+  const decisionOption =
+    stringFromValue(outcome, "optionId") ??
+    stringFromValue(outcome, "option_id");
+  const requestId = frame.id !== undefined ? String(frame.id) : undefined;
+  if (requestId && decisionOption) {
+    const source = permissionDecisionSource(frame);
+    events.push({
+      type: "permission_decision",
+      id: `${id}:permission_decision`,
+      sessionId,
+      requestId,
+      decision: {
+        decisionOption,
+        ...(source ? { source } : {}),
+        status: isRejectedPermissionOption(decisionOption)
+          ? "denied"
+          : "approved",
+      },
+      createdAt,
+    });
+  }
+
   const usage = asRecord(result.usage);
   if (usage) {
     events.push({
@@ -450,6 +477,27 @@ function normalizeJsonRpcResult(
   }
 
   return events;
+}
+
+function isRejectedPermissionOption(optionId: string) {
+  const normalized = optionId.toLowerCase();
+  return normalized.includes("deny") || normalized.includes("reject");
+}
+
+function permissionDecisionSource(frame: TunnelFrame) {
+  const grantBody =
+    asRecord(frame.grant_body) ?? asRecord(frame.grantBody);
+  const approvalMode =
+    stringFromValue(grantBody, "approval_mode") ??
+    stringFromValue(grantBody, "approvalMode");
+  if (approvalMode === "auto_approve_all") {
+    return "auto" as const;
+  }
+
+  const decidedByUserId =
+    stringFromValue(frame, "decided_by_user_id") ??
+    stringFromValue(frame, "decidedByUserId");
+  return decidedByUserId ? ("user" as const) : undefined;
 }
 
 function getEventId(

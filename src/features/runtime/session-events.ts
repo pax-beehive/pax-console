@@ -1,5 +1,6 @@
 export type PermissionDecision = {
   decisionOption: string;
+  source?: "auto" | "user";
   status: "approved" | "denied";
 };
 

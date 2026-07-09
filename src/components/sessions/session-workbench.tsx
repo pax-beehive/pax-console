@@ -335,6 +335,7 @@ export function SessionWorkbench({
         ...current,
         [approvalId]: {
           decisionOption,
+          source: "user",
           status: decisionOption === "deny" ? "denied" : "approved",
         },
       }));

@@ -186,11 +186,10 @@ function UserMessageCard({
   event: Extract<SessionEvent, { type: "user_message" }>;
 }) {
   return (
-    <article className="grid min-w-0 justify-items-end py-1">
-      <div className="max-w-[min(82%,720px)] min-w-0 rounded-lg bg-surface-2 px-3 py-2">
-        <div className="mb-1 text-right text-xs text-ink-tertiary">你</div>
+    <article className="flex min-w-0 justify-end py-1">
+      <div className="w-fit max-w-[min(72%,640px)] min-w-0 rounded-lg bg-surface-2 px-3 py-2">
         <MarkdownMessage
-          className="overflow-hidden text-sm leading-7"
+          className="overflow-hidden text-sm leading-7 text-ink"
           content={event.content}
         />
       </div>
@@ -470,20 +469,17 @@ function ToolEventRow({
   event: ToolCallEvent;
   permissionDecision: PermissionDecisionState;
 }) {
-  const approvedByUser = event.permissions?.some((permission) => {
-    const decision =
-      permission.decision ??
-      (permission.approvalId
-        ? permissionDecision.decisions[permission.approvalId]
-        : undefined);
-    return decision?.status === "approved";
-  });
+  const approvedDecisions = event.permissions
+    ?.map((permission) =>
+      permissionDecisionForPermission(permission, permissionDecision),
+    )
+    .filter((decision) => decision?.status === "approved");
+  const approvalBadgeLabel = approvalSummaryBadgeLabel(approvedDecisions);
+  const hasApprovedPermission = Boolean(approvalBadgeLabel);
+  const approvedPermissionLabel = approvalBadgeLabel ?? "approved";
   const hasPendingPermission = event.permissions?.some((permission) => {
     const decision =
-      permission.decision ??
-      (permission.approvalId
-        ? permissionDecision.decisions[permission.approvalId]
-        : undefined);
+      permissionDecisionForPermission(permission, permissionDecision);
     return !decision;
   });
 
@@ -502,7 +498,9 @@ function ToolEventRow({
         </TruncatedText>
         <div className="flex shrink-0 items-center gap-1.5">
           <ToolStatusBadge status={event.status} />
-          {approvedByUser && <Badge tone="success">approved by user</Badge>}
+          {hasApprovedPermission && (
+            <Badge tone="success">{approvedPermissionLabel}</Badge>
+          )}
         </div>
         <ChevronDown className="h-3.5 w-3.5 -rotate-90 text-ink-tertiary transition group-open/tool:rotate-0" />
       </summary>
@@ -531,6 +529,64 @@ function ToolEventRow({
       </div>
     </details>
   );
+}
+
+function permissionDecisionForPermission(
+  permission: Extract<SessionEvent, { type: "permission_request" }>,
+  permissionDecision: PermissionDecisionState,
+) {
+  return (
+    permission.decision ??
+    (permission.approvalId
+      ? permissionDecision.decisions[permission.approvalId]
+      : undefined)
+  );
+}
+
+function approvalSummaryBadgeLabel(
+  decisions: (PermissionDecision | undefined)[] | undefined,
+) {
+  const approved = (decisions ?? []).filter(
+    (decision): decision is PermissionDecision =>
+      decision?.status === "approved",
+  );
+  if (approved.length === 0) {
+    return undefined;
+  }
+
+  const sources = new Set(approved.map((decision) => decision.source));
+  if (sources.size === 1 && sources.has("auto")) {
+    return "auto approved";
+  }
+  if (sources.size === 1 && sources.has("user")) {
+    return "approved by user";
+  }
+  return "approved";
+}
+
+function permissionDecisionLabel(decision: PermissionDecision | undefined) {
+  if (decision?.source === "auto") {
+    return "auto approved";
+  }
+  if (decision?.source === "user") {
+    return "approved by user";
+  }
+  return "approved";
+}
+
+function permissionDecisionStatusText(
+  decision: PermissionDecision | undefined,
+) {
+  if (decision?.status === "denied") {
+    return "Permission denied";
+  }
+  if (decision?.source === "auto") {
+    return "Permission approved automatically";
+  }
+  if (decision?.source === "user") {
+    return "Permission approved by user";
+  }
+  return "Permission approved";
 }
 
 function ToolPayloadSection({
@@ -621,12 +677,10 @@ function PermissionRequestCard({
     permissionDecision.pending &&
     permissionDecision.pendingApprovalId === event.approvalId;
   const decided =
-    event.decision ??
-    (event.approvalId
-      ? permissionDecision.decisions[event.approvalId]
-      : undefined);
+    permissionDecisionForPermission(event, permissionDecision);
   const approved = decided?.status === "approved";
   const denied = decided?.status === "denied";
+  const approvedLabel = permissionDecisionLabel(decided);
   const canDecide =
     Boolean(event.approvalId) && !permissionDecision.pending && !decided;
 
@@ -643,7 +697,7 @@ function PermissionRequestCard({
           </TruncatedText>
         </div>
         <div className="flex shrink-0 items-center gap-1.5 text-sm font-medium text-success">
-          <span>approved</span>
+          <span>{approvedLabel}</span>
           <CheckCircle2 aria-hidden="true" className="h-5 w-5" />
         </div>
       </article>
@@ -677,7 +731,7 @@ function PermissionRequestCard({
           </TruncatedText>
         </div>
         {approved ? (
-          <Badge tone="success">approved</Badge>
+          <Badge tone="success">{approvedLabel}</Badge>
         ) : denied ? (
           <Badge tone="warning">denied</Badge>
         ) : (
@@ -686,7 +740,7 @@ function PermissionRequestCard({
       </div>
       {decided && (
         <div className="mt-3 rounded-md border border-hairline bg-canvas px-3 py-2 text-sm text-ink-muted">
-          {approved ? "Permission approved" : "Permission denied"} ·{" "}
+          {permissionDecisionStatusText(decided)} ·{" "}
           <span className="font-mono text-xs">{decided.decisionOption}</span>
         </div>
       )}
