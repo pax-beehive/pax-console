@@ -17,9 +17,14 @@ import {
   Brain,
   CheckCircle2,
   Circle,
+  FolderOpen,
+  FolderPlus,
   LoaderCircle,
+  Mic,
   PanelRight,
+  Plus,
   ShieldAlert,
+  ShieldCheck,
   Send,
   X,
 } from "lucide-react";
@@ -36,9 +41,11 @@ import {
   createKnowledgeCapsule,
   decideApproval,
   injectKnowledgeCapsule,
+  updateAgentSession,
   useAgentOwnerInfos,
   useKnowledgeCapsules,
   useKnowledgeInjections,
+  useAgentSessions,
   useNodeAgents,
   useNodes,
   useSessionHistory,
@@ -47,6 +54,8 @@ import { queryKeys } from "@/features/api/query-keys";
 import {
   KnowledgeCapsule,
   SessionKnowledgeInjection,
+  SessionApprovalMode,
+  SessionPaxConfig,
   User,
 } from "@/features/api/types";
 import { filterLiveEventsAlreadyInHistory } from "@/features/runtime/filter-live-history-events";
@@ -58,12 +67,15 @@ import {
 } from "@/features/runtime/session-events";
 import { useConversationRun } from "@/features/runtime/use-conversation-run";
 import { compactId } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 type SessionWorkbenchProps = {
   user: User;
   sessionId: string;
   nodeId?: string;
   agentId?: string;
+  initialApprovalMode?: SessionApprovalMode;
+  initialCwd?: string;
   initialPrompt?: string;
   initialPromptKey?: string;
 };
@@ -83,6 +95,8 @@ export function SessionWorkbench({
   sessionId,
   nodeId,
   agentId,
+  initialApprovalMode,
+  initialCwd,
   initialPrompt,
   initialPromptKey,
 }: SessionWorkbenchProps) {
@@ -96,7 +110,19 @@ export function SessionWorkbench({
   const agents = agentsQuery.data?.agents ?? [];
   const activeAgentId = agentId ?? agents[0]?.agent_id;
   const activeAgent = agents.find((agent) => agent.agent_id === activeAgentId);
+  const sessionsQuery = useAgentSessions(
+    user.user_id,
+    activeNodeId,
+    activeAgentId,
+  );
   const [draft, setDraft] = useState("");
+  const [newSessionCwd, setNewSessionCwd] = useState(initialCwd ?? "");
+  const [newSessionWorkspaceOpen, setNewSessionWorkspaceOpen] =
+    useState(Boolean(initialCwd));
+  const [newSessionApprovalMode, setNewSessionApprovalMode] =
+    useState<SessionApprovalMode>(initialApprovalMode ?? "manual");
+  const [pendingSessionPaxConfig, setPendingSessionPaxConfig] =
+    useState<SessionPaxConfig | null>(null);
   const pendingInitialPromptRef = useRef(
     readInitialPrompt(initialPrompt, initialPromptKey),
   );
@@ -104,9 +130,7 @@ export function SessionWorkbench({
   const [sendError, setSendError] = useState<Error | null>(null);
   const timelineScrollRef = useRef<HTMLDivElement>(null);
   const timelineBottomRef = useRef<HTMLDivElement>(null);
-  const composerRef = useRef<HTMLFormElement>(null);
   const shouldStickToBottomRef = useRef(true);
-  const [composerSafeArea, setComposerSafeArea] = useState(112);
   const [activeSidePanelId, setActiveSidePanelId] =
     useState<SessionSidePanelId | null>(null);
   const [permissionDecisions, setPermissionDecisions] = useState<
@@ -114,9 +138,51 @@ export function SessionWorkbench({
   >({});
   const routeSessionId = sessionId === "new" ? undefined : sessionId;
   const [currentSessionId, setCurrentSessionId] = useState(routeSessionId);
+  const isNewSession = !currentSessionId;
+  const normalizedNewSessionCwd = newSessionCwd.trim();
+  const newSessionCwdInvalid =
+    isNewSession &&
+    normalizedNewSessionCwd.length > 0 &&
+    !isAbsolutePath(normalizedNewSessionCwd);
+  const activeSession = useMemo(
+    () =>
+      sessionsQuery.data?.sessions.find(
+        (session) => session.session_id === currentSessionId,
+      ),
+    [currentSessionId, sessionsQuery.data?.sessions],
+  );
+  const activePaxConfig =
+    activeSession?.pax_config ?? pendingSessionPaxConfig ?? undefined;
+  const displayedApprovalMode =
+    activePaxConfig?.approval_mode ?? newSessionApprovalMode;
+  const displayedWorkspace =
+    currentSessionId && activePaxConfig?.cwd
+      ? activePaxConfig.cwd
+      : currentSessionId
+        ? "/tmp"
+        : normalizedNewSessionCwd;
+  const shouldShowReadOnlyWorkspace =
+    Boolean(currentSessionId && displayedWorkspace) &&
+    displayedWorkspace !== "/tmp";
+  const sessionDisplayName =
+    activeSession?.name?.trim() ||
+    (currentSessionId ? compactId(currentSessionId) : "New session");
+  const sessionTitleTooltip =
+    activeSession?.name && currentSessionId
+      ? `${activeSession.name} (${currentSessionId})`
+      : (currentSessionId ?? "New session");
   const handleSessionAssigned = useCallback(
     (nextSessionId: string) => {
       setCurrentSessionId(nextSessionId);
+      if (activeNodeId && activeAgentId) {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.sessions(
+            user.user_id,
+            activeNodeId,
+            activeAgentId,
+          ),
+        });
+      }
       const params = new URLSearchParams();
       if (activeNodeId) {
         params.set("nodeId", activeNodeId);
@@ -133,7 +199,7 @@ export function SessionWorkbench({
           : `/sessions/${nextSessionId}`,
       );
     },
-    [activeAgentId, activeNodeId],
+    [activeAgentId, activeNodeId, queryClient, user.user_id],
   );
   const historyQuery = useSessionHistory(
     user.user_id,
@@ -214,6 +280,47 @@ export function SessionWorkbench({
     sessionId: routeSessionId,
     userId: user.user_id,
   });
+  const updateSessionApprovalMode = useMutation({
+    mutationFn: async (approvalMode: SessionApprovalMode) => {
+      if (!activeNodeId || !activeAgentId || !currentSessionId) {
+        throw new Error("Start the session before changing approval mode.");
+      }
+
+      return updateAgentSession(
+        user.user_id,
+        activeNodeId,
+        activeAgentId,
+        currentSessionId,
+        {
+          pax_config: {
+            approval_mode: approvalMode,
+          },
+        },
+      );
+    },
+    onMutate: (approvalMode) => {
+      setPendingSessionPaxConfig((current) => ({
+        ...current,
+        cwd: activePaxConfig?.cwd ?? current?.cwd,
+        approval_mode: approvalMode,
+      }));
+    },
+    onSuccess: (session) => {
+      setPendingSessionPaxConfig(session.pax_config ?? null);
+      if (activeNodeId && activeAgentId) {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.sessions(
+            user.user_id,
+            activeNodeId,
+            activeAgentId,
+          ),
+        });
+      }
+    },
+    onError: (caught) => {
+      setSendError(caught instanceof Error ? caught : new Error(String(caught)));
+    },
+  });
 
   const decidePermission = useMutation({
     mutationFn: async ({
@@ -284,8 +391,21 @@ export function SessionWorkbench({
     Boolean(activeAgentId && activeNodeId) &&
     conversationRun.status !== "streaming" &&
     conversationRun.status !== "waiting_approval" &&
+    !newSessionCwdInvalid &&
     draft.trim().length > 0;
+  const toggleApprovalMode = () => {
+    const nextMode =
+      displayedApprovalMode === "auto_approve_all"
+        ? "manual"
+        : "auto_approve_all";
 
+    if (!currentSessionId) {
+      setNewSessionApprovalMode(nextMode);
+      return;
+    }
+
+    updateSessionApprovalMode.mutate(nextMode);
+  };
   const updateTimelineStickiness = useCallback(() => {
     const scrollElement = timelineScrollRef.current;
     if (!scrollElement) {
@@ -305,6 +425,7 @@ export function SessionWorkbench({
       !content ||
       !activeAgentId ||
       !activeNodeId ||
+      newSessionCwdInvalid ||
       conversationRun.status === "streaming" ||
       conversationRun.status === "waiting_approval"
     ) {
@@ -313,14 +434,40 @@ export function SessionWorkbench({
 
     setSendError(null);
     setDraft("");
+    if (isNewSession) {
+      setPendingSessionPaxConfig({
+        cwd: normalizedNewSessionCwd || undefined,
+        approval_mode: newSessionApprovalMode,
+      });
+    }
     try {
-      await conversationRun.sendMessage(content);
+      await conversationRun.sendMessage(
+        content,
+        isNewSession
+          ? {
+              approvalMode: newSessionApprovalMode,
+              cwd: normalizedNewSessionCwd || undefined,
+            }
+          : undefined,
+      );
     } catch (caught) {
+      if (isNewSession) {
+        setPendingSessionPaxConfig(null);
+      }
       setSendError(
         caught instanceof Error ? caught : new Error(String(caught)),
       );
     }
-  }, [activeAgentId, activeNodeId, conversationRun, draft]);
+  }, [
+    activeAgentId,
+    activeNodeId,
+    conversationRun,
+    draft,
+    isNewSession,
+    newSessionApprovalMode,
+    newSessionCwdInvalid,
+    normalizedNewSessionCwd,
+  ]);
 
   useEffect(() => {
     const content = pendingInitialPromptRef.current.trim();
@@ -330,6 +477,7 @@ export function SessionWorkbench({
       !content ||
       !activeAgentId ||
       !activeNodeId ||
+      newSessionCwdInvalid ||
       conversationRun.status !== "idle"
     ) {
       return;
@@ -342,12 +490,20 @@ export function SessionWorkbench({
 
       initialPromptSentRef.current = true;
       setSendError(null);
+      setPendingSessionPaxConfig({
+        cwd: normalizedNewSessionCwd || undefined,
+        approval_mode: newSessionApprovalMode,
+      });
       void conversationRun
-        .sendMessage(content)
+        .sendMessage(content, {
+          approvalMode: newSessionApprovalMode,
+          cwd: normalizedNewSessionCwd || undefined,
+        })
         .then(() => {
           removeStoredInitialPrompt(initialPromptKey);
         })
         .catch((caught) => {
+          setPendingSessionPaxConfig(null);
           setSendError(
             caught instanceof Error ? caught : new Error(String(caught)),
           );
@@ -363,28 +519,11 @@ export function SessionWorkbench({
     conversationRun,
     conversationRun.status,
     initialPromptKey,
+    newSessionCwdInvalid,
     sessionId,
+    newSessionApprovalMode,
+    normalizedNewSessionCwd,
   ]);
-
-  useLayoutEffect(() => {
-    const composerElement = composerRef.current;
-    if (!composerElement) {
-      return;
-    }
-
-    const syncComposerSafeArea = () => {
-      setComposerSafeArea(Math.ceil(composerElement.offsetHeight + 16));
-    };
-
-    syncComposerSafeArea();
-    if (typeof ResizeObserver === "undefined") {
-      return;
-    }
-
-    const observer = new ResizeObserver(syncComposerSafeArea);
-    observer.observe(composerElement);
-    return () => observer.disconnect();
-  }, []);
 
   useLayoutEffect(() => {
     if (!shouldStickToBottomRef.current) {
@@ -393,7 +532,7 @@ export function SessionWorkbench({
 
     timelineBottomRef.current?.scrollIntoView({ block: "end" });
     shouldStickToBottomRef.current = true;
-  }, [composerSafeArea, workstreamItems]);
+  }, [workstreamItems]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -466,11 +605,9 @@ export function SessionWorkbench({
               <div className="mt-1 flex min-w-0 items-center gap-2">
                 <TruncatedText
                   className="text-lg font-medium"
-                  tooltip={currentSessionId ?? "New session"}
+                  tooltip={sessionTitleTooltip}
                 >
-                  {currentSessionId
-                    ? compactId(currentSessionId)
-                    : "New session"}
+                  {sessionDisplayName}
                 </TruncatedText>
               </div>
             </div>
@@ -529,9 +666,8 @@ export function SessionWorkbench({
               )}
               <div
                 aria-hidden="true"
-                className="min-h-px"
+                className="h-2"
                 ref={timelineBottomRef}
-                style={{ height: composerSafeArea }}
               />
             </div>
           </div>
@@ -539,11 +675,10 @@ export function SessionWorkbench({
           <form
             className="relative z-10 border-t border-hairline bg-surface-1 p-3"
             onSubmit={handleSubmit}
-            ref={composerRef}
           >
-            <div className="mx-auto flex w-full max-w-4xl items-end gap-3">
+            <div className="mx-auto w-full max-w-4xl rounded-[22px] border border-hairline bg-surface-2 px-3 py-2 shadow-lg shadow-black/20">
               <textarea
-                className="min-h-20 flex-1 resize-none rounded-lg border border-hairline bg-canvas px-3 py-2 text-sm leading-6 text-ink outline-none transition focus:border-primary-focus focus:ring-2 focus:ring-primary-focus/20"
+                className="max-h-40 min-h-20 w-full resize-none bg-transparent px-1 py-1 text-sm leading-6 text-ink outline-none placeholder:text-ink-tertiary"
                 disabled={!activeAgentId}
                 onKeyDown={handleComposerKeyDown}
                 onChange={(event) => setDraft(event.target.value)}
@@ -554,14 +689,113 @@ export function SessionWorkbench({
                 }
                 value={draft}
               />
-              <Button
-                disabled={!canSend}
-                icon={<Send className="h-4 w-4" />}
-                size="icon"
-                tooltip="Send prompt"
-                type="submit"
-                variant="primary"
-              />
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <Button
+                  icon={<Plus className="h-4 w-4" />}
+                  size="icon"
+                  tooltip="Add attachment"
+                  type="button"
+                  variant="ghost"
+                />
+                {isNewSession ? (
+                  <>
+                    {newSessionWorkspaceOpen ? (
+                      <label
+                        className={cn(
+                          "inline-flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border bg-canvas px-2.5 text-sm transition sm:max-w-80",
+                          newSessionCwdInvalid
+                            ? "border-warning text-warning"
+                            : "border-hairline text-ink-muted focus-within:border-primary-focus focus-within:ring-2 focus-within:ring-primary-focus/20",
+                        )}
+                        onBlur={(event) => {
+                          const nextTarget = event.relatedTarget;
+                          if (
+                            (nextTarget instanceof globalThis.Node &&
+                              event.currentTarget.contains(nextTarget)) ||
+                            newSessionCwd.trim()
+                          ) {
+                            return;
+                          }
+
+                          setNewSessionWorkspaceOpen(false);
+                        }}
+                      >
+                        <FolderOpen className="h-4 w-4 shrink-0" />
+                        <span className="shrink-0 text-xs font-medium text-ink-tertiary">
+                          Workspace
+                        </span>
+                        <input
+                          aria-invalid={newSessionCwdInvalid}
+                          aria-label="Workspace"
+                          autoFocus
+                          className="min-w-0 flex-1 bg-transparent font-mono text-xs text-ink outline-none placeholder:text-ink-tertiary"
+                          onChange={(event) =>
+                            setNewSessionCwd(event.target.value)
+                          }
+                          placeholder="/Users/me/project"
+                          spellCheck={false}
+                          value={newSessionCwd}
+                        />
+                      </label>
+                    ) : (
+                      <Button
+                        icon={<FolderPlus className="h-4 w-4" />}
+                        onClick={() => setNewSessionWorkspaceOpen(true)}
+                        size="icon"
+                        tooltip="Set workspace"
+                        type="button"
+                        variant="ghost"
+                      />
+                    )}
+                  </>
+                ) : shouldShowReadOnlyWorkspace ? (
+                  <div className="inline-flex min-h-9 min-w-0 max-w-64 items-center gap-2 rounded-lg border border-hairline bg-canvas px-2.5 text-sm text-ink-muted">
+                    <FolderOpen className="h-4 w-4 shrink-0" />
+                    <span className="shrink-0 text-xs font-medium text-ink-tertiary">
+                      Workspace
+                    </span>
+                    <span className="min-w-0 truncate font-mono text-xs text-ink">
+                      {displayedWorkspace}
+                    </span>
+                  </div>
+                ) : null}
+                <button
+                  aria-pressed={displayedApprovalMode === "auto_approve_all"}
+                  className={cn(
+                    "inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg px-2.5 text-sm transition disabled:cursor-not-allowed disabled:opacity-60",
+                    displayedApprovalMode === "auto_approve_all"
+                      ? "bg-success/10 text-success"
+                      : "text-primary-hover hover:bg-surface-3",
+                  )}
+                  disabled={updateSessionApprovalMode.isPending}
+                  onClick={toggleApprovalMode}
+                  type="button"
+                >
+                  <ShieldCheck className="h-4 w-4" />
+                  <span className="hidden sm:inline">
+                    {displayedApprovalMode === "auto_approve_all"
+                      ? "Auto approve"
+                      : "Manual approve"}
+                  </span>
+                </button>
+                <div className="min-w-0 flex-1" />
+                <Button
+                  disabled
+                  icon={<Mic className="h-4 w-4" />}
+                  size="icon"
+                  tooltip="Voice input is not available yet"
+                  type="button"
+                  variant="ghost"
+                />
+                <Button
+                  disabled={!canSend}
+                  icon={<Send className="h-4 w-4" />}
+                  size="icon"
+                  tooltip="Send prompt"
+                  type="submit"
+                  variant="primary"
+                />
+              </div>
             </div>
           </form>
         </section>
@@ -609,6 +843,10 @@ function readInitialPrompt(initialPrompt?: string, initialPromptKey?: string) {
   } catch {
     return "";
   }
+}
+
+function isAbsolutePath(path: string) {
+  return path.startsWith("/");
 }
 
 function removeStoredInitialPrompt(initialPromptKey?: string) {

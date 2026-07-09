@@ -28,6 +28,7 @@ const {
   listTeamAuditEvents,
   listTeams,
   toPaxdConnectPreview,
+  updateAgentSession,
   updateNodeAgentProfile,
   updateNodeProfile,
   updateTeamMemberRole,
@@ -97,6 +98,27 @@ describe("listAgentSessions", () => {
     await expect(listAgentSessions("u1", "n1", "a1")).resolves.toEqual({
       sessions: [{ id: "s1" }],
     });
+  });
+
+  it("updates a session approval mode through pax_config", async () => {
+    apiFetch.mockResolvedValueOnce({
+      session_id: "sess_1",
+      pax_config: { approval_mode: "auto_approve_all" },
+    });
+
+    await updateAgentSession("u1", "n1", "a1", "sess_1", {
+      pax_config: { approval_mode: "auto_approve_all" },
+    });
+
+    expect(apiFetch).toHaveBeenCalledWith(
+      "/api/v1/user/u1/nodes/n1/agents/a1/sessions/sess_1",
+      {
+        body: JSON.stringify({
+          pax_config: { approval_mode: "auto_approve_all" },
+        }),
+        method: "PATCH",
+      },
+    );
   });
 });
 

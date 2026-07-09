@@ -26,6 +26,7 @@ import {
   NodeRegistrationPreview,
   PaxdConnectPreview,
   RepresentativeAgent,
+  SessionApprovalMode,
   SessionKnowledgeInjection,
   Team,
   TeamAgent,
@@ -47,6 +48,12 @@ type AgentListData = {
 
 type SessionListData = {
   sessions: AgentSession[];
+};
+
+type UpdateAgentSessionInput = {
+  pax_config: {
+    approval_mode: SessionApprovalMode;
+  };
 };
 
 type MailboxListData = {
@@ -240,6 +247,25 @@ export async function listAgentSessions(
     }
     throw error;
   }
+}
+
+export function updateAgentSession(
+  userId: string,
+  nodeId: string,
+  agentId: string,
+  sessionId: string,
+  input: UpdateAgentSessionInput,
+) {
+  return apiFetch<AgentSession>(
+    userPath(
+      userId,
+      `/nodes/${nodeId}/agents/${agentId}/sessions/${sessionId}`,
+    ),
+    {
+      body: JSON.stringify(input),
+      method: "PATCH",
+    },
+  );
 }
 
 export function listSessionMessages(

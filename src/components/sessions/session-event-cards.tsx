@@ -1,11 +1,16 @@
+import { useCallback, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
+  Check,
   CheckCircle2,
   ChevronDown,
+  Copy,
   FileCode,
   LoaderCircle,
   ShieldCheck,
+  ThumbsDown,
+  ThumbsUp,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -195,6 +200,8 @@ function AgentMessageCard({
 }: {
   event: Extract<SessionEvent, { type: "agent_message" }>;
 }) {
+  const showActions = !event.streaming && event.content.trim().length > 0;
+
   return (
     <article className="min-w-0 justify-self-stretch py-1">
       <MarkdownMessage
@@ -202,7 +209,61 @@ function AgentMessageCard({
         content={event.content}
         streaming={event.streaming}
       />
+      {showActions && <AgentMessageActions content={event.content} />}
     </article>
+  );
+}
+
+function AgentMessageActions({ content }: { content: string }) {
+  const [copied, setCopied] = useState(false);
+  const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
+  const copyContent = useCallback(async () => {
+    if (typeof navigator === "undefined") {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(content.trim());
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch {
+      setCopied(false);
+    }
+  }, [content]);
+
+  return (
+    <div className="mt-2 flex items-center gap-1 text-ink-tertiary">
+      <span className="inline-flex items-center gap-1.5 pr-1 text-xs text-success">
+        <CheckCircle2 className="h-3.5 w-3.5" />
+        Done
+      </span>
+      <Button
+        icon={copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+        onClick={copyContent}
+        size="icon"
+        tooltip={copied ? "Copied response" : "Copy response"}
+        type="button"
+        variant="ghost"
+      />
+      <Button
+        className={feedback === "up" ? "bg-success/10 text-success" : ""}
+        icon={<ThumbsUp className="h-4 w-4" />}
+        onClick={() => setFeedback("up")}
+        size="icon"
+        tooltip="Good response"
+        type="button"
+        variant="ghost"
+      />
+      <Button
+        className={feedback === "down" ? "bg-warning/10 text-warning" : ""}
+        icon={<ThumbsDown className="h-4 w-4" />}
+        onClick={() => setFeedback("down")}
+        size="icon"
+        tooltip="Bad response"
+        type="button"
+        variant="ghost"
+      />
+    </div>
   );
 }
 

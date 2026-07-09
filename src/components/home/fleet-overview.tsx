@@ -10,6 +10,8 @@ import {
   ArrowUp,
   Bot,
   ChevronDown,
+  FolderOpen,
+  FolderPlus,
   Image as ImageIcon,
   Inbox,
   ListFilter,
@@ -44,6 +46,7 @@ import {
   AgentSession,
   Envelope,
   Node,
+  SessionApprovalMode,
   TeamInvite,
   User,
 } from "@/features/api/types";
@@ -97,7 +100,7 @@ const inboxFilters: Array<{ label: string; value: InboxFilter }> = [
   { label: "All", value: "all" },
   { label: "Inquiries", value: "inquiries" },
   { label: "Needs action", value: "needs-action" },
-  { label: "Sessions", value: "sessions" },
+  { label: "Recent sessions", value: "sessions" },
 ];
 
 const inboxOrders: Array<{ label: string; value: InboxOrder }> = [
@@ -122,7 +125,11 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const [generatedDrafts, setGeneratedDrafts] = useState<
     Record<string, string>
   >({});
-  const [approveAllTools, setApproveAllTools] = useState(false);
+  const [newSessionCwd, setNewSessionCwd] = useState("");
+  const [newSessionWorkspaceOpen, setNewSessionWorkspaceOpen] =
+    useState(false);
+  const [newSessionApprovalMode, setNewSessionApprovalMode] =
+    useState<SessionApprovalMode>("manual");
   const [attachmentName, setAttachmentName] = useState("");
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
   const [archivedWorkItemIds, setArchivedWorkItemIds] = useState<string[]>([]);
@@ -146,34 +153,43 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       enabled: Boolean(user.user_id && node.node_id),
     })),
   });
-  const agents = sortOnlineFirst(
+  const discoveredAgents = sortOnlineFirst(
     agentQueries.flatMap((query) => query.data?.agents ?? []),
     (agent) => agent.online,
-    (agent) => agent.name ?? agent.agent_type ?? agent.agent_id,
+    agentLabel,
   );
   const [selectedAgentId, setSelectedAgentId] = useState("");
-  const activeAgent =
-    agents.find((agent) => agent.agent_id === selectedAgentId) ?? agents[0];
-  const activeNode =
-    nodes.find((node) => node.node_id === activeAgent?.node_id) ?? nodes[0];
-  const agentsLoading =
-    nodesQuery.isLoading || agentQueries.some((query) => query.isLoading);
-
   const sessionQueries = useQueries({
-    queries: agents.slice(0, 8).map((agent) => ({
+    queries: discoveredAgents.map((agent) => ({
       queryKey: queryKeys.sessions(user.user_id, agent.node_id, agent.agent_id),
       queryFn: () =>
         listAgentSessions(user.user_id, agent.node_id, agent.agent_id),
       enabled: Boolean(user.user_id && agent.node_id && agent.agent_id),
     })),
   });
-  const sessions = useMemo(
-    () =>
-      byRecent(
-        sessionQueries.flatMap((query) => query.data?.sessions ?? []),
-        sessionTimestamp,
-      ).slice(0, 6),
+  const queriedSessions = useMemo(
+    () => sessionQueries.flatMap((query) => query.data?.sessions ?? []),
     [sessionQueries],
+  );
+  const latestSessionTimeByAgent = useMemo(
+    () => latestSessionMessageTimeByAgent(queriedSessions),
+    [queriedSessions],
+  );
+  const agents = sortAgentsForHome(discoveredAgents, latestSessionTimeByAgent);
+  const activeAgent =
+    agents.find((agent) => agent.agent_id === selectedAgentId) ?? agents[0];
+  const activeNode =
+    nodes.find((node) => node.node_id === activeAgent?.node_id) ?? nodes[0];
+  const agentsLoading =
+    nodesQuery.isLoading || agentQueries.some((query) => query.isLoading);
+  const normalizedNewSessionCwd = newSessionCwd.trim();
+  const newSessionCwdInvalid =
+    normalizedNewSessionCwd.length > 0 &&
+    !normalizedNewSessionCwd.startsWith("/");
+
+  const sessions = useMemo(
+    () => byRecent(queriedSessions, sessionTimestamp).slice(0, 6),
+    [queriedSessions],
   );
   const approvalsQuery = useApprovals(user.user_id);
   const envelopesQuery = useEnvelopes(user.user_id, {
@@ -212,10 +228,11 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     () => filterAndOrderWorkItems(activeWorkItems, inboxFilter, inboxOrder),
     [activeWorkItems, inboxFilter, inboxOrder],
   );
-  const selectedWorkItem =
-    visibleWorkItems.find((item) => item.id === selectedWorkItemId) ??
-    visibleWorkItems[0];
-  const composerContextItem = contextClosed ? undefined : selectedWorkItem;
+  const selectedWorkItem = selectedWorkItemId
+    ? visibleWorkItems.find((item) => item.id === selectedWorkItemId)
+    : undefined;
+  const composerContextItem =
+    contextClosed || !selectedWorkItem ? undefined : selectedWorkItem;
   const selectedGeneratedDraft = composerContextItem
     ? generatedDrafts[composerContextItem.id]
     : undefined;
@@ -251,7 +268,11 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       return;
     }
 
-    if (!activeAgent?.agent_id || !activeAgent.node_id) {
+    if (
+      !activeAgent?.agent_id ||
+      !activeAgent.node_id ||
+      newSessionCwdInvalid
+    ) {
       return;
     }
 
@@ -260,6 +281,10 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       nodeId: activeAgent.node_id,
       nonce: String(Date.now()),
     });
+    if (normalizedNewSessionCwd) {
+      params.set("cwd", normalizedNewSessionCwd);
+    }
+    params.set("approvalMode", newSessionApprovalMode);
     const initialPrompt = draft.trim();
     if (initialPrompt) {
       const promptKey = `pax-console:initial-prompt:${globalThis.crypto?.randomUUID?.() ?? Date.now()}`;
@@ -427,6 +452,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                   }}
                   onClose={() => {
                     setContextClosed(true);
+                    setSelectedWorkItemId("");
                     setAttachmentName("");
                     setComposerMode("clean");
                     setDraft("");
@@ -519,21 +545,77 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                     ref={fileInputRef}
                     type="file"
                   />
+                  {newSessionWorkspaceOpen ? (
+                    <label
+                      className={cn(
+                        "inline-flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border bg-canvas px-2.5 text-sm transition sm:max-w-80",
+                        newSessionCwdInvalid
+                          ? "border-warning text-warning"
+                          : "border-hairline text-ink-muted focus-within:border-primary-focus focus-within:ring-2 focus-within:ring-primary-focus/20",
+                      )}
+                      onBlur={(event) => {
+                        const nextTarget = event.relatedTarget;
+                        if (
+                          (nextTarget instanceof globalThis.Node &&
+                            event.currentTarget.contains(nextTarget)) ||
+                          newSessionCwd.trim()
+                        ) {
+                          return;
+                        }
+
+                        setNewSessionWorkspaceOpen(false);
+                      }}
+                    >
+                      <FolderOpen className="h-4 w-4 shrink-0" />
+                      <span className="shrink-0 text-xs font-medium text-ink-tertiary">
+                        Workspace
+                      </span>
+                      <input
+                        aria-invalid={newSessionCwdInvalid}
+                        aria-label="Workspace"
+                        autoFocus
+                        className="min-w-0 flex-1 bg-transparent font-mono text-xs text-ink outline-none placeholder:text-ink-tertiary"
+                        onChange={(event) =>
+                          setNewSessionCwd(event.target.value)
+                        }
+                        placeholder="/Users/me/project"
+                        spellCheck={false}
+                        value={newSessionCwd}
+                      />
+                    </label>
+                  ) : (
+                    <Button
+                      icon={<FolderPlus className="h-4 w-4" />}
+                      onClick={() => setNewSessionWorkspaceOpen(true)}
+                      size="icon"
+                      tooltip="Set workspace"
+                      type="button"
+                      variant="ghost"
+                    />
+                  )}
                   <button
+                    aria-pressed={newSessionApprovalMode === "auto_approve_all"}
                     className={cn(
                       "inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg px-2.5 text-sm transition",
-                      approveAllTools
+                      newSessionApprovalMode === "auto_approve_all"
                         ? "bg-success/10 text-success"
                         : "text-primary-hover hover:bg-surface-3",
                     )}
-                    onClick={() => setApproveAllTools((approved) => !approved)}
+                    onClick={() =>
+                      setNewSessionApprovalMode((mode) =>
+                        mode === "auto_approve_all"
+                          ? "manual"
+                          : "auto_approve_all",
+                      )
+                    }
                     type="button"
                   >
                     <ShieldCheck className="h-4 w-4" />
                     <span className="hidden sm:inline">
-                      Approve for all tool calls
+                      {newSessionApprovalMode === "auto_approve_all"
+                        ? "Auto approve"
+                        : "Manual approve"}
                     </span>
-                    <ChevronDown className="h-3.5 w-3.5" />
                   </button>
                   {attachmentName && (
                     <Badge className="max-w-40" tooltip={attachmentName}>
@@ -555,7 +637,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                     variant="ghost"
                   />
                   <Button
-                    disabled={!activeAgent?.agent_id}
+                    disabled={!activeAgent?.agent_id || newSessionCwdInvalid}
                     icon={<ArrowUp className="h-5 w-5" />}
                     size="icon"
                     tooltip="Start session"
@@ -745,11 +827,9 @@ function SelectedContext({
 }) {
   if (!item) {
     return (
-      <section className="rounded-lg border border-dashed border-hairline bg-surface-1 p-4">
-        <div className="text-sm font-medium">Clean session</div>
-        <div className="mt-2 text-sm text-ink-tertiary">
-          No inquiry context is attached. The next prompt starts from a blank
-          session with the selected agent.
+      <section className="flex min-h-[220px] items-center justify-center px-4 text-center">
+        <div className="text-3xl font-medium leading-tight text-ink">
+          What should we work on today?
         </div>
       </section>
     );
@@ -986,24 +1066,88 @@ function AgentSelector({
   onChange: (agentId: string) => void;
   selectedAgentId?: string;
 }) {
+  const selectedAgent = agents.find(
+    (agent) => agent.agent_id === selectedAgentId,
+  );
+  const selectedLabel = selectedAgent
+    ? agentLabel(selectedAgent)
+    : agents.length === 0
+      ? "No agent"
+      : "Select agent";
+  const [open, setOpen] = useState(false);
+
   return (
-    <label className="relative min-w-0">
-      <span className="sr-only">Agent</span>
-      <select
-        className="min-h-9 max-w-44 appearance-none rounded-lg border border-transparent bg-transparent py-1 pl-8 pr-7 text-sm text-ink-muted outline-none transition hover:bg-surface-3 focus:border-hairline-strong"
-        onChange={(event) => onChange(event.target.value)}
-        value={selectedAgentId ?? ""}
+    <div
+      className="relative min-w-0"
+      onBlur={(event) => {
+        const nextTarget = event.relatedTarget;
+        if (
+          !(nextTarget instanceof globalThis.Node) ||
+          !event.currentTarget.contains(nextTarget)
+        ) {
+          setOpen(false);
+        }
+      }}
+    >
+      <button
+        className="inline-flex min-h-9 max-w-48 items-center gap-2 rounded-lg border border-transparent bg-transparent py-1 pl-2 pr-2 text-sm text-ink-muted outline-none transition hover:bg-surface-3 focus:border-hairline-strong"
+        disabled={agents.length === 0}
+        onClick={() => setOpen((current) => !current)}
+        type="button"
       >
-        {agents.length === 0 && <option value="">No agent</option>}
-        {agents.map((agent) => (
-          <option key={agent.agent_id} value={agent.agent_id}>
-            {agent.name ?? agent.agent_type ?? compactId(agent.agent_id)}
-          </option>
-        ))}
-      </select>
-      <Bot className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-ink-tertiary" />
-      <ChevronDown className="pointer-events-none absolute right-2 top-2.5 h-4 w-4 text-ink-tertiary" />
-    </label>
+        <span className="relative grid h-4 w-4 shrink-0 place-items-center">
+          <Bot className="h-4 w-4 text-ink-tertiary" />
+          {selectedAgent?.online && <OnlineDot className="-right-0.5 -top-1" />}
+        </span>
+        <TruncatedText className="min-w-0 max-w-28">
+          {selectedLabel}
+        </TruncatedText>
+        <ChevronDown className="h-4 w-4 shrink-0 text-ink-tertiary" />
+      </button>
+      {open && (
+        <div className="absolute bottom-full right-0 z-20 mb-2 min-w-56 overflow-hidden rounded-lg border border-hairline bg-surface-2 py-1 shadow-xl">
+          {agents.map((agent) => (
+            <button
+              className={cn(
+                "flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink transition hover:bg-surface-3",
+                agent.agent_id === selectedAgentId && "bg-surface-3",
+              )}
+              key={agent.agent_id}
+              onClick={() => {
+                onChange(agent.agent_id);
+                setOpen(false);
+              }}
+              type="button"
+            >
+              <span className="grid h-4 w-4 shrink-0 place-items-center">
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "h-2 w-2 rounded-full",
+                    agent.online ? "bg-success" : "bg-ink-tertiary/30",
+                  )}
+                />
+              </span>
+              <TruncatedText className="min-w-0 flex-1">
+                {agent.name ?? agent.agent_type ?? compactId(agent.agent_id)}
+              </TruncatedText>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OnlineDot({ className }: { className?: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "absolute h-2 w-2 rounded-full bg-success ring-2 ring-canvas",
+        className,
+      )}
+    />
   );
 }
 
@@ -1154,7 +1298,7 @@ function buildWorkItems({
 
         return {
           actionHref: `/sessions/${session.session_id}?nodeId=${session.node_id}&agentId=${session.agent_id}`,
-          actionLabel: "Resume",
+          actionLabel: "Continue",
           agentId: session.agent_id,
           context: [
             agent?.name ?? agent?.agent_type ?? session.agent_id,
@@ -1170,7 +1314,7 @@ function buildWorkItems({
           kind: "session",
           nodeId: session.node_id,
           priority: session.run_status === "waiting_approval" ? "high" : "low",
-          source: session.run_status ?? session.status ?? "Recent session",
+          source: "Recent session",
           title: session.name ?? session.current_task ?? session.session_id,
         };
       }),
@@ -1315,7 +1459,7 @@ function filterAndOrderWorkItems(
       return item.kind === "session";
     }
 
-    return true;
+    return item.kind !== "session";
   });
 
   if (order === "priority") {
@@ -1381,15 +1525,63 @@ function sortOnlineFirst<T>(
   });
 }
 
+function sortAgentsForHome(
+  agents: Agent[],
+  latestSessionTimeByAgent: Map<string, number>,
+) {
+  return [...agents].sort((left, right) => {
+    const onlineDelta =
+      Number(Boolean(right.online)) - Number(Boolean(left.online));
+    if (onlineDelta !== 0) {
+      return onlineDelta;
+    }
+
+    const recentDelta =
+      (latestSessionTimeByAgent.get(right.agent_id) ??
+        Number.NEGATIVE_INFINITY) -
+      (latestSessionTimeByAgent.get(left.agent_id) ?? Number.NEGATIVE_INFINITY);
+    if (recentDelta !== 0) {
+      return recentDelta;
+    }
+
+    return agentLabel(left).localeCompare(agentLabel(right));
+  });
+}
+
 function byRecent<T>(items: T[], timestamp: (item: T) => string | undefined) {
   return [...items].sort(
     (left, right) => timeValue(timestamp(right)) - timeValue(timestamp(left)),
   );
 }
 
+function latestSessionMessageTimeByAgent(sessions: AgentSession[]) {
+  const latestByAgent = new Map<string, number>();
+
+  for (const session of sessions) {
+    const messageTime = timeValue(sessionMessageTimestamp(session));
+    const currentTime =
+      latestByAgent.get(session.agent_id) ?? Number.NEGATIVE_INFINITY;
+    if (messageTime > currentTime) {
+      latestByAgent.set(session.agent_id, messageTime);
+    }
+  }
+
+  return latestByAgent;
+}
+
+function agentLabel(agent: Agent) {
+  return agent.name ?? agent.agent_type ?? agent.agent_id;
+}
+
 function sessionTimestamp(session: AgentSession) {
   return (
     session.last_active_at ?? session.last_message_at ?? session.updated_at
+  );
+}
+
+function sessionMessageTimestamp(session: AgentSession) {
+  return (
+    session.last_message_at ?? session.updated_at ?? session.last_active_at
   );
 }
 

@@ -242,10 +242,18 @@ export type AgentSession = {
   workspace_roots?: string[];
   token_usage?: TokenUsage;
   metadata?: ApiRecord;
+  pax_config?: SessionPaxConfig;
   created_at?: string;
   updated_at?: string;
   last_active_at?: string;
   last_message_at?: string;
+};
+
+export type SessionApprovalMode = "manual" | "auto_approve_all";
+
+export type SessionPaxConfig = {
+  cwd?: string;
+  approval_mode?: SessionApprovalMode;
 };
 
 export type AgentProfile = {

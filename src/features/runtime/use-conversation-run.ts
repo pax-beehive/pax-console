@@ -14,7 +14,7 @@ import {
 } from "./conversation-run";
 import { normalizeTunnelFrame } from "./normalize-tunnel-frame";
 import { SessionEvent } from "./session-events";
-import type { ApprovalOption } from "../api/types";
+import type { ApprovalOption, SessionApprovalMode } from "../api/types";
 
 export type ConversationRunStatus =
   | "idle"
@@ -29,6 +29,11 @@ type UseConversationRunOptions = {
   onSession?: (sessionId: string) => void;
   sessionId?: string;
   userId: string;
+};
+
+type SendMessageOptions = {
+  approvalMode?: SessionApprovalMode;
+  cwd?: string;
 };
 
 export function useConversationRun({
@@ -55,7 +60,7 @@ export function useConversationRun({
   }, [sessionId]);
 
   const sendMessage = useCallback(
-    async (input: string) => {
+    async (input: string, options?: SendMessageOptions) => {
       if (!agentId || !nodeId) {
         throw new Error("Select a node and agent before sending a prompt");
       }
@@ -88,6 +93,8 @@ export function useConversationRun({
       try {
         await streamConversationRun({
           agentId,
+          approvalMode: promptSessionId ? undefined : options?.approvalMode,
+          cwd: promptSessionId ? undefined : options?.cwd,
           input: content,
           nodeId,
           onEnvelope: (envelope) =>
