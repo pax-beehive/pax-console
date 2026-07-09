@@ -1,6 +1,6 @@
 import { API_BASE_URL, userPath } from "../api/client";
 import { ApiError, AuthError } from "../api/errors";
-import type { AgentApproval } from "../api/types";
+import type { AgentApproval, SessionApprovalMode } from "../api/types";
 
 export type ConversationRunEnvelope =
   | {
@@ -49,6 +49,8 @@ export type ConversationRunEnvelope =
 
 export type StreamConversationRunOptions = {
   agentId: string;
+  approvalMode?: SessionApprovalMode;
+  cwd?: string;
   input?: string;
   nodeId: string;
   onEnvelope: (envelope: ConversationRunEnvelope) => void;
@@ -62,6 +64,8 @@ export type StreamConversationRunOptions = {
 
 export async function streamConversationRun({
   agentId,
+  approvalMode,
+  cwd,
   input,
   nodeId,
   onEnvelope,
@@ -79,6 +83,10 @@ export async function streamConversationRun({
       body: JSON.stringify({
         ...(input ? { input } : {}),
         ...(sessionId ? { session_id: sessionId } : {}),
+        ...(!sessionId && cwd ? { cwd } : {}),
+        ...(!sessionId && approvalMode
+          ? { approval_mode: approvalMode }
+          : {}),
         ...(resume ? { resume: { approval_id: resume.approvalId } } : {}),
       }),
       credentials: "include",

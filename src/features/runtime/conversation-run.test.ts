@@ -104,6 +104,60 @@ describe("streamConversationRun", () => {
     ]);
   });
 
+  it("posts cwd and approval mode only for new sessions", async () => {
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        streamFromChunks([
+          'data: {"type":"done","node_id":"node_1","agent_id":"agent_1","session_id":"sess_1"}\n\n',
+        ]),
+        {
+          headers: { "content-type": "text/event-stream" },
+          status: 200,
+        },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await streamConversationRun({
+      agentId: "agent_1",
+      approvalMode: "auto_approve_all",
+      cwd: "/Users/demo/project",
+      input: "hello",
+      nodeId: "node_1",
+      onEnvelope: vi.fn(),
+      userId: "self",
+    });
+    await streamConversationRun({
+      agentId: "agent_1",
+      approvalMode: "auto_approve_all",
+      cwd: "/Users/demo/project",
+      input: "hello",
+      nodeId: "node_1",
+      onEnvelope: vi.fn(),
+      sessionId: "sess_existing",
+      userId: "self",
+    });
+
+    const [, newSessionInit] = (fetchMock as Mock).mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
+    const [, existingSessionInit] = (fetchMock as Mock).mock.calls[1] as [
+      string,
+      RequestInit,
+    ];
+    expect(newSessionInit.body).toBe(
+      JSON.stringify({
+        input: "hello",
+        cwd: "/Users/demo/project",
+        approval_mode: "auto_approve_all",
+      }),
+    );
+    expect(existingSessionInit.body).toBe(
+      JSON.stringify({ input: "hello", session_id: "sess_existing" }),
+    );
+  });
+
   it("posts resume JSON for a decided permission approval", async () => {
     const fetchMock = vi.fn(async () => {
       return new Response(
