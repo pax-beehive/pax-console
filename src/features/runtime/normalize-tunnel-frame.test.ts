@@ -364,6 +364,93 @@ describe("normalizeTunnelFrame", () => {
     ]);
   });
 
+  it("normalizes ACP permission responses into decisions", () => {
+    const requested = normalizeTunnelFrame({
+      jsonrpc: "2.0",
+      id: "perm-1",
+      method: "session/request_permission",
+      params: {
+        sessionId: "sess-acp-runtime",
+        approval_id: "appr-1",
+        toolCall: {
+          toolCallId: "call-1",
+          kind: "execute",
+          title: "go test ./...",
+        },
+        options: [
+          { optionId: "allow", kind: "allow_once", name: "Allow" },
+          { optionId: "reject", kind: "reject_once", name: "Reject" },
+        ],
+      },
+    });
+    const responded = normalizeTunnelFrame({
+      jsonrpc: "2.0",
+      id: "perm-1",
+      sessionId: "sess-acp-runtime",
+      result: {
+        outcome: {
+          outcome: "selected",
+          optionId: "allow",
+        },
+      },
+      grant_body: {
+        approval_mode: "auto_approve_all",
+      },
+    });
+
+    expect(responded).toMatchObject([
+      {
+        type: "permission_decision",
+        sessionId: "sess-acp-runtime",
+        requestId: "perm-1",
+        decision: {
+          decisionOption: "allow",
+          source: "auto",
+          status: "approved",
+        },
+      },
+    ]);
+
+    const merged = mergeEvents([...requested, ...responded]);
+
+    expect(merged).toMatchObject([
+      {
+        type: "permission_request",
+        requestId: "perm-1",
+        decision: {
+          decisionOption: "allow",
+          source: "auto",
+          status: "approved",
+        },
+      },
+    ]);
+  });
+
+  it("normalizes ACP reject permission responses into denied decisions", () => {
+    const events = normalizeTunnelFrame({
+      jsonrpc: "2.0",
+      id: "perm-1",
+      sessionId: "sess-acp-runtime",
+      result: {
+        outcome: {
+          outcome: "selected",
+          optionId: "reject",
+        },
+      },
+    });
+
+    expect(events).toMatchObject([
+      {
+        type: "permission_decision",
+        requestId: "perm-1",
+        decision: {
+          decisionOption: "reject",
+          status: "denied",
+        },
+      },
+    ]);
+  });
+
   it("normalizes ACP tool update and output session updates as tool call rows", () => {
     const toolUpdate = normalizeTunnelFrame({
       jsonrpc: "2.0",

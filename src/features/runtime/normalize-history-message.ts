@@ -116,6 +116,7 @@ function normalizePermissionResponse(
       continue;
     }
 
+    const source = permissionDecisionSource(record);
     events.push({
       type: "permission_decision",
       id: `${message.message_id ?? requestId}:permission_decision`,
@@ -123,13 +124,37 @@ function normalizePermissionResponse(
       requestId,
       decision: {
         decisionOption,
-        status: decisionOption.includes("deny") ? "denied" : "approved",
+        ...(source ? { source } : {}),
+        status: isRejectedPermissionOption(decisionOption)
+          ? "denied"
+          : "approved",
       },
       createdAt,
     });
   }
 
   return events;
+}
+
+function isRejectedPermissionOption(optionId: string) {
+  const normalized = optionId.toLowerCase();
+  return normalized.includes("deny") || normalized.includes("reject");
+}
+
+function permissionDecisionSource(record: Record<string, unknown> | undefined) {
+  const grantBody =
+    asRecord(record?.grant_body) ?? asRecord(record?.grantBody);
+  const approvalMode =
+    stringFromValue(grantBody, "approval_mode") ??
+    stringFromValue(grantBody, "approvalMode");
+  if (approvalMode === "auto_approve_all") {
+    return "auto" as const;
+  }
+
+  const decidedByUserId =
+    stringFromValue(record, "decided_by_user_id") ??
+    stringFromValue(record, "decidedByUserId");
+  return decidedByUserId ? ("user" as const) : undefined;
 }
 
 function normalizeHistoryFrames(
