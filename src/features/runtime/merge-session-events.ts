@@ -1,4 +1,5 @@
 import { SessionEvent } from "./session-events";
+import { CodePatch, coalesceCodePatches } from "./tool-patches";
 
 export function mergeEvents(events: SessionEvent[]) {
   // REST history and tunnel notifications can overlap. Keep replacement-style
@@ -176,6 +177,7 @@ function mergeToolCallEvent(
     input: mergeToolPayload(existing, event, "input"),
     name: existing.name || event.name,
     output: mergeToolPayload(existing, event, "output"),
+    patches: mergeCodePatches(existing.patches, event.patches),
     permissions: mergePermissionLists(existing.permissions, event.permissions),
     sessionId: existing.sessionId,
     toolCallId: existing.toolCallId ?? event.toolCallId,
@@ -269,7 +271,16 @@ function attachAdjacentPermissionsToTools(events: SessionEvent[]) {
 
     const permissions = [...(event.permissions ?? [])];
     let nextIndex = index + 1;
-    while (events[nextIndex]?.type === "permission_request") {
+    while (
+      events[nextIndex]?.type === "permission_request" &&
+      shouldAttachPermissionToTool(
+        event,
+        events[nextIndex] as Extract<
+          SessionEvent,
+          { type: "permission_request" }
+        >,
+      )
+    ) {
       permissions.push(
         events[nextIndex] as Extract<
           SessionEvent,
@@ -291,6 +302,30 @@ function attachAdjacentPermissionsToTools(events: SessionEvent[]) {
   }
 
   return attached;
+}
+
+function shouldAttachPermissionToTool(
+  tool: Extract<SessionEvent, { type: "tool_call" }>,
+  permission: Extract<SessionEvent, { type: "permission_request" }>,
+) {
+  if (!tool.toolCallId || !permission.toolCallId) {
+    return true;
+  }
+  if (tool.toolCallId === permission.toolCallId) {
+    return true;
+  }
+
+  const toolText = normalizedToolText(tool.name);
+  const permissionText = normalizedToolText(permission.title);
+  return Boolean(toolText && permissionText.includes(toolText));
+}
+
+function normalizedToolText(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/^terminal:\s*/, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function mergePermissionLists(
@@ -316,12 +351,25 @@ function mergePermissionLists(
               permission.decision ??
               byKey.get(`${permission.sessionId}:${permission.requestId}`)!
                 .decision,
+            patches: mergeCodePatches(
+              byKey.get(`${permission.sessionId}:${permission.requestId}`)!
+                .patches,
+              permission.patches,
+            ),
           }
         : permission,
     );
   }
 
   return byKey.size > 0 ? [...byKey.values()] : undefined;
+}
+
+function mergeCodePatches(
+  existing: CodePatch[] | undefined,
+  incoming: CodePatch[] | undefined,
+) {
+  const patches = coalesceCodePatches([...(existing ?? []), ...(incoming ?? [])]);
+  return patches.length > 0 ? patches : undefined;
 }
 
 function lastVisibleEvent(events: SessionEvent[]) {

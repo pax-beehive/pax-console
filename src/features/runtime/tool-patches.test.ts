@@ -1,0 +1,145 @@
+import { describe, expect, it } from "vitest";
+import {
+  coalesceCodePatches,
+  codePatchToText,
+  extractCodePatches,
+} from "./tool-patches";
+
+describe("tool patches", () => {
+  it("extracts Hermes write_file permission payloads as content-only writes", () => {
+    const patches = extractCodePatches(
+      {
+        arguments: {
+          content: "#!/bin/bash\necho weather\n",
+          path: "/tmp/weather.sh",
+        },
+        tool: "write_file",
+      },
+      "permission",
+    );
+
+    expect(patches).toMatchObject([
+      {
+        operation: "write",
+        path: "/tmp/weather.sh",
+        newText: "#!/bin/bash\necho weather\n",
+        source: "permission",
+      },
+    ]);
+    expect(patches[0]).not.toHaveProperty("oldText");
+    expect(codePatchToText(patches[0])).toBe(
+      "+++ /tmp/weather.sh\n+#!/bin/bash\n+echo weather",
+    );
+  });
+
+  it("extracts Gemini permission diff add blocks as content-only writes", () => {
+    const patches = extractCodePatches(
+      {
+        content: [
+          {
+            _meta: { kind: "add" },
+            newText: "#!/usr/bin/env python3\nprint('weather')\n",
+            oldText: "",
+            path: "/private/tmp/weather.py",
+            type: "diff",
+          },
+        ],
+        kind: "edit",
+        title: "Writing to ../private/tmp/weather.py",
+        toolCallId: "write_file__ujao7t88",
+      },
+      "permission",
+    );
+
+    expect(patches).toMatchObject([
+      {
+        operation: "write",
+        path: "/private/tmp/weather.py",
+        newText: "#!/usr/bin/env python3\nprint('weather')\n",
+        source: "permission",
+      },
+    ]);
+    expect(patches[0]).not.toHaveProperty("oldText");
+  });
+
+  it("keeps one patch per file and prefers a content-only permission write over stale permission diffs", () => {
+    const patches = coalesceCodePatches([
+      {
+        operation: "patch",
+        path: "/tmp/weather.sh",
+        oldText: "old\n",
+        newText: "new\n",
+        source: "permission",
+      },
+      {
+        operation: "write",
+        path: "/tmp/weather.sh",
+        newText: "#!/bin/bash\necho weather\n",
+        source: "permission",
+      },
+    ]);
+
+    expect(patches).toMatchObject([
+      {
+        operation: "write",
+        path: "/tmp/weather.sh",
+        newText: "#!/bin/bash\necho weather\n",
+      },
+    ]);
+    expect(patches[0]).not.toHaveProperty("oldText");
+  });
+
+  it("extracts terminal rm commands as delete patches", () => {
+    const patches = extractCodePatches(
+      {
+        content: [
+          {
+            content: {
+              text: "$ rm ~/weather.py",
+              type: "text",
+            },
+            type: "content",
+          },
+        ],
+        kind: "execute",
+        sessionUpdate: "tool_call",
+        title: "terminal: rm ~/weather.py",
+      },
+      "input",
+    );
+
+    expect(patches).toMatchObject([
+      {
+        operation: "delete",
+        path: "~/weather.py",
+        source: "input",
+      },
+    ]);
+    expect(codePatchToText(patches[0])).toBe(
+      "--- ~/weather.py\n+++ /dev/null\n@@\nDeleted file content unavailable",
+    );
+  });
+
+  it("prefers a delete patch over earlier writes to the same file", () => {
+    const patches = coalesceCodePatches([
+      {
+        operation: "write",
+        path: "~/weather.py",
+        newText: "print('weather')\n",
+        source: "input",
+      },
+      {
+        operation: "delete",
+        path: "~/weather.py",
+        source: "input",
+      },
+    ]);
+
+    expect(patches).toMatchObject([
+      {
+        operation: "delete",
+        path: "~/weather.py",
+      },
+    ]);
+  });
+});

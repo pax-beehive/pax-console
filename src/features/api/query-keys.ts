@@ -17,6 +17,10 @@ export const queryKeys = {
     ["users", userId, "knowledge-capsules", capsuleId] as const,
   sessionKnowledgeInjections: (userId: string, sessionId: string) =>
     ["users", userId, "sessions", sessionId, "knowledge-injections"] as const,
+  sessionArtifacts: (userId: string, sessionId: string) =>
+    ["users", userId, "sessions", sessionId, "artifacts"] as const,
+  artifact: (userId: string, artifactId: string) =>
+    ["users", userId, "artifacts", artifactId] as const,
   teams: (userId: string) => ["users", userId, "teams"] as const,
   team: (userId: string, teamId: string) =>
     ["users", userId, "teams", teamId] as const,

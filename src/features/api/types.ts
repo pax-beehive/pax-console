@@ -249,6 +249,87 @@ export type AgentSession = {
   last_message_at?: string;
 };
 
+export type ArtifactContent = {
+  artifact_id?: string;
+  ref: string;
+  filename?: string;
+  content_type?: string;
+  size_bytes?: number;
+  sha256?: string;
+  bucket?: string;
+  object?: string;
+  generation?: number;
+  storage_uri?: string;
+  text?: string;
+  created_at?: string;
+};
+
+export type SessionArtifact = {
+  artifact_id: string;
+  owner_user_id?: string;
+  kind: string;
+  schema_version: number;
+  title?: string;
+  summary?: string;
+  status: "available" | "proposed" | "failed" | string;
+  session_id?: string;
+  message_id?: string;
+  node_id?: string;
+  agent_id?: string;
+  source_json?: ApiRecord;
+  payload_json?: ApiRecord;
+  created_at?: string;
+  updated_at?: string;
+  deleted_at?: string;
+  contents?: ArtifactContent[];
+};
+
+export type ArtifactUpload = {
+  upload_id: string;
+  owner_user_id?: string;
+  session_id?: string;
+  kind?: string;
+  title?: string;
+  summary?: string;
+  filename?: string;
+  content_type?: string;
+  size_bytes?: number;
+  sha256?: string;
+  bucket: string;
+  object: string;
+  generation?: number;
+  status: "pending" | "completed" | string;
+  expires_at: string;
+  completed_at?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type ArtifactUploadTicket = {
+  upload_id: string;
+  method: "PUT" | string;
+  url: string;
+  bucket: string;
+  object: string;
+  expires_at: string;
+  headers?: Record<string, string>;
+  upload: ArtifactUpload;
+  content_ref: string;
+  complete_url?: string;
+};
+
+export type CompleteArtifactUploadData = {
+  upload: ArtifactUpload;
+  artifact: SessionArtifact;
+};
+
+export type ArtifactContentURL = {
+  url: string;
+  expires_at: string;
+  artifact: SessionArtifact;
+  content: ArtifactContent;
+};
+
 export type SessionApprovalMode = "manual" | "auto_approve_all";
 
 export type SessionPaxConfig = {
