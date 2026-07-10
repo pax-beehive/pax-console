@@ -244,8 +244,8 @@ local filters
 ```
 
 不要把 nodes、agents、sessions、messages 复制进 Zustand。否则会出现两个 truth source。
-同理，teams、friends、envelopes、knowledge capsules/injections 也属于服务端数据，
-只通过 TanStack Query 缓存和失效刷新。
+同理，teams、friends、envelopes、knowledge capsules/injections、session artifacts
+也属于服务端数据，只通过 TanStack Query 缓存和失效刷新。
 
 ## 协作与知识资源
 
@@ -265,6 +265,12 @@ Knowledge
   Session workbench 可从当前 session 创建 capsule，也可把 capsule 注入当前 session。
   注入通过 /sessions/{session_id}/knowledge-injections 创建 system_handoff 消息，
   UI 仍然通过 REST history 和 runtime events 渲染时间线。
+
+Artifacts
+  Session workbench 通过 /artifact-uploads 创建上传票据，浏览器拿 GCS signed
+  URL 直接 PUT 文件，再调用 complete 生成 session artifact。列表走
+  /sessions/{session_id}/artifacts，预览/下载走 artifact content endpoint 返回的
+  signed GET URL 或 redirect。文件内容不要经由 Next /api/pax proxy 中转上传。
 ```
 
 这些 API 仍然走浏览器同源 `/api/pax` proxy；不要从组件直连

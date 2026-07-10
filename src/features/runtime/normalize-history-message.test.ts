@@ -509,6 +509,116 @@ describe("normalizeHistoryMessage", () => {
     });
   });
 
+  it("normalizes stored Gemini edit permission blocks into write patches", () => {
+    const events = normalizeHistoryMessage({
+      message_id: "msg_gemini_permission",
+      session_id: "sess_history",
+      message_type: "session/request_permission",
+      role: "assistant",
+      created_at: "2026-07-09T17:08:36.230026-07:00",
+      raw_json: {
+        id: 2,
+        method: "session/request_permission",
+        params: {
+          approvalId: "appr_gemini",
+          approval_id: "appr_gemini",
+          options: [{ name: "Allow", optionId: "proceed_once" }],
+          sessionId: "sess_history",
+          toolCall: {
+            content: [
+              {
+                _meta: { kind: "add" },
+                newText: "#!/usr/bin/env python3\nprint('weather')\n",
+                oldText: "",
+                path: "/private/tmp/weather.py",
+                type: "diff",
+              },
+            ],
+            kind: "edit",
+            locations: [{ path: "/private/tmp/weather.py" }],
+            status: "pending",
+            title: "Writing to ../private/tmp/weather.py",
+            toolCallId: "write_file__ujao7t88",
+          },
+        },
+        jsonrpc: "2.0",
+      },
+    });
+
+    expect(events).toMatchObject([
+      {
+        type: "permission_request",
+        approvalId: "appr_gemini",
+        patches: [
+          {
+            operation: "write",
+            path: "/private/tmp/weather.py",
+            newText: "#!/usr/bin/env python3\nprint('weather')\n",
+            source: "permission",
+          },
+        ],
+        requestId: "2",
+        sessionId: "sess_history",
+        title: "Writing to ../private/tmp/weather.py",
+        toolCallId: "write_file__ujao7t88",
+        toolKind: "edit",
+      },
+    ]);
+  });
+
+  it("normalizes stored Gemini tool updates into output write patches", () => {
+    const events = normalizeHistoryMessage({
+      message_id: "msg_gemini_tool_update",
+      session_id: "sess_history",
+      message_type: "tool_call_update",
+      role: "assistant",
+      created_at: "2026-07-09T17:08:39.926239-07:00",
+      raw_json: {
+        method: "session/update",
+        params: {
+          sessionId: "sess_history",
+          update: {
+            content: [
+              {
+                _meta: { kind: "add" },
+                newText: "#!/usr/bin/env python3\nprint('weather')\n",
+                oldText: "",
+                path: "/private/tmp/weather.py",
+                type: "diff",
+              },
+            ],
+            kind: "edit",
+            locations: [{ path: "/private/tmp/weather.py" }],
+            sessionUpdate: "tool_call_update",
+            status: "completed",
+            title: "Writing to ../private/tmp/weather.py",
+            toolCallId: "write_file__ujao7t88",
+          },
+        },
+        jsonrpc: "2.0",
+      },
+    });
+
+    expect(events).toMatchObject([
+      {
+        type: "tool_call",
+        id: "sess_history:tool:write_file__ujao7t88",
+        name: "Writing to ../private/tmp/weather.py",
+        patches: [
+          {
+            operation: "write",
+            path: "/private/tmp/weather.py",
+            newText: "#!/usr/bin/env python3\nprint('weather')\n",
+            source: "output",
+          },
+        ],
+        sessionUpdate: "tool_call_update",
+        status: "done",
+        toolCallId: "write_file__ujao7t88",
+      },
+    ]);
+  });
+
   it("marks stored user-approved permission responses as user decisions", () => {
     const requested = normalizeHistoryMessage({
       message_id: "msg_permission_request",

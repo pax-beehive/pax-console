@@ -17,14 +17,18 @@ import {
   Brain,
   CheckCircle2,
   Circle,
+  Download,
+  FileText,
   FolderOpen,
   FolderPlus,
   LoaderCircle,
   Mic,
   PanelRight,
   Plus,
+  RefreshCw,
   ShieldAlert,
   ShieldCheck,
+  UploadCloud,
   Send,
   X,
 } from "lucide-react";
@@ -38,8 +42,12 @@ import {
   WorkstreamItemCard,
 } from "@/components/sessions/session-event-cards";
 import {
+  artifactContentDownloadHref,
+  completeArtifactUpload,
   createKnowledgeCapsule,
+  createArtifactUpload,
   decideApproval,
+  getArtifactContentURL,
   injectKnowledgeCapsule,
   updateAgentSession,
   useAgentOwnerInfos,
@@ -49,6 +57,7 @@ import {
   useNodeAgents,
   useNodes,
   useSessionHistory,
+  useSessionArtifacts,
 } from "@/features/api/resources";
 import { queryKeys } from "@/features/api/query-keys";
 import {
@@ -56,6 +65,7 @@ import {
   SessionKnowledgeInjection,
   SessionApprovalMode,
   SessionPaxConfig,
+  SessionArtifact,
   User,
 } from "@/features/api/types";
 import { filterLiveEventsAlreadyInHistory } from "@/features/runtime/filter-live-history-events";
@@ -80,7 +90,7 @@ type SessionWorkbenchProps = {
   initialPromptKey?: string;
 };
 
-type SessionSidePanelId = "knowledge";
+type SessionSidePanelId = "artifacts" | "knowledge";
 
 type SessionSidePanel = {
   id: SessionSidePanelId;
@@ -117,8 +127,9 @@ export function SessionWorkbench({
   );
   const [draft, setDraft] = useState("");
   const [newSessionCwd, setNewSessionCwd] = useState(initialCwd ?? "");
-  const [newSessionWorkspaceOpen, setNewSessionWorkspaceOpen] =
-    useState(Boolean(initialCwd));
+  const [newSessionWorkspaceOpen, setNewSessionWorkspaceOpen] = useState(
+    Boolean(initialCwd),
+  );
   const [newSessionApprovalMode, setNewSessionApprovalMode] =
     useState<SessionApprovalMode>(initialApprovalMode ?? "manual");
   const [pendingSessionPaxConfig, setPendingSessionPaxConfig] =
@@ -213,11 +224,21 @@ export function SessionWorkbench({
     user.user_id,
     currentSessionId,
   );
+  const artifactsQuery = useSessionArtifacts(user.user_id, currentSessionId);
   const [capsuleKeyword, setCapsuleKeyword] = useState("");
   const [selectedCapsuleId, setSelectedCapsuleId] = useState("");
+  const [selectedArtifactId, setSelectedArtifactId] = useState("");
+  const [artifactPreviewUrl, setArtifactPreviewUrl] = useState("");
+  const [artifactPreviewError, setArtifactPreviewError] =
+    useState<Error | null>(null);
   const activeCapsules = capsulesQuery.data?.capsules ?? [];
+  const activeArtifacts = artifactsQuery.data?.artifacts ?? [];
   const selectedInjectionCapsuleId =
     selectedCapsuleId || activeCapsules[0]?.capsule_id || "";
+  const selectedArtifact =
+    activeArtifacts.find(
+      (artifact) => artifact.artifact_id === selectedArtifactId,
+    ) ?? activeArtifacts[0];
   const refreshKnowledge = () => {
     if (!currentSessionId) {
       return;
@@ -242,6 +263,92 @@ export function SessionWorkbench({
       });
     }
   };
+  const refreshArtifacts = () => {
+    if (!currentSessionId) {
+      return;
+    }
+
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.sessionArtifacts(user.user_id, currentSessionId),
+    });
+  };
+  const uploadArtifact = useMutation({
+    mutationFn: async (file: File) => {
+      if (!currentSessionId) {
+        throw new Error("Start the session before uploading an artifact.");
+      }
+
+      const contentType = file.type || "application/octet-stream";
+      const kind = inferArtifactKind(file);
+      const ticket = await createArtifactUpload(user.user_id, {
+        content_type: contentType,
+        filename: file.name,
+        kind,
+        session_id: currentSessionId,
+        size_bytes: file.size,
+        title: file.name,
+      });
+      const headers = new Headers(ticket.headers);
+      if (!headers.has("Content-Type")) {
+        headers.set("Content-Type", contentType);
+      }
+      if (!isMockSignedUploadUrl(ticket.url)) {
+        const uploadResponse = await fetch(ticket.url, {
+          body: file,
+          headers,
+          method: ticket.method,
+        });
+        if (!uploadResponse.ok) {
+          throw new Error(`GCS upload failed with ${uploadResponse.status}`);
+        }
+      }
+      return completeArtifactUpload(user.user_id, ticket.upload_id, {
+        kind,
+        payload_json: {
+          content_type: contentType,
+          filename: file.name,
+          size_bytes: file.size,
+        },
+        session_id: currentSessionId,
+        title: file.name,
+      });
+    },
+    onSuccess: (data) => {
+      setSelectedArtifactId(data.artifact.artifact_id);
+      setArtifactPreviewUrl("");
+      setArtifactPreviewError(null);
+      refreshArtifacts();
+    },
+    onError: (caught) => {
+      setArtifactPreviewError(
+        caught instanceof Error ? caught : new Error(String(caught)),
+      );
+    },
+  });
+  const previewArtifact = useMutation({
+    mutationFn: async (artifact: SessionArtifact) => {
+      const content = artifact.contents?.[0];
+      if (!content) {
+        throw new Error("Artifact has no content.");
+      }
+      return getArtifactContentURL(
+        user.user_id,
+        artifact.artifact_id,
+        content.ref || "main",
+        "inline",
+      );
+    },
+    onSuccess: (data) => {
+      setSelectedArtifactId(data.artifact.artifact_id);
+      setArtifactPreviewUrl(data.url);
+      setArtifactPreviewError(null);
+    },
+    onError: (caught) => {
+      setArtifactPreviewError(
+        caught instanceof Error ? caught : new Error(String(caught)),
+      );
+    },
+  });
   const createCapsule = useMutation({
     mutationFn: () => {
       if (!currentSessionId) {
@@ -318,7 +425,9 @@ export function SessionWorkbench({
       }
     },
     onError: (caught) => {
-      setSendError(caught instanceof Error ? caught : new Error(String(caught)));
+      setSendError(
+        caught instanceof Error ? caught : new Error(String(caught)),
+      );
     },
   });
 
@@ -384,9 +493,12 @@ export function SessionWorkbench({
     user.user_id,
     invocationOwnerLookups,
   );
+  const flushFinalTurn =
+    conversationRun.status !== "streaming" &&
+    conversationRun.status !== "waiting_approval";
   const workstreamItems = useMemo(
-    () => groupWorkstreamEvents(timeline),
-    [timeline],
+    () => groupWorkstreamEvents(timeline, { flushFinalTurn }),
+    [flushFinalTurn, timeline],
   );
   const canSend =
     Boolean(activeAgentId && activeNodeId) &&
@@ -556,6 +668,44 @@ export function SessionWorkbench({
 
   const sidePanels: SessionSidePanel[] = [
     {
+      id: "artifacts",
+      label: "Artifacts",
+      description: "Uploaded files and generated outputs",
+      icon: <FileText className="h-4 w-4" />,
+      content: (
+        <ArtifactTools
+          artifacts={activeArtifacts}
+          canUpload={Boolean(currentSessionId)}
+          downloadHref={(artifact, ref) =>
+            artifactContentDownloadHref(user.user_id, artifact.artifact_id, ref)
+          }
+          isLoading={artifactsQuery.isLoading}
+          onPreview={(artifact) => previewArtifact.mutate(artifact)}
+          onRefresh={refreshArtifacts}
+          onSelect={(artifactId) => {
+            setSelectedArtifactId(artifactId);
+            setArtifactPreviewUrl("");
+            setArtifactPreviewError(null);
+          }}
+          onUpload={(file) => uploadArtifact.mutate(file)}
+          previewError={
+            artifactPreviewError ??
+            (previewArtifact.error instanceof Error
+              ? previewArtifact.error
+              : null)
+          }
+          previewPending={previewArtifact.isPending}
+          previewUrl={artifactPreviewUrl}
+          selectedArtifact={selectedArtifact}
+          selectedArtifactId={selectedArtifact?.artifact_id ?? ""}
+          uploadError={
+            uploadArtifact.error instanceof Error ? uploadArtifact.error : null
+          }
+          uploadPending={uploadArtifact.isPending}
+        />
+      ),
+    },
+    {
       id: "knowledge",
       label: "Knowledge",
       description: "Capsules and system handoff injections",
@@ -665,11 +815,7 @@ export function SessionWorkbench({
                   No messages yet. Live tunnel events will appear here.
                 </div>
               )}
-              <div
-                aria-hidden="true"
-                className="h-2"
-                ref={timelineBottomRef}
-              />
+              <div aria-hidden="true" className="h-2" ref={timelineBottomRef} />
             </div>
           </div>
 
@@ -693,8 +839,9 @@ export function SessionWorkbench({
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <Button
                   icon={<Plus className="h-4 w-4" />}
+                  onClick={() => setActiveSidePanelId("artifacts")}
                   size="icon"
-                  tooltip="Add attachment"
+                  tooltip="Open artifacts"
                   type="button"
                   variant="ghost"
                 />
@@ -822,6 +969,24 @@ export function SessionWorkbench({
                 variant="ghost"
               />
             </div>
+            <div className="flex gap-1 border-b border-hairline px-3 py-2">
+              {sidePanels.map((panel) => (
+                <button
+                  className={cn(
+                    "inline-flex min-h-8 flex-1 items-center justify-center gap-2 rounded-md px-2 text-xs transition",
+                    activeSidePanelId === panel.id
+                      ? "bg-surface-3 text-ink"
+                      : "text-ink-tertiary hover:bg-surface-2 hover:text-ink-muted",
+                  )}
+                  key={panel.id}
+                  onClick={() => setActiveSidePanelId(panel.id)}
+                  type="button"
+                >
+                  {panel.icon}
+                  <span className="min-w-0 truncate">{panel.label}</span>
+                </button>
+              ))}
+            </div>
             <div className="p-4">{activeSidePanel.content}</div>
           </aside>
         )}
@@ -860,6 +1025,197 @@ function removeStoredInitialPrompt(initialPromptKey?: string) {
   } catch {
     // Ignore storage cleanup failures; the prompt has already been sent.
   }
+}
+
+function ArtifactTools({
+  artifacts,
+  canUpload,
+  downloadHref,
+  isLoading,
+  onPreview,
+  onRefresh,
+  onSelect,
+  onUpload,
+  previewError,
+  previewPending,
+  previewUrl,
+  selectedArtifact,
+  selectedArtifactId,
+  uploadError,
+  uploadPending,
+}: {
+  artifacts: SessionArtifact[];
+  canUpload: boolean;
+  downloadHref: (artifact: SessionArtifact, ref: string) => string;
+  isLoading: boolean;
+  onPreview: (artifact: SessionArtifact) => void;
+  onRefresh: () => void;
+  onSelect: (artifactId: string) => void;
+  onUpload: (file: File) => void;
+  previewError: Error | null;
+  previewPending: boolean;
+  previewUrl: string;
+  selectedArtifact?: SessionArtifact;
+  selectedArtifactId: string;
+  uploadError: Error | null;
+  uploadPending: boolean;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <div className="grid gap-4">
+      <input
+        className="sr-only"
+        disabled={!canUpload || uploadPending}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          if (file) {
+            onUpload(file);
+          }
+          event.currentTarget.value = "";
+        }}
+        ref={fileInputRef}
+        type="file"
+      />
+      <div className="flex min-w-0 items-center gap-2">
+        <Button
+          disabled={!canUpload || uploadPending}
+          icon={
+            uploadPending ? (
+              <LoaderCircle className="h-4 w-4 animate-spin" />
+            ) : (
+              <UploadCloud className="h-4 w-4" />
+            )
+          }
+          onClick={() => fileInputRef.current?.click()}
+          type="button"
+          variant="primary"
+        >
+          Upload
+        </Button>
+        <Button
+          icon={<RefreshCw className="h-4 w-4" />}
+          onClick={onRefresh}
+          size="icon"
+          tooltip="Refresh artifacts"
+          type="button"
+          variant="ghost"
+        />
+        <div className="min-w-0 flex-1" />
+        <Badge className="font-mono">{String(artifacts.length)}</Badge>
+      </div>
+      {!canUpload && (
+        <div className="rounded-lg border border-dashed border-hairline bg-canvas p-2 text-xs text-ink-tertiary">
+          Start the session before uploading artifacts.
+        </div>
+      )}
+      {uploadError && <InlineError error={uploadError} />}
+
+      <section className="grid gap-2">
+        {isLoading && (
+          <div className="text-xs text-ink-tertiary">Loading artifacts</div>
+        )}
+        {artifacts.map((artifact) => {
+          const content = primaryArtifactContent(artifact);
+          const selected = artifact.artifact_id === selectedArtifactId;
+          return (
+            <button
+              className={cn(
+                "grid min-w-0 gap-2 rounded-lg border p-2 text-left transition",
+                selected
+                  ? "border-primary-focus bg-surface-3"
+                  : "border-hairline bg-canvas hover:border-hairline-strong",
+              )}
+              key={artifact.artifact_id}
+              onClick={() => onSelect(artifact.artifact_id)}
+              type="button"
+            >
+              <div className="flex min-w-0 items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <TruncatedText className="text-sm font-medium text-ink">
+                    {artifactTitle(artifact)}
+                  </TruncatedText>
+                  <div className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-ink-tertiary">
+                    <span className="shrink-0">{artifact.kind}</span>
+                    {content?.size_bytes ? (
+                      <span className="shrink-0">
+                        {formatBytes(content.size_bytes)}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+                <Badge>{artifact.status}</Badge>
+              </div>
+              {content?.filename && (
+                <MonoId tooltip={content.filename}>{content.filename}</MonoId>
+              )}
+            </button>
+          );
+        })}
+        {!isLoading && artifacts.length === 0 && (
+          <div className="rounded-lg border border-dashed border-hairline bg-canvas p-2 text-xs text-ink-tertiary">
+            No artifacts for this session
+          </div>
+        )}
+      </section>
+
+      {selectedArtifact && (
+        <section className="grid gap-2">
+          <div className="flex min-w-0 items-center justify-between gap-2">
+            <TruncatedText className="text-sm font-medium">
+              {artifactTitle(selectedArtifact)}
+            </TruncatedText>
+            <div className="flex shrink-0 items-center gap-1">
+              <Button
+                disabled={previewPending}
+                icon={
+                  previewPending ? (
+                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileText className="h-4 w-4" />
+                  )
+                }
+                onClick={() => onPreview(selectedArtifact)}
+                size="icon"
+                tooltip="Preview artifact"
+                type="button"
+                variant="ghost"
+              />
+              <Button
+                icon={<Download className="h-4 w-4" />}
+                onClick={() => {
+                  window.open(
+                    downloadHref(
+                      selectedArtifact,
+                      primaryArtifactContent(selectedArtifact)?.ref ?? "main",
+                    ),
+                    "_blank",
+                    "noreferrer",
+                  );
+                }}
+                size="icon"
+                tooltip="Download artifact"
+                type="button"
+                variant="ghost"
+              />
+            </div>
+          </div>
+          {previewError && <InlineError error={previewError} />}
+          {previewUrl ? (
+            <iframe
+              className="h-64 w-full rounded-lg border border-hairline bg-white"
+              src={previewUrl}
+              title="Artifact preview"
+            />
+          ) : (
+            <div className="rounded-lg border border-dashed border-hairline bg-canvas p-3 text-xs text-ink-tertiary">
+              Select Preview to load a signed view URL.
+            </div>
+          )}
+        </section>
+      )}
+    </div>
+  );
 }
 
 function KnowledgeTools({
@@ -1094,4 +1450,73 @@ function InlineError({ error }: { error: Error }) {
       {error.name}: {error.message}
     </TruncatedText>
   );
+}
+
+function primaryArtifactContent(artifact: SessionArtifact) {
+  return (
+    artifact.contents?.find((content) => content.ref === "main") ??
+    artifact.contents?.[0]
+  );
+}
+
+function artifactTitle(artifact: SessionArtifact) {
+  return (
+    artifact.title ||
+    primaryArtifactContent(artifact)?.filename ||
+    compactId(artifact.artifact_id)
+  );
+}
+
+function inferArtifactKind(file: File) {
+  const name = file.name.toLowerCase();
+  if (file.type.startsWith("image/")) {
+    return "image";
+  }
+  if (
+    file.type === "text/html" ||
+    name.endsWith(".html") ||
+    name.endsWith(".htm")
+  ) {
+    return "html_preview";
+  }
+  if (
+    name.endsWith(".diff") ||
+    name.endsWith(".patch") ||
+    file.type === "text/x-diff"
+  ) {
+    return "code_diff";
+  }
+  if (
+    name.endsWith(".xlsx") ||
+    name.endsWith(".xls") ||
+    name.endsWith(".csv")
+  ) {
+    return "spreadsheet";
+  }
+  if (file.type.startsWith("text/")) {
+    return "code_file";
+  }
+  return "file";
+}
+
+function isMockSignedUploadUrl(value: string) {
+  try {
+    return new URL(value).hostname === "mock-gcs.local";
+  } catch {
+    return false;
+  }
+}
+
+function formatBytes(value: number) {
+  if (value < 1024) {
+    return `${value} B`;
+  }
+  const units = ["KB", "MB", "GB", "TB"];
+  let size = value / 1024;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  return `${size.toFixed(size >= 10 ? 0 : 1)} ${units[unitIndex]}`;
 }

@@ -4,6 +4,7 @@ import {
   invocationStateFromType,
   isPaxInvocationDisplayType,
 } from "./invocation-display";
+import { CodePatch, extractCodePatches } from "./tool-patches";
 
 type TunnelFrame = {
   id?: string | number;
@@ -211,7 +212,15 @@ function normalizeToolCall(
   id: string,
   kind: string,
 ) {
-  const payload = firstDefined(frame.result, frame.output, frame.content);
+  const payload = firstDefined(
+    frame.result,
+    frame.output,
+    frame.content,
+    valueFrom(frame.params, "toolCall"),
+    valueFrom(frame.params, "tool_call"),
+    valueFrom(frame.params, "update"),
+    frame.params,
+  );
   const status = normalizeToolStatus(frame.status);
   const toolCallId = toolCallIdFromFrame(frame);
   const event: Extract<SessionEvent, { type: "tool_call" }> = {
@@ -241,6 +250,18 @@ function normalizeToolCall(
     event.output = payload;
   }
 
+  const patches = uniqueCodePatches([
+    ...extractCodePatches(event.input, "input"),
+    ...extractCodePatches(event.output, "output"),
+    ...extractCodePatches(
+      frame,
+      event.output === undefined ? "input" : "output",
+    ),
+  ]);
+  if (patches.length > 0) {
+    event.patches = patches;
+  }
+
   return [event] satisfies SessionEvent[];
 }
 
@@ -267,6 +288,13 @@ function normalizePermissionRequest(
     stringFromValue(params, "description") ??
     stringFromValue(toolCall, "description");
   const options = normalizePermissionOptions(valueFrom(params, "options"));
+  const rawInput =
+    valueFrom(toolCall, "rawInput") ?? valueFrom(toolCall, "raw_input");
+  const patches = uniqueCodePatches([
+    ...extractCodePatches(rawInput, "permission"),
+    ...extractCodePatches(toolCall, "permission"),
+    ...extractCodePatches(params, "permission"),
+  ]);
 
   return [
     {
@@ -281,12 +309,32 @@ function normalizePermissionRequest(
         stringFromValue(toolCall, "toolCallId") ??
         stringFromValue(toolCall, "tool_call_id"),
       toolKind: stringFromValue(toolCall, "kind"),
-      rawInput:
-        valueFrom(toolCall, "rawInput") ?? valueFrom(toolCall, "raw_input"),
+      rawInput,
+      ...(patches.length > 0 ? { patches } : {}),
       options,
       createdAt,
     },
   ] satisfies SessionEvent[];
+}
+
+function uniqueCodePatches(patches: CodePatch[]) {
+  const seen = new Set<string>();
+  const out: CodePatch[] = [];
+  for (const patch of patches) {
+    const signature = JSON.stringify([
+      patch.operation,
+      patch.path,
+      patch.oldText,
+      patch.newText,
+      patch.diffText,
+    ]);
+    if (seen.has(signature)) {
+      continue;
+    }
+    seen.add(signature);
+    out.push(patch);
+  }
+  return out;
 }
 
 function normalizePermissionOptions(value: unknown) {
@@ -485,8 +533,7 @@ function isRejectedPermissionOption(optionId: string) {
 }
 
 function permissionDecisionSource(frame: TunnelFrame) {
-  const grantBody =
-    asRecord(frame.grant_body) ?? asRecord(frame.grantBody);
+  const grantBody = asRecord(frame.grant_body) ?? asRecord(frame.grantBody);
   const approvalMode =
     stringFromValue(grantBody, "approval_mode") ??
     stringFromValue(grantBody, "approvalMode");

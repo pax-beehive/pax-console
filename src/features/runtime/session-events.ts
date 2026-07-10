@@ -1,3 +1,9 @@
+import {
+  CodePatch,
+  coalesceCodePatches,
+  extractCodePatches,
+} from "./tool-patches";
+
 export type PermissionDecision = {
   decisionOption: string;
   source?: "auto" | "user";
@@ -15,6 +21,7 @@ export type PermissionRequestEvent = {
   toolCallId?: string;
   toolKind?: string;
   rawInput?: unknown;
+  patches?: CodePatch[];
   options: {
     optionId: string;
     kind?: string;
@@ -91,6 +98,7 @@ export type SessionEvent =
       permissions?: PermissionRequestEvent[];
       input?: unknown;
       output?: unknown;
+      patches?: CodePatch[];
       durationMs?: number;
       createdAt: string;
     }
@@ -141,7 +149,6 @@ export type WorkstreamItem =
       type: "event";
       id: string;
       event: Exclude<SessionEvent, ToolCallEvent>;
-      showActions?: boolean;
     }
   | {
       type: "tool_group";
@@ -149,6 +156,14 @@ export type WorkstreamItem =
       sessionId: string;
       createdAt: string;
       events: ToolCallEvent[];
+    }
+  | {
+      type: "turn_footer";
+      id: string;
+      sessionId: string;
+      createdAt: string;
+      actionsContent?: string;
+      turnPatches?: CodePatch[];
     };
 
 export function isVisibleTimelineEvent(event: SessionEvent) {
@@ -161,18 +176,38 @@ export function isVisibleTimelineEvent(event: SessionEvent) {
 
 export function groupWorkstreamEvents(
   events: SessionEvent[],
+  options: { flushFinalTurn?: boolean } = {},
 ): WorkstreamItem[] {
   const items: WorkstreamItem[] = [];
   let toolGroup: Extract<WorkstreamItem, { type: "tool_group" }> | undefined;
-  let lastAgentMessageItem:
-    | Extract<WorkstreamItem, { type: "event" }>
+  let lastAgentMessage:
+    | Extract<SessionEvent, { type: "agent_message" }>
     | undefined;
+  let turnPatches: CodePatch[] = [];
+  let turnProposedPatches: CodePatch[] = [];
+  let turnSessionId = "";
+  let turnCreatedAt = "";
 
   const markAgentTurnEnded = () => {
-    if (lastAgentMessageItem?.event.type === "agent_message") {
-      lastAgentMessageItem.showActions = true;
+    const patches =
+      turnPatches.length > 0
+        ? turnPatches
+        : coalesceCodePatches(turnProposedPatches);
+    if (lastAgentMessage || patches.length > 0) {
+      items.push({
+        type: "turn_footer",
+        id: `turn_footer:${lastAgentMessage?.id ?? patches[0]?.path ?? items.length}`,
+        sessionId: lastAgentMessage?.sessionId ?? turnSessionId,
+        createdAt: lastAgentMessage?.createdAt ?? turnCreatedAt,
+        actionsContent: lastAgentMessage?.content,
+        ...(patches.length > 0 ? { turnPatches: patches } : {}),
+      });
     }
-    lastAgentMessageItem = undefined;
+    lastAgentMessage = undefined;
+    turnPatches = [];
+    turnProposedPatches = [];
+    turnSessionId = "";
+    turnCreatedAt = "";
   };
 
   for (const event of events) {
@@ -181,6 +216,7 @@ export function groupWorkstreamEvents(
       (event.status === "done" || event.status === "error")
     ) {
       markAgentTurnEnded();
+      toolGroup = undefined;
       continue;
     }
 
@@ -190,9 +226,23 @@ export function groupWorkstreamEvents(
 
     if (event.type === "user_message") {
       markAgentTurnEnded();
+      toolGroup = undefined;
     }
 
+    turnSessionId ||= event.sessionId;
+    turnCreatedAt ||= event.createdAt;
+
     if (event.type === "tool_call") {
+      const appliedPatches = toolCallAppliedPatches(event);
+      if (appliedPatches.length > 0) {
+        turnPatches.push(...appliedPatches);
+        turnProposedPatches = [];
+      } else if (toolCallConfirmsApply(event)) {
+        turnPatches.push(...turnProposedPatches);
+        turnProposedPatches = [];
+      } else {
+        turnProposedPatches.push(...toolCallProposedPatches(event));
+      }
       if (!toolGroup) {
         toolGroup = {
           type: "tool_group",
@@ -208,6 +258,10 @@ export function groupWorkstreamEvents(
       continue;
     }
 
+    if (event.type === "permission_request") {
+      turnProposedPatches.push(...permissionRequestCodePatches(event));
+    }
+
     toolGroup = undefined;
     const item: Extract<WorkstreamItem, { type: "event" }> = {
       type: "event",
@@ -217,11 +271,90 @@ export function groupWorkstreamEvents(
     items.push(item);
 
     if (event.type === "agent_message") {
-      lastAgentMessageItem = item;
+      lastAgentMessage = event;
     }
   }
 
-  markAgentTurnEnded();
+  if (options.flushFinalTurn) {
+    markAgentTurnEnded();
+  }
 
   return items;
+}
+
+export function toolCallAppliedPatches(event: ToolCallEvent) {
+  const directPatches = coalesceCodePatches([
+    ...(event.patches ?? []),
+    ...extractCodePatches(event.input, "input"),
+    ...extractCodePatches(event.output, "output"),
+  ]);
+  if (directPatches.length > 0) {
+    return directPatches;
+  }
+
+  const proposedPatches = toolCallProposedPatches(event);
+  if (proposedPatches.length > 0 && toolCallConfirmsApply(event)) {
+    return proposedPatches;
+  }
+
+  return [];
+}
+
+export function toolCallProposedPatches(event: ToolCallEvent) {
+  return coalesceCodePatches([
+    ...(event.permissions ?? []).flatMap(permissionRequestCodePatches),
+  ]);
+}
+
+export function permissionRequestCodePatches(
+  event: Extract<SessionEvent, { type: "permission_request" }>,
+) {
+  return coalesceCodePatches([
+    ...(event.patches ?? []),
+    ...extractCodePatches(event.rawInput, "permission"),
+  ]);
+}
+
+function toolCallConfirmsApply(event: ToolCallEvent) {
+  const outputText = textFromPayload(event.output)?.toLowerCase() ?? "";
+  const name = event.name.toLowerCase();
+  const outputLooksApplied =
+    /\b(wrote|written|patched|edited|applied|created|updated)\b/.test(
+      outputText,
+    );
+  const nameLooksEditable = /\b(write|patch|edit)\b/.test(name);
+
+  return outputLooksApplied || (event.status === "done" && nameLooksEditable);
+}
+
+function textFromPayload(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    const text = value.map(textFromPayload).filter(Boolean).join("\n");
+    return text || undefined;
+  }
+
+  if (typeof value !== "object" || value === null) {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  for (const key of [
+    "text",
+    "output",
+    "message",
+    "description",
+    "content",
+    "result",
+  ]) {
+    const text = textFromPayload(record[key]);
+    if (text) {
+      return text;
+    }
+  }
+
+  return undefined;
 }

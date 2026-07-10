@@ -187,6 +187,12 @@ Collaboration and knowledge resources are normal user-scoped REST resources:
 
 /knowledge-capsules and /sessions/{session_id}/knowledge-injections
   Reusable session knowledge and system_handoff delivery into sessions.
+
+/artifact-uploads, /artifacts, and /sessions/{session_id}/artifacts
+  Session artifacts use manager-issued GCS signed URLs. Browser code first
+  creates an upload ticket, PUTs the file to GCS, completes the upload, then
+  reads artifacts through TanStack Query. Preview/download URLs come from the
+  artifact content endpoint; do not upload files through the Next proxy.
 ```
 
 ## Conversation Runtime Rules

@@ -352,6 +352,149 @@ describe("mergeEvents", () => {
     });
   });
 
+  it("prefers applied output patches while preserving attached permissions", () => {
+    const events: SessionEvent[] = [
+      {
+        type: "tool_call",
+        id: "sess_1:tool:tc_patch",
+        sessionId: "sess_1",
+        name: "patch",
+        status: "running",
+        sessionUpdate: "tool_call",
+        toolCallId: "tc_patch",
+        patches: [
+          {
+            operation: "patch",
+            path: "/tmp/weather.py",
+            oldText: "old\n",
+            newText: "new\n",
+            source: "input",
+          },
+        ],
+        createdAt: "2026-06-29T20:37:09.480Z",
+      },
+      {
+        type: "permission_request",
+        id: "perm_patch",
+        sessionId: "sess_1",
+        requestId: "perm_patch",
+        title: "patch /tmp/weather.py",
+        patches: [
+          {
+            operation: "patch",
+            path: "/tmp/weather.py",
+            oldText: "old\n",
+            newText: "new\n",
+            source: "permission",
+          },
+        ],
+        options: [],
+        createdAt: "2026-06-29T20:37:10.000Z",
+      },
+      {
+        type: "tool_call",
+        id: "sess_1:tool:tc_patch",
+        sessionId: "sess_1",
+        name: "tc_patch",
+        status: "done",
+        sessionUpdate: "tool_call_update",
+        toolCallId: "tc_patch",
+        output: "ok",
+        patches: [
+          {
+            diffText:
+              "--- /tmp/weather.py\n+++ /tmp/weather.py\n@@\n-old\n+new\n",
+            operation: "diff",
+            path: "/tmp/weather.py",
+            source: "output",
+          },
+        ],
+        createdAt: "2026-06-29T20:37:11.000Z",
+      },
+    ];
+
+    const merged = mergeEvents(events);
+
+    expect(merged).toMatchObject([
+      {
+        type: "tool_call",
+        status: "done",
+        patches: [
+          {
+            operation: "diff",
+            source: "output",
+          },
+        ],
+        permissions: [
+          {
+            type: "permission_request",
+            patches: [
+              {
+                operation: "patch",
+                source: "permission",
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("does not attach an unrelated execute permission to a preceding edit tool update", () => {
+    const events: SessionEvent[] = [
+      {
+        type: "tool_call",
+        id: "sess_1:tool:write_file__ujao7t88",
+        sessionId: "sess_1",
+        name: "Writing to ../private/tmp/weather.py",
+        status: "done",
+        sessionUpdate: "tool_call_update",
+        toolCallId: "write_file__ujao7t88",
+        patches: [
+          {
+            operation: "write",
+            path: "/private/tmp/weather.py",
+            newText: "print('weather')\n",
+            source: "output",
+          },
+        ],
+        createdAt: "2026-07-09T17:08:39.926Z",
+      },
+      {
+        type: "permission_request",
+        id: "perm_run",
+        sessionId: "sess_1",
+        requestId: "3",
+        title: "python3 /private/tmp/weather.py London",
+        toolCallId: "run_shell_command__abc",
+        toolKind: "execute",
+        options: [],
+        createdAt: "2026-07-09T17:08:40.000Z",
+      },
+    ];
+
+    const merged = mergeEvents(events);
+
+    expect(merged).toMatchObject([
+      {
+        type: "tool_call",
+        patches: [
+          {
+            operation: "write",
+            path: "/private/tmp/weather.py",
+            source: "output",
+          },
+        ],
+      },
+      {
+        type: "permission_request",
+        title: "python3 /private/tmp/weather.py London",
+        toolCallId: "run_shell_command__abc",
+      },
+    ]);
+    expect(merged[0]).not.toHaveProperty("permissions");
+  });
+
   it("marks open tool calls done when the run finishes without a tool update", () => {
     const events: SessionEvent[] = [
       {

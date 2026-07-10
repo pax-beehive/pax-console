@@ -364,6 +364,98 @@ describe("normalizeTunnelFrame", () => {
     ]);
   });
 
+  it("extracts code patches from permission request raw input", () => {
+    const events = normalizeTunnelFrame({
+      jsonrpc: "2.0",
+      id: "perm-patch",
+      method: "session/request_permission",
+      params: {
+        sessionId: "sess-acp-runtime",
+        approval_id: "appr-patch",
+        toolCall: {
+          toolCallId: "call-patch",
+          kind: "patch",
+          title: "patch /tmp/weather.py",
+          rawInput: {
+            arguments: {
+              new_string: "print('new')\n",
+              old_string: "print('old')\n",
+              path: "/tmp/weather.py",
+            },
+            tool: "patch",
+          },
+        },
+        options: [{ optionId: "allow", name: "Allow" }],
+      },
+    });
+
+    expect(events).toMatchObject([
+      {
+        type: "permission_request",
+        requestId: "perm-patch",
+        patches: [
+          {
+            operation: "patch",
+            path: "/tmp/weather.py",
+            oldText: "print('old')\n",
+            newText: "print('new')\n",
+            source: "permission",
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("extracts Gemini edit blocks from permission request tool call content", () => {
+    const events = normalizeTunnelFrame({
+      jsonrpc: "2.0",
+      id: 2,
+      method: "session/request_permission",
+      params: {
+        sessionId: "sess_gemini",
+        approvalId: "appr_gemini",
+        approval_id: "appr_gemini",
+        toolCall: {
+          content: [
+            {
+              _meta: { kind: "add" },
+              newText: "#!/usr/bin/env python3\nprint('weather')\n",
+              oldText: "",
+              path: "/private/tmp/weather.py",
+              type: "diff",
+            },
+          ],
+          kind: "edit",
+          locations: [{ path: "/private/tmp/weather.py" }],
+          status: "pending",
+          title: "Writing to ../private/tmp/weather.py",
+          toolCallId: "write_file__ujao7t88",
+        },
+        options: [{ optionId: "proceed_once", name: "Allow" }],
+      },
+    });
+
+    expect(events).toMatchObject([
+      {
+        type: "permission_request",
+        approvalId: "appr_gemini",
+        requestId: "2",
+        sessionId: "sess_gemini",
+        title: "Writing to ../private/tmp/weather.py",
+        toolCallId: "write_file__ujao7t88",
+        toolKind: "edit",
+        patches: [
+          {
+            operation: "write",
+            path: "/private/tmp/weather.py",
+            newText: "#!/usr/bin/env python3\nprint('weather')\n",
+            source: "permission",
+          },
+        ],
+      },
+    ]);
+  });
+
   it("normalizes ACP permission responses into decisions", () => {
     const requested = normalizeTunnelFrame({
       jsonrpc: "2.0",
@@ -497,6 +589,193 @@ describe("normalizeTunnelFrame", () => {
         output: {
           text: "done",
         },
+      },
+    ]);
+  });
+
+  it("extracts code patches from tool call input old and new content", () => {
+    const events = normalizeTunnelFrame({
+      jsonrpc: "2.0",
+      method: "session/update",
+      params: {
+        sessionId: "sess_1",
+        update: {
+          arguments: {
+            new_string: "line 2\n",
+            old_string: "line 1\n",
+            path: "/tmp/example.txt",
+          },
+          name: "patch",
+          sessionUpdate: "tool_call",
+          status: "running",
+          toolCallId: "tc-patch-input",
+        },
+      },
+    });
+
+    expect(events).toMatchObject([
+      {
+        type: "tool_call",
+        input: {
+          arguments: {
+            new_string: "line 2\n",
+            old_string: "line 1\n",
+            path: "/tmp/example.txt",
+          },
+          name: "patch",
+        },
+        patches: [
+          {
+            operation: "patch",
+            path: "/tmp/example.txt",
+            oldText: "line 1\n",
+            newText: "line 2\n",
+            source: "input",
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("extracts code patches from tool call output diff attachments", () => {
+    const events = normalizeTunnelFrame({
+      jsonrpc: "2.0",
+      method: "session/update",
+      params: {
+        sessionId: "sess_1",
+        update: {
+          output: {
+            files: [
+              {
+                newText:
+                  "--- /tmp/example.txt\n+++ /tmp/example.txt\n@@\n-old\n+new\n",
+                path: "/tmp/example.txt",
+                type: "diff",
+              },
+            ],
+          },
+          sessionUpdate: "tool_call_update",
+          status: "completed",
+          toolCallId: "tc-patch-output",
+        },
+      },
+    });
+
+    expect(events).toMatchObject([
+      {
+        type: "tool_call",
+        output: {
+          files: [
+            {
+              path: "/tmp/example.txt",
+              type: "diff",
+            },
+          ],
+        },
+        patches: [
+          {
+            diffText:
+              "--- /tmp/example.txt\n+++ /tmp/example.txt\n@@\n-old\n+new\n",
+            operation: "diff",
+            path: "/tmp/example.txt",
+            source: "output",
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("extracts Gemini edit blocks from completed tool call updates as output patches", () => {
+    const events = normalizeTunnelFrame({
+      jsonrpc: "2.0",
+      method: "session/update",
+      params: {
+        sessionId: "sess_gemini",
+        update: {
+          content: [
+            {
+              _meta: { kind: "add" },
+              newText: "#!/usr/bin/env python3\nprint('weather')\n",
+              oldText: "",
+              path: "/private/tmp/weather.py",
+              type: "diff",
+            },
+          ],
+          kind: "edit",
+          locations: [{ path: "/private/tmp/weather.py" }],
+          sessionUpdate: "tool_call_update",
+          status: "completed",
+          title: "Writing to ../private/tmp/weather.py",
+          toolCallId: "write_file__ujao7t88",
+        },
+      },
+    });
+
+    expect(events).toMatchObject([
+      {
+        type: "tool_call",
+        id: "sess_gemini:tool:write_file__ujao7t88",
+        name: "Writing to ../private/tmp/weather.py",
+        output: [
+          {
+            path: "/private/tmp/weather.py",
+            type: "diff",
+          },
+        ],
+        patches: [
+          {
+            operation: "write",
+            path: "/private/tmp/weather.py",
+            newText: "#!/usr/bin/env python3\nprint('weather')\n",
+            source: "output",
+          },
+        ],
+        sessionUpdate: "tool_call_update",
+        status: "done",
+        toolCallId: "write_file__ujao7t88",
+      },
+    ]);
+  });
+
+  it("extracts delete patches from ACP terminal rm tool calls", () => {
+    const events = normalizeTunnelFrame({
+      jsonrpc: "2.0",
+      method: "session/update",
+      params: {
+        sessionId: "sess_91ea",
+        update: {
+          content: [
+            {
+              content: {
+                text: "$ rm ~/weather.py",
+                type: "text",
+              },
+              type: "content",
+            },
+          ],
+          kind: "execute",
+          locations: [],
+          sessionUpdate: "tool_call",
+          title: "terminal: rm ~/weather.py",
+          toolCallId: "tc-084df4acb739",
+        },
+      },
+    });
+
+    expect(events).toMatchObject([
+      {
+        type: "tool_call",
+        id: "sess_91ea:tool:tc-084df4acb739",
+        name: "terminal: rm ~/weather.py",
+        patches: [
+          {
+            operation: "delete",
+            path: "~/weather.py",
+            source: "input",
+          },
+        ],
+        sessionUpdate: "tool_call",
+        toolCallId: "tc-084df4acb739",
       },
     ]);
   });

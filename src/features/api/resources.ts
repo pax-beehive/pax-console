@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { apiFetch, userPath } from "./client";
+import { API_BASE_URL, apiFetch, userPath } from "./client";
 import { ApiError } from "./errors";
 import { queryKeys } from "./query-keys";
 import {
@@ -14,6 +14,9 @@ import {
   AgentSession,
   ApprovedNodeRegistration,
   ApprovedPaxlDeviceLogin,
+  ArtifactContentURL,
+  ArtifactUploadTicket,
+  CompleteArtifactUploadData,
   CreatedNodeRegistrationToken,
   CreatedUserAPIKey,
   Envelope,
@@ -27,6 +30,7 @@ import {
   PaxdConnectPreview,
   RepresentativeAgent,
   SessionApprovalMode,
+  SessionArtifact,
   SessionKnowledgeInjection,
   Team,
   TeamAgent,
@@ -114,6 +118,14 @@ type KnowledgeCapsuleListData = {
 
 type KnowledgeInjectionListData = {
   injections: SessionKnowledgeInjection[];
+};
+
+type SessionArtifactListData = {
+  artifacts: SessionArtifact[];
+};
+
+type SessionArtifactData = {
+  artifact: SessionArtifact;
 };
 
 type RepresentativeAgentListData = {
@@ -292,6 +304,78 @@ export function listSessionHistory(
   return apiFetch<HistoryListData>(
     `${userPath(userId, `/agents/${agentId}/sessions/${sessionId}/history`)}?${params}`,
   );
+}
+
+export function listSessionArtifacts(userId: string, sessionId: string) {
+  return apiFetch<SessionArtifactListData>(
+    userPath(userId, `/sessions/${sessionId}/artifacts`),
+  );
+}
+
+export function createArtifactUpload(
+  userId: string,
+  input: {
+    content_type?: string;
+    filename: string;
+    kind?: string;
+    session_id?: string;
+    size_bytes?: number;
+    title?: string;
+  },
+) {
+  return apiFetch<ArtifactUploadTicket>(userPath(userId, "/artifact-uploads"), {
+    body: JSON.stringify(input),
+    method: "POST",
+  });
+}
+
+export function completeArtifactUpload(
+  userId: string,
+  uploadId: string,
+  input: {
+    kind?: string;
+    payload_json?: Record<string, unknown>;
+    session_id?: string;
+    title?: string;
+  },
+) {
+  return apiFetch<CompleteArtifactUploadData>(
+    userPath(userId, `/artifact-uploads/${uploadId}/complete`),
+    {
+      body: JSON.stringify(input),
+      method: "POST",
+    },
+  );
+}
+
+export function getArtifact(userId: string, artifactId: string) {
+  return apiFetch<SessionArtifactData>(
+    userPath(userId, `/artifacts/${artifactId}`),
+  );
+}
+
+export function getArtifactContentURL(
+  userId: string,
+  artifactId: string,
+  ref = "main",
+  disposition: "inline" | "attachment" = "inline",
+) {
+  const params = new URLSearchParams({ disposition });
+  return apiFetch<ArtifactContentURL>(
+    `${userPath(userId, `/artifacts/${artifactId}/content/${ref}`)}?${params}`,
+  );
+}
+
+export function artifactContentDownloadHref(
+  userId: string,
+  artifactId: string,
+  ref = "main",
+) {
+  const params = new URLSearchParams({
+    disposition: "attachment",
+    redirect: "1",
+  });
+  return `${API_BASE_URL}${userPath(userId, `/artifacts/${artifactId}/content/${ref}`)}?${params}`;
 }
 
 export function listRepresentativeAgents(
@@ -1113,6 +1197,18 @@ export function useSessionHistory(
         sessionId as string,
       ),
     enabled: Boolean(userId && agentId && sessionId),
+    refetchOnWindowFocus: true,
+  });
+}
+
+export function useSessionArtifacts(userId?: string, sessionId?: string) {
+  return useQuery({
+    queryKey: queryKeys.sessionArtifacts(
+      userId ?? "pending",
+      sessionId ?? "pending",
+    ),
+    queryFn: () => listSessionArtifacts(userId as string, sessionId as string),
+    enabled: Boolean(userId && sessionId),
     refetchOnWindowFocus: true,
   });
 }

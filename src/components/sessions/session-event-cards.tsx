@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   ThumbsDown,
   ThumbsUp,
+  X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,11 +20,19 @@ import { MonoId, TruncatedText } from "@/components/ui/text";
 import { AgentOwnerInfo } from "@/features/api/types";
 import {
   PermissionDecision,
+  permissionRequestCodePatches,
   SessionEvent,
+  toolCallAppliedPatches,
+  toolCallProposedPatches,
   ToolCallEvent,
   WorkstreamItem,
 } from "@/features/runtime/session-events";
 import { invocationBodyContent } from "@/features/runtime/invocation-body-content";
+import {
+  CodePatch,
+  codePatchToText,
+} from "@/features/runtime/tool-patches";
+import { cn } from "@/lib/utils";
 
 export type PermissionDecisionOption =
   | "deny"
@@ -87,12 +96,20 @@ export function WorkstreamItemCard({
     );
   }
 
+  if (item.type === "turn_footer") {
+    return (
+      <TurnFooterCard
+        actionsContent={item.actionsContent}
+        turnPatches={item.turnPatches}
+      />
+    );
+  }
+
   return (
     <EventCard
       agentOwnerInfos={agentOwnerInfos}
       event={item.event}
       permissionDecision={permissionDecision}
-      showActions={item.showActions}
     />
   );
 }
@@ -101,12 +118,10 @@ function EventCard({
   agentOwnerInfos,
   event,
   permissionDecision,
-  showActions,
 }: {
   agentOwnerInfos?: Record<string, AgentOwnerInfo>;
   event: Exclude<SessionEvent, ToolCallEvent>;
   permissionDecision: PermissionDecisionState;
-  showActions?: boolean;
 }) {
   if (event.type === "file_change") {
     return <FileChangeCard event={event} />;
@@ -130,7 +145,7 @@ function EventCard({
   }
 
   if (event.type === "agent_message") {
-    return <AgentMessageCard event={event} showActions={showActions} />;
+    return <AgentMessageCard event={event} />;
   }
 
   if (event.type === "invocation") {
@@ -199,14 +214,9 @@ function UserMessageCard({
 
 function AgentMessageCard({
   event,
-  showActions,
 }: {
   event: Extract<SessionEvent, { type: "agent_message" }>;
-  showActions?: boolean;
 }) {
-  const shouldShowActions =
-    showActions === true && !event.streaming && event.content.trim().length > 0;
-
   return (
     <article className="min-w-0 justify-self-stretch py-1">
       <MarkdownMessage
@@ -214,7 +224,34 @@ function AgentMessageCard({
         content={event.content}
         streaming={event.streaming}
       />
-      {shouldShowActions && <AgentMessageActions content={event.content} />}
+    </article>
+  );
+}
+
+function TurnFooterCard({
+  actionsContent,
+  turnPatches,
+}: {
+  actionsContent?: string;
+  turnPatches?: CodePatch[];
+}) {
+  const shouldShowTurnPatches = (turnPatches?.length ?? 0) > 0;
+  const shouldShowActions = Boolean(actionsContent?.trim());
+
+  if (!shouldShowTurnPatches && !shouldShowActions) {
+    return null;
+  }
+
+  return (
+    <article className="min-w-0 justify-self-stretch py-1">
+      {shouldShowTurnPatches && (
+        <div className="mt-1">
+          <ToolPatchSection patches={turnPatches ?? []} />
+        </div>
+      )}
+      {shouldShowActions && (
+        <AgentMessageActions content={actionsContent ?? ""} />
+      )}
     </article>
   );
 }
@@ -243,7 +280,9 @@ function AgentMessageActions({ content }: { content: string }) {
         Done
       </span>
       <Button
-        icon={copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+        icon={
+          copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />
+        }
         onClick={copyContent}
         size="icon"
         tooltip={copied ? "Copied response" : "Copy response"}
@@ -478,10 +517,27 @@ function ToolEventRow({
   const hasApprovedPermission = Boolean(approvalBadgeLabel);
   const approvedPermissionLabel = approvalBadgeLabel ?? "approved";
   const hasPendingPermission = event.permissions?.some((permission) => {
-    const decision =
-      permissionDecisionForPermission(permission, permissionDecision);
+    const decision = permissionDecisionForPermission(
+      permission,
+      permissionDecision,
+    );
     return !decision;
   });
+  const appliedPatches = toolCallAppliedPatches(event);
+  const proposedPatches = toolCallProposedPatches(event);
+  const codePatches =
+    appliedPatches.length > 0 ? appliedPatches : proposedPatches;
+
+  if (codePatches.length > 0) {
+    return (
+      <PatchToolEventRow
+        codePatches={codePatches}
+        event={event}
+        intent={appliedPatches.length > 0 ? "edited" : "proposed"}
+        permissionDecision={permissionDecision}
+      />
+    );
+  }
 
   return (
     <details
@@ -505,21 +561,10 @@ function ToolEventRow({
         <ChevronDown className="h-3.5 w-3.5 -rotate-90 text-ink-tertiary transition group-open/tool:rotate-0" />
       </summary>
       <div className="grid gap-3 border-t border-hairline bg-canvas/60 p-3">
-        {event.permissions && event.permissions.length > 0 && (
-          <section className="grid gap-2">
-            <div className="text-xs uppercase tracking-wide text-ink-tertiary">
-              Approval request
-            </div>
-            {event.permissions.map((permission) => (
-              <PermissionRequestCard
-                compactApproved={false}
-                event={permission}
-                key={permission.id}
-                permissionDecision={permissionDecision}
-              />
-            ))}
-          </section>
-        )}
+        <ToolPermissionsSection
+          event={event}
+          permissionDecision={permissionDecision}
+        />
         <ToolPayloadSection label="Input" value={event.input} />
         <ToolPayloadSection
           fallback={event.status === "done" ? "Success" : undefined}
@@ -529,6 +574,617 @@ function ToolEventRow({
       </div>
     </details>
   );
+}
+
+function PatchToolEventRow({
+  codePatches,
+  event,
+  intent,
+  permissionDecision,
+}: {
+  codePatches: CodePatch[];
+  event: ToolCallEvent;
+  intent: "edited" | "proposed";
+  permissionDecision: PermissionDecisionState;
+}) {
+  const allApproved =
+    intent === "proposed" &&
+    event.permissions?.length &&
+    event.permissions.every(
+      (permission) =>
+        permissionDecisionForPermission(permission, permissionDecision)
+          ?.status === "approved",
+    );
+  const summaryIntent =
+    intent === "edited" || !allApproved ? intent : "approved";
+
+  return (
+    <div className="min-w-0 border-b border-hairline bg-canvas/40 p-3 last:border-b-0">
+      {(intent === "edited" || !event.permissions?.length) && (
+        <CompactPatchToolSummary intent={summaryIntent} patches={codePatches} />
+      )}
+      {event.permissions && event.permissions.length > 0 && (
+        <div className={intent === "edited" ? "mt-3" : ""}>
+          <ToolPermissionsSection
+            event={event}
+            permissionDecision={permissionDecision}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CompactPatchToolSummary({
+  intent = "edited",
+  patches,
+}: {
+  intent?: "approved" | "edited" | "proposed";
+  patches: CodePatch[];
+}) {
+  const titles = patches.map((patch) => patch.path ?? patch.operation);
+  const primaryTitle = titles[0] ?? "file";
+  const extraCount = Math.max(0, titles.length - 1);
+  const tooltip = titles.join("\n");
+  const label =
+    intent === "edited"
+      ? compactPatchLabel(patches)
+      : intent === "approved"
+        ? "Approved edit"
+        : "Proposed edit";
+
+  return (
+    <div className="grid min-h-9 min-w-0 grid-cols-[16px_minmax(0,1fr)] items-center gap-2">
+      <FileCode className="h-4 w-4 text-ink-tertiary" />
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="shrink-0 text-sm text-ink-muted">{label}</span>
+        <TruncatedText className="font-mono text-xs text-ink" tooltip={tooltip}>
+          {primaryTitle}
+          {extraCount > 0 ? ` +${extraCount}` : ""}
+        </TruncatedText>
+      </div>
+    </div>
+  );
+}
+
+function compactPatchLabel(patches: CodePatch[]) {
+  const noun = patches.length === 1 ? "file" : "files";
+  if (patches.every((patch) => patch.operation === "delete")) {
+    return `Deleted ${noun}`;
+  }
+  if (patches.some((patch) => patch.operation === "delete")) {
+    return `Changed ${noun}`;
+  }
+  return `Edited ${noun}`;
+}
+
+function ToolPermissionsSection({
+  event,
+  permissionDecision,
+}: {
+  event: ToolCallEvent;
+  permissionDecision: PermissionDecisionState;
+}) {
+  if (!event.permissions || event.permissions.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="grid gap-2">
+      <div className="text-xs uppercase tracking-wide text-ink-tertiary">
+        Approval request
+      </div>
+      {event.permissions.map((permission) => (
+        <PermissionRequestCard
+          compactApproved={false}
+          event={permission}
+          key={permission.id}
+          permissionDecision={permissionDecision}
+        />
+      ))}
+    </section>
+  );
+}
+
+function ToolPatchSection({ patches }: { patches: CodePatch[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const [selectedPatchKey, setSelectedPatchKey] = useState<string | null>(null);
+
+  if (patches.length === 0) {
+    return null;
+  }
+
+  const patchGroups = groupPatchesByFile(patches);
+  const shortPathLabels = shortPatchPathLabels(
+    patchGroups.flatMap((group) => group.patches),
+  );
+  const patchSummaries = patchGroups.map((group) => ({
+    key: group.key,
+    patches: group.patches,
+    primaryPatch: group.patches.at(-1) ?? group.patches[0],
+    title: group.path
+      ? (shortPathLabels.get(group.path) ?? group.path)
+      : group.key,
+    stats: codePatchGroupStats(group.patches),
+  }));
+  const selectedPatch =
+    patchSummaries.find((summary) => summary.key === selectedPatchKey)
+      ?.primaryPatch ?? null;
+  const totalStats = patchSummaries.reduce(
+    (total, summary) => ({
+      added: total.added + summary.stats.added,
+      removed: total.removed + summary.stats.removed,
+    }),
+    { added: 0, removed: 0 },
+  );
+  const allPatches = patchSummaries.flatMap((summary) => summary.patches);
+  const statsSummary = patchStatsSummary(allPatches, totalStats);
+  const visibleSummaries = expanded
+    ? patchSummaries
+    : patchSummaries.slice(0, 3);
+  const hiddenCount = Math.max(0, patchSummaries.length - 3);
+  const titleLabel = patchSectionTitle(allPatches, patchSummaries.length);
+
+  return (
+    <section className="overflow-hidden rounded-lg border border-hairline bg-surface-1">
+      <div className="flex items-center justify-between gap-3 border-b border-hairline px-3 py-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-canvas text-ink-muted">
+            <FileCode className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <div className="text-sm font-medium text-ink">{titleLabel}</div>
+            <div className="mt-0.5 flex items-center gap-2 font-mono text-xs">
+              <PatchStatsView summary={statsSummary} />
+            </div>
+          </div>
+        </div>
+        <Button
+          onClick={() => setSelectedPatchKey(patchSummaries[0]?.key ?? null)}
+          size="sm"
+          type="button"
+          variant="secondary"
+        >
+          Review
+        </Button>
+      </div>
+      <div className="grid divide-y divide-hairline">
+        {visibleSummaries.map(({ key, patches, stats, title }) => {
+          const tooltip = patches[0]?.path ?? title;
+          return (
+            <button
+              className="grid min-h-9 min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2 text-left transition hover:bg-canvas/80"
+              key={key}
+              onClick={() => setSelectedPatchKey(key)}
+              type="button"
+            >
+              <TruncatedText
+                className="font-mono text-xs text-ink-muted"
+                tooltip={tooltip}
+              >
+                {title}
+              </TruncatedText>
+              <PatchStatsView
+                className="shrink-0 font-mono text-xs"
+                summary={patchStatsSummary(patches, stats)}
+              />
+            </button>
+          );
+        })}
+        {hiddenCount > 0 && (
+          <button
+            className="flex min-h-9 items-center gap-1 px-3 py-2 text-left text-sm text-ink-muted transition hover:bg-canvas/80 hover:text-ink"
+            onClick={() => setExpanded((current) => !current)}
+            type="button"
+          >
+            <span>
+              {expanded ? "Collapse" : `Show ${hiddenCount} more files`}
+            </span>
+            <ChevronDown
+              className={expanded ? "h-3.5 w-3.5 rotate-180" : "h-3.5 w-3.5"}
+            />
+          </button>
+        )}
+      </div>
+      {selectedPatch && (
+        <PatchSidePanel
+          onClose={() => setSelectedPatchKey(null)}
+          patch={selectedPatch}
+        />
+      )}
+    </section>
+  );
+}
+
+function PatchSidePanel({
+  onClose,
+  patch,
+}: {
+  onClose: () => void;
+  patch: CodePatch;
+}) {
+  const title = patch.path ?? patch.operation;
+  const stats = codePatchStats(patch);
+  const lines = diffLinesForPatch(patch);
+  const showOldLineNumbers = lines.some((line) => line.oldLine !== undefined);
+  const showNewLineNumbers = lines.some((line) => line.newLine !== undefined);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40" onClick={onClose}>
+      <aside
+        className="absolute inset-y-0 right-0 flex w-[min(calc(100vw-3rem),760px)] flex-col border-l border-hairline bg-surface-1 shadow-2xl shadow-black/40 max-sm:w-full"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header className="flex min-h-14 items-center justify-between gap-3 border-b border-hairline px-4">
+          <div className="min-w-0">
+            <TruncatedText
+              className="font-mono text-sm font-medium text-ink"
+              tooltip={title}
+            >
+              {title}
+            </TruncatedText>
+            <div className="mt-1 flex items-center gap-3 text-xs">
+              <PatchStatsView
+                className="font-mono"
+                summary={patchStatsSummary([patch], stats)}
+              />
+              <span className="text-ink-tertiary">{patch.operation}</span>
+              {patch.source && (
+                <span className="text-ink-tertiary">{patch.source}</span>
+              )}
+            </div>
+          </div>
+          <Button
+            icon={<X className="h-4 w-4" />}
+            onClick={onClose}
+            size="icon"
+            tooltip="Close diff"
+            type="button"
+            variant="ghost"
+          />
+        </header>
+        <div className="min-h-0 flex-1 overflow-auto bg-canvas">
+          <div className="min-w-max py-3 font-mono text-xs leading-5">
+            {lines.map((line, index) => (
+              <DiffLineView
+                key={`${index}:${line.oldLine ?? ""}:${line.newLine ?? ""}`}
+                line={line}
+                showNewLineNumbers={showNewLineNumbers}
+                showOldLineNumbers={showOldLineNumbers}
+              />
+            ))}
+          </div>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function DiffLineView({
+  line,
+  showNewLineNumbers,
+  showOldLineNumbers,
+}: {
+  line: DiffLine;
+  showNewLineNumbers: boolean;
+  showOldLineNumbers: boolean;
+}) {
+  const rowClass =
+    line.kind === "add"
+      ? "bg-emerald-500/15 text-ink"
+      : line.kind === "remove"
+        ? "bg-red-500/20 text-ink"
+        : line.kind === "hunk"
+          ? "bg-primary/10 text-primary-hover"
+          : line.kind === "meta"
+            ? "text-ink-tertiary"
+            : "text-ink-muted";
+  const markerClass =
+    line.kind === "add"
+      ? "text-emerald-400"
+      : line.kind === "remove"
+        ? "text-red-400"
+        : "text-ink-tertiary";
+  const gridTemplateColumns = [
+    showOldLineNumbers ? "2.75rem" : null,
+    showNewLineNumbers ? "2.75rem" : null,
+    "1.25rem",
+    "minmax(32rem,1fr)",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const numberColumnClass =
+    "select-none px-1 text-right text-ink-tertiary";
+
+  return (
+    <div className={`grid ${rowClass}`} style={{ gridTemplateColumns }}>
+      {showOldLineNumbers && (
+        <span
+          className={`${numberColumnClass} ${
+            !showNewLineNumbers ? "border-r border-hairline" : ""
+          }`}
+        >
+          {line.oldLine ?? ""}
+        </span>
+      )}
+      {showNewLineNumbers && (
+        <span className={`${numberColumnClass} border-r border-hairline`}>
+          {line.newLine ?? ""}
+        </span>
+      )}
+      <span className={`select-none px-1 ${markerClass}`}>{line.marker}</span>
+      <span className="whitespace-pre pr-4">{line.content || " "}</span>
+    </div>
+  );
+}
+
+function codePatchKey(patch: CodePatch) {
+  return [
+    patch.operation,
+    patch.path ?? "",
+    patch.oldText ?? "",
+    patch.newText ?? "",
+    patch.diffText ?? "",
+  ].join("\u0000");
+}
+
+function groupPatchesByFile(patches: CodePatch[]) {
+  const groups = new Map<string, { key: string; path?: string; patches: CodePatch[] }>();
+  for (const patch of patches) {
+    const key = patch.path ?? codePatchKey(patch);
+    const existing = groups.get(key);
+    if (existing) {
+      existing.patches.push(patch);
+      continue;
+    }
+    groups.set(key, {
+      key,
+      ...(patch.path !== undefined ? { path: patch.path } : {}),
+      patches: [patch],
+    });
+  }
+  return [...groups.values()];
+}
+
+function shortPatchPathLabels(patches: CodePatch[]) {
+  const labels = new Map<string, string>();
+  const paths = [...new Set(patches.flatMap((patch) => patch.path ?? []))];
+  const pathsByFileName = new Map<string, string[]>();
+
+  for (const path of paths) {
+    const fileName = lastPathSegment(path);
+    pathsByFileName.set(fileName, [...(pathsByFileName.get(fileName) ?? []), path]);
+  }
+
+  for (const [fileName, conflictingPaths] of pathsByFileName) {
+    if (conflictingPaths.length === 1) {
+      labels.set(conflictingPaths[0], fileName);
+      continue;
+    }
+
+    const maxDepth = Math.max(
+      ...conflictingPaths.map((path) => pathSegments(path).length),
+    );
+    for (let depth = 1; depth <= maxDepth; depth += 1) {
+      const candidates = conflictingPaths.map((path) =>
+        pathSuffix(path, depth),
+      );
+      if (new Set(candidates).size !== conflictingPaths.length) {
+        continue;
+      }
+      conflictingPaths.forEach((path, index) => {
+        labels.set(path, candidates[index]);
+      });
+      break;
+    }
+  }
+
+  return labels;
+}
+
+function lastPathSegment(path: string) {
+  return pathSegments(path).at(-1) ?? path;
+}
+
+function pathSuffix(path: string, depth: number) {
+  const segments = pathSegments(path);
+  return segments.slice(Math.max(0, segments.length - depth)).join("/");
+}
+
+function pathSegments(path: string) {
+  const segments = path.split(/[\\/]+/).filter(Boolean);
+  return segments.length > 0 ? segments : [path];
+}
+
+type PatchStatsSummary =
+  | { kind: "deleted" }
+  | { added: number; kind: "lines_with_delete"; removed: number }
+  | { added: number; kind: "lines"; removed: number };
+
+function patchStatsSummary(
+  patches: CodePatch[],
+  stats: { added: number; removed: number },
+): PatchStatsSummary {
+  if (patches.every(isContentUnknownDeletePatch)) {
+    return { kind: "deleted" };
+  }
+  if (patches.some(isContentUnknownDeletePatch)) {
+    return {
+      kind: "lines_with_delete",
+      added: stats.added,
+      removed: stats.removed,
+    };
+  }
+  return { kind: "lines", added: stats.added, removed: stats.removed };
+}
+
+function PatchStatsView({
+  className,
+  summary,
+}: {
+  className?: string;
+  summary: PatchStatsSummary;
+}) {
+  if (summary.kind === "deleted") {
+    return <span className={cn("text-red-400", className)}>deleted</span>;
+  }
+
+  return (
+    <span className={cn("flex items-center gap-2", className)}>
+      <span className="text-emerald-400">+{summary.added}</span>
+      <span className="text-red-400">-{summary.removed}</span>
+      {summary.kind === "lines_with_delete" && (
+        <span className="text-red-400">deleted</span>
+      )}
+    </span>
+  );
+}
+
+function isContentUnknownDeletePatch(patch: CodePatch) {
+  return (
+    patch.operation === "delete" &&
+    patch.diffText === undefined &&
+    patch.oldText === undefined
+  );
+}
+
+function patchSectionTitle(patches: CodePatch[], fileCount: number) {
+  const count = fileCount;
+  const noun = count === 1 ? "file" : "files";
+  if (patches.every((patch) => patch.operation === "delete")) {
+    return `Deleted ${count} ${noun}`;
+  }
+  if (patches.some((patch) => patch.operation === "delete")) {
+    return `Changed ${count} ${noun}`;
+  }
+  return `Edited ${count} ${noun}`;
+}
+
+type DiffLine = {
+  content: string;
+  kind: "add" | "remove" | "context" | "hunk" | "meta";
+  marker: string;
+  newLine?: number;
+  oldLine?: number;
+};
+
+function codePatchStats(patch: CodePatch) {
+  if (!patch.diffText) {
+    return {
+      added: patch.newText === undefined ? 0 : changedLineCount(patch.newText),
+      removed:
+        patch.oldText === undefined ? 0 : changedLineCount(patch.oldText),
+    };
+  }
+
+  return diffStats(codePatchToText(patch));
+}
+
+function codePatchGroupStats(patches: CodePatch[]) {
+  return patches.reduce(
+    (total, patch) => {
+      const stats = codePatchStats(patch);
+      return {
+        added: total.added + stats.added,
+        removed: total.removed + stats.removed,
+      };
+    },
+    { added: 0, removed: 0 },
+  );
+}
+
+function changedLineCount(value: string) {
+  if (value.length === 0) {
+    return 0;
+  }
+  return value.replace(/\n$/, "").split("\n").length;
+}
+
+function diffStats(diffText: string) {
+  return diffText.split("\n").reduce(
+    (stats, line) => {
+      if (line.startsWith("+") && !line.startsWith("+++")) {
+        stats.added += 1;
+      } else if (line.startsWith("-") && !line.startsWith("---")) {
+        stats.removed += 1;
+      }
+      return stats;
+    },
+    { added: 0, removed: 0 },
+  );
+}
+
+function diffLinesForPatch(patch: CodePatch) {
+  const lines = codePatchToText(patch).split("\n");
+  const parsed: DiffLine[] = [];
+  let oldLine = 1;
+  let newLine = 1;
+
+  for (const rawLine of lines) {
+    const hunk = /^@@ -?(\d+)?(?:,\d+)? \+?(\d+)?(?:,\d+)? @@/.exec(rawLine);
+    if (hunk) {
+      oldLine = hunk[1] ? Number(hunk[1]) : oldLine;
+      newLine = hunk[2] ? Number(hunk[2]) : newLine;
+      parsed.push({
+        content: rawLine,
+        kind: "hunk",
+        marker: "",
+      });
+      continue;
+    }
+
+    if (rawLine === "@@") {
+      parsed.push({ content: rawLine, kind: "hunk", marker: "" });
+      oldLine = 1;
+      newLine = 1;
+      continue;
+    }
+
+    if (rawLine.startsWith("diff --git ") || rawLine.startsWith("index ")) {
+      parsed.push({ content: rawLine, kind: "meta", marker: "" });
+      continue;
+    }
+
+    if (rawLine.startsWith("---") || rawLine.startsWith("+++")) {
+      parsed.push({ content: rawLine, kind: "meta", marker: "" });
+      continue;
+    }
+
+    if (rawLine.startsWith("+")) {
+      parsed.push({
+        content: rawLine.slice(1),
+        kind: "add",
+        marker: "+",
+        newLine,
+      });
+      newLine += 1;
+      continue;
+    }
+
+    if (rawLine.startsWith("-")) {
+      parsed.push({
+        content: rawLine.slice(1),
+        kind: "remove",
+        marker: "-",
+        oldLine,
+      });
+      oldLine += 1;
+      continue;
+    }
+
+    const content = rawLine.startsWith(" ") ? rawLine.slice(1) : rawLine;
+    parsed.push({
+      content,
+      kind: "context",
+      marker: rawLine.startsWith(" ") ? " " : "",
+      newLine,
+      oldLine,
+    });
+    oldLine += 1;
+    newLine += 1;
+  }
+
+  return parsed;
 }
 
 function permissionDecisionForPermission(
@@ -676,13 +1332,29 @@ function PermissionRequestCard({
   const pending =
     permissionDecision.pending &&
     permissionDecision.pendingApprovalId === event.approvalId;
-  const decided =
-    permissionDecisionForPermission(event, permissionDecision);
+  const decided = permissionDecisionForPermission(event, permissionDecision);
   const approved = decided?.status === "approved";
   const denied = decided?.status === "denied";
   const approvedLabel = permissionDecisionLabel(decided);
   const canDecide =
     Boolean(event.approvalId) && !permissionDecision.pending && !decided;
+  const patchPatches = permissionRequestPatches(event);
+
+  if (patchPatches.length > 0) {
+    return (
+      <PatchPermissionRequestCard
+        approved={approved}
+        approvedLabel={approvedLabel}
+        canDecide={canDecide}
+        decided={decided}
+        denied={denied}
+        event={event}
+        patches={patchPatches}
+        pending={pending}
+        permissionDecision={permissionDecision}
+      />
+    );
+  }
 
   if (approved && compactApproved) {
     return (
@@ -812,6 +1484,156 @@ function PermissionRequestCard({
         )}
     </article>
   );
+}
+
+function PatchPermissionRequestCard({
+  approved,
+  approvedLabel,
+  canDecide,
+  decided,
+  denied,
+  event,
+  patches,
+  pending,
+  permissionDecision,
+}: {
+  approved: boolean;
+  approvedLabel: string;
+  canDecide: boolean;
+  decided: PermissionDecision | undefined;
+  denied: boolean;
+  event: Extract<SessionEvent, { type: "permission_request" }>;
+  patches: CodePatch[];
+  pending: boolean;
+  permissionDecision: PermissionDecisionState;
+}) {
+  const titles = patches.map((patch) => patch.path ?? patch.operation);
+  const title = titles[0] ?? event.title;
+  const extraCount = Math.max(0, patches.length - 1);
+  const label = denied
+    ? "Denied edit"
+    : approved
+      ? "Approved edit"
+      : "Proposed edit";
+
+  return (
+    <article
+      className={
+        approved
+          ? "min-w-0 rounded-lg border border-success/50 bg-success/5 p-3"
+          : denied
+            ? "min-w-0 rounded-lg border border-warning/50 bg-warning/5 p-3"
+            : "min-w-0 rounded-lg border border-warning/40 bg-surface-1 p-3"
+      }
+    >
+      <div className="grid min-w-0 grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-2">
+        <ShieldCheck
+          className={
+            approved
+              ? "h-4 w-4 text-success"
+              : denied
+                ? "h-4 w-4 text-warning"
+                : "h-4 w-4 text-ink-tertiary"
+          }
+        />
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="shrink-0 text-sm font-medium text-ink">{label}</span>
+          <TruncatedText
+            className="font-mono text-xs text-ink-muted"
+            tooltip={titles.join("\n") || event.title}
+          >
+            {title}
+            {extraCount > 0 ? ` +${extraCount}` : ""}
+          </TruncatedText>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {approved ? (
+            <Badge tone="success">{approvedLabel}</Badge>
+          ) : denied ? (
+            <Badge tone="warning">denied</Badge>
+          ) : (
+            <Badge tone="warning">permission</Badge>
+          )}
+        </div>
+      </div>
+
+      {decided && (
+        <div className="mt-3 rounded-md border border-hairline bg-canvas px-3 py-2 text-sm text-ink-muted">
+          {permissionDecisionStatusText(decided)} ·{" "}
+          <span className="font-mono text-xs">{decided.decisionOption}</span>
+        </div>
+      )}
+
+      {event.toolKind && (
+        <div className="mt-3">
+          <MonoId>kind: {event.toolKind}</MonoId>
+        </div>
+      )}
+
+      {!decided && (
+        <PermissionDecisionButtons
+          canDecide={canDecide}
+          event={event}
+          pending={pending}
+          permissionDecision={permissionDecision}
+        />
+      )}
+
+      {permissionDecision.error &&
+        permissionDecision.pendingApprovalId === event.approvalId && (
+          <InlineError error={permissionDecision.error} />
+        )}
+    </article>
+  );
+}
+
+function PermissionDecisionButtons({
+  canDecide,
+  event,
+  pending,
+  permissionDecision,
+}: {
+  canDecide: boolean;
+  event: Extract<SessionEvent, { type: "permission_request" }>;
+  pending: boolean;
+  permissionDecision: PermissionDecisionState;
+}) {
+  return (
+    <div className="mt-4 flex flex-wrap gap-2">
+      {permissionDecisionOptions.map((option) => (
+        <Button
+          disabled={!canDecide}
+          icon={
+            pending ? (
+              <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+            ) : undefined
+          }
+          key={option.optionId}
+          onClick={() => {
+            if (event.approvalId) {
+              permissionDecision.onDecision(event.approvalId, option.optionId);
+            }
+          }}
+          size="sm"
+          tooltip={
+            event.approvalId
+              ? `decision_option=${option.optionId}`
+              : "Waiting for manager approval id"
+          }
+          type="button"
+          variant={option.variant}
+        >
+          {option.label}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+function permissionRequestPatches(
+  event: Extract<SessionEvent, { type: "permission_request" }>,
+) {
+  return permissionRequestCodePatches(event);
 }
 
 function PaxThoughtIcon() {
