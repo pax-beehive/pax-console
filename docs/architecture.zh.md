@@ -126,8 +126,10 @@ src/components/ui/
   当前只把 Radix Tooltip/Slot 作为底层能力使用，还没有全面引入 shadcn 生成组件。
 
 src/components/home/
-  Home 工作台。聚合 approvals、received envelopes、team invites、recent sessions
-  和 inquiry 草稿状态成一个可扫的 inbox queue；选中一项后显示上下文，
+  Home 工作台。左侧提供 Sessions / Inbox 两个 tab；Sessions tab 聚合所有
+  可见 agent 的 sessions，支持按 agent 过滤，选中后在右侧嵌入完整
+  SessionWorkbench；Inbox tab 聚合 approvals、received envelopes、team invites
+  和 inquiry 草稿状态成一个可扫的 action queue；选中一项后显示上下文，
   inquiry 可从空 session 生成 draft、从已有 conversation 总结 draft、
   通过小三角带 note 总结，或对已有 draft 留 comment；右上角关闭 inquiry
   context 后，composer 回到 clean session；archive inquiry 则把它从 queue
@@ -135,12 +137,12 @@ src/components/home/
   构建中注入，避免普通生产用户看到演示数据。
   底部 composer 保持 clean session 默认入口，并提供 agent 选择、附件入口和
   tool-call approval 偏好。nodes / agents 的详细列表仍放在 Runtime 子页里，
-  sessions 是 Home 同级的一级工作区。
+  sessions 不再是 sidebar 一级工作区。
 
 src/components/resources/
-  Runtime / Sessions / Settings 下的资源页。Nodes、Agents、Approvals、Monitor
-  作为 Runtime 的 sidebar 二级 tabs 复用认证、布局和基础数据加载；Sessions
-  是 sidebar 一级入口；API Keys 和 Node Registration 仍属于 settings 类资源。
+  Runtime / Settings 下的资源页。Nodes、Agents、Approvals、Monitor 作为
+  Runtime 的 sidebar 二级 tabs 复用认证、布局和基础数据加载；API Keys 和
+  Node Registration 仍属于 settings 类资源。旧 `/sessions` 路由只做回 Home 的 redirect。
 
 src/components/sessions/
   Session workbench。把 REST 历史消息和 WebSocket live events 合成时间线。
@@ -198,8 +200,8 @@ status / count pill
 Sidebar 折叠
   使用 Zustand 的 sidebarCollapsed，不要放进 URL 或服务端数据。
   ConsoleLayout 使用 flex；Sidebar 自己用 width: 248/76px 控制展开/收起，并带 overflow-hidden。
-  Sidebar 自身使用安静的 surface、分隔线式 node context、compact nav rows。
-  Sidebar 一级入口保持粗粒度：Home、Sessions、Runtime、Collaboration、API Keys。
+  Sidebar 自身使用安静的 surface 和 compact nav rows，不保留固定的 Current node 区块。
+  Sidebar 一级入口保持粗粒度：Home、Runtime、Collaboration、API Keys。
   Runtime / Collaboration 是彼此独立的 disclosure，不是 accordion；多个一级组可以同时保持展开。
   Runtime 展开时在 Sidebar 二级导航承载 Nodes、Agents、Inquiries、Approvals、Monitor。
   Collaboration 展开时在 Sidebar 二级导航承载 Teams、Friends、Envelopes、Knowledge。
@@ -286,26 +288,30 @@ AuthGate
   -> GET /api/v1/user/self/me
   -> FleetOverview
   -> useNodes(user.user_id)
-  -> listNodeAgents(user.user_id, node.node_id) for each visible node
-  -> listAgentSessions(user.user_id, agent.node_id, agent.agent_id) for recent work
+  -> listAgents(user.user_id)
+  -> listUserSessions(user.user_id, page_size=20, page_num=1, optional comma-separated agent_id/node_id)
+  -> scroll left rail to fetch the next session page
+  -> support agent filtering, render embedded SessionWorkbench when selected
   -> useApprovals(user.user_id)
   -> useEnvelopes(user.user_id, direction=received, status=pending)
   -> useTeamInvites(user.user_id)
 ```
 
-Sessions 一级列表：
+Sessions redirect fallback：
 
 ```txt
 AuthGate
   -> useCurrentUser()
   -> useNodes(user.user_id)
-  -> listNodeAgents(user.user_id, node.node_id) for each visible node
-  -> listAgentSessions(user.user_id, agent.node_id, agent.agent_id) for each agent
-  -> flatten sessions, attach agent/node labels, sort by updated_at desc
+  -> listAgents(user.user_id)
+  -> Home 通过 GET /api/v1/user/{user_id}/sessions 分页解析 session row
+  -> 根据返回的 node_id / agent_id 关联 node/agent label
 ```
 
-当前 pax-manager 还没有 `GET /api/v1/user/{user_id}/sessions` 这种扁平
-sessions list。等后端补齐后，替换上面的前端聚合即可。
+`GET /api/v1/user/{user_id}/sessions` 是 owner 级扁平 sessions list，支持
+`page_size` / `page_num` pagination；`agent_id` 和 `node_id` 都可以传
+comma-separated 多 id。Home 默认只请求 20 条，滚动左侧 Sessions rail 时再加载
+下一页，避免一次性渲染 900+ sessions。
 
 现在 active node / active agent 暂时取第一个可用项。等 UI 有 selector 后，再把 selection 接到 Zustand。
 
@@ -375,8 +381,8 @@ Sidebar 一级入口是粗粒度工作区；下面这些实际路由仍保留为
 /agents              Runtime / Agents on active node
 /agents/[id]         Agent detail, expects nodeId query when opened from list
 /inquiries           Runtime / agent-to-agent inquiry composer
-/sessions            Sessions list, flattened across visible agents
-/sessions/[id]       Session workbench
+/sessions            Redirect to Home
+/sessions/[id]       Redirect to /?sessionId=...
 /approvals           Runtime / pending approvals and active approval grants
 /monitor             Runtime / PAX Manager health and fleet summary
 /teams               Collaboration / Teams & Friends
@@ -428,15 +434,16 @@ POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/inquiries
 GET  /api/v1/user/{user_id}/conversations/{conversation_id}/messages
 ```
 
-Topbar 的 `New session` 不再直接创建后端 session。它只打开：
+Home 的 clean composer 不直接创建后端 session。提交后在 Home 右侧打开
+embedded Session workbench：
 
 ```txt
-/sessions/new?nodeId=...&agentId=...
+/
 ```
 
 用户发送第一条 prompt 时，Session workbench 通过新的 conversation run
-入口创建真实 manager session，并在收到 `type=session` 后把 URL 替换为
-`/sessions/{session_id}?nodeId=...&agentId=...`。
+入口创建真实 manager session，并在收到 `type=session` 后把 URL 保持在
+Home，只替换为 `/?sessionId={session_id}`。
 
 ## Conversation run / agent tunnel 状态
 
@@ -464,7 +471,7 @@ Content-Type: application/json
 （这个接口是 POST + JSON body）。每条默认 SSE `data:` 是一个 PAX envelope：
 
 ```txt
-type=session  保存 session_id；新会话 replaceState 到 /sessions/{session_id}
+type=session  保存 session_id；新会话 replaceState 到 /?sessionId={session_id}
 type=acp      取 envelope.frame，继续走 normalizeTunnelFrame / timeline
 type=done     结束本次 streaming state
 type=error    展示错误并结束 streaming state
@@ -581,13 +588,61 @@ decision 成功后，workbench 会重新打开当前 conversation stream，并�
 PAX Manager 负责把已决定的 approval 转回原始 ACP permission request 的
 JSON-RPC response。
 
+当前 turn 正在运行时，Session workbench 底部 composer 的提交按钮不再直接
+发新的 conversation run，而是调用：
+
+```txt
+POST /api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/turn/queue
+```
+
+请求体为 `{ "input": "..." }`，并带 `Idempotency-Key`。后端对每个 active
+session 保留一个可替换的 queued draft；当前 prompt 返回终态 response 后，
+由后端 turn sequencer 发送 queued prompt，不依赖浏览器当前 conversation
+stream 继续打开。
+
+运行中也可以点击 steer 按钮：
+
+```txt
+POST /api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/turn/steer
+```
+
+请求体同样为 `{ "input": "..." }`。语义是 manager-side stop + queue：
+先向 ACP tunnel runtime 发 `session/cancel` notification，再等当前 prompt
+返回终态 response 后由后端发送新的 queued prompt。现有 `/conversation`
+SSE 不是 queued turn 的执行 owner；即使页面关闭，只要 manager 进程和 ACP
+tunnel 还活着，queued dispatch 也会继续。前端通过独立 observer 补后台
+queued turn 或第二窗口的 live 展示：
+
+```txt
+GET /api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/events?after_message_id=<message_id>
+```
+
+这个 endpoint 的语义是观察该 session 当前正在 running 的 turn。如果没有
+running turn，后端发送 `type=no_running_turn` 后关闭；前端停止 observer 并
+refetch history。如果有 running turn，后端先 replay turn-scoped memory
+buffer，再接上 live stream。`after_message_id` 是 REST history 里的全局
+`HistoryMessage.message_id`，这里只作为当前 turn buffer 的 trim hint；如果
+buffer 里找不到，后端发送 `type=buffer_miss`，跳过 replay，但继续发送后续
+live event。正常 live payload 是 `type=acp`，`frame` 形状与 `/conversation`
+一致，前端继续走 `normalizeTunnelFrame`。turn 终态时发送 `type=turn_done`
+并关闭 observer。
+
+stop 按钮调用：
+
+```txt
+POST /api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/turn/stop
+```
+
+请求体为 `{ "reason": "user_requested" }`。stop 只请求取消当前 turn，不会
+自动发送新 prompt。
+
 chunk 合并在 `src/features/runtime/merge-session-events.ts`，不是在 React JSX 里做。组件只渲染归一化后的 SessionEvent。
 
 这里有两个 session，不要混淆：
 
 ```txt
 PAX Manager session
-  conversation run 首次 prompt 创建，出现在 /sessions/{session_id} URL 中，用来承载产品上下文和历史消息。
+  conversation run 首次 prompt 创建，出现在 /?sessionId={session_id} URL 中，用来承载产品上下文和历史消息。
 
 ACP/native session
   manager 通过 session/new 创建并绑定到 sess_*，对前端隐藏，用来向 agent runtime 发送 session/prompt。
@@ -597,7 +652,6 @@ ACP/native session
 
 ```txt
 更多 ACP session/update 类型覆盖
-中断 / stop 协议
 重连后 REST history refetch 补洞
 ```
 

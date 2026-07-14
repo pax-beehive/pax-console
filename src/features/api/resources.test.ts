@@ -14,10 +14,12 @@ const {
   createEnvelope,
   createKnowledgeCapsule,
   createTeamInvite,
+  deleteQueuedSessionTurn,
   deleteAgent,
   deleteNode,
   deleteNodeAgent,
   getAgent,
+  getQueuedSessionTurn,
   injectKnowledgeCapsule,
   listAgents,
   listAgentOwnerInfos,
@@ -27,8 +29,13 @@ const {
   listKnowledgeCapsules,
   listTeamAuditEvents,
   listTeams,
+  listUserSessions,
+  queueSessionTurn,
+  steerSessionTurn,
+  stopSessionTurn,
   toPaxdConnectPreview,
   updateAgentSession,
+  updateQueuedSessionTurn,
   updateNodeAgentProfile,
   updateNodeProfile,
   updateTeamMemberRole,
@@ -118,6 +125,145 @@ describe("listAgentSessions", () => {
         }),
         method: "PATCH",
       },
+    );
+  });
+
+  it("stops a session turn with a user-requested reason and idempotency key", async () => {
+    apiFetch.mockResolvedValueOnce({
+      command_id: "cmd_stop_1",
+      effect: "cancelling",
+      status: "accepted",
+    });
+
+    await stopSessionTurn("u1", "a1", "sess_1", {
+      reason: "user_requested",
+    });
+
+    expect(apiFetch).toHaveBeenCalledWith(
+      "/api/v1/user/u1/agents/a1/sessions/sess_1/turn/stop",
+      {
+        body: JSON.stringify({ reason: "user_requested" }),
+        headers: {
+          "Idempotency-Key": expect.any(String),
+        },
+        method: "POST",
+      },
+    );
+  });
+
+  it("queues and steers a session turn with idempotency keys", async () => {
+    apiFetch
+      .mockResolvedValueOnce({
+        command_id: "cmd_queue_1",
+        effect: "queued",
+        status: "accepted",
+      })
+      .mockResolvedValueOnce({
+        command_id: "cmd_steer_1",
+        effect: "steering",
+        queue_effect: "replaced",
+        status: "accepted",
+        stop_effect: "cancelling",
+      });
+
+    await queueSessionTurn("u1", "a1", "sess_1", {
+      input: "follow-up",
+    });
+    await steerSessionTurn("u1", "a1", "sess_1", {
+      input: "change course",
+    });
+
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/user/u1/agents/a1/sessions/sess_1/turn/queue",
+      {
+        body: JSON.stringify({ input: "follow-up" }),
+        headers: {
+          "Idempotency-Key": expect.any(String),
+        },
+        method: "POST",
+      },
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/user/u1/agents/a1/sessions/sess_1/turn/steer",
+      {
+        body: JSON.stringify({ input: "change course" }),
+        headers: {
+          "Idempotency-Key": expect.any(String),
+        },
+        method: "POST",
+      },
+    );
+  });
+
+  it("reads, updates, and deletes the queued session turn", async () => {
+    apiFetch
+      .mockResolvedValueOnce({
+        queued_turn_id: "turn_1",
+        input: "queued draft",
+      })
+      .mockResolvedValueOnce({
+        queued_turn_id: "turn_1",
+        input: "queued updated",
+      })
+      .mockResolvedValueOnce({ effect: "deleted", status: "accepted" });
+
+    await getQueuedSessionTurn("u1", "a1", "sess_1");
+    await updateQueuedSessionTurn("u1", "a1", "sess_1", {
+      input: "queued updated",
+    });
+    await deleteQueuedSessionTurn("u1", "a1", "sess_1");
+
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/user/u1/agents/a1/sessions/sess_1/turn/queue",
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/user/u1/agents/a1/sessions/sess_1/turn/queue",
+      {
+        body: JSON.stringify({ input: "queued updated" }),
+        headers: {
+          "Idempotency-Key": expect.any(String),
+        },
+        method: "PATCH",
+      },
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      3,
+      "/api/v1/user/u1/agents/a1/sessions/sess_1/turn/queue",
+      {
+        headers: {
+          "Idempotency-Key": expect.any(String),
+        },
+        method: "DELETE",
+      },
+    );
+  });
+});
+
+describe("listUserSessions", () => {
+  it("requests paginated user sessions with comma-separated filters", async () => {
+    apiFetch.mockResolvedValueOnce({
+      pagination: { page_num: 2, page_size: 20, total: 21, total_pages: 2 },
+      sessions: [{ session_id: "sess_1" }],
+    });
+
+    await expect(
+      listUserSessions("u1", {
+        agentIds: ["a2", "a1", "a1"],
+        nodeIds: ["n2", "n1"],
+        pageNum: 2,
+        pageSize: 20,
+      }),
+    ).resolves.toEqual({
+      pagination: { page_num: 2, page_size: 20, total: 21, total_pages: 2 },
+      sessions: [{ session_id: "sess_1" }],
+    });
+
+    expect(apiFetch).toHaveBeenCalledWith(
+      "/api/v1/user/u1/sessions?node_id=n1%2Cn2&agent_id=a1%2Ca2&page_size=20&page_num=2",
     );
   });
 });

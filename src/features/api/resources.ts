@@ -27,6 +27,7 @@ import {
   MailboxMessage,
   Node,
   NodeRegistrationPreview,
+  Pagination,
   PaxdConnectPreview,
   RepresentativeAgent,
   SessionApprovalMode,
@@ -51,7 +52,15 @@ type AgentListData = {
 };
 
 type SessionListData = {
+  pagination?: Pagination;
   sessions: AgentSession[];
+};
+
+type ListUserSessionsOptions = {
+  agentIds?: string[];
+  nodeIds?: string[];
+  pageNum?: number;
+  pageSize?: number;
 };
 
 type UpdateAgentSessionInput = {
@@ -145,6 +154,73 @@ type AgentOwnerInfoData = {
   owner_info: AgentOwnerInfo;
 };
 
+type StopSessionTurnInput = {
+  reason?: string;
+};
+
+type StopSessionTurnData = {
+  active_prompt_request_id?: string;
+  agent_id: string;
+  command_id: string;
+  effect: "noop" | "cancelling" | "already_cancelling" | string;
+  node_id?: string;
+  session_id: string;
+  status: string;
+};
+
+type QueueSessionTurnInput = {
+  input: string;
+};
+
+type QueueSessionTurnData = {
+  active_prompt_request_id?: string;
+  agent_id: string;
+  command_id: string;
+  effect: "queued" | "replaced" | string;
+  node_id?: string;
+  queued_turn_id: string;
+  session_id: string;
+  status: string;
+};
+
+export type QueuedSessionTurnData = {
+  agent_id: string;
+  command_id: string;
+  created_at: string;
+  input: string;
+  node_id?: string;
+  queued_turn_id: string;
+  session_id: string;
+  updated_at: string;
+};
+
+type DeleteQueuedSessionTurnData = {
+  agent_id: string;
+  command_id: string;
+  effect: "deleted" | "noop" | string;
+  node_id?: string;
+  queued_turn_id?: string;
+  session_id: string;
+  status: string;
+};
+
+type SteerSessionTurnInput = {
+  input: string;
+};
+
+type SteerSessionTurnData = {
+  active_prompt_request_id?: string;
+  agent_id: string;
+  command_id: string;
+  effect: "steering" | string;
+  node_id?: string;
+  queue_effect: "queued" | "replaced" | string;
+  queued_turn_id: string;
+  session_id: string;
+  status: string;
+  stop_effect: "cancelling" | "already_cancelling" | "noop" | string;
+};
+
 export type AgentOwnerInfoLookup = {
   agentId?: string;
   representativeAgentId?: string;
@@ -198,6 +274,26 @@ export function listNodeAgents(userId: string, nodeId: string) {
 
 export function listAgents(userId: string) {
   return apiFetch<AgentListData>(userPath(userId, "/agents"));
+}
+
+export function listUserSessions(
+  userId: string,
+  options: ListUserSessionsOptions = {},
+) {
+  const params = new URLSearchParams();
+  appendCommaSeparatedParam(params, "node_id", options.nodeIds);
+  appendCommaSeparatedParam(params, "agent_id", options.agentIds);
+  if (options.pageSize) {
+    params.set("page_size", String(options.pageSize));
+  }
+  if (options.pageNum) {
+    params.set("page_num", String(options.pageNum));
+  }
+
+  const query = params.toString();
+  return apiFetch<SessionListData>(
+    `${userPath(userId, "/sessions")}${query ? `?${query}` : ""}`,
+  );
 }
 
 export function getAgent(userId: string, agentId: string) {
@@ -261,6 +357,19 @@ export async function listAgentSessions(
   }
 }
 
+function appendCommaSeparatedParam(
+  params: URLSearchParams,
+  key: string,
+  values?: string[],
+) {
+  const cleaned = [...new Set((values ?? []).map((value) => value.trim()))]
+    .filter(Boolean)
+    .sort();
+  if (cleaned.length > 0) {
+    params.set(key, cleaned.join(","));
+  }
+}
+
 export function updateAgentSession(
   userId: string,
   nodeId: string,
@@ -303,6 +412,104 @@ export function listSessionHistory(
   const params = new URLSearchParams({ limit: String(limit) });
   return apiFetch<HistoryListData>(
     `${userPath(userId, `/agents/${agentId}/sessions/${sessionId}/history`)}?${params}`,
+  );
+}
+
+export function stopSessionTurn(
+  userId: string,
+  agentId: string,
+  sessionId: string,
+  input: StopSessionTurnInput = { reason: "user_requested" },
+) {
+  return apiFetch<StopSessionTurnData>(
+    userPath(userId, `/agents/${agentId}/sessions/${sessionId}/turn/stop`),
+    {
+      body: JSON.stringify(input),
+      headers: {
+        "Idempotency-Key": createIdempotencyKey(),
+      },
+      method: "POST",
+    },
+  );
+}
+
+export function queueSessionTurn(
+  userId: string,
+  agentId: string,
+  sessionId: string,
+  input: QueueSessionTurnInput,
+) {
+  return apiFetch<QueueSessionTurnData>(
+    userPath(userId, `/agents/${agentId}/sessions/${sessionId}/turn/queue`),
+    {
+      body: JSON.stringify(input),
+      headers: {
+        "Idempotency-Key": createIdempotencyKey(),
+      },
+      method: "POST",
+    },
+  );
+}
+
+export function getQueuedSessionTurn(
+  userId: string,
+  agentId: string,
+  sessionId: string,
+) {
+  return apiFetch<QueuedSessionTurnData | null>(
+    userPath(userId, `/agents/${agentId}/sessions/${sessionId}/turn/queue`),
+  );
+}
+
+export function updateQueuedSessionTurn(
+  userId: string,
+  agentId: string,
+  sessionId: string,
+  input: QueueSessionTurnInput,
+) {
+  return apiFetch<QueuedSessionTurnData>(
+    userPath(userId, `/agents/${agentId}/sessions/${sessionId}/turn/queue`),
+    {
+      body: JSON.stringify(input),
+      headers: {
+        "Idempotency-Key": createIdempotencyKey(),
+      },
+      method: "PATCH",
+    },
+  );
+}
+
+export function deleteQueuedSessionTurn(
+  userId: string,
+  agentId: string,
+  sessionId: string,
+) {
+  return apiFetch<DeleteQueuedSessionTurnData>(
+    userPath(userId, `/agents/${agentId}/sessions/${sessionId}/turn/queue`),
+    {
+      headers: {
+        "Idempotency-Key": createIdempotencyKey(),
+      },
+      method: "DELETE",
+    },
+  );
+}
+
+export function steerSessionTurn(
+  userId: string,
+  agentId: string,
+  sessionId: string,
+  input: SteerSessionTurnInput,
+) {
+  return apiFetch<SteerSessionTurnData>(
+    userPath(userId, `/agents/${agentId}/sessions/${sessionId}/turn/steer`),
+    {
+      body: JSON.stringify(input),
+      headers: {
+        "Idempotency-Key": createIdempotencyKey(),
+      },
+      method: "POST",
+    },
   );
 }
 
@@ -1236,6 +1443,10 @@ function compactSearchParams(values: Record<string, string | undefined>) {
   });
 
   return params.toString();
+}
+
+function createIdempotencyKey() {
+  return globalThis.crypto?.randomUUID?.() ?? `cmd_${Date.now()}`;
 }
 
 function uniqueAgentOwnerLookups(lookups: AgentOwnerInfoLookup[]) {

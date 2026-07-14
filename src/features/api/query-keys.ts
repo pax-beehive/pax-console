@@ -55,6 +55,24 @@ export const queryKeys = {
     ["users", userId, "nodes", nodeId, "agents", agentId] as const,
   userAgent: (userId: string, agentId: string) =>
     ["users", userId, "agents", agentId] as const,
+  userSessions: (
+    userId: string,
+    filters?: {
+      agentIds?: string[];
+      nodeIds?: string[];
+      pageSize?: number;
+    },
+  ) =>
+    [
+      "users",
+      userId,
+      "sessions",
+      {
+        agentIds: [...(filters?.agentIds ?? [])].sort(),
+        nodeIds: [...(filters?.nodeIds ?? [])].sort(),
+        pageSize: filters?.pageSize ?? "default",
+      },
+    ] as const,
   sessions: (userId: string, nodeId: string, agentId: string) =>
     ["users", userId, "nodes", nodeId, "agents", agentId, "sessions"] as const,
   session: (
@@ -99,5 +117,15 @@ export const queryKeys = {
       "sessions",
       sessionId,
       "history",
+    ] as const,
+  queuedSessionTurn: (userId: string, agentId: string, sessionId: string) =>
+    [
+      "users",
+      userId,
+      "agents",
+      agentId,
+      "sessions",
+      sessionId,
+      "queued-turn",
     ] as const,
 };
