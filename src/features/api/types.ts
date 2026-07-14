@@ -249,6 +249,13 @@ export type AgentSession = {
   last_message_at?: string;
 };
 
+export type Pagination = {
+  page_num: number;
+  page_size: number;
+  total?: number;
+  total_pages?: number;
+};
+
 export type ArtifactContent = {
   artifact_id?: string;
   ref: string;

@@ -9,7 +9,6 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  CircleDot,
   Inbox,
   KeyRound,
   MailPlus,
@@ -18,14 +17,11 @@ import {
   Radio,
   Server,
   ShieldCheck,
-  TerminalSquare,
   Users,
 } from "lucide-react";
 import { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { TruncatedText } from "@/components/ui/text";
 import { Tooltip } from "@/components/ui/tooltip";
-import { Node } from "@/features/api/types";
 import { useConsoleStore } from "@/stores/console-store";
 
 type NavItem = {
@@ -38,7 +34,6 @@ type NavItem = {
 
 const navItems: readonly NavItem[] = [
   { href: "/", icon: Activity, label: "Home" },
-  { href: "/sessions", icon: TerminalSquare, label: "Sessions" },
   {
     href: "/nodes",
     icon: Server,
@@ -75,11 +70,7 @@ const navItems: readonly NavItem[] = [
   { href: "/settings/api-keys", icon: KeyRound, label: "API Keys" },
 ] as const;
 
-type SidebarProps = {
-  activeNode?: Node;
-};
-
-export function Sidebar({ activeNode }: SidebarProps) {
+export function Sidebar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const collapsed = useConsoleStore((state) => state.sidebarCollapsed);
@@ -131,49 +122,6 @@ export function Sidebar({ activeNode }: SidebarProps) {
           type="button"
           variant="ghost"
         />
-      </div>
-
-      <div
-        className={`mt-3 border-b border-hairline ${
-          collapsed
-            ? "flex h-12 items-center justify-center p-0"
-            : "px-3 pb-3 pt-1"
-        }`}
-      >
-        {!collapsed && (
-          <div className="text-[11px] text-ink-tertiary">Current node</div>
-        )}
-        <div
-          className={`flex min-w-0 items-center justify-between gap-3 ${
-            collapsed ? "" : "mt-1"
-          }`}
-        >
-          {!collapsed && (
-            <TruncatedText className="text-sm font-medium">
-              {activeNode?.name ?? activeNode?.hostname ?? "No node selected"}
-            </TruncatedText>
-          )}
-          <Tooltip
-            content={
-              activeNode
-                ? `${activeNode.name ?? activeNode.hostname ?? activeNode.node_id}: ${
-                    activeNode.online ? "online" : "offline"
-                  }`
-                : "No node selected"
-            }
-          >
-            <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-ink-subtle">
-              <CircleDot
-                className={`h-3 w-3 ${
-                  activeNode?.online ? "text-success" : "text-ink-tertiary"
-                }`}
-              />
-              {!collapsed && activeNode && (
-                <span>{activeNode.online ? "online" : "offline"}</span>
-              )}
-            </span>
-          </Tooltip>
-        </div>
       </div>
 
       <nav className="mt-3 grid gap-0.5">

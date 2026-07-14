@@ -207,19 +207,14 @@ Initial token shape:
 ```txt
 PAX Console
 +-- Home
+|   +-- sessions tab with globally sorted sessions and agent filter
+|   +-- embedded session workbench for selected or newly started sessions
 |   +-- action inbox queue
 |   +-- selected inquiry / draft preview
 |   +-- inquiry actions for generate draft, summarize draft, comment, and send
 |   +-- detach inquiry context to return the composer to a clean session
 |   +-- archive inquiry to ignore it and remove it from the queue
 |   +-- composer with context attachment, agent select, and tool approval preference
-+-- Sessions
-|   +-- globally sorted session list
-|   +-- live agent conversation
-|   +-- tool calls
-|   +-- file changes
-|   +-- token usage
-|   +-- run status
 +-- Runtime
 |   +-- Nodes
 |   |   +-- node list
@@ -259,9 +254,10 @@ PAX Console
 ```
 
 The sidebar should expose coarse workspaces first, then show concrete resources
-as sidebar secondary tabs under each expanded workspace, except Sessions which
-is promoted to a first-level work surface next to Home. First-level groups are
-independent disclosures, not an accordion. Runtime owns nodes, agents,
+as sidebar secondary tabs under each expanded workspace. Home owns the
+user-facing Sessions tab and embedded session workbench; do not add Sessions as
+a separate first-level sidebar item. First-level groups are independent
+disclosures, not an accordion. Runtime owns nodes, agents,
 approvals, and monitor as secondary tabs. Collaboration owns teams, friends,
 envelopes, and knowledge as secondary tabs; team invites stay inside the Teams
 surface as a team action queue. Deep links such as `/nodes`, `/sessions`,
@@ -374,19 +370,21 @@ POST /api/v1/user/{user_id}/nodes/{node_id}/agents
 GET  /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}
 
 Sessions
+GET  /api/v1/user/{user_id}/sessions?page_size=20&page_num=1
 GET  /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions
 GET  /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}
 GET  /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}/messages
 POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}/messages
 
-Current frontend note: PAX Manager does not yet expose a flat
-`GET /api/v1/user/{user_id}/sessions` list. The Sessions page therefore scans
-visible nodes and agents, fetches each agent's session collection, flattens the
-results, then sorts sessions by `updated_at` descending. When a flat sessions
-endpoint exists, replace only the resource fetch/composition layer.
+Current frontend note: Home reads the flat
+`GET /api/v1/user/{user_id}/sessions` list with `page_size=20` and increments
+`page_num` as the user scrolls the Sessions rail. Optional `node_id` and
+`agent_id` filters accept comma-separated ids. Selecting a row opens the
+embedded session workbench in Home.
 
 Conversation
 POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/conversation
+POST /api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/turn/stop
 
 WebSocket
 GET /api/v1/user/self/agents/{agent_id}/tunnel
@@ -399,10 +397,11 @@ Implemented
 - Auth check through GET /me.
 - Home workbench through nodes, agents, sessions, approvals, envelopes, and team invites.
 - Session detail history through session messages.
-- New session opens `/sessions/new`; the first prompt creates `sess_*` through POST /conversation.
+- Home composer opens an embedded new session; the first prompt creates `sess_*` through POST /conversation.
 - API key list/create/revoke.
 - Approval list, decision, grant list, grant revoke.
 - Session workbench composer through POST /conversation fetch streaming.
+- Session workbench stop button through POST /turn/stop while a turn is running.
 - ACP frames from conversation envelopes are normalized through the existing tunnel-frame mapper.
 - Node detail through GET /nodes/{node_id}.
 - Agent detail through GET /nodes/{node_id}/agents/{agent_id}.
@@ -413,7 +412,7 @@ Implemented
 
 Still pending
 - Exact ACP session/update event hardening.
-- Interrupt/stop over ACP WebSocket.
+- Steer-style interrupts over the manager conversation runtime.
 - Richer monitor timeline beyond health/fleet counters.
 - Full shadcn component adoption, if the project later wants generated shadcn components instead of local primitives.
 ```
@@ -534,10 +533,23 @@ New sessions send `{ "input": "..." }`; continued sessions send
 body, the frontend reads `response.body` with fetch streaming instead of
 EventSource.
 
+While a turn is running, the composer send button becomes a stop button and
+calls:
+
+```txt
+POST /api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/turn/stop
+Idempotency-Key: <client-generated command id>
+Content-Type: application/json
+```
+
+with `{ "reason": "user_requested" }`. The stop action posts a manager command
+but leaves the active SSE reader alone so subsequent updates can still reach
+the timeline.
+
 The stream uses default SSE data messages. Each data payload is a PAX envelope:
 
 ```txt
-session  Save `session_id`; for new sessions replace the URL to /sessions/{session_id}.
+session  Save `session_id`; for new sessions replace the URL to /?sessionId={session_id}.
 acp      Normalize `frame` with normalizeTunnelFrame and merge into the timeline.
 done     End the current streaming state.
 error    Show the message and end the current streaming state.
@@ -761,8 +773,8 @@ Recommended layout:
 ### Session Load Flow
 
 ```txt
-1. User opens /sessions/{sessionId}.
-2. Query session detail from REST.
+1. User opens /?sessionId={sessionId}.
+2. Home resolves node/agent from the flattened sessions list, then queries session detail from REST.
 3. Query historical session messages from REST.
 4. Normalize mailbox messages into session events.
 5. Connect agent tunnel for that session's agent.
@@ -923,7 +935,10 @@ function useAgentTunnel(agentId?: string) {
 }
 ```
 
-`interrupt` and `stop` are not implemented yet because the backend ACP method names are not confirmed in the current OpenAPI/runtime contract. Keep those as future runtime methods instead of wiring guessed protocol calls into React components.
+`stop` is implemented through manager turn control rather than raw browser ACP
+frames. Background turns and second-window views use the session observer SSE
+instead of treating the original `/conversation` request as the owner of every
+future live update.
 
 ## Local Development
 

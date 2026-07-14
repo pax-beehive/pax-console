@@ -218,6 +218,64 @@ Accept: text/event-stream
 Content-Type: application/json
 ```
 
+While a turn is running, the workbench stop button calls:
+
+```txt
+POST /api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/turn/stop
+Idempotency-Key: <client-generated command id>
+Content-Type: application/json
+```
+
+with `{ "reason": "user_requested" }`. This sends a manager-side stop command
+and does not abort the browser's active SSE reader; live updates can continue
+until the backend and agent finish cancelling.
+
+While a turn is running, composer submit queues the current draft through:
+
+```txt
+POST /api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/turn/queue
+Idempotency-Key: <client-generated command id>
+Content-Type: application/json
+```
+
+with `{ "input": "..." }`. The backend keeps one replaceable queued draft per
+active session; sending queue again before the current turn completes replaces
+the pending draft. The backend turn sequencer, not the browser stream, sends
+the queued prompt after the active prompt returns a terminal response.
+
+The steer button calls:
+
+```txt
+POST /api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/turn/steer
+Idempotency-Key: <client-generated command id>
+Content-Type: application/json
+```
+
+with `{ "input": "..." }`. This is manager-side stop plus queue: it sends the
+ACP `session/cancel` notification for the current prompt, then runs the queued
+prompt after the current turn returns a terminal prompt response. Closing the
+page does not cancel the queued dispatch while the manager process and ACP
+tunnel remain alive. The existing `/conversation` SSE request is not the queued
+turn owner.
+
+The workbench observes background or second-window turns through:
+
+```txt
+GET /api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/events?after_message_id=<message_id>
+Accept: text/event-stream
+```
+
+The endpoint observes the current running turn for that session. If there is no
+running turn, it emits `type=no_running_turn` and closes; the UI should stop the
+observer and refetch session history. If a turn is running, it replays the
+turn-scoped in-memory buffer and then streams live events. `after_message_id`
+is the global `HistoryMessage.message_id` from REST history, used only as a
+trim hint inside the current turn buffer. If it is not found in the buffer, the
+endpoint emits `type=buffer_miss`, skips replay, and keeps streaming the live
+tail. On terminal prompt response it emits `type=turn_done` and closes. Normal
+live payloads use `type=acp` with the same `frame` shape as `/conversation`, so
+the UI should pass `frame` to `normalizeTunnelFrame`.
+
 New sessions send `{ "input": "..." }`; continued sessions add
 `"session_id": "sess_*"`. The browser reads the POST response body as a stream
 of default SSE `data:` messages. Each message is a PAX envelope:
@@ -331,7 +389,7 @@ ACP/native session id
   Created by session/new by PAX Manager and kept private behind the conversation endpoint.
 ```
 
-Known gaps are broader ACP event coverage beyond observed text chunks, interrupt/stop, and REST history refetch after reconnect.
+Known gaps are broader ACP event coverage beyond observed text chunks and REST history refetch after reconnect.
 
 ## UI Composition Rules
 
@@ -345,7 +403,7 @@ src/components/shell/*
   app chrome
 
 src/components/home/*
-  Home action inbox and context composer
+  Home sessions/inbox workbench, embedded session workbench, and context composer
 
 src/components/resources/*
   reusable resource pages for sidebar tabs
@@ -373,7 +431,7 @@ Sidebar layout rules:
 ```txt
 ConsoleLayout uses flex, not CSS grid columns.
 Sidebar controls its own width with inline width 248/76px and overflow-hidden.
-Sidebar uses a quiet surface with border-separated node context and compact nav rows.
+Sidebar uses a quiet surface and compact nav rows without a persistent current-node block.
 Do not reintroduce dynamic Tailwind class strings like grid-cols-[76px_1fr] for shell width.
 Collapsed tabs show icons only; labels must remain available via Tooltip.
 ```
@@ -387,7 +445,6 @@ multiple groups may stay open at the same time.
 
 ```txt
 Home             /
-Sessions         /sessions
 Runtime          /nodes, active for /nodes /agents /inquiries /approvals /monitor
 Collaboration    /teams, active for /teams /envelopes /knowledge
 API Keys         /settings/api-keys
@@ -402,8 +459,8 @@ These deep links should remain directly reachable:
 /agents              Agents
 /agents/[agentId]    Agent detail, normally with ?nodeId=
 /inquiries           Agent-to-agent inquiry composer
-/sessions            Sessions list, flattened across visible agents
-/sessions/[sessionId] Session detail
+/sessions            Redirects to Home
+/sessions/[sessionId] Redirects to /?sessionId=...
 /approvals           Approvals and grants
 /monitor             Monitor
 /settings/api-keys   API Keys
@@ -413,22 +470,23 @@ These deep links should remain directly reachable:
 When adding a sidebar item, add both a real `src/app/**/page.tsx` route and an
 active-state mapping in `src/components/shell/sidebar.tsx`. Prefer adding a
 secondary tab to Runtime or Collaboration when the destination belongs to those
-workspaces; Sessions is intentionally first-level. Do not add workspace-level
-subtabs inside page headers unless the page has local modes that are not part
-of global IA.
+workspaces. Home owns the user-facing Sessions tab; do not re-promote Sessions
+as a separate sidebar item. Do not add workspace-level subtabs inside page
+headers unless the page has local modes that are not part of global IA.
 
-PAX Manager currently exposes sessions only under
-`/nodes/{node_id}/agents/{agent_id}/sessions`, not as a flat user session list.
-The Sessions page scans visible nodes and agents, fetches each agent's sessions,
-flattens the rows, tags them with readable agent/node labels, and sorts by
-`updated_at` descending. Replace that composition layer when the backend grows a
-flat sessions endpoint.
+PAX Manager exposes Home sessions through
+`GET /api/v1/user/{user_id}/sessions?page_size=20&page_num=...`, with optional
+comma-separated `node_id` and `agent_id` filters. Home uses this flat paginated
+list instead of scanning every node/agent session collection. The initial page
+loads 20 sessions and the left rail fetches the next page as the user scrolls.
+Clicking a session opens the embedded `SessionWorkbench` in Home; the
+`/sessions/*` routes redirect back to Home query URLs.
 
 Currently implemented API-backed actions:
 
 ```txt
-Topbar New session
-  Opens /sessions/new?nodeId=...&agentId=... without creating a server session
+Home New session composer
+  Opens an embedded new SessionWorkbench without creating a server session
 
 Session workbench composer
   POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/conversation

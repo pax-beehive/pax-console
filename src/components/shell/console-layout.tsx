@@ -29,7 +29,7 @@ export function ConsoleLayout({
         className="shrink-0 overflow-hidden transition-[width] duration-200"
         style={{ width: sidebarCollapsed ? 76 : 248 }}
       >
-        <Sidebar activeNode={activeNode} />
+        <Sidebar />
       </div>
       <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <Topbar
