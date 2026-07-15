@@ -686,7 +686,6 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 onSessionAssigned={(sessionId) => {
                   const nextTarget = {
                     ...activeSessionTarget,
-                    key: `assigned:${sessionId}:${activeSessionTarget.nodeId ?? ""}:${activeSessionTarget.agentId ?? ""}`,
                     sessionId,
                   };
                   setEmbeddedSessionTarget(nextTarget);
