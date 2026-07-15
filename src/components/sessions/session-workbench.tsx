@@ -66,6 +66,8 @@ import {
   SessionApprovalMode,
   SessionPaxConfig,
   SessionArtifact,
+  Agent,
+  Node,
   User,
 } from "@/features/api/types";
 import { filterLiveEventsAlreadyInHistory } from "@/features/runtime/filter-live-history-events";
@@ -84,10 +86,12 @@ type SessionWorkbenchProps = {
   sessionId: string;
   nodeId?: string;
   agentId?: string;
+  embedded?: boolean;
   initialApprovalMode?: SessionApprovalMode;
   initialCwd?: string;
   initialPrompt?: string;
   initialPromptKey?: string;
+  onSessionAssigned?: (sessionId: string) => void;
 };
 
 type SessionSidePanelId = "artifacts" | "knowledge";
@@ -105,10 +109,12 @@ export function SessionWorkbench({
   sessionId,
   nodeId,
   agentId,
+  embedded = false,
   initialApprovalMode,
   initialCwd,
   initialPrompt,
   initialPromptKey,
+  onSessionAssigned,
 }: SessionWorkbenchProps) {
   const queryClient = useQueryClient();
   const nodesQuery = useNodes(user.user_id);
@@ -201,6 +207,11 @@ export function SessionWorkbench({
       if (activeAgentId) {
         params.set("agentId", activeAgentId);
       }
+      if (onSessionAssigned) {
+        onSessionAssigned(nextSessionId);
+        return;
+      }
+
       const query = params.toString();
       window.history.replaceState(
         window.history.state,
@@ -210,7 +221,7 @@ export function SessionWorkbench({
           : `/sessions/${nextSessionId}`,
       );
     },
-    [activeAgentId, activeNodeId, queryClient, user.user_id],
+    [activeAgentId, activeNodeId, onSessionAssigned, queryClient, user.user_id],
   );
   const historyQuery = useSessionHistory(
     user.user_id,
@@ -734,13 +745,19 @@ export function SessionWorkbench({
   );
 
   return (
-    <ConsoleLayout
+    <SessionWorkbenchFrame
       activeAgent={activeAgent}
       activeNode={activeNode}
+      embedded={embedded}
       nodes={nodes}
       user={user}
     >
-      <div className="relative flex h-[calc(100vh-var(--topbar-h))] min-h-0 min-w-0 overflow-hidden bg-canvas">
+      <div
+        className={cn(
+          "relative flex min-h-0 min-w-0 overflow-hidden bg-canvas",
+          embedded ? "h-full" : "h-[calc(100vh-var(--topbar-h))]",
+        )}
+      >
         <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-canvas">
           <div className="flex items-center justify-between gap-4 border-b border-hairline bg-surface-1 px-4 py-3">
             <div className="min-w-0">
@@ -991,6 +1008,39 @@ export function SessionWorkbench({
           </aside>
         )}
       </div>
+    </SessionWorkbenchFrame>
+  );
+}
+
+type SessionWorkbenchFrameProps = {
+  activeAgent?: Agent;
+  activeNode?: Node;
+  children: ReactNode;
+  embedded: boolean;
+  nodes: Node[];
+  user: User;
+};
+
+function SessionWorkbenchFrame({
+  activeAgent,
+  activeNode,
+  children,
+  embedded,
+  nodes,
+  user,
+}: SessionWorkbenchFrameProps) {
+  if (embedded) {
+    return <>{children}</>;
+  }
+
+  return (
+    <ConsoleLayout
+      activeAgent={activeAgent}
+      activeNode={activeNode}
+      nodes={nodes}
+      user={user}
+    >
+      {children}
     </ConsoleLayout>
   );
 }
