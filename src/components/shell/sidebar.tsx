@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Crosshair,
   Inbox,
   FolderTree,
   KeyRound,
@@ -25,6 +26,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { useConsoleStore } from "@/stores/console-store";
 
 type NavItem = {
+  adminOnly?: boolean;
   children?: readonly NavItem[];
   href: string;
   icon: LucideIcon;
@@ -40,6 +42,13 @@ const primaryNavItems: readonly NavItem[] = [
     matches: ["/", "/sessions", "/inquiries", "/conversations"],
   },
   {
+    adminOnly: true,
+    href: "/whiteboard",
+    icon: Crosshair,
+    label: "Whiteboard",
+  },
+  {
+    adminOnly: true,
     href: "/collaboration/teams",
     icon: Users,
     label: "Collaboration",
@@ -116,9 +125,7 @@ export function Sidebar({ showAdminFeatures }: { showAdminFeatures: boolean }) {
       <nav className="mt-3 flex min-h-0 flex-1 flex-col">
         <div className="grid flex-1 content-start gap-0.5 overflow-y-auto">
           {primaryNavItems
-            .filter(
-              (item) => showAdminFeatures || item.label !== "Collaboration",
-            )
+            .filter((item) => showAdminFeatures || !item.adminOnly)
             .map((item) => (
               <NavEntry collapsed={collapsed} item={item} key={item.label} />
             ))}

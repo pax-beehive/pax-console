@@ -192,6 +192,24 @@ src/components/artifacts/
   /artifacts/publications/[publicationId] 与 /artifacts/files/[artifactId]；
   独立页复用同一 renderer，并自动取得短效 preview URL。
 
+src/components/whiteboard/
+  Admin-only agent orchestration whiteboard。当前通过 `src/features/api/whiteboard.ts`
+  使用写死的 catalog / initialize / broadcast mock，后续接真实后端时仍应保持
+  组件调用 feature 层方法，不在 React 组件里拼 REST 协议。页面分 overview 和
+  task detail 两层：task 新建和编辑都要求 name / description；overview 以
+  list/board 形式展示 task title、单行 description、是否需要 support 的状态、
+  archive 操作、每个 task 的 agent 列表，并承载 planner broadcast；overview 中
+  点击 agent 跳转到该 agent 的 session page，Go to planner 跳转到 planner session
+  page。每个 task 有一个固定名为 Planner 的 planner session；detail 支持
+  点击或拖拽添加一个通用 agent session component 和 event trigger component；agent
+  component 在配置弹窗中从用户已注册 agents 中选择具体 agent，event trigger 当前在
+  前端 mock 中可保存 Python 条件脚本，或设置为 interval / cron 定时任务，用来描述
+  何时调用 task；detail 还支持拖拽已有 component 位置、自动布局、手动 zoom / fit、
+  重新配置 agent / event trigger。
+  agent 与 agent 的关系箭头表示信息共享方向；涉及 event trigger 的关系只表示
+  `output == x` 时用 `y` 触发目标 component。右侧只展示当前选中的 agent、
+  event trigger 或关系详情。
+
 src/components/sessions/
   Session workbench。把 REST 历史消息和 WebSocket live events 合成时间线。
   Header 支持通过 node/agent-scoped session PATCH 内联修改名称。Manager 返回的
@@ -292,7 +310,7 @@ Sidebar 折叠
   可用高度，不要再用 100vh 或 min-h-screen 撑开根页面，滚动只留在对应 pane 内。
   手机宽度隐藏 Sidebar，保留 Topbar；Home 默认显示 clean composer，并用左侧抽屉承载 Project / Session rail。
   Sidebar 自身使用安静的 surface 和 compact nav rows，不保留固定的 Current node 区块。
-  Sidebar 一级入口保持粗粒度：顶部只有 Home 和 Collaboration；
+  Sidebar 一级入口保持粗粒度：顶部是 Home、admin-only Whiteboard 和 Collaboration；
   其余入口收进钉在侧栏底部的 Settings 展开组。
   Collaboration / Settings 是彼此独立的 disclosure，不是 accordion；多个组可以同时保持展开。
   Settings 展开时在 Sidebar 二级导航承载 Projects、Devices、Security、
@@ -507,6 +525,7 @@ Sidebar 一级入口是粗粒度工作区（顶部 Home / Collaboration，底部
 
 ```txt
 /                              Home: Sessions + Inbox
+/whiteboard                    Admin-only mock agent orchestration whiteboard
 /sessions/new                  New session workbench
 /sessions/[sessionId]          Canonical session workbench
 /artifacts/publications/[id]       Full-width publication preview; ?ref=main
@@ -580,6 +599,12 @@ agent connection 创建和编辑支持 `desired_slots`（范围 1–16），新�
 
 ```txt
 GET /api/v1/health
+```
+
+`/whiteboard` 当前只接 mock feature API：
+
+```txt
+src/features/api/whiteboard.ts
 ```
 
 `/approvals` 已接线上新增的 approvals / approval-grants API：

@@ -597,6 +597,7 @@ accordion; multiple groups may stay open at the same time.
 
 ```txt
 Home             /
+Whiteboard       /whiteboard, admin-only mock orchestration workspace
 Collaboration    /collaboration/teams
                  children: Teams, Friends, Envelopes, Knowledge
 Settings         bottom-pinned group; /settings/devices
@@ -607,6 +608,7 @@ These deep links should remain directly reachable:
 
 ```txt
 /                              Home
+/whiteboard                    Admin-only mock agent orchestration whiteboard
 /sessions/new                  New session
 /sessions/[sessionId]          Session workbench
 /artifacts/publications/[id]       Full-width publication preview; ?ref=main

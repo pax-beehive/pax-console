@@ -239,6 +239,18 @@ PAX Console
 |   +-- Project settings with reusable Agent/workspace Targets
 |   +-- composer with optional Project, Agent, Workspace, context attachment, and tool approval preference
 |   +-- implicit Target reuse or post-start creation for Project sessions
++-- Whiteboard
+|   +-- admin-only task areas
+|   +-- task creation and editing with name and description
+|   +-- task board/list overview with title, one-line description, support status, and archive
+|   +-- overview with agents, help state, and done state
+|   +-- per-task Planner session
+|   +-- planner broadcast from the overview
+|   +-- one generic Agent component, configured from the user's registered agents
+|   +-- click-or-drag to add event triggers with Python or scheduled-task conditions
+|   +-- event-trigger edges as output-equals-x then trigger-with-y conditions
+|   +-- drag, zoom, fit, and auto-layout inside task detail
+|   +-- selected agent, event trigger, or relationship detail in task detail
 +-- Collaboration
 |   +-- Teams & Friends
 |   |   +-- teams
@@ -278,11 +290,11 @@ PAX Console
     +-- node registration
 ```
 
-The sidebar keeps only Home and Collaboration as top-level entries; everything
-else lives in one Settings disclosure group pinned to the bottom of the
-sidebar. Home owns one unified Projects / Recents session rail plus the
-embedded session workbench; do not add Sessions or Projects as separate
-first-level sidebar items.
+The sidebar keeps Home, the admin-only Whiteboard, and Collaboration as
+top-level entries; everything else lives in one Settings disclosure group
+pinned to the bottom of the sidebar. Home owns one unified Projects / Recents
+session rail plus the embedded session workbench; do not add Sessions or
+Projects as separate first-level sidebar items.
 First-level groups are independent disclosures, not an accordion. Settings
 aggregates Projects (project/target CRUD), Devices (nodes/agents), Security
 (approval grants), Developer (API keys/node registration), and Diagnostics.

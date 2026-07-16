@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Activity, Settings, Users } from "lucide-react";
+import { Activity, Crosshair, Settings, Users } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 const items = [
@@ -12,6 +12,14 @@ const items = [
     matches: ["/", "/sessions", "/inquiries", "/conversations"],
   },
   {
+    adminOnly: true,
+    href: "/whiteboard",
+    icon: Crosshair,
+    label: "Whiteboard",
+    matches: ["/whiteboard"],
+  },
+  {
+    adminOnly: true,
     href: "/collaboration/teams",
     icon: Users,
     label: "Collaboration",
@@ -36,11 +44,11 @@ export function MobileNav({
     <nav
       aria-label="Primary"
       className={`mobile-safe-bottom fixed inset-x-0 bottom-0 z-50 grid h-16 border-t border-hairline bg-surface-1/95 px-2 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden ${
-        showAdminFeatures ? "grid-cols-3" : "grid-cols-2"
+        showAdminFeatures ? "grid-cols-4" : "grid-cols-2"
       }`}
     >
       {items
-        .filter((item) => showAdminFeatures || item.label !== "Collaboration")
+        .filter((item) => showAdminFeatures || !("adminOnly" in item))
         .map((item) => {
           const active = item.matches.some((path) =>
             path === "/"
