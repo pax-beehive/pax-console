@@ -144,6 +144,24 @@ src/components/resources/
   Runtime 的 sidebar 二级 tabs 复用认证、布局和基础数据加载；API Keys 和
   Node Registration 仍属于 settings 类资源。旧 `/sessions` 路由只做回 Home 的 redirect。
 
+src/components/whiteboard/
+  Admin-only agent orchestration whiteboard。当前通过 `src/features/api/whiteboard.ts`
+  使用写死的 catalog / initialize / broadcast mock，后续接真实后端时仍应保持
+  组件调用 feature 层方法，不在 React 组件里拼 REST 协议。页面分 overview 和
+  task detail 两层：task 新建和编辑都要求 name / description；overview 以
+  list/board 形式展示 task title、单行 description、是否需要 support 的状态、
+  archive 操作、每个 task 的 agent 列表，并承载 planner broadcast；overview 中
+  点击 agent 跳转到该 agent 的 session page，Go to planner 跳转到 planner session
+  page。每个 task 有一个固定名为 Planner 的 planner session；detail 支持
+  点击或拖拽添加一个通用 agent session component 和 event trigger component；agent
+  component 在配置弹窗中从用户已注册 agents 中选择具体 agent，event trigger 当前在
+  前端 mock 中可保存 Python 条件脚本，或设置为 interval / cron 定时任务，用来描述
+  何时调用 task；detail 还支持拖拽已有 component 位置、自动布局、手动 zoom / fit、
+  重新配置 agent / event trigger。
+  agent 与 agent 的关系箭头表示信息共享方向；涉及 event trigger 的关系只表示
+  `output == x` 时用 `y` 触发目标 component。右侧只展示当前选中的 agent、
+  event trigger 或关系详情。
+
 src/components/sessions/
   Session workbench。把 REST 历史消息和 WebSocket live events 合成时间线。
 
@@ -201,9 +219,10 @@ Sidebar 折叠
   使用 Zustand 的 sidebarCollapsed，不要放进 URL 或服务端数据。
   ConsoleLayout 使用 flex；Sidebar 自己用 width: 248/76px 控制展开/收起，并带 overflow-hidden。
   Sidebar 自身使用安静的 surface 和 compact nav rows，不保留固定的 Current node 区块。
-  Sidebar 一级入口保持粗粒度：Home、Runtime、Collaboration、API Keys。
+  Sidebar 一级入口保持粗粒度：Home、Whiteboard、Runtime、Collaboration、API Keys。
   Runtime / Collaboration 是彼此独立的 disclosure，不是 accordion；多个一级组可以同时保持展开。
   Runtime 展开时在 Sidebar 二级导航承载 Nodes、Agents、Inquiries、Approvals、Monitor。
+  admin 用户额外看到一级 Whiteboard。
   Collaboration 展开时在 Sidebar 二级导航承载 Teams、Friends、Envelopes、Knowledge。
   Team invites 属于 Teams 页面里的 team action queue，不作为 Collaboration 并列二级入口。
   不要把这些全局二级 tabs 放进具体页面 header 或页面组件内部。
@@ -385,6 +404,7 @@ Sidebar 一级入口是粗粒度工作区；下面这些实际路由仍保留为
 /sessions/[id]       Redirect to /?sessionId=...
 /approvals           Runtime / pending approvals and active approval grants
 /monitor             Runtime / PAX Manager health and fleet summary
+/whiteboard          Admin-only mock agent orchestration whiteboard
 /teams               Collaboration / Teams & Friends
 /envelopes           Collaboration / mailbox-style envelopes
 /knowledge           Collaboration / knowledge capsules
@@ -413,6 +433,12 @@ GET /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}
 
 ```txt
 GET /api/v1/health
+```
+
+`/whiteboard` 当前只接 mock feature API：
+
+```txt
+src/features/api/whiteboard.ts
 ```
 
 `/approvals` 已接线上新增的 approvals / approval-grants API：

@@ -445,6 +445,7 @@ multiple groups may stay open at the same time.
 
 ```txt
 Home             /
+Whiteboard       /whiteboard, admin-only
 Runtime          /nodes, active for /nodes /agents /inquiries /approvals /monitor
 Collaboration    /teams, active for /teams /envelopes /knowledge
 API Keys         /settings/api-keys
@@ -463,6 +464,7 @@ These deep links should remain directly reachable:
 /sessions/[sessionId] Redirects to /?sessionId=...
 /approvals           Approvals and grants
 /monitor             Monitor
+/whiteboard          Admin-only mock orchestration whiteboard with task board/list, archive, agent, and event-trigger components
 /settings/api-keys   API Keys
 /settings/node-registration Node registration tokens
 ```

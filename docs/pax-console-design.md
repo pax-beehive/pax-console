@@ -215,6 +215,18 @@ PAX Console
 |   +-- detach inquiry context to return the composer to a clean session
 |   +-- archive inquiry to ignore it and remove it from the queue
 |   +-- composer with context attachment, agent select, and tool approval preference
++-- Whiteboard
+|   +-- admin-only task areas
+|   +-- task creation and editing with name and description
+|   +-- task board/list overview with title, one-line description, support status, and archive
+|   +-- overview with agents, help state, and done state
+|   +-- per-task Planner session
+|   +-- planner broadcast from the overview
+|   +-- one generic Agent component, configured from the user's registered agents
+|   +-- click-or-drag to add event triggers with Python or scheduled-task conditions
+|   +-- event-trigger edges as output-equals-x then trigger-with-y conditions
+|   +-- drag, zoom, fit, and auto-layout inside task detail
+|   +-- selected agent, event trigger, or relationship detail in task detail
 +-- Runtime
 |   +-- Nodes
 |   |   +-- node list
@@ -256,12 +268,13 @@ PAX Console
 The sidebar should expose coarse workspaces first, then show concrete resources
 as sidebar secondary tabs under each expanded workspace. Home owns the
 user-facing Sessions tab and embedded session workbench; do not add Sessions as
-a separate first-level sidebar item. First-level groups are independent
-disclosures, not an accordion. Runtime owns nodes, agents,
-approvals, and monitor as secondary tabs. Collaboration owns teams, friends,
-envelopes, and knowledge as secondary tabs; team invites stay inside the Teams
-surface as a team action queue. Deep links such as `/nodes`, `/sessions`,
-`/approvals`, `/teams?view=friends`, and `/knowledge` remain valid.
+a separate first-level sidebar item. Whiteboard is an admin-only first-level
+workspace. First-level groups are independent disclosures, not an accordion.
+Runtime owns nodes, agents, approvals, and monitor as secondary tabs.
+Collaboration owns teams, friends, envelopes, and knowledge as secondary tabs;
+team invites stay inside the Teams surface as a team action queue. Deep links
+such as `/nodes`, `/sessions`, `/approvals`, `/whiteboard`,
+`/teams?view=friends`, and `/knowledge` remain valid.
 
 ## Routes
 

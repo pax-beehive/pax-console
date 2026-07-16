@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import { useMemo } from "react";
 import {
   Activity,
   Bot,
@@ -9,6 +10,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Crosshair,
   Inbox,
   KeyRound,
   MailPlus,
@@ -22,7 +24,9 @@ import {
 import { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
+import { User } from "@/features/api/types";
 import { useConsoleStore } from "@/stores/console-store";
+import { canUseWhiteboard } from "@/components/whiteboard/whiteboard-models";
 
 type NavItem = {
   children?: readonly NavItem[];
@@ -34,6 +38,7 @@ type NavItem = {
 
 const navItems: readonly NavItem[] = [
   { href: "/", icon: Activity, label: "Home" },
+  { href: "/whiteboard", icon: Crosshair, label: "Whiteboard" },
   {
     href: "/nodes",
     icon: Server,
@@ -70,7 +75,7 @@ const navItems: readonly NavItem[] = [
   { href: "/settings/api-keys", icon: KeyRound, label: "API Keys" },
 ] as const;
 
-export function Sidebar() {
+export function Sidebar({ user }: { user: User }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const collapsed = useConsoleStore((state) => state.sidebarCollapsed);
@@ -82,6 +87,10 @@ export function Sidebar() {
     (state) => state.toggleSidebarGroup,
   );
   const queryString = searchParams.toString();
+  const visibleNavItems = useMemo(
+    () => filterNavItems(navItems, canUseWhiteboard(user)),
+    [user],
+  );
 
   return (
     <aside
@@ -125,7 +134,7 @@ export function Sidebar() {
       </div>
 
       <nav className="mt-3 grid gap-0.5">
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const active = isActiveNavItem(pathname, item);
           const groupOpen = expandedGroups[item.label] ?? active;
           return (
@@ -201,6 +210,20 @@ export function Sidebar() {
       </nav>
     </aside>
   );
+}
+
+function filterNavItems(items: readonly NavItem[], canSeeWhiteboard: boolean) {
+  return items
+    .filter((item) => canSeeWhiteboard || item.href !== "/whiteboard")
+    .map((item) => ({
+      ...item,
+      children: item.children?.filter(
+        (child) => canSeeWhiteboard || child.href !== "/whiteboard",
+      ),
+      matches: canSeeWhiteboard
+        ? item.matches
+        : item.matches?.filter((href) => href !== "/whiteboard"),
+    }));
 }
 
 function isActiveNavItem(pathname: string, item: NavItem) {
