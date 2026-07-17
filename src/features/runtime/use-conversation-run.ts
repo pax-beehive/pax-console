@@ -284,10 +284,9 @@ export function handleConversationEnvelope(
     setEvents((current) =>
       appendUniqueEvents(current, [
         {
-          type: "run_status",
+          type: "turn_done",
           id: `${envelope.session_id}:done`,
           sessionId: envelope.session_id,
-          status: "done",
           createdAt: new Date().toISOString(),
         },
       ]),

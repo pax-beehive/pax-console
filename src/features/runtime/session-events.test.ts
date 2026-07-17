@@ -8,7 +8,7 @@ import {
 } from "./session-events";
 
 describe("isVisibleTimelineEvent", () => {
-  it("hides run status and token usage control events from the workstream", () => {
+  it("hides completion, run status, and token usage control events", () => {
     const events: SessionEvent[] = [
       {
         type: "user_message",
@@ -29,6 +29,12 @@ describe("isVisibleTimelineEvent", () => {
         id: "usage-1",
         sessionId: "sess_1",
         totalTokens: 12,
+        createdAt: "2026-06-26T12:00:02Z",
+      },
+      {
+        type: "turn_done",
+        id: "done-1",
+        sessionId: "sess_1",
         createdAt: "2026-06-26T12:00:02Z",
       },
       {
@@ -168,7 +174,7 @@ describe("groupWorkstreamEvents", () => {
     ]);
   });
 
-  it("can flush the final completed history turn when no run status event exists", () => {
+  it("does not infer a footer when history has no explicit done frame", () => {
     const events: SessionEvent[] = [
       {
         type: "agent_message",
@@ -211,18 +217,32 @@ describe("groupWorkstreamEvents", () => {
       type: "event",
       id: "permission-1",
     });
-    expect(groupWorkstreamEvents(events, { flushFinalTurn: true }).at(-1))
-      .toMatchObject({
-        type: "turn_footer",
-        id: "turn_footer:agent-1",
-        turnPatches: [
-          {
-            operation: "write",
-            path: "/private/tmp/weather.py",
-            source: "output",
-          },
-        ],
-      });
+    expect(
+      groupWorkstreamEvents(events).some((item) => item.type === "turn_footer"),
+    ).toBe(false);
+  });
+
+  it("does not infer a footer when the next user message arrives", () => {
+    const events: SessionEvent[] = [
+      {
+        type: "agent_message",
+        id: "agent-1",
+        sessionId: "sess_1",
+        content: "First response",
+        createdAt: "2026-07-09T17:08:38Z",
+      },
+      {
+        type: "user_message",
+        id: "user-2",
+        sessionId: "sess_1",
+        content: "Follow-up",
+        createdAt: "2026-07-09T17:09:38Z",
+      },
+    ];
+
+    const grouped = groupWorkstreamEvents(events);
+
+    expect(grouped.map((item) => item.type)).toEqual(["event", "event"]);
   });
 
   it("marks only the last agent message in a turn for action controls", () => {
@@ -255,6 +275,12 @@ describe("groupWorkstreamEvents", () => {
         sessionId: "sess_1",
         content: "I updated the image.",
         createdAt: "2026-07-09T04:29:03Z",
+      },
+      {
+        type: "turn_done",
+        id: "done-1",
+        sessionId: "sess_1",
+        createdAt: "2026-07-09T04:29:04Z",
       },
       {
         type: "user_message",
@@ -322,10 +348,9 @@ describe("groupWorkstreamEvents", () => {
         createdAt: "2026-07-09T04:29:03Z",
       },
       {
-        type: "run_status",
-        id: "status-1",
+        type: "turn_done",
+        id: "done-1",
         sessionId: "sess_1",
-        status: "done",
         createdAt: "2026-07-09T04:29:04Z",
       },
     ];
@@ -386,10 +411,9 @@ describe("groupWorkstreamEvents", () => {
         createdAt: "2026-07-09T04:29:02Z",
       },
       {
-        type: "run_status",
-        id: "status-1",
+        type: "turn_done",
+        id: "done-1",
         sessionId: "sess_1",
-        status: "done",
         createdAt: "2026-07-09T04:29:03Z",
       },
       {
@@ -424,10 +448,9 @@ describe("groupWorkstreamEvents", () => {
         createdAt: "2026-07-09T04:30:02Z",
       },
       {
-        type: "run_status",
-        id: "status-2",
+        type: "turn_done",
+        id: "done-2",
         sessionId: "sess_1",
-        status: "done",
         createdAt: "2026-07-09T04:30:03Z",
       },
     ];
@@ -482,10 +505,9 @@ describe("groupWorkstreamEvents", () => {
         createdAt: "2026-07-09T04:29:02Z",
       },
       {
-        type: "run_status",
-        id: "status-1",
+        type: "turn_done",
+        id: "done-1",
         sessionId: "sess_1",
-        status: "done",
         createdAt: "2026-07-09T04:29:03Z",
       },
     ];
@@ -543,10 +565,9 @@ describe("groupWorkstreamEvents", () => {
         createdAt: "2026-07-09T04:29:03Z",
       },
       {
-        type: "run_status",
-        id: "status-1",
+        type: "turn_done",
+        id: "done-1",
         sessionId: "sess_1",
-        status: "done",
         createdAt: "2026-07-09T04:29:04Z",
       },
     ];
@@ -663,21 +684,27 @@ describe("groupWorkstreamEvents", () => {
       ]),
     );
 
-    expect(groupWorkstreamEvents(events, { flushFinalTurn: true }).at(-1))
-      .toMatchObject({
-        type: "turn_footer",
-        turnPatches: [
-          {
-            operation: "write",
-            path: "/private/tmp/weather.py",
-            source: "output",
-          },
-          {
-            operation: "delete",
-            path: "/private/tmp/weather.py",
-          },
-        ],
-      });
+    events.push({
+      type: "turn_done",
+      id: "done-1",
+      sessionId: "sess_1",
+      createdAt: "2026-07-09T17:09:01.000000-07:00",
+    });
+
+    expect(groupWorkstreamEvents(events).at(-1)).toMatchObject({
+      type: "turn_footer",
+      turnPatches: [
+        {
+          operation: "write",
+          path: "/private/tmp/weather.py",
+          source: "output",
+        },
+        {
+          operation: "delete",
+          path: "/private/tmp/weather.py",
+        },
+      ],
+    });
   });
 
   it("attaches proposed permission patches to the turn footer at turn end", () => {
@@ -730,10 +757,9 @@ describe("groupWorkstreamEvents", () => {
         createdAt: "2026-07-09T04:29:03Z",
       },
       {
-        type: "run_status",
-        id: "status-1",
+        type: "turn_done",
+        id: "done-1",
         sessionId: "sess_1",
-        status: "done",
         createdAt: "2026-07-09T04:29:04Z",
       },
     ];
@@ -802,10 +828,9 @@ describe("groupWorkstreamEvents", () => {
         createdAt: "2026-07-09T04:29:03Z",
       },
       {
-        type: "run_status",
-        id: "status-1",
+        type: "turn_done",
+        id: "done-1",
         sessionId: "sess_1",
-        status: "done",
         createdAt: "2026-07-09T04:29:04Z",
       },
     ];
@@ -869,10 +894,9 @@ describe("groupWorkstreamEvents", () => {
         createdAt: "2026-07-09T04:29:02Z",
       },
       {
-        type: "run_status",
-        id: "status-1",
+        type: "turn_done",
+        id: "done-1",
         sessionId: "sess_1",
-        status: "done",
         createdAt: "2026-07-09T04:29:03Z",
       },
     ];
@@ -940,10 +964,9 @@ describe("groupWorkstreamEvents", () => {
         createdAt: "2026-07-09T04:29:04Z",
       },
       {
-        type: "run_status",
-        id: "status-1",
+        type: "turn_done",
+        id: "done-1",
         sessionId: "sess_1",
-        status: "done",
         createdAt: "2026-07-09T04:29:05Z",
       },
     ];
@@ -963,7 +986,7 @@ describe("groupWorkstreamEvents", () => {
     });
   });
 
-  it("marks an agent message when a done run status ends the turn", () => {
+  it("does not treat a generic done run status as an explicit done frame", () => {
     const events: SessionEvent[] = [
       {
         type: "agent_message",
@@ -983,13 +1006,7 @@ describe("groupWorkstreamEvents", () => {
 
     const grouped = groupWorkstreamEvents(events);
 
-    expect(grouped).toMatchObject([
-      { type: "event", id: "agent-1" },
-      {
-        type: "turn_footer",
-        id: "turn_footer:agent-1",
-        actionsContent: "Done.",
-      },
-    ]);
+    expect(grouped).toMatchObject([{ type: "event", id: "agent-1" }]);
+    expect(grouped.some((item) => item.type === "turn_footer")).toBe(false);
   });
 });

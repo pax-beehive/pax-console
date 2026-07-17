@@ -495,7 +495,7 @@ describe("mergeEvents", () => {
     expect(merged[0]).not.toHaveProperty("permissions");
   });
 
-  it("marks open tool calls done when the run finishes without a tool update", () => {
+  it("marks open tool calls done when an explicit done frame arrives", () => {
     const events: SessionEvent[] = [
       {
         type: "tool_call",
@@ -508,10 +508,9 @@ describe("mergeEvents", () => {
         createdAt: "2026-06-29T18:00:00.000Z",
       },
       {
-        type: "run_status",
+        type: "turn_done",
         id: "sess_1:done",
         sessionId: "sess_1",
-        status: "done",
         createdAt: "2026-06-29T18:00:01.000Z",
       },
     ];
@@ -525,8 +524,7 @@ describe("mergeEvents", () => {
         status: "done",
       },
       {
-        type: "run_status",
-        status: "done",
+        type: "turn_done",
       },
     ]);
   });

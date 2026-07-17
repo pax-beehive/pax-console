@@ -135,6 +135,24 @@ describe("normalizeTunnelFrame", () => {
     });
   });
 
+  it("normalizes an explicit turn/done frame as a turn completion event", () => {
+    const events = normalizeTunnelFrame(
+      {
+        type: "turn/done",
+        session_id: "sess_1",
+      },
+      { createdAt: "2026-07-16T12:00:00.000Z" },
+    );
+
+    expect(events).toMatchObject([
+      {
+        type: "turn_done",
+        sessionId: "sess_1",
+        createdAt: "2026-07-16T12:00:00.000Z",
+      },
+    ]);
+  });
+
   it("aggregates streaming chunks by session and session update without a turn id", () => {
     const firstDelta = normalizeTunnelFrame(
       sessionUpdate("agent_message_chunk", "你"),

@@ -23,6 +23,10 @@ export function mergeEvents(events: SessionEvent[]) {
       closeOpenToolCallsForRunStatus(merged, event.status);
     }
 
+    if (event.type === "turn_done") {
+      closeOpenToolCallsForRunStatus(merged, "done");
+    }
+
     if (event.type === "invocation") {
       for (const hiddenId of invocationHiddenEventIds(event)) {
         hiddenEventIds.add(hiddenId);
@@ -375,7 +379,11 @@ function mergeCodePatches(
 function lastVisibleEvent(events: SessionEvent[]) {
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index];
-    if (event.type !== "run_status" && event.type !== "token_usage") {
+    if (
+      event.type !== "run_status" &&
+      event.type !== "turn_done" &&
+      event.type !== "token_usage"
+    ) {
       return event;
     }
   }

@@ -136,7 +136,7 @@ describe("handleConversationEnvelope", () => {
     ]);
   });
 
-  it("emits a run status event when the conversation is done", () => {
+  it("emits an explicit turn completion event when the conversation is done", () => {
     let sessionId = "";
     let error: Error | null = null;
     let status: ConversationRunStatus = "streaming";
@@ -172,10 +172,9 @@ describe("handleConversationEnvelope", () => {
     expect(status).toBe("done");
     expect(events).toMatchObject([
       {
-        type: "run_status",
+        type: "turn_done",
         id: "sess_1:done",
         sessionId: "sess_1",
-        status: "done",
       },
     ]);
   });

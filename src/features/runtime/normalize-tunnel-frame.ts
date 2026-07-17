@@ -162,13 +162,24 @@ export function normalizeTunnelFrame(
     ];
   }
 
-  if (kind === "turn/done" || kind === "turn/error") {
+  if (kind === "turn/done") {
+    return [
+      {
+        type: "turn_done",
+        id,
+        sessionId,
+        createdAt,
+      },
+    ];
+  }
+
+  if (kind === "turn/error") {
     return [
       {
         type: "run_status",
         id,
         sessionId,
-        status: kind === "turn/error" ? "error" : "done",
+        status: "error",
         createdAt,
       },
     ];
