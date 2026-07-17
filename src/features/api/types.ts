@@ -59,6 +59,97 @@ export type Agent = {
   registered_at?: string;
 };
 
+export type NodeDaemonControlError = {
+  code?: string;
+  field?: string;
+  message?: string;
+};
+
+export type NodeDaemonStatus = {
+  phase: string;
+};
+
+export type NodeDaemonHarness = {
+  capability?: string;
+  command?: string[];
+  display_name?: string;
+  harness: string;
+  install_hint?: string;
+  last_error?: string;
+  source?: string;
+  state: string;
+  version?: string;
+};
+
+export type NodeDaemonAgentConnectionStatus = {
+  connected_at?: string;
+  connection_id: string;
+  failure_class?: string;
+  last_error_code?: string;
+  last_error_message?: string;
+  observed_generation: number;
+  observed_restart_nonce: number;
+  phase: string;
+  pid?: number;
+  updated_at?: string;
+};
+
+export type NodeDaemonAgentConnection = {
+  agent_type: string;
+  cloud_agent_id?: string;
+  command: string[];
+  desired_state: string;
+  enabled: boolean;
+  generation: number;
+  harness: string;
+  id: string;
+  instance_id: string;
+  name: string;
+  remote_id: string;
+  restart_nonce: number;
+  status?: NodeDaemonAgentConnectionStatus;
+  working_dir?: string;
+};
+
+export type NodeDaemonCommand = {
+  applied_at?: string;
+  command_id: string;
+  desired_generation?: number;
+  error_code?: string;
+  error_message?: string;
+  received_at?: string;
+  status: string;
+  target_id?: string;
+  target_type?: string;
+  type?: string;
+  updated_at?: string;
+};
+
+export type NodeDaemonQueryResult = {
+  agent_connections?: { items: NodeDaemonAgentConnection[] };
+  command?: NodeDaemonCommand;
+  error?: NodeDaemonControlError;
+  harnesses?: { items: NodeDaemonHarness[] };
+  status?: NodeDaemonStatus;
+  type: string;
+};
+
+export type NodeDaemonCommandData = {
+  command_ack?: ApiRecord;
+  command_id: string;
+  command_status?: string;
+  connection_id?: string;
+  desired_generation?: number;
+  dispatch_error?: string;
+  dispatch_status?: string;
+  remote_id?: string;
+};
+
+export type CreatedNodeDaemonAgentConnection = NodeDaemonCommandData & {
+  agent?: Agent;
+  agent_id: string;
+};
+
 export type UserAPIKey = {
   key_id: string;
   name?: string;

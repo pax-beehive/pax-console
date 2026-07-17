@@ -37,6 +37,22 @@ export const queryKeys = {
   nodes: (userId: string) => ["users", userId, "nodes"] as const,
   node: (userId: string, nodeId: string) =>
     ["users", userId, "nodes", nodeId] as const,
+  nodeDaemonStatus: (userId: string, nodeId: string) =>
+    ["users", userId, "nodes", nodeId, "daemon", "status"] as const,
+  nodeDaemonHarnesses: (userId: string, nodeId: string) =>
+    ["users", userId, "nodes", nodeId, "daemon", "harnesses"] as const,
+  nodeDaemonAgentConnections: (userId: string, nodeId: string) =>
+    ["users", userId, "nodes", nodeId, "daemon", "agent-connections"] as const,
+  nodeDaemonCommand: (userId: string, nodeId: string, commandId: string) =>
+    [
+      "users",
+      userId,
+      "nodes",
+      nodeId,
+      "daemon",
+      "commands",
+      commandId,
+    ] as const,
   agents: (userId: string, nodeId: string) =>
     ["users", userId, "nodes", nodeId, "agents"] as const,
   userAgents: (userId: string) => ["users", userId, "agents"] as const,

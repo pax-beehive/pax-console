@@ -26,6 +26,8 @@ import {
   KnowledgeCapsule,
   MailboxMessage,
   Node,
+  NodeDaemonCommandData,
+  NodeDaemonQueryResult,
   NodeRegistrationPreview,
   Pagination,
   PaxdConnectPreview,
@@ -41,6 +43,7 @@ import {
   TeamSummary,
   TeamRole,
   UserAPIKey,
+  CreatedNodeDaemonAgentConnection,
 } from "./types";
 
 type NodeListData = {
@@ -239,6 +242,22 @@ export type UpdateAgentProfileInput = {
   user_metadata?: ApiRecord;
 };
 
+export type CreateNodeDaemonAgentConnectionInput = {
+  agent_type: string;
+  command?: string[];
+  harness: string;
+  instance_id?: string;
+  name: string;
+  working_dir?: string;
+};
+
+export type UpdateNodeDaemonAgentConnectionInput = {
+  command?: string[];
+  harness?: string;
+  name?: string;
+  working_dir?: string;
+};
+
 export function getHealth() {
   return apiFetch<Health>("/api/v1/health");
 }
@@ -249,6 +268,130 @@ export function listNodes(userId: string) {
 
 export function getNode(userId: string, nodeId: string) {
   return apiFetch<Node>(userPath(userId, `/nodes/${nodeId}`));
+}
+
+export function getNodeDaemonStatus(userId: string, nodeId: string) {
+  return apiFetch<NodeDaemonQueryResult>(
+    userPath(userId, `/nodes/${nodeId}/daemon/status`),
+  );
+}
+
+export function listNodeDaemonHarnesses(userId: string, nodeId: string) {
+  return apiFetch<NodeDaemonQueryResult>(
+    userPath(userId, `/nodes/${nodeId}/daemon/harnesses?include_missing=true`),
+  );
+}
+
+export function listNodeDaemonAgentConnections(userId: string, nodeId: string) {
+  return apiFetch<NodeDaemonQueryResult>(
+    userPath(
+      userId,
+      `/nodes/${nodeId}/daemon/agent-connections?include_disabled=true`,
+    ),
+  );
+}
+
+export function createNodeDaemonAgentConnection(
+  userId: string,
+  nodeId: string,
+  input: CreateNodeDaemonAgentConnectionInput,
+) {
+  return apiFetch<CreatedNodeDaemonAgentConnection>(
+    userPath(userId, `/nodes/${nodeId}/daemon/agent-connections`),
+    {
+      body: JSON.stringify({ command_id: createIdempotencyKey(), ...input }),
+      method: "POST",
+    },
+  );
+}
+
+export function updateNodeDaemonAgentConnection(
+  userId: string,
+  nodeId: string,
+  connectionId: string,
+  input: UpdateNodeDaemonAgentConnectionInput,
+) {
+  return apiFetch<NodeDaemonCommandData>(
+    userPath(
+      userId,
+      `/nodes/${nodeId}/daemon/agent-connections/${connectionId}`,
+    ),
+    {
+      body: JSON.stringify({ command_id: createIdempotencyKey(), ...input }),
+      method: "PATCH",
+    },
+  );
+}
+
+export function stopNodeDaemonAgentConnection(
+  userId: string,
+  nodeId: string,
+  connectionId: string,
+) {
+  return runNodeDaemonAgentConnectionAction(
+    userId,
+    nodeId,
+    connectionId,
+    "stop",
+  );
+}
+
+export function restartNodeDaemonAgentConnection(
+  userId: string,
+  nodeId: string,
+  connectionId: string,
+) {
+  return runNodeDaemonAgentConnectionAction(
+    userId,
+    nodeId,
+    connectionId,
+    "restart",
+  );
+}
+
+export function removeNodeDaemonAgentConnection(
+  userId: string,
+  nodeId: string,
+  connectionId: string,
+) {
+  return apiFetch<NodeDaemonCommandData>(
+    userPath(
+      userId,
+      `/nodes/${nodeId}/daemon/agent-connections/${connectionId}`,
+    ),
+    {
+      body: JSON.stringify({ command_id: createIdempotencyKey() }),
+      method: "DELETE",
+    },
+  );
+}
+
+export function getNodeDaemonCommand(
+  userId: string,
+  nodeId: string,
+  commandId: string,
+) {
+  return apiFetch<NodeDaemonQueryResult>(
+    userPath(userId, `/nodes/${nodeId}/daemon/commands/${commandId}`),
+  );
+}
+
+function runNodeDaemonAgentConnectionAction(
+  userId: string,
+  nodeId: string,
+  connectionId: string,
+  action: "restart" | "stop",
+) {
+  return apiFetch<NodeDaemonCommandData>(
+    userPath(
+      userId,
+      `/nodes/${nodeId}/daemon/agent-connections/${connectionId}/${action}`,
+    ),
+    {
+      body: JSON.stringify({ command_id: createIdempotencyKey() }),
+      method: "POST",
+    },
+  );
 }
 
 export function deleteNode(userId: string, nodeId: string) {
@@ -1139,6 +1282,70 @@ export function useNode(userId?: string, nodeId?: string) {
     queryKey: queryKeys.node(userId ?? "pending", nodeId ?? "pending"),
     queryFn: () => getNode(userId as string, nodeId as string),
     enabled: Boolean(userId && nodeId),
+  });
+}
+
+export function useNodeDaemonStatus(userId?: string, nodeId?: string) {
+  return useQuery({
+    queryKey: queryKeys.nodeDaemonStatus(
+      userId ?? "pending",
+      nodeId ?? "pending",
+    ),
+    queryFn: () => getNodeDaemonStatus(userId as string, nodeId as string),
+    enabled: Boolean(userId && nodeId),
+  });
+}
+
+export function useNodeDaemonHarnesses(userId?: string, nodeId?: string) {
+  return useQuery({
+    queryKey: queryKeys.nodeDaemonHarnesses(
+      userId ?? "pending",
+      nodeId ?? "pending",
+    ),
+    queryFn: () => listNodeDaemonHarnesses(userId as string, nodeId as string),
+    enabled: Boolean(userId && nodeId),
+  });
+}
+
+export function useNodeDaemonAgentConnections(
+  userId?: string,
+  nodeId?: string,
+) {
+  return useQuery({
+    queryKey: queryKeys.nodeDaemonAgentConnections(
+      userId ?? "pending",
+      nodeId ?? "pending",
+    ),
+    queryFn: () =>
+      listNodeDaemonAgentConnections(userId as string, nodeId as string),
+    enabled: Boolean(userId && nodeId),
+  });
+}
+
+export function useNodeDaemonCommand(
+  userId?: string,
+  nodeId?: string,
+  commandId?: string,
+) {
+  return useQuery({
+    queryKey: queryKeys.nodeDaemonCommand(
+      userId ?? "pending",
+      nodeId ?? "pending",
+      commandId ?? "pending",
+    ),
+    queryFn: () =>
+      getNodeDaemonCommand(
+        userId as string,
+        nodeId as string,
+        commandId as string,
+      ),
+    enabled: Boolean(userId && nodeId && commandId),
+    refetchInterval: (query) => {
+      const status = query.state.data?.command?.status;
+      return status && ["applied", "failed", "rejected"].includes(status)
+        ? false
+        : 1_000;
+    },
   });
 }
 

@@ -13,12 +13,15 @@ const {
   cancelTeamInvite,
   createEnvelope,
   createKnowledgeCapsule,
+  createNodeDaemonAgentConnection,
   createTeamInvite,
   deleteQueuedSessionTurn,
   deleteAgent,
   deleteNode,
   deleteNodeAgent,
   getAgent,
+  getNodeDaemonCommand,
+  getNodeDaemonStatus,
   getQueuedSessionTurn,
   injectKnowledgeCapsule,
   listAgents,
@@ -27,16 +30,22 @@ const {
   listEnvelopes,
   listFriends,
   listKnowledgeCapsules,
+  listNodeDaemonAgentConnections,
+  listNodeDaemonHarnesses,
   listTeamAuditEvents,
   listTeams,
   listUserSessions,
   queueSessionTurn,
+  removeNodeDaemonAgentConnection,
+  restartNodeDaemonAgentConnection,
   steerSessionTurn,
+  stopNodeDaemonAgentConnection,
   stopSessionTurn,
   toPaxdConnectPreview,
   updateAgentSession,
   updateQueuedSessionTurn,
   updateNodeAgentProfile,
+  updateNodeDaemonAgentConnection,
   updateNodeProfile,
   updateTeamMemberRole,
 } = await import("./resources");
@@ -239,6 +248,86 @@ describe("listAgentSessions", () => {
         },
         method: "DELETE",
       },
+    );
+  });
+});
+
+describe("node daemon control resources", () => {
+  it("reads daemon state through node-scoped query endpoints", async () => {
+    apiFetch.mockResolvedValue({ type: "test" });
+
+    await getNodeDaemonStatus("u1", "n1");
+    await listNodeDaemonHarnesses("u1", "n1");
+    await listNodeDaemonAgentConnections("u1", "n1");
+    await getNodeDaemonCommand("u1", "n1", "cmd_1");
+
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/user/u1/nodes/n1/daemon/status",
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/user/u1/nodes/n1/daemon/harnesses?include_missing=true",
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      3,
+      "/api/v1/user/u1/nodes/n1/daemon/agent-connections?include_disabled=true",
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      4,
+      "/api/v1/user/u1/nodes/n1/daemon/commands/cmd_1",
+    );
+  });
+
+  it("creates and mutates daemon connections with command ids", async () => {
+    apiFetch.mockResolvedValue({
+      command_id: "cmd_1",
+      dispatch_status: "acknowledged",
+    });
+
+    await createNodeDaemonAgentConnection("u1", "n1", {
+      agent_type: "codex",
+      harness: "codex",
+      name: "work",
+      working_dir: "/workspace",
+    });
+    await updateNodeDaemonAgentConnection("u1", "n1", "conn_1", {
+      name: "work-2",
+    });
+    await stopNodeDaemonAgentConnection("u1", "n1", "conn_1");
+    await restartNodeDaemonAgentConnection("u1", "n1", "conn_1");
+    await removeNodeDaemonAgentConnection("u1", "n1", "conn_1");
+
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/user/u1/nodes/n1/daemon/agent-connections",
+      {
+        body: expect.stringContaining('"command_id"'),
+        method: "POST",
+      },
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/user/u1/nodes/n1/daemon/agent-connections/conn_1",
+      {
+        body: expect.stringContaining('"name":"work-2"'),
+        method: "PATCH",
+      },
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      3,
+      "/api/v1/user/u1/nodes/n1/daemon/agent-connections/conn_1/stop",
+      { body: expect.stringContaining('"command_id"'), method: "POST" },
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      4,
+      "/api/v1/user/u1/nodes/n1/daemon/agent-connections/conn_1/restart",
+      { body: expect.stringContaining('"command_id"'), method: "POST" },
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      5,
+      "/api/v1/user/u1/nodes/n1/daemon/agent-connections/conn_1",
+      { body: expect.stringContaining('"command_id"'), method: "DELETE" },
     );
   });
 });
