@@ -7,10 +7,102 @@ import {
   isActiveAgent,
   isActiveNode,
   isActiveSession,
+  nodeDaemonRuntimeOutcome,
   paginateItems,
   resourceLastActiveAt,
   sessionUpdatedAt,
 } from "./resource-models";
+
+describe("paxd runtime reconciliation", () => {
+  const runningConnection = {
+    agent_type: "pi",
+    command: ["pi"],
+    desired_state: "running",
+    enabled: true,
+    generation: 2,
+    harness: "pi",
+    id: "conn_1",
+    instance_id: "default",
+    name: "Pi",
+    remote_id: "remote_1",
+    restart_nonce: 1,
+    status: {
+      connection_id: "conn_1",
+      observed_generation: 2,
+      observed_restart_nonce: 1,
+      phase: "running",
+    },
+  };
+
+  it("waits for the requested generation before reporting running", () => {
+    expect(
+      nodeDaemonRuntimeOutcome(
+        {
+          action: "update",
+          connectionId: "conn_1",
+          desiredGeneration: 3,
+        },
+        [runningConnection],
+      ),
+    ).toBeUndefined();
+
+    expect(
+      nodeDaemonRuntimeOutcome(
+        {
+          action: "update",
+          connectionId: "conn_1",
+          desiredGeneration: 2,
+        },
+        [runningConnection],
+      ),
+    ).toBe("running");
+  });
+
+  it("also waits for the requested restart nonce", () => {
+    expect(
+      nodeDaemonRuntimeOutcome(
+        {
+          action: "restart",
+          connectionId: "conn_1",
+          desiredGeneration: 2,
+          desiredRestartNonce: 2,
+        },
+        [runningConnection],
+      ),
+    ).toBeUndefined();
+  });
+
+  it("reports stop, removal, and terminal runtime failure", () => {
+    expect(
+      nodeDaemonRuntimeOutcome(
+        { action: "remove", connectionId: "conn_1" },
+        [],
+      ),
+    ).toBe("removed");
+    expect(
+      nodeDaemonRuntimeOutcome(
+        { action: "stop", connectionId: "conn_1", desiredGeneration: 2 },
+        [
+          {
+            ...runningConnection,
+            status: { ...runningConnection.status, phase: "stopped" },
+          },
+        ],
+      ),
+    ).toBe("stopped");
+    expect(
+      nodeDaemonRuntimeOutcome(
+        { action: "create", connectionId: "conn_1", desiredGeneration: 2 },
+        [
+          {
+            ...runningConnection,
+            status: { ...runningConnection.status, phase: "failed" },
+          },
+        ],
+      ),
+    ).toBe("failed");
+  });
+});
 
 describe("resource list models", () => {
   it("sorts resources by most recent activity timestamp", () => {

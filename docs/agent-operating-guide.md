@@ -173,10 +173,12 @@ Do not add `Content-Type: application/json` to GET requests. It can trigger unwa
 Keep resource hooks thin. Components should compose hooks rather than build URLs manually.
 
 The paxd control tunnel supports one outstanding query request/response per
-node. UI reads for daemon status, harnesses, connections, and command state
-must be sequenced; do not launch them with `Promise.all`. Commands are
-asynchronous: mutation responses acknowledge receipt, then the UI polls
-`daemon/commands/{command_id}` until `applied`, `failed`, or `rejected`.
+node. UI reads for daemon status, harnesses, and connections must be sequenced;
+do not launch them with `Promise.all`. Commands are
+asynchronous: mutation responses acknowledge receipt, then the UI polls the
+agent connection inventory until the requested generation, restart nonce, and
+runtime phase have converged. The command ACK is not the runtime completion
+signal.
 
 Collaboration and knowledge resources are normal user-scoped REST resources:
 

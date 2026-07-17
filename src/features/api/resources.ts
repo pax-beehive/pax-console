@@ -26,6 +26,7 @@ import {
   KnowledgeCapsule,
   MailboxMessage,
   Node,
+  NodeDaemonAgentConnection,
   NodeDaemonCommandData,
   NodeDaemonQueryResult,
   NodeRegistrationPreview,
@@ -1329,6 +1330,7 @@ export function useNodeDaemonAgentConnections(
   userId?: string,
   nodeId?: string,
   enabled = true,
+  pollWhile?: (connections: NodeDaemonAgentConnection[]) => boolean,
 ) {
   return useQuery({
     queryKey: queryKeys.nodeDaemonAgentConnections(
@@ -1338,6 +1340,13 @@ export function useNodeDaemonAgentConnections(
     queryFn: () =>
       listNodeDaemonAgentConnections(userId as string, nodeId as string),
     enabled: Boolean(userId && nodeId && enabled),
+    refetchInterval: (query) => {
+      if (query.state.error || query.state.data?.error) {
+        return false;
+      }
+      const connections = query.state.data?.agent_connections?.items ?? [];
+      return pollWhile?.(connections) ? 1_000 : false;
+    },
   });
 }
 

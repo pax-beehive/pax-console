@@ -1,4 +1,23 @@
-import { Agent, AgentSession, Node } from "@/features/api/types";
+import {
+  Agent,
+  AgentSession,
+  Node,
+  NodeDaemonAgentConnection,
+} from "@/features/api/types";
+
+export type NodeDaemonRuntimeTarget = {
+  action: "create" | "remove" | "restart" | "stop" | "update";
+  connectionId: string;
+  desiredGeneration?: number;
+  desiredRestartNonce?: number;
+  expectedPhase?: "running" | "stopped";
+};
+
+export type NodeDaemonRuntimeOutcome =
+  | "failed"
+  | "removed"
+  | "running"
+  | "stopped";
 
 export type SessionRow = AgentSession & {
   agentActive: boolean;
@@ -162,6 +181,43 @@ export function buildAgentRows(
       nodeLabel: node ? nodeLabel(node) : agent.node_id,
     };
   });
+}
+
+export function nodeDaemonRuntimeOutcome(
+  target: NodeDaemonRuntimeTarget,
+  connections: readonly NodeDaemonAgentConnection[],
+): NodeDaemonRuntimeOutcome | undefined {
+  const connection = connections.find(
+    (item) => item.id === target.connectionId,
+  );
+  if (target.action === "remove") {
+    return connection ? undefined : "removed";
+  }
+
+  const status = connection?.status;
+  if (!status) {
+    return undefined;
+  }
+  if (
+    target.desiredGeneration != null &&
+    status.observed_generation < target.desiredGeneration
+  ) {
+    return undefined;
+  }
+  if (
+    target.desiredRestartNonce != null &&
+    status.observed_restart_nonce < target.desiredRestartNonce
+  ) {
+    return undefined;
+  }
+  if (status.phase === "failed") {
+    return "failed";
+  }
+  if (target.action === "stop") {
+    return status.phase === "stopped" ? "stopped" : undefined;
+  }
+  const expectedPhase = target.expectedPhase ?? "running";
+  return status.phase === expectedPhase ? expectedPhase : undefined;
 }
 
 function isActiveResource(

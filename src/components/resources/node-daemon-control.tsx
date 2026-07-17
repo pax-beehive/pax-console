@@ -26,7 +26,6 @@ import {
   stopNodeDaemonAgentConnection,
   updateNodeDaemonAgentConnection,
   useNodeDaemonAgentConnections,
-  useNodeDaemonCommand,
   useNodeDaemonHarnesses,
   useNodeDaemonStatus,
 } from "@/features/api/resources";
@@ -36,6 +35,10 @@ import {
   NodeDaemonHarness,
 } from "@/features/api/types";
 import { compactId } from "@/lib/format";
+import {
+  nodeDaemonRuntimeOutcome,
+  NodeDaemonRuntimeTarget,
+} from "./resource-models";
 
 type NodeDaemonControlProps = {
   nodeId: string;
@@ -44,13 +47,20 @@ type NodeDaemonControlProps = {
 
 type ConnectionAction = "remove" | "restart" | "stop";
 
+type LastDaemonCommand = {
+  id: string;
+  runtime?: NodeDaemonRuntimeTarget;
+  status: string;
+};
+
 export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<NodeDaemonAgentConnection>();
   const [removeTarget, setRemoveTarget] = useState<NodeDaemonAgentConnection>();
-  const [lastCommandId, setLastCommandId] = useState<string>();
+  const [lastCommand, setLastCommand] = useState<LastDaemonCommand>();
   const [inventoryNodeId, setInventoryNodeId] = useState<string>();
+  const runtimeTarget = lastCommand?.runtime;
 
   // paxd intentionally permits only one query request/response at a time, so
   // initial reads are enabled in sequence instead of firing in parallel.
@@ -64,36 +74,56 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
     userId,
     nodeId,
     harnessesQuery.isSuccess,
+    runtimeTarget
+      ? (connections) => !nodeDaemonRuntimeOutcome(runtimeTarget, connections)
+      : undefined,
   );
-  const commandQuery = useNodeDaemonCommand(userId, nodeId, lastCommandId);
-  const commandStatus = commandQuery.data?.command?.status;
+  const connections = connectionsQuery.data?.agent_connections?.items ?? [];
+  const runtimeOutcome = runtimeTarget
+    ? nodeDaemonRuntimeOutcome(runtimeTarget, connections)
+    : undefined;
   const controlQueryBusy =
     statusQuery.isFetching ||
     harnessesQuery.isFetching ||
-    connectionsQuery.isFetching ||
-    commandQuery.isFetching;
-  const commandRunning = Boolean(
-    lastCommandId &&
-    !commandQuery.error &&
-    !commandQuery.data?.error &&
-    (!commandStatus ||
-      !["applied", "failed", "rejected"].includes(commandStatus)),
+    connectionsQuery.isFetching;
+  const runtimeReconciling = Boolean(
+    lastCommand?.runtime &&
+    !runtimeOutcome &&
+    !connectionsQuery.error &&
+    !connectionsQuery.data?.error,
   );
 
   useEffect(() => {
-    if (
-      !commandStatus ||
-      !["applied", "failed", "rejected"].includes(commandStatus)
-    ) {
+    if (!lastCommand?.id || !runtimeOutcome) {
       return;
     }
     void queryClient.invalidateQueries({
-      queryKey: queryKeys.nodeDaemonAgentConnections(userId, nodeId),
-    });
-    void queryClient.invalidateQueries({
       queryKey: queryKeys.agents(userId, nodeId),
     });
-  }, [commandStatus, nodeId, queryClient, userId]);
+  }, [lastCommand?.id, nodeId, queryClient, runtimeOutcome, userId]);
+
+  const recordCommand = (
+    data: NodeDaemonCommandData,
+    action: NodeDaemonRuntimeTarget["action"],
+    fallbackConnectionId?: string,
+    desiredRestartNonce?: number,
+    expectedPhase?: NodeDaemonRuntimeTarget["expectedPhase"],
+  ) => {
+    const connectionId = data.connection_id ?? fallbackConnectionId;
+    setLastCommand({
+      id: data.command_id,
+      runtime: connectionId
+        ? {
+            action,
+            connectionId,
+            desiredGeneration: data.desired_generation,
+            desiredRestartNonce,
+            expectedPhase,
+          }
+        : undefined,
+      status: data.command_status ?? "received",
+    });
+  };
 
   const create = useMutation({
     mutationFn: (input: {
@@ -105,7 +135,7 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
     }) => createNodeDaemonAgentConnection(userId, nodeId, input),
     onSuccess: (data) => {
       setCreateOpen(false);
-      setLastCommandId(data.command_id);
+      recordCommand(data, "create");
     },
   });
   const discover = useMutation({
@@ -132,9 +162,18 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
         name: input.name,
         working_dir: input.working_dir,
       }),
-    onSuccess: (data) => {
+    onSuccess: (data, input) => {
       setEditing(undefined);
-      setLastCommandId(data.command_id);
+      const connection = connections.find(
+        (item) => item.id === input.connectionId,
+      );
+      recordCommand(
+        data,
+        "update",
+        input.connectionId,
+        undefined,
+        connection?.desired_state === "stopped" ? "stopped" : "running",
+      );
     },
   });
   const action = useMutation({
@@ -145,22 +184,25 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
       connection: NodeDaemonAgentConnection;
       type: ConnectionAction;
     }) => runConnectionAction(type, userId, nodeId, connection.id),
-    onSuccess: (data) => {
+    onSuccess: (data, { connection, type }) => {
       setRemoveTarget(undefined);
-      setLastCommandId(data.command_id);
+      recordCommand(
+        data,
+        type,
+        connection.id,
+        type === "restart" ? connection.restart_nonce + 1 : undefined,
+      );
     },
   });
 
   const harnesses = harnessesQuery.data?.harnesses?.items ?? [];
-  const connections = connectionsQuery.data?.agent_connections?.items ?? [];
   const phase = statusQuery.data?.status?.phase;
   const queryError =
     statusQuery.error ?? harnessesQuery.error ?? connectionsQuery.error;
   const controlError =
     statusQuery.data?.error ??
     harnessesQuery.data?.error ??
-    connectionsQuery.data?.error ??
-    commandQuery.data?.error;
+    connectionsQuery.data?.error;
   const mutationError =
     create.error ?? discover.error ?? update.error ?? action.error;
 
@@ -168,6 +210,9 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
     await statusQuery.refetch();
     await harnessesQuery.refetch();
     await connectionsQuery.refetch();
+    await queryClient.invalidateQueries({
+      queryKey: queryKeys.agents(userId, nodeId),
+    });
   };
 
   return (
@@ -184,7 +229,7 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
         </div>
         <div className="flex shrink-0 gap-2">
           <Button
-            disabled={controlQueryBusy || commandRunning}
+            disabled={controlQueryBusy}
             icon={<RefreshCw className="h-4 w-4" />}
             onClick={() => void refresh()}
             size="icon"
@@ -193,7 +238,9 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
             variant="ghost"
           />
           <Button
-            disabled={discover.isPending || controlQueryBusy || commandRunning}
+            disabled={
+              discover.isPending || controlQueryBusy || runtimeReconciling
+            }
             icon={<ScanSearch className="h-4 w-4" />}
             onClick={() => discover.mutate()}
             size="sm"
@@ -205,7 +252,7 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
           <Button
             disabled={
               !harnesses.length ||
-              commandRunning ||
+              runtimeReconciling ||
               controlQueryBusy ||
               discover.isPending
             }
@@ -243,17 +290,17 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
         />
       )}
 
-      {lastCommandId && (
+      {lastCommand && (
         <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-md border border-hairline bg-canvas px-3 py-2">
           <span className="text-xs text-ink-tertiary">Last command</span>
-          <MonoId tooltip={lastCommandId}>{compactId(lastCommandId)}</MonoId>
-          <Badge tone={commandTone(commandStatus)}>
-            {commandStatus ?? "polling"}
+          <MonoId tooltip={lastCommand.id}>{compactId(lastCommand.id)}</MonoId>
+          <Badge tone={commandTone(lastCommand.status)}>
+            command {lastCommand.status}
           </Badge>
-          {commandQuery.data?.command?.error_message && (
-            <TruncatedText className="text-xs text-warning">
-              {commandQuery.data.command.error_message}
-            </TruncatedText>
+          {lastCommand.runtime && (
+            <Badge tone={runtimeTone(runtimeOutcome)}>
+              runtime {runtimeOutcome ?? "reconciling"}
+            </Badge>
           )}
         </div>
       )}
@@ -273,7 +320,7 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
             />
           ) : (
             <ConnectionRow
-              busy={action.isPending || commandRunning || controlQueryBusy}
+              busy={action.isPending || runtimeReconciling || controlQueryBusy}
               connection={connection}
               key={connection.id}
               onEdit={() => setEditing(connection)}
@@ -405,7 +452,13 @@ function ConnectionRow({
           <TruncatedText className="font-medium text-ink">
             {connection.name || connection.id}
           </TruncatedText>
-          <Badge tone={phase === "connected" ? "success" : "neutral"}>
+          <Badge
+            tone={
+              phase === "connected" || phase === "running"
+                ? "success"
+                : "neutral"
+            }
+          >
             {phase}
           </Badge>
         </div>
@@ -441,7 +494,7 @@ function ConnectionRow({
           variant="ghost"
         />
         <Button
-          disabled={busy}
+          disabled={busy || connection.desired_state === "stopped"}
           icon={<RotateCw className="h-4 w-4" />}
           onClick={onRestart}
           size="icon"
@@ -701,6 +754,14 @@ function commandTone(
   if (status === "applied") return "success";
   if (status === "failed" || status === "rejected") return "danger";
   return status === "received" ? "warning" : "neutral";
+}
+
+function runtimeTone(
+  outcome?: string,
+): "danger" | "neutral" | "success" | "warning" {
+  if (outcome === "failed") return "danger";
+  if (outcome) return "success";
+  return "warning";
 }
 
 function harnessTone(

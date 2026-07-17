@@ -426,8 +426,9 @@ GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/commands/{command_id}
 
 control tunnel 同一时刻只允许一组 query request/response，因此面板按
 status → harnesses → agent connections 串行加载。mutation 收到 ACK 后保存
-`command_id`，每秒查询 command，直到 `applied`、`failed` 或 `rejected`，再刷新
-connection 和 agent 列表。
+`command_id`，然后每秒查询 agent connections；generation、restart nonce 和
+runtime phase 收敛后停止轮询并刷新 agent 列表。command 的 `received` 只表示
+paxd 已接收请求，不作为运行完成状态。
 
 面板的 `Discover` 按钮以 `{ "probe": true }` 请求 paxd 重新探测本机 harness，
 并用 discover 结果更新 harness inventory 后刷新 connection 列表。
