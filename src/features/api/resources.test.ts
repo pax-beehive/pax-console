@@ -19,6 +19,7 @@ const {
   deleteAgent,
   deleteNode,
   deleteNodeAgent,
+  discoverNodeDaemonHarnesses,
   getAgent,
   getNodeDaemonCommand,
   getNodeDaemonStatus,
@@ -258,6 +259,10 @@ describe("node daemon control resources", () => {
 
     await getNodeDaemonStatus("u1", "n1");
     await listNodeDaemonHarnesses("u1", "n1");
+    await discoverNodeDaemonHarnesses("u1", "n1", {
+      names: ["codex"],
+      probe: true,
+    });
     await listNodeDaemonAgentConnections("u1", "n1");
     await getNodeDaemonCommand("u1", "n1", "cmd_1");
 
@@ -271,10 +276,18 @@ describe("node daemon control resources", () => {
     );
     expect(apiFetch).toHaveBeenNthCalledWith(
       3,
-      "/api/v1/user/u1/nodes/n1/daemon/agent-connections?include_disabled=true",
+      "/api/v1/user/u1/nodes/n1/daemon/harnesses/discover",
+      {
+        body: JSON.stringify({ names: ["codex"], probe: true }),
+        method: "POST",
+      },
     );
     expect(apiFetch).toHaveBeenNthCalledWith(
       4,
+      "/api/v1/user/u1/nodes/n1/daemon/agent-connections?include_disabled=true",
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      5,
       "/api/v1/user/u1/nodes/n1/daemon/commands/cmd_1",
     );
   });

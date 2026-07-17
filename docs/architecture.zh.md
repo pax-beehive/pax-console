@@ -414,6 +414,7 @@ GET /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}
 ```txt
 GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/status
 GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/harnesses
+POST   /api/v1/user/{user_id}/nodes/{node_id}/daemon/harnesses/discover
 GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections
 POST   /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections
 PATCH  /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections/{connection_id}
@@ -427,6 +428,9 @@ control tunnel 同一时刻只允许一组 query request/response，因此面板
 status → harnesses → agent connections 串行加载。mutation 收到 ACK 后保存
 `command_id`，每秒查询 command，直到 `applied`、`failed` 或 `rejected`，再刷新
 connection 和 agent 列表。
+
+面板的 `Discover` 按钮以 `{ "probe": true }` 请求 paxd 重新探测本机 harness，
+并用 discover 结果更新 harness inventory 后刷新 connection 列表。
 
 `/monitor` 已接：
 

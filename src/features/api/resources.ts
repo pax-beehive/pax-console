@@ -282,6 +282,20 @@ export function listNodeDaemonHarnesses(userId: string, nodeId: string) {
   );
 }
 
+export function discoverNodeDaemonHarnesses(
+  userId: string,
+  nodeId: string,
+  input: { names?: string[]; probe?: boolean } = { probe: true },
+) {
+  return apiFetch<NodeDaemonQueryResult>(
+    userPath(userId, `/nodes/${nodeId}/daemon/harnesses/discover`),
+    {
+      body: JSON.stringify(input),
+      method: "POST",
+    },
+  );
+}
+
 export function listNodeDaemonAgentConnections(userId: string, nodeId: string) {
   return apiFetch<NodeDaemonQueryResult>(
     userPath(

@@ -372,6 +372,7 @@ GET  /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}
 Node daemon control
 GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/status
 GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/harnesses
+POST   /api/v1/user/{user_id}/nodes/{node_id}/daemon/harnesses/discover
 GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections
 POST   /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections
 PATCH  /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections/{connection_id}
@@ -415,7 +416,7 @@ Implemented
 - Session workbench stop button through POST /turn/stop while a turn is running.
 - ACP frames from conversation envelopes are normalized through the existing tunnel-frame mapper.
 - Node detail through GET /nodes/{node_id}.
-- Node detail paxd control for create/edit/stop/restart/remove, with command polling.
+- Node detail paxd control for harness discovery and create/edit/stop/restart/remove, with command polling.
 - Agent detail through GET /nodes/{node_id}/agents/{agent_id}.
 - Node registration token creation.
 - Health status on Monitor through GET /health.

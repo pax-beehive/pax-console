@@ -8,6 +8,7 @@ import {
   RefreshCw,
   RotateCw,
   Save,
+  ScanSearch,
   Square,
   Trash2,
   X,
@@ -19,6 +20,7 @@ import { MonoId, TruncatedText } from "@/components/ui/text";
 import { queryKeys } from "@/features/api/query-keys";
 import {
   createNodeDaemonAgentConnection,
+  discoverNodeDaemonHarnesses,
   removeNodeDaemonAgentConnection,
   restartNodeDaemonAgentConnection,
   stopNodeDaemonAgentConnection,
@@ -63,6 +65,11 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
   );
   const commandQuery = useNodeDaemonCommand(userId, nodeId, lastCommandId);
   const commandStatus = commandQuery.data?.command?.status;
+  const controlQueryBusy =
+    statusQuery.isFetching ||
+    harnessesQuery.isFetching ||
+    connectionsQuery.isFetching ||
+    commandQuery.isFetching;
   const commandRunning = Boolean(
     lastCommandId &&
     !commandQuery.error &&
@@ -97,6 +104,17 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
     onSuccess: (data) => {
       setCreateOpen(false);
       setLastCommandId(data.command_id);
+    },
+  });
+  const discover = useMutation({
+    mutationFn: () =>
+      discoverNodeDaemonHarnesses(userId, nodeId, { probe: true }),
+    onSuccess: async (data) => {
+      queryClient.setQueryData(
+        queryKeys.nodeDaemonHarnesses(userId, nodeId),
+        data,
+      );
+      await connectionsQuery.refetch();
     },
   });
   const update = useMutation({
@@ -140,7 +158,8 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
     harnessesQuery.data?.error ??
     connectionsQuery.data?.error ??
     commandQuery.data?.error;
-  const mutationError = create.error ?? update.error ?? action.error;
+  const mutationError =
+    create.error ?? discover.error ?? update.error ?? action.error;
 
   const refresh = async () => {
     await statusQuery.refetch();
@@ -162,7 +181,7 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
         </div>
         <div className="flex shrink-0 gap-2">
           <Button
-            disabled={statusQuery.isFetching || commandRunning}
+            disabled={controlQueryBusy || commandRunning}
             icon={<RefreshCw className="h-4 w-4" />}
             onClick={() => void refresh()}
             size="icon"
@@ -171,7 +190,22 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
             variant="ghost"
           />
           <Button
-            disabled={!harnesses.length || commandRunning}
+            disabled={discover.isPending || controlQueryBusy || commandRunning}
+            icon={<ScanSearch className="h-4 w-4" />}
+            onClick={() => discover.mutate()}
+            size="sm"
+            tooltip="Probe this node for installed agent harnesses"
+            type="button"
+          >
+            {discover.isPending ? "Discovering..." : "Discover"}
+          </Button>
+          <Button
+            disabled={
+              !harnesses.length ||
+              commandRunning ||
+              controlQueryBusy ||
+              discover.isPending
+            }
             icon={<Plus className="h-4 w-4" />}
             onClick={() => setCreateOpen((open) => !open)}
             size="sm"
@@ -199,7 +233,7 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
 
       {createOpen && (
         <CreateConnectionForm
-          disabled={create.isPending}
+          disabled={create.isPending || controlQueryBusy}
           harnesses={harnesses}
           onCancel={() => setCreateOpen(false)}
           onSubmit={(input) => create.mutate(input)}
@@ -236,7 +270,7 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
             />
           ) : (
             <ConnectionRow
-              busy={action.isPending || commandRunning}
+              busy={action.isPending || commandRunning || controlQueryBusy}
               connection={connection}
               key={connection.id}
               onEdit={() => setEditing(connection)}

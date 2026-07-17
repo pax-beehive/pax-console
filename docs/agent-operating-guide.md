@@ -505,6 +505,7 @@ Node and agent details
 Node daemon control
   GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/status
   GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/harnesses
+  POST   /api/v1/user/{user_id}/nodes/{node_id}/daemon/harnesses/discover
   GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections
   POST   /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections
   PATCH  /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections/{connection_id}
