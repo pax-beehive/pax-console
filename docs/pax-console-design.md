@@ -416,7 +416,7 @@ Implemented
 - Session workbench stop button through POST /turn/stop while a turn is running.
 - ACP frames from conversation envelopes are normalized through the existing tunnel-frame mapper.
 - Node detail through GET /nodes/{node_id}.
-- Node detail paxd control for harness discovery and create/edit/stop/restart/remove, with runtime reconciliation polling.
+- Node detail paxd control for harness discovery and create/edit/stop/restart/remove, desired slot count, and runtime reconciliation polling.
 - Agent detail through GET /nodes/{node_id}/agents/{agent_id}.
 - Node registration token creation.
 - Health status on Monitor through GET /health.

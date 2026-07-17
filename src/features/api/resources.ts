@@ -246,6 +246,7 @@ export type UpdateAgentProfileInput = {
 export type CreateNodeDaemonAgentConnectionInput = {
   agent_type: string;
   command?: string[];
+  desired_slots?: number;
   harness: string;
   instance_id?: string;
   name: string;
@@ -254,6 +255,7 @@ export type CreateNodeDaemonAgentConnectionInput = {
 
 export type UpdateNodeDaemonAgentConnectionInput = {
   command?: string[];
+  desired_slots?: number;
   harness?: string;
   name?: string;
   working_dir?: string;
@@ -314,7 +316,11 @@ export function createNodeDaemonAgentConnection(
   return apiFetch<CreatedNodeDaemonAgentConnection>(
     userPath(userId, `/nodes/${nodeId}/daemon/agent-connections`),
     {
-      body: JSON.stringify({ command_id: createIdempotencyKey(), ...input }),
+      body: JSON.stringify({
+        command_id: createIdempotencyKey(),
+        desired_slots: 2,
+        ...input,
+      }),
       method: "POST",
     },
   );

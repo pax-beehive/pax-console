@@ -128,6 +128,7 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
   const create = useMutation({
     mutationFn: (input: {
       agent_type: string;
+      desired_slots: number;
       harness: string;
       instance_id?: string;
       name: string;
@@ -153,6 +154,7 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
   const update = useMutation({
     mutationFn: (input: {
       connectionId: string;
+      desired_slots: number;
       harness: string;
       name: string;
       working_dir?: string;
@@ -161,8 +163,9 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
         harness: input.harness,
         name: input.name,
         working_dir: input.working_dir,
+        desired_slots: input.desired_slots,
       }),
-    onSuccess: (data, input) => {
+    onSuccess: async (data, input) => {
       setEditing(undefined);
       const connection = connections.find(
         (item) => item.id === input.connectionId,
@@ -174,6 +177,7 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
         undefined,
         connection?.desired_state === "stopped" ? "stopped" : "running",
       );
+      await connectionsQuery.refetch();
     },
   });
   const action = useMutation({
@@ -468,7 +472,8 @@ function ConnectionRow({
       </div>
       <div className="min-w-0">
         <div className="text-xs text-ink-muted">
-          {connection.harness} · generation {connection.generation}
+          {connection.harness} · generation {connection.generation} ·{" "}
+          {connection.desired_acp_slots} desired slots
         </div>
         <MonoId className="mt-1" tooltip={connection.id}>
           {compactId(connection.id)}
@@ -527,6 +532,7 @@ function CreateConnectionForm({
   onCancel: () => void;
   onSubmit: (input: {
     agent_type: string;
+    desired_slots: number;
     harness: string;
     instance_id?: string;
     name: string;
@@ -540,10 +546,12 @@ function CreateConnectionForm({
   const [agentType, setAgentType] = useState(firstHarness);
   const [instanceId, setInstanceId] = useState("");
   const [workingDir, setWorkingDir] = useState("");
+  const [desiredSlots, setDesiredSlots] = useState(2);
+  const desiredSlotsValid = validDesiredSlots(desiredSlots);
 
   return (
     <div className="grid gap-3 rounded-md border border-hairline bg-canvas p-3">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <Field
           label="Name"
           onChange={setName}
@@ -570,6 +578,13 @@ function CreateConnectionForm({
           placeholder="work"
           value={instanceId}
         />
+        <NumberField
+          label="Slots"
+          max={16}
+          min={1}
+          onChange={setDesiredSlots}
+          value={desiredSlots}
+        />
       </div>
       <Field
         label="Working directory (optional)"
@@ -587,11 +602,18 @@ function CreateConnectionForm({
           Cancel
         </Button>
         <Button
-          disabled={disabled || !name.trim() || !harness || !agentType.trim()}
+          disabled={
+            disabled ||
+            !name.trim() ||
+            !harness ||
+            !agentType.trim() ||
+            !desiredSlotsValid
+          }
           icon={<Plus className="h-4 w-4" />}
           onClick={() =>
             onSubmit({
               agent_type: agentType.trim(),
+              desired_slots: desiredSlots,
               harness,
               instance_id: instanceId.trim() || undefined,
               name: name.trim(),
@@ -620,6 +642,7 @@ function EditConnectionForm({
   harnesses: { display_name?: string; harness: string; state: string }[];
   onCancel: () => void;
   onSubmit: (input: {
+    desired_slots: number;
     harness: string;
     name: string;
     working_dir?: string;
@@ -628,9 +651,13 @@ function EditConnectionForm({
   const [name, setName] = useState(connection.name);
   const [harness, setHarness] = useState(connection.harness);
   const [workingDir, setWorkingDir] = useState(connection.working_dir ?? "");
+  const [desiredSlots, setDesiredSlots] = useState(
+    connection.desired_acp_slots,
+  );
+  const desiredSlotsValid = validDesiredSlots(desiredSlots);
   return (
     <div className="grid gap-3 border-b border-hairline bg-canvas p-3 last:border-b-0">
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <Field
           label="Name"
           onChange={setName}
@@ -648,6 +675,13 @@ function EditConnectionForm({
           placeholder="/workspace/project"
           value={workingDir}
         />
+        <NumberField
+          label="Slots"
+          max={16}
+          min={1}
+          onChange={setDesiredSlots}
+          value={desiredSlots}
+        />
       </div>
       <div className="flex justify-end gap-2">
         <Button
@@ -659,10 +693,11 @@ function EditConnectionForm({
           Cancel
         </Button>
         <Button
-          disabled={disabled || !name.trim() || !harness}
+          disabled={disabled || !name.trim() || !harness || !desiredSlotsValid}
           icon={<Save className="h-4 w-4" />}
           onClick={() =>
             onSubmit({
+              desired_slots: desiredSlots,
               harness,
               name: name.trim(),
               working_dir: workingDir.trim() || undefined,
@@ -700,6 +735,39 @@ function Field({
       />
     </label>
   );
+}
+
+function NumberField({
+  label,
+  max,
+  min,
+  onChange,
+  value,
+}: {
+  label: string;
+  max: number;
+  min: number;
+  onChange: (value: number) => void;
+  value: number;
+}) {
+  return (
+    <label className="grid min-w-0 gap-1 text-xs text-ink-tertiary">
+      {label}
+      <input
+        className="min-h-9 min-w-0 rounded-lg border border-hairline bg-surface-1 px-3 text-sm text-ink outline-none focus:border-hairline-strong"
+        max={max}
+        min={min}
+        onChange={(event) => onChange(Number(event.target.value))}
+        step={1}
+        type="number"
+        value={value}
+      />
+    </label>
+  );
+}
+
+function validDesiredSlots(value: number) {
+  return Number.isInteger(value) && value >= 1 && value <= 16;
 }
 
 function SelectHarness({

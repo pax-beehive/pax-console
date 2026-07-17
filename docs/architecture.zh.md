@@ -430,6 +430,9 @@ status → harnesses → agent connections 串行加载。mutation 收到 ACK �
 runtime phase 收敛后停止轮询并刷新 agent 列表。command 的 `received` 只表示
 paxd 已接收请求，不作为运行完成状态。
 
+agent connection 创建和编辑支持 `desired_slots`（范围 1–16），新建默认值为
+`2`；connection 列表展示的是期望 slot 数，不代表当前已 running 的 slot 数。
+
 面板的 `Discover` 按钮以 `{ "probe": true }` 请求 paxd 重新探测本机 harness，
 并用 discover 结果更新 harness inventory 后刷新 connection 列表。
 

@@ -98,6 +98,7 @@ export type NodeDaemonAgentConnection = {
   agent_type: string;
   cloud_agent_id?: string;
   command: string[];
+  desired_acp_slots: number;
   desired_state: string;
   enabled: boolean;
   generation: number;

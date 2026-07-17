@@ -17,6 +17,7 @@ describe("paxd runtime reconciliation", () => {
   const runningConnection = {
     agent_type: "pi",
     command: ["pi"],
+    desired_acp_slots: 2,
     desired_state: "running",
     enabled: true,
     generation: 2,

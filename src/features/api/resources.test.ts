@@ -305,6 +305,7 @@ describe("node daemon control resources", () => {
       working_dir: "/workspace",
     });
     await updateNodeDaemonAgentConnection("u1", "n1", "conn_1", {
+      desired_slots: 4,
       name: "work-2",
     });
     await stopNodeDaemonAgentConnection("u1", "n1", "conn_1");
@@ -315,7 +316,7 @@ describe("node daemon control resources", () => {
       1,
       "/api/v1/user/u1/nodes/n1/daemon/agent-connections",
       {
-        body: expect.stringContaining('"command_id"'),
+        body: expect.stringContaining('"desired_slots":2'),
         method: "POST",
       },
     );
@@ -323,7 +324,7 @@ describe("node daemon control resources", () => {
       2,
       "/api/v1/user/u1/nodes/n1/daemon/agent-connections/conn_1",
       {
-        body: expect.stringContaining('"name":"work-2"'),
+        body: expect.stringContaining('"desired_slots":4'),
         method: "PATCH",
       },
     );
