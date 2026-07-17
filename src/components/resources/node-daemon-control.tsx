@@ -33,6 +33,7 @@ import {
 import {
   NodeDaemonAgentConnection,
   NodeDaemonCommandData,
+  NodeDaemonHarness,
 } from "@/features/api/types";
 import { compactId } from "@/lib/format";
 
@@ -231,6 +232,11 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
         </div>
       )}
 
+      <HarnessInventory
+        harnesses={harnesses}
+        loading={harnessesQuery.isLoading}
+      />
+
       {createOpen && (
         <CreateConnectionForm
           disabled={create.isPending || controlQueryBusy}
@@ -316,6 +322,75 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
         title="Remove daemon connection?"
       />
     </section>
+  );
+}
+
+function HarnessInventory({
+  harnesses,
+  loading,
+}: {
+  harnesses: NodeDaemonHarness[];
+  loading: boolean;
+}) {
+  const available = harnesses.filter(
+    (item) => item.state === "available",
+  ).length;
+
+  return (
+    <div className="grid min-w-0 gap-2">
+      <div className="flex min-w-0 items-center justify-between gap-3">
+        <h3 className="text-sm font-medium text-ink">Harness inventory</h3>
+        <span className="text-xs text-ink-tertiary">
+          {available}/{harnesses.length} available
+        </span>
+      </div>
+      <div className="grid min-w-0 overflow-hidden rounded-md border border-hairline">
+        {harnesses.map((harness) => {
+          const detail = harness.last_error || harness.install_hint;
+          const provenance = [harness.version, harness.source]
+            .filter(Boolean)
+            .join(" · ");
+          return (
+            <div
+              className="grid min-w-0 gap-2 border-b border-hairline bg-canvas px-3 py-2.5 last:border-b-0 md:grid-cols-[180px_minmax(0,1fr)_180px]"
+              key={harness.harness}
+            >
+              <div className="flex min-w-0 items-center gap-2">
+                <TruncatedText className="font-medium text-ink">
+                  {harness.display_name ?? harness.harness}
+                </TruncatedText>
+                <Badge tone={harnessTone(harness.state)}>{harness.state}</Badge>
+              </div>
+              <div className="min-w-0">
+                <TruncatedText className="font-mono text-xs text-ink-muted">
+                  {harness.command?.join(" ") || "No command detected"}
+                </TruncatedText>
+                {detail && (
+                  <TruncatedText
+                    className={`mt-1 text-xs ${harness.last_error ? "text-warning" : "text-ink-tertiary"}`}
+                  >
+                    {detail}
+                  </TruncatedText>
+                )}
+              </div>
+              <TruncatedText className="text-xs text-ink-tertiary md:text-right">
+                {provenance || harness.harness}
+              </TruncatedText>
+            </div>
+          );
+        })}
+        {!loading && harnesses.length === 0 && (
+          <div className="bg-canvas px-3 py-4 text-center text-sm text-ink-tertiary">
+            No harness inventory. Run Discover to probe this node.
+          </div>
+        )}
+        {loading && (
+          <div className="bg-canvas px-3 py-4 text-center text-sm text-ink-tertiary">
+            Loading harness inventory…
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -638,4 +713,12 @@ function commandTone(
   if (status === "applied") return "success";
   if (status === "failed" || status === "rejected") return "danger";
   return status === "received" ? "warning" : "neutral";
+}
+
+function harnessTone(
+  state: string,
+): "danger" | "neutral" | "success" | "warning" {
+  if (state === "available") return "success";
+  if (state === "missing" || state === "error") return "danger";
+  return state === "discovering" ? "warning" : "neutral";
 }
