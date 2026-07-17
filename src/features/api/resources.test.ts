@@ -39,6 +39,7 @@ const {
   queueSessionTurn,
   removeNodeDaemonAgentConnection,
   restartNodeDaemonAgentConnection,
+  startNodeDaemonAgentConnection,
   steerSessionTurn,
   stopNodeDaemonAgentConnection,
   stopSessionTurn,
@@ -308,6 +309,7 @@ describe("node daemon control resources", () => {
       desired_slots: 4,
       name: "work-2",
     });
+    await startNodeDaemonAgentConnection("u1", "n1", "conn_1");
     await stopNodeDaemonAgentConnection("u1", "n1", "conn_1");
     await restartNodeDaemonAgentConnection("u1", "n1", "conn_1");
     await removeNodeDaemonAgentConnection("u1", "n1", "conn_1");
@@ -330,16 +332,24 @@ describe("node daemon control resources", () => {
     );
     expect(apiFetch).toHaveBeenNthCalledWith(
       3,
+      "/api/v1/user/u1/nodes/n1/daemon/agent-connections/conn_1",
+      {
+        body: expect.stringContaining('"desired_state":"running"'),
+        method: "PATCH",
+      },
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      4,
       "/api/v1/user/u1/nodes/n1/daemon/agent-connections/conn_1/stop",
       { body: expect.stringContaining('"command_id"'), method: "POST" },
     );
     expect(apiFetch).toHaveBeenNthCalledWith(
-      4,
+      5,
       "/api/v1/user/u1/nodes/n1/daemon/agent-connections/conn_1/restart",
       { body: expect.stringContaining('"command_id"'), method: "POST" },
     );
     expect(apiFetch).toHaveBeenNthCalledWith(
-      5,
+      6,
       "/api/v1/user/u1/nodes/n1/daemon/agent-connections/conn_1",
       { body: expect.stringContaining('"command_id"'), method: "DELETE" },
     );

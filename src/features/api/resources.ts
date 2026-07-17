@@ -256,6 +256,7 @@ export type CreateNodeDaemonAgentConnectionInput = {
 export type UpdateNodeDaemonAgentConnectionInput = {
   command?: string[];
   desired_slots?: number;
+  desired_state?: "running" | "stopped";
   harness?: string;
   name?: string;
   working_dir?: string;
@@ -355,6 +356,16 @@ export function stopNodeDaemonAgentConnection(
     connectionId,
     "stop",
   );
+}
+
+export function startNodeDaemonAgentConnection(
+  userId: string,
+  nodeId: string,
+  connectionId: string,
+) {
+  return updateNodeDaemonAgentConnection(userId, nodeId, connectionId, {
+    desired_state: "running",
+  });
 }
 
 export function restartNodeDaemonAgentConnection(

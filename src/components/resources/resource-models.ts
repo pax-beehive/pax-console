@@ -6,7 +6,7 @@ import {
 } from "@/features/api/types";
 
 export type NodeDaemonRuntimeTarget = {
-  action: "create" | "remove" | "restart" | "stop" | "update";
+  action: "create" | "remove" | "restart" | "start" | "stop" | "update";
   connectionId: string;
   desiredGeneration?: number;
   desiredRestartNonce?: number;

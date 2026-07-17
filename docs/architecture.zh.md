@@ -432,6 +432,8 @@ paxd 已接收请求，不作为运行完成状态。
 
 agent connection 创建和编辑支持 `desired_slots`（范围 1–16），新建默认值为
 `2`；connection 列表展示的是期望 slot 数，不代表当前已 running 的 slot 数。
+停止后的 connection 显示 Start 按钮，通过 PATCH `desired_state: "running"`
+重新启用，并等待新的 generation 收敛到 running。
 
 面板的 `Discover` 按钮以 `{ "probe": true }` 请求 paxd 重新探测本机 harness，
 并用 discover 结果更新 harness inventory 后刷新 connection 列表。

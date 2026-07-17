@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Pencil,
+  Play,
   Plus,
   RefreshCw,
   RotateCw,
@@ -23,6 +24,7 @@ import {
   discoverNodeDaemonHarnesses,
   removeNodeDaemonAgentConnection,
   restartNodeDaemonAgentConnection,
+  startNodeDaemonAgentConnection,
   stopNodeDaemonAgentConnection,
   updateNodeDaemonAgentConnection,
   useNodeDaemonAgentConnections,
@@ -45,7 +47,7 @@ type NodeDaemonControlProps = {
   userId: string;
 };
 
-type ConnectionAction = "remove" | "restart" | "stop";
+type ConnectionAction = "remove" | "restart" | "start" | "stop";
 
 type LastDaemonCommand = {
   id: string;
@@ -330,6 +332,7 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
               onEdit={() => setEditing(connection)}
               onRemove={() => setRemoveTarget(connection)}
               onRestart={() => action.mutate({ connection, type: "restart" })}
+              onStart={() => action.mutate({ connection, type: "start" })}
               onStop={() => action.mutate({ connection, type: "stop" })}
             />
           ),
@@ -439,6 +442,7 @@ function ConnectionRow({
   onEdit,
   onRemove,
   onRestart,
+  onStart,
   onStop,
 }: {
   busy: boolean;
@@ -446,6 +450,7 @@ function ConnectionRow({
   onEdit: () => void;
   onRemove: () => void;
   onRestart: () => void;
+  onStart: () => void;
   onStop: () => void;
 }) {
   const phase = connection.status?.phase ?? connection.desired_state;
@@ -489,15 +494,27 @@ function ConnectionRow({
           type="button"
           variant="ghost"
         />
-        <Button
-          disabled={busy || connection.desired_state === "stopped"}
-          icon={<Square className="h-4 w-4" />}
-          onClick={onStop}
-          size="icon"
-          tooltip="Stop connection"
-          type="button"
-          variant="ghost"
-        />
+        {connection.desired_state === "stopped" ? (
+          <Button
+            disabled={busy}
+            icon={<Play className="h-4 w-4" />}
+            onClick={onStart}
+            size="icon"
+            tooltip="Start connection"
+            type="button"
+            variant="ghost"
+          />
+        ) : (
+          <Button
+            disabled={busy}
+            icon={<Square className="h-4 w-4" />}
+            onClick={onStop}
+            size="icon"
+            tooltip="Stop connection"
+            type="button"
+            variant="ghost"
+          />
+        )}
         <Button
           disabled={busy || connection.desired_state === "stopped"}
           icon={<RotateCw className="h-4 w-4" />}
@@ -812,6 +829,9 @@ function runConnectionAction(
   }
   if (action === "restart") {
     return restartNodeDaemonAgentConnection(userId, nodeId, connectionId);
+  }
+  if (action === "start") {
+    return startNodeDaemonAgentConnection(userId, nodeId, connectionId);
   }
   return removeNodeDaemonAgentConnection(userId, nodeId, connectionId);
 }

@@ -93,6 +93,12 @@ describe("paxd runtime reconciliation", () => {
     ).toBe("stopped");
     expect(
       nodeDaemonRuntimeOutcome(
+        { action: "start", connectionId: "conn_1", desiredGeneration: 2 },
+        [runningConnection],
+      ),
+    ).toBe("running");
+    expect(
+      nodeDaemonRuntimeOutcome(
         { action: "create", connectionId: "conn_1", desiredGeneration: 2 },
         [
           {
