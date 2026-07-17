@@ -21,13 +21,11 @@ import { MonoId, TruncatedText } from "@/components/ui/text";
 import {
   deleteAgent,
   deleteNode,
-  deleteNodeAgent,
   updateNodeAgentProfile,
   updateNodeProfile,
   useAgent,
   useAgentSessions,
   useNode,
-  useNodeAgents,
   useNodes,
 } from "@/features/api/resources";
 import { queryKeys } from "@/features/api/query-keys";
@@ -54,13 +52,10 @@ export function NodeDetailPageClient({
   const queryClient = useQueryClient();
   const router = useRouter();
   const [nodeDeleteOpen, setNodeDeleteOpen] = useState(false);
-  const [agentToDelete, setAgentToDelete] = useState<Agent | null>(null);
   const nodesQuery = useNodes(user.user_id);
   const nodeQuery = useNode(user.user_id, nodeId);
-  const agentsQuery = useNodeAgents(user.user_id, nodeId);
   const nodes = nodesQuery.data?.nodes ?? [];
   const node = nodeQuery.data;
-  const agents = agentsQuery.data?.agents ?? [];
   const removeNode = useMutation({
     mutationFn: () => deleteNode(user.user_id, nodeId),
     onSuccess: () => {
@@ -71,22 +66,11 @@ export function NodeDetailPageClient({
       router.push("/nodes");
     },
   });
-  const removeNodeAgent = useMutation({
-    mutationFn: (agent: Agent) =>
-      deleteNodeAgent(user.user_id, nodeId, agent.agent_id),
-    onSuccess: () => {
-      setAgentToDelete(null);
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.user(user.user_id),
-      });
-    },
-  });
-
   return (
     <ConsoleLayout activeNode={node} nodes={nodes} user={user}>
       <DetailShell
         backHref="/nodes"
-        error={nodeQuery.error ?? agentsQuery.error}
+        error={nodeQuery.error}
         eyebrow="node detail"
         icon={<Server className="h-4 w-4" />}
         title={node?.name ?? node?.hostname ?? nodeId}
@@ -113,87 +97,6 @@ export function NodeDetailPageClient({
         </div>
 
         <NodeDaemonControl nodeId={nodeId} userId={user.user_id} />
-
-        <section className="grid gap-3">
-          <SectionHeader count={agents.length} title="Agents on this node" />
-          {removeNodeAgent.error && (
-            <Notice
-              message={`${removeNodeAgent.error.name}: ${removeNodeAgent.error.message}`}
-            />
-          )}
-          <div className="grid min-w-0 overflow-hidden rounded-lg border border-hairline">
-            {agents.map((agent) => (
-              <article
-                className="grid min-w-0 gap-3 border-b border-hairline bg-surface-1 px-3 py-2.5 transition last:border-b-0 hover:bg-surface-2 sm:grid-cols-[minmax(0,1fr)_180px_120px_40px]"
-                key={agent.agent_id}
-              >
-                <Link
-                  className="contents"
-                  href={`/agents/${agent.agent_id}?nodeId=${nodeId}`}
-                >
-                  <div className="min-w-0">
-                    <TruncatedText className="text-base font-medium">
-                      {agent.name ?? agent.agent_type ?? agent.agent_id}
-                    </TruncatedText>
-                    {agent.description && (
-                      <TruncatedText className="mt-1 text-sm text-ink-muted">
-                        {agent.description}
-                      </TruncatedText>
-                    )}
-                  </div>
-                  <MonoId tooltip={agent.agent_id}>
-                    {compactId(agent.agent_id)}
-                  </MonoId>
-                  <div className="flex items-start sm:justify-end">
-                    <Badge>{agent.status ?? "unknown"}</Badge>
-                  </div>
-                </Link>
-                <div className="flex items-start justify-end">
-                  <ConfirmDialog
-                    confirmLabel={
-                      removeNodeAgent.isPending ? "Deleting..." : "Delete agent"
-                    }
-                    description={
-                      <>
-                        This removes{" "}
-                        <span className="font-medium text-ink">
-                          {agentToDelete?.name ??
-                            agentToDelete?.agent_type ??
-                            agentToDelete?.agent_id}
-                        </span>{" "}
-                        from this node. Other agents on the node are not
-                        affected.
-                      </>
-                    }
-                    disabled={removeNodeAgent.isPending}
-                    onConfirm={() => {
-                      if (agentToDelete) {
-                        removeNodeAgent.mutate(agentToDelete);
-                      }
-                    }}
-                    onOpenChange={(open) => {
-                      if (!open) {
-                        setAgentToDelete(null);
-                      }
-                    }}
-                    open={agentToDelete?.agent_id === agent.agent_id}
-                    title="Delete agent?"
-                  >
-                    <Button
-                      disabled={removeNodeAgent.isPending}
-                      icon={<Trash2 className="h-4 w-4" />}
-                      onClick={() => setAgentToDelete(agent)}
-                      size="icon"
-                      tooltip="Delete hosted agent"
-                      type="button"
-                      variant="danger"
-                    />
-                  </ConfirmDialog>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
 
         <CleanupActionCard
           actionLabel={removeNode.isPending ? "Deleting..." : "Delete node"}
