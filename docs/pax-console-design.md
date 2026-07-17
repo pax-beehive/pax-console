@@ -207,14 +207,14 @@ Initial token shape:
 ```txt
 PAX Console
 +-- Home
-|   +-- sessions tab with globally sorted sessions and agent filter
+|   +-- sessions tab with globally sorted sessions plus agent and node filters
 |   +-- embedded session workbench for selected or newly started sessions
 |   +-- action inbox queue
 |   +-- selected inquiry / draft preview
 |   +-- inquiry actions for generate draft, summarize draft, comment, and send
 |   +-- detach inquiry context to return the composer to a clean session
 |   +-- archive inquiry to ignore it and remove it from the queue
-|   +-- composer with context attachment, agent select, and tool approval preference
+|   +-- composer with context attachment, agent select (`agent @ node` for duplicate names), and tool approval preference
 +-- Runtime
 |   +-- Nodes
 |   |   +-- node list

@@ -488,6 +488,8 @@ PAX Manager exposes Home sessions through
 comma-separated `node_id` and `agent_id` filters. Home uses this flat paginated
 list instead of scanning every node/agent session collection. The initial page
 loads 20 sessions and the left rail fetches the next page as the user scrolls.
+The Sessions rail exposes separate agent and node filters. In the new-session
+target selector, duplicate agent names are qualified as `agent @ node`.
 Clicking a session opens the embedded `SessionWorkbench` in Home; the
 `/sessions/*` routes redirect back to Home query URLs.
 On mobile widths, Home defaults to the clean composer. The Sessions/Inbox rail
