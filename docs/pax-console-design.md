@@ -369,6 +369,17 @@ GET  /api/v1/user/{user_id}/nodes/{node_id}/agents
 POST /api/v1/user/{user_id}/nodes/{node_id}/agents
 GET  /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}
 
+Node daemon control
+GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/status
+GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/harnesses
+GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections
+POST   /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections
+PATCH  /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections/{connection_id}
+POST   /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections/{connection_id}/stop
+POST   /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections/{connection_id}/restart
+DELETE /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections/{connection_id}
+GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/commands/{command_id}
+
 Sessions
 GET  /api/v1/user/{user_id}/sessions?page_size=20&page_num=1
 GET  /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions
@@ -404,6 +415,7 @@ Implemented
 - Session workbench stop button through POST /turn/stop while a turn is running.
 - ACP frames from conversation envelopes are normalized through the existing tunnel-frame mapper.
 - Node detail through GET /nodes/{node_id}.
+- Node detail paxd control for create/edit/stop/restart/remove, with command polling.
 - Agent detail through GET /nodes/{node_id}/agents/{agent_id}.
 - Node registration token creation.
 - Health status on Monitor through GET /health.

@@ -409,6 +409,25 @@ GET /api/v1/user/{user_id}/nodes/{node_id}
 GET /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}
 ```
 
+`/nodes/[id]` 也提供 paxd agent control 验证面板，接入：
+
+```txt
+GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/status
+GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/harnesses
+GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections
+POST   /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections
+PATCH  /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections/{connection_id}
+POST   /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections/{connection_id}/stop
+POST   /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections/{connection_id}/restart
+DELETE /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections/{connection_id}
+GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/commands/{command_id}
+```
+
+control tunnel 同一时刻只允许一组 query request/response，因此面板按
+status → harnesses → agent connections 串行加载。mutation 收到 ACK 后保存
+`command_id`，每秒查询 command，直到 `applied`、`failed` 或 `rejected`，再刷新
+connection 和 agent 列表。
+
 `/monitor` 已接：
 
 ```txt

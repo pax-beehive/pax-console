@@ -172,6 +172,12 @@ Do not add `Content-Type: application/json` to GET requests. It can trigger unwa
 
 Keep resource hooks thin. Components should compose hooks rather than build URLs manually.
 
+The paxd control tunnel supports one outstanding query request/response per
+node. UI reads for daemon status, harnesses, connections, and command state
+must be sequenced; do not launch them with `Promise.all`. Commands are
+asynchronous: mutation responses acknowledge receipt, then the UI polls
+`daemon/commands/{command_id}` until `applied`, `failed`, or `rejected`.
+
 Collaboration and knowledge resources are normal user-scoped REST resources:
 
 ```txt
@@ -495,6 +501,17 @@ Session workbench composer
 Node and agent details
   GET /api/v1/user/{user_id}/nodes/{node_id}
   GET /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}
+
+Node daemon control
+  GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/status
+  GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/harnesses
+  GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections
+  POST   /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections
+  PATCH  /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections/{connection_id}
+  POST   /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections/{connection_id}/stop
+  POST   /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections/{connection_id}/restart
+  DELETE /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections/{connection_id}
+  GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/commands/{command_id}
 
 Monitor route
   GET /api/v1/health
