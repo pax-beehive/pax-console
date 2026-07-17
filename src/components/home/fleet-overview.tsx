@@ -32,6 +32,7 @@ import {
   Radio,
   ShieldCheck,
   Sparkles,
+  Server,
   TerminalSquare,
   Users,
   X,
@@ -130,6 +131,7 @@ const inboxOrders: Array<{ label: string; value: InboxOrder }> = [
 ];
 
 const allSessionAgentsValue = "__all_session_agents__";
+const allSessionNodesValue = "__all_session_nodes__";
 const homeSessionPageSize = 20;
 const nextSessionPageScrollOffset = 240;
 
@@ -170,6 +172,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     allSessionAgentsValue,
   );
   const [sessionAgentMenuOpen, setSessionAgentMenuOpen] = useState(false);
+  const [sessionNodeFilter, setSessionNodeFilter] =
+    useState(allSessionNodesValue);
+  const [sessionNodeMenuOpen, setSessionNodeMenuOpen] = useState(false);
   const [embeddedSessionTarget, setEmbeddedSessionTarget] =
     useState<EmbeddedSessionTarget | null>(() =>
       urlSessionId
@@ -199,8 +204,12 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   );
   const [selectedAgentId, setSelectedAgentId] = useState("");
   const sessionAgentFilterOptions = useMemo(
-    () => buildSessionAgentFilterOptions(discoveredAgents),
-    [discoveredAgents],
+    () => buildSessionAgentFilterOptions(discoveredAgents, nodes),
+    [discoveredAgents, nodes],
+  );
+  const sessionNodeFilterOptions = useMemo(
+    () => buildSessionNodeFilterOptions(nodes),
+    [nodes],
   );
   const effectiveSessionAgentFilter = sessionAgentFilterOptions.some(
     (option) => option.value === sessionAgentFilter,
@@ -214,14 +223,28 @@ export function FleetOverview({ user }: FleetOverviewProps) {
         : [effectiveSessionAgentFilter],
     [effectiveSessionAgentFilter],
   );
+  const effectiveSessionNodeFilter = sessionNodeFilterOptions.some(
+    (option) => option.value === sessionNodeFilter,
+  )
+    ? sessionNodeFilter
+    : allSessionNodesValue;
+  const sessionFilterNodeIds = useMemo(
+    () =>
+      effectiveSessionNodeFilter === allSessionNodesValue
+        ? []
+        : [effectiveSessionNodeFilter],
+    [effectiveSessionNodeFilter],
+  );
   const sessionsQuery = useInfiniteQuery({
     queryKey: queryKeys.userSessions(user.user_id, {
       agentIds: sessionFilterAgentIds,
+      nodeIds: sessionFilterNodeIds,
       pageSize: homeSessionPageSize,
     }),
     queryFn: ({ pageParam }) =>
       listUserSessions(user.user_id, {
         agentIds: sessionFilterAgentIds,
+        nodeIds: sessionFilterNodeIds,
         pageNum: pageParam,
         pageSize: homeSessionPageSize,
       }),
@@ -303,10 +326,12 @@ export function FleetOverview({ user }: FleetOverviewProps) {
         inboxFilter,
         inboxOrder,
         effectiveSessionAgentFilter,
+        effectiveSessionNodeFilter,
       ),
     [
       activeWorkItems,
       effectiveSessionAgentFilter,
+      effectiveSessionNodeFilter,
       homeRailTab,
       inboxFilter,
       inboxOrder,
@@ -316,6 +341,10 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     sessionAgentFilterOptions.find(
       (option) => option.value === effectiveSessionAgentFilter,
     )?.label ?? "All agents";
+  const sessionNodeFilterLabel =
+    sessionNodeFilterOptions.find(
+      (option) => option.value === effectiveSessionNodeFilter,
+    )?.label ?? "All nodes";
   const selectedWorkItem = selectedWorkItemId
     ? visibleWorkItems.find((item) => item.id === selectedWorkItemId)
     : undefined;
@@ -352,7 +381,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const railTitle = homeRailTab === "sessions" ? "Sessions" : "Inbox queue";
   const railSubtitle =
     homeRailTab === "sessions"
-      ? `Recent sessions · ${sessionAgentFilterLabel}`
+      ? `Recent sessions · ${sessionAgentFilterLabel} · ${sessionNodeFilterLabel}`
       : `${filterLabel(inboxFilter)} · ${orderLabel(inboxOrder)}`;
   const apiError =
     nodesQuery.error ??
@@ -546,6 +575,8 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                     setHomeRailTab("sessions");
                     setFilterMenuOpen(false);
                     setOrderMenuOpen(false);
+                    setSessionAgentMenuOpen(false);
+                    setSessionNodeMenuOpen(false);
                     clearHomeSessionUrl();
                     setSelectedWorkItemId("");
                     setContextClosed(false);
@@ -566,6 +597,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                   onClick={() => {
                     setHomeRailTab("inbox");
                     setSessionAgentMenuOpen(false);
+                    setSessionNodeMenuOpen(false);
                     setEmbeddedSessionTarget(null);
                     clearHomeSessionUrl();
                     setSelectedWorkItemId("");
@@ -589,9 +621,12 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                       </Badge>
                     )}
                   </div>
-                  <div className="mt-1 text-xs text-ink-tertiary">
+                  <TruncatedText
+                    className="mt-1 text-xs text-ink-tertiary"
+                    tooltip={railSubtitle}
+                  >
                     {railSubtitle}
-                  </div>
+                  </TruncatedText>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
                   {homeRailTab === "sessions" && (
@@ -599,13 +634,40 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                       <InboxMenu
                         icon={<ListFilter className="h-4 w-4" />}
                         label="Filter by agent"
-                        onOpenChange={setSessionAgentMenuOpen}
+                        onOpenChange={(open) => {
+                          setSessionAgentMenuOpen(open);
+                          if (open) {
+                            setSessionNodeMenuOpen(false);
+                          }
+                        }}
                         open={sessionAgentMenuOpen}
                         options={sessionAgentFilterOptions}
                         selectedValue={effectiveSessionAgentFilter}
                         onSelect={(value) => {
                           setSessionAgentFilter(value);
                           setSessionAgentMenuOpen(false);
+                          setEmbeddedSessionTarget(null);
+                          clearHomeSessionUrl();
+                          setSelectedWorkItemId("");
+                          setContextClosed(false);
+                          setComposerMode("clean");
+                        }}
+                      />
+                      <InboxMenu
+                        icon={<Server className="h-4 w-4" />}
+                        label="Filter by node"
+                        onOpenChange={(open) => {
+                          setSessionNodeMenuOpen(open);
+                          if (open) {
+                            setSessionAgentMenuOpen(false);
+                          }
+                        }}
+                        open={sessionNodeMenuOpen}
+                        options={sessionNodeFilterOptions}
+                        selectedValue={effectiveSessionNodeFilter}
+                        onSelect={(value) => {
+                          setSessionNodeFilter(value);
+                          setSessionNodeMenuOpen(false);
                           setEmbeddedSessionTarget(null);
                           clearHomeSessionUrl();
                           setSelectedWorkItemId("");
@@ -955,6 +1017,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                       <div className="min-w-0 flex-1" />
                       <AgentSelector
                         agents={agents}
+                        nodes={nodes}
                         selectedAgentId={activeAgent?.agent_id}
                         onChange={setSelectedAgentId}
                       />
@@ -1110,7 +1173,9 @@ function InboxMenu({
               onClick={() => onSelect(option.value)}
               type="button"
             >
-              <span>{option.label}</span>
+              <TruncatedText className="min-w-0 flex-1" tooltip={option.label}>
+                {option.label}
+              </TruncatedText>
               {option.value === selectedValue && (
                 <span className="h-1.5 w-1.5 rounded-full bg-primary" />
               )}
@@ -1412,18 +1477,25 @@ function NoDraftInquiryActions({
 
 function AgentSelector({
   agents,
+  nodes,
   onChange,
   selectedAgentId,
 }: {
   agents: Agent[];
+  nodes: Node[];
   onChange: (agentId: string) => void;
   selectedAgentId?: string;
 }) {
   const selectedAgent = agents.find(
     (agent) => agent.agent_id === selectedAgentId,
   );
+  const agentDisplayLabels = useMemo(
+    () => buildAgentDisplayLabels(agents, nodes),
+    [agents, nodes],
+  );
   const selectedLabel = selectedAgent
-    ? agentLabel(selectedAgent)
+    ? (agentDisplayLabels.get(selectedAgent.agent_id) ??
+      agentLabel(selectedAgent))
     : agents.length === 0
       ? "No agent"
       : "Select agent";
@@ -1482,7 +1554,7 @@ function AgentSelector({
                 />
               </span>
               <TruncatedText className="min-w-0 flex-1">
-                {agent.name ?? agent.agent_type ?? compactId(agent.agent_id)}
+                {agentDisplayLabels.get(agent.agent_id) ?? agentLabel(agent)}
               </TruncatedText>
             </button>
           ))}
@@ -1821,11 +1893,12 @@ function resolveEmbeddedSessionTarget(
   };
 }
 
-function buildSessionAgentFilterOptions(agents: Agent[]) {
+function buildSessionAgentFilterOptions(agents: Agent[], nodes: Node[]) {
+  const agentDisplayLabels = buildAgentDisplayLabels(agents, nodes);
   const sessionAgentOptions = new Map(
     agents.map((agent) => [
       agent.agent_id,
-      agentLabel(agent) || compactId(agent.agent_id),
+      agentDisplayLabels.get(agent.agent_id) ?? compactId(agent.agent_id),
     ]),
   );
 
@@ -1837,12 +1910,71 @@ function buildSessionAgentFilterOptions(agents: Agent[]) {
   ];
 }
 
+function buildSessionNodeFilterOptions(nodes: Node[]) {
+  const nodeDisplayLabels = buildNodeDisplayLabels(nodes);
+
+  return [
+    { label: "All nodes", value: allSessionNodesValue },
+    ...nodes
+      .map((node) => ({
+        label: nodeDisplayLabels.get(node.node_id) ?? compactId(node.node_id),
+        value: node.node_id,
+      }))
+      .sort((left, right) => left.label.localeCompare(right.label)),
+  ];
+}
+
+function buildAgentDisplayLabels(agents: Agent[], nodes: Node[]) {
+  const nodeDisplayLabels = buildNodeDisplayLabels(nodes);
+  const labelCounts = new Map<string, number>();
+
+  for (const agent of agents) {
+    const label = agentLabel(agent);
+    labelCounts.set(label, (labelCounts.get(label) ?? 0) + 1);
+  }
+
+  return new Map(
+    agents.map((agent) => {
+      const label = agentLabel(agent);
+      if ((labelCounts.get(label) ?? 0) < 2) {
+        return [agent.agent_id, label] as const;
+      }
+
+      const nodeLabel =
+        nodeDisplayLabels.get(agent.node_id) ?? compactId(agent.node_id);
+      return [agent.agent_id, `${label} @ ${nodeLabel}`] as const;
+    }),
+  );
+}
+
+function buildNodeDisplayLabels(nodes: Node[]) {
+  const labelCounts = new Map<string, number>();
+
+  for (const node of nodes) {
+    const label = nodeLabel(node);
+    labelCounts.set(label, (labelCounts.get(label) ?? 0) + 1);
+  }
+
+  return new Map(
+    nodes.map((node) => {
+      const label = nodeLabel(node);
+      return [
+        node.node_id,
+        (labelCounts.get(label) ?? 0) > 1
+          ? `${label} (${compactId(node.node_id)})`
+          : label,
+      ] as const;
+    }),
+  );
+}
+
 function filterAndOrderWorkItems(
   items: WorkItem[],
   tab: HomeRailTab,
   filter: InboxFilter,
   order: InboxOrder,
   sessionAgentFilter: string,
+  sessionNodeFilter: string,
 ) {
   if (tab === "sessions") {
     return byRecent(
@@ -1850,7 +1982,9 @@ function filterAndOrderWorkItems(
         (item) =>
           item.kind === "session" &&
           (sessionAgentFilter === allSessionAgentsValue ||
-            item.agentId === sessionAgentFilter),
+            item.agentId === sessionAgentFilter) &&
+          (sessionNodeFilter === allSessionNodesValue ||
+            item.nodeId === sessionNodeFilter),
       ),
       (item) => item.createdAt,
     );
@@ -1998,6 +2132,10 @@ function latestSessionMessageTimeByAgent(sessions: AgentSession[]) {
 
 function agentLabel(agent: Agent) {
   return agent.name ?? agent.agent_type ?? agent.agent_id;
+}
+
+function nodeLabel(node: Node) {
+  return node.name ?? node.hostname ?? node.node_id;
 }
 
 function sessionTimestamp(session: AgentSession) {

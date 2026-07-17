@@ -127,7 +127,7 @@ src/components/ui/
 
 src/components/home/
   Home 工作台。左侧提供 Sessions / Inbox 两个 tab；Sessions tab 聚合所有
-  可见 agent 的 sessions，支持按 agent 过滤，选中后在右侧嵌入完整
+  可见 agent 的 sessions，支持分别按 agent 和 node 过滤，选中后在右侧嵌入完整
   SessionWorkbench；Inbox tab 聚合 approvals、received envelopes、team invites
   和 inquiry 草稿状态成一个可扫的 action queue；选中一项后显示上下文，
   inquiry 可从空 session 生成 draft、从已有 conversation 总结 draft、
@@ -136,7 +136,8 @@ src/components/home/
   中移除，表示当前用户不处理。当前 fake inquiry 只在 admin 用户或本地 debug
   构建中注入，避免普通生产用户看到演示数据。
   底部 composer 保持 clean session 默认入口，并提供 agent 选择、附件入口和
-  tool-call approval 偏好。nodes / agents 的详细列表仍放在 Runtime 子页里，
+  tool-call approval 偏好；重名 agent 在 target selector 中显示为
+  `agent @ node`。nodes / agents 的详细列表仍放在 Runtime 子页里，
   sessions 不再是 sidebar 一级工作区。
 
 src/components/resources/
@@ -292,7 +293,7 @@ AuthGate
   -> listAgents(user.user_id)
   -> listUserSessions(user.user_id, page_size=20, page_num=1, optional comma-separated agent_id/node_id)
   -> scroll left rail to fetch the next session page
-  -> support agent filtering, render embedded SessionWorkbench when selected
+  -> support agent and node filtering, render embedded SessionWorkbench when selected
   -> on mobile, default to the clean composer and open Sessions/Inbox as a left drawer
   -> useApprovals(user.user_id)
   -> useEnvelopes(user.user_id, direction=received, status=pending)
