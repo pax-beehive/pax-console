@@ -1296,20 +1296,25 @@ export function useNodeDaemonStatus(userId?: string, nodeId?: string) {
   });
 }
 
-export function useNodeDaemonHarnesses(userId?: string, nodeId?: string) {
+export function useNodeDaemonHarnesses(
+  userId?: string,
+  nodeId?: string,
+  enabled = true,
+) {
   return useQuery({
     queryKey: queryKeys.nodeDaemonHarnesses(
       userId ?? "pending",
       nodeId ?? "pending",
     ),
     queryFn: () => listNodeDaemonHarnesses(userId as string, nodeId as string),
-    enabled: Boolean(userId && nodeId),
+    enabled: Boolean(userId && nodeId && enabled),
   });
 }
 
 export function useNodeDaemonAgentConnections(
   userId?: string,
   nodeId?: string,
+  enabled = true,
 ) {
   return useQuery({
     queryKey: queryKeys.nodeDaemonAgentConnections(
@@ -1318,7 +1323,7 @@ export function useNodeDaemonAgentConnections(
     ),
     queryFn: () =>
       listNodeDaemonAgentConnections(userId as string, nodeId as string),
-    enabled: Boolean(userId && nodeId),
+    enabled: Boolean(userId && nodeId && enabled),
   });
 }
 
@@ -1341,6 +1346,9 @@ export function useNodeDaemonCommand(
       ),
     enabled: Boolean(userId && nodeId && commandId),
     refetchInterval: (query) => {
+      if (query.state.error || query.state.data?.error) {
+        return false;
+      }
       const status = query.state.data?.command?.status;
       return status && ["applied", "failed", "rejected"].includes(status)
         ? false

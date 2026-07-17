@@ -34,6 +34,7 @@ import { queryKeys } from "@/features/api/query-keys";
 import { Agent, ApiRecord, Node, User } from "@/features/api/types";
 import { compactId } from "@/lib/format";
 import { nodeLabel } from "./resource-models";
+import { NodeDaemonControl } from "./node-daemon-control";
 
 type NodeDetailPageClientProps = {
   nodeId: string;
@@ -110,6 +111,8 @@ export function NodeDetailPageClient({
             <MetadataCard title="System metadata" value={node?.metadata} />
           </div>
         </div>
+
+        <NodeDaemonControl nodeId={nodeId} userId={user.user_id} />
 
         <section className="grid gap-3">
           <SectionHeader count={agents.length} title="Agents on this node" />
