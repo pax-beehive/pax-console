@@ -525,12 +525,19 @@ function normalizeJsonRpcResult(
   const stopReason =
     stringFromValue(result, "stopReason") ??
     stringFromValue(result, "stop_reason");
-  if (stopReason) {
+  if (stopReason === "end_turn") {
+    events.push({
+      type: "turn_done",
+      id: `${id}:done`,
+      sessionId,
+      createdAt,
+    });
+  } else if (stopReason) {
     events.push({
       type: "run_status",
       id: `${id}:status`,
       sessionId,
-      status: stopReason === "end_turn" ? "done" : "running",
+      status: "running",
       createdAt,
     });
   }

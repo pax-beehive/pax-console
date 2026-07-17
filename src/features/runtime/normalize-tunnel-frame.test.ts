@@ -236,9 +236,8 @@ describe("normalizeTunnelFrame", () => {
         totalTokens: 14_061,
       },
       {
-        type: "run_status",
+        type: "turn_done",
         sessionId: "sess_f859",
-        status: "done",
       },
     ]);
   });

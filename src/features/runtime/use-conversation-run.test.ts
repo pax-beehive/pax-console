@@ -179,6 +179,48 @@ describe("handleConversationEnvelope", () => {
     ]);
   });
 
+  it("emits an explicit turn completion event for ACP end_turn results", () => {
+    let error: Error | null = null;
+    let status: ConversationRunStatus = "streaming";
+    let events: SessionEvent[] = [];
+
+    handleConversationEnvelope(
+      {
+        type: "acp",
+        node_id: "node_1",
+        agent_id: "agent_1",
+        session_id: "sess_1",
+        frame: {
+          id: 4,
+          result: { stopReason: "end_turn" },
+          jsonrpc: "2.0",
+        },
+      },
+      handlers({
+        getError: () => error,
+        getEvents: () => events,
+        getStatus: () => status,
+        setError: (nextError) => {
+          error = nextError;
+        },
+        setEvents: (nextEvents) => {
+          events = nextEvents;
+        },
+        setSessionId: () => undefined,
+        setStatus: (nextStatus) => {
+          status = nextStatus;
+        },
+      }),
+    );
+
+    expect(events).toMatchObject([
+      {
+        type: "turn_done",
+        sessionId: "sess_1",
+      },
+    ]);
+  });
+
   it("updates a permission request when manager approval metadata arrives", () => {
     let sessionId = "";
     let error: Error | null = null;
