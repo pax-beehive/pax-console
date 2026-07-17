@@ -1,0 +1,450 @@
+"use client";
+
+import { Dispatch, SetStateAction, useEffect, useRef, useState } from "react";
+import { API_BASE_URL, userPath } from "../api/client";
+import { ApiError, AuthError } from "../api/errors";
+import { normalizeTunnelFrame } from "./normalize-tunnel-frame";
+import { SessionEvent } from "./session-events";
+import { parseSseDataBlock, streamSseResponse } from "./conversation-run";
+
+export type SessionObserverEnvelope =
+  | {
+      type: "acp";
+      agent_id?: string;
+      frame: unknown;
+      message_id?: string;
+      node_id?: string;
+      session_id: string;
+      turn_id?: string;
+    }
+  | {
+      type: "buffer_miss";
+      agent_id?: string;
+      message?: string;
+      message_id?: string;
+      node_id?: string;
+      session_id: string;
+      status?: string;
+    }
+  | {
+      type: "no_running_turn";
+      agent_id?: string;
+      node_id?: string;
+      session_id: string;
+      status?: string;
+    }
+  | {
+      type: "turn_done";
+      agent_id?: string;
+      node_id?: string;
+      session_id: string;
+      status?: string;
+      turn_id?: string;
+    }
+  | {
+      type: "error";
+      agent_id?: string;
+      message: string;
+      node_id?: string;
+      session_id?: string;
+    };
+
+export type SessionObserverStatus =
+  | "idle"
+  | "observing"
+  | "no_running_turn"
+  | "done"
+  | "error";
+
+type StreamSessionObserverOptions = {
+  afterMessageId?: string;
+  agentId: string;
+  onEnvelope: (envelope: SessionObserverEnvelope) => void;
+  sessionId: string;
+  signal?: AbortSignal;
+  userId: string;
+};
+
+type UseSessionObserverOptions = {
+  afterMessageId?: string;
+  agentId?: string;
+  enabled?: boolean;
+  followQueuedTurn?: boolean;
+  onBufferMiss?: () => void;
+  onNoRunningTurn?: () => void;
+  onQueuedTurnStarted?: () => void;
+  onQueuedTurnFinished?: () => void;
+  onQueuedTurnUnavailable?: () => void;
+  onTurnDone?: () => void;
+  sessionId?: string;
+  userId: string;
+};
+
+export async function streamSessionObserver({
+  afterMessageId,
+  agentId,
+  onEnvelope,
+  sessionId,
+  signal,
+  userId,
+}: StreamSessionObserverOptions) {
+  const params = new URLSearchParams();
+  if (afterMessageId) {
+    params.set("after_message_id", afterMessageId);
+  }
+  const query = params.toString();
+  const response = await fetch(
+    `${API_BASE_URL}${userPath(
+      userId,
+      `/agents/${agentId}/sessions/${sessionId}/events`,
+    )}${query ? `?${query}` : ""}`,
+    {
+      credentials: "include",
+      headers: {
+        Accept: "text/event-stream",
+      },
+      method: "GET",
+      redirect: "manual",
+      signal,
+    },
+  );
+
+  if (
+    response.status === 0 ||
+    response.status === 401 ||
+    response.status === 403 ||
+    (response.status >= 300 && response.status < 400) ||
+    response.type === "opaqueredirect"
+  ) {
+    throw new AuthError();
+  }
+
+  if (!response.ok) {
+    throw await observerErrorFromResponse(response);
+  }
+
+  await streamSseResponse(response, parseSessionObserverSseBlock, onEnvelope);
+}
+
+export async function streamSessionObserverWithQueuedReplay({
+  followQueuedTurn = false,
+  maxQueuedTurnAttempts = 20,
+  onQueuedTurnStarted,
+  onQueuedTurnFinished,
+  onQueuedTurnUnavailable,
+  retryDelayMs = 150,
+  ...options
+}: StreamSessionObserverOptions & {
+  followQueuedTurn?: boolean;
+  maxQueuedTurnAttempts?: number;
+  onQueuedTurnStarted?: () => void;
+  onQueuedTurnFinished?: () => void;
+  onQueuedTurnUnavailable?: () => void;
+  retryDelayMs?: number;
+}) {
+  let followUpAvailable = followQueuedTurn;
+  let waitingForFollowUp = false;
+  let followUpStarted = false;
+  let remainingAttempts = maxQueuedTurnAttempts;
+
+  while (!options.signal?.aborted) {
+    let terminalType: "no_running_turn" | "turn_done" | undefined;
+    await streamSessionObserver({
+      ...options,
+      afterMessageId: waitingForFollowUp ? undefined : options.afterMessageId,
+      onEnvelope: (envelope) => {
+        options.onEnvelope(envelope);
+        if (waitingForFollowUp && envelope.type === "acp") {
+          waitingForFollowUp = false;
+          followUpAvailable = false;
+          followUpStarted = true;
+          onQueuedTurnStarted?.();
+        }
+        if (
+          envelope.type === "no_running_turn" ||
+          envelope.type === "turn_done"
+        ) {
+          terminalType = envelope.type;
+        }
+      },
+    });
+
+    if (options.signal?.aborted) {
+      return;
+    }
+    if (terminalType === "turn_done" && followUpAvailable) {
+      waitingForFollowUp = true;
+    } else if (terminalType === "no_running_turn" && followUpAvailable) {
+      waitingForFollowUp = true;
+    } else {
+      if (terminalType === "turn_done" && followUpStarted) {
+        onQueuedTurnFinished?.();
+      }
+      return;
+    }
+    if (remainingAttempts <= 0) {
+      onQueuedTurnUnavailable?.();
+      return;
+    }
+    remainingAttempts -= 1;
+    await waitForQueuedTurnRetry(retryDelayMs);
+  }
+}
+
+export function parseSessionObserverSseBlock(block: string) {
+  return parseSseDataBlock<SessionObserverEnvelope>(block);
+}
+
+export function useSessionObserver({
+  afterMessageId,
+  agentId,
+  enabled = true,
+  followQueuedTurn,
+  onBufferMiss,
+  onNoRunningTurn,
+  onQueuedTurnStarted,
+  onQueuedTurnFinished,
+  onQueuedTurnUnavailable,
+  onTurnDone,
+  sessionId,
+  userId,
+}: UseSessionObserverOptions) {
+  const abortRef = useRef<AbortController | null>(null);
+  const [error, setError] = useState<Error | null>(null);
+  const [events, setEvents] = useState<SessionEvent[]>([]);
+  const [status, setStatus] = useState<SessionObserverStatus>("idle");
+  const canObserve = Boolean(enabled && agentId && sessionId);
+
+  useEffect(() => {
+    abortRef.current?.abort();
+
+    if (!enabled || !agentId || !sessionId) {
+      return;
+    }
+
+    const abortController = new AbortController();
+    abortRef.current = abortController;
+    const streamId = [
+      sessionId,
+      "observe",
+      afterMessageId ?? "head",
+      Date.now(),
+    ].join(":");
+
+    globalThis.queueMicrotask(() => {
+      if (abortController.signal.aborted) {
+        return;
+      }
+      setError(null);
+      setEvents([]);
+      setStatus("observing");
+    });
+
+    void streamSessionObserverWithQueuedReplay({
+      afterMessageId,
+      agentId,
+      followQueuedTurn,
+      onEnvelope: (envelope) =>
+        handleSessionObserverEnvelope(envelope, {
+          onBufferMiss,
+          onNoRunningTurn,
+          onTurnDone,
+          setError,
+          setEvents,
+          setStatus,
+          streamId,
+        }),
+      sessionId,
+      signal: abortController.signal,
+      userId,
+      onQueuedTurnStarted,
+      onQueuedTurnFinished,
+      onQueuedTurnUnavailable,
+    }).catch((caught) => {
+      if (abortController.signal.aborted) {
+        return;
+      }
+      const nextError =
+        caught instanceof Error ? caught : new Error(String(caught));
+      setError(nextError);
+      setStatus("error");
+    });
+
+    return () => {
+      abortController.abort();
+      if (abortRef.current === abortController) {
+        abortRef.current = null;
+      }
+    };
+  }, [
+    afterMessageId,
+    agentId,
+    enabled,
+    followQueuedTurn,
+    onBufferMiss,
+    onNoRunningTurn,
+    onQueuedTurnStarted,
+    onQueuedTurnFinished,
+    onQueuedTurnUnavailable,
+    onTurnDone,
+    sessionId,
+    userId,
+  ]);
+
+  return {
+    error: canObserve ? error : null,
+    events: canObserve ? events : [],
+    status: canObserve ? status : "idle",
+  };
+}
+
+export function handleSessionObserverEnvelope(
+  envelope: SessionObserverEnvelope,
+  {
+    onBufferMiss,
+    onNoRunningTurn,
+    onTurnDone,
+    setError,
+    setEvents,
+    setStatus,
+    streamId,
+  }: {
+    onBufferMiss?: () => void;
+    onNoRunningTurn?: () => void;
+    onTurnDone?: () => void;
+    setError: Dispatch<SetStateAction<Error | null>>;
+    setEvents: Dispatch<SetStateAction<SessionEvent[]>>;
+    setStatus: Dispatch<SetStateAction<SessionObserverStatus>>;
+    streamId: string;
+  },
+) {
+  if (envelope.type === "acp") {
+    setStatus("observing");
+    const events = normalizeTunnelFrame(
+      withEnvelopeSession(envelope.frame, envelope.session_id),
+      { streamId },
+    );
+    if (events.length > 0) {
+      setEvents((current) => appendUniqueEvents(current, events));
+    }
+    return;
+  }
+
+  if (envelope.type === "buffer_miss") {
+    onBufferMiss?.();
+    return;
+  }
+
+  if (envelope.type === "no_running_turn") {
+    setStatus("no_running_turn");
+    onNoRunningTurn?.();
+    return;
+  }
+
+  if (envelope.type === "turn_done") {
+    setEvents((current) =>
+      appendUniqueEvents(current, [
+        {
+          type: "run_status",
+          id: `${envelope.session_id}:observer:${envelope.turn_id ?? "turn"}:done`,
+          sessionId: envelope.session_id,
+          status: "done",
+          createdAt: new Date().toISOString(),
+        },
+      ]),
+    );
+    setStatus("done");
+    onTurnDone?.();
+    return;
+  }
+
+  if (envelope.type === "error") {
+    const nextError = new Error(envelope.message);
+    nextError.name = "SessionObserverError";
+    setError(nextError);
+    setStatus("error");
+    return;
+  }
+}
+
+function waitForQueuedTurnRetry(delayMs: number) {
+  return new Promise<void>((resolve) => {
+    globalThis.setTimeout(resolve, Math.max(0, delayMs));
+  });
+}
+
+function appendUniqueEvents(current: SessionEvent[], incoming: SessionEvent[]) {
+  const seen = new Set(current.map(observerEventSignature));
+  const next = [...current];
+  for (const event of incoming) {
+    const signature = observerEventSignature(event);
+    if (seen.has(signature)) {
+      continue;
+    }
+    seen.add(signature);
+    next.push(event);
+  }
+  return next;
+}
+
+function observerEventSignature(event: SessionEvent) {
+  if (
+    event.type === "agent_message" ||
+    event.type === "progress" ||
+    event.type === "user_message" ||
+    event.type === "invocation"
+  ) {
+    return `${event.type}:${event.id}:${event.sessionId}:${event.content}`;
+  }
+  return `${event.type}:${event.id}`;
+}
+
+function withEnvelopeSession(frame: unknown, sessionId: string) {
+  if (typeof frame !== "object" || frame === null || Array.isArray(frame)) {
+    return frame;
+  }
+
+  const record = frame as Record<string, unknown>;
+  const params =
+    typeof record.params === "object" &&
+    record.params !== null &&
+    !Array.isArray(record.params)
+      ? { ...(record.params as Record<string, unknown>), sessionId }
+      : { sessionId };
+
+  return {
+    ...record,
+    params,
+    session_id:
+      typeof record.session_id === "string" ? record.session_id : sessionId,
+  };
+}
+
+async function observerErrorFromResponse(response: Response) {
+  const contentType = response.headers.get("content-type");
+
+  if (contentType?.includes("application/json")) {
+    const body = await response.json();
+    return new ApiError(
+      messageFromBody(body) ?? "PAX session observer request failed",
+      response.status,
+      body,
+    );
+  }
+
+  const body = await response.text();
+  return new ApiError(
+    body || "PAX session observer request failed",
+    response.status,
+    body,
+  );
+}
+
+function messageFromBody(body: unknown) {
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return undefined;
+  }
+
+  const message = (body as Record<string, unknown>).message;
+  return typeof message === "string" ? message : undefined;
+}

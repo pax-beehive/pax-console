@@ -1,4 +1,4 @@
-import { SessionPageClient } from "@/components/sessions/session-page-client";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -6,24 +6,15 @@ type SessionPageProps = {
   params: Promise<{
     sessionId: string;
   }>;
-  searchParams: Promise<{
-    nodeId?: string;
-    agentId?: string;
-  }>;
 };
 
-export default async function SessionPage({
-  params,
-  searchParams,
-}: SessionPageProps) {
+export default async function SessionPage({ params }: SessionPageProps) {
   const { sessionId } = await params;
-  const { nodeId, agentId } = await searchParams;
 
-  return (
-    <SessionPageClient
-      agentId={agentId}
-      nodeId={nodeId}
-      sessionId={sessionId}
-    />
-  );
+  if (sessionId === "new") {
+    redirect("/");
+  }
+
+  const query = new URLSearchParams({ sessionId });
+  redirect(`/?${query}`);
 }

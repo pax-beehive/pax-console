@@ -48,10 +48,7 @@ const nestedKeys = [
   "attachments",
 ];
 
-export function extractCodePatches(
-  value: unknown,
-  source?: CodePatchSource,
-) {
+export function extractCodePatches(value: unknown, source?: CodePatchSource) {
   const patches: CodePatch[] = [];
   const seen = new Set<string>();
   collectCodePatches(value, source, patches, seen, 0);
@@ -194,7 +191,8 @@ function rawWriteFileToolPatches(
     {
       newText: content,
       operation: "write",
-      path: stringFromKeys(argumentsRecord ?? {}, pathKeys) ??
+      path:
+        stringFromKeys(argumentsRecord ?? {}, pathKeys) ??
         stringFromKeys(record, pathKeys),
       source,
     },
@@ -205,13 +203,25 @@ function rawTerminalDeletePatches(
   record: Record<string, unknown>,
   source: CodePatchSource | undefined,
 ): RawCodePatch[] {
-  const terminalDeletePath = inferTerminalDeletePath(
-    stringValue(record, "title"),
+  const contentPaths = inferTerminalDeletePaths(
     textFromPayload(record.content),
   );
-  return terminalDeletePath
-    ? [{ operation: "delete", path: terminalDeletePath, source }]
-    : [];
+  const title = stringValue(record, "title");
+  const terminalDeletePaths =
+    contentPaths.length > 0
+      ? contentPaths
+      : isTruncatedTerminalTitle(title)
+        ? []
+        : inferTerminalDeletePaths(title);
+  return terminalDeletePaths.map((path) => ({
+    operation: "delete",
+    path,
+    source,
+  }));
+}
+
+function isTruncatedTerminalTitle(title: string | undefined) {
+  return title !== undefined && /(?:\.\.\.|…)$/.test(title.trimEnd());
 }
 
 function pushPatch(
@@ -248,7 +258,7 @@ function looksLikeDiff(value: string) {
   return /(^diff --git |^--- .*\n\+\+\+ |^@@ |\n@@ )/m.test(value);
 }
 
-function inferTerminalDeletePath(...values: (string | undefined)[]) {
+function inferTerminalDeletePaths(...values: (string | undefined)[]) {
   for (const value of values) {
     const command = value?.trim();
     if (!command) {
@@ -256,28 +266,65 @@ function inferTerminalDeletePath(...values: (string | undefined)[]) {
     }
 
     const match =
-      /^terminal:\s*rm(?:\s+-[^\s]+)*\s+(.+?)\s*$/.exec(command) ??
-      /^\$?\s*rm(?:\s+-[^\s]+)*\s+(.+?)\s*$/.exec(command);
+      /^terminal:\s*rm\s+(.+?)\s*$/.exec(command) ??
+      /^\$?\s*rm\s+(.+?)\s*$/.exec(command);
     if (!match) {
       continue;
     }
 
-    const path = unquoteShellPath(match[1].trim());
-    if (path && !path.startsWith("-")) {
-      return path;
+    const words = splitShellWords(match[1]);
+    if (!words) {
+      continue;
+    }
+
+    const separator = words.indexOf("--");
+    const paths = (separator >= 0 ? words.slice(separator + 1) : words).filter(
+      (word) => word && (separator >= 0 || !word.startsWith("-")),
+    );
+    if (paths.length > 0) {
+      return paths;
     }
   }
-  return undefined;
+  return [];
 }
 
-function unquoteShellPath(value: string) {
-  if (
-    (value.startsWith('"') && value.endsWith('"')) ||
-    (value.startsWith("'") && value.endsWith("'"))
-  ) {
-    return value.slice(1, -1);
+function splitShellWords(value: string) {
+  const words: string[] = [];
+  let word = "";
+  let quote: "'" | '"' | undefined;
+  let escaping = false;
+
+  for (const character of value) {
+    if (escaping) {
+      word += character;
+      escaping = false;
+    } else if (character === "\\" && quote !== "'") {
+      escaping = true;
+    } else if (quote) {
+      if (character === quote) {
+        quote = undefined;
+      } else {
+        word += character;
+      }
+    } else if (character === "'" || character === '"') {
+      quote = character;
+    } else if (/\s/.test(character)) {
+      if (word) {
+        words.push(word);
+        word = "";
+      }
+    } else {
+      word += character;
+    }
   }
-  return value;
+
+  if (quote || escaping) {
+    return undefined;
+  }
+  if (word) {
+    words.push(word);
+  }
+  return words;
 }
 
 function textFromPayload(value: unknown): string | undefined {
