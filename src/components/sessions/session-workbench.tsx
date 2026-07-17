@@ -11,7 +11,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
   ArrowLeft,
@@ -26,12 +26,17 @@ import {
   Menu,
   Mic,
   PanelRight,
+  Pencil,
   Plus,
   RefreshCw,
+  Save,
+  Send,
   ShieldAlert,
   ShieldCheck,
+  Square,
+  Trash2,
   UploadCloud,
-  Send,
+  Wrench,
   X,
 } from "lucide-react";
 import { ConsoleLayout } from "@/components/shell/console-layout";
@@ -41,6 +46,8 @@ import { MonoId, TruncatedText } from "@/components/ui/text";
 import {
   PermissionDecisionOption,
   PermissionDecisionResult,
+  ToolEvidencePanel,
+  ToolEvidenceSelection,
   WorkstreamItemCard,
 } from "@/components/sessions/session-event-cards";
 import {
@@ -49,9 +56,15 @@ import {
   createKnowledgeCapsule,
   createArtifactUpload,
   decideApproval,
+  deleteQueuedSessionTurn,
   getArtifactContentURL,
+  getQueuedSessionTurn,
   injectKnowledgeCapsule,
+  queueSessionTurn,
+  steerSessionTurn,
+  stopSessionTurn,
   updateAgentSession,
+  updateQueuedSessionTurn,
   useAgentOwnerInfos,
   useKnowledgeCapsules,
   useKnowledgeInjections,
@@ -69,6 +82,7 @@ import {
   SessionPaxConfig,
   SessionArtifact,
   Agent,
+  HistoryMessage,
   Node,
   User,
 } from "@/features/api/types";
@@ -80,6 +94,7 @@ import {
   SessionEvent,
 } from "@/features/runtime/session-events";
 import { useConversationRun } from "@/features/runtime/use-conversation-run";
+import { useSessionObserver } from "@/features/runtime/session-observer";
 import { compactId } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -100,7 +115,7 @@ type SessionWorkbenchProps = {
   onMobileMenu?: () => void;
 };
 
-type SessionSidePanelId = "artifacts" | "knowledge";
+type SessionSidePanelId = "tool" | "artifacts" | "knowledge";
 
 type SessionSidePanel = {
   id: SessionSidePanelId;
@@ -142,6 +157,13 @@ export function SessionWorkbench({
     activeAgentId,
   );
   const [draft, setDraft] = useState("");
+  const [queuedFollowUpSessionId, setQueuedFollowUpSessionId] = useState<
+    string | null
+  >(null);
+  const [queuedTurnEditingId, setQueuedTurnEditingId] = useState<string | null>(
+    null,
+  );
+  const [queuedTurnDraft, setQueuedTurnDraft] = useState("");
   const [newSessionCwd, setNewSessionCwd] = useState(initialCwd ?? "");
   const [newSessionWorkspaceOpen, setNewSessionWorkspaceOpen] = useState(
     Boolean(initialCwd),
@@ -160,6 +182,8 @@ export function SessionWorkbench({
   const shouldStickToBottomRef = useRef(true);
   const [activeSidePanelId, setActiveSidePanelId] =
     useState<SessionSidePanelId | null>(null);
+  const [selectedToolEvidence, setSelectedToolEvidence] =
+    useState<ToolEvidenceSelection | null>(null);
   const [permissionDecisions, setPermissionDecisions] = useState<
     Record<string, PermissionDecisionResult>
   >({});
@@ -408,6 +432,118 @@ export function SessionWorkbench({
     sessionId: routeSessionId,
     userId: user.user_id,
   });
+  const refreshActiveSessionRuntime = useCallback(() => {
+    if (activeNodeId && activeAgentId) {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.sessions(user.user_id, activeNodeId, activeAgentId),
+      });
+    }
+    if (activeAgentId && currentSessionId) {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.sessionHistory(
+          user.user_id,
+          activeAgentId,
+          currentSessionId,
+        ),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.queuedSessionTurn(
+          user.user_id,
+          activeAgentId,
+          currentSessionId,
+        ),
+      });
+    }
+  }, [
+    activeAgentId,
+    activeNodeId,
+    currentSessionId,
+    queryClient,
+    user.user_id,
+  ]);
+  const lastHistoryMessageID = lastMessageID(historyQuery.data?.messages);
+  const shouldObserveSessionTurn =
+    Boolean(activeAgentId && currentSessionId) &&
+    isActiveSessionRunStatus(
+      activeSession?.run_status ?? activeSession?.status,
+    ) &&
+    conversationRun.status !== "streaming" &&
+    conversationRun.status !== "waiting_approval";
+  const queuedTurnQueryKey = queryKeys.queuedSessionTurn(
+    user.user_id,
+    activeAgentId ?? "pending",
+    currentSessionId ?? "pending",
+  );
+  const queuedTurnQuery = useQuery({
+    queryKey: queuedTurnQueryKey,
+    queryFn: () =>
+      getQueuedSessionTurn(
+        user.user_id,
+        activeAgentId as string,
+        currentSessionId as string,
+      ),
+    enabled: Boolean(activeAgentId && currentSessionId),
+    refetchInterval: (query) =>
+      query.state.data
+        ? false
+        : shouldObserveSessionTurn ||
+            conversationRun.status === "streaming" ||
+            conversationRun.status === "waiting_approval" ||
+            queuedFollowUpSessionId === currentSessionId
+          ? 1500
+          : false,
+    refetchOnWindowFocus: true,
+  });
+  const shouldFollowQueuedTurn =
+    Boolean(currentSessionId) &&
+    (Boolean(queuedTurnQuery.data) ||
+      queuedFollowUpSessionId === currentSessionId);
+  const handleQueuedTurnStarted = useCallback(() => {
+    if (activeAgentId && currentSessionId) {
+      setQueuedFollowUpSessionId(currentSessionId);
+      queryClient.setQueryData(
+        queryKeys.queuedSessionTurn(
+          user.user_id,
+          activeAgentId,
+          currentSessionId,
+        ),
+        null,
+      );
+    }
+    refreshActiveSessionRuntime();
+  }, [
+    activeAgentId,
+    currentSessionId,
+    queryClient,
+    refreshActiveSessionRuntime,
+    user.user_id,
+  ]);
+  const handleQueuedTurnFinished = useCallback(() => {
+    setQueuedFollowUpSessionId(null);
+    refreshActiveSessionRuntime();
+  }, [refreshActiveSessionRuntime]);
+  const handleQueuedTurnUnavailable = useCallback(() => {
+    setQueuedFollowUpSessionId(null);
+    refreshActiveSessionRuntime();
+  }, [refreshActiveSessionRuntime]);
+  const sessionObserver = useSessionObserver({
+    afterMessageId: shouldFollowQueuedTurn ? undefined : lastHistoryMessageID,
+    agentId: activeAgentId,
+    enabled: Boolean(activeAgentId && currentSessionId),
+    followQueuedTurn: shouldFollowQueuedTurn,
+    onBufferMiss: refreshActiveSessionRuntime,
+    onNoRunningTurn: refreshActiveSessionRuntime,
+    onQueuedTurnFinished: handleQueuedTurnFinished,
+    onQueuedTurnStarted: handleQueuedTurnStarted,
+    onQueuedTurnUnavailable: handleQueuedTurnUnavailable,
+    onTurnDone: refreshActiveSessionRuntime,
+    sessionId: currentSessionId,
+    userId: user.user_id,
+  });
+  const isTurnRunning =
+    conversationRun.status === "streaming" ||
+    conversationRun.status === "waiting_approval" ||
+    sessionObserver.status === "observing";
   const updateSessionApprovalMode = useMutation({
     mutationFn: async (approvalMode: SessionApprovalMode) => {
       if (!activeNodeId || !activeAgentId || !currentSessionId) {
@@ -435,6 +571,165 @@ export function SessionWorkbench({
     },
     onSuccess: (session) => {
       setPendingSessionPaxConfig(session.pax_config ?? null);
+      if (activeNodeId && activeAgentId) {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.sessions(
+            user.user_id,
+            activeNodeId,
+            activeAgentId,
+          ),
+        });
+      }
+    },
+    onError: (caught) => {
+      setSendError(
+        caught instanceof Error ? caught : new Error(String(caught)),
+      );
+    },
+  });
+
+  const stopTurn = useMutation({
+    mutationFn: async () => {
+      if (!activeAgentId || !currentSessionId) {
+        throw new Error("Wait for the session id before stopping the turn.");
+      }
+
+      return stopSessionTurn(user.user_id, activeAgentId, currentSessionId, {
+        reason: "user_requested",
+      });
+    },
+    onMutate: () => {
+      setSendError(null);
+    },
+    onSuccess: () => {
+      if (activeNodeId && activeAgentId) {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.sessions(
+            user.user_id,
+            activeNodeId,
+            activeAgentId,
+          ),
+        });
+      }
+      if (activeAgentId && currentSessionId) {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.sessionHistory(
+            user.user_id,
+            activeAgentId,
+            currentSessionId,
+          ),
+        });
+      }
+    },
+    onError: (caught) => {
+      setSendError(
+        caught instanceof Error ? caught : new Error(String(caught)),
+      );
+    },
+  });
+  const queueTurn = useMutation({
+    mutationFn: async (input: string) => {
+      if (!activeAgentId || !currentSessionId) {
+        throw new Error("Wait for the session id before queuing the turn.");
+      }
+
+      return queueSessionTurn(user.user_id, activeAgentId, currentSessionId, {
+        input,
+      });
+    },
+    onMutate: () => {
+      setSendError(null);
+    },
+    onSuccess: () => {
+      setDraft("");
+      setQueuedFollowUpSessionId(currentSessionId ?? null);
+      void queryClient.invalidateQueries({ queryKey: queuedTurnQueryKey });
+      if (activeNodeId && activeAgentId) {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.sessions(
+            user.user_id,
+            activeNodeId,
+            activeAgentId,
+          ),
+        });
+      }
+    },
+    onError: (caught) => {
+      setSendError(
+        caught instanceof Error ? caught : new Error(String(caught)),
+      );
+    },
+  });
+  const updateQueuedTurn = useMutation({
+    mutationFn: async (input: string) => {
+      if (!activeAgentId || !currentSessionId) {
+        throw new Error("Wait for the session id before updating the queue.");
+      }
+
+      return updateQueuedSessionTurn(
+        user.user_id,
+        activeAgentId,
+        currentSessionId,
+        { input },
+      );
+    },
+    onMutate: () => {
+      setSendError(null);
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(queuedTurnQueryKey, data);
+      setQueuedTurnEditingId(null);
+      setQueuedTurnDraft("");
+    },
+    onError: (caught) => {
+      setSendError(
+        caught instanceof Error ? caught : new Error(String(caught)),
+      );
+    },
+  });
+  const deleteQueuedTurn = useMutation({
+    mutationFn: async () => {
+      if (!activeAgentId || !currentSessionId) {
+        throw new Error("Wait for the session id before deleting the queue.");
+      }
+
+      return deleteQueuedSessionTurn(
+        user.user_id,
+        activeAgentId,
+        currentSessionId,
+      );
+    },
+    onMutate: () => {
+      setSendError(null);
+    },
+    onSuccess: () => {
+      queryClient.setQueryData(queuedTurnQueryKey, null);
+      setQueuedFollowUpSessionId(null);
+      setQueuedTurnEditingId(null);
+      setQueuedTurnDraft("");
+    },
+    onError: (caught) => {
+      setSendError(
+        caught instanceof Error ? caught : new Error(String(caught)),
+      );
+    },
+  });
+  const steerTurn = useMutation({
+    mutationFn: async (input: string) => {
+      if (!activeAgentId || !currentSessionId) {
+        throw new Error("Wait for the session id before steering the turn.");
+      }
+
+      return steerSessionTurn(user.user_id, activeAgentId, currentSessionId, {
+        input,
+      });
+    },
+    onMutate: () => {
+      setSendError(null);
+    },
+    onSuccess: () => {
+      setDraft("");
+      void queryClient.invalidateQueries({ queryKey: queuedTurnQueryKey });
       if (activeNodeId && activeAgentId) {
         void queryClient.invalidateQueries({
           queryKey: queryKeys.sessions(
@@ -499,8 +794,11 @@ export function SessionWorkbench({
 
   const liveEvents = useMemo(
     () =>
-      filterLiveEventsAlreadyInHistory(conversationRun.events, historyEvents),
-    [conversationRun.events, historyEvents],
+      filterLiveEventsAlreadyInHistory(
+        [...conversationRun.events, ...sessionObserver.events],
+        historyEvents,
+      ),
+    [conversationRun.events, historyEvents, sessionObserver.events],
   );
   const timeline = useMemo(
     () => mergeEvents([...historyEvents, ...liveEvents]),
@@ -520,10 +818,23 @@ export function SessionWorkbench({
   );
   const canSend =
     Boolean(activeAgentId && activeNodeId) &&
-    conversationRun.status !== "streaming" &&
-    conversationRun.status !== "waiting_approval" &&
+    !isTurnRunning &&
     !newSessionCwdInvalid &&
     draft.trim().length > 0;
+  const canQueueTurn =
+    isTurnRunning &&
+    Boolean(activeAgentId && currentSessionId) &&
+    draft.trim().length > 0 &&
+    !queueTurn.isPending;
+  const canSteerTurn =
+    isTurnRunning &&
+    Boolean(activeAgentId && currentSessionId) &&
+    draft.trim().length > 0 &&
+    !steerTurn.isPending;
+  const canStopTurn =
+    isTurnRunning &&
+    Boolean(activeAgentId && currentSessionId) &&
+    !stopTurn.isPending;
   const toggleApprovalMode = () => {
     const nextMode =
       displayedApprovalMode === "auto_approve_all"
@@ -552,18 +863,16 @@ export function SessionWorkbench({
 
   const submitDraft = useCallback(async () => {
     const content = draft.trim();
-    if (
-      !content ||
-      !activeAgentId ||
-      !activeNodeId ||
-      newSessionCwdInvalid ||
-      conversationRun.status === "streaming" ||
-      conversationRun.status === "waiting_approval"
-    ) {
+    if (!content || !activeAgentId || !activeNodeId || newSessionCwdInvalid) {
       return;
     }
 
     setSendError(null);
+    if (isTurnRunning) {
+      await queueTurn.mutateAsync(content);
+      return;
+    }
+
     setDraft("");
     if (isNewSession) {
       setPendingSessionPaxConfig({
@@ -595,9 +904,11 @@ export function SessionWorkbench({
     conversationRun,
     draft,
     isNewSession,
+    isTurnRunning,
     newSessionApprovalMode,
     newSessionCwdInvalid,
     normalizedNewSessionCwd,
+    queueTurn,
   ]);
 
   useEffect(() => {
@@ -670,6 +981,23 @@ export function SessionWorkbench({
     void submitDraft();
   }
 
+  function handleStopTurn() {
+    if (!canStopTurn) {
+      return;
+    }
+
+    stopTurn.mutate();
+  }
+
+  function handleSteerTurn() {
+    const content = draft.trim();
+    if (!canSteerTurn || !content) {
+      return;
+    }
+
+    steerTurn.mutate(content);
+  }
+
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (
       event.key !== "Enter" ||
@@ -685,6 +1013,28 @@ export function SessionWorkbench({
   }
 
   const sidePanels: SessionSidePanel[] = [
+    {
+      id: "tool",
+      label: "Tool",
+      description: "Selected timeline evidence",
+      icon: <Wrench className="h-4 w-4" />,
+      content: (
+        <ToolEvidencePanel
+          permissionDecision={{
+            decisions: permissionDecisions,
+            error: decidePermission.error,
+            pendingApprovalId: decidePermission.variables?.approvalId,
+            pending: decidePermission.isPending,
+            onDecision: (approvalId, decisionOption) =>
+              decidePermission.mutate({
+                approvalId,
+                decisionOption,
+              }),
+          }}
+          selection={selectedToolEvidence}
+        />
+      ),
+    },
     {
       id: "artifacts",
       label: "Artifacts",
@@ -751,242 +1101,397 @@ export function SessionWorkbench({
     (panel) => panel.id === activeSidePanelId,
   );
 
-  return (
-    <SessionWorkbenchFrame
-      activeAgent={activeAgent}
-      activeNode={activeNode}
-      embedded={embedded}
-      nodes={nodes}
-      user={user}
+  const workbench = (
+    <div
+      className={cn(
+        "relative flex min-h-0 min-w-0 overflow-hidden bg-canvas",
+        embedded ? "h-full" : "flex-1 lg:h-[calc(100vh-var(--topbar-h))]",
+      )}
     >
-      <div
-        className={cn(
-          "relative flex min-h-0 min-w-0 overflow-hidden bg-canvas",
-          embedded ? "h-full" : "flex-1 lg:h-[calc(100vh-var(--topbar-h))]",
-        )}
-      >
-        <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-canvas">
-          <div className="flex items-center justify-between gap-2 border-b border-hairline bg-surface-1 px-3 py-2 sm:gap-4 sm:px-4 sm:py-3">
-            <div className="flex min-w-0 items-center gap-2">
-              {(onMobileMenu || onMobileBack) && (
-                <Button
-                  aria-label={
-                    onMobileMenu
-                      ? `Open ${mobileMenuLabel ?? "sidebar"}`
-                      : `Back to ${mobileBackLabel ?? "Home"}`
-                  }
-                  className="lg:hidden"
-                  icon={
-                    onMobileMenu ? (
-                      <Menu className="h-4 w-4" />
-                    ) : (
-                      <ArrowLeft className="h-4 w-4" />
-                    )
-                  }
-                  onClick={onMobileMenu ?? onMobileBack}
-                  size="icon"
-                  tooltip={
-                    onMobileMenu
-                      ? `Open ${mobileMenuLabel ?? "sidebar"}`
-                      : `Back to ${mobileBackLabel ?? "Home"}`
-                  }
-                  type="button"
-                  variant="ghost"
-                />
-              )}
-              <div className="min-w-0">
-                <div className="flex min-w-0 gap-1 text-xs text-ink-tertiary sm:max-w-[52vw] sm:text-sm">
-                  <TruncatedText>
-                    {activeNode?.name ?? activeNode?.hostname ?? "Unknown node"}
-                  </TruncatedText>
-                  <span className="shrink-0">/</span>
-                  <TruncatedText>
-                    {activeAgent?.name ?? activeAgentId ?? "Unknown agent"}
-                  </TruncatedText>
-                </div>
-                <div className="mt-1 flex min-w-0 items-center gap-2">
-                  <TruncatedText
-                    className="text-base font-medium sm:text-lg"
-                    tooltip={sessionTitleTooltip}
-                  >
-                    {sessionDisplayName}
-                  </TruncatedText>
-                </div>
-              </div>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <RunBadge status={conversationRun.status} />
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-canvas">
+        <div className="flex items-center justify-between gap-2 border-b border-hairline bg-surface-1 px-3 py-2 sm:gap-4 sm:px-4 sm:py-3">
+          <div className="flex min-w-0 items-center gap-2">
+            {(onMobileMenu || onMobileBack) && (
               <Button
-                icon={<PanelRight className="h-4 w-4" />}
-                onClick={() =>
-                  setActiveSidePanelId((current) =>
-                    current ? null : (sidePanels[0]?.id ?? null),
+                aria-label={
+                  onMobileMenu
+                    ? `Open ${mobileMenuLabel ?? "sidebar"}`
+                    : `Back to ${mobileBackLabel ?? "Home"}`
+                }
+                className="lg:hidden"
+                icon={
+                  onMobileMenu ? (
+                    <Menu className="h-4 w-4" />
+                  ) : (
+                    <ArrowLeft className="h-4 w-4" />
                   )
                 }
+                onClick={onMobileMenu ?? onMobileBack}
                 size="icon"
                 tooltip={
-                  activeSidePanel ? "Hide context panel" : "Show context panel"
+                  onMobileMenu
+                    ? `Open ${mobileMenuLabel ?? "sidebar"}`
+                    : `Back to ${mobileBackLabel ?? "Home"}`
                 }
                 type="button"
-                variant={activeSidePanel ? "secondary" : "ghost"}
+                variant="ghost"
               />
+            )}
+            <div className="min-w-0">
+              <div className="flex min-w-0 gap-1 text-xs text-ink-tertiary sm:max-w-[52vw] sm:text-sm">
+                <TruncatedText>
+                  {activeNode?.name ?? activeNode?.hostname ?? "Unknown node"}
+                </TruncatedText>
+                <span className="shrink-0">/</span>
+                <TruncatedText>
+                  {activeAgent?.name ?? activeAgentId ?? "Unknown agent"}
+                </TruncatedText>
+              </div>
+              <div className="mt-1 flex min-w-0 items-center gap-2">
+                <TruncatedText
+                  className="text-base font-medium sm:text-lg"
+                  tooltip={sessionTitleTooltip}
+                >
+                  {sessionDisplayName}
+                </TruncatedText>
+              </div>
             </div>
           </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <RunBadge status={conversationRun.status} />
+            <Button
+              icon={<PanelRight className="h-4 w-4" />}
+              onClick={() =>
+                setActiveSidePanelId((current) =>
+                  current ? null : (sidePanels[0]?.id ?? null),
+                )
+              }
+              size="icon"
+              tooltip={
+                activeSidePanel ? "Hide context panel" : "Show context panel"
+              }
+              type="button"
+              variant={activeSidePanel ? "secondary" : "ghost"}
+            />
+          </div>
+        </div>
 
-          <div
-            className="min-h-0 flex-1 overflow-auto bg-canvas p-3 sm:p-4"
-            onScroll={updateTimelineStickiness}
-            ref={timelineScrollRef}
-          >
-            <div className="mx-auto grid w-full max-w-4xl gap-4">
-              <SessionErrors
-                messagesError={historyQuery.error}
-                missingRouteState={!activeNodeId || !activeAgentId}
-                sendError={sendError ?? conversationRun.error}
+        <div
+          className="min-h-0 flex-1 overflow-auto bg-canvas p-3 sm:p-4"
+          onScroll={updateTimelineStickiness}
+          ref={timelineScrollRef}
+        >
+          <div className="mx-auto grid w-full max-w-4xl gap-4">
+            <SessionErrors
+              messagesError={historyQuery.error}
+              missingRouteState={!activeNodeId || !activeAgentId}
+              sendError={
+                sendError ?? queuedTurnQuery.error ?? conversationRun.error
+              }
+            />
+            {workstreamItems.map((item) => (
+              <WorkstreamItemCard
+                agentOwnerInfos={agentOwnerInfosQuery.data ?? {}}
+                item={item}
+                key={item.id}
+                onSelectToolEvidence={(selection) => {
+                  setSelectedToolEvidence(selection);
+                  setActiveSidePanelId("tool");
+                }}
+                permissionDecision={{
+                  decisions: permissionDecisions,
+                  error: decidePermission.error,
+                  pendingApprovalId: decidePermission.variables?.approvalId,
+                  pending: decidePermission.isPending,
+                  onDecision: (approvalId, decisionOption) =>
+                    decidePermission.mutate({
+                      approvalId,
+                      decisionOption,
+                    }),
+                }}
               />
-              {workstreamItems.map((item) => (
-                <WorkstreamItemCard
-                  agentOwnerInfos={agentOwnerInfosQuery.data ?? {}}
-                  item={item}
-                  key={item.id}
-                  permissionDecision={{
-                    decisions: permissionDecisions,
-                    error: decidePermission.error,
-                    pendingApprovalId: decidePermission.variables?.approvalId,
-                    pending: decidePermission.isPending,
-                    onDecision: (approvalId, decisionOption) =>
-                      decidePermission.mutate({
-                        approvalId,
-                        decisionOption,
-                      }),
-                  }}
-                />
-              ))}
-              {!historyQuery.isLoading && workstreamItems.length === 0 && (
-                <div className="rounded-lg border border-dashed border-hairline bg-surface-1 p-4 text-sm text-ink-tertiary">
-                  No messages yet. Live tunnel events will appear here.
+            ))}
+            {!historyQuery.isLoading && workstreamItems.length === 0 && (
+              <div className="rounded-lg border border-dashed border-hairline bg-surface-1 p-4 text-sm text-ink-tertiary">
+                No messages yet. Live tunnel events will appear here.
+              </div>
+            )}
+            <div aria-hidden="true" className="h-2" ref={timelineBottomRef} />
+          </div>
+        </div>
+
+        <form
+          className="mobile-safe-bottom relative z-10 border-t border-hairline bg-surface-1 p-3"
+          onSubmit={handleSubmit}
+        >
+          <div className="mx-auto w-full max-w-4xl rounded-[22px] border border-hairline bg-surface-2 px-3 py-2 shadow-lg shadow-black/20">
+            {queuedTurnQuery.data && (
+              <div className="mb-2 grid gap-2 rounded-xl border border-primary/25 bg-primary/5 p-2.5">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="text-xs font-medium text-primary-hover">
+                    Queued next
+                  </span>
+                  <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-ink-tertiary">
+                    {compactId(queuedTurnQuery.data.queued_turn_id)}
+                  </span>
+                  {queuedTurnEditingId !==
+                  queuedTurnQuery.data.queued_turn_id ? (
+                    <Button
+                      disabled={deleteQueuedTurn.isPending}
+                      icon={<Pencil className="h-3.5 w-3.5" />}
+                      onClick={() => {
+                        setQueuedTurnDraft(queuedTurnQuery.data?.input ?? "");
+                        setQueuedTurnEditingId(
+                          queuedTurnQuery.data?.queued_turn_id ?? null,
+                        );
+                      }}
+                      size="icon"
+                      tooltip="Edit queued message"
+                      type="button"
+                      variant="ghost"
+                    />
+                  ) : null}
+                  <Button
+                    disabled={deleteQueuedTurn.isPending}
+                    icon={
+                      deleteQueuedTurn.isPending ? (
+                        <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3.5 w-3.5" />
+                      )
+                    }
+                    onClick={() => deleteQueuedTurn.mutate()}
+                    size="icon"
+                    tooltip="Delete queued message"
+                    type="button"
+                    variant="ghost"
+                  />
                 </div>
-              )}
-              <div aria-hidden="true" className="h-2" ref={timelineBottomRef} />
-            </div>
-          </div>
-
-          <form
-            className="mobile-safe-bottom relative z-10 border-t border-hairline bg-surface-1 p-3"
-            onSubmit={handleSubmit}
-          >
-            <div className="mx-auto w-full max-w-4xl rounded-[22px] border border-hairline bg-surface-2 px-3 py-2 shadow-lg shadow-black/20">
-              <textarea
-                className="max-h-40 min-h-20 w-full resize-none bg-transparent px-1 py-1 text-sm leading-6 text-ink outline-none placeholder:text-ink-tertiary"
-                disabled={!activeAgentId}
-                onKeyDown={handleComposerKeyDown}
-                onChange={(event) => setDraft(event.target.value)}
-                placeholder={
-                  activeAgentId
-                    ? "Send a prompt to this agent"
-                    : "Select an agent before sending a prompt"
-                }
-                value={draft}
-              />
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <Button
-                  icon={<Plus className="h-4 w-4" />}
-                  onClick={() => setActiveSidePanelId("artifacts")}
-                  size="icon"
-                  tooltip="Open artifacts"
-                  type="button"
-                  variant="ghost"
-                />
-                {isNewSession ? (
-                  <>
-                    {newSessionWorkspaceOpen ? (
-                      <label
-                        className={cn(
-                          "inline-flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border bg-canvas px-2.5 text-sm transition sm:max-w-80",
-                          newSessionCwdInvalid
-                            ? "border-warning text-warning"
-                            : "border-hairline text-ink-muted focus-within:border-primary-focus focus-within:ring-2 focus-within:ring-primary-focus/20",
-                        )}
-                        onBlur={(event) => {
-                          const nextTarget = event.relatedTarget;
-                          if (
-                            (nextTarget instanceof globalThis.Node &&
-                              event.currentTarget.contains(nextTarget)) ||
-                            newSessionCwd.trim()
-                          ) {
-                            return;
-                          }
-
-                          setNewSessionWorkspaceOpen(false);
-                        }}
-                      >
-                        <FolderOpen className="h-4 w-4 shrink-0" />
-                        <span className="shrink-0 text-xs font-medium text-ink-tertiary">
-                          Workspace
-                        </span>
-                        <input
-                          aria-invalid={newSessionCwdInvalid}
-                          aria-label="Workspace"
-                          autoFocus
-                          className="min-w-0 flex-1 bg-transparent font-mono text-xs text-ink outline-none placeholder:text-ink-tertiary"
-                          onChange={(event) =>
-                            setNewSessionCwd(event.target.value)
-                          }
-                          placeholder="/Users/me/project"
-                          spellCheck={false}
-                          value={newSessionCwd}
-                        />
-                      </label>
-                    ) : (
+                {queuedTurnEditingId === queuedTurnQuery.data.queued_turn_id ? (
+                  <div className="grid gap-2">
+                    <textarea
+                      aria-label="Queued message"
+                      autoFocus
+                      className="max-h-32 min-h-16 w-full resize-y rounded-lg border border-hairline bg-canvas px-2.5 py-2 text-sm leading-5 text-ink outline-none focus:border-primary-focus focus:ring-2 focus:ring-primary-focus/20"
+                      onChange={(event) =>
+                        setQueuedTurnDraft(event.target.value)
+                      }
+                      value={queuedTurnDraft}
+                    />
+                    <div className="flex justify-end gap-2">
                       <Button
-                        icon={<FolderPlus className="h-4 w-4" />}
-                        onClick={() => setNewSessionWorkspaceOpen(true)}
-                        size="icon"
-                        tooltip="Set workspace"
+                        disabled={updateQueuedTurn.isPending}
+                        onClick={() => {
+                          setQueuedTurnEditingId(null);
+                          setQueuedTurnDraft("");
+                        }}
+                        size="sm"
                         type="button"
                         variant="ghost"
-                      />
-                    )}
-                  </>
-                ) : shouldShowReadOnlyWorkspace ? (
-                  <div className="inline-flex min-h-9 min-w-0 max-w-64 items-center gap-2 rounded-lg border border-hairline bg-canvas px-2.5 text-sm text-ink-muted">
-                    <FolderOpen className="h-4 w-4 shrink-0" />
-                    <span className="shrink-0 text-xs font-medium text-ink-tertiary">
-                      Workspace
-                    </span>
-                    <span className="min-w-0 truncate font-mono text-xs text-ink">
-                      {displayedWorkspace}
-                    </span>
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        disabled={
+                          updateQueuedTurn.isPending ||
+                          queuedTurnDraft.trim().length === 0
+                        }
+                        icon={
+                          updateQueuedTurn.isPending ? (
+                            <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Save className="h-3.5 w-3.5" />
+                          )
+                        }
+                        onClick={() =>
+                          updateQueuedTurn.mutate(queuedTurnDraft.trim())
+                        }
+                        size="sm"
+                        type="button"
+                        variant="primary"
+                      >
+                        Save
+                      </Button>
+                    </div>
                   </div>
-                ) : null}
-                <button
-                  aria-pressed={displayedApprovalMode === "auto_approve_all"}
-                  className={cn(
-                    "inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg px-2.5 text-sm transition disabled:cursor-not-allowed disabled:opacity-60",
-                    displayedApprovalMode === "auto_approve_all"
-                      ? "bg-success/10 text-success"
-                      : "text-primary-hover hover:bg-surface-3",
+                ) : (
+                  <p className="max-h-24 overflow-auto whitespace-pre-wrap text-sm leading-5 text-ink-muted">
+                    {queuedTurnQuery.data.input}
+                  </p>
+                )}
+              </div>
+            )}
+            <textarea
+              className="max-h-40 min-h-20 w-full resize-none bg-transparent px-1 py-1 text-sm leading-6 text-ink outline-none placeholder:text-ink-tertiary"
+              disabled={!activeAgentId}
+              onKeyDown={handleComposerKeyDown}
+              onChange={(event) => setDraft(event.target.value)}
+              placeholder={
+                activeAgentId
+                  ? "Send a prompt to this agent"
+                  : "Select an agent before sending a prompt"
+              }
+              value={draft}
+            />
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <Button
+                icon={<Plus className="h-4 w-4" />}
+                onClick={() => setActiveSidePanelId("artifacts")}
+                size="icon"
+                tooltip="Open artifacts"
+                type="button"
+                variant="ghost"
+              />
+              {isNewSession ? (
+                <>
+                  {newSessionWorkspaceOpen ? (
+                    <label
+                      className={cn(
+                        "inline-flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border bg-canvas px-2.5 text-sm transition sm:max-w-80",
+                        newSessionCwdInvalid
+                          ? "border-warning text-warning"
+                          : "border-hairline text-ink-muted focus-within:border-primary-focus focus-within:ring-2 focus-within:ring-primary-focus/20",
+                      )}
+                      onBlur={(event) => {
+                        const nextTarget = event.relatedTarget;
+                        if (
+                          (nextTarget instanceof globalThis.Node &&
+                            event.currentTarget.contains(nextTarget)) ||
+                          newSessionCwd.trim()
+                        ) {
+                          return;
+                        }
+
+                        setNewSessionWorkspaceOpen(false);
+                      }}
+                    >
+                      <FolderOpen className="h-4 w-4 shrink-0" />
+                      <span className="shrink-0 text-xs font-medium text-ink-tertiary">
+                        Workspace
+                      </span>
+                      <input
+                        aria-invalid={newSessionCwdInvalid}
+                        aria-label="Workspace"
+                        autoFocus
+                        className="min-w-0 flex-1 bg-transparent font-mono text-xs text-ink outline-none placeholder:text-ink-tertiary"
+                        onChange={(event) =>
+                          setNewSessionCwd(event.target.value)
+                        }
+                        placeholder="/Users/me/project"
+                        spellCheck={false}
+                        value={newSessionCwd}
+                      />
+                    </label>
+                  ) : (
+                    <Button
+                      icon={<FolderPlus className="h-4 w-4" />}
+                      onClick={() => setNewSessionWorkspaceOpen(true)}
+                      size="icon"
+                      tooltip="Set workspace"
+                      type="button"
+                      variant="ghost"
+                    />
                   )}
-                  disabled={updateSessionApprovalMode.isPending}
-                  onClick={toggleApprovalMode}
-                  type="button"
-                >
-                  <ShieldCheck className="h-4 w-4" />
-                  <span className="hidden sm:inline">
-                    {displayedApprovalMode === "auto_approve_all"
-                      ? "Auto approve"
-                      : "Manual approve"}
+                </>
+              ) : shouldShowReadOnlyWorkspace ? (
+                <div className="inline-flex min-h-9 min-w-0 max-w-64 items-center gap-2 rounded-lg border border-hairline bg-canvas px-2.5 text-sm text-ink-muted">
+                  <FolderOpen className="h-4 w-4 shrink-0" />
+                  <span className="shrink-0 text-xs font-medium text-ink-tertiary">
+                    Workspace
                   </span>
-                </button>
-                <div className="min-w-0 flex-1" />
-                <Button
-                  disabled
-                  icon={<Mic className="h-4 w-4" />}
-                  size="icon"
-                  tooltip="Voice input is not available yet"
-                  type="button"
-                  variant="ghost"
-                />
+                  <span className="min-w-0 truncate font-mono text-xs text-ink">
+                    {displayedWorkspace}
+                  </span>
+                </div>
+              ) : null}
+              <button
+                aria-pressed={displayedApprovalMode === "auto_approve_all"}
+                className={cn(
+                  "inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg px-2.5 text-sm transition disabled:cursor-not-allowed disabled:opacity-60",
+                  displayedApprovalMode === "auto_approve_all"
+                    ? "bg-success/10 text-success"
+                    : "text-primary-hover hover:bg-surface-3",
+                )}
+                disabled={updateSessionApprovalMode.isPending}
+                onClick={toggleApprovalMode}
+                type="button"
+              >
+                <ShieldCheck className="h-4 w-4" />
+                <span className="hidden sm:inline">
+                  {displayedApprovalMode === "auto_approve_all"
+                    ? "Auto approve"
+                    : "Manual approve"}
+                </span>
+              </button>
+              <div className="min-w-0 flex-1" />
+              <Button
+                disabled
+                icon={<Mic className="h-4 w-4" />}
+                size="icon"
+                tooltip="Voice input is not available yet"
+                type="button"
+                variant="ghost"
+              />
+              {isTurnRunning ? (
+                <>
+                  <Button
+                    disabled={!canQueueTurn}
+                    icon={
+                      queueTurn.isPending ? (
+                        <LoaderCircle className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )
+                    }
+                    size="icon"
+                    tooltip={
+                      currentSessionId
+                        ? "Queue after current turn"
+                        : "Waiting for session id"
+                    }
+                    type="submit"
+                    variant="primary"
+                  />
+                  <Button
+                    disabled={!canSteerTurn}
+                    icon={
+                      steerTurn.isPending ? (
+                        <LoaderCircle className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )
+                    }
+                    onClick={handleSteerTurn}
+                    size="icon"
+                    tooltip={
+                      currentSessionId
+                        ? "Steer with this prompt"
+                        : "Waiting for session id"
+                    }
+                    type="button"
+                    variant="ghost"
+                  />
+                  <Button
+                    disabled={!canStopTurn}
+                    icon={
+                      stopTurn.isPending ? (
+                        <LoaderCircle className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Square className="h-4 w-4 fill-current" />
+                      )
+                    }
+                    onClick={handleStopTurn}
+                    size="icon"
+                    tooltip={
+                      currentSessionId
+                        ? "Stop current turn"
+                        : "Waiting for session id"
+                    }
+                    type="button"
+                    variant="danger"
+                  />
+                </>
+              ) : (
                 <Button
                   disabled={!canSend}
                   icon={<Send className="h-4 w-4" />}
@@ -995,54 +1500,66 @@ export function SessionWorkbench({
                   type="submit"
                   variant="primary"
                 />
-              </div>
+              )}
             </div>
-          </form>
-        </section>
+          </div>
+        </form>
+      </section>
 
-        {activeSidePanel && (
-          <aside className="absolute inset-y-0 right-0 z-20 min-h-0 w-full overflow-auto border-l border-hairline bg-surface-1 shadow-2xl shadow-black/40 sm:w-[min(100vw,320px)] lg:relative lg:inset-auto lg:z-auto lg:w-[300px] lg:shadow-none">
-            <div className="flex min-w-0 items-start justify-between gap-3 border-b border-hairline p-4">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 text-sm font-medium text-ink">
-                  {activeSidePanel.icon}
-                  {activeSidePanel.label}
-                </div>
-                <div className="mt-1 text-xs text-ink-tertiary">
-                  {activeSidePanel.description}
-                </div>
+      {activeSidePanel && (
+        <aside className="absolute inset-y-0 right-0 z-20 min-h-0 w-full overflow-auto border-l border-hairline bg-surface-1 shadow-2xl shadow-black/40 sm:w-[min(100vw,320px)] lg:relative lg:inset-auto lg:z-auto lg:w-[300px] lg:shadow-none">
+          <div className="flex min-w-0 items-start justify-between gap-3 border-b border-hairline p-4">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-sm font-medium text-ink">
+                {activeSidePanel.icon}
+                {activeSidePanel.label}
               </div>
-              <Button
-                icon={<X className="h-4 w-4" />}
-                onClick={() => setActiveSidePanelId(null)}
-                size="icon"
-                tooltip={`Hide ${activeSidePanel.label}`}
+              <div className="mt-1 text-xs text-ink-tertiary">
+                {activeSidePanel.description}
+              </div>
+            </div>
+            <Button
+              icon={<X className="h-4 w-4" />}
+              onClick={() => setActiveSidePanelId(null)}
+              size="icon"
+              tooltip={`Hide ${activeSidePanel.label}`}
+              type="button"
+              variant="ghost"
+            />
+          </div>
+          <div className="flex gap-1 border-b border-hairline px-3 py-2">
+            {sidePanels.map((panel) => (
+              <button
+                className={cn(
+                  "inline-flex min-h-8 flex-1 items-center justify-center gap-2 rounded-md px-2 text-xs transition",
+                  activeSidePanelId === panel.id
+                    ? "bg-surface-3 text-ink"
+                    : "text-ink-tertiary hover:bg-surface-2 hover:text-ink-muted",
+                )}
+                key={panel.id}
+                onClick={() => setActiveSidePanelId(panel.id)}
                 type="button"
-                variant="ghost"
-              />
-            </div>
-            <div className="flex gap-1 border-b border-hairline px-3 py-2">
-              {sidePanels.map((panel) => (
-                <button
-                  className={cn(
-                    "inline-flex min-h-8 flex-1 items-center justify-center gap-2 rounded-md px-2 text-xs transition",
-                    activeSidePanelId === panel.id
-                      ? "bg-surface-3 text-ink"
-                      : "text-ink-tertiary hover:bg-surface-2 hover:text-ink-muted",
-                  )}
-                  key={panel.id}
-                  onClick={() => setActiveSidePanelId(panel.id)}
-                  type="button"
-                >
-                  {panel.icon}
-                  <span className="min-w-0 truncate">{panel.label}</span>
-                </button>
-              ))}
-            </div>
-            <div className="p-4">{activeSidePanel.content}</div>
-          </aside>
-        )}
-      </div>
+              >
+                {panel.icon}
+                <span className="min-w-0 truncate">{panel.label}</span>
+              </button>
+            ))}
+          </div>
+          <div className="p-4">{activeSidePanel.content}</div>
+        </aside>
+      )}
+    </div>
+  );
+
+  return (
+    <SessionWorkbenchFrame
+      activeAgent={activeAgent}
+      activeNode={activeNode}
+      embedded={embedded}
+      nodes={nodes}
+      user={user}
+    >
+      {workbench}
     </SessionWorkbenchFrame>
   );
 }
@@ -1098,6 +1615,23 @@ function readInitialPrompt(initialPrompt?: string, initialPromptKey?: string) {
 
 function isAbsolutePath(path: string) {
   return path.startsWith("/");
+}
+
+function lastMessageID(messages?: HistoryMessage[]) {
+  if (!messages || messages.length === 0) {
+    return undefined;
+  }
+
+  return messages[messages.length - 1]?.message_id;
+}
+
+function isActiveSessionRunStatus(status?: string) {
+  return (
+    status === "running" ||
+    status === "waiting_approval" ||
+    status === "cancelling" ||
+    status === "canceling"
+  );
 }
 
 function removeStoredInitialPrompt(initialPromptKey?: string) {

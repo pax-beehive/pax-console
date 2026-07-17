@@ -120,6 +120,79 @@ describe("tool patches", () => {
     );
   });
 
+  it("extracts every path from a terminal rm command with multiple files", () => {
+    const patches = extractCodePatches(
+      {
+        content: [
+          {
+            content: {
+              text: "$ rm ~/Downloads/lynwood_charity_research.md ~/Downloads/AirlineSatisfaction.csv ~/Downloads/bank_marketing.xlsx",
+              type: "text",
+            },
+            type: "content",
+          },
+        ],
+        kind: "execute",
+        sessionUpdate: "tool_call",
+        title:
+          "terminal: rm ~/Downloads/lynwood_charity_research.md ~/Downloads/AirlineSatisfaction.cs...",
+      },
+      "input",
+    );
+
+    expect(patches).toMatchObject([
+      {
+        operation: "delete",
+        path: "~/Downloads/lynwood_charity_research.md",
+        source: "input",
+      },
+      {
+        operation: "delete",
+        path: "~/Downloads/AirlineSatisfaction.csv",
+        source: "input",
+      },
+      {
+        operation: "delete",
+        path: "~/Downloads/bank_marketing.xlsx",
+        source: "input",
+      },
+    ]);
+  });
+
+  it("preserves quoted and escaped spaces while ignoring rm options", () => {
+    const patches = extractCodePatches(
+      {
+        title: String.raw`terminal: rm -rf "~/Downloads/tax return.xlsx" ~/Downloads/tax\ notes.md`,
+      },
+      "input",
+    );
+
+    expect(patches.map((patch) => patch.path)).toEqual([
+      "~/Downloads/tax return.xlsx",
+      "~/Downloads/tax notes.md",
+    ]);
+  });
+
+  it("treats a dash-prefixed path after the rm option separator as a file", () => {
+    const patches = extractCodePatches(
+      { title: "terminal: rm -- -draft.md" },
+      "input",
+    );
+
+    expect(patches).toMatchObject([
+      { operation: "delete", path: "-draft.md", source: "input" },
+    ]);
+  });
+
+  it("ignores a truncated terminal title when full command content is absent", () => {
+    const patches = extractCodePatches(
+      { title: "terminal: rm ~/Downloads/AirlineSatisfaction.cs..." },
+      "input",
+    );
+
+    expect(patches).toEqual([]);
+  });
+
   it("prefers a delete patch over earlier writes to the same file", () => {
     const patches = coalesceCodePatches([
       {

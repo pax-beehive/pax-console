@@ -84,9 +84,7 @@ export async function streamConversationRun({
         ...(input ? { input } : {}),
         ...(sessionId ? { session_id: sessionId } : {}),
         ...(!sessionId && cwd ? { cwd } : {}),
-        ...(!sessionId && approvalMode
-          ? { approval_mode: approvalMode }
-          : {}),
+        ...(!sessionId && approvalMode ? { approval_mode: approvalMode } : {}),
         ...(resume ? { resume: { approval_id: resume.approvalId } } : {}),
       }),
       credentials: "include",
@@ -122,6 +120,26 @@ export async function streamConversationRun({
     );
   }
 
+  await streamSseResponse(response, parseConversationRunSseBlock, onEnvelope);
+}
+
+export function parseConversationRunSseBlock(block: string) {
+  return parseSseDataBlock<ConversationRunEnvelope>(block);
+}
+
+export async function streamSseResponse<TEnvelope>(
+  response: Response,
+  parseBlock: (block: string) => TEnvelope | undefined,
+  onEnvelope: (envelope: TEnvelope) => void,
+) {
+  if (!response.body) {
+    throw new ApiError(
+      "Stream did not include a response body",
+      response.status,
+      null,
+    );
+  }
+
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -129,17 +147,17 @@ export async function streamConversationRun({
   while (true) {
     const { done, value } = await reader.read();
     buffer += decoder.decode(value, { stream: !done });
-    buffer = drainSseBuffer(buffer, onEnvelope);
+    buffer = drainSseBuffer(buffer, parseBlock, onEnvelope);
 
     if (done) {
       break;
     }
   }
 
-  drainSseBuffer(`${buffer}\n\n`, onEnvelope);
+  drainSseBuffer(`${buffer}\n\n`, parseBlock, onEnvelope);
 }
 
-export function parseConversationRunSseBlock(block: string) {
+export function parseSseDataBlock<TEnvelope>(block: string) {
   const data = block
     .split(/\r?\n/)
     .filter((line) => line.startsWith("data:"))
@@ -151,12 +169,13 @@ export function parseConversationRunSseBlock(block: string) {
     return undefined;
   }
 
-  return JSON.parse(data) as ConversationRunEnvelope;
+  return JSON.parse(data) as TEnvelope;
 }
 
-function drainSseBuffer(
+function drainSseBuffer<TEnvelope>(
   buffer: string,
-  onEnvelope: (envelope: ConversationRunEnvelope) => void,
+  parseBlock: (block: string) => TEnvelope | undefined,
+  onEnvelope: (envelope: TEnvelope) => void,
 ) {
   let remaining = buffer;
   let boundary = findSseBoundary(remaining);
@@ -164,7 +183,7 @@ function drainSseBuffer(
   while (boundary) {
     const block = remaining.slice(0, boundary.index);
     remaining = remaining.slice(boundary.index + boundary.length);
-    const envelope = parseConversationRunSseBlock(block);
+    const envelope = parseBlock(block);
     if (envelope) {
       onEnvelope(envelope);
     }

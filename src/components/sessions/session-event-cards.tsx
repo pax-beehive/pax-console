@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { type MouseEvent, useCallback, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -28,10 +28,7 @@ import {
   WorkstreamItem,
 } from "@/features/runtime/session-events";
 import { invocationBodyContent } from "@/features/runtime/invocation-body-content";
-import {
-  CodePatch,
-  codePatchToText,
-} from "@/features/runtime/tool-patches";
+import { CodePatch, codePatchToText } from "@/features/runtime/tool-patches";
 import { cn } from "@/lib/utils";
 
 export type PermissionDecisionOption =
@@ -53,6 +50,16 @@ export type PermissionDecisionState = {
 };
 
 export type PermissionDecisionResult = PermissionDecision;
+
+export type ToolEvidenceSelection =
+  | {
+      type: "tool";
+      event: ToolCallEvent;
+    }
+  | {
+      type: "permission";
+      event: Extract<SessionEvent, { type: "permission_request" }>;
+    };
 
 const permissionDecisionOptions: {
   label: string;
@@ -81,16 +88,19 @@ const permissionDecisionOptions: {
 export function WorkstreamItemCard({
   agentOwnerInfos,
   item,
+  onSelectToolEvidence,
   permissionDecision,
 }: {
   agentOwnerInfos?: Record<string, AgentOwnerInfo>;
   item: WorkstreamItem;
+  onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
   permissionDecision: PermissionDecisionState;
 }) {
   if (item.type === "tool_group") {
     return (
       <ToolGroupCard
         events={item.events}
+        onSelectToolEvidence={onSelectToolEvidence}
         permissionDecision={permissionDecision}
       />
     );
@@ -109,18 +119,93 @@ export function WorkstreamItemCard({
     <EventCard
       agentOwnerInfos={agentOwnerInfos}
       event={item.event}
+      onSelectToolEvidence={onSelectToolEvidence}
       permissionDecision={permissionDecision}
     />
+  );
+}
+
+export function ToolEvidencePanel({
+  permissionDecision,
+  selection,
+}: {
+  permissionDecision: PermissionDecisionState;
+  selection: ToolEvidenceSelection | null;
+}) {
+  if (!selection) {
+    return (
+      <div className="rounded-lg border border-dashed border-hairline bg-canvas p-3 text-sm text-ink-tertiary">
+        Select a tool call or approval request from the timeline.
+      </div>
+    );
+  }
+
+  if (selection.type === "permission") {
+    const patches = permissionRequestPatches(selection.event);
+    return (
+      <div className="grid gap-4">
+        <PermissionRequestCard
+          compactApproved={false}
+          event={selection.event}
+          permissionDecision={permissionDecision}
+        />
+        {patches.length > 0 && <ToolEvidencePatchList patches={patches} />}
+        <ToolPayloadSection label="Request" value={selection.event.rawInput} />
+      </div>
+    );
+  }
+
+  const event = selection.event;
+  const appliedPatches = toolCallAppliedPatches(event);
+  const proposedPatches = toolCallProposedPatches(event);
+  const codePatches =
+    appliedPatches.length > 0 ? appliedPatches : proposedPatches;
+
+  return (
+    <div className="grid gap-4">
+      <section className="grid gap-2 rounded-lg border border-hairline bg-canvas p-3">
+        <div className="flex min-w-0 items-center justify-between gap-2">
+          <TruncatedText
+            className="font-mono text-xs font-medium text-ink"
+            tooltip={event.name}
+          >
+            {event.name}
+          </TruncatedText>
+          <ToolStatusBadge status={event.status} />
+        </div>
+        {event.toolCallId && <MonoId>tool: {event.toolCallId}</MonoId>}
+        {event.durationMs !== undefined && (
+          <div className="text-xs text-ink-tertiary">{event.durationMs}ms</div>
+        )}
+      </section>
+
+      {codePatches.length > 0 && (
+        <ToolEvidencePatchList patches={codePatches} />
+      )}
+
+      <ToolPermissionsSection
+        event={event}
+        permissionDecision={permissionDecision}
+      />
+      <ToolPayloadSection label="Input" value={event.input} />
+      <ToolPayloadSection
+        fallback={event.status === "done" ? "Success" : undefined}
+        label="Output"
+        value={event.output}
+      />
+    </div>
   );
 }
 
 function EventCard({
   agentOwnerInfos,
   event,
+  onSelectToolEvidence,
   permissionDecision,
 }: {
   agentOwnerInfos?: Record<string, AgentOwnerInfo>;
   event: Exclude<SessionEvent, ToolCallEvent>;
+  onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
   permissionDecision: PermissionDecisionState;
 }) {
   if (event.type === "file_change") {
@@ -135,6 +220,7 @@ function EventCard({
     return (
       <PermissionRequestCard
         event={event}
+        onSelectToolEvidence={onSelectToolEvidence}
         permissionDecision={permissionDecision}
       />
     );
@@ -462,9 +548,11 @@ function ownerDisplayName(ownerInfo: AgentOwnerInfo | undefined) {
 
 function ToolGroupCard({
   events,
+  onSelectToolEvidence,
   permissionDecision,
 }: {
   events: ToolCallEvent[];
+  onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
   permissionDecision: PermissionDecisionState;
 }) {
   const runningCount = events.filter(
@@ -493,6 +581,7 @@ function ToolGroupCard({
           <ToolEventRow
             event={event}
             key={event.id}
+            onSelectToolEvidence={onSelectToolEvidence}
             permissionDecision={permissionDecision}
           />
         ))}
@@ -503,9 +592,11 @@ function ToolGroupCard({
 
 function ToolEventRow({
   event,
+  onSelectToolEvidence,
   permissionDecision,
 }: {
   event: ToolCallEvent;
+  onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
   permissionDecision: PermissionDecisionState;
 }) {
   const approvedDecisions = event.permissions
@@ -534,6 +625,7 @@ function ToolEventRow({
         codePatches={codePatches}
         event={event}
         intent={appliedPatches.length > 0 ? "edited" : "proposed"}
+        onSelectToolEvidence={onSelectToolEvidence}
         permissionDecision={permissionDecision}
       />
     );
@@ -544,7 +636,10 @@ function ToolEventRow({
       className="group/tool min-w-0 border-b border-hairline last:border-b-0"
       open={hasPendingPermission}
     >
-      <summary className="grid min-h-9 cursor-pointer list-none grid-cols-[16px_minmax(0,1fr)_auto_auto] items-center gap-2 px-3 py-1.5 outline-none transition hover:bg-canvas/70 [&::-webkit-details-marker]:hidden">
+      <summary
+        className="grid min-h-9 cursor-pointer list-none grid-cols-[16px_minmax(0,1fr)_auto_auto] items-center gap-2 px-3 py-1.5 outline-none transition hover:bg-canvas/70 [&::-webkit-details-marker]:hidden"
+        onClick={() => onSelectToolEvidence?.({ type: "tool", event })}
+      >
         <ToolStatusMark status={event.status} />
         <TruncatedText
           className="font-mono text-xs text-ink-muted"
@@ -563,6 +658,7 @@ function ToolEventRow({
       <div className="grid gap-3 border-t border-hairline bg-canvas/60 p-3">
         <ToolPermissionsSection
           event={event}
+          onSelectToolEvidence={onSelectToolEvidence}
           permissionDecision={permissionDecision}
         />
         <ToolPayloadSection label="Input" value={event.input} />
@@ -580,11 +676,13 @@ function PatchToolEventRow({
   codePatches,
   event,
   intent,
+  onSelectToolEvidence,
   permissionDecision,
 }: {
   codePatches: CodePatch[];
   event: ToolCallEvent;
   intent: "edited" | "proposed";
+  onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
   permissionDecision: PermissionDecisionState;
 }) {
   const allApproved =
@@ -599,7 +697,18 @@ function PatchToolEventRow({
     intent === "edited" || !allApproved ? intent : "approved";
 
   return (
-    <div className="min-w-0 border-b border-hairline bg-canvas/40 p-3 last:border-b-0">
+    <article
+      className="min-w-0 cursor-pointer border-b border-hairline bg-canvas/40 p-3 outline-none transition hover:bg-canvas/70 focus-visible:ring-2 focus-visible:ring-primary-focus/40 last:border-b-0"
+      onClick={() => onSelectToolEvidence?.({ type: "tool", event })}
+      onKeyDown={(keyboardEvent) => {
+        if (keyboardEvent.key === "Enter" || keyboardEvent.key === " ") {
+          keyboardEvent.preventDefault();
+          onSelectToolEvidence?.({ type: "tool", event });
+        }
+      }}
+      role={onSelectToolEvidence ? "button" : undefined}
+      tabIndex={onSelectToolEvidence ? 0 : undefined}
+    >
       {(intent === "edited" || !event.permissions?.length) && (
         <CompactPatchToolSummary intent={summaryIntent} patches={codePatches} />
       )}
@@ -607,11 +716,12 @@ function PatchToolEventRow({
         <div className={intent === "edited" ? "mt-3" : ""}>
           <ToolPermissionsSection
             event={event}
+            onSelectToolEvidence={onSelectToolEvidence}
             permissionDecision={permissionDecision}
           />
         </div>
       )}
-    </div>
+    </article>
   );
 }
 
@@ -647,6 +757,49 @@ function CompactPatchToolSummary({
   );
 }
 
+function ToolEvidencePatchList({ patches }: { patches: CodePatch[] }) {
+  if (patches.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="overflow-hidden rounded-lg border border-hairline bg-canvas">
+      <div className="border-b border-hairline px-3 py-2 text-xs uppercase tracking-wide text-ink-tertiary">
+        Files
+      </div>
+      <div className="grid divide-y divide-hairline">
+        {patches.map((patch) => {
+          const stats = codePatchStats(patch);
+          const title = patch.path ?? patch.operation;
+          return (
+            <div
+              className="grid min-w-0 gap-1 px-3 py-2"
+              key={codePatchKey(patch)}
+            >
+              <div className="flex min-w-0 items-center justify-between gap-2">
+                <TruncatedText
+                  className="font-mono text-xs text-ink"
+                  tooltip={title}
+                >
+                  {title}
+                </TruncatedText>
+                <PatchStatsView
+                  className="shrink-0 font-mono text-xs"
+                  summary={patchStatsSummary([patch], stats)}
+                />
+              </div>
+              <div className="text-xs text-ink-tertiary">
+                {patch.operation}
+                {patch.source ? ` · ${patch.source}` : ""}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function compactPatchLabel(patches: CodePatch[]) {
   const noun = patches.length === 1 ? "file" : "files";
   if (patches.every((patch) => patch.operation === "delete")) {
@@ -660,9 +813,11 @@ function compactPatchLabel(patches: CodePatch[]) {
 
 function ToolPermissionsSection({
   event,
+  onSelectToolEvidence,
   permissionDecision,
 }: {
   event: ToolCallEvent;
+  onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
   permissionDecision: PermissionDecisionState;
 }) {
   if (!event.permissions || event.permissions.length === 0) {
@@ -679,6 +834,7 @@ function ToolPermissionsSection({
           compactApproved={false}
           event={permission}
           key={permission.id}
+          onSelectToolEvidence={onSelectToolEvidence}
           permissionDecision={permissionDecision}
         />
       ))}
@@ -893,8 +1049,7 @@ function DiffLineView({
   ]
     .filter(Boolean)
     .join(" ");
-  const numberColumnClass =
-    "select-none px-1 text-right text-ink-tertiary";
+  const numberColumnClass = "select-none px-1 text-right text-ink-tertiary";
 
   return (
     <div className={`grid ${rowClass}`} style={{ gridTemplateColumns }}>
@@ -929,7 +1084,10 @@ function codePatchKey(patch: CodePatch) {
 }
 
 function groupPatchesByFile(patches: CodePatch[]) {
-  const groups = new Map<string, { key: string; path?: string; patches: CodePatch[] }>();
+  const groups = new Map<
+    string,
+    { key: string; path?: string; patches: CodePatch[] }
+  >();
   for (const patch of patches) {
     const key = patch.path ?? codePatchKey(patch);
     const existing = groups.get(key);
@@ -953,7 +1111,10 @@ function shortPatchPathLabels(patches: CodePatch[]) {
 
   for (const path of paths) {
     const fileName = lastPathSegment(path);
-    pathsByFileName.set(fileName, [...(pathsByFileName.get(fileName) ?? []), path]);
+    pathsByFileName.set(fileName, [
+      ...(pathsByFileName.get(fileName) ?? []),
+      path,
+    ]);
   }
 
   for (const [fileName, conflictingPaths] of pathsByFileName) {
@@ -1323,10 +1484,12 @@ function ToolStatusMark({ status }: { status: ToolCallEvent["status"] }) {
 function PermissionRequestCard({
   compactApproved = true,
   event,
+  onSelectToolEvidence,
   permissionDecision,
 }: {
   compactApproved?: boolean;
   event: Extract<SessionEvent, { type: "permission_request" }>;
+  onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
   permissionDecision: PermissionDecisionState;
 }) {
   const pending =
@@ -1349,6 +1512,7 @@ function PermissionRequestCard({
         decided={decided}
         denied={denied}
         event={event}
+        onSelectToolEvidence={onSelectToolEvidence}
         patches={patchPatches}
         pending={pending}
         permissionDecision={permissionDecision}
@@ -1358,7 +1522,18 @@ function PermissionRequestCard({
 
   if (approved && compactApproved) {
     return (
-      <article className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-success/70 bg-success/5 px-3 py-2.5">
+      <article
+        className="flex min-w-0 cursor-pointer items-center justify-between gap-3 rounded-lg border border-success/70 bg-success/5 px-3 py-2.5 outline-none transition hover:bg-success/10 focus-visible:ring-2 focus-visible:ring-primary-focus/40"
+        onClick={() => onSelectToolEvidence?.({ type: "permission", event })}
+        onKeyDown={(keyboardEvent) => {
+          if (keyboardEvent.key === "Enter" || keyboardEvent.key === " ") {
+            keyboardEvent.preventDefault();
+            onSelectToolEvidence?.({ type: "permission", event });
+          }
+        }}
+        role={onSelectToolEvidence ? "button" : undefined}
+        tabIndex={onSelectToolEvidence ? 0 : undefined}
+      >
         <div className="flex min-w-0 items-center gap-2">
           <ShieldCheck className="h-4 w-4 shrink-0 text-success" />
           <TruncatedText
@@ -1378,13 +1553,23 @@ function PermissionRequestCard({
 
   return (
     <article
-      className={
+      className={cn(
+        "min-w-0 cursor-pointer rounded-lg border p-3 outline-none transition focus-visible:ring-2 focus-visible:ring-primary-focus/40",
         approved
-          ? "min-w-0 rounded-lg border border-success/60 bg-success/5 p-3"
+          ? "border-success/60 bg-success/5 hover:bg-success/10"
           : denied
-            ? "min-w-0 rounded-lg border border-warning/50 bg-warning/5 p-3"
-            : "min-w-0 rounded-lg border border-warning/40 bg-surface-1 p-3"
-      }
+            ? "border-warning/50 bg-warning/5 hover:bg-warning/10"
+            : "border-warning/40 bg-surface-1 hover:bg-surface-2",
+      )}
+      onClick={() => onSelectToolEvidence?.({ type: "permission", event })}
+      onKeyDown={(keyboardEvent) => {
+        if (keyboardEvent.key === "Enter" || keyboardEvent.key === " ") {
+          keyboardEvent.preventDefault();
+          onSelectToolEvidence?.({ type: "permission", event });
+        }
+      }}
+      role={onSelectToolEvidence ? "button" : undefined}
+      tabIndex={onSelectToolEvidence ? 0 : undefined}
     >
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
@@ -1447,7 +1632,10 @@ function PermissionRequestCard({
           })()}
         </div>
       )}
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div
+        className="mt-4 flex flex-wrap gap-2"
+        onClick={(clickEvent) => clickEvent.stopPropagation()}
+      >
         {permissionDecisionOptions.map((option) => (
           <Button
             disabled={!canDecide}
@@ -1493,6 +1681,7 @@ function PatchPermissionRequestCard({
   decided,
   denied,
   event,
+  onSelectToolEvidence,
   patches,
   pending,
   permissionDecision,
@@ -1503,6 +1692,7 @@ function PatchPermissionRequestCard({
   decided: PermissionDecision | undefined;
   denied: boolean;
   event: Extract<SessionEvent, { type: "permission_request" }>;
+  onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
   patches: CodePatch[];
   pending: boolean;
   permissionDecision: PermissionDecisionState;
@@ -1518,13 +1708,23 @@ function PatchPermissionRequestCard({
 
   return (
     <article
-      className={
+      className={cn(
+        "min-w-0 cursor-pointer rounded-lg border p-3 outline-none transition focus-visible:ring-2 focus-visible:ring-primary-focus/40",
         approved
-          ? "min-w-0 rounded-lg border border-success/50 bg-success/5 p-3"
+          ? "border-success/50 bg-success/5 hover:bg-success/10"
           : denied
-            ? "min-w-0 rounded-lg border border-warning/50 bg-warning/5 p-3"
-            : "min-w-0 rounded-lg border border-warning/40 bg-surface-1 p-3"
-      }
+            ? "border-warning/50 bg-warning/5 hover:bg-warning/10"
+            : "border-warning/40 bg-surface-1 hover:bg-surface-2",
+      )}
+      onClick={() => onSelectToolEvidence?.({ type: "permission", event })}
+      onKeyDown={(keyboardEvent) => {
+        if (keyboardEvent.key === "Enter" || keyboardEvent.key === " ") {
+          keyboardEvent.preventDefault();
+          onSelectToolEvidence?.({ type: "permission", event });
+        }
+      }}
+      role={onSelectToolEvidence ? "button" : undefined}
+      tabIndex={onSelectToolEvidence ? 0 : undefined}
     >
       <div className="grid min-w-0 grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-2">
         <ShieldCheck
@@ -1574,6 +1774,7 @@ function PatchPermissionRequestCard({
         <PermissionDecisionButtons
           canDecide={canDecide}
           event={event}
+          onClickCapture={(clickEvent) => clickEvent.stopPropagation()}
           pending={pending}
           permissionDecision={permissionDecision}
         />
@@ -1590,16 +1791,18 @@ function PatchPermissionRequestCard({
 function PermissionDecisionButtons({
   canDecide,
   event,
+  onClickCapture,
   pending,
   permissionDecision,
 }: {
   canDecide: boolean;
   event: Extract<SessionEvent, { type: "permission_request" }>;
+  onClickCapture?: (event: MouseEvent<HTMLDivElement>) => void;
   pending: boolean;
   permissionDecision: PermissionDecisionState;
 }) {
   return (
-    <div className="mt-4 flex flex-wrap gap-2">
+    <div className="mt-4 flex flex-wrap gap-2" onClick={onClickCapture}>
       {permissionDecisionOptions.map((option) => (
         <Button
           disabled={!canDecide}
