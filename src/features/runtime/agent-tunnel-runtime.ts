@@ -318,8 +318,9 @@ export class AgentTunnelRuntime {
     }
 
     if (
-      event.type === "run_status" &&
-      (event.status === "done" || event.status === "error")
+      event.type === "turn_done" ||
+      (event.type === "run_status" &&
+        (event.status === "done" || event.status === "error"))
     ) {
       this.clearActiveStream();
     }

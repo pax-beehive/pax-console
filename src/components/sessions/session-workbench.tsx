@@ -504,12 +504,9 @@ export function SessionWorkbench({
     user.user_id,
     invocationOwnerLookups,
   );
-  const flushFinalTurn =
-    conversationRun.status !== "streaming" &&
-    conversationRun.status !== "waiting_approval";
   const workstreamItems = useMemo(
-    () => groupWorkstreamEvents(timeline, { flushFinalTurn }),
-    [flushFinalTurn, timeline],
+    () => groupWorkstreamEvents(timeline),
+    [timeline],
   );
   const canSend =
     Boolean(activeAgentId && activeNodeId) &&

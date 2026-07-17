@@ -129,6 +129,12 @@ export type SessionEvent =
       createdAt: string;
     }
   | {
+      type: "turn_done";
+      id: string;
+      sessionId: string;
+      createdAt: string;
+    }
+  | {
       type: "token_usage";
       id: string;
       sessionId: string;
@@ -169,6 +175,7 @@ export type WorkstreamItem =
 export function isVisibleTimelineEvent(event: SessionEvent) {
   return (
     event.type !== "run_status" &&
+    event.type !== "turn_done" &&
     event.type !== "token_usage" &&
     event.type !== "permission_decision"
   );
@@ -176,7 +183,6 @@ export function isVisibleTimelineEvent(event: SessionEvent) {
 
 export function groupWorkstreamEvents(
   events: SessionEvent[],
-  options: { flushFinalTurn?: boolean } = {},
 ): WorkstreamItem[] {
   const items: WorkstreamItem[] = [];
   let toolGroup: Extract<WorkstreamItem, { type: "tool_group" }> | undefined;
@@ -211,10 +217,7 @@ export function groupWorkstreamEvents(
   };
 
   for (const event of events) {
-    if (
-      event.type === "run_status" &&
-      (event.status === "done" || event.status === "error")
-    ) {
+    if (event.type === "turn_done") {
       markAgentTurnEnded();
       toolGroup = undefined;
       continue;
@@ -222,11 +225,6 @@ export function groupWorkstreamEvents(
 
     if (!isVisibleTimelineEvent(event)) {
       continue;
-    }
-
-    if (event.type === "user_message") {
-      markAgentTurnEnded();
-      toolGroup = undefined;
     }
 
     turnSessionId ||= event.sessionId;
@@ -273,10 +271,6 @@ export function groupWorkstreamEvents(
     if (event.type === "agent_message") {
       lastAgentMessage = event;
     }
-  }
-
-  if (options.flushFinalTurn) {
-    markAgentTurnEnded();
   }
 
   return items;
