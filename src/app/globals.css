@@ -89,13 +89,15 @@ body {
   min-height: 100%;
 }
 
+html {
+  background: var(--canvas);
+}
+
 body {
   background: var(--canvas);
   color: var(--ink);
   font-family: var(--font-geist-sans), Inter, system-ui, sans-serif;
-  font-feature-settings:
-    "cv01",
-    "ss03";
+  font-feature-settings: "cv01", "ss03";
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
@@ -109,4 +111,17 @@ select {
 
 button {
   cursor: pointer;
+}
+
+.console-shell {
+  height: 100vh;
+  height: 100dvh;
+}
+
+.mobile-safe-bottom {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+.mobile-safe-top {
+  padding-top: env(safe-area-inset-top);
 }

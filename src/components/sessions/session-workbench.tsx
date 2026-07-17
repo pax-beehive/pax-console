@@ -14,6 +14,7 @@ import {
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
+  ArrowLeft,
   Brain,
   CheckCircle2,
   Circle,
@@ -22,6 +23,7 @@ import {
   FolderOpen,
   FolderPlus,
   LoaderCircle,
+  Menu,
   Mic,
   PanelRight,
   Plus,
@@ -91,7 +93,11 @@ type SessionWorkbenchProps = {
   initialCwd?: string;
   initialPrompt?: string;
   initialPromptKey?: string;
+  mobileBackLabel?: string;
+  mobileMenuLabel?: string;
   onSessionAssigned?: (sessionId: string) => void;
+  onMobileBack?: () => void;
+  onMobileMenu?: () => void;
 };
 
 type SessionSidePanelId = "artifacts" | "knowledge";
@@ -114,7 +120,11 @@ export function SessionWorkbench({
   initialCwd,
   initialPrompt,
   initialPromptKey,
+  mobileBackLabel,
+  mobileMenuLabel,
   onSessionAssigned,
+  onMobileBack,
+  onMobileMenu,
 }: SessionWorkbenchProps) {
   const queryClient = useQueryClient();
   const nodesQuery = useNodes(user.user_id);
@@ -752,28 +762,56 @@ export function SessionWorkbench({
       <div
         className={cn(
           "relative flex min-h-0 min-w-0 overflow-hidden bg-canvas",
-          embedded ? "h-full" : "h-[calc(100vh-var(--topbar-h))]",
+          embedded ? "h-full" : "flex-1 lg:h-[calc(100vh-var(--topbar-h))]",
         )}
       >
         <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-canvas">
-          <div className="flex items-center justify-between gap-4 border-b border-hairline bg-surface-1 px-4 py-3">
-            <div className="min-w-0">
-              <div className="flex min-w-0 max-w-[52vw] gap-1 text-sm text-ink-tertiary">
-                <TruncatedText>
-                  {activeNode?.name ?? activeNode?.hostname ?? "Unknown node"}
-                </TruncatedText>
-                <span className="shrink-0">/</span>
-                <TruncatedText>
-                  {activeAgent?.name ?? activeAgentId ?? "Unknown agent"}
-                </TruncatedText>
-              </div>
-              <div className="mt-1 flex min-w-0 items-center gap-2">
-                <TruncatedText
-                  className="text-lg font-medium"
-                  tooltip={sessionTitleTooltip}
-                >
-                  {sessionDisplayName}
-                </TruncatedText>
+          <div className="flex items-center justify-between gap-2 border-b border-hairline bg-surface-1 px-3 py-2 sm:gap-4 sm:px-4 sm:py-3">
+            <div className="flex min-w-0 items-center gap-2">
+              {(onMobileMenu || onMobileBack) && (
+                <Button
+                  aria-label={
+                    onMobileMenu
+                      ? `Open ${mobileMenuLabel ?? "sidebar"}`
+                      : `Back to ${mobileBackLabel ?? "Home"}`
+                  }
+                  className="lg:hidden"
+                  icon={
+                    onMobileMenu ? (
+                      <Menu className="h-4 w-4" />
+                    ) : (
+                      <ArrowLeft className="h-4 w-4" />
+                    )
+                  }
+                  onClick={onMobileMenu ?? onMobileBack}
+                  size="icon"
+                  tooltip={
+                    onMobileMenu
+                      ? `Open ${mobileMenuLabel ?? "sidebar"}`
+                      : `Back to ${mobileBackLabel ?? "Home"}`
+                  }
+                  type="button"
+                  variant="ghost"
+                />
+              )}
+              <div className="min-w-0">
+                <div className="flex min-w-0 gap-1 text-xs text-ink-tertiary sm:max-w-[52vw] sm:text-sm">
+                  <TruncatedText>
+                    {activeNode?.name ?? activeNode?.hostname ?? "Unknown node"}
+                  </TruncatedText>
+                  <span className="shrink-0">/</span>
+                  <TruncatedText>
+                    {activeAgent?.name ?? activeAgentId ?? "Unknown agent"}
+                  </TruncatedText>
+                </div>
+                <div className="mt-1 flex min-w-0 items-center gap-2">
+                  <TruncatedText
+                    className="text-base font-medium sm:text-lg"
+                    tooltip={sessionTitleTooltip}
+                  >
+                    {sessionDisplayName}
+                  </TruncatedText>
+                </div>
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -796,7 +834,7 @@ export function SessionWorkbench({
           </div>
 
           <div
-            className="min-h-0 flex-1 overflow-auto bg-canvas p-4"
+            className="min-h-0 flex-1 overflow-auto bg-canvas p-3 sm:p-4"
             onScroll={updateTimelineStickiness}
             ref={timelineScrollRef}
           >
@@ -834,7 +872,7 @@ export function SessionWorkbench({
           </div>
 
           <form
-            className="relative z-10 border-t border-hairline bg-surface-1 p-3"
+            className="mobile-safe-bottom relative z-10 border-t border-hairline bg-surface-1 p-3"
             onSubmit={handleSubmit}
           >
             <div className="mx-auto w-full max-w-4xl rounded-[22px] border border-hairline bg-surface-2 px-3 py-2 shadow-lg shadow-black/20">
@@ -963,7 +1001,7 @@ export function SessionWorkbench({
         </section>
 
         {activeSidePanel && (
-          <aside className="absolute inset-y-0 right-0 z-20 min-h-0 w-[min(100vw,320px)] overflow-auto border-l border-hairline bg-surface-1 shadow-2xl shadow-black/40 lg:relative lg:inset-auto lg:z-auto lg:w-[300px] lg:shadow-none">
+          <aside className="absolute inset-y-0 right-0 z-20 min-h-0 w-full overflow-auto border-l border-hairline bg-surface-1 shadow-2xl shadow-black/40 sm:w-[min(100vw,320px)] lg:relative lg:inset-auto lg:z-auto lg:w-[300px] lg:shadow-none">
             <div className="flex min-w-0 items-start justify-between gap-3 border-b border-hairline p-4">
               <div className="min-w-0">
                 <div className="flex items-center gap-2 text-sm font-medium text-ink">

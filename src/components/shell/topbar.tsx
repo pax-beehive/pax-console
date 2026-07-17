@@ -1,7 +1,6 @@
 "use client";
 
-import { ChevronDown, LogOut, Plus } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { ChevronDown, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,23 +11,20 @@ import {
 import { SearchBox } from "@/components/ui/search-box";
 import { TruncatedText } from "@/components/ui/text";
 import { LOGOUT_URL } from "@/features/api/client";
-import { Agent, Node, User } from "@/features/api/types";
+import { Node, User } from "@/features/api/types";
 
 type TopbarProps = {
   user: User;
   nodes: Node[];
   activeNode?: Node;
-  activeAgent?: Agent;
 };
 
-export function Topbar({ user, nodes, activeNode, activeAgent }: TopbarProps) {
-  const router = useRouter();
-
+export function Topbar({ user, nodes, activeNode }: TopbarProps) {
   return (
-    <header className="flex h-[var(--topbar-h)] min-w-0 items-center justify-between gap-4 border-b border-hairline bg-canvas/95 px-4 backdrop-blur">
+    <header className="mobile-safe-top flex min-h-[var(--topbar-h)] min-w-0 items-center justify-between gap-2 border-b border-hairline bg-canvas/95 px-3 backdrop-blur sm:gap-4 sm:px-4">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <Button
-          className="max-w-52"
+          className="max-w-36 sm:max-w-52"
           size="sm"
           tooltip={
             activeNode?.name ?? activeNode?.hostname ?? `${nodes.length} nodes`
@@ -39,18 +35,19 @@ export function Topbar({ user, nodes, activeNode, activeAgent }: TopbarProps) {
           {activeNode?.name ?? activeNode?.hostname ?? `${nodes.length} nodes`}
         </Button>
         <SearchBox
-          className="w-full max-w-[340px]"
+          className="hidden w-full max-w-[340px] sm:flex"
           placeholder="Search threads and resources"
         />
       </div>
-      <div className="flex min-w-0 items-center gap-3">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
-              className="hidden min-w-0 items-center gap-2 rounded-lg border border-transparent px-2 py-1 text-left transition hover:border-hairline hover:bg-surface-1 data-[state=open]:border-hairline data-[state=open]:bg-surface-1 sm:flex"
+              aria-label="User menu"
+              className="flex h-9 w-9 min-w-0 items-center justify-center gap-2 rounded-lg border border-transparent px-2 py-1 text-left transition hover:border-hairline hover:bg-surface-1 data-[state=open]:border-hairline data-[state=open]:bg-surface-1 sm:h-auto sm:w-auto sm:justify-start"
               type="button"
             >
-              <span className="min-w-0">
+              <span className="hidden min-w-0 sm:block">
                 <span className="block text-xs text-ink-tertiary">
                   Signed in
                 </span>
@@ -72,30 +69,6 @@ export function Topbar({ user, nodes, activeNode, activeAgent }: TopbarProps) {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <Button
-          className="max-w-36"
-          disabled={!activeNode || !activeAgent}
-          icon={<Plus className="h-3.5 w-3.5 shrink-0" />}
-          onClick={() => {
-            if (!activeNode || !activeAgent) {
-              return;
-            }
-
-            router.push(
-              `/sessions/new?nodeId=${activeNode.node_id}&agentId=${activeAgent.agent_id}&nonce=${Date.now()}`,
-            );
-          }}
-          size="sm"
-          tooltip={
-            activeNode && activeAgent
-              ? "New session"
-              : "Select a node and agent before creating a session"
-          }
-          type="button"
-          variant="primary"
-        >
-          New session
-        </Button>
       </div>
     </header>
   );

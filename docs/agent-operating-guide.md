@@ -439,6 +439,7 @@ Sidebar layout rules:
 ```txt
 ConsoleLayout uses flex, not CSS grid columns.
 Sidebar controls its own width with inline width 248/76px and overflow-hidden.
+Mobile widths hide the Sidebar and keep a compact Topbar.
 Sidebar uses a quiet surface and compact nav rows without a persistent current-node block.
 Do not reintroduce dynamic Tailwind class strings like grid-cols-[76px_1fr] for shell width.
 Collapsed tabs show icons only; labels must remain available via Tooltip.
@@ -489,6 +490,9 @@ list instead of scanning every node/agent session collection. The initial page
 loads 20 sessions and the left rail fetches the next page as the user scrolls.
 Clicking a session opens the embedded `SessionWorkbench` in Home; the
 `/sessions/*` routes redirect back to Home query URLs.
+On mobile widths, Home defaults to the clean composer. The Sessions/Inbox rail
+opens as a left drawer over the composer or embedded SessionWorkbench instead
+of replacing the whole page.
 
 Currently implemented API-backed actions:
 
