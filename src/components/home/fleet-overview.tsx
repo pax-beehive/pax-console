@@ -23,6 +23,7 @@ import {
   Image as ImageIcon,
   Inbox,
   ListFilter,
+  Menu,
   MessageSquare,
   Mic,
   MoreHorizontal,
@@ -161,6 +162,8 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const [homeRailTab, setHomeRailTab] = useState<HomeRailTab>("sessions");
   const [inboxFilter, setInboxFilter] = useState<InboxFilter>("all");
   const [inboxOrder, setInboxOrder] = useState<InboxOrder>("recent");
+  const [mobileComposerOpen, setMobileComposerOpen] = useState(true);
+  const [mobileRailOpen, setMobileRailOpen] = useState(false);
   const [contextClosed, setContextClosed] = useState(false);
   const [orderMenuOpen, setOrderMenuOpen] = useState(false);
   const [sessionAgentFilter, setSessionAgentFilter] = useState(
@@ -359,6 +362,15 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     envelopesQuery.error ??
     invitesQuery.error ??
     null;
+  const mobileDetailOpen = Boolean(activeSessionTarget || composerContextItem);
+  const mobilePaneOpen = mobileDetailOpen || mobileComposerOpen;
+  const mobileDetailTitle = activeSessionTarget
+    ? "Session"
+    : mobileComposerOpen
+      ? "New chat"
+      : homeRailTab === "inbox"
+        ? "Inbox"
+        : "Composer";
 
   useEffect(() => {
     if (
@@ -435,6 +447,8 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       sessionId: "new",
     });
     setHomeRailTab("sessions");
+    setMobileComposerOpen(false);
+    setMobileRailOpen(false);
     setSelectedWorkItemId("");
     setContextClosed(false);
     setComposerMode("clean");
@@ -455,6 +469,8 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     setEmbeddedSessionTarget(null);
     clearHomeSessionUrl();
     setHomeRailTab("sessions");
+    setMobileComposerOpen(true);
+    setMobileRailOpen(false);
     setSelectedWorkItemId("");
     setContextClosed(false);
     setComposerMode("clean");
@@ -482,22 +498,39 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       nodes={nodes}
       user={user}
     >
-      <div className="flex h-[calc(100vh-var(--topbar-h))] min-h-0 flex-col overflow-hidden bg-canvas">
-        <header className="border-b border-hairline bg-surface-1 px-5 py-4">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-canvas">
+        <header className="border-b border-hairline bg-surface-1 px-4 py-3 sm:px-5 sm:py-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-xs text-ink-tertiary">
               <Sparkles className="h-4 w-4" />
               Home
             </div>
-            <h1 className="mt-2 text-2xl font-semibold">Workbench</h1>
+            <h1 className="mt-1 text-xl font-semibold sm:mt-2 sm:text-2xl">
+              Workbench
+            </h1>
           </div>
         </header>
 
         {apiError && <ApiState error={apiError} />}
 
-        <main className="grid min-h-0 flex-1 overflow-hidden lg:grid-cols-[minmax(320px,420px)_minmax(0,1fr)]">
+        <main className="relative grid min-h-0 flex-1 overflow-hidden lg:grid-cols-[minmax(320px,420px)_minmax(0,1fr)]">
+          {mobilePaneOpen && mobileRailOpen && (
+            <button
+              aria-label="Close Home sidebar"
+              className="absolute inset-0 z-20 bg-black/50 lg:hidden"
+              onClick={() => setMobileRailOpen(false)}
+              type="button"
+            />
+          )}
           <section
-            className="min-h-0 overflow-auto border-b border-hairline bg-surface-1 lg:border-b-0 lg:border-r"
+            className={cn(
+              "min-h-0 overflow-auto border-b border-hairline bg-surface-1 lg:static lg:z-auto lg:block lg:w-auto lg:border-b-0 lg:border-r lg:shadow-none",
+              mobilePaneOpen
+                ? mobileRailOpen
+                  ? "absolute inset-y-0 left-0 z-30 block w-[min(82vw,320px)] shadow-2xl shadow-black/50"
+                  : "hidden"
+                : "block",
+            )}
             onScroll={handleRailScroll}
           >
             <div className="sticky top-0 z-10 border-b border-hairline bg-surface-1 px-4 py-3">
@@ -643,6 +676,8 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                       clearHomeSessionUrl();
                     }
                     setSelectedWorkItemId(item.id);
+                    setMobileComposerOpen(false);
+                    setMobileRailOpen(false);
                     setContextClosed(false);
                     setComposerMode("clean");
                   }}
@@ -669,7 +704,12 @@ export function FleetOverview({ user }: FleetOverviewProps) {
             </div>
           </section>
 
-          <section className="flex min-h-0 min-w-0 flex-col overflow-hidden">
+          <section
+            className={cn(
+              "min-h-0 min-w-0 flex-col overflow-hidden",
+              mobilePaneOpen ? "flex" : "hidden lg:flex",
+            )}
+          >
             {activeSessionTargetPending ? (
               <section className="flex min-h-0 flex-1 items-center justify-center p-5 text-sm text-ink-tertiary">
                 Loading session...
@@ -682,7 +722,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 initialCwd={activeSessionTarget.initialCwd}
                 initialPrompt={activeSessionTarget.initialPrompt}
                 key={activeSessionTarget.key}
+                mobileMenuLabel="Home sidebar"
                 nodeId={activeSessionTarget.nodeId}
+                onMobileMenu={() => setMobileRailOpen(true)}
                 onSessionAssigned={(sessionId) => {
                   const nextTarget = {
                     ...activeSessionTarget,
@@ -696,6 +738,25 @@ export function FleetOverview({ user }: FleetOverviewProps) {
               />
             ) : (
               <>
+                <div className="flex min-w-0 items-center gap-2 border-b border-hairline bg-surface-1 px-3 py-2 lg:hidden">
+                  <Button
+                    aria-label="Open Home sidebar"
+                    icon={<Menu className="h-4 w-4" />}
+                    onClick={() => setMobileRailOpen(true)}
+                    size="icon"
+                    tooltip="Open Home sidebar"
+                    type="button"
+                    variant="ghost"
+                  />
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-ink">
+                      {mobileDetailTitle}
+                    </div>
+                    <div className="truncate text-xs text-ink-tertiary">
+                      {composerContextItem?.title ?? "New session composer"}
+                    </div>
+                  </div>
+                </div>
                 <div className="min-h-0 flex-1 overflow-auto p-5">
                   <div className="mx-auto grid w-full max-w-4xl gap-4">
                     <SelectedContext
@@ -744,7 +805,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 </div>
 
                 <form
-                  className="border-t border-hairline bg-surface-1 p-3"
+                  className="mobile-safe-bottom border-t border-hairline bg-surface-1 p-3"
                   onSubmit={submit}
                 >
                   <div className="mx-auto w-full max-w-4xl rounded-[22px] border border-hairline bg-surface-2 px-3 py-2 shadow-lg shadow-black/20">

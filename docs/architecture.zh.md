@@ -200,6 +200,7 @@ status / count pill
 Sidebar 折叠
   使用 Zustand 的 sidebarCollapsed，不要放进 URL 或服务端数据。
   ConsoleLayout 使用 flex；Sidebar 自己用 width: 248/76px 控制展开/收起，并带 overflow-hidden。
+  手机宽度隐藏 Sidebar，保留 Topbar；Home 默认显示 clean composer，并用左侧抽屉承载 Sessions / Inbox rail。
   Sidebar 自身使用安静的 surface 和 compact nav rows，不保留固定的 Current node 区块。
   Sidebar 一级入口保持粗粒度：Home、Runtime、Collaboration、API Keys。
   Runtime / Collaboration 是彼此独立的 disclosure，不是 accordion；多个一级组可以同时保持展开。
@@ -292,6 +293,7 @@ AuthGate
   -> listUserSessions(user.user_id, page_size=20, page_num=1, optional comma-separated agent_id/node_id)
   -> scroll left rail to fetch the next session page
   -> support agent filtering, render embedded SessionWorkbench when selected
+  -> on mobile, default to the clean composer and open Sessions/Inbox as a left drawer
   -> useApprovals(user.user_id)
   -> useEnvelopes(user.user_id, direction=received, status=pending)
   -> useTeamInvites(user.user_id)
