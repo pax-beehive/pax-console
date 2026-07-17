@@ -823,7 +823,7 @@ function DetailShell({
   title: string;
 }) {
   return (
-    <div className="grid gap-5 p-5">
+    <div className="grid min-h-0 flex-1 content-start gap-5 overflow-y-auto overscroll-contain p-5">
       <header className="flex items-center justify-between border-b border-hairline pb-4">
         <div className="min-w-0">
           <Link

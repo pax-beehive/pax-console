@@ -50,6 +50,7 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
   const [editing, setEditing] = useState<NodeDaemonAgentConnection>();
   const [removeTarget, setRemoveTarget] = useState<NodeDaemonAgentConnection>();
   const [lastCommandId, setLastCommandId] = useState<string>();
+  const [inventoryNodeId, setInventoryNodeId] = useState<string>();
 
   // paxd intentionally permits only one query request/response at a time, so
   // initial reads are enabled in sequence instead of firing in parallel.
@@ -115,6 +116,7 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
         queryKeys.nodeDaemonHarnesses(userId, nodeId),
         data,
       );
+      setInventoryNodeId(nodeId);
       await connectionsQuery.refetch();
     },
   });
@@ -232,11 +234,6 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
         </div>
       )}
 
-      <HarnessInventory
-        harnesses={harnesses}
-        loading={harnessesQuery.isLoading}
-      />
-
       {createOpen && (
         <CreateConnectionForm
           disabled={create.isPending || controlQueryBusy}
@@ -298,6 +295,8 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
         )}
       </div>
 
+      {inventoryNodeId === nodeId && <HarnessInventory harnesses={harnesses} />}
+
       <ConfirmDialog
         confirmLabel={action.isPending ? "Removing..." : "Remove connection"}
         description={
@@ -325,13 +324,7 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
   );
 }
 
-function HarnessInventory({
-  harnesses,
-  loading,
-}: {
-  harnesses: NodeDaemonHarness[];
-  loading: boolean;
-}) {
+function HarnessInventory({ harnesses }: { harnesses: NodeDaemonHarness[] }) {
   const available = harnesses.filter(
     (item) => item.state === "available",
   ).length;
@@ -379,14 +372,9 @@ function HarnessInventory({
             </div>
           );
         })}
-        {!loading && harnesses.length === 0 && (
+        {harnesses.length === 0 && (
           <div className="bg-canvas px-3 py-4 text-center text-sm text-ink-tertiary">
-            No harness inventory. Run Discover to probe this node.
-          </div>
-        )}
-        {loading && (
-          <div className="bg-canvas px-3 py-4 text-center text-sm text-ink-tertiary">
-            Loading harness inventory…
+            Discover completed without a harness result.
           </div>
         )}
       </div>
