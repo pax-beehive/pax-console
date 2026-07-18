@@ -396,7 +396,7 @@ export function MarkdownMessage({
   return (
     <div
       className={cn(
-        "min-w-0 break-words text-sm leading-7",
+        "min-w-0 break-words text-sm leading-6",
         "[&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
         muted ? "text-ink-subtle" : "text-ink-muted",
         className,

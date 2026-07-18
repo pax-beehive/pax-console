@@ -148,6 +148,10 @@ src/components/resources/
 src/components/sessions/
   Session workbench。把 REST 历史消息和 WebSocket live events 合成时间线。
 
+  相邻 tool calls 作为一个默认折叠的 group 渲染；运行中时，折叠标题保留
+  当前 tool 名称和简短 input preview，pending approval 也在外层提示。
+  thought/progress 默认折叠，普通消息使用紧凑行距，用户仍可展开查看完整内容。
+
   `pax:invocation` 是 PAX 为 agent-to-agent 调用生成的展示替身消息。
   `pax:invocation_pending` 是同一展示模型的中间态，会先渲染到 timeline；
   后续最终态 `pax:invocation` 通过 `raw_json.replaces_message_ids` 指向 pending

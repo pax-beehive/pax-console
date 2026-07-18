@@ -265,14 +265,14 @@ function ThoughtCard({
   event: Extract<SessionEvent, { type: "progress" }>;
 }) {
   return (
-    <details className="group min-w-0 py-1" open>
+    <details className="group min-w-0 py-1">
       <summary className="flex cursor-pointer list-none items-center gap-2 text-sm text-ink-muted outline-none transition hover:text-ink [&::-webkit-details-marker]:hidden">
         <PaxThoughtIcon />
         <span>{event.streaming ? "思考中" : "已思考"}</span>
         <ChevronDown className="h-3.5 w-3.5 -rotate-90 text-ink-tertiary transition group-open:rotate-0" />
       </summary>
       <MarkdownMessage
-        className="mt-4 pl-1 text-[13px] leading-7"
+        className="mt-3 pl-1 text-[13px] leading-6"
         content={event.content}
         muted
         streaming={event.streaming}
@@ -290,7 +290,7 @@ function UserMessageCard({
     <article className="flex min-w-0 justify-end py-1">
       <div className="w-fit max-w-[min(72%,640px)] min-w-0 rounded-lg bg-surface-2 px-3 py-2">
         <MarkdownMessage
-          className="overflow-hidden text-sm leading-7 text-ink"
+          className="overflow-hidden text-sm leading-6 text-ink"
           content={event.content}
         />
       </div>
@@ -306,7 +306,7 @@ function AgentMessageCard({
   return (
     <article className="min-w-0 justify-self-stretch py-1">
       <MarkdownMessage
-        className="text-base leading-8 text-ink"
+        className="text-base leading-7 text-ink"
         content={event.content}
         streaming={event.streaming}
       />
@@ -457,7 +457,7 @@ function InvocationCard({
       </div>
       {content && (
         <MarkdownMessage
-          className="mt-3 pl-9 text-sm leading-7 text-ink-muted"
+          className="mt-3 pl-9 text-sm leading-6 text-ink-muted"
           content={content}
           muted
         />
@@ -558,23 +558,49 @@ function ToolGroupCard({
   const runningCount = events.filter(
     (event) => event.status === "running",
   ).length;
+  const runningPreview = runningToolGroupPreview(events);
+  const pendingPermissionCount = events.reduce(
+    (count, event) =>
+      count +
+      (event.permissions?.filter(
+        (permission) =>
+          !permissionDecisionForPermission(permission, permissionDecision),
+      ).length ?? 0),
+    0,
+  );
 
   return (
-    <details className="group min-w-0 py-1" open>
-      <summary className="flex cursor-pointer list-none items-center gap-2 text-sm text-ink-muted outline-none transition hover:text-ink [&::-webkit-details-marker]:hidden">
+    <details className="group min-w-0 py-1">
+      <summary className="flex min-w-0 cursor-pointer list-none items-center gap-2 text-sm text-ink-muted outline-none transition hover:text-ink [&::-webkit-details-marker]:hidden">
         {runningCount > 0 ? (
           <LoaderCircle className="h-4 w-4 animate-spin text-primary-hover" />
         ) : (
           <span className="h-2 w-2 rounded-full bg-ink-tertiary" />
         )}
-        <span>工具调用</span>
+        <span className="shrink-0">工具调用</span>
         <Badge className="font-mono">{String(events.length)}</Badge>
-        {runningCount > 0 && (
-          <Badge className="font-mono" tooltip={`${runningCount} running`}>
-            {runningCount} running
-          </Badge>
+        {runningPreview && (
+          <TruncatedText
+            className="min-w-0 flex-1 text-xs text-ink-subtle group-open:hidden"
+            tooltip={runningPreview}
+          >
+            {runningPreview}
+          </TruncatedText>
         )}
-        <ChevronDown className="h-3.5 w-3.5 -rotate-90 text-ink-tertiary transition group-open:rotate-0" />
+        <span className="ml-auto flex shrink-0 items-center gap-1.5">
+          {pendingPermissionCount > 0 && (
+            <Badge tone="warning">
+              {pendingPermissionCount} approval
+              {pendingPermissionCount === 1 ? "" : "s"}
+            </Badge>
+          )}
+          {runningCount > 0 && (
+            <Badge className="font-mono" tooltip={`${runningCount} running`}>
+              {runningCount} running
+            </Badge>
+          )}
+          <ChevronDown className="h-3.5 w-3.5 -rotate-90 text-ink-tertiary transition group-open:rotate-0" />
+        </span>
       </summary>
       <div className="mt-3 overflow-hidden rounded-lg border border-hairline bg-surface-1">
         {events.map((event) => (
@@ -1894,6 +1920,56 @@ function textFromPayload(value: unknown): string | undefined {
     const text = textFromPayload(record[key]);
     if (text) {
       return text;
+    }
+  }
+
+  return undefined;
+}
+
+function runningToolGroupPreview(events: ToolCallEvent[]) {
+  const runningEvents = events.filter((event) => event.status === "running");
+  const current = runningEvents[0];
+  if (!current) {
+    return undefined;
+  }
+
+  const inputPreview = compactToolInputPreview(current.input);
+  const additional = runningEvents.length - 1;
+  return [
+    inputPreview ? `${current.name} · ${inputPreview}` : current.name,
+    additional > 0 ? `+${additional} more` : undefined,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function compactToolInputPreview(value: unknown) {
+  const text = textFromPayload(value) ?? toolInputIdentifier(value);
+  if (!text) {
+    return undefined;
+  }
+
+  const compact = text.replace(/\s+/g, " ").trim();
+  return compact.length > 160 ? `${compact.slice(0, 157)}...` : compact;
+}
+
+function toolInputIdentifier(value: unknown) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  for (const key of [
+    "path",
+    "filePath",
+    "file_path",
+    "query",
+    "pattern",
+    "url",
+  ]) {
+    const candidate = record[key];
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate;
     }
   }
 

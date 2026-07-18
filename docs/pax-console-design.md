@@ -174,6 +174,11 @@ what the agent is doing now
 what evidence exists: files, logs, approvals, diffs, token usage
 ```
 
+Adjacent tool calls should be grouped into collapsed sections. A running
+group keeps a one-line tool/input preview and any approval requirement visible
+without expanding the details. Thought/progress sections are collapsed by
+default. Body copy uses compact line heights to keep long responses scannable.
+
 Copy should be specific and operational. Avoid generic AI-control-plane
 language when a concrete engineering label is available. For example, prefer
 `Tunnel connected`, `3 files changed`, `Waiting for approval`, or

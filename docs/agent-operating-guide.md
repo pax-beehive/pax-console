@@ -341,6 +341,12 @@ Live `session/update` frames with `message_type = "pax:invocation"` or
 timeline event, and `merge-session-events.ts` applies the same replacement
 rule if the real or pending event has already rendered.
 
+Adjacent tool calls render as one collapsed timeline group. While a tool is
+running, the collapsed summary shows its name and a compact input preview;
+pending approvals remain visible in the summary. Thought/progress sections are
+also collapsed by default. Normal message typography uses compact line heights
+so long agent responses remain easy to scan.
+
 ACP permission prompts are JSON-RPC requests, not `session/update` notifications:
 
 ```txt
