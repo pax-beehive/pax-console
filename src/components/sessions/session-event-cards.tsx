@@ -25,6 +25,7 @@ import {
   toolCallAppliedPatches,
   toolCallProposedPatches,
   ToolCallEvent,
+  WorkActivityEvent,
   WorkstreamItem,
 } from "@/features/runtime/session-events";
 import { invocationBodyContent } from "@/features/runtime/invocation-body-content";
@@ -96,9 +97,10 @@ export function WorkstreamItemCard({
   onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
   permissionDecision: PermissionDecisionState;
 }) {
-  if (item.type === "tool_group") {
+  if (item.type === "work_group") {
     return (
-      <ToolGroupCard
+      <WorkGroupCard
+        complete={item.complete}
         events={item.events}
         onSelectToolEvidence={onSelectToolEvidence}
         permissionDecision={permissionDecision}
@@ -204,7 +206,7 @@ function EventCard({
   permissionDecision,
 }: {
   agentOwnerInfos?: Record<string, AgentOwnerInfo>;
-  event: Exclude<SessionEvent, ToolCallEvent>;
+  event: SessionEvent;
   onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
   permissionDecision: PermissionDecisionState;
 }) {
@@ -214,6 +216,16 @@ function EventCard({
 
   if (event.type === "progress") {
     return <ThoughtCard event={event} />;
+  }
+
+  if (event.type === "tool_call") {
+    return (
+      <ToolGroupCard
+        events={[event]}
+        onSelectToolEvidence={onSelectToolEvidence}
+        permissionDecision={permissionDecision}
+      />
+    );
   }
 
   if (event.type === "permission_request") {
@@ -269,10 +281,10 @@ function ThoughtCard({
       <summary className="flex cursor-pointer list-none items-center gap-2 text-sm text-ink-muted outline-none transition hover:text-ink [&::-webkit-details-marker]:hidden">
         <PaxThoughtIcon />
         <span>{event.streaming ? "思考中" : "已思考"}</span>
-        <ChevronDown className="h-3.5 w-3.5 -rotate-90 text-ink-tertiary transition group-open:rotate-0" />
+        <ChevronDown className="ml-auto h-3.5 w-3.5 -rotate-90 text-ink-tertiary transition group-open:rotate-0" />
       </summary>
       <MarkdownMessage
-        className="mt-3 pl-1 text-[13px] leading-6"
+        className="mt-2 pl-1 text-[13px] leading-5"
         content={event.content}
         muted
         streaming={event.streaming}
@@ -290,7 +302,7 @@ function UserMessageCard({
     <article className="flex min-w-0 justify-end py-1">
       <div className="w-fit max-w-[min(72%,640px)] min-w-0 rounded-lg bg-surface-2 px-3 py-2">
         <MarkdownMessage
-          className="overflow-hidden text-sm leading-6 text-ink"
+          className="overflow-hidden text-sm leading-5 text-ink"
           content={event.content}
         />
       </div>
@@ -304,9 +316,9 @@ function AgentMessageCard({
   event: Extract<SessionEvent, { type: "agent_message" }>;
 }) {
   return (
-    <article className="min-w-0 justify-self-stretch py-1">
+    <article className="min-w-0 justify-self-stretch py-0">
       <MarkdownMessage
-        className="text-base leading-7 text-ink"
+        className="text-sm leading-5 text-ink"
         content={event.content}
         streaming={event.streaming}
       />
@@ -457,7 +469,7 @@ function InvocationCard({
       </div>
       {content && (
         <MarkdownMessage
-          className="mt-3 pl-9 text-sm leading-6 text-ink-muted"
+          className="mt-2 pl-9 text-sm leading-5 text-ink-muted"
           content={content}
           muted
         />
@@ -546,6 +558,110 @@ function ownerDisplayName(ownerInfo: AgentOwnerInfo | undefined) {
   return ownerInfo.owner.team?.name;
 }
 
+function WorkGroupCard({
+  complete,
+  events,
+  onSelectToolEvidence,
+  permissionDecision,
+}: {
+  complete: boolean;
+  events: WorkActivityEvent[];
+  onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
+  permissionDecision: PermissionDecisionState;
+}) {
+  const pendingPermissionCount = events.reduce(
+    (count, event) =>
+      event.type === "tool_call"
+        ? count +
+          (event.permissions?.filter(
+            (permission) =>
+              !permissionDecisionForPermission(permission, permissionDecision),
+          ).length ?? 0)
+        : count,
+    0,
+  );
+  const isWorking =
+    !complete &&
+    (events.some(
+      (event) =>
+        (event.type === "progress" && event.streaming) ||
+        (event.type === "tool_call" &&
+          ["called", "queued", "running"].includes(event.status)),
+    ) ||
+      pendingPermissionCount > 0);
+  const segments = workGroupSegments(events);
+
+  return (
+    <details className="group/work min-w-0 py-0">
+      <summary className="flex min-w-0 cursor-pointer list-none items-center gap-2 text-sm text-ink-muted outline-none transition hover:text-ink [&::-webkit-details-marker]:hidden">
+        {isWorking ? (
+          <LoaderCircle className="h-4 w-4 animate-spin text-primary-hover" />
+        ) : (
+          <span className="h-2 w-2 rounded-full bg-ink-tertiary" />
+        )}
+        <span className="shrink-0">{isWorking ? "工作中" : "工作过程"}</span>
+        {pendingPermissionCount > 0 && (
+          <Badge className="shrink-0" tone="warning">
+            {pendingPermissionCount} approval
+            {pendingPermissionCount === 1 ? "" : "s"}
+          </Badge>
+        )}
+        <ChevronDown className="ml-auto h-3.5 w-3.5 shrink-0 -rotate-90 text-ink-tertiary transition group-open/work:rotate-0" />
+      </summary>
+      <div className="mt-2 grid gap-2 border-l border-hairline pl-4">
+        {segments.map((segment) =>
+          segment.type === "thought" ? (
+            <ThoughtCard event={segment.event} key={segment.event.id} />
+          ) : (
+            <ToolGroupCard
+              events={segment.events}
+              key={segment.id}
+              onSelectToolEvidence={onSelectToolEvidence}
+              permissionDecision={permissionDecision}
+            />
+          ),
+        )}
+      </div>
+    </details>
+  );
+}
+
+type WorkGroupSegment =
+  | {
+      type: "thought";
+      event: Extract<SessionEvent, { type: "progress" }>;
+    }
+  | {
+      type: "tools";
+      id: string;
+      events: ToolCallEvent[];
+    };
+
+function workGroupSegments(events: WorkActivityEvent[]): WorkGroupSegment[] {
+  const segments: WorkGroupSegment[] = [];
+  let toolSegment: Extract<WorkGroupSegment, { type: "tools" }> | undefined;
+
+  for (const event of events) {
+    if (event.type === "progress") {
+      toolSegment = undefined;
+      segments.push({ type: "thought", event });
+      continue;
+    }
+
+    if (!toolSegment) {
+      toolSegment = {
+        type: "tools",
+        id: `tools:${event.id}`,
+        events: [],
+      };
+      segments.push(toolSegment);
+    }
+    toolSegment.events.push(event);
+  }
+
+  return segments;
+}
+
 function ToolGroupCard({
   events,
   onSelectToolEvidence,
@@ -570,7 +686,7 @@ function ToolGroupCard({
   );
 
   return (
-    <details className="group min-w-0 py-1">
+    <details className="group min-w-0 py-0">
       <summary className="flex min-w-0 cursor-pointer list-none items-center gap-2 text-sm text-ink-muted outline-none transition hover:text-ink [&::-webkit-details-marker]:hidden">
         {runningCount > 0 ? (
           <LoaderCircle className="h-4 w-4 animate-spin text-primary-hover" />
@@ -602,7 +718,7 @@ function ToolGroupCard({
           <ChevronDown className="h-3.5 w-3.5 -rotate-90 text-ink-tertiary transition group-open:rotate-0" />
         </span>
       </summary>
-      <div className="mt-3 overflow-hidden rounded-lg border border-hairline bg-surface-1">
+      <div className="mt-2 overflow-hidden rounded-lg border border-hairline bg-surface-1">
         {events.map((event) => (
           <ToolEventRow
             event={event}

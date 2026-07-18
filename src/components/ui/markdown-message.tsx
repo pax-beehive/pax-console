@@ -54,7 +54,7 @@ const markdownComponents: Components = {
   blockquote({ children, ...props }) {
     return (
       <blockquote
-        className="my-3 border-l border-hairline-strong pl-3 text-ink-subtle"
+        className="my-2 border-l border-hairline-strong pl-3 text-[13px] leading-5 text-ink-subtle"
         {...props}
       >
         {children}
@@ -86,45 +86,45 @@ const markdownComponents: Components = {
   },
   h1({ children, ...props }) {
     return (
-      <h1 className="mb-2 mt-4 text-base font-semibold text-ink" {...props}>
+      <h1 className="mb-1.5 mt-3 text-lg font-semibold text-ink" {...props}>
         {children}
       </h1>
     );
   },
   h2({ children, ...props }) {
     return (
-      <h2 className="mb-2 mt-4 text-sm font-semibold text-ink" {...props}>
+      <h2 className="mb-1.5 mt-3 text-base font-semibold text-ink" {...props}>
         {children}
       </h2>
     );
   },
   h3({ children, ...props }) {
     return (
-      <h3 className="mb-2 mt-3 text-sm font-medium text-ink" {...props}>
+      <h3 className="mb-1 mt-2.5 text-[15px] font-medium text-ink" {...props}>
         {children}
       </h3>
     );
   },
   hr(props) {
-    return <hr className="my-4 border-hairline" {...props} />;
+    return <hr className="my-3 border-hairline" {...props} />;
   },
   li({ children, ...props }) {
     return (
-      <li className="my-1 pl-1" {...props}>
+      <li className="my-0.5 pl-1" {...props}>
         {children}
       </li>
     );
   },
   ol({ children, ...props }) {
     return (
-      <ol className="my-2 list-decimal space-y-1 pl-5" {...props}>
+      <ol className="my-1.5 list-decimal space-y-0.5 pl-5" {...props}>
         {children}
       </ol>
     );
   },
   p({ children, ...props }) {
     return (
-      <p className="my-2 whitespace-pre-wrap" {...props}>
+      <p className="my-1.5 whitespace-pre-wrap" {...props}>
         {children}
       </p>
     );
@@ -157,7 +157,7 @@ const markdownComponents: Components = {
   },
   ul({ children, ...props }) {
     return (
-      <ul className="my-2 list-disc space-y-1 pl-5" {...props}>
+      <ul className="my-1.5 list-disc space-y-0.5 pl-5" {...props}>
         {children}
       </ul>
     );
@@ -188,7 +188,7 @@ function MarkdownPre({
   }
 
   return (
-    <div className="my-3 max-w-full overflow-hidden rounded-lg border border-white/10 bg-[#242424] text-[#f4f4f5] shadow-sm">
+    <div className="my-2 max-w-full overflow-hidden rounded-lg border border-white/10 bg-[#242424] text-[#f4f4f5] shadow-sm">
       <div className="flex h-9 items-center justify-between gap-3 px-3">
         <span className="min-w-0 truncate font-mono text-xs text-[#b8b8b8]">
           {language}
@@ -209,7 +209,7 @@ function MarkdownPre({
       </div>
       <pre
         className={cn(
-          "max-w-full overflow-auto bg-transparent px-3 pb-3 pt-1 text-xs leading-6",
+          "max-w-full overflow-auto bg-transparent px-3 pb-3 pt-1 text-xs leading-5",
           "[&_code]:border-0 [&_code]:bg-transparent [&_code]:p-0 [&_code]:text-[#f4f4f5]",
           "[&_.hljs-attr]:text-[#00d7b0] [&_.hljs-attribute]:text-[#79c0ff]",
           "[&_.hljs-built_in]:text-[#ffa657] [&_.hljs-bullet]:text-[#79c0ff]",
@@ -257,7 +257,7 @@ function MarkdownTable({
   }
 
   return (
-    <div className="group relative my-3 max-w-full overflow-auto">
+    <div className="group relative my-2 max-w-full overflow-auto">
       <button
         aria-label={copied ? "Copied table" : "Copy table"}
         className="absolute right-2 top-2 z-10 inline-flex h-7 w-7 items-center justify-center rounded-md border border-hairline bg-surface-1 text-ink-tertiary opacity-0 shadow-sm transition hover:border-hairline-strong hover:bg-surface-2 hover:text-ink focus:opacity-100 group-hover:opacity-100"
@@ -396,7 +396,7 @@ export function MarkdownMessage({
   return (
     <div
       className={cn(
-        "min-w-0 break-words text-sm leading-6",
+        "min-w-0 break-words text-sm leading-5",
         "[&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
         muted ? "text-ink-subtle" : "text-ink-muted",
         className,

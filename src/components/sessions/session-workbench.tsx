@@ -1181,7 +1181,7 @@ export function SessionWorkbench({
           onScroll={updateTimelineStickiness}
           ref={timelineScrollRef}
         >
-          <div className="mx-auto grid w-full max-w-4xl gap-4">
+          <div className="mx-auto grid w-full max-w-4xl gap-2">
             <SessionErrors
               messagesError={historyQuery.error}
               missingRouteState={!activeNodeId || !activeAgentId}
@@ -1216,7 +1216,7 @@ export function SessionWorkbench({
                 No messages yet. Live tunnel events will appear here.
               </div>
             )}
-            <div aria-hidden="true" className="h-2" ref={timelineBottomRef} />
+            <div aria-hidden="true" className="h-0" ref={timelineBottomRef} />
           </div>
         </div>
 
@@ -1322,7 +1322,7 @@ export function SessionWorkbench({
               </div>
             )}
             <textarea
-              className="max-h-40 min-h-20 w-full resize-none bg-transparent px-1 py-1 text-sm leading-6 text-ink outline-none placeholder:text-ink-tertiary"
+              className="max-h-40 min-h-20 w-full resize-none bg-transparent px-1 py-1 text-sm leading-5 text-ink outline-none placeholder:text-ink-tertiary"
               disabled={!activeAgentId}
               onKeyDown={handleComposerKeyDown}
               onChange={(event) => setDraft(event.target.value)}

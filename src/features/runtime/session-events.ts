@@ -149,19 +149,24 @@ export type SessionEvent =
 export type SessionEventListener = (event: SessionEvent) => void;
 
 export type ToolCallEvent = Extract<SessionEvent, { type: "tool_call" }>;
+export type WorkActivityEvent = Extract<
+  SessionEvent,
+  { type: "progress" | "tool_call" }
+>;
 
 export type WorkstreamItem =
   | {
       type: "event";
       id: string;
-      event: Exclude<SessionEvent, ToolCallEvent>;
+      event: SessionEvent;
     }
   | {
-      type: "tool_group";
+      type: "work_group";
       id: string;
       sessionId: string;
       createdAt: string;
-      events: ToolCallEvent[];
+      complete: boolean;
+      events: WorkActivityEvent[];
     }
   | {
       type: "turn_footer";
@@ -185,7 +190,7 @@ export function groupWorkstreamEvents(
   events: SessionEvent[],
 ): WorkstreamItem[] {
   const items: WorkstreamItem[] = [];
-  let toolGroup: Extract<WorkstreamItem, { type: "tool_group" }> | undefined;
+  let workGroup: Extract<WorkstreamItem, { type: "work_group" }> | undefined;
   let lastAgentMessage:
     | Extract<SessionEvent, { type: "agent_message" }>
     | undefined;
@@ -193,6 +198,35 @@ export function groupWorkstreamEvents(
   let turnProposedPatches: CodePatch[] = [];
   let turnSessionId = "";
   let turnCreatedAt = "";
+
+  const exposeSingleWorkActivity = () => {
+    if (!workGroup || workGroup.events.length !== 1) {
+      return false;
+    }
+
+    const event = workGroup.events[0];
+    const workGroupIndex = items.indexOf(workGroup);
+    items[workGroupIndex] = {
+      type: "event",
+      id: event.id,
+      event,
+    };
+    workGroup = undefined;
+    return true;
+  };
+
+  const endWorkGroup = () => {
+    if (exposeSingleWorkActivity()) {
+      return;
+    }
+
+    if (!workGroup) {
+      return;
+    }
+
+    workGroup.complete = true;
+    workGroup = undefined;
+  };
 
   const markAgentTurnEnded = () => {
     const patches =
@@ -218,8 +252,8 @@ export function groupWorkstreamEvents(
 
   for (const event of events) {
     if (event.type === "turn_done") {
+      endWorkGroup();
       markAgentTurnEnded();
-      toolGroup = undefined;
       continue;
     }
 
@@ -241,18 +275,22 @@ export function groupWorkstreamEvents(
       } else {
         turnProposedPatches.push(...toolCallProposedPatches(event));
       }
-      if (!toolGroup) {
-        toolGroup = {
-          type: "tool_group",
-          id: `tool_group:${event.id}`,
+    }
+
+    if (event.type === "progress" || event.type === "tool_call") {
+      if (!workGroup) {
+        workGroup = {
+          type: "work_group",
+          id: `work_group:${event.id}`,
           sessionId: event.sessionId,
           createdAt: event.createdAt,
+          complete: false,
           events: [],
         };
-        items.push(toolGroup);
+        items.push(workGroup);
       }
 
-      toolGroup.events.push(event);
+      workGroup.events.push(event);
       continue;
     }
 
@@ -260,7 +298,7 @@ export function groupWorkstreamEvents(
       turnProposedPatches.push(...permissionRequestCodePatches(event));
     }
 
-    toolGroup = undefined;
+    endWorkGroup();
     const item: Extract<WorkstreamItem, { type: "event" }> = {
       type: "event",
       id: event.id,
@@ -273,6 +311,7 @@ export function groupWorkstreamEvents(
     }
   }
 
+  exposeSingleWorkActivity();
   return items;
 }
 

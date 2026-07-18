@@ -174,10 +174,17 @@ what the agent is doing now
 what evidence exists: files, logs, approvals, diffs, token usage
 ```
 
-Adjacent tool calls should be grouped into collapsed sections. A running
-group keeps a one-line tool/input preview and any approval requirement visible
-without expanding the details. Thought/progress sections are collapsed by
-default. Body copy uses compact line heights to keep long responses scannable.
+Runs of two or more contiguous thought/progress and tool-call events should be
+grouped, in order, inside one collapsed work block. A single thought or tool
+call remains directly visible. The summary says only `工作中` while active or
+`工作过程` when complete; it omits event counts but keeps approval requirements
+visible. Expanding the block reveals its thought rows and adjacent tool groups.
+Normal messages and standalone actionable events end the group. The session
+timeline uses an 8px row gap; agent and user copy uses 14px type with a 20px
+line height, Markdown H1/H2/H3 use 18px/16px/15px type, and blockquotes use
+13px type. Session and Home composer input uses the same 14px/20px typography
+as body copy. Markdown paragraphs use 6px spacing. Agent-message and work-group
+items add no vertical padding beyond the 8px timeline gap.
 
 Copy should be specific and operational. Avoid generic AI-control-plane
 language when a concrete engineering label is available. For example, prefer
