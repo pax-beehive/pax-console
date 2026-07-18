@@ -182,9 +182,6 @@ export function AgentInquiryPageClient({ user }: AgentInquiryPageClientProps) {
     targetRepQuery.error ??
     nodesQuery.error ??
     agentQueries.find((query) => query.error)?.error;
-  const activeNode = nodes.find(
-    (node) => node.node_id === sourceAgent?.node_id,
-  );
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -195,12 +192,7 @@ export function AgentInquiryPageClient({ user }: AgentInquiryPageClientProps) {
   }
 
   return (
-    <ConsoleLayout
-      activeAgent={sourceAgent}
-      activeNode={activeNode}
-      nodes={nodes}
-      user={user}
-    >
+    <ConsoleLayout user={user}>
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <header className="border-b border-hairline px-5 py-4">
           <div className="flex min-w-0 items-center justify-between gap-3">
@@ -208,7 +200,7 @@ export function AgentInquiryPageClient({ user }: AgentInquiryPageClientProps) {
               <MessageSquareText className="h-4 w-4 text-ink-subtle" />
               <div className="min-w-0">
                 <div className="text-[11px] uppercase tracking-[0.18em] text-ink-tertiary">
-                  Runtime
+                  Settings
                 </div>
                 <h1 className="mt-1 text-lg font-semibold">Agent inquiries</h1>
               </div>

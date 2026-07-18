@@ -1,7 +1,6 @@
 "use client";
 
 import { ChevronDown, LogOut } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,29 +10,16 @@ import {
 import { SearchBox } from "@/components/ui/search-box";
 import { TruncatedText } from "@/components/ui/text";
 import { LOGOUT_URL } from "@/features/api/client";
-import { Node, User } from "@/features/api/types";
+import { User } from "@/features/api/types";
 
 type TopbarProps = {
   user: User;
-  nodes: Node[];
-  activeNode?: Node;
 };
 
-export function Topbar({ user, nodes, activeNode }: TopbarProps) {
+export function Topbar({ user }: TopbarProps) {
   return (
     <header className="mobile-safe-top flex min-h-[var(--topbar-h)] min-w-0 items-center justify-between gap-2 border-b border-hairline bg-canvas/95 px-3 backdrop-blur sm:gap-4 sm:px-4">
       <div className="flex min-w-0 flex-1 items-center gap-3">
-        <Button
-          className="max-w-36 sm:max-w-52"
-          size="sm"
-          tooltip={
-            activeNode?.name ?? activeNode?.hostname ?? `${nodes.length} nodes`
-          }
-          type="button"
-          variant="secondary"
-        >
-          {activeNode?.name ?? activeNode?.hostname ?? `${nodes.length} nodes`}
-        </Button>
         <SearchBox
           className="hidden w-full max-w-[340px] sm:flex"
           placeholder="Search threads and resources"
@@ -44,7 +30,7 @@ export function Topbar({ user, nodes, activeNode }: TopbarProps) {
           <DropdownMenuTrigger asChild>
             <button
               aria-label="User menu"
-              className="flex h-9 w-9 min-w-0 items-center justify-center gap-2 rounded-lg border border-transparent px-2 py-1 text-left transition hover:border-hairline hover:bg-surface-1 data-[state=open]:border-hairline data-[state=open]:bg-surface-1 sm:h-auto sm:w-auto sm:justify-start"
+              className="flex h-9 w-9 min-w-0 items-center justify-center gap-2 rounded-md border border-transparent px-2 py-1 text-left transition hover:border-hairline hover:bg-surface-1 data-[state=open]:border-hairline data-[state=open]:bg-surface-1 sm:h-auto sm:w-auto sm:justify-start"
               type="button"
             >
               <span className="hidden min-w-0 sm:block">

@@ -12,6 +12,7 @@ import {
 } from "react";
 import { useSearchParams } from "next/navigation";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { motion } from "motion/react";
 import {
   Archive,
   AlertCircle,
@@ -25,13 +26,11 @@ import {
   ListFilter,
   Menu,
   MessageSquare,
-  Mic,
   MoreHorizontal,
   Paperclip,
   Plus,
   Radio,
   ShieldCheck,
-  Sparkles,
   Server,
   TerminalSquare,
   Users,
@@ -274,8 +273,6 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const agents = sortAgentsForHome(discoveredAgents, latestSessionTimeByAgent);
   const activeAgent =
     agents.find((agent) => agent.agent_id === selectedAgentId) ?? agents[0];
-  const activeNode =
-    nodes.find((node) => node.node_id === activeAgent?.node_id) ?? nodes[0];
   const normalizedNewSessionCwd = newSessionCwd.trim();
   const newSessionCwdInvalid =
     normalizedNewSessionCwd.length > 0 &&
@@ -521,28 +518,11 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   }
 
   return (
-    <ConsoleLayout
-      activeAgent={activeAgent}
-      activeNode={activeNode}
-      nodes={nodes}
-      user={user}
-    >
+    <ConsoleLayout user={user}>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-canvas">
-        <header className="border-b border-hairline bg-surface-1 px-4 py-3 sm:px-5 sm:py-4">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 text-xs text-ink-tertiary">
-              <Sparkles className="h-4 w-4" />
-              Home
-            </div>
-            <h1 className="mt-1 text-xl font-semibold sm:mt-2 sm:text-2xl">
-              Workbench
-            </h1>
-          </div>
-        </header>
-
         {apiError && <ApiState error={apiError} />}
 
-        <main className="relative grid min-h-0 flex-1 overflow-hidden lg:grid-cols-[minmax(320px,420px)_minmax(0,1fr)]">
+        <main className="relative grid min-h-0 flex-1 overflow-hidden lg:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]">
           {mobilePaneOpen && mobileRailOpen && (
             <button
               aria-label="Close Home sidebar"
@@ -563,12 +543,12 @@ export function FleetOverview({ user }: FleetOverviewProps) {
             onScroll={handleRailScroll}
           >
             <div className="sticky top-0 z-10 border-b border-hairline bg-surface-1 px-4 py-3">
-              <div className="mb-3 grid grid-cols-2 gap-1 rounded-lg border border-hairline bg-canvas p-1">
+              <div className="mb-3 grid grid-cols-2 gap-1 rounded-md border border-hairline bg-canvas p-1">
                 <button
                   className={cn(
-                    "inline-flex min-h-8 min-w-0 items-center justify-center gap-2 rounded-md px-2 text-xs font-medium transition",
+                    "inline-flex min-h-8 min-w-0 items-center justify-center gap-2 rounded-sm px-2 text-xs font-medium transition",
                     homeRailTab === "sessions"
-                      ? "bg-surface-3 text-ink"
+                      ? "bg-accent/15 text-accent-bright"
                       : "text-ink-tertiary hover:bg-surface-2 hover:text-ink-muted",
                   )}
                   onClick={() => {
@@ -589,9 +569,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 </button>
                 <button
                   className={cn(
-                    "inline-flex min-h-8 min-w-0 items-center justify-center gap-2 rounded-md px-2 text-xs font-medium transition",
+                    "inline-flex min-h-8 min-w-0 items-center justify-center gap-2 rounded-sm px-2 text-xs font-medium transition",
                     homeRailTab === "inbox"
-                      ? "bg-surface-3 text-ink"
+                      ? "bg-accent/15 text-accent-bright"
                       : "text-ink-tertiary hover:bg-surface-2 hover:text-ink-muted",
                   )}
                   onClick={() => {
@@ -821,48 +801,55 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 </div>
                 <div className="min-h-0 flex-1 overflow-auto p-5">
                   <div className="mx-auto grid w-full max-w-4xl gap-4">
-                    <SelectedContext
-                      generatedDraft={selectedGeneratedDraft}
-                      item={composerContextItem}
-                      onArchive={() => {
-                        if (composerContextItem) {
-                          setArchivedWorkItemIds((current) => [
-                            ...current,
-                            composerContextItem.id,
-                          ]);
-                        }
-                        setContextClosed(false);
-                        setAttachmentName("");
-                        setComposerMode("clean");
-                        setDraft("");
-                      }}
-                      onCommentOnDraft={() => {
-                        setComposerMode("comment-draft");
-                        setDraft("");
-                      }}
-                      onClose={() => {
-                        setContextClosed(true);
-                        setSelectedWorkItemId("");
-                        setAttachmentName("");
-                        setComposerMode("clean");
-                        setDraft("");
-                      }}
-                      onGenerateDraft={() => {
-                        if (selectedInquiry) {
-                          setGeneratedDrafts((current) => ({
-                            ...current,
-                            [selectedInquiry.id]: draftFromInquiry(
-                              selectedInquiry,
-                              "",
-                            ),
-                          }));
-                        }
-                      }}
-                      onSummarizeWithNote={() => {
-                        setComposerMode("summarize-note");
-                        setDraft("");
-                      }}
-                    />
+                    <motion.div
+                      animate={{ opacity: 1, y: 0 }}
+                      initial={{ opacity: 0, y: 8 }}
+                      key={composerContextItem?.id ?? "empty"}
+                      transition={{ duration: 0.2, ease: "easeOut" }}
+                    >
+                      <SelectedContext
+                        generatedDraft={selectedGeneratedDraft}
+                        item={composerContextItem}
+                        onArchive={() => {
+                          if (composerContextItem) {
+                            setArchivedWorkItemIds((current) => [
+                              ...current,
+                              composerContextItem.id,
+                            ]);
+                          }
+                          setContextClosed(false);
+                          setAttachmentName("");
+                          setComposerMode("clean");
+                          setDraft("");
+                        }}
+                        onCommentOnDraft={() => {
+                          setComposerMode("comment-draft");
+                          setDraft("");
+                        }}
+                        onClose={() => {
+                          setContextClosed(true);
+                          setSelectedWorkItemId("");
+                          setAttachmentName("");
+                          setComposerMode("clean");
+                          setDraft("");
+                        }}
+                        onGenerateDraft={() => {
+                          if (selectedInquiry) {
+                            setGeneratedDrafts((current) => ({
+                              ...current,
+                              [selectedInquiry.id]: draftFromInquiry(
+                                selectedInquiry,
+                                "",
+                              ),
+                            }));
+                          }
+                        }}
+                        onSummarizeWithNote={() => {
+                          setComposerMode("summarize-note");
+                          setDraft("");
+                        }}
+                      />
+                    </motion.div>
                   </div>
                 </div>
 
@@ -870,7 +857,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                   className="mobile-safe-bottom border-t border-hairline bg-surface-1 p-3"
                   onSubmit={submit}
                 >
-                  <div className="mx-auto w-full max-w-4xl rounded-[22px] border border-hairline bg-surface-2 px-3 py-2 shadow-lg shadow-black/20">
+                  <div className="mx-auto w-full max-w-4xl rounded-xl border border-hairline bg-surface-2 px-3 py-2 transition focus-within:border-accent/60 focus-within:shadow-[0_0_0_3px_rgb(94_106_210/14%),0_0_28px_rgb(94_106_210/10%)]">
                     <ComposerModeHint
                       mode={composerMode}
                       onClear={() => {
@@ -941,7 +928,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                             "inline-flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border bg-canvas px-2.5 text-sm transition sm:max-w-80",
                             newSessionCwdInvalid
                               ? "border-warning text-warning"
-                              : "border-hairline text-ink-muted focus-within:border-primary-focus focus-within:ring-2 focus-within:ring-primary-focus/20",
+                              : "border-hairline text-ink-muted focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/25",
                           )}
                           onBlur={(event) => {
                             const nextTarget = event.relatedTarget;
@@ -991,7 +978,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                           "inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg px-2.5 text-sm transition",
                           newSessionApprovalMode === "auto_approve_all"
                             ? "bg-success/10 text-success"
-                            : "text-primary-hover hover:bg-surface-3",
+                            : "text-ink-subtle hover:bg-surface-3 hover:text-ink",
                         )}
                         onClick={() =>
                           setNewSessionApprovalMode((mode) =>
@@ -1020,14 +1007,6 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                         nodes={nodes}
                         selectedAgentId={activeAgent?.agent_id}
                         onChange={setSelectedAgentId}
-                      />
-                      <Button
-                        disabled
-                        icon={<Mic className="h-4 w-4" />}
-                        size="icon"
-                        tooltip="Voice input is not available yet"
-                        type="button"
-                        variant="ghost"
                       />
                       <Button
                         disabled={
@@ -1065,7 +1044,9 @@ function WorkItemRow({
       <button
         className={cn(
           "grid min-w-0 gap-1 border-b border-hairline px-4 py-3 text-left transition hover:bg-surface-2",
-          selected ? "bg-surface-2" : "bg-surface-1",
+          selected
+            ? "bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)] hover:bg-accent/15"
+            : "bg-surface-1",
         )}
         onClick={onSelect}
         type="button"
@@ -1083,8 +1064,10 @@ function WorkItemRow({
   return (
     <button
       className={cn(
-        "grid min-w-0 gap-2 border-b border-hairline px-4 py-3 text-left transition hover:bg-surface-2",
-        selected ? "bg-surface-2" : "bg-surface-1",
+        "group grid min-w-0 gap-2 border-b border-hairline px-4 py-3 text-left transition hover:bg-surface-2",
+        selected
+          ? "bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)] hover:bg-accent/15"
+          : "bg-surface-1",
       )}
       onClick={onSelect}
       type="button"
@@ -1105,12 +1088,15 @@ function WorkItemRow({
             <TruncatedText className="text-sm font-medium text-ink">
               {item.title}
             </TruncatedText>
-            <Badge
-              className="max-w-24"
-              tone={item.priority === "high" ? "warning" : "neutral"}
-            >
-              {item.kind}
-            </Badge>
+            {item.priority === "high" ? (
+              <Badge className="max-w-24" tone="warning">
+                {item.kind}
+              </Badge>
+            ) : (
+              <span className="shrink-0 text-xs text-ink-tertiary">
+                {item.kind}
+              </span>
+            )}
           </div>
           <TruncatedText className="mt-1 text-xs text-ink-tertiary">
             {item.source} · {relativeTime(item.createdAt)}
@@ -1121,7 +1107,7 @@ function WorkItemRow({
         <TruncatedText className="text-xs text-ink-subtle">
           {item.context}
         </TruncatedText>
-        <span className="shrink-0 text-xs text-primary-hover">
+        <span className="shrink-0 text-xs text-ink-tertiary transition group-hover:text-accent-bright">
           {item.actionLabel}
         </span>
       </div>
@@ -1177,7 +1163,7 @@ function InboxMenu({
                 {option.label}
               </TruncatedText>
               {option.value === selectedValue && (
-                <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                <span className="h-1.5 w-1.5 rounded-full bg-accent-bright" />
               )}
             </button>
           ))}
@@ -1245,9 +1231,15 @@ function SelectedContext({
 }) {
   if (!item) {
     return (
-      <section className="flex min-h-[220px] items-center justify-center px-4 text-center">
-        <div className="text-3xl font-medium leading-tight text-ink">
-          What should we work on today?
+      <section className="flex min-h-[160px] items-center justify-center px-4 py-10 text-center">
+        <div className="grid gap-1.5">
+          <div className="text-sm text-ink-muted">
+            What should we work on today?
+          </div>
+          <div className="text-xs text-ink-tertiary">
+            Type below to start a session · Enter to send, Shift+Enter for a new
+            line
+          </div>
         </div>
       </section>
     );
@@ -1269,7 +1261,7 @@ function SelectedContext({
       : "No draft yet. This inquiry has no conversation yet, so generate a draft from the background and question.";
 
     return (
-      <section className="grid gap-4 rounded-lg border border-hairline bg-surface-1 p-4">
+      <section className="grid gap-5 py-2">
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-xs text-ink-tertiary">
@@ -1308,7 +1300,7 @@ function SelectedContext({
           </div>
         </div>
 
-        <div className="grid gap-3 rounded-lg border border-hairline bg-canvas p-3">
+        <div className="grid gap-4 border-t border-hairline pt-4">
           <div>
             <div className="text-xs text-ink-tertiary">Background</div>
             <div className="mt-1 text-sm leading-6 text-ink-muted">
@@ -1324,9 +1316,9 @@ function SelectedContext({
         </div>
 
         {item.conversationTurns && item.conversationTurns.length > 0 && (
-          <div className="grid gap-2 rounded-lg border border-hairline bg-canvas p-3">
+          <div className="grid gap-3 border-t border-hairline pt-4">
             <div className="text-xs text-ink-tertiary">Conversation</div>
-            <div className="grid gap-2">
+            <div className="grid gap-3">
               {item.conversationTurns.map((turn, index) => (
                 <div className="grid gap-1" key={`${turn.speaker}-${index}`}>
                   <div className="text-xs font-medium text-ink-muted">
@@ -1341,7 +1333,7 @@ function SelectedContext({
           </div>
         )}
 
-        <div className="grid gap-2 rounded-lg border border-hairline bg-canvas p-3">
+        <div className="grid gap-2 border-t border-hairline pt-4">
           <div className="flex items-center justify-between gap-3">
             <div className="text-xs text-ink-tertiary">Draft response</div>
             <Badge>{draft ? "ready" : emptyDraftLabel}</Badge>
@@ -1354,19 +1346,17 @@ function SelectedContext({
         <div className="flex min-w-0 flex-wrap gap-2">
           {draft ? (
             <>
-              <button
-                className="inline-flex min-h-8 max-w-full shrink-0 items-center gap-2 rounded-lg border border-primary bg-primary px-2.5 text-xs font-medium text-canvas transition hover:bg-primary-hover"
-                type="button"
-              >
+              <Button size="sm" type="button" variant="primary">
                 Send
-              </button>
-              <button
-                className="inline-flex min-h-8 max-w-full shrink-0 items-center gap-2 rounded-lg border border-hairline bg-surface-1 px-2.5 text-xs font-medium text-ink-muted transition hover:border-hairline-strong hover:bg-surface-2 hover:text-ink"
+              </Button>
+              <Button
                 onClick={onCommentOnDraft}
+                size="sm"
                 type="button"
+                variant="secondary"
               >
                 Comment
-              </button>
+              </Button>
             </>
           ) : (
             <NoDraftInquiryActions
@@ -1381,7 +1371,7 @@ function SelectedContext({
   }
 
   return (
-    <section className="grid gap-4 rounded-lg border border-hairline bg-surface-1 p-4">
+    <section className="grid gap-5 py-2">
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs text-ink-tertiary">
@@ -1402,7 +1392,7 @@ function SelectedContext({
           {item.priority}
         </Badge>
       </div>
-      <div className="grid gap-2 rounded-lg border border-hairline bg-canvas p-3">
+      <div className="grid gap-2 border-t border-hairline pt-4">
         <ContextLine label="Source" value={item.source} />
         <ContextLine label="Context" value={item.context} />
         <ContextLine label="Suggested action" value={item.actionLabel} />
@@ -1444,34 +1434,31 @@ function NoDraftInquiryActions({
 }) {
   if (needsSummary) {
     return (
-      <div className="inline-flex min-h-8 overflow-hidden rounded-lg border border-primary bg-primary text-xs font-medium text-canvas">
-        <button
-          className="inline-flex items-center px-2.5 transition hover:bg-primary-hover"
+      <>
+        <Button
           onClick={onGenerateDraft}
+          size="sm"
           type="button"
+          variant="primary"
         >
           Summarize draft
-        </button>
-        <button
-          className="inline-flex w-8 items-center justify-center border-l border-canvas/20 transition hover:bg-primary-hover"
+        </Button>
+        <Button
           onClick={onSummarizeWithNote}
+          size="sm"
           type="button"
-          aria-label="Summarize with note"
+          variant="secondary"
         >
-          <ChevronDown className="h-4 w-4" />
-        </button>
-      </div>
+          Summarize with note
+        </Button>
+      </>
     );
   }
 
   return (
-    <button
-      className="inline-flex min-h-8 max-w-full shrink-0 items-center gap-2 rounded-lg border border-primary bg-primary px-2.5 text-xs font-medium text-canvas transition hover:bg-primary-hover"
-      onClick={onGenerateDraft}
-      type="button"
-    >
+    <Button onClick={onGenerateDraft} size="sm" type="button" variant="primary">
       Generate draft
-    </button>
+    </Button>
   );
 }
 
@@ -1534,8 +1521,10 @@ function AgentSelector({
           {agents.map((agent) => (
             <button
               className={cn(
-                "flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink transition hover:bg-surface-3",
-                agent.agent_id === selectedAgentId && "bg-surface-3",
+                "flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink transition",
+                agent.agent_id === selectedAgentId
+                  ? "bg-accent/10 hover:bg-accent/15"
+                  : "hover:bg-surface-3",
               )}
               key={agent.agent_id}
               onClick={() => {

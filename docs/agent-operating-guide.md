@@ -433,7 +433,7 @@ src/components/sessions/*
   session workbench
 
 src/components/ui/*
-  local UI primitives such as Button, Badge, SearchBox, Tooltip, TruncatedText
+  local UI primitives such as Button, Badge, SearchBox, Tooltip, TruncatedText, PaxLogo
 
 src/features/*
   API, auth, runtime, stateful business boundaries
@@ -444,6 +444,8 @@ Components should not know Cloudflare internals. Components may show errors, but
 Use `src/components/ui/button.tsx` for command buttons, `badge.tsx` for compact actionable status labels, `search-box.tsx` for search inputs, `dropdown-menu.tsx` for click-to-open menus (e.g. the topbar user/sign-out menu), and `text.tsx` for long IDs/names. Agent ids, node ids, session ids, API key prefixes, endpoint paths, and file paths should be truncated with tooltip access to the full value. Prefer `compactId` from `src/lib/format.ts` when an id should be recognizable but not visually dominant.
 
 The UI direction is Codex-like dark workbench, not a generic dashboard. Prefer split panes, compact rows, timelines, and evidence panels over large hero sections, KPI-card grids, and floating card sections. Cards are reserved for selectable entities, modals, and isolated tools. Ordinary metadata should be muted text or monospace text; use `Badge` for states that need scanning or action, such as connected, running, failed, approval required, revoked, or offline.
+
+The signature accent (`--color-accent` #5e6ad2, with `--color-accent-bright` #96a0ff for small text/icons) is reserved for small interactive signals: selected-state tinted backgrounds (bg-accent/10, hover bg-accent/15; bg-accent/15 with accent-bright text for segmented tabs), left indicator bars, focus rings and glows, and hover emphasis. Do not use accent fills or gradients as large-area brand decoration. The body carries a very subtle accent radial gradient for depth, and `::selection` uses the accent color. Entrance micro-animations use the `motion` package (`motion/react`); keep them short (~200ms) and subtle.
 
 Sidebar collapsed state is client-only UI state and belongs in `useConsoleStore().sidebarCollapsed`.
 
@@ -460,16 +462,19 @@ Collapsed tabs show icons only; labels must remain available via Tooltip.
 
 ## Current Sidebar Routes
 
-The sidebar is intentionally hierarchical. Keep first-level nav coarse, then
-render concrete resources as sidebar secondary tabs under each expanded
-workspace. First-level groups are independent disclosures, not an accordion;
-multiple groups may stay open at the same time.
+The sidebar is intentionally hierarchical. Keep first-level nav coarse: only
+Home and Collaboration live at the top. Everything else (the former Runtime
+workspace and the settings pages) sits in one Settings group pinned to the
+bottom of the sidebar. First-level groups are independent disclosures, not an
+accordion; multiple groups may stay open at the same time.
 
 ```txt
 Home             /
-Runtime          /nodes, active for /nodes /agents /inquiries /approvals /monitor
 Collaboration    /teams, active for /teams /envelopes /knowledge
-API Keys         /settings/api-keys
+Settings         bottom-pinned group; /settings/api-keys, active for
+                 /nodes /agents /inquiries /conversations /approvals /monitor /settings
+                 children: Nodes, Agents, Inquiries, Conversations, Approvals,
+                 Monitor, API Keys, Node Registration
 ```
 
 These deep links should remain directly reachable:
@@ -491,10 +496,12 @@ These deep links should remain directly reachable:
 
 When adding a sidebar item, add both a real `src/app/**/page.tsx` route and an
 active-state mapping in `src/components/shell/sidebar.tsx`. Prefer adding a
-secondary tab to Runtime or Collaboration when the destination belongs to those
-workspaces. Home owns the user-facing Sessions tab; do not re-promote Sessions
-as a separate sidebar item. Do not add workspace-level subtabs inside page
-headers unless the page has local modes that are not part of global IA.
+secondary tab to Collaboration or the bottom Settings group when the
+destination belongs to those workspaces; runtime resource pages (nodes,
+agents, inquiries, conversations, approvals, monitor) and settings pages both
+go under Settings. Home owns the user-facing Sessions tab; do not re-promote
+Sessions as a separate sidebar item. Do not add workspace-level subtabs inside
+page headers unless the page has local modes that are not part of global IA.
 
 PAX Manager exposes Home sessions through
 `GET /api/v1/user/{user_id}/sessions?page_size=20&page_num=...`, with optional

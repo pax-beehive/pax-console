@@ -163,11 +163,6 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
     () => buildAgentRows(agents, sortedNodes),
     [agents, sortedNodes],
   );
-  const activeAgent = agents[0];
-  const activeNode =
-    sortedNodes.find((node) => node.node_id === activeAgent?.node_id) ??
-    nodes[0] ??
-    sortedNodes[0];
   const agentsLoading = agentsQuery.isLoading;
   const sessionQueries = useQueries({
     queries: sortedAgents.map((agent) => ({
@@ -231,12 +226,7 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
   }
 
   return (
-    <ConsoleLayout
-      activeAgent={activeAgent}
-      activeNode={activeNode}
-      nodes={nodes}
-      user={user}
-    >
+    <ConsoleLayout user={user}>
       <div className="flex min-h-0 flex-1 flex-col">
         <header className="flex min-w-0 items-center justify-between border-b border-hairline px-5 py-4">
           <div className="min-w-0">

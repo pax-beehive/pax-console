@@ -44,7 +44,7 @@ export function Button({
   const button = (
     <Comp
       className={cn(
-        "inline-flex max-w-full shrink-0 items-center gap-2 rounded-lg border font-medium transition",
+        "inline-flex max-w-full shrink-0 items-center gap-2 rounded-md border font-medium transition",
         "disabled:cursor-not-allowed",
         variants[variant],
         sizes[size],

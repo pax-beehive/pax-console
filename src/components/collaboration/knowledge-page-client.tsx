@@ -10,7 +10,6 @@ import { MonoId, TruncatedText } from "@/components/ui/text";
 import {
   archiveKnowledgeCapsule,
   useKnowledgeCapsules,
-  useNodes,
 } from "@/features/api/resources";
 import { KnowledgeCapsule, User } from "@/features/api/types";
 import { compactId } from "@/lib/format";
@@ -21,8 +20,6 @@ type KnowledgePageClientProps = {
 
 export function KnowledgePageClient({ user }: KnowledgePageClientProps) {
   const queryClient = useQueryClient();
-  const nodesQuery = useNodes(user.user_id);
-  const nodes = nodesQuery.data?.nodes ?? [];
   const [status, setStatus] = useState("active");
   const [keywordDraft, setKeywordDraft] = useState("");
   const [keyword, setKeyword] = useState("");
@@ -51,7 +48,7 @@ export function KnowledgePageClient({ user }: KnowledgePageClientProps) {
   }
 
   return (
-    <ConsoleLayout activeNode={nodes[0]} nodes={nodes} user={user}>
+    <ConsoleLayout user={user}>
       <div className="grid min-h-[calc(100vh-var(--topbar-h))] min-w-0 lg:grid-cols-[360px_minmax(0,1fr)]">
         <aside className="min-w-0 border-b border-hairline bg-surface-1 lg:border-b-0 lg:border-r">
           <header className="border-b border-hairline p-4">
@@ -183,7 +180,11 @@ function CapsuleDetail({
   });
 
   if (!capsule) {
-    return <div className="p-5"><EmptyState label="Select a capsule" /></div>;
+    return (
+      <div className="p-5">
+        <EmptyState label="Select a capsule" />
+      </div>
+    );
   }
 
   return (
@@ -216,10 +217,7 @@ function CapsuleDetail({
           <InfoRow label="Source session" value={capsule.source_session_id} />
           <InfoRow label="Source agent" value={capsule.source_agent_id} />
           <InfoRow label="Created by" value={capsule.created_by_user_id} />
-          <InfoRow
-            label="Truncated"
-            value={capsule.truncated ? "yes" : "no"}
-          />
+          <InfoRow label="Truncated" value={capsule.truncated ? "yes" : "no"} />
           <JsonBlock label="References" value={capsule.references} />
           <Button
             disabled={archive.isPending || capsule.status !== "active"}
@@ -246,7 +244,7 @@ function InfoRow({ label, value }: { label: string; value?: string }) {
         value?.startsWith("agent_") ||
         value?.startsWith("usr_")
           ? compactId(value)
-          : value ?? "unknown"}
+          : (value ?? "unknown")}
       </MonoId>
     </div>
   );

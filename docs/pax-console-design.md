@@ -194,25 +194,33 @@ agent work`.
 
 Design tokens should be implemented as CSS variables first, then exposed through Tailwind.
 
-Initial token shape:
+Current token shape:
 
 ```css
 :root {
-  --primary: #5e6ad2;
-  --primary-hover: #828fff;
-  --ink: #f7f8f8;
-  --ink-muted: #d0d6e0;
-  --ink-subtle: #8a8f98;
-  --ink-tertiary: #62666d;
-  --canvas: #010102;
-  --surface-1: #0f1011;
-  --surface-2: #141516;
-  --surface-3: #18191a;
-  --hairline: #23252a;
-  --hairline-strong: #34343a;
-  --success: #27a644;
+  --primary: #f4f4f5;
+  --primary-hover: #ffffff;
+  --accent: #5e6ad2;
+  --accent-bright: #96a0ff;
+  --ink: #f4f4f5;
+  --ink-muted: #c9cbd1;
+  --ink-subtle: #8f929a;
+  --ink-tertiary: #656870;
+  --canvas: #070708;
+  --surface-1: #0d0d0f;
+  --surface-2: #141416;
+  --surface-3: #1a1a1d;
+  --hairline: #222327;
+  --hairline-strong: #35363c;
+  --success: #52b788;
 }
 ```
+
+The accent stays sparse: selected-state left indicator bars, focus rings and
+glows, hover emphasis, a subtle body radial gradient, and `::selection`.
+Primary actions remain near-white; do not turn the accent into a large-area
+brand fill. Entrance micro-animations use `motion/react` and stay short and
+subtle (~200ms).
 
 ## Product Information Architecture
 
@@ -227,28 +235,6 @@ PAX Console
 |   +-- detach inquiry context to return the composer to a clean session
 |   +-- archive inquiry to ignore it and remove it from the queue
 |   +-- composer with context attachment, agent select (`agent @ node` for duplicate names), and tool approval preference
-+-- Runtime
-|   +-- Nodes
-|   |   +-- node list
-|   |   +-- node detail
-|   |   +-- paxd status
-|   |   +-- system metadata
-|   |   +-- registration tokens
-|   +-- Agents
-|   |   +-- agent list
-|   |   +-- agent detail
-|   |   +-- capabilities
-|   |   +-- sessions
-|   |   +-- bootstrap agent
-|   +-- Approvals
-|   |   +-- pending approval requests
-|   |   +-- active approval grants
-|   +-- Monitor
-|       +-- mailbox timeline
-|       +-- tool/message events
-|       +-- token/cost metrics
-|       +-- latency/error views
-|       +-- node/agent heartbeat
 +-- Collaboration
 |   +-- Teams & Friends
 |   |   +-- teams
@@ -260,20 +246,45 @@ PAX Console
 |   +-- Knowledge
 |       +-- capsules
 |       +-- session injections
-+-- Settings
++-- Settings (bottom-pinned sidebar group)
+    +-- Nodes
+    |   +-- node list
+    |   +-- node detail
+    |   +-- paxd status
+    |   +-- system metadata
+    |   +-- registration tokens
+    +-- Agents
+    |   +-- agent list
+    |   +-- agent detail
+    |   +-- capabilities
+    |   +-- sessions
+    |   +-- bootstrap agent
+    +-- Inquiries
+    +-- Conversations
+    +-- Approvals
+    |   +-- pending approval requests
+    |   +-- active approval grants
+    +-- Monitor
+    |   +-- mailbox timeline
+    |   +-- tool/message events
+    |   +-- token/cost metrics
+    |   +-- latency/error views
+    |   +-- node/agent heartbeat
     +-- API keys
     +-- node registration
 ```
 
-The sidebar should expose coarse workspaces first, then show concrete resources
-as sidebar secondary tabs under each expanded workspace. Home owns the
-user-facing Sessions tab and embedded session workbench; do not add Sessions as
-a separate first-level sidebar item. First-level groups are independent
-disclosures, not an accordion. Runtime owns nodes, agents,
-approvals, and monitor as secondary tabs. Collaboration owns teams, friends,
-envelopes, and knowledge as secondary tabs; team invites stay inside the Teams
-surface as a team action queue. Deep links such as `/nodes`, `/sessions`,
-`/approvals`, `/teams?view=friends`, and `/knowledge` remain valid.
+The sidebar keeps only Home and Collaboration as top-level entries; everything
+else lives in one Settings disclosure group pinned to the bottom of the
+sidebar. Home owns the user-facing Sessions tab and embedded session
+workbench; do not add Sessions as a separate first-level sidebar item.
+First-level groups are independent disclosures, not an accordion. The Settings
+group owns nodes, agents, inquiries, conversations, approvals, monitor, API
+keys, and node registration as secondary tabs. Collaboration owns teams,
+friends, envelopes, and knowledge as secondary tabs; team invites stay inside
+the Teams surface as a team action queue. Deep links such as `/nodes`,
+`/sessions`, `/approvals`, `/teams?view=friends`, and `/knowledge` remain
+valid.
 
 ## Routes
 
@@ -312,8 +323,6 @@ The console layout owns:
 sidebar
 topbar
 global search
-node selector
-new session action
 current user menu
 active websocket/tunnel indicators
 ```

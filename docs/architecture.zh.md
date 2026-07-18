@@ -137,13 +137,13 @@ src/components/home/
   构建中注入，避免普通生产用户看到演示数据。
   底部 composer 保持 clean session 默认入口，并提供 agent 选择、附件入口和
   tool-call approval 偏好；重名 agent 在 target selector 中显示为
-  `agent @ node`。nodes / agents 的详细列表仍放在 Runtime 子页里，
+  `agent @ node`。nodes / agents 的详细列表仍放在 Settings 组的子页里，
   sessions 不再是 sidebar 一级工作区。
 
 src/components/resources/
-  Runtime / Settings 下的资源页。Nodes、Agents、Approvals、Monitor 作为
-  Runtime 的 sidebar 二级 tabs 复用认证、布局和基础数据加载；API Keys 和
-  Node Registration 仍属于 settings 类资源。旧 `/sessions` 路由只做回 Home 的 redirect。
+  Settings 组下的资源页。Nodes、Agents、Inquiries、Conversations、Approvals、
+  Monitor 作为 Settings 的 sidebar 二级 tabs 复用认证、布局和基础数据加载；
+  API Keys 和 Node Registration 同属 Settings 二级 tabs。旧 `/sessions` 路由只做回 Home 的 redirect。
 
 src/components/sessions/
   Session workbench。把 REST 历史消息和 WebSocket live events 合成时间线。
@@ -206,7 +206,13 @@ status / count pill
 整体界面风格
   走 Codex-like dark workbench，而不是通用 dashboard。
   优先使用 split panes、compact rows、timeline、evidence panel。
-  避免大 hero、KPI-card grid、每个 section 都套 rounded card、紫/蓝渐变装饰。
+  避免大 hero、KPI-card grid、每个 section 都套 rounded card。
+  签名 accent 色为 --accent #5e6ad2（小字/图标用更亮的 --accent-bright #96a0ff），
+  只用于小面积交互信号：选中态底色（bg-accent/10，hover 加深到 /15；
+  segmented tab 用 bg-accent/15 + accent-bright 文字）、左侧指示条、
+  聚焦环/光晕、hover 强调；
+  不要把 accent 或渐变用作大面积品牌装饰。body 自带一层极淡的 accent
+  径向渐变增加纵深，::selection 使用 accent 色。
   Cards 只用于可选择实体、modal、独立工具或确实需要框住的复杂内容。
 
 Sidebar 折叠
@@ -214,9 +220,11 @@ Sidebar 折叠
   ConsoleLayout 使用 flex；Sidebar 自己用 width: 248/76px 控制展开/收起，并带 overflow-hidden。
   手机宽度隐藏 Sidebar，保留 Topbar；Home 默认显示 clean composer，并用左侧抽屉承载 Sessions / Inbox rail。
   Sidebar 自身使用安静的 surface 和 compact nav rows，不保留固定的 Current node 区块。
-  Sidebar 一级入口保持粗粒度：Home、Runtime、Collaboration、API Keys。
-  Runtime / Collaboration 是彼此独立的 disclosure，不是 accordion；多个一级组可以同时保持展开。
-  Runtime 展开时在 Sidebar 二级导航承载 Nodes、Agents、Inquiries、Approvals、Monitor。
+  Sidebar 一级入口保持粗粒度：顶部只有 Home 和 Collaboration；
+  其余入口收进钉在侧栏底部的 Settings 展开组。
+  Collaboration / Settings 是彼此独立的 disclosure，不是 accordion；多个组可以同时保持展开。
+  Settings 展开时在 Sidebar 二级导航承载 Nodes、Agents、Inquiries、Conversations、
+  Approvals、Monitor、API Keys、Node Registration。
   Collaboration 展开时在 Sidebar 二级导航承载 Teams、Friends、Envelopes、Knowledge。
   Team invites 属于 Teams 页面里的 team action queue，不作为 Collaboration 并列二级入口。
   不要把这些全局二级 tabs 放进具体页面 header 或页面组件内部。
@@ -385,25 +393,25 @@ Access 访问 `console.paxtech.net`，Next route handler 再读取请求中的
 
 ## 当前可交互路由
 
-Sidebar 一级入口是粗粒度工作区；下面这些实际路由仍保留为 deep links
-或 Sidebar 二级 tabs：
+Sidebar 一级入口是粗粒度工作区（顶部 Home / Collaboration，底部 Settings
+组）；下面这些实际路由仍保留为 deep links 或 Sidebar 二级 tabs：
 
 ```txt
 /                    Home workbench
-/nodes               Runtime / Nodes list
+/nodes               Settings / Nodes list
 /nodes/[id]          Node detail
-/agents              Runtime / Agents on active node
+/agents              Settings / Agents on active node
 /agents/[id]         Agent detail, expects nodeId query when opened from list
-/inquiries           Runtime / agent-to-agent inquiry composer
+/inquiries           Settings / agent-to-agent inquiry composer
 /sessions            Redirect to Home
 /sessions/[id]       Redirect to /?sessionId=...
-/approvals           Runtime / pending approvals and active approval grants
-/monitor             Runtime / PAX Manager health and fleet summary
+/approvals           Settings / pending approvals and active approval grants
+/monitor             Settings / PAX Manager health and fleet summary
 /teams               Collaboration / Teams & Friends
 /envelopes           Collaboration / mailbox-style envelopes
 /knowledge           Collaboration / knowledge capsules
-/settings/api-keys   API key list/create/revoke
-/settings/node-registration  Node registration token minting
+/settings/api-keys   Settings / API key list/create/revoke
+/settings/node-registration  Settings / Node registration token minting
 ```
 
 `/settings/api-keys` 已接 `GET/POST/DELETE /api-keys`。新建 key 后只在当前页面展示一次 secret。
