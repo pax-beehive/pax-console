@@ -4,6 +4,8 @@
   --primary: #f4f4f5;
   --primary-hover: #ffffff;
   --primary-focus: #8ea2ff;
+  --accent: #5e6ad2;
+  --accent-bright: #96a0ff;
   --ink: #f4f4f5;
   --ink-muted: #c9cbd1;
   --ink-subtle: #8f929a;
@@ -36,6 +38,8 @@
   --color-primary: var(--primary);
   --color-primary-hover: var(--primary-hover);
   --color-primary-focus: var(--primary-focus);
+  --color-accent: var(--accent);
+  --color-accent-bright: var(--accent-bright);
   --color-ink: var(--ink);
   --color-ink-muted: var(--ink-muted);
   --color-ink-subtle: var(--ink-subtle);
@@ -94,12 +98,23 @@ html {
 }
 
 body {
-  background: var(--canvas);
+  background:
+    radial-gradient(
+      ellipse 90% 55% at 50% -25%,
+      rgb(94 106 210 / 7%),
+      transparent 70%
+    ),
+    var(--canvas);
   color: var(--ink);
   font-family: var(--font-geist-sans), Inter, system-ui, sans-serif;
   font-feature-settings: "cv01", "ss03";
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgb(94 106 210 / 35%);
+  color: var(--ink);
 }
 
 button,

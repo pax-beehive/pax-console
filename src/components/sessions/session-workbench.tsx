@@ -81,9 +81,7 @@ import {
   SessionApprovalMode,
   SessionPaxConfig,
   SessionArtifact,
-  Agent,
   HistoryMessage,
-  Node,
   User,
 } from "@/features/api/types";
 import { filterLiveEventsAlreadyInHistory } from "@/features/runtime/filter-live-history-events";
@@ -1552,49 +1550,28 @@ export function SessionWorkbench({
   );
 
   return (
-    <SessionWorkbenchFrame
-      activeAgent={activeAgent}
-      activeNode={activeNode}
-      embedded={embedded}
-      nodes={nodes}
-      user={user}
-    >
+    <SessionWorkbenchFrame embedded={embedded} user={user}>
       {workbench}
     </SessionWorkbenchFrame>
   );
 }
 
 type SessionWorkbenchFrameProps = {
-  activeAgent?: Agent;
-  activeNode?: Node;
   children: ReactNode;
   embedded: boolean;
-  nodes: Node[];
   user: User;
 };
 
 function SessionWorkbenchFrame({
-  activeAgent,
-  activeNode,
   children,
   embedded,
-  nodes,
   user,
 }: SessionWorkbenchFrameProps) {
   if (embedded) {
     return <>{children}</>;
   }
 
-  return (
-    <ConsoleLayout
-      activeAgent={activeAgent}
-      activeNode={activeNode}
-      nodes={nodes}
-      user={user}
-    >
-      {children}
-    </ConsoleLayout>
-  );
+  return <ConsoleLayout user={user}>{children}</ConsoleLayout>;
 }
 
 function readInitialPrompt(initialPrompt?: string, initialPromptKey?: string) {

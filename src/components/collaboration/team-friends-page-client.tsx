@@ -107,8 +107,6 @@ export function TeamFriendsPageClient({ user }: TeamFriendsPageClientProps) {
   const auditEvents = teamAuditQuery.data?.events ?? [];
   const searchParams = useSearchParams();
   const workspace = teamWorkspaceFromQuery(searchParams.get("view"));
-  const activeNode = nodes[0];
-  const activeAgent = availableAgents[0];
   const pageTitle = workspace === "friends" ? "Friends" : "Teams";
   const pageEyebrow =
     workspace === "friends" ? "trusted people" : "team workspace";
@@ -141,12 +139,7 @@ export function TeamFriendsPageClient({ user }: TeamFriendsPageClientProps) {
   };
 
   return (
-    <ConsoleLayout
-      activeAgent={activeAgent}
-      activeNode={activeNode}
-      nodes={nodes}
-      user={user}
-    >
+    <ConsoleLayout user={user}>
       <div className="grid min-h-[calc(100vh-var(--topbar-h))] min-w-0 grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)]">
         <aside className="min-w-0 border-b border-hairline bg-surface-1 lg:border-b-0 lg:border-r">
           <header className="border-b border-hairline p-4">

@@ -30,7 +30,7 @@ export function Badge({
     <Tooltip content={tooltip ?? text}>
       <span
         className={cn(
-          "inline-flex max-w-32 shrink-0 items-center gap-1.5 rounded-md border px-1.5 py-0.5 text-xs leading-5",
+          "inline-flex max-w-32 shrink-0 items-center gap-1.5 rounded-sm border px-1.5 py-0.5 text-xs leading-5",
           tones[tone],
           className,
         )}

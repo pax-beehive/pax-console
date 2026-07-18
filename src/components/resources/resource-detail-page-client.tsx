@@ -52,9 +52,7 @@ export function NodeDetailPageClient({
   const queryClient = useQueryClient();
   const router = useRouter();
   const [nodeDeleteOpen, setNodeDeleteOpen] = useState(false);
-  const nodesQuery = useNodes(user.user_id);
   const nodeQuery = useNode(user.user_id, nodeId);
-  const nodes = nodesQuery.data?.nodes ?? [];
   const node = nodeQuery.data;
   const removeNode = useMutation({
     mutationFn: () => deleteNode(user.user_id, nodeId),
@@ -67,7 +65,7 @@ export function NodeDetailPageClient({
     },
   });
   return (
-    <ConsoleLayout activeNode={node} nodes={nodes} user={user}>
+    <ConsoleLayout user={user}>
       <DetailShell
         backHref="/nodes"
         error={nodeQuery.error}
@@ -157,12 +155,7 @@ export function AgentDetailPageClient({
   });
 
   return (
-    <ConsoleLayout
-      activeAgent={agent}
-      activeNode={node}
-      nodes={nodes}
-      user={user}
-    >
+    <ConsoleLayout user={user}>
       <DetailShell
         backHref="/agents"
         error={agentQuery.error ?? sessionsQuery.error}

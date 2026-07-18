@@ -59,7 +59,7 @@ export function ConversationPageClient({
   const error = messagesQuery.error ?? nodesQuery.error;
 
   return (
-    <ConsoleLayout nodes={nodesQuery.data?.nodes ?? []} user={user}>
+    <ConsoleLayout user={user}>
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <header className="border-b border-hairline px-5 py-4">
           <div className="flex min-w-0 items-center justify-between gap-3">
@@ -67,7 +67,7 @@ export function ConversationPageClient({
               <MessageCircle className="h-4 w-4 text-ink-subtle" />
               <div className="min-w-0">
                 <div className="text-[11px] uppercase tracking-[0.18em] text-ink-tertiary">
-                  Runtime
+                  Settings
                 </div>
                 <h1 className="mt-1 text-lg font-semibold">{title}</h1>
               </div>
@@ -97,9 +97,7 @@ export function ConversationPageClient({
               <input
                 className="h-9 rounded-md border border-hairline bg-canvas px-3 font-mono text-xs text-ink outline-none focus:border-hairline-strong"
                 id="conversation-id"
-                onChange={(event) =>
-                  setDraftConversationId(event.target.value)
-                }
+                onChange={(event) => setDraftConversationId(event.target.value)}
                 placeholder="conv_..."
                 value={draftConversationId}
               />
@@ -224,9 +222,7 @@ function IdField({ label, value }: { label: string; value?: string }) {
     <div className="min-w-0">
       <span>{label}: </span>
       {value ? (
-        <TruncatedText className="inline font-mono">
-          {value}
-        </TruncatedText>
+        <TruncatedText className="inline font-mono">{value}</TruncatedText>
       ) : (
         <span className="text-ink-tertiary">none</span>
       )}

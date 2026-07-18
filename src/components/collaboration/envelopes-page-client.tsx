@@ -14,7 +14,6 @@ import {
   useEnvelopes,
   useFriends,
   useKnowledgeCapsules,
-  useNodes,
 } from "@/features/api/resources";
 import { Envelope, Friend, KnowledgeCapsule, User } from "@/features/api/types";
 import { compactId } from "@/lib/format";
@@ -38,8 +37,6 @@ const mailboxFilters: Record<
 
 export function EnvelopesPageClient({ user }: EnvelopesPageClientProps) {
   const queryClient = useQueryClient();
-  const nodesQuery = useNodes(user.user_id);
-  const nodes = nodesQuery.data?.nodes ?? [];
   const [mailbox, setMailbox] = useState<EnvelopeMailbox>("inbox");
   const [workspace, setWorkspace] = useState<EnvelopeWorkspace>("mailbox");
   const envelopesQuery = useEnvelopes(user.user_id, mailboxFilters[mailbox]);
@@ -58,7 +55,7 @@ export function EnvelopesPageClient({ user }: EnvelopesPageClientProps) {
   };
 
   return (
-    <ConsoleLayout activeNode={nodes[0]} nodes={nodes} user={user}>
+    <ConsoleLayout user={user}>
       <div className="grid min-h-[calc(100vh-var(--topbar-h))] min-w-0 lg:grid-cols-[360px_minmax(0,1fr)]">
         <aside className="min-w-0 border-b border-hairline bg-surface-1 lg:border-b-0 lg:border-r">
           <header className="border-b border-hairline p-4">
@@ -149,7 +146,9 @@ function ComposeEnvelopeView({
   user: User;
 }) {
   const friendsQuery = useFriends(user.user_id, { status: "accepted" });
-  const capsulesQuery = useKnowledgeCapsules(user.user_id, { status: "active" });
+  const capsulesQuery = useKnowledgeCapsules(user.user_id, {
+    status: "active",
+  });
   const friends = friendsQuery.data?.friends ?? [];
   const capsules = capsulesQuery.data?.capsules ?? [];
   const [friendEmail, setFriendEmail] = useState("");
@@ -243,7 +242,9 @@ function ComposeEnvelopeView({
         </label>
         <div className="flex flex-wrap items-center gap-2">
           <Button
-            disabled={create.isPending || !selectedFriendEmail || !selectedCapsule}
+            disabled={
+              create.isPending || !selectedFriendEmail || !selectedCapsule
+            }
             icon={<Send className="h-4 w-4" />}
             type="submit"
             variant="primary"
@@ -305,7 +306,9 @@ function EnvelopeList({
               <TruncatedText className="text-sm font-medium">
                 {envelope.sender_email}
               </TruncatedText>
-              <Badge tone={envelope.status === "pending" ? "warning" : "neutral"}>
+              <Badge
+                tone={envelope.status === "pending" ? "warning" : "neutral"}
+              >
                 {envelope.status}
               </Badge>
             </div>
@@ -333,7 +336,8 @@ function EnvelopeDetail({
   user: User;
 }) {
   const accept = useMutation({
-    mutationFn: (envelopeId: string) => acceptEnvelope(user.user_id, envelopeId),
+    mutationFn: (envelopeId: string) =>
+      acceptEnvelope(user.user_id, envelopeId),
     onSuccess: onChanged,
   });
   const archive = useMutation({
@@ -343,7 +347,11 @@ function EnvelopeDetail({
   });
 
   if (!envelope) {
-    return <div className="p-5"><EmptyState label="Select an envelope" /></div>;
+    return (
+      <div className="p-5">
+        <EmptyState label="Select an envelope" />
+      </div>
+    );
   }
 
   const isRecipient =
