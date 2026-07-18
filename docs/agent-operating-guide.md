@@ -341,6 +341,19 @@ Live `session/update` frames with `message_type = "pax:invocation"` or
 timeline event, and `merge-session-events.ts` applies the same replacement
 rule if the real or pending event has already rendered.
 
+Runs of two or more contiguous thought/progress and tool-call events render as
+one collapsed work block, preserving their original order. A single thought or
+tool call stays directly visible. The grouped summary is only `工作中` while any
+child is active or `工作过程` after completion; counts stay out of the summary,
+while pending approvals remain visible. Expanding it reveals the nested thought
+rows and adjacent tool groups. Normal messages and actionable standalone events
+end the work block. The timeline uses an 8px row gap; agent and user copy uses
+14px type with a 20px line height, while Markdown H1/H2/H3 use 18px/16px/15px
+type and blockquotes use 13px type. Session and Home composer input uses the
+same 14px/20px typography as body copy. Markdown blocks keep 6px paragraph
+spacing. Agent-message and work-group items add no extra vertical padding, so
+adjacent text-to-work spacing stays at that 8px gap.
+
 ACP permission prompts are JSON-RPC requests, not `session/update` notifications:
 
 ```txt

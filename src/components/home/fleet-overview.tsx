@@ -879,7 +879,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                       }}
                     />
                     <textarea
-                      className="max-h-40 min-h-14 w-full resize-none bg-transparent px-1 py-1 text-sm leading-6 text-ink outline-none placeholder:text-ink-tertiary"
+                      className="max-h-40 min-h-14 w-full resize-none bg-transparent px-1 py-1 text-sm leading-5 text-ink outline-none placeholder:text-ink-tertiary"
                       onKeyDown={handleComposerKeyDown}
                       onChange={(event) => setDraft(event.target.value)}
                       placeholder={composerPlaceholder(composerMode)}

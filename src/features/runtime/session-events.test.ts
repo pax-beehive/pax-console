@@ -53,7 +53,72 @@ describe("isVisibleTimelineEvent", () => {
 });
 
 describe("groupWorkstreamEvents", () => {
-  it("groups adjacent tool call events and ends the group at the next visible event", () => {
+  it.each([
+    {
+      event: {
+        type: "progress" as const,
+        id: "thought-1",
+        sessionId: "sess_1",
+        content: "Inspecting the repository.",
+        createdAt: "2026-06-26T12:00:00Z",
+      },
+    },
+    {
+      event: {
+        type: "tool_call" as const,
+        id: "tool-1",
+        sessionId: "sess_1",
+        name: "Read",
+        status: "done" as const,
+        createdAt: "2026-06-26T12:00:00Z",
+      },
+    },
+  ])("exposes a single $event.type event without a work block", ({ event }) => {
+    expect(groupWorkstreamEvents([event])).toMatchObject([
+      {
+        type: "event",
+        id: event.id,
+        event: { id: event.id, type: event.type },
+      },
+    ]);
+  });
+
+  it("groups a run as soon as it contains two work events", () => {
+    const events: SessionEvent[] = [
+      {
+        type: "progress",
+        id: "thought-1",
+        sessionId: "sess_1",
+        content: "Inspecting the repository.",
+        createdAt: "2026-06-26T12:00:00Z",
+      },
+      {
+        type: "tool_call",
+        id: "tool-1",
+        sessionId: "sess_1",
+        name: "Read",
+        status: "running",
+        createdAt: "2026-06-26T12:00:01Z",
+      },
+      {
+        type: "turn_done",
+        id: "done-1",
+        sessionId: "sess_1",
+        createdAt: "2026-06-26T12:00:02Z",
+      },
+    ];
+
+    expect(groupWorkstreamEvents(events)).toMatchObject([
+      {
+        type: "work_group",
+        id: "work_group:thought-1",
+        complete: true,
+        events: [{ id: "thought-1" }, { id: "tool-1" }],
+      },
+    ]);
+  });
+
+  it("groups interleaved thoughts and tool calls into one work block", () => {
     const events: SessionEvent[] = [
       {
         type: "agent_message",
@@ -103,21 +168,14 @@ describe("groupWorkstreamEvents", () => {
         id: "agent-1",
       },
       {
-        type: "tool_group",
-        id: "tool_group:tool-1",
+        type: "work_group",
+        id: "work_group:tool-1",
         events: [
           { id: "tool-1", name: "Read", status: "running" },
           { id: "tool-2", name: "Grep", status: "done" },
+          { id: "thought-1", type: "progress" },
+          { id: "tool-3", name: "Edit", status: "queued" },
         ],
-      },
-      {
-        type: "event",
-        id: "thought-1",
-      },
-      {
-        type: "tool_group",
-        id: "tool_group:tool-3",
-        events: [{ id: "tool-3", name: "Edit", status: "queued" }],
       },
     ]);
   });
@@ -170,7 +228,7 @@ describe("groupWorkstreamEvents", () => {
       "event",
       "event",
       "event",
-      "tool_group",
+      "event",
     ]);
   });
 
@@ -296,7 +354,7 @@ describe("groupWorkstreamEvents", () => {
     expect(grouped).toMatchObject([
       { type: "event", id: "user-1" },
       { type: "event", id: "agent-1" },
-      { type: "tool_group", id: "tool_group:tool-1" },
+      { type: "event", id: "tool-1" },
       { type: "event", id: "agent-2" },
       {
         type: "turn_footer",
@@ -360,7 +418,7 @@ describe("groupWorkstreamEvents", () => {
     expect(grouped).toMatchObject([
       { type: "event", id: "user-1" },
       { type: "event", id: "agent-1" },
-      { type: "tool_group", id: "tool_group:tool-1" },
+      { type: "event", id: "tool-1" },
       { type: "event", id: "agent-2" },
       {
         type: "turn_footer",
@@ -905,7 +963,7 @@ describe("groupWorkstreamEvents", () => {
 
     expect(grouped).toMatchObject([
       { type: "event", id: "agent-1" },
-      { type: "tool_group", id: "tool_group:tool-1" },
+      { type: "event", id: "tool-1" },
       {
         type: "turn_footer",
         id: "turn_footer:agent-1",

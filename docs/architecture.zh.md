@@ -148,6 +148,17 @@ src/components/resources/
 src/components/sessions/
   Session workbench。把 REST 历史消息和 WebSocket live events 合成时间线。
 
+  连续的 thought/progress 与 tool call 达到 2 个时，按原顺序聚合为一个默认折叠的
+  work block；单独一个 thought 或 tool call 直接展示。子事件仍在运行时标题只显示
+  「工作中」，全部完成后显示「工作过程」，不展示思考/工具数量。pending approval
+  仍在外层提示；展开后可查看各段思考和相邻 tool group。普通消息或独立 actionable
+  event 会结束当前 work block。时间线 block 使用 8px
+  间距；agent 与 user 正文使用 14px 字号、20px 行高，Markdown H1/H2/H3
+  分别使用 18px/16px/15px 字号，引用使用 13px 字号；Session 与 Home composer
+  输入框和正文一致，使用 14px 字号、20px 行高。Markdown 段落间距为 6px。
+  agent message 和 work group 不再额外增加纵向 padding，因此文字紧接工作过程时
+  仍保持 8px block 间距。
+
   `pax:invocation` 是 PAX 为 agent-to-agent 调用生成的展示替身消息。
   `pax:invocation_pending` 是同一展示模型的中间态，会先渲染到 timeline；
   后续最终态 `pax:invocation` 通过 `raw_json.replaces_message_ids` 指向 pending
