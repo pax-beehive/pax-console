@@ -274,7 +274,7 @@ PAX Console
     +-- node registration
 ```
 
-The sidebar keeps only Home and Collaboration as top-level entries; everything
+The sidebar keeps only Chat and Collaboration as top-level entries; everything
 else lives in one Settings disclosure group pinned to the bottom of the
 sidebar. Home owns the user-facing Sessions tab and embedded session
 workbench; do not add Sessions as a separate first-level sidebar item.
@@ -283,7 +283,7 @@ group owns nodes, agents, inquiries, conversations, approvals, monitor, API
 keys, and node registration as secondary tabs. Collaboration owns teams,
 friends, envelopes, and knowledge as secondary tabs; team invites stay inside
 the Teams surface as a team action queue. Deep links such as `/nodes`,
-`/sessions`, `/approvals`, `/teams?view=friends`, and `/knowledge` remain
+`/sessions`, `/approvals`, `/friends`, and `/knowledge` remain
 valid.
 
 ## Routes

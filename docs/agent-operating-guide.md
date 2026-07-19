@@ -432,8 +432,15 @@ src/components/resources/*
 src/components/sessions/*
   session workbench
 
+src/components/collaboration/*
+  Collaboration workspace pages. Teams (/teams) and Friends (/friends) are
+  separate routes; the teams page is split into teams-page-client,
+  team-list-panel, team-detail, and per-tab section files. Mutation cache
+  invalidation goes through src/features/api/invalidation.ts.
+
 src/components/ui/*
-  local UI primitives such as Button, Badge, SearchBox, Tooltip, TruncatedText, PaxLogo
+  local UI primitives such as Button, Badge, SearchBox, Tooltip, TruncatedText,
+  PaxLogo, EmptyState, InlineError, SectionTitle, ConfirmDialog
 
 src/features/*
   API, auth, runtime, stateful business boundaries
@@ -463,14 +470,16 @@ Collapsed tabs show icons only; labels must remain available via Tooltip.
 ## Current Sidebar Routes
 
 The sidebar is intentionally hierarchical. Keep first-level nav coarse: only
-Home and Collaboration live at the top. Everything else (the former Runtime
+Chat and Collaboration live at the top. Everything else (the former Runtime
 workspace and the settings pages) sits in one Settings group pinned to the
 bottom of the sidebar. First-level groups are independent disclosures, not an
 accordion; multiple groups may stay open at the same time.
 
 ```txt
-Home             /
-Collaboration    /teams, active for /teams /envelopes /knowledge
+Chat             /
+Collaboration    /teams, active for /teams /friends /envelopes /knowledge
+                 children: Teams (/teams), Friends (/friends),
+                 Envelopes (/envelopes), Knowledge (/knowledge)
 Settings         bottom-pinned group; /settings/api-keys, active for
                  /nodes /agents /inquiries /conversations /approvals /monitor /settings
                  children: Nodes, Agents, Inquiries, Conversations, Approvals,
@@ -480,7 +489,9 @@ Settings         bottom-pinned group; /settings/api-keys, active for
 These deep links should remain directly reachable:
 
 ```txt
-/                    Home
+/                    Chat (home workbench)
+/teams               Collaboration / Teams workspace
+/friends             Collaboration / Friends management
 /nodes               Nodes
 /nodes/[nodeId]      Node detail
 /agents              Agents

@@ -764,7 +764,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 initialCwd={activeSessionTarget.initialCwd}
                 initialPrompt={activeSessionTarget.initialPrompt}
                 key={activeSessionTarget.key}
-                mobileMenuLabel="Home sidebar"
+                mobileMenuLabel="Chat sidebar"
                 nodeId={activeSessionTarget.nodeId}
                 onMobileMenu={() => setMobileRailOpen(true)}
                 onSessionAssigned={(sessionId) => {
@@ -1673,12 +1673,12 @@ function buildWorkItems({
       ),
       ...pendingInvites.map(
         (invite): WorkItem => ({
-          actionHref: "/teams?view=teams",
+          actionHref: "/teams",
           actionLabel: "Review",
           context: `Role: ${invite.role}`,
           createdAt: invite.created_at,
           detail: `You were invited to join team ${invite.team_id}.`,
-          href: "/teams?view=teams",
+          href: "/teams",
           id: `invite:${invite.invite_id}`,
           kind: "invite",
           priority: "medium",
