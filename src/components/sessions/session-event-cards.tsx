@@ -1,4 +1,5 @@
 import { type MouseEvent, useCallback, useState } from "react";
+import { motion } from "motion/react";
 import {
   ArrowDown,
   ArrowUp,
@@ -16,6 +17,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MarkdownMessage } from "@/components/ui/markdown-message";
+import { PaxLogo } from "@/components/ui/pax-logo";
 import { MonoId, TruncatedText } from "@/components/ui/text";
 import { AgentOwnerInfo } from "@/features/api/types";
 import {
@@ -268,6 +270,41 @@ function FileChangeCard({
         {event.path}
       </MonoId>
     </article>
+  );
+}
+
+// Shown after the user sends a prompt until the first agent output streams
+// in. Keep it quiet: a breathing PAX mark plus three pulsing dots.
+export function AgentPendingIndicator() {
+  return (
+    <div
+      aria-live="polite"
+      className="flex items-center gap-2 py-1"
+      role="status"
+    >
+      <motion.span
+        animate={{ opacity: [0.35, 1, 0.35], scale: [0.88, 1, 0.88] }}
+        className="flex shrink-0"
+        transition={{ duration: 1.6, ease: "easeInOut", repeat: Infinity }}
+      >
+        <PaxLogo className="h-4 w-4 text-accent-bright" />
+      </motion.span>
+      <span className="flex items-center gap-1">
+        {[0, 1, 2].map((index) => (
+          <motion.span
+            animate={{ opacity: [0.25, 1, 0.25] }}
+            className="h-1 w-1 rounded-full bg-ink-tertiary"
+            key={index}
+            transition={{
+              delay: index * 0.2,
+              duration: 1.2,
+              ease: "easeInOut",
+              repeat: Infinity,
+            }}
+          />
+        ))}
+      </span>
+    </div>
   );
 }
 

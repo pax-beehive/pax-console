@@ -6,6 +6,8 @@ import { Archive, Check, Inbox, Send } from "lucide-react";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { InlineError } from "@/components/ui/inline-error";
 import { MonoId, TruncatedText } from "@/components/ui/text";
 import {
   acceptEnvelope,
@@ -425,22 +427,6 @@ function InfoRow({ label, value }: { label: string; value: string }) {
         {value}
       </TruncatedText>
     </div>
-  );
-}
-
-function EmptyState({ label }: { label: string }) {
-  return (
-    <div className="rounded-lg border border-dashed border-hairline bg-surface-1 p-3 text-sm text-ink-tertiary">
-      {label}
-    </div>
-  );
-}
-
-function InlineError({ error }: { error: Error }) {
-  return (
-    <TruncatedText className="text-xs text-warning">
-      {error.name}: {error.message}
-    </TruncatedText>
   );
 }
 

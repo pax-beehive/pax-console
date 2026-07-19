@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
-  Activity,
   Bot,
   Brain,
   ChevronDown,
@@ -13,6 +12,7 @@ import {
   KeyRound,
   MailPlus,
   MessageCircle,
+  MessageSquare,
   MessageSquareText,
   Radio,
   Server,
@@ -36,15 +36,15 @@ type NavItem = {
 };
 
 const primaryNavItems: readonly NavItem[] = [
-  { href: "/", icon: Activity, label: "Home" },
+  { href: "/", icon: MessageSquare, label: "Chat" },
   {
-    href: "/teams?view=teams",
+    href: "/teams",
     icon: Users,
     label: "Collaboration",
-    matches: ["/teams", "/envelopes", "/knowledge"],
+    matches: ["/teams", "/friends", "/envelopes", "/knowledge"],
     children: [
-      { href: "/teams?view=teams", icon: Users, label: "Teams" },
-      { href: "/teams?view=friends", icon: MailPlus, label: "Friends" },
+      { href: "/teams", icon: Users, label: "Teams" },
+      { href: "/friends", icon: MailPlus, label: "Friends" },
       { href: "/envelopes", icon: Inbox, label: "Envelopes" },
       { href: "/knowledge", icon: Brain, label: "Knowledge" },
     ],
@@ -251,10 +251,6 @@ function isActiveChild(pathname: string, queryString: string, href: string) {
   const target = new URLSearchParams(hrefQuery);
   const current = new URLSearchParams(queryString);
   for (const [key, value] of target) {
-    if (key === "view" && value === "teams" && current.get(key) == null) {
-      continue;
-    }
-
     if (current.get(key) !== value) {
       return false;
     }

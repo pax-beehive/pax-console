@@ -122,8 +122,17 @@ src/components/
   只放 UI 组件和页面组合。组件可以调用 feature hooks，但不要自己拼后端协议细节。
 
 src/components/ui/
-  本地 UI primitives。当前包括 Button、Badge、SearchBox、Tooltip、TruncatedText、MonoId。
+  本地 UI primitives。当前包括 Button、Badge、SearchBox、Tooltip、TruncatedText、MonoId、
+  EmptyState、InlineError、SectionTitle、ConfirmDialog。
   当前只把 Radix Tooltip/Slot 作为底层能力使用，还没有全面引入 shadcn 生成组件。
+
+src/components/collaboration/
+  Collaboration 工作区页面。teams 和 friends 是独立路由页面
+  （/teams、/friends），teams 页内部按 team-list-panel / team-detail /
+  team-members-section / team-agents-section / team-audit-section 拆分；
+  envelopes、knowledge 各自单文件，共享 ui 下的 EmptyState / InlineError /
+  SectionTitle。mutation 后的缓存失效统一走 src/features/api/invalidation.ts
+  的 useTeamInvalidation / useFriendInvalidation。
 
 src/components/home/
   Home 工作台。左侧提供 Sessions / Inbox 两个 tab；Sessions tab 聚合所有
@@ -275,9 +284,12 @@ local filters
 Console 现在把 pax-manager 的协作和知识交接能力放在 Collaboration 一级入口下：
 
 ```txt
-Teams & Friends
-  team 列表、成员、team invites、team agents，以及 friends 管理。
+Teams
+  /teams 独立页面：team 列表、成员、team invites、team agents 和 audit。
   Team invite 前端必须显式提交 member/operator，不依赖后端默认 role。
+
+Friends
+  /friends 独立页面：friends 的创建、接受、alias、remove、block。
 
 Envelopes
   类邮箱的收发箱。Envelope 当前承载 knowledge_capsule payload。
@@ -393,11 +405,11 @@ Access 访问 `console.paxtech.net`，Next route handler 再读取请求中的
 
 ## 当前可交互路由
 
-Sidebar 一级入口是粗粒度工作区（顶部 Home / Collaboration，底部 Settings
+Sidebar 一级入口是粗粒度工作区（顶部 Chat / Collaboration，底部 Settings
 组）；下面这些实际路由仍保留为 deep links 或 Sidebar 二级 tabs：
 
 ```txt
-/                    Home workbench
+/                    Chat workbench（src/components/home/）
 /nodes               Settings / Nodes list
 /nodes/[id]          Node detail
 /agents              Settings / Agents on active node
@@ -407,7 +419,8 @@ Sidebar 一级入口是粗粒度工作区（顶部 Home / Collaboration，底部
 /sessions/[id]       Redirect to /?sessionId=...
 /approvals           Settings / pending approvals and active approval grants
 /monitor             Settings / PAX Manager health and fleet summary
-/teams               Collaboration / Teams & Friends
+/teams               Collaboration / Teams workspace
+/friends             Collaboration / Friends management
 /envelopes           Collaboration / mailbox-style envelopes
 /knowledge           Collaboration / knowledge capsules
 /settings/api-keys   Settings / API key list/create/revoke
