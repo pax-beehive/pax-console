@@ -471,6 +471,28 @@ export function listUserSessions(
   );
 }
 
+export async function getUserSession(userId: string, sessionId: string) {
+  const pageSize = 200;
+  let pageNum = 1;
+
+  while (true) {
+    const page = await listUserSessions(userId, { pageNum, pageSize });
+    const session = page.sessions.find((item) => item.session_id === sessionId);
+    if (session) {
+      return session;
+    }
+
+    if (page.pagination?.total_pages) {
+      if (pageNum >= page.pagination.total_pages) {
+        return null;
+      }
+    } else if (page.sessions.length < pageSize) {
+      return null;
+    }
+    pageNum += 1;
+  }
+}
+
 export function getAgent(userId: string, agentId: string) {
   return apiFetch<Agent>(userPath(userId, `/agents/${agentId}`));
 }
@@ -580,13 +602,12 @@ export function listSessionMessages(
 
 export function listSessionHistory(
   userId: string,
-  agentId: string,
   sessionId: string,
   limit = 1000,
 ) {
   const params = new URLSearchParams({ limit: String(limit) });
   return apiFetch<HistoryListData>(
-    `${userPath(userId, `/agents/${agentId}/sessions/${sessionId}/history`)}?${params}`,
+    `${userPath(userId, `/sessions/${sessionId}/history`)}?${params}`,
   );
 }
 
@@ -1616,6 +1637,17 @@ export function useAgentSessions(
   });
 }
 
+export function useUserSession(userId?: string, sessionId?: string) {
+  return useQuery({
+    queryKey: queryKeys.sessionMetadata(
+      userId ?? "pending",
+      sessionId ?? "pending",
+    ),
+    queryFn: () => getUserSession(userId as string, sessionId as string),
+    enabled: Boolean(userId && sessionId),
+  });
+}
+
 export function useSessionMessages(
   userId?: string,
   nodeId?: string,
@@ -1641,24 +1673,14 @@ export function useSessionMessages(
   });
 }
 
-export function useSessionHistory(
-  userId?: string,
-  agentId?: string,
-  sessionId?: string,
-) {
+export function useSessionHistory(userId?: string, sessionId?: string) {
   return useQuery({
     queryKey: queryKeys.sessionHistory(
       userId ?? "pending",
-      agentId ?? "pending",
       sessionId ?? "pending",
     ),
-    queryFn: () =>
-      listSessionHistory(
-        userId as string,
-        agentId as string,
-        sessionId as string,
-      ),
-    enabled: Boolean(userId && agentId && sessionId),
+    queryFn: () => listSessionHistory(userId as string, sessionId as string),
+    enabled: Boolean(userId && sessionId),
     refetchOnWindowFocus: true,
   });
 }

@@ -14,6 +14,10 @@ import {
 } from "./conversation-run";
 import { normalizeTunnelFrame } from "./normalize-tunnel-frame";
 import { SessionEvent } from "./session-events";
+import {
+  appendSessionEvents,
+  useBufferedSessionEvents,
+} from "./use-buffered-session-events";
 import type { ApprovalOption, SessionApprovalMode } from "../api/types";
 
 export type ConversationRunStatus =
@@ -46,8 +50,13 @@ export function useConversationRun({
   const abortRef = useRef<AbortController | null>(null);
   const sessionIdRef = useRef(sessionId);
   const [status, setStatus] = useState<ConversationRunStatus>("idle");
-  const [events, setEvents] = useState<SessionEvent[]>([]);
   const [error, setError] = useState<Error | null>(null);
+  const {
+    append: appendEvents,
+    events,
+    flush: flushEvents,
+    update: updateEvents,
+  } = useBufferedSessionEvents();
 
   useEffect(() => {
     return () => {
@@ -79,8 +88,7 @@ export function useConversationRun({
 
       setError(null);
       setStatus("streaming");
-      setEvents((current) => [
-        ...current,
+      appendEvents([
         {
           type: "user_message",
           id: `${optimisticSessionId}:user:${Date.now()}`,
@@ -89,6 +97,7 @@ export function useConversationRun({
           createdAt: new Date().toISOString(),
         },
       ]);
+      flushEvents();
 
       try {
         await streamConversationRun({
@@ -104,15 +113,17 @@ export function useConversationRun({
                 onSession?.(nextSessionId);
               },
               setError,
-              setEvents,
+              appendEvents,
               setStatus,
               streamId,
+              updateEvents,
             }),
           sessionId: promptSessionId,
           signal: abortController.signal,
           userId,
         });
 
+        flushEvents();
         setStatus((current) =>
           current === "waiting_approval" || current === "error"
             ? current
@@ -135,7 +146,15 @@ export function useConversationRun({
         }
       }
     },
-    [agentId, nodeId, onSession, userId],
+    [
+      agentId,
+      appendEvents,
+      flushEvents,
+      nodeId,
+      onSession,
+      updateEvents,
+      userId,
+    ],
   );
 
   const resumePermission = useCallback(
@@ -170,9 +189,10 @@ export function useConversationRun({
                 onSession?.(nextSessionId);
               },
               setError,
-              setEvents,
+              appendEvents,
               setStatus,
               streamId,
+              updateEvents,
             }),
           resume: { approvalId },
           sessionId: currentSessionId,
@@ -180,6 +200,7 @@ export function useConversationRun({
           userId,
         });
 
+        flushEvents();
         setStatus((current) =>
           current === "waiting_approval" || current === "error"
             ? current
@@ -202,7 +223,15 @@ export function useConversationRun({
         }
       }
     },
-    [agentId, nodeId, onSession, userId],
+    [
+      agentId,
+      appendEvents,
+      flushEvents,
+      nodeId,
+      onSession,
+      updateEvents,
+      userId,
+    ],
   );
 
   return {
@@ -219,19 +248,23 @@ export function handleConversationEnvelope(
   {
     onSession,
     setError,
+    appendEvents,
     setEvents,
     setStatus,
     streamId,
+    updateEvents,
   }: {
     onSession: (sessionId: string) => void;
     setError: Dispatch<SetStateAction<Error | null>>;
-    setEvents: Dispatch<SetStateAction<SessionEvent[]>>;
+    appendEvents?: (events: SessionEvent[]) => void;
+    setEvents?: Dispatch<SetStateAction<SessionEvent[]>>;
     setStatus: Dispatch<SetStateAction<ConversationRunStatus>>;
     streamId: string;
+    updateEvents?: (update: (events: SessionEvent[]) => SessionEvent[]) => void;
   },
 ) {
   if (envelope.type === "session") {
-    setEvents((current) =>
+    updateConversationEvents({ setEvents, updateEvents }, (current) =>
       current.map((event) =>
         reassignPendingSession(event, envelope.session_id),
       ),
@@ -248,7 +281,7 @@ export function handleConversationEnvelope(
       },
     );
     if (events.length > 0) {
-      setEvents((current) => appendUniqueEvents(current, events));
+      appendConversationEvents({ appendEvents, setEvents }, events);
     }
     return;
   }
@@ -265,7 +298,7 @@ export function handleConversationEnvelope(
         : event,
     );
     if (events.length > 0) {
-      setEvents((current) => appendUniqueEvents(current, events));
+      appendConversationEvents({ appendEvents, setEvents }, events);
     }
     setStatus("waiting_approval");
     return;
@@ -281,16 +314,14 @@ export function handleConversationEnvelope(
   }
 
   if (envelope.type === "done") {
-    setEvents((current) =>
-      appendUniqueEvents(current, [
-        {
-          type: "turn_done",
-          id: `${envelope.session_id}:done`,
-          sessionId: envelope.session_id,
-          createdAt: new Date().toISOString(),
-        },
-      ]),
-    );
+    appendConversationEvents({ appendEvents, setEvents }, [
+      {
+        type: "turn_done",
+        id: `${envelope.session_id}:done`,
+        sessionId: envelope.session_id,
+        createdAt: new Date().toISOString(),
+      },
+    ]);
     setStatus((current) => (current === "error" ? current : "done"));
     return;
   }
@@ -302,17 +333,15 @@ export function handleConversationEnvelope(
     const nextError = new Error(envelope.message);
     nextError.name = "ConversationRunError";
     setError(nextError);
-    setEvents((current) =>
-      appendUniqueEvents(current, [
-        {
-          type: "run_status",
-          id: `${envelope.session_id ?? "unknown-session"}:error:${Date.now()}`,
-          sessionId: envelope.session_id ?? "unknown-session",
-          status: "error",
-          createdAt: new Date().toISOString(),
-        },
-      ]),
-    );
+    appendConversationEvents({ appendEvents, setEvents }, [
+      {
+        type: "run_status",
+        id: `${envelope.session_id ?? "unknown-session"}:error:${Date.now()}`,
+        sessionId: envelope.session_id ?? "unknown-session",
+        status: "error",
+        createdAt: new Date().toISOString(),
+      },
+    ]);
     setStatus("error");
     return;
   }
@@ -320,101 +349,32 @@ export function handleConversationEnvelope(
   throw new Error("Unknown conversation stream event");
 }
 
-function appendUniqueEvents(current: SessionEvent[], incoming: SessionEvent[]) {
-  const seen = new Set(current.map(eventSignature));
-  const next = [...current];
-  for (const event of incoming) {
-    if (isAppendOnlyChunk(event)) {
-      next.push(event);
-      continue;
-    }
-
-    const permissionIndex = findPermissionRequestIndex(next, event);
-    if (permissionIndex !== -1 && event.type === "permission_request") {
-      next[permissionIndex] = mergePermissionRequest(
-        next[permissionIndex] as Extract<
-          SessionEvent,
-          { type: "permission_request" }
-        >,
-        event,
-      );
-      seen.add(eventSignature(next[permissionIndex]));
-      continue;
-    }
-
-    const signature = eventSignature(event);
-    if (seen.has(signature)) {
-      continue;
-    }
-
-    seen.add(signature);
-    next.push(event);
-  }
-
-  return next;
-}
-
-function findPermissionRequestIndex(
-  eventList: SessionEvent[],
-  incoming: SessionEvent,
+function appendConversationEvents(
+  target: {
+    appendEvents?: (events: SessionEvent[]) => void;
+    setEvents?: Dispatch<SetStateAction<SessionEvent[]>>;
+  },
+  incoming: SessionEvent[],
 ) {
-  if (incoming.type !== "permission_request") {
-    return -1;
+  if (target.appendEvents) {
+    target.appendEvents(incoming);
+    return;
   }
-
-  return eventList.findIndex(
-    (event) =>
-      event.type === "permission_request" &&
-      event.sessionId === incoming.sessionId &&
-      event.requestId === incoming.requestId,
-  );
+  target.setEvents?.((current) => appendSessionEvents(current, incoming));
 }
 
-function mergePermissionRequest(
-  current: Extract<SessionEvent, { type: "permission_request" }>,
-  incoming: Extract<SessionEvent, { type: "permission_request" }>,
+function updateConversationEvents(
+  target: {
+    setEvents?: Dispatch<SetStateAction<SessionEvent[]>>;
+    updateEvents?: (update: (events: SessionEvent[]) => SessionEvent[]) => void;
+  },
+  update: (events: SessionEvent[]) => SessionEvent[],
 ) {
-  return {
-    ...current,
-    ...incoming,
-    approvalId: incoming.approvalId ?? current.approvalId,
-    decision: incoming.decision ?? current.decision,
-    decidedAt: incoming.decidedAt ?? current.decidedAt,
-  } satisfies SessionEvent;
-}
-
-function isAppendOnlyChunk(event: SessionEvent) {
-  return (
-    ((event.type === "agent_message" || event.type === "progress") &&
-      event.streaming === true &&
-      (event.sessionUpdate === "agent_message_chunk" ||
-        event.sessionUpdate === "agent_thought_chunk" ||
-        event.sessionUpdate === undefined)) ||
-    (event.type === "tool_call" &&
-      event.sessionUpdate === "tool_call_content_chunk")
-  );
-}
-
-function eventSignature(event: SessionEvent) {
-  if (
-    event.type === "agent_message" ||
-    event.type === "progress" ||
-    event.type === "user_message" ||
-    event.type === "invocation"
-  ) {
-    return `${event.type}:${event.id}:${event.sessionId}:${event.content}`;
+  if (target.updateEvents) {
+    target.updateEvents(update);
+    return;
   }
-
-  if (event.type === "tool_call") {
-    const payload = JSON.stringify(event.output ?? event.input ?? "");
-    return `${event.type}:${event.id}:${event.toolCallId ?? ""}:${event.status}:${payload}`;
-  }
-
-  if (event.type === "permission_request") {
-    return `${event.type}:${event.sessionId}:${event.requestId}:${event.approvalId ?? ""}`;
-  }
-
-  return `${event.type}:${event.id}`;
+  target.setEvents?.(update);
 }
 
 function reassignPendingSession(

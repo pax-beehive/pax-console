@@ -7,6 +7,16 @@ export function filterLiveEventsAlreadyInHistory(
 ) {
   const mergedHistoryEvents = mergeEvents(historyEvents);
   const mergedLiveEvents = mergeEvents(liveEvents);
+  return filterMergedLiveEventsAlreadyInHistory(
+    mergedLiveEvents,
+    mergedHistoryEvents,
+  );
+}
+
+export function filterMergedLiveEventsAlreadyInHistory(
+  mergedLiveEvents: SessionEvent[],
+  mergedHistoryEvents: SessionEvent[],
+) {
   const historyTextKeys = new Set(
     mergedHistoryEvents
       .map(textEventKey)

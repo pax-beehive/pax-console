@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import {
+  ComponentProps,
   ComponentPropsWithoutRef,
   ReactNode,
   isValidElement,
+  memo,
   useState,
 } from "react";
 import { Check, Copy } from "lucide-react";
@@ -163,6 +165,10 @@ const markdownComponents: Components = {
     );
   },
 };
+
+const highlightedMarkdownPlugins: NonNullable<
+  ComponentProps<typeof ReactMarkdown>["rehypePlugins"]
+> = [[rehypeHighlight, { detect: false, ignoreMissing: true }]];
 
 function MarkdownPre({
   children,
@@ -383,7 +389,7 @@ function tableCellsFromReactNode(node: ReactNode): string[] {
   return tableCellsFromReactNode(node.props.children);
 }
 
-export function MarkdownMessage({
+export const MarkdownMessage = memo(function MarkdownMessage({
   className,
   content,
   muted,
@@ -404,13 +410,11 @@ export function MarkdownMessage({
     >
       <ReactMarkdown
         components={markdownComponents}
-        rehypePlugins={[
-          [rehypeHighlight, { detect: false, ignoreMissing: true }],
-        ]}
+        rehypePlugins={streaming ? [] : highlightedMarkdownPlugins}
         remarkPlugins={[remarkGfm]}
       >
         {renderedContent}
       </ReactMarkdown>
     </div>
   );
-}
+});

@@ -350,6 +350,16 @@ AuthGate
 comma-separated 多 id。Home 默认只请求 20 条，滚动左侧 Sessions rail 时再加载
 下一页，避免一次性渲染 900+ sessions。
 
+Session workbench 的 durable history 使用只依赖 manager session id 的入口：
+
+```txt
+GET /api/v1/user/{user_id}/sessions/{session_id}/history
+```
+
+PAX Manager 根据当前 principal 和 session row 解析真实 agent，再复用 agent-scoped
+storage 查询。前端不能用当前选中的 agent 推断 history owner；旧的带 agent_id
+history 路由只用于后端兼容。
+
 现在 active node / active agent 暂时取第一个可用项。等 UI 有 selector 后，再把 selection 接到 Zustand。
 
 ## 当前 Shell / UI 状态
@@ -687,6 +697,10 @@ queued turn 或第二窗口的 live 展示：
 ```txt
 GET /api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/events?after_message_id=<message_id>
 ```
+
+独立 `/sessions/{session_id}` 页面会先在分页的 flat sessions 列表里定位该
+session，并以返回的 `node_id`、`agent_id` 作为 queue 和 observer 请求的
+权威上下文；查询完成前不能回退到第一个 agent。
 
 这个 endpoint 的语义是观察该 session 当前正在 running 的 turn。如果没有
 running turn，后端发送 `type=no_running_turn` 后关闭；前端停止 observer 并

@@ -6,6 +6,10 @@ import { ApiError, AuthError } from "../api/errors";
 import { normalizeTunnelFrame } from "./normalize-tunnel-frame";
 import { SessionEvent } from "./session-events";
 import { parseSseDataBlock, streamSseResponse } from "./conversation-run";
+import {
+  appendSessionEvents,
+  useBufferedSessionEvents,
+} from "./use-buffered-session-events";
 
 export type SessionObserverEnvelope =
   | {
@@ -211,8 +215,13 @@ export function useSessionObserver({
 }: UseSessionObserverOptions) {
   const abortRef = useRef<AbortController | null>(null);
   const [error, setError] = useState<Error | null>(null);
-  const [events, setEvents] = useState<SessionEvent[]>([]);
   const [status, setStatus] = useState<SessionObserverStatus>("idle");
+  const {
+    append: appendEvents,
+    events,
+    flush: flushEvents,
+    reset: resetEvents,
+  } = useBufferedSessionEvents();
   const canObserve = Boolean(enabled && agentId && sessionId);
 
   useEffect(() => {
@@ -236,7 +245,7 @@ export function useSessionObserver({
         return;
       }
       setError(null);
-      setEvents([]);
+      resetEvents();
       setStatus("observing");
     });
 
@@ -250,7 +259,7 @@ export function useSessionObserver({
           onNoRunningTurn,
           onTurnDone,
           setError,
-          setEvents,
+          appendEvents,
           setStatus,
           streamId,
         }),
@@ -260,15 +269,17 @@ export function useSessionObserver({
       onQueuedTurnStarted,
       onQueuedTurnFinished,
       onQueuedTurnUnavailable,
-    }).catch((caught) => {
-      if (abortController.signal.aborted) {
-        return;
-      }
-      const nextError =
-        caught instanceof Error ? caught : new Error(String(caught));
-      setError(nextError);
-      setStatus("error");
-    });
+    })
+      .then(flushEvents)
+      .catch((caught) => {
+        if (abortController.signal.aborted) {
+          return;
+        }
+        const nextError =
+          caught instanceof Error ? caught : new Error(String(caught));
+        setError(nextError);
+        setStatus("error");
+      });
 
     return () => {
       abortController.abort();
@@ -279,7 +290,9 @@ export function useSessionObserver({
   }, [
     afterMessageId,
     agentId,
+    appendEvents,
     enabled,
+    flushEvents,
     followQueuedTurn,
     onBufferMiss,
     onNoRunningTurn,
@@ -287,6 +300,7 @@ export function useSessionObserver({
     onQueuedTurnFinished,
     onQueuedTurnUnavailable,
     onTurnDone,
+    resetEvents,
     sessionId,
     userId,
   ]);
@@ -305,6 +319,7 @@ export function handleSessionObserverEnvelope(
     onNoRunningTurn,
     onTurnDone,
     setError,
+    appendEvents,
     setEvents,
     setStatus,
     streamId,
@@ -313,7 +328,8 @@ export function handleSessionObserverEnvelope(
     onNoRunningTurn?: () => void;
     onTurnDone?: () => void;
     setError: Dispatch<SetStateAction<Error | null>>;
-    setEvents: Dispatch<SetStateAction<SessionEvent[]>>;
+    appendEvents?: (events: SessionEvent[]) => void;
+    setEvents?: Dispatch<SetStateAction<SessionEvent[]>>;
     setStatus: Dispatch<SetStateAction<SessionObserverStatus>>;
     streamId: string;
   },
@@ -325,7 +341,7 @@ export function handleSessionObserverEnvelope(
       { streamId },
     );
     if (events.length > 0) {
-      setEvents((current) => appendUniqueEvents(current, events));
+      appendObserverEvents({ appendEvents, setEvents }, events);
     }
     return;
   }
@@ -342,17 +358,15 @@ export function handleSessionObserverEnvelope(
   }
 
   if (envelope.type === "turn_done") {
-    setEvents((current) =>
-      appendUniqueEvents(current, [
-        {
-          type: "run_status",
-          id: `${envelope.session_id}:observer:${envelope.turn_id ?? "turn"}:done`,
-          sessionId: envelope.session_id,
-          status: "done",
-          createdAt: new Date().toISOString(),
-        },
-      ]),
-    );
+    appendObserverEvents({ appendEvents, setEvents }, [
+      {
+        type: "run_status",
+        id: `${envelope.session_id}:observer:${envelope.turn_id ?? "turn"}:done`,
+        sessionId: envelope.session_id,
+        status: "done",
+        createdAt: new Date().toISOString(),
+      },
+    ]);
     setStatus("done");
     onTurnDone?.();
     return;
@@ -373,30 +387,18 @@ function waitForQueuedTurnRetry(delayMs: number) {
   });
 }
 
-function appendUniqueEvents(current: SessionEvent[], incoming: SessionEvent[]) {
-  const seen = new Set(current.map(observerEventSignature));
-  const next = [...current];
-  for (const event of incoming) {
-    const signature = observerEventSignature(event);
-    if (seen.has(signature)) {
-      continue;
-    }
-    seen.add(signature);
-    next.push(event);
+function appendObserverEvents(
+  target: {
+    appendEvents?: (events: SessionEvent[]) => void;
+    setEvents?: Dispatch<SetStateAction<SessionEvent[]>>;
+  },
+  incoming: SessionEvent[],
+) {
+  if (target.appendEvents) {
+    target.appendEvents(incoming);
+    return;
   }
-  return next;
-}
-
-function observerEventSignature(event: SessionEvent) {
-  if (
-    event.type === "agent_message" ||
-    event.type === "progress" ||
-    event.type === "user_message" ||
-    event.type === "invocation"
-  ) {
-    return `${event.type}:${event.id}:${event.sessionId}:${event.content}`;
-  }
-  return `${event.type}:${event.id}`;
+  target.setEvents?.((current) => appendSessionEvents(current, incoming));
 }
 
 function withEnvelopeSession(frame: unknown, sessionId: string) {

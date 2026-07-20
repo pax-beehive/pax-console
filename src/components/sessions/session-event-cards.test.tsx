@@ -1,7 +1,7 @@
 /* @vitest-environment jsdom */
 
 import "@testing-library/jest-dom/vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { WorkstreamItemCard } from "./session-event-cards";
@@ -72,9 +72,21 @@ describe("session event cards", () => {
     expect(
       container.querySelector(":scope > details > summary"),
     ).toHaveTextContent("1 approval");
-    expect(screen.getByText(thought.content)).toBeInTheDocument();
+    expect(screen.queryByText(thought.content)).not.toBeInTheDocument();
+    expect(container).not.toHaveTextContent("shell · pnpm test");
+    expect(screen.queryByText("1 running")).not.toBeInTheDocument();
+
+    const details = container.querySelector("details")!;
+    details.open = true;
+    fireEvent(details, new Event("toggle"));
+    expect(screen.queryByText(thought.content)).not.toBeInTheDocument();
     expect(screen.getByText("shell · pnpm test")).toBeInTheDocument();
     expect(screen.getByText("1 running")).toBeInTheDocument();
+
+    const thoughtDetails = container.querySelectorAll("details")[1];
+    thoughtDetails.open = true;
+    fireEvent(thoughtDetails, new Event("toggle"));
+    expect(screen.getByText(thought.content)).toBeInTheDocument();
   });
 
   it("renders a standalone tool call without a work-process wrapper", () => {
@@ -115,6 +127,7 @@ describe("session event cards", () => {
 
     expect(container.querySelector("details")).not.toHaveAttribute("open");
     expect(container).toHaveTextContent("思考中");
+    expect(container).not.toHaveTextContent(thought.content);
     expect(container.querySelector(".lucide-chevron-down")).toHaveClass(
       "ml-auto",
     );
