@@ -404,6 +404,7 @@ GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/commands/{command_id}
 
 Sessions
 GET  /api/v1/user/{user_id}/sessions?page_size=20&page_num=1
+GET  /api/v1/user/{user_id}/sessions/{session_id}/history
 GET  /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions
 GET  /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}
 GET  /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}/messages
@@ -413,7 +414,9 @@ Current frontend note: Home reads the flat
 `GET /api/v1/user/{user_id}/sessions` list with `page_size=20` and increments
 `page_num` as the user scrolls the Sessions rail. Optional `node_id` and
 `agent_id` filters accept comma-separated ids. Selecting a row opens the
-embedded session workbench in Home.
+embedded session workbench in Home. A standalone session route scans this
+paginated list by `session_id` before enabling agent-scoped queue/events calls,
+so the session's own `node_id` and `agent_id` remain authoritative.
 
 Conversation
 POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/conversation
@@ -429,7 +432,7 @@ Current implemented frontend coverage:
 Implemented
 - Auth check through GET /me.
 - Home workbench through nodes, agents, sessions, approvals, envelopes, and team invites.
-- Session detail history through session messages.
+- Session detail history through the session-scoped durable history endpoint.
 - Home composer opens an embedded new session; the first prompt creates `sess_*` through POST /conversation.
 - API key list/create/revoke.
 - Approval list, decision, grant list, grant revoke.

@@ -24,6 +24,7 @@ const {
   getNodeDaemonCommand,
   getNodeDaemonStatus,
   getQueuedSessionTurn,
+  getUserSession,
   injectKnowledgeCapsule,
   listAgents,
   listAgentOwnerInfos,
@@ -33,6 +34,7 @@ const {
   listKnowledgeCapsules,
   listNodeDaemonAgentConnections,
   listNodeDaemonHarnesses,
+  listSessionHistory,
   listTeamAuditEvents,
   listTeams,
   listUserSessions,
@@ -377,6 +379,48 @@ describe("listUserSessions", () => {
 
     expect(apiFetch).toHaveBeenCalledWith(
       "/api/v1/user/u1/sessions?node_id=n1%2Cn2&agent_id=a1%2Ca2&page_size=20&page_num=2",
+    );
+  });
+
+  it("resolves session metadata across pages by session ID", async () => {
+    apiFetch
+      .mockResolvedValueOnce({
+        pagination: { page_num: 1, page_size: 200, total_pages: 2 },
+        sessions: [{ session_id: "sess_other" }],
+      })
+      .mockResolvedValueOnce({
+        pagination: { page_num: 2, page_size: 200, total_pages: 2 },
+        sessions: [
+          { agent_id: "agent_1", node_id: "node_1", session_id: "sess_1" },
+        ],
+      });
+
+    await expect(getUserSession("u1", "sess_1")).resolves.toMatchObject({
+      agent_id: "agent_1",
+      node_id: "node_1",
+      session_id: "sess_1",
+    });
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/user/u1/sessions?page_size=200&page_num=1",
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/user/u1/sessions?page_size=200&page_num=2",
+    );
+  });
+});
+
+describe("listSessionHistory", () => {
+  it("requests history by session ID without an agent ID", async () => {
+    apiFetch.mockResolvedValueOnce({ messages: [] });
+
+    await expect(listSessionHistory("u1", "sess_1")).resolves.toEqual({
+      messages: [],
+    });
+
+    expect(apiFetch).toHaveBeenCalledWith(
+      "/api/v1/user/u1/sessions/sess_1/history?limit=1000",
     );
   });
 });

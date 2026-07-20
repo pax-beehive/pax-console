@@ -172,6 +172,17 @@ Do not add `Content-Type: application/json` to GET requests. It can trigger unwa
 
 Keep resource hooks thin. Components should compose hooks rather than build URLs manually.
 
+Session history uses the session-scoped endpoint:
+
+```txt
+GET /api/v1/user/{user_id}/sessions/{session_id}/history
+```
+
+PAX Manager resolves and authorizes the owning agent from the durable session.
+The legacy agent-scoped history endpoint remains backend-compatible, but new
+Console reads must not derive history ownership from the currently selected
+agent.
+
 The paxd control tunnel supports one outstanding query request/response per
 node. UI reads for daemon status, harnesses, and connections must be sequenced;
 do not launch them with `Promise.all`. Commands are
@@ -272,6 +283,11 @@ The workbench observes background or second-window turns through:
 GET /api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/events?after_message_id=<message_id>
 Accept: text/event-stream
 ```
+
+For a standalone `/sessions/{session_id}` route, the frontend first locates the
+session in the paginated flat sessions list and uses its authoritative
+`node_id` and `agent_id` for queue and observer requests. It must not fall back
+to the first available agent while that lookup is pending.
 
 The endpoint observes the current running turn for that session. If there is no
 running turn, it emits `type=no_running_turn` and closes; the UI should stop the

@@ -299,7 +299,7 @@ describe("handleConversationEnvelope", () => {
     });
   });
 
-  it("keeps repeated ACP text chunks from the same stream", () => {
+  it("compacts repeated ACP text chunks into the current stream event", () => {
     let sessionId = "";
     let error: Error | null = null;
     let status: ConversationRunStatus = "streaming";
@@ -346,10 +346,10 @@ describe("handleConversationEnvelope", () => {
     handleConversationEnvelope(envelope, handlerOptions);
 
     expect(sessionId).toBe("");
-    expect(events).toHaveLength(2);
+    expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({
       type: "agent_message",
-      content: "Hello",
+      content: "HelloHello",
       id: "sess_1:agent_message_chunk:sess_1:turn:1",
     });
     expect(mergeEvents(events)).toMatchObject([
@@ -400,13 +400,7 @@ describe("handleConversationEnvelope", () => {
         event.type === "agent_message",
     );
     expect(textEvents.map((event) => event.content)).toEqual([
-      "第一",
-      "梯队",
-      "：",
-      "最",
-      "主流",
-      "\n\n",
-      "####",
+      "第一梯队：最主流\n\n####",
     ]);
     expect(mergeEvents(events)).toMatchObject([
       {

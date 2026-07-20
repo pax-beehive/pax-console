@@ -2,11 +2,9 @@
 
 import {
   FormEvent,
-  KeyboardEvent,
   ReactNode,
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -20,21 +18,11 @@ import {
   Circle,
   Download,
   FileText,
-  FolderOpen,
-  FolderPlus,
   LoaderCircle,
   Menu,
-  Mic,
   PanelRight,
-  Pencil,
-  Plus,
   RefreshCw,
-  Save,
-  Send,
   ShieldAlert,
-  ShieldCheck,
-  Square,
-  Trash2,
   UploadCloud,
   Wrench,
   X,
@@ -47,10 +35,12 @@ import {
   AgentPendingIndicator,
   PermissionDecisionOption,
   PermissionDecisionResult,
+  PermissionDecisionState,
   ToolEvidencePanel,
   ToolEvidenceSelection,
   WorkstreamItemCard,
 } from "@/components/sessions/session-event-cards";
+import { SessionComposer } from "@/components/sessions/session-composer";
 import {
   artifactContentDownloadHref,
   completeArtifactUpload,
@@ -72,6 +62,7 @@ import {
   useAgentSessions,
   useNodeAgents,
   useNodes,
+  useUserSession,
   useSessionHistory,
   useSessionArtifacts,
 } from "@/features/api/resources";
@@ -85,7 +76,7 @@ import {
   HistoryMessage,
   User,
 } from "@/features/api/types";
-import { filterLiveEventsAlreadyInHistory } from "@/features/runtime/filter-live-history-events";
+import { filterMergedLiveEventsAlreadyInHistory } from "@/features/runtime/filter-live-history-events";
 import { normalizeHistoryMessages } from "@/features/runtime/normalize-history-message";
 import { mergeEvents } from "@/features/runtime/merge-session-events";
 import {
@@ -135,6 +126,7 @@ const AGENT_OUTPUT_EVENT_TYPES: ReadonlySet<SessionEvent["type"]> = new Set([
   "progress",
   "tool_call",
 ]);
+const emptyAgentOwnerInfos = {};
 
 export function SessionWorkbench({
   user,
@@ -153,28 +145,33 @@ export function SessionWorkbench({
   onMobileMenu,
 }: SessionWorkbenchProps) {
   const queryClient = useQueryClient();
+  const routeSessionId = sessionId === "new" ? undefined : sessionId;
+  const [currentSessionId, setCurrentSessionId] = useState(routeSessionId);
+  const isNewSession = !currentSessionId;
+  const sessionMetadataQuery = useUserSession(user.user_id, currentSessionId);
+  const sessionMetadata = sessionMetadataQuery.data ?? undefined;
   const nodesQuery = useNodes(user.user_id);
   const nodes = nodesQuery.data?.nodes ?? [];
-  const activeNodeId = nodeId ?? nodes[0]?.node_id;
+  const activeNodeId = currentSessionId
+    ? sessionMetadata?.node_id
+    : (nodeId ?? nodes[0]?.node_id);
   const activeNode =
-    nodes.find((node) => node.node_id === activeNodeId) ?? nodes[0];
+    nodes.find((node) => node.node_id === activeNodeId) ??
+    (currentSessionId ? undefined : nodes[0]);
   const agentsQuery = useNodeAgents(user.user_id, activeNodeId);
   const agents = agentsQuery.data?.agents ?? [];
-  const activeAgentId = agentId ?? agents[0]?.agent_id;
+  const activeAgentId = currentSessionId
+    ? sessionMetadata?.agent_id
+    : (agentId ?? agents[0]?.agent_id);
   const activeAgent = agents.find((agent) => agent.agent_id === activeAgentId);
   const sessionsQuery = useAgentSessions(
     user.user_id,
     activeNodeId,
     activeAgentId,
   );
-  const [draft, setDraft] = useState("");
   const [queuedFollowUpSessionId, setQueuedFollowUpSessionId] = useState<
     string | null
   >(null);
-  const [queuedTurnEditingId, setQueuedTurnEditingId] = useState<string | null>(
-    null,
-  );
-  const [queuedTurnDraft, setQueuedTurnDraft] = useState("");
   const [newSessionCwd, setNewSessionCwd] = useState(initialCwd ?? "");
   const [newSessionWorkspaceOpen, setNewSessionWorkspaceOpen] = useState(
     Boolean(initialCwd),
@@ -189,7 +186,6 @@ export function SessionWorkbench({
   const initialPromptSentRef = useRef(false);
   const [sendError, setSendError] = useState<Error | null>(null);
   const timelineScrollRef = useRef<HTMLDivElement>(null);
-  const timelineBottomRef = useRef<HTMLDivElement>(null);
   const shouldStickToBottomRef = useRef(true);
   const [activeSidePanelId, setActiveSidePanelId] =
     useState<SessionSidePanelId | null>(null);
@@ -198,9 +194,6 @@ export function SessionWorkbench({
   const [permissionDecisions, setPermissionDecisions] = useState<
     Record<string, PermissionDecisionResult>
   >({});
-  const routeSessionId = sessionId === "new" ? undefined : sessionId;
-  const [currentSessionId, setCurrentSessionId] = useState(routeSessionId);
-  const isNewSession = !currentSessionId;
   const normalizedNewSessionCwd = newSessionCwd.trim();
   const newSessionCwdInvalid =
     isNewSession &&
@@ -210,8 +203,8 @@ export function SessionWorkbench({
     () =>
       sessionsQuery.data?.sessions.find(
         (session) => session.session_id === currentSessionId,
-      ),
-    [currentSessionId, sessionsQuery.data?.sessions],
+      ) ?? sessionMetadata,
+    [currentSessionId, sessionMetadata, sessionsQuery.data?.sessions],
   );
   const activePaxConfig =
     activeSession?.pax_config ?? pendingSessionPaxConfig ?? undefined;
@@ -268,11 +261,7 @@ export function SessionWorkbench({
     },
     [activeAgentId, activeNodeId, onSessionAssigned, queryClient, user.user_id],
   );
-  const historyQuery = useSessionHistory(
-    user.user_id,
-    activeAgentId,
-    currentSessionId,
-  );
+  const historyQuery = useSessionHistory(user.user_id, currentSessionId);
   const capsulesQuery = useKnowledgeCapsules(user.user_id, {
     status: "active",
   });
@@ -309,15 +298,9 @@ export function SessionWorkbench({
         currentSessionId,
       ),
     });
-    if (activeAgentId) {
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.sessionHistory(
-          user.user_id,
-          activeAgentId,
-          currentSessionId,
-        ),
-      });
-    }
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.sessionHistory(user.user_id, currentSessionId),
+    });
   };
   const refreshArtifacts = () => {
     if (!currentSessionId) {
@@ -449,14 +432,12 @@ export function SessionWorkbench({
         queryKey: queryKeys.sessions(user.user_id, activeNodeId, activeAgentId),
       });
     }
-    if (activeAgentId && currentSessionId) {
+    if (currentSessionId) {
       void queryClient.invalidateQueries({
-        queryKey: queryKeys.sessionHistory(
-          user.user_id,
-          activeAgentId,
-          currentSessionId,
-        ),
+        queryKey: queryKeys.sessionHistory(user.user_id, currentSessionId),
       });
+    }
+    if (activeAgentId && currentSessionId) {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.queuedSessionTurn(
           user.user_id,
@@ -628,13 +609,9 @@ export function SessionWorkbench({
           ),
         });
       }
-      if (activeAgentId && currentSessionId) {
+      if (currentSessionId) {
         void queryClient.invalidateQueries({
-          queryKey: queryKeys.sessionHistory(
-            user.user_id,
-            activeAgentId,
-            currentSessionId,
-          ),
+          queryKey: queryKeys.sessionHistory(user.user_id, currentSessionId),
         });
       }
     },
@@ -658,7 +635,6 @@ export function SessionWorkbench({
       setSendError(null);
     },
     onSuccess: () => {
-      setDraft("");
       setQueuedFollowUpSessionId(currentSessionId ?? null);
       void queryClient.invalidateQueries({ queryKey: queuedTurnQueryKey });
       if (activeNodeId && activeAgentId) {
@@ -695,8 +671,6 @@ export function SessionWorkbench({
     },
     onSuccess: (data) => {
       queryClient.setQueryData(queuedTurnQueryKey, data);
-      setQueuedTurnEditingId(null);
-      setQueuedTurnDraft("");
     },
     onError: (caught) => {
       setSendError(
@@ -722,8 +696,6 @@ export function SessionWorkbench({
     onSuccess: () => {
       queryClient.setQueryData(queuedTurnQueryKey, null);
       setQueuedFollowUpSessionId(null);
-      setQueuedTurnEditingId(null);
-      setQueuedTurnDraft("");
     },
     onError: (caught) => {
       setSendError(
@@ -745,7 +717,6 @@ export function SessionWorkbench({
       setSendError(null);
     },
     onSuccess: () => {
-      setDraft("");
       void queryClient.invalidateQueries({ queryKey: queuedTurnQueryKey });
       if (activeNodeId && activeAgentId) {
         void queryClient.invalidateQueries({
@@ -790,13 +761,9 @@ export function SessionWorkbench({
       void queryClient.invalidateQueries({
         queryKey: queryKeys.approvalGrants(user.user_id),
       });
-      if (activeAgentId && currentSessionId) {
+      if (currentSessionId) {
         void queryClient.invalidateQueries({
-          queryKey: queryKeys.sessionHistory(
-            user.user_id,
-            activeAgentId,
-            currentSessionId,
-          ),
+          queryKey: queryKeys.sessionHistory(user.user_id, currentSessionId),
         });
       }
     },
@@ -805,17 +772,22 @@ export function SessionWorkbench({
   // The timeline merges durable REST history with live conversation events.
   // REST gives refresh/resume safety; the run stream gives low-latency updates.
   const historyEvents = useMemo(
-    () => normalizeHistoryMessages(historyQuery.data?.messages ?? []),
+    () =>
+      mergeEvents(normalizeHistoryMessages(historyQuery.data?.messages ?? [])),
     [historyQuery.data?.messages],
   );
 
+  const mergedRuntimeEvents = useMemo(
+    () => mergeEvents([...conversationRun.events, ...sessionObserver.events]),
+    [conversationRun.events, sessionObserver.events],
+  );
   const liveEvents = useMemo(
     () =>
-      filterLiveEventsAlreadyInHistory(
-        [...conversationRun.events, ...sessionObserver.events],
+      filterMergedLiveEventsAlreadyInHistory(
+        mergedRuntimeEvents,
         historyEvents,
       ),
-    [conversationRun.events, historyEvents, sessionObserver.events],
+    [historyEvents, mergedRuntimeEvents],
   );
   const timeline = useMemo(
     () => mergeEvents([...historyEvents, ...liveEvents]),
@@ -838,26 +810,8 @@ export function SessionWorkbench({
       conversationRun.status === "waiting_approval" ||
       sessionObserver.status === "observing") &&
     !liveEvents.some((event) => AGENT_OUTPUT_EVENT_TYPES.has(event.type));
-  const canSend =
-    Boolean(activeAgentId && activeNodeId) &&
-    !isTurnRunning &&
-    !newSessionCwdInvalid &&
-    draft.trim().length > 0;
-  const canQueueTurn =
-    isTurnRunning &&
-    Boolean(activeAgentId && currentSessionId) &&
-    draft.trim().length > 0 &&
-    !queueTurn.isPending;
-  const canSteerTurn =
-    isTurnRunning &&
-    Boolean(activeAgentId && currentSessionId) &&
-    draft.trim().length > 0 &&
-    !steerTurn.isPending;
-  const canStopTurn =
-    isTurnRunning &&
-    Boolean(activeAgentId && currentSessionId) &&
-    !stopTurn.isPending;
-  const toggleApprovalMode = () => {
+  const mutateSessionApprovalMode = updateSessionApprovalMode.mutate;
+  const toggleApprovalMode = useCallback(() => {
     const nextMode =
       displayedApprovalMode === "auto_approve_all"
         ? "manual"
@@ -868,8 +822,8 @@ export function SessionWorkbench({
       return;
     }
 
-    updateSessionApprovalMode.mutate(nextMode);
-  };
+    mutateSessionApprovalMode(nextMode);
+  }, [currentSessionId, displayedApprovalMode, mutateSessionApprovalMode]);
   const updateTimelineStickiness = useCallback(() => {
     const scrollElement = timelineScrollRef.current;
     if (!scrollElement) {
@@ -883,55 +837,124 @@ export function SessionWorkbench({
     shouldStickToBottomRef.current = distanceFromBottom < 96;
   }, []);
 
-  const submitDraft = useCallback(async () => {
-    const content = draft.trim();
-    if (!content || !activeAgentId || !activeNodeId || newSessionCwdInvalid) {
-      return;
-    }
-
-    setSendError(null);
-    if (isTurnRunning) {
-      await queueTurn.mutateAsync(content);
-      return;
-    }
-
-    setDraft("");
-    if (isNewSession) {
-      setPendingSessionPaxConfig({
-        cwd: normalizedNewSessionCwd || undefined,
-        approval_mode: newSessionApprovalMode,
-      });
-    }
-    try {
-      await conversationRun.sendMessage(
-        content,
-        isNewSession
-          ? {
-              approvalMode: newSessionApprovalMode,
-              cwd: normalizedNewSessionCwd || undefined,
-            }
-          : undefined,
-      );
-    } catch (caught) {
-      if (isNewSession) {
-        setPendingSessionPaxConfig(null);
+  const queueDraft = queueTurn.mutateAsync;
+  const sendConversationMessage = conversationRun.sendMessage;
+  const submitDraft = useCallback(
+    async (content: string) => {
+      if (!content || !activeAgentId || !activeNodeId || newSessionCwdInvalid) {
+        return false;
       }
-      setSendError(
-        caught instanceof Error ? caught : new Error(String(caught)),
-      );
-    }
-  }, [
-    activeAgentId,
-    activeNodeId,
-    conversationRun,
-    draft,
-    isNewSession,
-    isTurnRunning,
-    newSessionApprovalMode,
-    newSessionCwdInvalid,
-    normalizedNewSessionCwd,
-    queueTurn,
-  ]);
+
+      setSendError(null);
+      try {
+        if (isTurnRunning) {
+          await queueDraft(content);
+          return true;
+        }
+
+        if (isNewSession) {
+          setPendingSessionPaxConfig({
+            cwd: normalizedNewSessionCwd || undefined,
+            approval_mode: newSessionApprovalMode,
+          });
+        }
+        await sendConversationMessage(
+          content,
+          isNewSession
+            ? {
+                approvalMode: newSessionApprovalMode,
+                cwd: normalizedNewSessionCwd || undefined,
+              }
+            : undefined,
+        );
+        return true;
+      } catch (caught) {
+        if (isNewSession) {
+          setPendingSessionPaxConfig(null);
+        }
+        setSendError(
+          caught instanceof Error ? caught : new Error(String(caught)),
+        );
+        return false;
+      }
+    },
+    [
+      activeAgentId,
+      activeNodeId,
+      isNewSession,
+      isTurnRunning,
+      newSessionApprovalMode,
+      newSessionCwdInvalid,
+      normalizedNewSessionCwd,
+      queueDraft,
+      sendConversationMessage,
+    ],
+  );
+
+  const deleteQueuedDraft = deleteQueuedTurn.mutate;
+  const steerDraft = steerTurn.mutateAsync;
+  const stopCurrentTurn = stopTurn.mutate;
+  const updateQueuedDraft = updateQueuedTurn.mutateAsync;
+  const handleDeleteQueuedTurn = useCallback(
+    () => deleteQueuedDraft(),
+    [deleteQueuedDraft],
+  );
+  const handleOpenArtifacts = useCallback(
+    () => setActiveSidePanelId("artifacts"),
+    [],
+  );
+  const handleSteerTurn = useCallback(
+    async (content: string) => {
+      try {
+        await steerDraft(content);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [steerDraft],
+  );
+  const handleStopTurn = useCallback(
+    () => stopCurrentTurn(),
+    [stopCurrentTurn],
+  );
+  const handleUpdateQueuedTurn = useCallback(
+    async (content: string) => {
+      try {
+        await updateQueuedDraft(content);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [updateQueuedDraft],
+  );
+
+  const mutatePermissionDecision = decidePermission.mutate;
+  const handlePermissionDecision = useCallback(
+    (approvalId: string, decisionOption: PermissionDecisionOption) =>
+      mutatePermissionDecision({
+        approvalId,
+        decisionOption,
+      }),
+    [mutatePermissionDecision],
+  );
+  const permissionDecision = useMemo<PermissionDecisionState>(
+    () => ({
+      decisions: permissionDecisions,
+      error: decidePermission.error,
+      pendingApprovalId: decidePermission.variables?.approvalId,
+      pending: decidePermission.isPending,
+      onDecision: handlePermissionDecision,
+    }),
+    [
+      decidePermission.error,
+      decidePermission.isPending,
+      decidePermission.variables?.approvalId,
+      handlePermissionDecision,
+      permissionDecisions,
+    ],
+  );
 
   useEffect(() => {
     const content = pendingInitialPromptRef.current.trim();
@@ -958,11 +981,10 @@ export function SessionWorkbench({
         cwd: normalizedNewSessionCwd || undefined,
         approval_mode: newSessionApprovalMode,
       });
-      void conversationRun
-        .sendMessage(content, {
-          approvalMode: newSessionApprovalMode,
-          cwd: normalizedNewSessionCwd || undefined,
-        })
+      void sendConversationMessage(content, {
+        approvalMode: newSessionApprovalMode,
+        cwd: normalizedNewSessionCwd || undefined,
+      })
         .then(() => {
           removeStoredInitialPrompt(initialPromptKey);
         })
@@ -980,59 +1002,31 @@ export function SessionWorkbench({
   }, [
     activeAgentId,
     activeNodeId,
-    conversationRun,
     conversationRun.status,
     initialPromptKey,
     newSessionCwdInvalid,
     sessionId,
     newSessionApprovalMode,
     normalizedNewSessionCwd,
+    sendConversationMessage,
   ]);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (!shouldStickToBottomRef.current) {
       return;
     }
 
-    timelineBottomRef.current?.scrollIntoView({ block: "end" });
-    shouldStickToBottomRef.current = true;
+    const frameId = window.requestAnimationFrame(() => {
+      const scrollElement = timelineScrollRef.current;
+      if (!scrollElement || !shouldStickToBottomRef.current) {
+        return;
+      }
+      scrollElement.scrollTop = scrollElement.scrollHeight;
+      shouldStickToBottomRef.current = true;
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
   }, [workstreamItems]);
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void submitDraft();
-  }
-
-  function handleStopTurn() {
-    if (!canStopTurn) {
-      return;
-    }
-
-    stopTurn.mutate();
-  }
-
-  function handleSteerTurn() {
-    const content = draft.trim();
-    if (!canSteerTurn || !content) {
-      return;
-    }
-
-    steerTurn.mutate(content);
-  }
-
-  function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (
-      event.key !== "Enter" ||
-      event.shiftKey ||
-      event.nativeEvent.isComposing ||
-      event.keyCode === 229
-    ) {
-      return;
-    }
-
-    event.preventDefault();
-    void submitDraft();
-  }
 
   const sidePanels: SessionSidePanel[] = [
     {
@@ -1042,17 +1036,7 @@ export function SessionWorkbench({
       icon: <Wrench className="h-4 w-4" />,
       content: (
         <ToolEvidencePanel
-          permissionDecision={{
-            decisions: permissionDecisions,
-            error: decidePermission.error,
-            pendingApprovalId: decidePermission.variables?.approvalId,
-            pending: decidePermission.isPending,
-            onDecision: (approvalId, decisionOption) =>
-              decidePermission.mutate({
-                approvalId,
-                decisionOption,
-              }),
-          }}
+          permissionDecision={permissionDecision}
           selection={selectedToolEvidence}
         />
       ),
@@ -1121,6 +1105,14 @@ export function SessionWorkbench({
   ];
   const activeSidePanel = sidePanels.find(
     (panel) => panel.id === activeSidePanelId,
+  );
+  const agentOwnerInfos = agentOwnerInfosQuery.data ?? emptyAgentOwnerInfos;
+  const handleSelectToolEvidence = useCallback(
+    (selection: ToolEvidenceSelection) => {
+      setSelectedToolEvidence(selection);
+      setActiveSidePanelId("tool");
+    },
+    [],
   );
 
   const workbench = (
@@ -1212,26 +1204,17 @@ export function SessionWorkbench({
               }
             />
             {workstreamItems.map((item) => (
-              <WorkstreamItemCard
-                agentOwnerInfos={agentOwnerInfosQuery.data ?? {}}
-                item={item}
+              <div
+                className="[contain-intrinsic-size:auto_80px] [content-visibility:auto]"
                 key={item.id}
-                onSelectToolEvidence={(selection) => {
-                  setSelectedToolEvidence(selection);
-                  setActiveSidePanelId("tool");
-                }}
-                permissionDecision={{
-                  decisions: permissionDecisions,
-                  error: decidePermission.error,
-                  pendingApprovalId: decidePermission.variables?.approvalId,
-                  pending: decidePermission.isPending,
-                  onDecision: (approvalId, decisionOption) =>
-                    decidePermission.mutate({
-                      approvalId,
-                      decisionOption,
-                    }),
-                }}
-              />
+              >
+                <WorkstreamItemCard
+                  agentOwnerInfos={agentOwnerInfos}
+                  item={item}
+                  onSelectToolEvidence={handleSelectToolEvidence}
+                  permissionDecision={permissionDecision}
+                />
+              </div>
             ))}
             {isAgentResponsePending && <AgentPendingIndicator />}
             {!historyQuery.isLoading &&
@@ -1241,294 +1224,43 @@ export function SessionWorkbench({
                   No messages yet. Live tunnel events will appear here.
                 </div>
               )}
-            <div aria-hidden="true" className="h-0" ref={timelineBottomRef} />
           </div>
         </div>
 
-        <form
-          className="mobile-safe-bottom relative z-10 border-t border-hairline bg-surface-1 p-3"
-          onSubmit={handleSubmit}
-        >
-          <div className="mx-auto w-full max-w-4xl rounded-[22px] border border-hairline bg-surface-2 px-3 py-2 shadow-lg shadow-black/20">
-            {queuedTurnQuery.data && (
-              <div className="mb-2 grid gap-2 rounded-xl border border-primary/25 bg-primary/5 p-2.5">
-                <div className="flex min-w-0 items-center gap-2">
-                  <span className="text-xs font-medium text-primary-hover">
-                    Queued next
-                  </span>
-                  <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-ink-tertiary">
-                    {compactId(queuedTurnQuery.data.queued_turn_id)}
-                  </span>
-                  {queuedTurnEditingId !==
-                  queuedTurnQuery.data.queued_turn_id ? (
-                    <Button
-                      disabled={deleteQueuedTurn.isPending}
-                      icon={<Pencil className="h-3.5 w-3.5" />}
-                      onClick={() => {
-                        setQueuedTurnDraft(queuedTurnQuery.data?.input ?? "");
-                        setQueuedTurnEditingId(
-                          queuedTurnQuery.data?.queued_turn_id ?? null,
-                        );
-                      }}
-                      size="icon"
-                      tooltip="Edit queued message"
-                      type="button"
-                      variant="ghost"
-                    />
-                  ) : null}
-                  <Button
-                    disabled={deleteQueuedTurn.isPending}
-                    icon={
-                      deleteQueuedTurn.isPending ? (
-                        <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-3.5 w-3.5" />
-                      )
-                    }
-                    onClick={() => deleteQueuedTurn.mutate()}
-                    size="icon"
-                    tooltip="Delete queued message"
-                    type="button"
-                    variant="ghost"
-                  />
-                </div>
-                {queuedTurnEditingId === queuedTurnQuery.data.queued_turn_id ? (
-                  <div className="grid gap-2">
-                    <textarea
-                      aria-label="Queued message"
-                      autoFocus
-                      className="max-h-32 min-h-16 w-full resize-y rounded-lg border border-hairline bg-canvas px-2.5 py-2 text-sm leading-5 text-ink outline-none focus:border-primary-focus focus:ring-2 focus:ring-primary-focus/20"
-                      onChange={(event) =>
-                        setQueuedTurnDraft(event.target.value)
-                      }
-                      value={queuedTurnDraft}
-                    />
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        disabled={updateQueuedTurn.isPending}
-                        onClick={() => {
-                          setQueuedTurnEditingId(null);
-                          setQueuedTurnDraft("");
-                        }}
-                        size="sm"
-                        type="button"
-                        variant="ghost"
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        disabled={
-                          updateQueuedTurn.isPending ||
-                          queuedTurnDraft.trim().length === 0
-                        }
-                        icon={
-                          updateQueuedTurn.isPending ? (
-                            <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Save className="h-3.5 w-3.5" />
-                          )
-                        }
-                        onClick={() =>
-                          updateQueuedTurn.mutate(queuedTurnDraft.trim())
-                        }
-                        size="sm"
-                        type="button"
-                        variant="primary"
-                      >
-                        Save
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="max-h-24 overflow-auto whitespace-pre-wrap text-sm leading-5 text-ink-muted">
-                    {queuedTurnQuery.data.input}
-                  </p>
-                )}
-              </div>
-            )}
-            <textarea
-              className="max-h-40 min-h-20 w-full resize-none bg-transparent px-1 py-1 text-sm leading-5 text-ink outline-none placeholder:text-ink-tertiary"
-              disabled={!activeAgentId}
-              onKeyDown={handleComposerKeyDown}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder={
-                activeAgentId
-                  ? "Send a prompt to this agent"
-                  : "Select an agent before sending a prompt"
-              }
-              value={draft}
-            />
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <Button
-                icon={<Plus className="h-4 w-4" />}
-                onClick={() => setActiveSidePanelId("artifacts")}
-                size="icon"
-                tooltip="Open artifacts"
-                type="button"
-                variant="ghost"
-              />
-              {isNewSession ? (
-                <>
-                  {newSessionWorkspaceOpen ? (
-                    <label
-                      className={cn(
-                        "inline-flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border bg-canvas px-2.5 text-sm transition sm:max-w-80",
-                        newSessionCwdInvalid
-                          ? "border-warning text-warning"
-                          : "border-hairline text-ink-muted focus-within:border-primary-focus focus-within:ring-2 focus-within:ring-primary-focus/20",
-                      )}
-                      onBlur={(event) => {
-                        const nextTarget = event.relatedTarget;
-                        if (
-                          (nextTarget instanceof globalThis.Node &&
-                            event.currentTarget.contains(nextTarget)) ||
-                          newSessionCwd.trim()
-                        ) {
-                          return;
-                        }
-
-                        setNewSessionWorkspaceOpen(false);
-                      }}
-                    >
-                      <FolderOpen className="h-4 w-4 shrink-0" />
-                      <span className="shrink-0 text-xs font-medium text-ink-tertiary">
-                        Workspace
-                      </span>
-                      <input
-                        aria-invalid={newSessionCwdInvalid}
-                        aria-label="Workspace"
-                        autoFocus
-                        className="min-w-0 flex-1 bg-transparent font-mono text-xs text-ink outline-none placeholder:text-ink-tertiary"
-                        onChange={(event) =>
-                          setNewSessionCwd(event.target.value)
-                        }
-                        placeholder="/Users/me/project"
-                        spellCheck={false}
-                        value={newSessionCwd}
-                      />
-                    </label>
-                  ) : (
-                    <Button
-                      icon={<FolderPlus className="h-4 w-4" />}
-                      onClick={() => setNewSessionWorkspaceOpen(true)}
-                      size="icon"
-                      tooltip="Set workspace"
-                      type="button"
-                      variant="ghost"
-                    />
-                  )}
-                </>
-              ) : shouldShowReadOnlyWorkspace ? (
-                <div className="inline-flex min-h-9 min-w-0 max-w-64 items-center gap-2 rounded-lg border border-hairline bg-canvas px-2.5 text-sm text-ink-muted">
-                  <FolderOpen className="h-4 w-4 shrink-0" />
-                  <span className="shrink-0 text-xs font-medium text-ink-tertiary">
-                    Workspace
-                  </span>
-                  <span className="min-w-0 truncate font-mono text-xs text-ink">
-                    {displayedWorkspace}
-                  </span>
-                </div>
-              ) : null}
-              <button
-                aria-pressed={displayedApprovalMode === "auto_approve_all"}
-                className={cn(
-                  "inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg px-2.5 text-sm transition disabled:cursor-not-allowed disabled:opacity-60",
-                  displayedApprovalMode === "auto_approve_all"
-                    ? "bg-success/10 text-success"
-                    : "text-primary-hover hover:bg-surface-3",
-                )}
-                disabled={updateSessionApprovalMode.isPending}
-                onClick={toggleApprovalMode}
-                type="button"
-              >
-                <ShieldCheck className="h-4 w-4" />
-                <span className="hidden sm:inline">
-                  {displayedApprovalMode === "auto_approve_all"
-                    ? "Auto approve"
-                    : "Manual approve"}
-                </span>
-              </button>
-              <div className="min-w-0 flex-1" />
-              <Button
-                disabled
-                icon={<Mic className="h-4 w-4" />}
-                size="icon"
-                tooltip="Voice input is not available yet"
-                type="button"
-                variant="ghost"
-              />
-              {isTurnRunning ? (
-                <>
-                  <Button
-                    disabled={!canQueueTurn}
-                    icon={
-                      queueTurn.isPending ? (
-                        <LoaderCircle className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Send className="h-4 w-4" />
-                      )
-                    }
-                    size="icon"
-                    tooltip={
-                      currentSessionId
-                        ? "Queue after current turn"
-                        : "Waiting for session id"
-                    }
-                    type="submit"
-                    variant="primary"
-                  />
-                  <Button
-                    disabled={!canSteerTurn}
-                    icon={
-                      steerTurn.isPending ? (
-                        <LoaderCircle className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <RefreshCw className="h-4 w-4" />
-                      )
-                    }
-                    onClick={handleSteerTurn}
-                    size="icon"
-                    tooltip={
-                      currentSessionId
-                        ? "Steer with this prompt"
-                        : "Waiting for session id"
-                    }
-                    type="button"
-                    variant="ghost"
-                  />
-                  <Button
-                    disabled={!canStopTurn}
-                    icon={
-                      stopTurn.isPending ? (
-                        <LoaderCircle className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Square className="h-4 w-4 fill-current" />
-                      )
-                    }
-                    onClick={handleStopTurn}
-                    size="icon"
-                    tooltip={
-                      currentSessionId
-                        ? "Stop current turn"
-                        : "Waiting for session id"
-                    }
-                    type="button"
-                    variant="danger"
-                  />
-                </>
-              ) : (
-                <Button
-                  disabled={!canSend}
-                  icon={<Send className="h-4 w-4" />}
-                  size="icon"
-                  tooltip="Send prompt"
-                  type="submit"
-                  variant="primary"
-                />
-              )}
-            </div>
-          </div>
-        </form>
+        <SessionComposer
+          activeAgentId={activeAgentId}
+          activeNodeId={activeNodeId}
+          approvalMode={displayedApprovalMode}
+          approvalModePending={updateSessionApprovalMode.isPending}
+          currentSessionId={currentSessionId}
+          deleteQueuedTurnPending={deleteQueuedTurn.isPending}
+          draftKey={
+            currentSessionId ??
+            `new:${activeNodeId ?? "node"}:${activeAgentId ?? "agent"}`
+          }
+          isNewSession={isNewSession}
+          isTurnRunning={isTurnRunning}
+          newSessionCwd={newSessionCwd}
+          newSessionCwdInvalid={newSessionCwdInvalid}
+          newSessionWorkspaceOpen={newSessionWorkspaceOpen}
+          onDeleteQueuedTurn={handleDeleteQueuedTurn}
+          onOpenArtifacts={handleOpenArtifacts}
+          onSetNewSessionCwd={setNewSessionCwd}
+          onSetNewSessionWorkspaceOpen={setNewSessionWorkspaceOpen}
+          onSteer={handleSteerTurn}
+          onStop={handleStopTurn}
+          onSubmitDraft={submitDraft}
+          onToggleApprovalMode={toggleApprovalMode}
+          onUpdateQueuedTurn={handleUpdateQueuedTurn}
+          queueTurnPending={queueTurn.isPending}
+          queuedTurn={queuedTurnQuery.data}
+          readOnlyWorkspace={
+            shouldShowReadOnlyWorkspace ? displayedWorkspace : undefined
+          }
+          steerTurnPending={steerTurn.isPending}
+          stopTurnPending={stopTurn.isPending}
+          updateQueuedTurnPending={updateQueuedTurn.isPending}
+        />
       </section>
 
       {activeSidePanel && (

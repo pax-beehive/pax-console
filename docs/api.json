@@ -4000,7 +4000,7 @@
     },
     "/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/history": {
       "get": {
-        "description": "Lists durable session history messages with their message parts for a specific session under an agent visible to the current user.",
+        "description": "Lists a page of durable session history messages with their message parts. The first page contains the latest messages; responses are ordered chronologically.",
         "parameters": [
           {
             "description": "User ID or self.",
@@ -4038,6 +4038,17 @@
               "maximum": 1000,
               "type": "integer"
             }
+          },
+          {
+            "description": "Returns messages with a database ID lower than this value. Use pagination.next_before_id to load older history.",
+            "in": "query",
+            "name": "before_id",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -4057,6 +4068,72 @@
           }
         ],
         "summary": "List agent session history",
+        "tags": [
+          "user"
+        ]
+      }
+    },
+    "/api/v1/user/{user_id}/sessions/{session_id}/history": {
+      "get": {
+        "description": "Lists a page of durable session history messages with their message parts. The first page contains the latest messages; responses are ordered chronologically.",
+        "parameters": [
+          {
+            "description": "User ID or self.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session identifier.",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum number of history messages to return. Defaults to 1000.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 1000,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Returns messages with a database ID lower than this value. Use pagination.next_before_id to load older history.",
+            "in": "query",
+            "name": "before_id",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session history messages."
+          },
+          "401": {
+            "description": "User authentication failed."
+          },
+          "404": {
+            "description": "Session not found."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "List session history",
         "tags": [
           "user"
         ]

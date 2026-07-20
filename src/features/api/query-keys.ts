@@ -124,16 +124,10 @@ export const queryKeys = {
       sessionId,
       "messages",
     ] as const,
-  sessionHistory: (userId: string, agentId: string, sessionId: string) =>
-    [
-      "users",
-      userId,
-      "agents",
-      agentId,
-      "sessions",
-      sessionId,
-      "history",
-    ] as const,
+  sessionHistory: (userId: string, sessionId: string) =>
+    ["users", userId, "sessions", sessionId, "history"] as const,
+  sessionMetadata: (userId: string, sessionId: string) =>
+    ["users", userId, "sessions", sessionId, "metadata"] as const,
   queuedSessionTurn: (userId: string, agentId: string, sessionId: string) =>
     [
       "users",

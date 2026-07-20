@@ -1,4 +1,4 @@
-import { type MouseEvent, useCallback, useState } from "react";
+import { memo, type MouseEvent, useCallback, useState } from "react";
 import { motion } from "motion/react";
 import {
   ArrowDown,
@@ -64,6 +64,13 @@ export type ToolEvidenceSelection =
       event: Extract<SessionEvent, { type: "permission_request" }>;
     };
 
+type WorkstreamItemCardProps = {
+  agentOwnerInfos?: Record<string, AgentOwnerInfo>;
+  item: WorkstreamItem;
+  onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
+  permissionDecision: PermissionDecisionState;
+};
+
 const permissionDecisionOptions: {
   label: string;
   optionId: PermissionDecisionOption;
@@ -88,17 +95,12 @@ const permissionDecisionOptions: {
   },
 ];
 
-export function WorkstreamItemCard({
+export const WorkstreamItemCard = memo(function WorkstreamItemCard({
   agentOwnerInfos,
   item,
   onSelectToolEvidence,
   permissionDecision,
-}: {
-  agentOwnerInfos?: Record<string, AgentOwnerInfo>;
-  item: WorkstreamItem;
-  onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
-  permissionDecision: PermissionDecisionState;
-}) {
+}: WorkstreamItemCardProps) {
   if (item.type === "work_group") {
     return (
       <WorkGroupCard
@@ -127,6 +129,47 @@ export function WorkstreamItemCard({
       permissionDecision={permissionDecision}
     />
   );
+}, areWorkstreamItemCardPropsEqual);
+
+function areWorkstreamItemCardPropsEqual(
+  previous: WorkstreamItemCardProps,
+  next: WorkstreamItemCardProps,
+) {
+  return (
+    previous.agentOwnerInfos === next.agentOwnerInfos &&
+    previous.onSelectToolEvidence === next.onSelectToolEvidence &&
+    previous.permissionDecision === next.permissionDecision &&
+    areWorkstreamItemsEqual(previous.item, next.item)
+  );
+}
+
+function areWorkstreamItemsEqual(
+  previous: WorkstreamItem,
+  next: WorkstreamItem,
+) {
+  if (previous === next) {
+    return true;
+  }
+  if (previous.type !== next.type || previous.id !== next.id) {
+    return false;
+  }
+  if (previous.type === "event" && next.type === "event") {
+    return previous.event === next.event;
+  }
+  if (previous.type === "work_group" && next.type === "work_group") {
+    return (
+      previous.complete === next.complete &&
+      previous.events.length === next.events.length &&
+      previous.events.every((event, index) => event === next.events[index])
+    );
+  }
+  if (previous.type === "turn_footer" && next.type === "turn_footer") {
+    return (
+      previous.actionsContent === next.actionsContent &&
+      previous.turnPatches === next.turnPatches
+    );
+  }
+  return false;
 }
 
 export function ToolEvidencePanel({
@@ -313,19 +356,25 @@ function ThoughtCard({
 }: {
   event: Extract<SessionEvent, { type: "progress" }>;
 }) {
+  const [expanded, setExpanded] = useState(false);
   return (
-    <details className="group min-w-0 py-1">
+    <details
+      className="group min-w-0 py-1"
+      onToggle={(event) => setExpanded(event.currentTarget.open)}
+    >
       <summary className="flex cursor-pointer list-none items-center gap-2 text-sm text-ink-muted outline-none transition hover:text-ink [&::-webkit-details-marker]:hidden">
         <PaxThoughtIcon />
         <span>{event.streaming ? "思考中" : "已思考"}</span>
         <ChevronDown className="ml-auto h-3.5 w-3.5 -rotate-90 text-ink-tertiary transition group-open:rotate-0" />
       </summary>
-      <MarkdownMessage
-        className="mt-2 pl-1 text-[13px] leading-5"
-        content={event.content}
-        muted
-        streaming={event.streaming}
-      />
+      {expanded && (
+        <MarkdownMessage
+          className="mt-2 pl-1 text-[13px] leading-5"
+          content={event.content}
+          muted
+          streaming={event.streaming}
+        />
+      )}
     </details>
   );
 }
@@ -606,6 +655,7 @@ function WorkGroupCard({
   onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
   permissionDecision: PermissionDecisionState;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const pendingPermissionCount = events.reduce(
     (count, event) =>
       event.type === "tool_call"
@@ -629,7 +679,10 @@ function WorkGroupCard({
   const segments = workGroupSegments(events);
 
   return (
-    <details className="group/work min-w-0 py-0">
+    <details
+      className="group/work min-w-0 py-0"
+      onToggle={(event) => setExpanded(event.currentTarget.open)}
+    >
       <summary className="flex min-w-0 cursor-pointer list-none items-center gap-2 text-sm text-ink-muted outline-none transition hover:text-ink [&::-webkit-details-marker]:hidden">
         {isWorking ? (
           <LoaderCircle className="h-4 w-4 animate-spin text-primary-hover" />
@@ -645,20 +698,22 @@ function WorkGroupCard({
         )}
         <ChevronDown className="ml-auto h-3.5 w-3.5 shrink-0 -rotate-90 text-ink-tertiary transition group-open/work:rotate-0" />
       </summary>
-      <div className="mt-2 grid gap-2 border-l border-hairline pl-4">
-        {segments.map((segment) =>
-          segment.type === "thought" ? (
-            <ThoughtCard event={segment.event} key={segment.event.id} />
-          ) : (
-            <ToolGroupCard
-              events={segment.events}
-              key={segment.id}
-              onSelectToolEvidence={onSelectToolEvidence}
-              permissionDecision={permissionDecision}
-            />
-          ),
-        )}
-      </div>
+      {expanded && (
+        <div className="mt-2 grid gap-2 border-l border-hairline pl-4">
+          {segments.map((segment) =>
+            segment.type === "thought" ? (
+              <ThoughtCard event={segment.event} key={segment.event.id} />
+            ) : (
+              <ToolGroupCard
+                events={segment.events}
+                key={segment.id}
+                onSelectToolEvidence={onSelectToolEvidence}
+                permissionDecision={permissionDecision}
+              />
+            ),
+          )}
+        </div>
+      )}
     </details>
   );
 }
@@ -708,6 +763,7 @@ function ToolGroupCard({
   onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
   permissionDecision: PermissionDecisionState;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const runningCount = events.filter(
     (event) => event.status === "running",
   ).length;
@@ -723,7 +779,10 @@ function ToolGroupCard({
   );
 
   return (
-    <details className="group min-w-0 py-0">
+    <details
+      className="group min-w-0 py-0"
+      onToggle={(event) => setExpanded(event.currentTarget.open)}
+    >
       <summary className="flex min-w-0 cursor-pointer list-none items-center gap-2 text-sm text-ink-muted outline-none transition hover:text-ink [&::-webkit-details-marker]:hidden">
         {runningCount > 0 ? (
           <LoaderCircle className="h-4 w-4 animate-spin text-primary-hover" />
@@ -755,16 +814,18 @@ function ToolGroupCard({
           <ChevronDown className="h-3.5 w-3.5 -rotate-90 text-ink-tertiary transition group-open:rotate-0" />
         </span>
       </summary>
-      <div className="mt-2 overflow-hidden rounded-lg border border-hairline bg-surface-1">
-        {events.map((event) => (
-          <ToolEventRow
-            event={event}
-            key={event.id}
-            onSelectToolEvidence={onSelectToolEvidence}
-            permissionDecision={permissionDecision}
-          />
-        ))}
-      </div>
+      {expanded && (
+        <div className="mt-2 overflow-hidden rounded-lg border border-hairline bg-surface-1">
+          {events.map((event) => (
+            <ToolEventRow
+              event={event}
+              key={event.id}
+              onSelectToolEvidence={onSelectToolEvidence}
+              permissionDecision={permissionDecision}
+            />
+          ))}
+        </div>
+      )}
     </details>
   );
 }

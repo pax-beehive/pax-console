@@ -98,6 +98,20 @@ export function mergeEvents(events: SessionEvent[]) {
       continue;
     }
 
+    if (
+      existing?.type === "permission_request" &&
+      event.type === "permission_request"
+    ) {
+      merged[existingIndex!] = {
+        ...existing,
+        ...event,
+        approvalId: event.approvalId ?? existing.approvalId,
+        decision: event.decision ?? existing.decision,
+        decidedAt: event.decidedAt ?? existing.decidedAt,
+      };
+      continue;
+    }
+
     if (existing?.type === "tool_call" && event.type === "tool_call") {
       merged[existingIndex!] = mergeToolCallEvent(existing, event);
       continue;
@@ -372,7 +386,10 @@ function mergeCodePatches(
   existing: CodePatch[] | undefined,
   incoming: CodePatch[] | undefined,
 ) {
-  const patches = coalesceCodePatches([...(existing ?? []), ...(incoming ?? [])]);
+  const patches = coalesceCodePatches([
+    ...(existing ?? []),
+    ...(incoming ?? []),
+  ]);
   return patches.length > 0 ? patches : undefined;
 }
 
@@ -408,7 +425,11 @@ function eventMergeKey(event: SessionEvent) {
 }
 
 function chunkMergeKey(event: TextChunkEvent) {
-  return `${event.sessionUpdate ?? event.type}:${event.id}`;
+  return `${event.sessionUpdate ?? event.type}:${streamingEventBaseId(event.id)}`;
+}
+
+function streamingEventBaseId(id: string) {
+  return id.replace(/:segment:\d+$/, "");
 }
 
 function segmentStreamingEvent(
@@ -416,16 +437,17 @@ function segmentStreamingEvent(
   segmentCounts: Map<string, number>,
 ) {
   const key = chunkMergeKey(event);
+  const baseId = streamingEventBaseId(event.id);
   const count = segmentCounts.get(key) ?? 0;
   segmentCounts.set(key, count + 1);
 
   if (count === 0) {
-    return event;
+    return event.id === baseId ? event : { ...event, id: baseId };
   }
 
   return {
     ...event,
-    id: `${event.id}:segment:${count}`,
+    id: `${baseId}:segment:${count}`,
   } satisfies SessionEvent;
 }
 
