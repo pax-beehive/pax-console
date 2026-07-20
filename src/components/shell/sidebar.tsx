@@ -236,10 +236,6 @@ function isActiveChild(pathname: string, queryString: string, href: string) {
   const target = new URLSearchParams(hrefQuery);
   const current = new URLSearchParams(queryString);
   for (const [key, value] of target) {
-    if (key === "view" && value === "teams" && current.get(key) == null) {
-      continue;
-    }
-
     if (current.get(key) !== value) {
       return false;
     }

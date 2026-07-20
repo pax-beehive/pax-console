@@ -44,6 +44,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MonoId, TruncatedText } from "@/components/ui/text";
 import {
+  AgentPendingIndicator,
   PermissionDecisionOption,
   PermissionDecisionResult,
   ToolEvidencePanel,
@@ -122,6 +123,18 @@ type SessionSidePanel = {
   icon: ReactNode;
   content: ReactNode;
 };
+
+// Event types that count as visible agent output in the timeline. Meta events
+// (run_status, token_usage, turn_done, ...) must not dismiss the pending
+// indicator, and the optimistic user_message must not either.
+const AGENT_OUTPUT_EVENT_TYPES: ReadonlySet<SessionEvent["type"]> = new Set([
+  "agent_message",
+  "file_change",
+  "invocation",
+  "permission_request",
+  "progress",
+  "tool_call",
+]);
 
 export function SessionWorkbench({
   user,
@@ -527,7 +540,13 @@ export function SessionWorkbench({
   const sessionObserver = useSessionObserver({
     afterMessageId: shouldFollowQueuedTurn ? undefined : lastHistoryMessageID,
     agentId: activeAgentId,
-    enabled: Boolean(activeAgentId && currentSessionId),
+    // The local conversation run owns its turn. Observing it at the same time
+    // replays the same ACP frames under a different stream id, which renders
+    // every timeline row twice. Only observe turns the run does not own.
+    enabled:
+      Boolean(activeAgentId && currentSessionId) &&
+      conversationRun.status !== "streaming" &&
+      conversationRun.status !== "waiting_approval",
     followQueuedTurn: shouldFollowQueuedTurn,
     onBufferMiss: refreshActiveSessionRuntime,
     onNoRunningTurn: refreshActiveSessionRuntime,
@@ -814,6 +833,11 @@ export function SessionWorkbench({
     () => groupWorkstreamEvents(timeline),
     [timeline],
   );
+  const isAgentResponsePending =
+    (conversationRun.status === "streaming" ||
+      conversationRun.status === "waiting_approval" ||
+      sessionObserver.status === "observing") &&
+    !liveEvents.some((event) => AGENT_OUTPUT_EVENT_TYPES.has(event.type));
   const canSend =
     Boolean(activeAgentId && activeNodeId) &&
     !isTurnRunning &&
@@ -1114,7 +1138,7 @@ export function SessionWorkbench({
                 aria-label={
                   onMobileMenu
                     ? `Open ${mobileMenuLabel ?? "sidebar"}`
-                    : `Back to ${mobileBackLabel ?? "Home"}`
+                    : `Back to ${mobileBackLabel ?? "Chat"}`
                 }
                 className="lg:hidden"
                 icon={
@@ -1129,7 +1153,7 @@ export function SessionWorkbench({
                 tooltip={
                   onMobileMenu
                     ? `Open ${mobileMenuLabel ?? "sidebar"}`
-                    : `Back to ${mobileBackLabel ?? "Home"}`
+                    : `Back to ${mobileBackLabel ?? "Chat"}`
                 }
                 type="button"
                 variant="ghost"
@@ -1209,11 +1233,14 @@ export function SessionWorkbench({
                 }}
               />
             ))}
-            {!historyQuery.isLoading && workstreamItems.length === 0 && (
-              <div className="rounded-lg border border-dashed border-hairline bg-surface-1 p-4 text-sm text-ink-tertiary">
-                No messages yet. Live tunnel events will appear here.
-              </div>
-            )}
+            {isAgentResponsePending && <AgentPendingIndicator />}
+            {!historyQuery.isLoading &&
+              workstreamItems.length === 0 &&
+              !isAgentResponsePending && (
+                <div className="rounded-lg border border-dashed border-hairline bg-surface-1 p-4 text-sm text-ink-tertiary">
+                  No messages yet. Live tunnel events will appear here.
+                </div>
+              )}
             <div aria-hidden="true" className="h-0" ref={timelineBottomRef} />
           </div>
         </div>

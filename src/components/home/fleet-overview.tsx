@@ -772,7 +772,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 initialCwd={activeSessionTarget.initialCwd}
                 initialPrompt={activeSessionTarget.initialPrompt}
                 key={activeSessionTarget.key}
-                mobileMenuLabel="Home sidebar"
+                mobileMenuLabel="Chat sidebar"
                 nodeId={activeSessionTarget.nodeId}
                 onMobileMenu={() => setMobileRailOpen(true)}
                 onSessionAssigned={(sessionId) => {

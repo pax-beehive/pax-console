@@ -432,8 +432,16 @@ src/components/resources/*
 src/components/sessions/*
   session workbench
 
+src/components/collaboration/*
+  Collaboration workspace pages. Teams (/collaboration/teams) and Friends
+  (/collaboration/friends) are separate canonical routes; the teams page is
+  split into teams-page-client,
+  team-list-panel, team-detail, and per-tab section files. Mutation cache
+  invalidation goes through src/features/api/invalidation.ts.
+
 src/components/ui/*
-  local UI primitives such as Button, Badge, SearchBox, Tooltip, TruncatedText, PaxLogo
+  local UI primitives such as Button, Badge, SearchBox, Tooltip, TruncatedText,
+  PaxLogo, EmptyState, InlineError, SectionTitle, ConfirmDialog
 
 src/features/*
   API, auth, runtime, stateful business boundaries
@@ -525,7 +533,7 @@ Currently implemented API-backed actions:
 
 ```txt
 Home New session composer
-  Opens an embedded new SessionWorkbench without creating a server session
+  Opens canonical /sessions/new without creating a server session
 
 Session workbench composer
   POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/conversation

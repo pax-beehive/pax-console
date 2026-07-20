@@ -122,8 +122,18 @@ src/components/
   只放 UI 组件和页面组合。组件可以调用 feature hooks，但不要自己拼后端协议细节。
 
 src/components/ui/
-  本地 UI primitives。当前包括 Button、Badge、SearchBox、Tooltip、TruncatedText、MonoId。
+  本地 UI primitives。当前包括 Button、Badge、SearchBox、Tooltip、TruncatedText、MonoId、
+  EmptyState、InlineError、SectionTitle、ConfirmDialog。
   当前只把 Radix Tooltip/Slot 作为底层能力使用，还没有全面引入 shadcn 生成组件。
+
+src/components/collaboration/
+  Collaboration 工作区页面。teams 和 friends 是独立路由页面
+  （/collaboration/teams、/collaboration/friends），teams 页内部按
+  team-list-panel / team-detail /
+  team-members-section / team-agents-section / team-audit-section 拆分；
+  envelopes、knowledge 各自单文件，共享 ui 下的 EmptyState / InlineError /
+  SectionTitle。mutation 后的缓存失效统一走 src/features/api/invalidation.ts
+  的 useTeamInvalidation / useFriendInvalidation。
 
 src/components/home/
   Home 工作台。左侧提供 Sessions / Inbox 两个 tab；Sessions tab 聚合所有
@@ -277,9 +287,12 @@ local filters
 Console 现在把 pax-manager 的协作和知识交接能力放在 Collaboration 一级入口下：
 
 ```txt
-Teams & Friends
-  team 列表、成员、team invites、team agents，以及 friends 管理。
+Teams
+  /collaboration/teams 独立页面：team 列表、成员、team invites、team agents 和 audit。
   Team invite 前端必须显式提交 member/operator，不依赖后端默认 role。
+
+Friends
+  /collaboration/friends 独立页面：friends 的创建、接受、alias、remove、block。
 
 Envelopes
   类邮箱的收发箱。Envelope 当前承载 knowledge_capsule payload。
@@ -417,9 +430,9 @@ Sidebar 一级入口是粗粒度工作区（顶部 Home / Collaboration，底部
 /agents/[id]?nodeId=...        Agent detail deep-link
 ```
 
-Legacy `/nodes`、`/agents`、`/approvals`、`/monitor`、`/teams`、`/envelopes`、
-`/knowledge`、`/settings/api-keys`、`/settings/node-registration` 都 redirect
-到上面的 canonical route；这一层兼容不需要后端参与。
+Legacy `/nodes`、`/agents`、`/approvals`、`/monitor`、`/teams`、`/friends`、
+`/envelopes`、`/knowledge`、`/settings/api-keys`、`/settings/node-registration`
+都 redirect 到上面的 canonical route；这一层兼容不需要后端参与。
 
 `/settings/api-keys` 已接 `GET/POST/DELETE /api-keys`。新建 key 后只在当前页面展示一次 secret。
 

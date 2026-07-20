@@ -278,13 +278,13 @@ The sidebar keeps only Home and Collaboration as top-level entries; everything
 else lives in one Settings disclosure group pinned to the bottom of the
 sidebar. Home owns the user-facing Sessions tab and embedded session
 workbench; do not add Sessions as a separate first-level sidebar item.
-First-level groups are independent disclosures, not an accordion. The Settings
-group owns nodes, agents, inquiries, conversations, approvals, monitor, API
-keys, and node registration as secondary tabs. Collaboration owns teams,
+First-level groups are independent disclosures, not an accordion. Settings
+aggregates Devices (nodes/agents), Security (approval grants), Developer
+(API keys/node registration), and Diagnostics. Collaboration owns teams,
 friends, envelopes, and knowledge as secondary tabs; team invites stay inside
-the Teams surface as a team action queue. Deep links such as `/nodes`,
-`/sessions`, `/approvals`, `/teams?view=friends`, and `/knowledge` remain
-valid.
+the Teams surface as a team action queue. Legacy deep links such as `/nodes`,
+`/sessions`, `/approvals`, `/friends`, and `/knowledge` remain valid through
+redirects.
 
 ## Routes
 
