@@ -537,10 +537,12 @@ list instead of scanning every node/agent session collection. The initial page
 loads 20 sessions and the left rail fetches the next page as the user scrolls.
 The Sessions rail exposes separate agent and node filters. In the new-session
 target selector, duplicate agent names are qualified as `agent @ node`.
-Clicking a session opens canonical `/sessions/{session_id}`. Starting from the
-Home composer opens `/sessions/new` with the selected target and prompt carried
-in query/session storage. Old `/?sessionId=...` URLs may still restore the
-embedded workbench for compatibility, but new links must not generate them.
+Clicking a session in the Home rail keeps Home mounted and opens the embedded
+workbench at `/?sessionId={session_id}`, preserving the Sessions / Inbox rail.
+Standalone `/sessions/{session_id}` remains the canonical direct deep link for
+external clients and shared URLs. Starting from the Home composer opens
+`/sessions/new` with the selected target and prompt carried in query/session
+storage.
 On mobile widths, Home defaults to the clean composer. The Sessions/Inbox rail
 opens as a left drawer over the composer or embedded SessionWorkbench instead
 of replacing the whole page.

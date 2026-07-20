@@ -138,8 +138,9 @@ src/components/collaboration/
 src/components/home/
   Home 工作台。左侧提供 Sessions / Inbox 两个 tab；Sessions tab 聚合所有
   可见 agent 的 sessions，支持分别按 agent 和 node 过滤；正常选择 session
-  会进入 canonical `/sessions/{session_id}` workbench。旧的 `/?sessionId=...`
-  入口仍可恢复嵌入态，但只作为兼容路径。Inbox tab 聚合 approvals、received envelopes、team invites
+  会保持 Home 挂载并通过 `/?sessionId=...` 在右侧打开 embedded workbench，
+  独立 `/sessions/{session_id}` 继续作为外部客户端和分享链接的 canonical
+  deep link。Inbox tab 聚合 approvals、received envelopes、team invites
   和 inquiry 草稿状态成一个可扫的 action queue；选中一项后显示上下文，
   inquiry 可从空 session 生成 draft、从已有 conversation 总结 draft、
   通过小三角带 note 总结，或对已有 draft 留 comment；右上角关闭 inquiry

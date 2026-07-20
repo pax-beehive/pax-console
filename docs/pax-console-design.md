@@ -414,9 +414,11 @@ Current frontend note: Home reads the flat
 `GET /api/v1/user/{user_id}/sessions` list with `page_size=20` and increments
 `page_num` as the user scrolls the Sessions rail. Optional `node_id` and
 `agent_id` filters accept comma-separated ids. Selecting a row opens the
-embedded session workbench in Home. A standalone session route scans this
-paginated list by `session_id` before enabling agent-scoped queue/events calls,
-so the session's own `node_id` and `agent_id` remain authoritative.
+embedded session workbench at `/?sessionId={session_id}` so the Home rail stays
+mounted. The standalone `/sessions/{session_id}` route remains available for
+external clients and shared deep links; it scans this paginated list by
+`session_id` before enabling agent-scoped queue/events calls, so the session's
+own `node_id` and `agent_id` remain authoritative.
 
 Conversation
 POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/conversation
