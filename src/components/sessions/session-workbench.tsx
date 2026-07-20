@@ -1205,7 +1205,7 @@ export function SessionWorkbench({
             />
             {workstreamItems.map((item) => (
               <div
-                className="[contain-intrinsic-size:auto_80px] [content-visibility:auto]"
+                className="min-w-0 max-w-full [contain-intrinsic-size:auto_80px] [content-visibility:auto]"
                 key={item.id}
               >
                 <WorkstreamItemCard
