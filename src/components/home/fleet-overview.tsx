@@ -10,8 +10,13 @@ import {
   useRef,
   useState,
 } from "react";
-import { useSearchParams } from "next/navigation";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { motion } from "motion/react";
 import {
   Archive,
@@ -44,6 +49,7 @@ import { TruncatedText } from "@/components/ui/text";
 import {
   listAgents,
   listUserSessions,
+  decideApproval,
   useApprovals,
   useEnvelopes,
   useNodes,
@@ -86,6 +92,7 @@ type InquiryTurn = {
 };
 
 type WorkItem = {
+  approval?: AgentApproval;
   actionHref?: string;
   actionLabel: string;
   agentId?: string;
@@ -144,6 +151,7 @@ const kindIcon: Record<WorkItemKind, React.ReactNode> = {
 };
 
 export function FleetOverview({ user }: FleetOverviewProps) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const urlSessionId = searchParams.get("sessionId") ?? "";
@@ -462,23 +470,22 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       return;
     }
 
-    const initialPrompt = draft.trim();
-    setEmbeddedSessionTarget({
+    const params = new URLSearchParams({
       agentId: activeAgent.agent_id,
-      initialApprovalMode: newSessionApprovalMode,
-      initialCwd: normalizedNewSessionCwd || undefined,
-      initialPrompt: initialPrompt || undefined,
-      key: `new:${activeAgent.node_id}:${activeAgent.agent_id}:${Date.now()}`,
+      approvalMode: newSessionApprovalMode,
       nodeId: activeAgent.node_id,
-      sessionId: "new",
+      nonce: String(Date.now()),
     });
-    setHomeRailTab("sessions");
-    setMobileComposerOpen(false);
-    setMobileRailOpen(false);
-    setSelectedWorkItemId("");
-    setContextClosed(false);
-    setComposerMode("clean");
-    setDraft("");
+    if (normalizedNewSessionCwd) {
+      params.set("cwd", normalizedNewSessionCwd);
+    }
+    const initialPrompt = draft.trim();
+    if (initialPrompt) {
+      const promptKey = `pax:new-session:${Date.now()}`;
+      window.sessionStorage.setItem(promptKey, initialPrompt);
+      params.set("promptKey", promptKey);
+    }
+    router.push(`/sessions/new?${params}`);
   }
 
   function showCleanComposer() {
@@ -713,7 +720,8 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                   onSelect={() => {
                     setEmbeddedSessionTarget(null);
                     if (item.kind === "session" && item.sessionId) {
-                      replaceHomeSessionUrl(item.sessionId);
+                      router.push(`/sessions/${item.sessionId}`);
+                      return;
                     } else {
                       clearHomeSessionUrl();
                     }
@@ -848,6 +856,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                           setComposerMode("summarize-note");
                           setDraft("");
                         }}
+                        user={user}
                       />
                     </motion.div>
                   </div>
@@ -1220,6 +1229,7 @@ function SelectedContext({
   onClose,
   onGenerateDraft,
   onSummarizeWithNote,
+  user,
 }: {
   generatedDraft?: string;
   item?: WorkItem;
@@ -1228,7 +1238,23 @@ function SelectedContext({
   onClose: () => void;
   onGenerateDraft: () => void;
   onSummarizeWithNote: () => void;
+  user: User;
 }) {
+  const queryClient = useQueryClient();
+  const approvalDecision = useMutation({
+    mutationFn: ({
+      approvalId,
+      optionId,
+    }: {
+      approvalId: string;
+      optionId: string;
+    }) => decideApproval(user.user_id, approvalId, optionId),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.approvals(user.user_id),
+      }),
+  });
+
   if (!item) {
     return (
       <section className="flex min-h-[160px] items-center justify-center px-4 py-10 text-center">
@@ -1404,13 +1430,32 @@ function SelectedContext({
         )}
       </div>
       <div className="flex min-w-0 flex-wrap gap-2">
+        {item.kind === "approval" &&
+          item.approval &&
+          homeApprovalOptions(item.approval).map((option) => (
+            <Button
+              disabled={approvalDecision.isPending}
+              key={option.optionId}
+              onClick={() =>
+                approvalDecision.mutate({
+                  approvalId: item.approval!.approval_id,
+                  optionId: option.optionId,
+                })
+              }
+              size="sm"
+              type="button"
+              variant={option.optionId === "deny" ? "danger" : "primary"}
+            >
+              {option.label}
+            </Button>
+          ))}
         <Link
           className="inline-flex min-h-8 max-w-full shrink-0 items-center gap-2 rounded-lg border border-hairline bg-surface-1 px-2.5 text-xs font-medium text-ink-muted transition hover:border-hairline-strong hover:bg-surface-2 hover:text-ink"
           href={item.href}
         >
           Open
         </Link>
-        {item.actionHref && (
+        {item.actionHref && item.kind !== "approval" && (
           <Link
             className="inline-flex min-h-8 max-w-full shrink-0 items-center gap-2 rounded-lg border border-primary bg-primary px-2.5 text-xs font-medium text-canvas transition hover:bg-primary-hover"
             href={item.actionHref}
@@ -1628,9 +1673,9 @@ function buildWorkItems({
           : undefined;
 
         return {
-          actionHref: "/approvals",
-          actionLabel: "Review",
+          actionLabel: "Decide now",
           agentId: approval.request_agent_id,
+          approval,
           context: [
             agent?.name ?? approval.request_agent_id,
             node?.name ?? node?.hostname ?? approval.request_node_id,
@@ -1642,7 +1687,9 @@ function buildWorkItems({
             approval.description ??
             approval.operation ??
             "A tool call is waiting for human approval.",
-          href: "/approvals",
+          href: approval.request_session_id
+            ? `/sessions/${encodeURIComponent(approval.request_session_id)}`
+            : "/",
           id: `approval:${approval.approval_id}`,
           kind: "approval",
           nodeId: approval.request_node_id,
@@ -1653,14 +1700,14 @@ function buildWorkItems({
       }),
       ...envelopes.map(
         (envelope): WorkItem => ({
-          actionHref: "/envelopes",
+          actionHref: "/collaboration/envelopes",
           actionLabel: "Review",
           context: envelope.message ?? envelope.payload_type,
           createdAt: envelope.created_at,
           detail:
             envelope.message ??
             "A received envelope can be reviewed from the envelope mailbox.",
-          href: "/envelopes",
+          href: "/collaboration/envelopes",
           id: `envelope:${envelope.envelope_id}`,
           kind: "envelope",
           priority: "medium",
@@ -1673,12 +1720,12 @@ function buildWorkItems({
       ),
       ...pendingInvites.map(
         (invite): WorkItem => ({
-          actionHref: "/teams",
+          actionHref: "/collaboration/teams",
           actionLabel: "Review",
           context: `Role: ${invite.role}`,
           createdAt: invite.created_at,
           detail: `You were invited to join team ${invite.team_id}.`,
-          href: "/teams",
+          href: "/collaboration/teams",
           id: `invite:${invite.invite_id}`,
           kind: "invite",
           priority: "medium",
@@ -1719,9 +1766,31 @@ function buildWorkItems({
   );
 }
 
+function homeApprovalOptions(approval: AgentApproval) {
+  const options = (approval.options ?? [])
+    .filter((option) => option.option_id)
+    .map((option) => ({
+      label: option.label ?? approvalOptionLabel(option.option_id!),
+      optionId: option.option_id!,
+    }));
+
+  return options.length
+    ? options
+    : [
+        { label: "Allow once", optionId: "allow_once" },
+        { label: "Allow for agent", optionId: "allow_for_this_agent" },
+        { label: "Deny", optionId: "deny" },
+      ];
+}
+
+function approvalOptionLabel(optionId: string) {
+  return optionId
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 function homeSessionHref(session: AgentSession) {
-  const params = new URLSearchParams({ sessionId: session.session_id });
-  return `/?${params}`;
+  return `/sessions/${encodeURIComponent(session.session_id)}`;
 }
 
 function canShowMockInquiries(user: User) {
@@ -1847,8 +1916,11 @@ function replaceHomeSessionUrl(sessionId: string) {
     return;
   }
 
-  const params = new URLSearchParams({ sessionId });
-  window.history.replaceState(window.history.state, "", `/?${params}`);
+  window.history.replaceState(
+    window.history.state,
+    "",
+    `/sessions/${encodeURIComponent(sessionId)}`,
+  );
 }
 
 function clearHomeSessionUrl() {
@@ -1929,8 +2001,9 @@ function buildAgentDisplayLabels(agents: Agent[], nodes: Node[]) {
         return [agent.agent_id, label] as const;
       }
 
-      const nodeLabel =
-        nodeDisplayLabels.get(agent.node_id) ?? compactId(agent.node_id);
+      const nodeLabel = agent.node_id
+        ? (nodeDisplayLabels.get(agent.node_id) ?? compactId(agent.node_id))
+        : `No node (${compactId(agent.agent_id)})`;
       return [agent.agent_id, `${label} @ ${nodeLabel}`] as const;
     }),
   );

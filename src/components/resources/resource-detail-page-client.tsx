@@ -61,13 +61,13 @@ export function NodeDetailPageClient({
       void queryClient.invalidateQueries({
         queryKey: queryKeys.user(user.user_id),
       });
-      router.push("/nodes");
+      router.push("/settings/devices?view=nodes");
     },
   });
   return (
     <ConsoleLayout user={user}>
       <DetailShell
-        backHref="/nodes"
+        backHref="/settings/devices?view=nodes"
         error={nodeQuery.error}
         eyebrow="node detail"
         icon={<Server className="h-4 w-4" />}
@@ -150,14 +150,14 @@ export function AgentDetailPageClient({
       void queryClient.invalidateQueries({
         queryKey: queryKeys.user(user.user_id),
       });
-      router.push("/agents");
+      router.push("/settings/devices?view=agents");
     },
   });
 
   return (
     <ConsoleLayout user={user}>
       <DetailShell
-        backHref="/agents"
+        backHref="/settings/devices?view=agents"
         error={agentQuery.error ?? sessionsQuery.error}
         eyebrow="agent detail"
         icon={<Bot className="h-4 w-4" />}
@@ -429,8 +429,8 @@ function AgentProfileForm({
 
   const save = useMutation({
     mutationFn: () => {
-      if (!agent) {
-        throw new Error("Agent is not loaded.");
+      if (!agent?.node_id) {
+        throw new Error("Agent runtime node is not loaded.");
       }
       return updateNodeAgentProfile(userId, agent.node_id, agent.agent_id, {
         card: buildAgentCard(baseCard, {
@@ -462,12 +462,15 @@ function AgentProfileForm({
       setLabels(formatList(updatedUserMetadata.labels));
       setNotes(stringValue(updatedUserMetadata.notes));
       setRoutingHint(stringValue(updatedUserMetadata.routing_hint));
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.agents(userId, updated.node_id),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.agent(userId, updated.node_id, updated.agent_id),
-      });
+      const updatedNodeId = updated.node_id ?? agent?.node_id;
+      if (updatedNodeId) {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.agents(userId, updatedNodeId),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.agent(userId, updatedNodeId, updated.agent_id),
+        });
+      }
     },
   });
 
@@ -485,7 +488,7 @@ function AgentProfileForm({
 
   return (
     <ProfileForm
-      disabled={!agent || save.isPending}
+      disabled={!agent?.node_id || save.isPending}
       error={save.error}
       onReset={reset}
       onSave={() => save.mutate()}

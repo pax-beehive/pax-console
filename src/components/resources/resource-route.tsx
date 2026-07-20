@@ -9,6 +9,7 @@ type ResourceRouteProps = {
     | "agents"
     | "sessions"
     | "approvals"
+    | "security"
     | "monitor"
     | "api-keys"
     | "node-registration";

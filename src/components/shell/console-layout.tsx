@@ -5,6 +5,7 @@ import { User } from "@/features/api/types";
 import { useConsoleStore } from "@/stores/console-store";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
+import { MobileNav } from "./mobile-nav";
 
 type ConsoleLayoutProps = {
   user: User;
@@ -22,10 +23,11 @@ export function ConsoleLayout({ user, children }: ConsoleLayoutProps) {
       >
         <Sidebar />
       </div>
-      <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-16 lg:pb-0">
         <Topbar user={user} />
         {children}
       </section>
+      <MobileNav />
     </main>
   );
 }

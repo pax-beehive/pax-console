@@ -433,8 +433,9 @@ src/components/sessions/*
   session workbench
 
 src/components/collaboration/*
-  Collaboration workspace pages. Teams (/teams) and Friends (/friends) are
-  separate routes; the teams page is split into teams-page-client,
+  Collaboration workspace pages. Teams (/collaboration/teams) and Friends
+  (/collaboration/friends) are separate canonical routes; the teams page is
+  split into teams-page-client,
   team-list-panel, team-detail, and per-tab section files. Mutation cache
   invalidation goes through src/features/api/invalidation.ts.
 
@@ -461,7 +462,8 @@ Sidebar layout rules:
 ```txt
 ConsoleLayout uses flex, not CSS grid columns.
 Sidebar controls its own width with inline width 248/76px and overflow-hidden.
-Mobile widths hide the Sidebar and keep a compact Topbar.
+Mobile widths hide the Sidebar, keep a compact Topbar, and expose a fixed
+Home / Collaboration / Settings bottom navigation.
 Sidebar uses a quiet surface and compact nav rows without a persistent current-node block.
 Do not reintroduce dynamic Tailwind class strings like grid-cols-[76px_1fr] for shell width.
 Collapsed tabs show icons only; labels must remain available via Tooltip.
@@ -470,49 +472,47 @@ Collapsed tabs show icons only; labels must remain available via Tooltip.
 ## Current Sidebar Routes
 
 The sidebar is intentionally hierarchical. Keep first-level nav coarse: only
-Chat and Collaboration live at the top. Everything else (the former Runtime
+Home and Collaboration live at the top. Everything else (the former Runtime
 workspace and the settings pages) sits in one Settings group pinned to the
 bottom of the sidebar. First-level groups are independent disclosures, not an
 accordion; multiple groups may stay open at the same time.
 
 ```txt
-Chat             /
-Collaboration    /teams, active for /teams /friends /envelopes /knowledge
-                 children: Teams (/teams), Friends (/friends),
-                 Envelopes (/envelopes), Knowledge (/knowledge)
-Settings         bottom-pinned group; /settings/api-keys, active for
-                 /nodes /agents /inquiries /conversations /approvals /monitor /settings
-                 children: Nodes, Agents, Inquiries, Conversations, Approvals,
-                 Monitor, API Keys, Node Registration
+Home             /
+Collaboration    /collaboration/teams
+                 children: Teams, Friends, Envelopes, Knowledge
+Settings         bottom-pinned group; /settings/devices
+                 children: Devices, Security, Developer, Diagnostics
 ```
 
 These deep links should remain directly reachable:
 
 ```txt
-/                    Chat (home workbench)
-/teams               Collaboration / Teams workspace
-/friends             Collaboration / Friends management
-/nodes               Nodes
-/nodes/[nodeId]      Node detail
-/agents              Agents
-/agents/[agentId]    Agent detail, normally with ?nodeId=
-/inquiries           Agent-to-agent inquiry composer
-/sessions            Redirects to Home
-/sessions/[sessionId] Redirects to /?sessionId=...
-/approvals           Approvals and grants
-/monitor             Monitor
-/settings/api-keys   API Keys
-/settings/node-registration Node registration tokens
+/                              Home
+/sessions/new                  New session
+/sessions/[sessionId]          Session workbench
+/inquiries                     Home action deep-link
+/conversations/[conversationId] Conversation deep-link
+/collaboration/teams           Teams
+/collaboration/friends         Friends
+/collaboration/envelopes       Envelopes
+/collaboration/knowledge       Knowledge
+/settings/devices              Nodes / Agents local views
+/settings/security             Persistent approval grants
+/settings/developer            API keys / registration local views
+/settings/diagnostics          Monitor
+/nodes/[nodeId]                Node detail
+/agents/[agentId]?nodeId=...   Agent detail
 ```
 
 When adding a sidebar item, add both a real `src/app/**/page.tsx` route and an
 active-state mapping in `src/components/shell/sidebar.tsx`. Prefer adding a
 secondary tab to Collaboration or the bottom Settings group when the
-destination belongs to those workspaces; runtime resource pages (nodes,
-agents, inquiries, conversations, approvals, monitor) and settings pages both
-go under Settings. Home owns the user-facing Sessions tab; do not re-promote
-Sessions as a separate sidebar item. Do not add workspace-level subtabs inside
-page headers unless the page has local modes that are not part of global IA.
+destination belongs to those workspaces. Settings is for low-frequency
+configuration and observability, not user work: inquiries and conversations
+remain Home deep-links. Devices and Developer may use page-local segmented
+views because they intentionally aggregate closely related resources. Home
+owns the user-facing Sessions tab; do not re-promote Sessions as a sidebar item.
 
 PAX Manager exposes Home sessions through
 `GET /api/v1/user/{user_id}/sessions?page_size=20&page_num=...`, with optional
@@ -521,8 +521,10 @@ list instead of scanning every node/agent session collection. The initial page
 loads 20 sessions and the left rail fetches the next page as the user scrolls.
 The Sessions rail exposes separate agent and node filters. In the new-session
 target selector, duplicate agent names are qualified as `agent @ node`.
-Clicking a session opens the embedded `SessionWorkbench` in Home; the
-`/sessions/*` routes redirect back to Home query URLs.
+Clicking a session opens canonical `/sessions/{session_id}`. Starting from the
+Home composer opens `/sessions/new` with the selected target and prompt carried
+in query/session storage. Old `/?sessionId=...` URLs may still restore the
+embedded workbench for compatibility, but new links must not generate them.
 On mobile widths, Home defaults to the clean composer. The Sessions/Inbox rail
 opens as a left drawer over the composer or embedded SessionWorkbench instead
 of replacing the whole page.
@@ -531,7 +533,7 @@ Currently implemented API-backed actions:
 
 ```txt
 Home New session composer
-  Opens an embedded new SessionWorkbench without creating a server session
+  Opens canonical /sessions/new without creating a server session
 
 Session workbench composer
   POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/conversation

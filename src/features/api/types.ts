@@ -38,7 +38,7 @@ export type Health = {
 
 export type Agent = {
   agent_id: string;
-  node_id: string;
+  node_id?: string;
   owner_user_id?: string;
   name?: string;
   description?: string;

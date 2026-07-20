@@ -1,7 +1,5 @@
-import { FriendsPageRoute } from "@/components/collaboration/friends-page-client";
-
-export const dynamic = "force-dynamic";
+import { redirect } from "next/navigation";
 
 export default function FriendsPage() {
-  return <FriendsPageRoute />;
+  redirect("/collaboration/friends");
 }

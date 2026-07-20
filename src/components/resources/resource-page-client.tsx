@@ -68,6 +68,7 @@ type ResourceKind =
   | "agents"
   | "sessions"
   | "approvals"
+  | "security"
   | "monitor"
   | "api-keys"
   | "node-registration";
@@ -99,6 +100,11 @@ const copy: Record<
   approvals: {
     title: "Approvals",
     eyebrow: "human decisions",
+    icon: <ShieldCheck className="h-4 w-4" />,
+  },
+  security: {
+    title: "Security",
+    eyebrow: "persistent agent grants",
     icon: <ShieldCheck className="h-4 w-4" />,
   },
   monitor: {
@@ -165,14 +171,23 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
   );
   const agentsLoading = agentsQuery.isLoading;
   const sessionQueries = useQueries({
-    queries: sortedAgents.map((agent) => ({
-      queryKey: queryKeys.sessions(user.user_id, agent.node_id, agent.agent_id),
-      queryFn: () =>
-        listAgentSessions(user.user_id, agent.node_id, agent.agent_id),
-      enabled:
-        Boolean(user.user_id && agent.node_id && agent.agent_id) &&
-        (kind === "sessions" || kind === "monitor"),
-    })),
+    queries: sortedAgents.map((agent) => {
+      const nodeId = agent.node_id;
+      return {
+        queryKey: queryKeys.sessions(
+          user.user_id,
+          nodeId ?? "unassigned",
+          agent.agent_id,
+        ),
+        queryFn: () =>
+          nodeId
+            ? listAgentSessions(user.user_id, nodeId, agent.agent_id)
+            : Promise.resolve({ sessions: [] }),
+        enabled:
+          Boolean(user.user_id && nodeId && agent.agent_id) &&
+          (kind === "sessions" || kind === "monitor"),
+      };
+    }),
   });
   const allSessions = sessionQueries.flatMap(
     (query) => query.data?.sessions ?? [],
@@ -207,7 +222,7 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
     kind === "approvals" ? user.user_id : undefined,
   );
   const approvalGrantsQuery = useApprovalGrants(
-    kind === "approvals" ? user.user_id : undefined,
+    kind === "approvals" || kind === "security" ? user.user_id : undefined,
   );
   const meta = copy[kind];
   const apiError =
@@ -236,12 +251,15 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
             </div>
             <h1 className="mt-2 text-2xl font-semibold">{meta.title}</h1>
           </div>
-          {supportsActiveFilter(kind) && (
-            <ActiveFilterToggle
-              checked={showAllResources}
-              onChange={handleShowAllResourcesChange}
-            />
-          )}
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <ResourceSectionTabs kind={kind} />
+            {supportsActiveFilter(kind) && (
+              <ActiveFilterToggle
+                checked={showAllResources}
+                onChange={handleShowAllResourcesChange}
+              />
+            )}
+          </div>
         </header>
 
         {apiError && (
@@ -281,13 +299,14 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
               totalCount={sortedSessionRows.length}
             />
           )}
-          {kind === "approvals" && (
+          {(kind === "approvals" || kind === "security") && (
             <ApprovalsPanel
               approvals={approvalsQuery.data?.approvals ?? []}
               grants={approvalGrantsQuery.data?.grants ?? []}
               isLoading={
                 approvalsQuery.isLoading || approvalGrantsQuery.isLoading
               }
+              showPending={kind === "approvals"}
               userId={user.user_id}
             />
           )}
@@ -313,6 +332,60 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
         </div>
       </div>
     </ConsoleLayout>
+  );
+}
+
+function ResourceSectionTabs({ kind }: { kind: ResourceKind }) {
+  const tabs =
+    kind === "nodes" || kind === "agents"
+      ? [
+          {
+            href: "/settings/devices?view=nodes",
+            label: "Nodes",
+            value: "nodes",
+          },
+          {
+            href: "/settings/devices?view=agents",
+            label: "Agents",
+            value: "agents",
+          },
+        ]
+      : kind === "api-keys" || kind === "node-registration"
+        ? [
+            {
+              href: "/settings/developer?view=api-keys",
+              label: "API keys",
+              value: "api-keys",
+            },
+            {
+              href: "/settings/developer?view=node-registration",
+              label: "Node registration",
+              value: "node-registration",
+            },
+          ]
+        : [];
+
+  if (!tabs.length) {
+    return null;
+  }
+
+  return (
+    <div className="flex rounded-md border border-hairline bg-surface-1 p-0.5">
+      {tabs.map((tab) => (
+        <Link
+          aria-current={kind === tab.value ? "page" : undefined}
+          className={`rounded px-3 py-1.5 text-xs transition ${
+            kind === tab.value
+              ? "bg-accent/15 text-ink"
+              : "text-ink-tertiary hover:bg-surface-2 hover:text-ink"
+          }`}
+          href={tab.href}
+          key={tab.value}
+        >
+          {tab.label}
+        </Link>
+      ))}
+    </div>
   );
 }
 
@@ -479,7 +552,11 @@ function AgentGrid({
           >
             <Link
               className="contents"
-              href={`/agents/${agent.agent_id}?nodeId=${agent.node_id}`}
+              href={
+                agent.node_id
+                  ? `/agents/${agent.agent_id}?nodeId=${agent.node_id}`
+                  : `/agents/${agent.agent_id}`
+              }
             >
               <div className="min-w-0">
                 <TruncatedText className="text-sm font-medium">
@@ -497,8 +574,8 @@ function AgentGrid({
                   Node: {agent.nodeLabel}
                 </TruncatedText>
                 <div className="flex min-w-0 flex-wrap gap-x-2 gap-y-1">
-                  <MonoId tooltip={agent.node_id}>
-                    node {compactId(agent.node_id)}
+                  <MonoId tooltip={agent.node_id ?? "No runtime node"}>
+                    node {compactId(agent.node_id, 10, 6, "unassigned")}
                   </MonoId>
                   <MonoId tooltip={agent.agent_id}>
                     agent {compactId(agent.agent_id)}
@@ -773,11 +850,13 @@ function ApprovalsPanel({
   approvals,
   grants,
   isLoading,
+  showPending,
   userId,
 }: {
   approvals: AgentApproval[];
   grants: AgentApproval[];
   isLoading: boolean;
+  showPending: boolean;
   userId: string;
 }) {
   const queryClient = useQueryClient();
@@ -820,76 +899,86 @@ function ApprovalsPanel({
   const activeGrants = grants.filter((grant) => !grant.grant_revoked_at);
 
   return (
-    <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)]">
-      <section className="grid gap-3">
-        <SectionHeader
-          count={pendingApprovals.length}
-          title="Pending approvals"
-        />
-        {pendingApprovals.map((approval) => (
-          <article
-            className="min-w-0 rounded-lg border border-hairline bg-surface-1 p-3"
-            key={approval.approval_id}
-          >
-            <div className="flex min-w-0 items-start justify-between gap-4">
-              <div className="min-w-0">
-                <TruncatedText className="text-base font-medium">
-                  {approval.title ?? approval.operation ?? approval.approval_id}
-                </TruncatedText>
-                <p className="mt-2 text-sm leading-6 text-ink-muted">
-                  {approval.description ?? "No description provided."}
-                </p>
+    <div
+      className={`grid min-w-0 gap-5 ${
+        showPending
+          ? "lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)]"
+          : "max-w-3xl"
+      }`}
+    >
+      {showPending && (
+        <section className="grid gap-3">
+          <SectionHeader
+            count={pendingApprovals.length}
+            title="Pending approvals"
+          />
+          {pendingApprovals.map((approval) => (
+            <article
+              className="min-w-0 rounded-lg border border-hairline bg-surface-1 p-3"
+              key={approval.approval_id}
+            >
+              <div className="flex min-w-0 items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <TruncatedText className="text-base font-medium">
+                    {approval.title ??
+                      approval.operation ??
+                      approval.approval_id}
+                  </TruncatedText>
+                  <p className="mt-2 text-sm leading-6 text-ink-muted">
+                    {approval.description ?? "No description provided."}
+                  </p>
+                </div>
+                <Badge>
+                  {approval.risk_level ?? approval.status ?? "pending"}
+                </Badge>
               </div>
-              <Badge>
-                {approval.risk_level ?? approval.status ?? "pending"}
-              </Badge>
-            </div>
-            <div className="mt-3 grid min-w-0 gap-1">
-              <MonoId
-                tooltip={`${approval.domain ?? "unknown domain"} / ${
-                  approval.operation ?? "unknown operation"
-                }`}
-              >
-                {approval.domain ?? "unknown domain"} /{" "}
-                {approval.operation ?? "unknown operation"}
-              </MonoId>
-              <MonoId
-                tooltip={`${approval.resource_type ?? "resource"}: ${
-                  approval.resource_ref ?? "unknown"
-                }`}
-              >
-                {approval.resource_type ?? "resource"}:{" "}
-                {approval.resource_ref
-                  ? compactId(approval.resource_ref)
-                  : "unknown"}
-              </MonoId>
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {approvalOptions(approval).map((option) => (
-                <Button
-                  disabled={decide.isPending}
-                  key={option.option_id}
-                  onClick={() =>
-                    decide.mutate({
-                      approvalId: approval.approval_id,
-                      optionId: option.option_id,
-                    })
-                  }
-                  size="sm"
-                  tooltip={option.label}
-                  type="button"
-                  variant="secondary"
+              <div className="mt-3 grid min-w-0 gap-1">
+                <MonoId
+                  tooltip={`${approval.domain ?? "unknown domain"} / ${
+                    approval.operation ?? "unknown operation"
+                  }`}
                 >
-                  {option.label}
-                </Button>
-              ))}
-            </div>
-          </article>
-        ))}
-        {pendingApprovals.length === 0 && (
-          <EmptyState label="No pending approvals" />
-        )}
-      </section>
+                  {approval.domain ?? "unknown domain"} /{" "}
+                  {approval.operation ?? "unknown operation"}
+                </MonoId>
+                <MonoId
+                  tooltip={`${approval.resource_type ?? "resource"}: ${
+                    approval.resource_ref ?? "unknown"
+                  }`}
+                >
+                  {approval.resource_type ?? "resource"}:{" "}
+                  {approval.resource_ref
+                    ? compactId(approval.resource_ref)
+                    : "unknown"}
+                </MonoId>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {approvalOptions(approval).map((option) => (
+                  <Button
+                    disabled={decide.isPending}
+                    key={option.option_id}
+                    onClick={() =>
+                      decide.mutate({
+                        approvalId: approval.approval_id,
+                        optionId: option.option_id,
+                      })
+                    }
+                    size="sm"
+                    tooltip={option.label}
+                    type="button"
+                    variant="secondary"
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </div>
+            </article>
+          ))}
+          {pendingApprovals.length === 0 && (
+            <EmptyState label="No pending approvals" />
+          )}
+        </section>
+      )}
 
       <section className="grid content-start gap-3">
         <SectionHeader count={activeGrants.length} title="Active grants" />

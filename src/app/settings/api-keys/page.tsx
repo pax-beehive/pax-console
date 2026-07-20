@@ -1,5 +1,5 @@
-import { ResourceRoute } from "@/components/resources/resource-route";
+import { redirect } from "next/navigation";
 
 export default function ApiKeysPage() {
-  return <ResourceRoute kind="api-keys" />;
+  redirect("/settings/developer?view=api-keys");
 }

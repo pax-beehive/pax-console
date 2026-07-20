@@ -1,7 +1,5 @@
-import { CollaborationRoute } from "@/components/collaboration/collaboration-route";
-
-export const dynamic = "force-dynamic";
+import { redirect } from "next/navigation";
 
 export default function EnvelopesPage() {
-  return <CollaborationRoute kind="envelopes" />;
+  redirect("/collaboration/envelopes");
 }
