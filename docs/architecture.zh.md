@@ -127,8 +127,9 @@ src/components/ui/
 
 src/components/home/
   Home 工作台。左侧提供 Sessions / Inbox 两个 tab；Sessions tab 聚合所有
-  可见 agent 的 sessions，支持分别按 agent 和 node 过滤，选中后在右侧嵌入完整
-  SessionWorkbench；Inbox tab 聚合 approvals、received envelopes、team invites
+  可见 agent 的 sessions，支持分别按 agent 和 node 过滤；正常选择 session
+  会进入 canonical `/sessions/{session_id}` workbench。旧的 `/?sessionId=...`
+  入口仍可恢复嵌入态，但只作为兼容路径。Inbox tab 聚合 approvals、received envelopes、team invites
   和 inquiry 草稿状态成一个可扫的 action queue；选中一项后显示上下文，
   inquiry 可从空 session 生成 draft、从已有 conversation 总结 draft、
   通过小三角带 note 总结，或对已有 draft 留 comment；右上角关闭 inquiry
@@ -141,9 +142,10 @@ src/components/home/
   sessions 不再是 sidebar 一级工作区。
 
 src/components/resources/
-  Settings 组下的资源页。Nodes、Agents、Inquiries、Conversations、Approvals、
-  Monitor 作为 Settings 的 sidebar 二级 tabs 复用认证、布局和基础数据加载；
-  API Keys 和 Node Registration 同属 Settings 二级 tabs。旧 `/sessions` 路由只做回 Home 的 redirect。
+  Settings 组下的资源页。Devices 聚合 Nodes / Agents，Security 只管理 active
+  approval grants（pending approvals 留在 Home Inbox），Developer 聚合 API Keys / Node Registration，
+  Diagnostics 承载 Monitor。Inquiries 和 Conversations 属于 Home action/deep-link，
+  不再伪装成系统设置。旧资源列表 URL 保留 redirect。
 
 src/components/sessions/
   Session workbench。把 REST 历史消息和 WebSocket live events 合成时间线。
@@ -393,26 +395,31 @@ Access 访问 `console.paxtech.net`，Next route handler 再读取请求中的
 
 ## 当前可交互路由
 
-Sidebar 一级入口是粗粒度工作区（顶部 Home / Collaboration，底部 Settings
-组）；下面这些实际路由仍保留为 deep links 或 Sidebar 二级 tabs：
+Sidebar 一级入口是粗粒度工作区（顶部 Home / Collaboration，底部 Settings）。
+用户任务使用稳定 canonical route，历史平铺 URL 只负责 redirect：
 
 ```txt
-/                    Home workbench
-/nodes               Settings / Nodes list
-/nodes/[id]          Node detail
-/agents              Settings / Agents on active node
-/agents/[id]         Agent detail, expects nodeId query when opened from list
-/inquiries           Settings / agent-to-agent inquiry composer
-/sessions            Redirect to Home
-/sessions/[id]       Redirect to /?sessionId=...
-/approvals           Settings / pending approvals and active approval grants
-/monitor             Settings / PAX Manager health and fleet summary
-/teams               Collaboration / Teams & Friends
-/envelopes           Collaboration / mailbox-style envelopes
-/knowledge           Collaboration / knowledge capsules
-/settings/api-keys   Settings / API key list/create/revoke
-/settings/node-registration  Settings / Node registration token minting
+/                              Home: Sessions + Inbox
+/sessions/new                  New session workbench
+/sessions/[sessionId]          Canonical session workbench
+/inquiries                     Home deep-link / agent inquiry composer
+/conversations                 Home deep-link / conversation index
+/conversations/[id]            Conversation detail
+/collaboration/teams           Teams
+/collaboration/friends         Friends
+/collaboration/envelopes       Envelopes
+/collaboration/knowledge       Knowledge capsules
+/settings/devices              Nodes; ?view=agents selects Agents
+/settings/security             Active approval grants
+/settings/developer            API keys; ?view=node-registration selects registration
+/settings/diagnostics          Manager health + fleet summary
+/nodes/[id]                    Node detail deep-link
+/agents/[id]?nodeId=...        Agent detail deep-link
 ```
+
+Legacy `/nodes`、`/agents`、`/approvals`、`/monitor`、`/teams`、`/envelopes`、
+`/knowledge`、`/settings/api-keys`、`/settings/node-registration` 都 redirect
+到上面的 canonical route；这一层兼容不需要后端参与。
 
 `/settings/api-keys` 已接 `GET/POST/DELETE /api-keys`。新建 key 后只在当前页面展示一次 secret。
 

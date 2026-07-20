@@ -59,6 +59,7 @@ import {
 import { compactId } from "@/lib/format";
 
 type TeamFriendsPageClientProps = {
+  initialWorkspace?: TeamWorkspace;
   user: User;
 };
 
@@ -73,7 +74,10 @@ function teamWorkspaceFromQuery(value: string | null): TeamWorkspace {
   return "teams";
 }
 
-export function TeamFriendsPageClient({ user }: TeamFriendsPageClientProps) {
+export function TeamFriendsPageClient({
+  initialWorkspace,
+  user,
+}: TeamFriendsPageClientProps) {
   const queryClient = useQueryClient();
   const nodesQuery = useNodes(user.user_id);
   const nodes = nodesQuery.data?.nodes ?? [];
@@ -106,7 +110,8 @@ export function TeamFriendsPageClient({ user }: TeamFriendsPageClientProps) {
   const teamAgents = teamAgentsQuery.data?.agents ?? [];
   const auditEvents = teamAuditQuery.data?.events ?? [];
   const searchParams = useSearchParams();
-  const workspace = teamWorkspaceFromQuery(searchParams.get("view"));
+  const workspace =
+    initialWorkspace ?? teamWorkspaceFromQuery(searchParams.get("view"));
   const pageTitle = workspace === "friends" ? "Friends" : "Teams";
   const pageEyebrow =
     workspace === "friends" ? "trusted people" : "team workspace";

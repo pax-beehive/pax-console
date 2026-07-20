@@ -1,5 +1,5 @@
-import { ResourceRoute } from "@/components/resources/resource-route";
+import { redirect } from "next/navigation";
 
 export default function ApprovalsPage() {
-  return <ResourceRoute kind="approvals" />;
+  redirect("/settings/security");
 }

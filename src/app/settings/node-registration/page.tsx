@@ -1,5 +1,5 @@
-import { ResourceRoute } from "@/components/resources/resource-route";
+import { redirect } from "next/navigation";
 
 export default function NodeRegistrationPage() {
-  return <ResourceRoute kind="node-registration" />;
+  redirect("/settings/developer?view=node-registration");
 }

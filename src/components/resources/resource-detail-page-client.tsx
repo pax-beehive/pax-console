@@ -61,13 +61,13 @@ export function NodeDetailPageClient({
       void queryClient.invalidateQueries({
         queryKey: queryKeys.user(user.user_id),
       });
-      router.push("/nodes");
+      router.push("/settings/devices?view=nodes");
     },
   });
   return (
     <ConsoleLayout user={user}>
       <DetailShell
-        backHref="/nodes"
+        backHref="/settings/devices?view=nodes"
         error={nodeQuery.error}
         eyebrow="node detail"
         icon={<Server className="h-4 w-4" />}
@@ -150,14 +150,14 @@ export function AgentDetailPageClient({
       void queryClient.invalidateQueries({
         queryKey: queryKeys.user(user.user_id),
       });
-      router.push("/agents");
+      router.push("/settings/devices?view=agents");
     },
   });
 
   return (
     <ConsoleLayout user={user}>
       <DetailShell
-        backHref="/agents"
+        backHref="/settings/devices?view=agents"
         error={agentQuery.error ?? sessionsQuery.error}
         eyebrow="agent detail"
         icon={<Bot className="h-4 w-4" />}

@@ -6,7 +6,7 @@ import { KnowledgePageClient } from "./knowledge-page-client";
 import { TeamFriendsPageClient } from "./team-friends-page-client";
 
 type CollaborationRouteProps = {
-  kind: "envelopes" | "knowledge" | "teams";
+  kind: "envelopes" | "friends" | "knowledge" | "teams";
 };
 
 export function CollaborationRoute({ kind }: CollaborationRouteProps) {
@@ -21,7 +21,12 @@ export function CollaborationRoute({ kind }: CollaborationRouteProps) {
           return <KnowledgePageClient user={user} />;
         }
 
-        return <TeamFriendsPageClient user={user} />;
+        return (
+          <TeamFriendsPageClient
+            initialWorkspace={kind === "friends" ? "friends" : "teams"}
+            user={user}
+          />
+        );
       }}
     </AuthGate>
   );

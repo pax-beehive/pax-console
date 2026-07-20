@@ -1,7 +1,12 @@
-import { CollaborationRoute } from "@/components/collaboration/collaboration-route";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
+type TeamsPageProps = {
+  searchParams: Promise<{ view?: string }>;
+};
 
-export default function TeamsPage() {
-  return <CollaborationRoute kind="teams" />;
+export default async function TeamsPage({ searchParams }: TeamsPageProps) {
+  const { view } = await searchParams;
+  redirect(
+    view === "friends" ? "/collaboration/friends" : "/collaboration/teams",
+  );
 }

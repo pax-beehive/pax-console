@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   Activity,
-  Bot,
   Brain,
   ChevronDown,
   ChevronLeft,
@@ -12,13 +11,10 @@ import {
   Inbox,
   KeyRound,
   MailPlus,
-  MessageCircle,
-  MessageSquareText,
   Radio,
   Server,
   Settings,
   ShieldCheck,
-  Ticket,
   Users,
 } from "lucide-react";
 import { LucideIcon } from "lucide-react";
@@ -36,47 +32,36 @@ type NavItem = {
 };
 
 const primaryNavItems: readonly NavItem[] = [
-  { href: "/", icon: Activity, label: "Home" },
   {
-    href: "/teams?view=teams",
+    href: "/",
+    icon: Activity,
+    label: "Home",
+    matches: ["/", "/sessions", "/inquiries", "/conversations"],
+  },
+  {
+    href: "/collaboration/teams",
     icon: Users,
     label: "Collaboration",
-    matches: ["/teams", "/envelopes", "/knowledge"],
+    matches: ["/collaboration", "/teams", "/envelopes", "/knowledge"],
     children: [
-      { href: "/teams?view=teams", icon: Users, label: "Teams" },
-      { href: "/teams?view=friends", icon: MailPlus, label: "Friends" },
-      { href: "/envelopes", icon: Inbox, label: "Envelopes" },
-      { href: "/knowledge", icon: Brain, label: "Knowledge" },
+      { href: "/collaboration/teams", icon: Users, label: "Teams" },
+      { href: "/collaboration/friends", icon: MailPlus, label: "Friends" },
+      { href: "/collaboration/envelopes", icon: Inbox, label: "Envelopes" },
+      { href: "/collaboration/knowledge", icon: Brain, label: "Knowledge" },
     ],
   },
 ] as const;
 
 const settingsNavItem: NavItem = {
-  href: "/settings/api-keys",
+  href: "/settings/devices",
   icon: Settings,
   label: "Settings",
-  matches: [
-    "/nodes",
-    "/agents",
-    "/inquiries",
-    "/conversations",
-    "/approvals",
-    "/monitor",
-    "/settings",
-  ],
+  matches: ["/settings", "/nodes", "/agents", "/approvals", "/monitor"],
   children: [
-    { href: "/nodes", icon: Server, label: "Nodes" },
-    { href: "/agents", icon: Bot, label: "Agents" },
-    { href: "/inquiries", icon: MessageSquareText, label: "Inquiries" },
-    { href: "/conversations", icon: MessageCircle, label: "Conversations" },
-    { href: "/approvals", icon: ShieldCheck, label: "Approvals" },
-    { href: "/monitor", icon: Radio, label: "Monitor" },
-    { href: "/settings/api-keys", icon: KeyRound, label: "API Keys" },
-    {
-      href: "/settings/node-registration",
-      icon: Ticket,
-      label: "Node Registration",
-    },
+    { href: "/settings/devices", icon: Server, label: "Devices" },
+    { href: "/settings/security", icon: ShieldCheck, label: "Security" },
+    { href: "/settings/developer", icon: KeyRound, label: "Developer" },
+    { href: "/settings/diagnostics", icon: Radio, label: "Diagnostics" },
   ],
 };
 
