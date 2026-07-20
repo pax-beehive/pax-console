@@ -720,8 +720,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                   onSelect={() => {
                     setEmbeddedSessionTarget(null);
                     if (item.kind === "session" && item.sessionId) {
-                      router.push(`/sessions/${item.sessionId}`);
-                      return;
+                      replaceHomeSessionUrl(item.sessionId);
                     } else {
                       clearHomeSessionUrl();
                     }
@@ -1916,11 +1915,8 @@ function replaceHomeSessionUrl(sessionId: string) {
     return;
   }
 
-  window.history.replaceState(
-    window.history.state,
-    "",
-    `/sessions/${encodeURIComponent(sessionId)}`,
-  );
+  const params = new URLSearchParams({ sessionId });
+  window.history.replaceState(window.history.state, "", `/?${params}`);
 }
 
 function clearHomeSessionUrl() {
