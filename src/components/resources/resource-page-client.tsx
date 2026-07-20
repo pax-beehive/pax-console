@@ -171,14 +171,23 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
   );
   const agentsLoading = agentsQuery.isLoading;
   const sessionQueries = useQueries({
-    queries: sortedAgents.map((agent) => ({
-      queryKey: queryKeys.sessions(user.user_id, agent.node_id, agent.agent_id),
-      queryFn: () =>
-        listAgentSessions(user.user_id, agent.node_id, agent.agent_id),
-      enabled:
-        Boolean(user.user_id && agent.node_id && agent.agent_id) &&
-        (kind === "sessions" || kind === "monitor"),
-    })),
+    queries: sortedAgents.map((agent) => {
+      const nodeId = agent.node_id;
+      return {
+        queryKey: queryKeys.sessions(
+          user.user_id,
+          nodeId ?? "unassigned",
+          agent.agent_id,
+        ),
+        queryFn: () =>
+          nodeId
+            ? listAgentSessions(user.user_id, nodeId, agent.agent_id)
+            : Promise.resolve({ sessions: [] }),
+        enabled:
+          Boolean(user.user_id && nodeId && agent.agent_id) &&
+          (kind === "sessions" || kind === "monitor"),
+      };
+    }),
   });
   const allSessions = sessionQueries.flatMap(
     (query) => query.data?.sessions ?? [],
@@ -543,7 +552,11 @@ function AgentGrid({
           >
             <Link
               className="contents"
-              href={`/agents/${agent.agent_id}?nodeId=${agent.node_id}`}
+              href={
+                agent.node_id
+                  ? `/agents/${agent.agent_id}?nodeId=${agent.node_id}`
+                  : `/agents/${agent.agent_id}`
+              }
             >
               <div className="min-w-0">
                 <TruncatedText className="text-sm font-medium">
@@ -561,8 +574,8 @@ function AgentGrid({
                   Node: {agent.nodeLabel}
                 </TruncatedText>
                 <div className="flex min-w-0 flex-wrap gap-x-2 gap-y-1">
-                  <MonoId tooltip={agent.node_id}>
-                    node {compactId(agent.node_id)}
+                  <MonoId tooltip={agent.node_id ?? "No runtime node"}>
+                    node {compactId(agent.node_id, 10, 6, "unassigned")}
                   </MonoId>
                   <MonoId tooltip={agent.agent_id}>
                     agent {compactId(agent.agent_id)}

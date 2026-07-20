@@ -2001,8 +2001,9 @@ function buildAgentDisplayLabels(agents: Agent[], nodes: Node[]) {
         return [agent.agent_id, label] as const;
       }
 
-      const nodeLabel =
-        nodeDisplayLabels.get(agent.node_id) ?? compactId(agent.node_id);
+      const nodeLabel = agent.node_id
+        ? (nodeDisplayLabels.get(agent.node_id) ?? compactId(agent.node_id))
+        : `No node (${compactId(agent.agent_id)})`;
       return [agent.agent_id, `${label} @ ${nodeLabel}`] as const;
     }),
   );

@@ -173,12 +173,12 @@ export function buildAgentRows(
   const nodesById = new Map(nodes.map((node) => [node.node_id, node]));
 
   return agents.map((agent): AgentRow => {
-    const node = nodesById.get(agent.node_id);
+    const node = agent.node_id ? nodesById.get(agent.node_id) : undefined;
 
     return {
       ...agent,
       nodeActive: node ? isActiveNode(node) : false,
-      nodeLabel: node ? nodeLabel(node) : agent.node_id,
+      nodeLabel: node ? nodeLabel(node) : (agent.node_id ?? "No runtime node"),
     };
   });
 }

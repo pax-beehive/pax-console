@@ -264,6 +264,9 @@ describe("resource list models", () => {
         agent_id: "agent_remote",
         node_id: "node_unknown",
       },
+      {
+        agent_id: "agent_unassigned",
+      },
     ];
     const nodes: Node[] = [
       {
@@ -285,6 +288,11 @@ describe("resource list models", () => {
         agent_id: "agent_remote",
         nodeActive: false,
         nodeLabel: "node_unknown",
+      },
+      {
+        agent_id: "agent_unassigned",
+        nodeActive: false,
+        nodeLabel: "No runtime node",
       },
     ]);
   });

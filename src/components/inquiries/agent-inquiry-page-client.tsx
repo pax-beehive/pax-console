@@ -35,6 +35,7 @@ import {
 } from "../resources/resource-models";
 
 type AgentOption = Agent & {
+  node_id: string;
   nodeLabel: string;
 };
 
@@ -67,23 +68,24 @@ export function AgentInquiryPageClient({ user }: AgentInquiryPageClientProps) {
       enabled: Boolean(user.user_id && node.node_id),
     })),
   });
-  const agents = useMemo(
-    () =>
-      byLastActiveDesc(
-        agentQueries
-          .flatMap((query) => query.data?.agents ?? [])
-          .map((agent) => ({
-            ...agent,
-            nodeLabel:
-              nodes.find((node) => node.node_id === agent.node_id)?.name ??
-              nodes.find((node) => node.node_id === agent.node_id)?.hostname ??
-              agent.node_id,
-          })),
-        resourceLastActiveAt,
-        agentLabel,
-      ),
-    [agentQueries, nodes],
-  );
+  const agents = useMemo(() => {
+    const runnableAgents = agentQueries
+      .flatMap((query) => query.data?.agents ?? [])
+      .filter((agent): agent is Agent & { node_id: string } =>
+        Boolean(agent.node_id),
+      );
+    return byLastActiveDesc(
+      runnableAgents.map((agent) => ({
+        ...agent,
+        nodeLabel:
+          nodes.find((node) => node.node_id === agent.node_id)?.name ??
+          nodes.find((node) => node.node_id === agent.node_id)?.hostname ??
+          agent.node_id,
+      })),
+      resourceLastActiveAt,
+      agentLabel,
+    );
+  }, [agentQueries, nodes]);
 
   const effectiveSourceAgentId = sourceAgentId || agents[0]?.agent_id || "";
   const effectiveTargetAgentId =
