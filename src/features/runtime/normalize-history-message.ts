@@ -11,8 +11,12 @@ import { SessionEvent } from "./session-events";
 export function normalizeHistoryMessages(
   messages: HistoryMessage[],
 ): SessionEvent[] {
-  return projectHistoryMessagesForDisplay(messages).flatMap((message) =>
-    normalizeHistoryMessage(message),
+  return finalizeHistoryTextChunks(
+    mergeAdjacentHistoryTextChunks(
+      projectHistoryMessagesForDisplay(messages).flatMap((message) =>
+        normalizeHistoryMessage(message),
+      ),
+    ),
   );
 }
 
@@ -64,6 +68,7 @@ export function normalizeHistoryMessage(
         id: `${id}:thought`,
         sessionId,
         content: thoughtContent,
+        ...historyTextChunkMetadata(message.message_type),
         createdAt,
       },
     ];
@@ -76,6 +81,7 @@ export function normalizeHistoryMessage(
       id: `${id}:thought`,
       sessionId,
       content: thoughtContent,
+      ...historyTextChunkMetadata(message.message_type),
       createdAt,
     });
   }
@@ -84,15 +90,88 @@ export function normalizeHistoryMessage(
     return events;
   }
 
-  events.push({
-    type: message.role === "user" ? "user_message" : "agent_message",
-    id,
-    sessionId,
-    content: textContent,
-    createdAt,
-  });
+  events.push(
+    message.role === "user"
+      ? {
+          type: "user_message",
+          id,
+          sessionId,
+          content: textContent,
+          createdAt,
+        }
+      : {
+          type: "agent_message",
+          id,
+          sessionId,
+          content: textContent,
+          ...historyTextChunkMetadata(message.message_type),
+          createdAt,
+        },
+  );
 
   return events;
+}
+
+function mergeAdjacentHistoryTextChunks(events: SessionEvent[]) {
+  const merged: SessionEvent[] = [];
+
+  for (const event of events) {
+    const previous = merged.at(-1);
+    if (
+      isHistoryTextChunk(previous) &&
+      isHistoryTextChunk(event) &&
+      previous.type === event.type &&
+      previous.sessionId === event.sessionId &&
+      previous.sessionUpdate === event.sessionUpdate
+    ) {
+      previous.content += event.content;
+      continue;
+    }
+
+    merged.push(event);
+  }
+
+  return merged;
+}
+
+function finalizeHistoryTextChunks(events: SessionEvent[]) {
+  return events.map((event) => {
+    if (event.type !== "agent_message" && event.type !== "progress") {
+      return event;
+    }
+
+    return event.streaming ? { ...event, streaming: false } : event;
+  });
+}
+
+function isHistoryTextChunk(
+  event: SessionEvent | undefined,
+): event is Extract<SessionEvent, { type: "agent_message" | "progress" }> {
+  if (event?.type !== "agent_message" && event?.type !== "progress") {
+    return false;
+  }
+
+  return (
+    event.streaming === true &&
+    ["agent_message_chunk", "agent_thought_chunk", "message_delta"].includes(
+      event.sessionUpdate ?? "",
+    )
+  );
+}
+
+function historyTextChunkMetadata(messageType: string | undefined) {
+  if (
+    !["agent_message_chunk", "agent_thought_chunk", "message_delta"].includes(
+      messageType ?? "",
+    )
+  ) {
+    return {};
+  }
+
+  return {
+    sessionUpdate: messageType,
+    streaming: true,
+  } as const;
 }
 
 function normalizePermissionResponse(
@@ -142,8 +221,7 @@ function isRejectedPermissionOption(optionId: string) {
 }
 
 function permissionDecisionSource(record: Record<string, unknown> | undefined) {
-  const grantBody =
-    asRecord(record?.grant_body) ?? asRecord(record?.grantBody);
+  const grantBody = asRecord(record?.grant_body) ?? asRecord(record?.grantBody);
   const approvalMode =
     stringFromValue(grantBody, "approval_mode") ??
     stringFromValue(grantBody, "approvalMode");
