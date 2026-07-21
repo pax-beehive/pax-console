@@ -610,6 +610,52 @@ describe("normalizeTunnelFrame", () => {
     ]);
   });
 
+  it("normalizes and aggregates terminal output deltas by tool call id", () => {
+    const first = normalizeTunnelFrame({
+      jsonrpc: "2.0",
+      method: "session/update",
+      params: {
+        sessionId: "sess_terminal",
+        update: {
+          _meta: {
+            terminal_output_delta: {
+              data: "first line\n",
+              terminal_id: "exec-1",
+            },
+          },
+          sessionUpdate: "tool_call_update",
+          toolCallId: "exec-1",
+        },
+      },
+    });
+    const second = normalizeTunnelFrame({
+      jsonrpc: "2.0",
+      method: "session/update",
+      params: {
+        sessionId: "sess_terminal",
+        update: {
+          _meta: {
+            terminal_output_delta: {
+              data: "second line\n",
+              terminal_id: "exec-1",
+            },
+          },
+          sessionUpdate: "tool_call_update",
+          toolCallId: "exec-1",
+        },
+      },
+    });
+
+    expect(mergeEvents([...first, ...second])).toMatchObject([
+      {
+        type: "tool_call",
+        toolCallId: "exec-1",
+        output: "first line\nsecond line\n",
+        outputMode: "append",
+      },
+    ]);
+  });
+
   it("extracts code patches from tool call input old and new content", () => {
     const events = normalizeTunnelFrame({
       jsonrpc: "2.0",

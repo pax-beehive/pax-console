@@ -153,7 +153,7 @@ export function SessionWorkbench({
   const nodesQuery = useNodes(user.user_id);
   const nodes = nodesQuery.data?.nodes ?? [];
   const activeNodeId = currentSessionId
-    ? sessionMetadata?.node_id
+    ? (sessionMetadata?.node_id ?? nodeId)
     : (nodeId ?? nodes[0]?.node_id);
   const activeNode =
     nodes.find((node) => node.node_id === activeNodeId) ??
@@ -161,7 +161,7 @@ export function SessionWorkbench({
   const agentsQuery = useNodeAgents(user.user_id, activeNodeId);
   const agents = agentsQuery.data?.agents ?? [];
   const activeAgentId = currentSessionId
-    ? sessionMetadata?.agent_id
+    ? (sessionMetadata?.agent_id ?? agentId)
     : (agentId ?? agents[0]?.agent_id);
   const activeAgent = agents.find((agent) => agent.agent_id === activeAgentId);
   const sessionsQuery = useAgentSessions(
@@ -206,6 +206,23 @@ export function SessionWorkbench({
       ) ?? sessionMetadata,
     [currentSessionId, sessionMetadata, sessionsQuery.data?.sessions],
   );
+  const activeSessionReportedRunning = isActiveSessionRunStatus(
+    activeSession?.run_status ?? activeSession?.status,
+  );
+  const [observerSuppressedSessionId, setObserverSuppressedSessionId] =
+    useState<string | null>(null);
+  useEffect(() => {
+    if (
+      observerSuppressedSessionId === currentSessionId &&
+      !activeSessionReportedRunning
+    ) {
+      setObserverSuppressedSessionId(null);
+    }
+  }, [
+    activeSessionReportedRunning,
+    currentSessionId,
+    observerSuppressedSessionId,
+  ]);
   const activePaxConfig =
     activeSession?.pax_config ?? pendingSessionPaxConfig ?? undefined;
   const displayedApprovalMode =
@@ -456,9 +473,8 @@ export function SessionWorkbench({
   const lastHistoryMessageID = lastMessageID(historyQuery.data?.messages);
   const shouldObserveSessionTurn =
     Boolean(activeAgentId && currentSessionId) &&
-    isActiveSessionRunStatus(
-      activeSession?.run_status ?? activeSession?.status,
-    ) &&
+    activeSessionReportedRunning &&
+    observerSuppressedSessionId !== currentSessionId &&
     conversationRun.status !== "streaming" &&
     conversationRun.status !== "waiting_approval";
   const queuedTurnQueryKey = queryKeys.queuedSessionTurn(
@@ -518,19 +534,20 @@ export function SessionWorkbench({
     setQueuedFollowUpSessionId(null);
     refreshActiveSessionRuntime();
   }, [refreshActiveSessionRuntime]);
+  const handleNoRunningTurn = useCallback(() => {
+    setObserverSuppressedSessionId(currentSessionId ?? null);
+    refreshActiveSessionRuntime();
+  }, [currentSessionId, refreshActiveSessionRuntime]);
   const sessionObserver = useSessionObserver({
     afterMessageId: shouldFollowQueuedTurn ? undefined : lastHistoryMessageID,
     agentId: activeAgentId,
     // The local conversation run owns its turn. Observing it at the same time
     // replays the same ACP frames under a different stream id, which renders
     // every timeline row twice. Only observe turns the run does not own.
-    enabled:
-      Boolean(activeAgentId && currentSessionId) &&
-      conversationRun.status !== "streaming" &&
-      conversationRun.status !== "waiting_approval",
+    enabled: shouldObserveSessionTurn || shouldFollowQueuedTurn,
     followQueuedTurn: shouldFollowQueuedTurn,
     onBufferMiss: refreshActiveSessionRuntime,
-    onNoRunningTurn: refreshActiveSessionRuntime,
+    onNoRunningTurn: handleNoRunningTurn,
     onQueuedTurnFinished: handleQueuedTurnFinished,
     onQueuedTurnStarted: handleQueuedTurnStarted,
     onQueuedTurnUnavailable: handleQueuedTurnUnavailable,
@@ -541,7 +558,8 @@ export function SessionWorkbench({
   const isTurnRunning =
     conversationRun.status === "streaming" ||
     conversationRun.status === "waiting_approval" ||
-    sessionObserver.status === "observing";
+    shouldObserveSessionTurn ||
+    shouldFollowQueuedTurn;
   const updateSessionApprovalMode = useMutation({
     mutationFn: async (approvalMode: SessionApprovalMode) => {
       if (!activeNodeId || !activeAgentId || !currentSessionId) {
@@ -808,7 +826,7 @@ export function SessionWorkbench({
   const isAgentResponsePending =
     (conversationRun.status === "streaming" ||
       conversationRun.status === "waiting_approval" ||
-      sessionObserver.status === "observing") &&
+      (shouldObserveSessionTurn && sessionObserver.status === "observing")) &&
     !liveEvents.some((event) => AGENT_OUTPUT_EVENT_TYPES.has(event.type));
   const mutateSessionApprovalMode = updateSessionApprovalMode.mutate;
   const toggleApprovalMode = useCallback(() => {
@@ -1205,7 +1223,7 @@ export function SessionWorkbench({
             />
             {workstreamItems.map((item) => (
               <div
-                className="[contain-intrinsic-size:auto_80px] [content-visibility:auto]"
+                className="min-w-0 max-w-full [contain-intrinsic-size:auto_80px] [content-visibility:auto]"
                 key={item.id}
               >
                 <WorkstreamItemCard

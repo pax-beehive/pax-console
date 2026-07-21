@@ -1,5 +1,9 @@
 import { SessionEvent } from "./session-events";
 import { CodePatch, coalesceCodePatches } from "./tool-patches";
+import {
+  mergeToolCallOutput,
+  textFromToolPayload,
+} from "./tool-call-output";
 
 export function mergeEvents(events: SessionEvent[]) {
   // REST history and tunnel notifications can overlap. Keep replacement-style
@@ -194,7 +198,15 @@ function mergeToolCallEvent(
     id: existing.id,
     input: mergeToolPayload(existing, event, "input"),
     name: existing.name || event.name,
-    output: mergeToolPayload(existing, event, "output"),
+    output: mergeToolCallOutput(
+      existing.output,
+      event.output,
+      event.outputMode ??
+        (event.sessionUpdate === "tool_call_content_chunk"
+          ? "append"
+          : "replace"),
+    ),
+    outputMode: event.outputMode ?? existing.outputMode,
     patches: mergeCodePatches(existing.patches, event.patches),
     permissions: mergePermissionLists(existing.permissions, event.permissions),
     sessionId: existing.sessionId,
@@ -229,52 +241,13 @@ function mergeToolPayload(
 }
 
 function appendPayloadText(current: unknown, incoming: unknown) {
-  const currentText = textFromPayload(current);
-  const incomingText = textFromPayload(incoming);
+  const currentText = textFromToolPayload(current);
+  const incomingText = textFromToolPayload(incoming);
   if (currentText === undefined || incomingText === undefined) {
     return undefined;
   }
 
   return `${currentText}${incomingText}`;
-}
-
-function textFromPayload(value: unknown): string | undefined {
-  if (typeof value === "string") {
-    return value;
-  }
-
-  if (Array.isArray(value)) {
-    const text = value.map(textFromPayload).filter(Boolean).join("");
-    return text || undefined;
-  }
-
-  if (typeof value !== "object" || value === null) {
-    return undefined;
-  }
-
-  const record = value as Record<string, unknown>;
-  const directText =
-    stringValue(record, "text") ??
-    stringValue(record, "output") ??
-    stringValue(record, "command") ??
-    stringValue(record, "description");
-  if (directText) {
-    return directText;
-  }
-
-  for (const key of ["content", "result", "rawInput", "raw_input"]) {
-    const text = textFromPayload(record[key]);
-    if (text) {
-      return text;
-    }
-  }
-
-  return undefined;
-}
-
-function stringValue(record: Record<string, unknown>, key: string) {
-  const value = record[key];
-  return typeof value === "string" ? value : undefined;
 }
 
 function attachAdjacentPermissionsToTools(events: SessionEvent[]) {
@@ -308,11 +281,15 @@ function attachAdjacentPermissionsToTools(events: SessionEvent[]) {
       nextIndex += 1;
     }
 
+    const mergedPermissions = mergePermissionLists(
+      event.permissions,
+      permissions,
+    );
     attached.push(
-      permissions.length > 0
+      mergedPermissions
         ? {
             ...event,
-            permissions: mergePermissionLists(event.permissions, permissions),
+            permissions: settleImplicitAutoApprovals(event, mergedPermissions),
           }
         : event,
     );
@@ -320,6 +297,34 @@ function attachAdjacentPermissionsToTools(events: SessionEvent[]) {
   }
 
   return attached;
+}
+
+function settleImplicitAutoApprovals(
+  tool: Extract<SessionEvent, { type: "tool_call" }>,
+  permissions: NonNullable<
+    Extract<SessionEvent, { type: "tool_call" }>["permissions"]
+  >,
+) {
+  if (
+    tool.sessionUpdate !== "tool_call_update" ||
+    tool.status === "error"
+  ) {
+    return permissions;
+  }
+
+  return permissions.map((permission) =>
+    permission.decision
+      ? permission
+      : {
+          ...permission,
+          decision: {
+            decisionOption: "auto_approved",
+            source: "auto" as const,
+            status: "approved" as const,
+          },
+          decidedAt: tool.createdAt,
+        },
+  );
 }
 
 function shouldAttachPermissionToTool(

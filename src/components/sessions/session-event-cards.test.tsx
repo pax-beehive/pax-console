@@ -157,4 +157,32 @@ describe("session event cards", () => {
     expect(container.querySelector("blockquote")).toHaveClass("text-[13px]");
     expect(container.querySelector("article")).toHaveClass("py-0");
   });
+
+  it("portals the turn footer patch drawer outside the timeline item", () => {
+    const { container } = renderItem({
+      type: "turn_footer",
+      id: "turn-footer-1",
+      sessionId: "sess-1",
+      createdAt: "2026-07-17T20:00:00Z",
+      turnPatches: [
+        {
+          operation: "patch",
+          path: "src/example.ts",
+          oldText: "const value = 1;",
+          newText: "const value = 2;",
+        },
+      ],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Review" }));
+
+    const drawer = screen.getByRole("complementary");
+    expect(document.body).toContainElement(drawer);
+    expect(container).not.toContainElement(drawer);
+    expect(drawer).toHaveClass("overscroll-contain");
+    expect(drawer.querySelector(".overflow-auto")).toHaveClass(
+      "overscroll-contain",
+    );
+    expect(drawer).toHaveTextContent("src/example.ts");
+  });
 });
