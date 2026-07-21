@@ -11,9 +11,11 @@ import { SessionEvent } from "./session-events";
 export function normalizeHistoryMessages(
   messages: HistoryMessage[],
 ): SessionEvent[] {
-  return mergeAdjacentHistoryTextChunks(
-    projectHistoryMessagesForDisplay(messages).flatMap((message) =>
-      normalizeHistoryMessage(message),
+  return finalizeHistoryTextChunks(
+    mergeAdjacentHistoryTextChunks(
+      projectHistoryMessagesForDisplay(messages).flatMap((message) =>
+        normalizeHistoryMessage(message),
+      ),
     ),
   );
 }
@@ -130,6 +132,16 @@ function mergeAdjacentHistoryTextChunks(events: SessionEvent[]) {
   }
 
   return merged;
+}
+
+function finalizeHistoryTextChunks(events: SessionEvent[]) {
+  return events.map((event) => {
+    if (event.type !== "agent_message" && event.type !== "progress") {
+      return event;
+    }
+
+    return event.streaming ? { ...event, streaming: false } : event;
+  });
 }
 
 function isHistoryTextChunk(

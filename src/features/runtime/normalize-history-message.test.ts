@@ -51,7 +51,21 @@ describe("normalizeHistoryMessage", () => {
         sessionId: "sess_1",
         content: "`xxxbbb`",
         sessionUpdate: "agent_message_chunk",
-        streaming: true,
+        streaming: false,
+      },
+    ]);
+  });
+
+  it("does not virtually append closing backticks to completed history", () => {
+    const events = normalizeHistoryMessages([
+      historyTextChunk("msg_1", "bbb` "),
+    ]);
+
+    expect(events).toMatchObject([
+      {
+        type: "agent_message",
+        content: "bbb` ",
+        streaming: false,
       },
     ]);
   });
