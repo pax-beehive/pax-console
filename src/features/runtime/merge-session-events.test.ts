@@ -440,6 +440,59 @@ describe("mergeEvents", () => {
     ]);
   });
 
+  it("settles a pending permission when a later tool update proves execution continued", () => {
+    const events: SessionEvent[] = [
+      {
+        type: "tool_call",
+        id: "sess_1:tool:exec-1",
+        sessionId: "sess_1",
+        name: "terminal: pnpm test",
+        status: "running",
+        sessionUpdate: "tool_call",
+        toolCallId: "exec-1",
+        createdAt: "2026-07-20T20:00:00.000Z",
+      },
+      {
+        type: "permission_request",
+        id: "permission-1",
+        sessionId: "sess_1",
+        requestId: "permission-1",
+        title: "Run pnpm test",
+        toolCallId: "exec-1",
+        options: [],
+        createdAt: "2026-07-20T20:00:01.000Z",
+      },
+      {
+        type: "tool_call",
+        id: "sess_1:tool:exec-1",
+        sessionId: "sess_1",
+        name: "exec-1",
+        status: "called",
+        sessionUpdate: "tool_call_update",
+        toolCallId: "exec-1",
+        output: "test output\n",
+        outputMode: "append",
+        createdAt: "2026-07-20T20:00:02.000Z",
+      },
+    ];
+
+    expect(mergeEvents(events)).toMatchObject([
+      {
+        type: "tool_call",
+        permissions: [
+          {
+            requestId: "permission-1",
+            decision: {
+              decisionOption: "auto_approved",
+              source: "auto",
+              status: "approved",
+            },
+          },
+        ],
+      },
+    ]);
+  });
+
   it("does not attach an unrelated execute permission to a preceding edit tool update", () => {
     const events: SessionEvent[] = [
       {

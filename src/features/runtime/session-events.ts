@@ -98,6 +98,7 @@ export type SessionEvent =
       permissions?: PermissionRequestEvent[];
       input?: unknown;
       output?: unknown;
+      outputMode?: "append" | "replace";
       patches?: CodePatch[];
       durationMs?: number;
       createdAt: string;
