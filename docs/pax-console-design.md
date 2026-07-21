@@ -103,7 +103,7 @@ Layout           sidebar + topbar + split workbench panes
 Component size   compact
 Radius           mostly 4 / 6 / 8 / 12px
 Color            neutral black/gray canvas, light hairlines, sparse accent
-Typography       Inter/SF style sans, JetBrains/SF Mono for technical text
+Typography       native UI sans (SF + PingFang on macOS), Geist Mono for technical text
 ```
 
 Avoid the common AI/SaaS dashboard pattern:
@@ -215,6 +215,12 @@ Current token shape:
   --success: #52b788;
 }
 ```
+
+Typography uses the platform UI stack for coherent Latin/CJK rendering instead
+of pairing a Latin-only web font with an incidental CJK fallback. Use regular
+400 for body copy, medium 500 for controls and row titles, and semibold 600 only
+for headings or strong hierarchy. The global 14px/1.5 baseline keeps compact UI
+copy readable; long session content retains its explicit 14px/20px treatment.
 
 The accent stays sparse: selected-state left indicator bars, focus rings and
 glows, hover emphasis, a subtle body radial gradient, and `::selection`.

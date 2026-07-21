@@ -10,7 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import {
   useInfiniteQuery,
   useMutation,
@@ -151,7 +151,6 @@ const kindIcon: Record<WorkItemKind, React.ReactNode> = {
 };
 
 export function FleetOverview({ user }: FleetOverviewProps) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const urlSessionId = searchParams.get("sessionId") ?? "";
@@ -470,22 +469,25 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       return;
     }
 
-    const params = new URLSearchParams({
-      agentId: activeAgent.agent_id,
-      approvalMode: newSessionApprovalMode,
-      nodeId: activeAgent.node_id,
-      nonce: String(Date.now()),
-    });
-    if (normalizedNewSessionCwd) {
-      params.set("cwd", normalizedNewSessionCwd);
-    }
+    const nonce = Date.now();
     const initialPrompt = draft.trim();
-    if (initialPrompt) {
-      const promptKey = `pax:new-session:${Date.now()}`;
-      window.sessionStorage.setItem(promptKey, initialPrompt);
-      params.set("promptKey", promptKey);
-    }
-    router.push(`/sessions/new?${params}`);
+    setEmbeddedSessionTarget({
+      agentId: activeAgent.agent_id,
+      initialApprovalMode: newSessionApprovalMode,
+      initialCwd: normalizedNewSessionCwd || undefined,
+      initialPrompt: initialPrompt || undefined,
+      key: `new:${nonce}`,
+      nodeId: activeAgent.node_id,
+      sessionId: "new",
+    });
+    clearHomeSessionUrl();
+    setHomeRailTab("sessions");
+    setMobileComposerOpen(false);
+    setMobileRailOpen(false);
+    setSelectedWorkItemId("");
+    setContextClosed(false);
+    setComposerMode("clean");
+    setDraft("");
   }
 
   function showCleanComposer() {
@@ -874,10 +876,11 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                       }}
                     />
                     <textarea
-                      className="max-h-40 min-h-14 w-full resize-none bg-transparent px-1 py-1 text-sm leading-5 text-ink outline-none placeholder:text-ink-tertiary"
+                      className="max-h-40 min-h-7 w-full resize-none overflow-y-auto bg-transparent px-1 py-1 text-sm leading-5 text-ink outline-none [field-sizing:content] placeholder:text-ink-tertiary"
                       onKeyDown={handleComposerKeyDown}
                       onChange={(event) => setDraft(event.target.value)}
                       placeholder={composerPlaceholder(composerMode)}
+                      rows={1}
                       value={draft}
                     />
                     <div className="flex min-w-0 items-center gap-2">
