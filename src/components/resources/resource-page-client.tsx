@@ -134,7 +134,10 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
   const nodesQuery = useNodes(user.user_id);
   const shouldLoadAgents =
     kind === "agents" || kind === "sessions" || kind === "monitor";
-  const agentsQuery = useAgents(shouldLoadAgents ? user.user_id : undefined);
+  const agentsQuery = useAgents(
+    shouldLoadAgents ? user.user_id : undefined,
+    kind === "agents" ? "owned" : "accessible",
+  );
   const allNodes = nodesQuery.data?.nodes ?? emptyNodes;
   const sortedNodes = useMemo(
     () =>
