@@ -37,17 +37,20 @@ vi.mock("@/components/sessions/session-workbench", () => ({
   SessionWorkbench: ({
     agentId,
     embedded,
+    initialPrompt,
     nodeId,
     sessionId,
   }: {
     agentId?: string;
     embedded?: boolean;
+    initialPrompt?: string;
     nodeId?: string;
     sessionId: string;
   }) => (
     <div
       data-agent-id={agentId}
       data-embedded={String(Boolean(embedded))}
+      data-initial-prompt={initialPrompt}
       data-node-id={nodeId}
       data-testid="session-workbench"
     >
@@ -134,6 +137,40 @@ describe("FleetOverview session rail", () => {
     expect(window.location.pathname).toBe("/");
     expect(window.location.search).toBe("?sessionId=sess_1");
     await waitFor(() => expect(mocks.routerPush).not.toHaveBeenCalled());
+  });
+
+  it("starts a new chat inside Home without navigating to the session route", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <FleetOverview user={{ user_id: "user_1" } as User} />
+        </TooltipProvider>
+      </QueryClientProvider>,
+    );
+
+    const composer = await screen.findByPlaceholderText(
+      "Ask an agent to do something",
+    );
+    fireEvent.change(composer, {
+      target: { value: "Keep this chat on Home" },
+    });
+    fireEvent.submit(composer.closest("form")!);
+
+    const workbench = await screen.findByTestId("session-workbench");
+    expect(workbench).toHaveTextContent("new");
+    expect(workbench).toHaveAttribute("data-embedded", "true");
+    expect(workbench).toHaveAttribute(
+      "data-initial-prompt",
+      "Keep this chat on Home",
+    );
+    expect(screen.getAllByText("Sessions").length).toBeGreaterThan(0);
+    expect(window.location.pathname).toBe("/");
+    expect(window.location.search).toBe("");
+    expect(mocks.routerPush).not.toHaveBeenCalled();
   });
 });
 
