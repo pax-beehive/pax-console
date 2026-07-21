@@ -272,7 +272,7 @@ export const SessionComposer = memo(function SessionComposer({
           </div>
         )}
         <textarea
-          className="max-h-40 min-h-7 w-full resize-none overflow-y-auto bg-transparent px-1 py-1 text-sm leading-5 text-ink outline-none [field-sizing:content] placeholder:text-ink-tertiary"
+          className="max-h-40 min-h-12 w-full resize-none overflow-y-auto bg-transparent px-1 py-1 text-sm leading-5 text-ink outline-none [field-sizing:content] placeholder:text-ink-tertiary"
           disabled={!activeAgentId}
           onChange={(event) => setComposerDraft(draftKey, event.target.value)}
           onKeyDown={handleKeyDown}
@@ -281,7 +281,7 @@ export const SessionComposer = memo(function SessionComposer({
               ? "Send a prompt to this agent"
               : "Select an agent before sending a prompt"
           }
-          rows={1}
+          rows={2}
           value={draft}
         />
         <div className="flex min-w-0 flex-wrap items-center gap-2">

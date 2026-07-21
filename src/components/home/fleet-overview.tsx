@@ -876,11 +876,11 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                       }}
                     />
                     <textarea
-                      className="max-h-40 min-h-7 w-full resize-none overflow-y-auto bg-transparent px-1 py-1 text-sm leading-5 text-ink outline-none [field-sizing:content] placeholder:text-ink-tertiary"
+                      className="max-h-40 min-h-12 w-full resize-none overflow-y-auto bg-transparent px-1 py-1 text-sm leading-5 text-ink outline-none [field-sizing:content] placeholder:text-ink-tertiary"
                       onKeyDown={handleComposerKeyDown}
                       onChange={(event) => setDraft(event.target.value)}
                       placeholder={composerPlaceholder(composerMode)}
-                      rows={1}
+                      rows={2}
                       value={draft}
                     />
                     <div className="flex min-w-0 items-center gap-2">
