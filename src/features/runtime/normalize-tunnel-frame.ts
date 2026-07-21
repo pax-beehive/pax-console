@@ -5,6 +5,7 @@ import {
   isPaxInvocationDisplayType,
 } from "./invocation-display";
 import { CodePatch, extractCodePatches } from "./tool-patches";
+import { extractToolCallOutputUpdate } from "./tool-call-output";
 
 type TunnelFrame = {
   id?: string | number;
@@ -45,6 +46,7 @@ type TunnelFrame = {
   event?: unknown;
   data?: unknown;
   raw_json?: unknown;
+  _meta?: unknown;
 };
 
 type NormalizeContext = {
@@ -223,7 +225,9 @@ function normalizeToolCall(
   id: string,
   kind: string,
 ) {
+  const outputUpdate = extractToolCallOutputUpdate(frame);
   const payload = firstDefined(
+    outputUpdate?.value,
     frame.result,
     frame.output,
     frame.content,
@@ -252,6 +256,11 @@ function normalizeToolCall(
   };
 
   if (
+    outputUpdate
+  ) {
+    event.output = outputUpdate.value;
+    event.outputMode = outputUpdate.mode;
+  } else if (
     kind === "tool_call" ||
     (kind !== "tool_call_content_chunk" &&
       (status === "running" || status === "queued"))

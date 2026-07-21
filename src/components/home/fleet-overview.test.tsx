@@ -35,14 +35,20 @@ vi.mock("@/components/shell/console-layout", () => ({
 
 vi.mock("@/components/sessions/session-workbench", () => ({
   SessionWorkbench: ({
+    agentId,
     embedded,
+    nodeId,
     sessionId,
   }: {
+    agentId?: string;
     embedded?: boolean;
+    nodeId?: string;
     sessionId: string;
   }) => (
     <div
+      data-agent-id={agentId}
       data-embedded={String(Boolean(embedded))}
+      data-node-id={nodeId}
       data-testid="session-workbench"
     >
       {sessionId}
@@ -122,6 +128,8 @@ describe("FleetOverview session rail", () => {
     const workbench = await screen.findByTestId("session-workbench");
     expect(workbench).toHaveTextContent("sess_1");
     expect(workbench).toHaveAttribute("data-embedded", "true");
+    expect(workbench).toHaveAttribute("data-node-id", "node_1");
+    expect(workbench).toHaveAttribute("data-agent-id", "agent_1");
     expect(screen.getAllByText("Sessions").length).toBeGreaterThan(0);
     expect(window.location.pathname).toBe("/");
     expect(window.location.search).toBe("?sessionId=sess_1");

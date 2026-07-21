@@ -763,6 +763,10 @@ Next dev server 需要允许这个 origin：
 allowedDevOrigins: ["console.paxtech.net", "*.console-dev.paxtech.net"];
 ```
 
+如果从另一台机器通过局域网访问 dev server，启动时通过逗号分隔的
+`PAX_ALLOWED_DEV_ORIGINS` 增加允许的 hostname/IP；不要把开发者机器的临时 IP
+硬编码到 `next.config.ts`。
+
 团队多人本地开发优先使用 `localhost + pnpm dev` 自动刷新本地 token，不要
 要求每个成员维护一个 Cloudflare Tunnel。
 

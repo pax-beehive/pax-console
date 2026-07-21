@@ -1,4 +1,5 @@
 import { memo, type MouseEvent, useCallback, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion } from "motion/react";
 import {
   ArrowDown,
@@ -1205,11 +1206,20 @@ function PatchSidePanel({
   const showOldLineNumbers = lines.some((line) => line.oldLine !== undefined);
   const showNewLineNumbers = lines.some((line) => line.newLine !== undefined);
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/40" onClick={onClose}>
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 overscroll-none bg-black/40"
+      onClick={onClose}
+      onWheel={(event) => event.preventDefault()}
+    >
       <aside
-        className="absolute inset-y-0 right-0 flex w-[min(calc(100vw-3rem),760px)] flex-col border-l border-hairline bg-surface-1 shadow-2xl shadow-black/40 max-sm:w-full"
+        className="absolute inset-y-0 right-0 flex w-[min(calc(100vw-3rem),760px)] flex-col overscroll-contain border-l border-hairline bg-surface-1 shadow-2xl shadow-black/40 max-sm:w-full"
         onClick={(event) => event.stopPropagation()}
+        onWheel={(event) => event.stopPropagation()}
       >
         <header className="flex min-h-14 items-center justify-between gap-3 border-b border-hairline px-4">
           <div className="min-w-0">
@@ -1239,7 +1249,7 @@ function PatchSidePanel({
             variant="ghost"
           />
         </header>
-        <div className="min-h-0 flex-1 overflow-auto bg-canvas">
+        <div className="min-h-0 flex-1 overscroll-contain overflow-auto bg-canvas">
           <div className="min-w-max py-3 font-mono text-xs leading-5">
             {lines.map((line, index) => (
               <DiffLineView
@@ -1252,7 +1262,8 @@ function PatchSidePanel({
           </div>
         </div>
       </aside>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

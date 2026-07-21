@@ -74,6 +74,10 @@ PAX_MANAGER_URL=https://app.paxtech.net
 
 Cloudflare Access owns browser authentication. The frontend should not store or manually pass `CF_Authorization`; browser REST requests use `credentials: "include"`, and browser WebSocket handshakes rely on same-domain cookies.
 
+When opening the dev server from another machine, set
+`PAX_ALLOWED_DEV_ORIGINS` to the comma-separated LAN hostnames or IPs that may
+load Next.js development assets, for example `192.168.0.174`.
+
 For local REST development against the protected backend, use the server-side dev proxy:
 
 ```txt

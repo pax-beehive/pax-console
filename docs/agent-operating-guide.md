@@ -54,6 +54,10 @@ go through the `/api/pax` proxy.
 allowedDevOrigins: ["console.paxtech.net", "*.console-dev.paxtech.net"];
 ```
 
+Additional LAN origins may be supplied at dev startup through the
+comma-separated `PAX_ALLOWED_DEV_ORIGINS` environment variable. Do not hardcode
+developer-machine IP addresses in `next.config.ts`.
+
 It also sets `Cache-Control: no-store, max-age=0` for `/_next/:path*`. Keep this while developing through `console.paxtech.net`; otherwise Cloudflare/browser caching can serve stale Turbopack chunks after UI layout changes.
 
 Use `pnpm dev` for local development. It first runs the local Cloudflare Access

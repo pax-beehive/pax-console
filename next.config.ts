@@ -1,7 +1,12 @@
 import type { NextConfig } from "next";
 
+const additionalDevOrigins = (process.env.PAX_ALLOWED_DEV_ORIGINS ?? "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ["*.paxtech.net"],
+  allowedDevOrigins: ["*.paxtech.net", ...additionalDevOrigins],
   output: "standalone",
   async rewrites() {
     return [
