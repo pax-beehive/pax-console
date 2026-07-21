@@ -55,7 +55,8 @@ export const queryKeys = {
     ] as const,
   agents: (userId: string, nodeId: string) =>
     ["users", userId, "nodes", nodeId, "agents"] as const,
-  userAgents: (userId: string) => ["users", userId, "agents"] as const,
+  userAgents: (userId: string, scope: "accessible" | "owned" = "accessible") =>
+    ["users", userId, "agents", scope] as const,
   representativeAgents: (userId: string, runtimeAgentId?: string) =>
     [
       "users",

@@ -529,6 +529,16 @@ describe("collaboration resources", () => {
     );
   });
 
+  it("requests only owned agents when scope is owned", async () => {
+    apiFetch.mockResolvedValueOnce({ agents: [] });
+
+    await listAgents("usr_1", "owned");
+
+    expect(apiFetch).toHaveBeenCalledWith(
+      "/api/v1/user/usr_1/agents?scope=owned",
+    );
+  });
+
   it("updates node and agent user-maintained profile fields", async () => {
     apiFetch.mockResolvedValueOnce({ node_id: "node_1" });
     apiFetch.mockResolvedValueOnce({ agent_id: "agent_1" });

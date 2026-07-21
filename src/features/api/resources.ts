@@ -447,8 +447,12 @@ export function listNodeAgents(userId: string, nodeId: string) {
   return apiFetch<AgentListData>(userPath(userId, `/nodes/${nodeId}/agents`));
 }
 
-export function listAgents(userId: string) {
-  return apiFetch<AgentListData>(userPath(userId, "/agents"));
+export function listAgents(
+  userId: string,
+  scope: "accessible" | "owned" = "accessible",
+) {
+  const suffix = scope === "owned" ? "/agents?scope=owned" : "/agents";
+  return apiFetch<AgentListData>(userPath(userId, suffix));
 }
 
 export function listUserSessions(
@@ -1313,10 +1317,13 @@ export function useNodes(userId?: string) {
   });
 }
 
-export function useAgents(userId?: string) {
+export function useAgents(
+  userId?: string,
+  scope: "accessible" | "owned" = "accessible",
+) {
   return useQuery({
-    queryKey: queryKeys.userAgents(userId ?? "pending"),
-    queryFn: () => listAgents(userId as string),
+    queryKey: queryKeys.userAgents(userId ?? "pending", scope),
+    queryFn: () => listAgents(userId as string, scope),
     enabled: Boolean(userId),
   });
 }
