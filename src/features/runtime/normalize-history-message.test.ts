@@ -38,6 +38,37 @@ describe("normalizeHistoryMessage", () => {
     ]);
   });
 
+  it("concatenates adjacent history text chunks without adding a newline", () => {
+    const events = normalizeHistoryMessages([
+      historyTextChunk("msg_1", "`xxx"),
+      historyTextChunk("msg_2", "bbb`"),
+    ]);
+
+    expect(events).toMatchObject([
+      {
+        type: "agent_message",
+        id: "msg_1",
+        sessionId: "sess_1",
+        content: "`xxxbbb`",
+        sessionUpdate: "agent_message_chunk",
+        streaming: true,
+      },
+    ]);
+  });
+
+  it("keeps complete adjacent history messages as separate timeline events", () => {
+    const events = normalizeHistoryMessages([
+      historyTextChunk("msg_1", "first", "message"),
+      historyTextChunk("msg_2", "second", "message"),
+    ]);
+
+    expect(events).toHaveLength(2);
+    expect(events.map((event) => event.type)).toEqual([
+      "agent_message",
+      "agent_message",
+    ]);
+  });
+
   it("restores thought parts as progress events", () => {
     const events = normalizeHistoryMessage({
       message_id: "msg_2",
@@ -681,3 +712,25 @@ describe("normalizeHistoryMessage", () => {
     });
   });
 });
+
+function historyTextChunk(
+  messageId: string,
+  text: string,
+  messageType = "agent_message_chunk",
+) {
+  return {
+    message_id: messageId,
+    session_id: "sess_1",
+    role: "assistant",
+    message_type: messageType,
+    created_at: "2026-07-21T12:00:00.000Z",
+    parts: [
+      {
+        message_id: messageId,
+        part_index: 0,
+        part_type: "text",
+        text,
+      },
+    ],
+  };
+}
