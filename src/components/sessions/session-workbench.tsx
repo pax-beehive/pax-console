@@ -14,15 +14,12 @@ import {
   AlertCircle,
   ArrowLeft,
   Brain,
-  CheckCircle2,
-  Circle,
   Download,
   FileText,
   LoaderCircle,
   Menu,
   PanelRight,
   RefreshCw,
-  ShieldAlert,
   UploadCloud,
   Wrench,
   X,
@@ -41,6 +38,7 @@ import {
   WorkstreamItemCard,
 } from "@/components/sessions/session-event-cards";
 import { SessionComposer } from "@/components/sessions/session-composer";
+import { RunBadge } from "@/components/sessions/run-badge";
 import {
   artifactContentDownloadHref,
   completeArtifactUpload,
@@ -1190,7 +1188,10 @@ export function SessionWorkbench({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <RunBadge status={conversationRun.status} />
+            <RunBadge
+              error={conversationRun.error}
+              status={conversationRun.status}
+            />
             <Button
               icon={<PanelRight className="h-4 w-4" />}
               onClick={() =>
@@ -1706,56 +1707,6 @@ function KnowledgeTools({
         )}
       </section>
     </div>
-  );
-}
-
-function RunBadge({
-  status,
-}: {
-  status: "idle" | "streaming" | "waiting_approval" | "done" | "error";
-}) {
-  const statusConfig = {
-    idle: {
-      icon: <Circle className="h-3.5 w-3.5" />,
-      label: "idle",
-      tone: "neutral" as const,
-      tooltip: "Ready for a prompt",
-    },
-    streaming: {
-      icon: <LoaderCircle className="h-3.5 w-3.5 animate-spin" />,
-      label: "running",
-      tone: "warning" as const,
-      tooltip: "Agent is responding",
-    },
-    waiting_approval: {
-      icon: <ShieldAlert className="h-3.5 w-3.5" />,
-      label: "approval",
-      tone: "warning" as const,
-      tooltip: "Waiting for approval",
-    },
-    done: {
-      icon: <CheckCircle2 className="h-3.5 w-3.5" />,
-      label: "done",
-      tone: "success" as const,
-      tooltip: "Run completed",
-    },
-    error: {
-      icon: <AlertCircle className="h-3.5 w-3.5" />,
-      label: "error",
-      tone: "danger" as const,
-      tooltip: "Run failed",
-    },
-  }[status];
-
-  return (
-    <Badge
-      className="max-w-40 px-2 py-1 font-medium"
-      tone={statusConfig.tone}
-      tooltip={statusConfig.tooltip}
-    >
-      {statusConfig.icon}
-      {statusConfig.label}
-    </Badge>
   );
 }
 
