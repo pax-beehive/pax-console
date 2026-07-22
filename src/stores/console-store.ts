@@ -10,6 +10,7 @@ type ConsoleStore = {
   sidebarExpandedGroups: Record<string, boolean>;
   contextDrawerOpen: boolean;
   composerDrafts: Record<string, string>;
+  previewAsUser: boolean;
   setActiveNode: (nodeId: string) => void;
   setActiveAgent: (agentId: string) => void;
   setActiveSession: (sessionId: string) => void;
@@ -17,6 +18,7 @@ type ConsoleStore = {
   toggleSidebarGroup: (group: string) => void;
   setContextDrawerOpen: (open: boolean) => void;
   setComposerDraft: (sessionId: string, value: string) => void;
+  setPreviewAsUser: (preview: boolean) => void;
 };
 
 // Zustand is reserved for client-only UI state that should survive across
@@ -27,6 +29,7 @@ export const useConsoleStore = create<ConsoleStore>((set) => ({
   sidebarExpandedGroups: {},
   contextDrawerOpen: false,
   composerDrafts: {},
+  previewAsUser: false,
   setActiveNode: (activeNodeId) => set({ activeNodeId }),
   setActiveAgent: (activeAgentId) => set({ activeAgentId }),
   setActiveSession: (activeSessionId) => set({ activeSessionId }),
@@ -39,6 +42,7 @@ export const useConsoleStore = create<ConsoleStore>((set) => ({
       },
     })),
   setContextDrawerOpen: (contextDrawerOpen) => set({ contextDrawerOpen }),
+  setPreviewAsUser: (previewAsUser) => set({ previewAsUser }),
   setComposerDraft: (sessionId, value) =>
     set((state) => ({
       composerDrafts: {

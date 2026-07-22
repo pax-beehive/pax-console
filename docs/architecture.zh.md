@@ -145,8 +145,9 @@ src/components/home/
   inquiry 可从空 session 生成 draft、从已有 conversation 总结 draft、
   通过小三角带 note 总结，或对已有 draft 留 comment；右上角关闭 inquiry
   context 后，composer 回到 clean session；archive inquiry 则把它从 queue
-  中移除，表示当前用户不处理。当前 fake inquiry 只在 admin 用户或本地 debug
-  构建中注入，避免普通生产用户看到演示数据。
+  中移除，表示当前用户不处理。当前 fake inquiry 只对 admin 用户注入，避免普通
+  用户看到演示数据。admin 可在右上角用户菜单启用 `Preview as user`，临时隐藏所有
+  admin-only 实验入口，以检查公开版本。该模式属于 Zustand 客户端 UI 状态。
   底部 composer 保持 clean session 默认入口，并提供 agent 选择、附件入口和
   tool-call approval 偏好；重名 agent 在 target selector 中显示为
   `agent @ node`。nodes / agents 的详细列表仍放在 Settings 组的子页里，
@@ -160,6 +161,9 @@ src/components/resources/
 
 src/components/sessions/
   Session workbench。把 REST 历史消息和 WebSocket live events 合成时间线。
+
+  公开用户的 Session 右侧上下文面板只提供 Tool evidence。Artifacts、Knowledge、
+  未接通的语音输入等实验入口只对 admin 展示，并受 `Preview as user` 开关控制。
 
   连续的 thought/progress 与 tool call 达到 2 个时，按原顺序聚合为一个默认折叠的
   work block；单独一个 thought 或 tool call 直接展示。子事件仍在运行时标题只显示

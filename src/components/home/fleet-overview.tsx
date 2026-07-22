@@ -68,6 +68,8 @@ import {
 } from "@/features/api/types";
 import { compactId } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { canSeeAdminFeatures } from "@/features/auth/admin-view";
+import { useConsoleStore } from "@/stores/console-store";
 
 type FleetOverviewProps = {
   user: User;
@@ -151,6 +153,8 @@ const kindIcon: Record<WorkItemKind, React.ReactNode> = {
 };
 
 export function FleetOverview({ user }: FleetOverviewProps) {
+  const previewAsUser = useConsoleStore((state) => state.previewAsUser);
+  const showAdminFeatures = canSeeAdminFeatures(user, previewAsUser);
   const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const urlSessionId = searchParams.get("sessionId") ?? "";
@@ -295,7 +299,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     status: "pending",
   });
   const invitesQuery = useTeamInvites(user.user_id);
-  const showMockInquiries = canShowMockInquiries(user);
+  const showMockInquiries = showAdminFeatures;
 
   const workItems = useMemo(
     () =>
@@ -884,55 +888,63 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                       value={draft}
                     />
                     <div className="flex min-w-0 items-center gap-2">
-                      <div className="relative">
-                        <Button
-                          icon={<Plus className="h-4 w-4" />}
-                          onClick={() => setAttachmentMenuOpen((open) => !open)}
-                          size="icon"
-                          tooltip="Add context or upload image"
-                          type="button"
-                          variant="ghost"
+                      {showAdminFeatures && (
+                        <div className="relative">
+                          <Button
+                            icon={<Plus className="h-4 w-4" />}
+                            onClick={() =>
+                              setAttachmentMenuOpen((open) => !open)
+                            }
+                            size="icon"
+                            tooltip="Add context or upload image"
+                            type="button"
+                            variant="ghost"
+                          />
+                          {attachmentMenuOpen && (
+                            <div className="absolute bottom-11 left-0 z-20 grid w-52 overflow-hidden rounded-lg border border-hairline bg-surface-1 shadow-xl shadow-black/30">
+                              <button
+                                className="flex min-h-9 items-center gap-2 px-3 text-left text-sm text-ink-muted hover:bg-surface-2 hover:text-ink"
+                                onClick={() => {
+                                  fileInputRef.current?.click();
+                                  setAttachmentMenuOpen(false);
+                                }}
+                                type="button"
+                              >
+                                <ImageIcon className="h-4 w-4" />
+                                Upload image
+                              </button>
+                              <button
+                                className="flex min-h-9 items-center gap-2 px-3 text-left text-sm text-ink-muted hover:bg-surface-2 hover:text-ink"
+                                onClick={() => {
+                                  if (selectedInquiry) {
+                                    setComposerMode("summarize-note");
+                                    setAttachmentName("summarize note");
+                                  }
+                                  setAttachmentMenuOpen(false);
+                                }}
+                                disabled={!selectedInquiry}
+                                type="button"
+                              >
+                                <Paperclip className="h-4 w-4" />
+                                Summarize with note
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {showAdminFeatures && (
+                        <input
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(event) =>
+                            setAttachmentName(
+                              event.target.files?.[0]?.name ?? "",
+                            )
+                          }
+                          ref={fileInputRef}
+                          type="file"
                         />
-                        {attachmentMenuOpen && (
-                          <div className="absolute bottom-11 left-0 z-20 grid w-52 overflow-hidden rounded-lg border border-hairline bg-surface-1 shadow-xl shadow-black/30">
-                            <button
-                              className="flex min-h-9 items-center gap-2 px-3 text-left text-sm text-ink-muted hover:bg-surface-2 hover:text-ink"
-                              onClick={() => {
-                                fileInputRef.current?.click();
-                                setAttachmentMenuOpen(false);
-                              }}
-                              type="button"
-                            >
-                              <ImageIcon className="h-4 w-4" />
-                              Upload image
-                            </button>
-                            <button
-                              className="flex min-h-9 items-center gap-2 px-3 text-left text-sm text-ink-muted hover:bg-surface-2 hover:text-ink"
-                              onClick={() => {
-                                if (selectedInquiry) {
-                                  setComposerMode("summarize-note");
-                                  setAttachmentName("summarize note");
-                                }
-                                setAttachmentMenuOpen(false);
-                              }}
-                              disabled={!selectedInquiry}
-                              type="button"
-                            >
-                              <Paperclip className="h-4 w-4" />
-                              Summarize with note
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      <input
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(event) =>
-                          setAttachmentName(event.target.files?.[0]?.name ?? "")
-                        }
-                        ref={fileInputRef}
-                        type="file"
-                      />
+                      )}
                       {newSessionWorkspaceOpen ? (
                         <label
                           className={cn(
@@ -1793,15 +1805,6 @@ function approvalOptionLabel(optionId: string) {
 
 function homeSessionHref(session: AgentSession) {
   return `/sessions/${encodeURIComponent(session.session_id)}`;
-}
-
-function canShowMockInquiries(user: User) {
-  const role = user.role?.toLowerCase();
-  const isAdmin = Boolean(
-    user.is_admin || role === "admin" || role === "owner",
-  );
-  const isLocalDebug = process.env.NODE_ENV !== "production";
-  return isAdmin || isLocalDebug;
 }
 
 function fakeInquiryWorkItems(agents: Agent[], nodes: Node[]): WorkItem[] {

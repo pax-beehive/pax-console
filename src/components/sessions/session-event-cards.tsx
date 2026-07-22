@@ -365,7 +365,7 @@ function ThoughtCard({
     >
       <summary className="flex cursor-pointer list-none items-center gap-2 text-sm text-ink-muted outline-none transition hover:text-ink [&::-webkit-details-marker]:hidden">
         <PaxThoughtIcon />
-        <span>{event.streaming ? "思考中" : "已思考"}</span>
+        <span>{event.streaming ? "Thinking" : "Thought"}</span>
         <ChevronDown className="ml-auto h-3.5 w-3.5 -rotate-90 text-ink-tertiary transition group-open:rotate-0" />
       </summary>
       {expanded && (
@@ -690,7 +690,7 @@ function WorkGroupCard({
         ) : (
           <span className="h-2 w-2 rounded-full bg-ink-tertiary" />
         )}
-        <span className="shrink-0">{isWorking ? "工作中" : "工作过程"}</span>
+        <span className="shrink-0">{isWorking ? "Working" : "Work"}</span>
         {pendingPermissionCount > 0 && (
           <Badge className="shrink-0" tone="warning">
             {pendingPermissionCount} approval
@@ -790,7 +790,7 @@ function ToolGroupCard({
         ) : (
           <span className="h-2 w-2 rounded-full bg-ink-tertiary" />
         )}
-        <span className="shrink-0">工具调用</span>
+        <span className="shrink-0">Tool calls</span>
         <Badge className="font-mono">{String(events.length)}</Badge>
         {runningPreview && (
           <TruncatedText

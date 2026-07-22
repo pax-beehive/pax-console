@@ -47,6 +47,7 @@ type SessionComposerProps = {
   queueTurnPending: boolean;
   queuedTurn: QueuedSessionTurnData | null | undefined;
   readOnlyWorkspace?: string;
+  showAdminFeatures: boolean;
   steerTurnPending: boolean;
   stopTurnPending: boolean;
   updateQueuedTurnPending: boolean;
@@ -77,6 +78,7 @@ export const SessionComposer = memo(function SessionComposer({
   queueTurnPending,
   queuedTurn,
   readOnlyWorkspace,
+  showAdminFeatures,
   steerTurnPending,
   stopTurnPending,
   updateQueuedTurnPending,
@@ -285,14 +287,16 @@ export const SessionComposer = memo(function SessionComposer({
           value={draft}
         />
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <Button
-            icon={<Plus className="h-4 w-4" />}
-            onClick={onOpenArtifacts}
-            size="icon"
-            tooltip="Open artifacts"
-            type="button"
-            variant="ghost"
-          />
+          {showAdminFeatures && (
+            <Button
+              icon={<Plus className="h-4 w-4" />}
+              onClick={onOpenArtifacts}
+              size="icon"
+              tooltip="Open artifacts"
+              type="button"
+              variant="ghost"
+            />
+          )}
           {isNewSession ? (
             newSessionWorkspaceOpen ? (
               <label
@@ -370,14 +374,16 @@ export const SessionComposer = memo(function SessionComposer({
             </span>
           </button>
           <div className="min-w-0 flex-1" />
-          <Button
-            disabled
-            icon={<Mic className="h-4 w-4" />}
-            size="icon"
-            tooltip="Voice input is not available yet"
-            type="button"
-            variant="ghost"
-          />
+          {showAdminFeatures && (
+            <Button
+              disabled
+              icon={<Mic className="h-4 w-4" />}
+              size="icon"
+              tooltip="Voice input is not available yet"
+              type="button"
+              variant="ghost"
+            />
+          )}
           {isTurnRunning ? (
             <>
               <Button
