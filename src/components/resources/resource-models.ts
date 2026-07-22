@@ -91,7 +91,10 @@ export function resourceLastActiveAt(resource: {
 
 export function sessionUpdatedAt(session: AgentSession) {
   return (
-    session.last_active_at ?? session.last_message_at ?? session.updated_at
+    session.last_user_message_at ??
+    session.last_message_at ??
+    session.updated_at ??
+    session.last_active_at
   );
 }
 

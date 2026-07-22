@@ -539,6 +539,9 @@ PAX Manager exposes Home sessions through
 comma-separated `node_id` and `agent_id` filters. Home uses this flat paginated
 list instead of scanning every node/agent session collection. The initial page
 loads 20 sessions and the left rail fetches the next page as the user scrolls.
+Session ordering uses `last_user_message_at`, the latest accepted user prompt.
+Assistant streaming, thoughts, and tool activity must not reorder rows; legacy
+records fall back to `last_message_at`, then `updated_at`.
 The Sessions rail exposes separate agent and node filters. In the new-session
 target selector, duplicate agent names are qualified as `agent @ node`.
 Clicking a session in the Home rail keeps Home mounted and opens the embedded

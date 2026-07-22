@@ -425,6 +425,9 @@ mounted. The standalone `/sessions/{session_id}` route remains available for
 external clients and shared deep links; it scans this paginated list by
 `session_id` before enabling agent-scoped queue/events calls, so the session's
 own `node_id` and `agent_id` remain authoritative.
+Session rows sort by `last_user_message_at`; assistant output and tool activity
+do not move concurrently running sessions. Older API rows fall back to
+`last_message_at`, then `updated_at`.
 
 Conversation
 POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/conversation
