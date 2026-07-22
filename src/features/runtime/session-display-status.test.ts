@@ -1,0 +1,70 @@
+import { describe, expect, it } from "vitest";
+import { sessionDisplayStatus } from "./session-display-status";
+
+describe("sessionDisplayStatus", () => {
+  it("shows a remotely observed turn as streaming", () => {
+    expect(
+      sessionDisplayStatus({
+        conversationStatus: "idle",
+        observerStatus: "observing",
+        reportedStatus: "idle",
+        remoteTurnActive: false,
+      }),
+    ).toBe("streaming");
+  });
+
+  it("restores running state from session metadata before events arrive", () => {
+    expect(
+      sessionDisplayStatus({
+        conversationStatus: "idle",
+        observerStatus: "idle",
+        reportedStatus: "running",
+        remoteTurnActive: true,
+      }),
+    ).toBe("streaming");
+  });
+
+  it("restores approval state from session metadata", () => {
+    expect(
+      sessionDisplayStatus({
+        conversationStatus: "idle",
+        observerStatus: "idle",
+        reportedStatus: "waiting_approval",
+        remoteTurnActive: true,
+      }),
+    ).toBe("waiting_approval");
+  });
+
+  it("keeps a locally completed turn done while metadata catches up", () => {
+    expect(
+      sessionDisplayStatus({
+        conversationStatus: "done",
+        observerStatus: "idle",
+        reportedStatus: "running",
+        remoteTurnActive: true,
+      }),
+    ).toBe("done");
+  });
+
+  it("surfaces observer failures", () => {
+    expect(
+      sessionDisplayStatus({
+        conversationStatus: "idle",
+        observerStatus: "error",
+        reportedStatus: "running",
+        remoteTurnActive: true,
+      }),
+    ).toBe("error");
+  });
+
+  it("keeps approval visible when its observer times out", () => {
+    expect(
+      sessionDisplayStatus({
+        conversationStatus: "idle",
+        observerStatus: "error",
+        reportedStatus: "waiting_approval",
+        remoteTurnActive: true,
+      }),
+    ).toBe("waiting_approval");
+  });
+});
