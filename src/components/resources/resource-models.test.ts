@@ -143,17 +143,20 @@ describe("resource list models", () => {
     ]);
   });
 
-  it("sorts sessions by activity timestamp before report update time", () => {
+  it("sorts sessions by the latest user prompt without moving for later agent output", () => {
     const sessions: AgentSession[] = [
       {
         agent_id: "agent_1",
-        last_message_at: "2026-06-29T12:00:00Z",
+        last_user_message_at: "2026-06-29T12:00:00Z",
+        last_message_at: "2026-06-29T12:00:01Z",
         node_id: "node_1",
         session_id: "session_old_updated",
         updated_at: "2026-06-28T12:00:00Z",
       },
       {
         agent_id: "agent_1",
+        last_user_message_at: "2026-06-29T11:00:00Z",
+        last_message_at: "2026-06-29T13:00:00Z",
         node_id: "node_1",
         session_id: "session_new_updated",
         updated_at: "2026-06-29T08:00:00Z",

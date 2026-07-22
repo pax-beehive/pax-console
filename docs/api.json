@@ -217,6 +217,9 @@
           "last_message_at": {
             "type": "string"
           },
+          "last_user_message_at": {
+            "type": "string"
+          },
           "message_count": {
             "format": "int32",
             "type": "integer"
@@ -1918,6 +1921,9 @@
           "last_message_at": {
             "type": "string"
           },
+          "last_user_message_at": {
+            "type": "string"
+          },
           "message_count": {
             "format": "int32",
             "type": "integer"
@@ -2279,9 +2285,7 @@
           }
         ],
         "summary": "Publish artifact metadata",
-        "tags": [
-          "artifacts"
-        ]
+        "tags": ["artifacts"]
       }
     },
     "/api/v1/admin/paxd/artifacts": {
@@ -2321,9 +2325,7 @@
           }
         ],
         "summary": "Publish paxd artifact metadata",
-        "tags": [
-          "paxd"
-        ]
+        "tags": ["paxd"]
       }
     },
     "/api/v1/agent/tunnel": {
@@ -2372,9 +2374,7 @@
           }
         ],
         "summary": "Connect ACP agent tunnel",
-        "tags": [
-          "ACP"
-        ],
+        "tags": ["ACP"],
         "x-websocket": true
       }
     },
@@ -2454,9 +2454,7 @@
           }
         },
         "summary": "Health check",
-        "tags": [
-          "system"
-        ]
+        "tags": ["system"]
       }
     },
     "/api/v1/node/agents/register": {
@@ -2555,9 +2553,7 @@
           }
         },
         "summary": "Register node agent",
-        "tags": [
-          "node"
-        ]
+        "tags": ["node"]
       }
     },
     "/api/v1/node/agents/{agent_id}/approvals": {
@@ -2652,9 +2648,7 @@
           }
         ],
         "summary": "Create node agent approval",
-        "tags": [
-          "node"
-        ]
+        "tags": ["node"]
       }
     },
     "/api/v1/node/agents/{agent_id}/approvals/{approval_id}": {
@@ -2758,9 +2752,7 @@
           }
         ],
         "summary": "Get node agent approval",
-        "tags": [
-          "node"
-        ]
+        "tags": ["node"]
       }
     },
     "/api/v1/node/agents/{agent_id}/mailbox": {
@@ -2875,9 +2867,7 @@
           }
         ],
         "summary": "Pull node agent mailbox",
-        "tags": [
-          "node"
-        ]
+        "tags": ["node"]
       }
     },
     "/api/v1/node/agents/{agent_id}/sessions/{session_id}/mailbox": {
@@ -3001,9 +2991,7 @@
           }
         ],
         "summary": "Pull node agent session mailbox",
-        "tags": [
-          "node"
-        ]
+        "tags": ["node"]
       }
     },
     "/api/v1/node/mailbox": {
@@ -3109,9 +3097,7 @@
           }
         ],
         "summary": "Pull node mailbox",
-        "tags": [
-          "node"
-        ]
+        "tags": ["node"]
       }
     },
     "/api/v1/node/messages/offset": {
@@ -3195,9 +3181,7 @@
           }
         ],
         "summary": "Update node mailbox offset",
-        "tags": [
-          "node"
-        ]
+        "tags": ["node"]
       }
     },
     "/api/v1/node/messages/outbound": {
@@ -3281,9 +3265,7 @@
           }
         ],
         "summary": "Create node outbound message",
-        "tags": [
-          "node"
-        ]
+        "tags": ["node"]
       }
     },
     "/api/v1/node/messages/{message_id}/delivered": {
@@ -3378,9 +3360,7 @@
           }
         ],
         "summary": "Mark node message delivered",
-        "tags": [
-          "node"
-        ]
+        "tags": ["node"]
       }
     },
     "/api/v1/node/messages/{message_id}/result": {
@@ -3475,9 +3455,7 @@
           }
         ],
         "summary": "Report node message result",
-        "tags": [
-          "node"
-        ]
+        "tags": ["node"]
       }
     },
     "/api/v1/node/register": {
@@ -3567,9 +3545,7 @@
           }
         },
         "summary": "Register node",
-        "tags": [
-          "node"
-        ]
+        "tags": ["node"]
       }
     },
     "/api/v1/node/secrets/resolve": {
@@ -3653,9 +3629,7 @@
           }
         ],
         "summary": "Resolve secret value",
-        "tags": [
-          "node"
-        ]
+        "tags": ["node"]
       }
     },
     "/api/v1/node/secrets/{secret_id}/versions": {
@@ -3750,9 +3724,7 @@
           }
         ],
         "summary": "Write secret version",
-        "tags": [
-          "node"
-        ]
+        "tags": ["node"]
       }
     },
     "/api/v1/node/status": {
@@ -3836,9 +3808,7 @@
           }
         ],
         "summary": "Report node status",
-        "tags": [
-          "node"
-        ]
+        "tags": ["node"]
       }
     },
     "/api/v1/public/artifacts/download": {
@@ -3885,9 +3855,7 @@
           }
         },
         "summary": "Get signed artifact download URL",
-        "tags": [
-          "artifacts"
-        ]
+        "tags": ["artifacts"]
       }
     },
     "/api/v1/public/paxd/download": {
@@ -3925,9 +3893,7 @@
           }
         },
         "summary": "Get signed paxd download URL",
-        "tags": [
-          "paxd"
-        ]
+        "tags": ["paxd"]
       }
     },
     "/api/v1/public/paxd/install.sh": {
@@ -3939,9 +3905,7 @@
           }
         },
         "summary": "Redirect to paxd installer script",
-        "tags": [
-          "paxd"
-        ]
+        "tags": ["paxd"]
       }
     },
     "/api/v1/public/paxl/download": {
@@ -3979,9 +3943,7 @@
           }
         },
         "summary": "Get signed paxl download URL",
-        "tags": [
-          "paxl"
-        ]
+        "tags": ["paxl"]
       }
     },
     "/api/v1/public/paxl/install.sh": {
@@ -3993,9 +3955,7 @@
           }
         },
         "summary": "Redirect to paxl installer script",
-        "tags": [
-          "paxl"
-        ]
+        "tags": ["paxl"]
       }
     },
     "/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/history": {
@@ -4068,9 +4028,7 @@
           }
         ],
         "summary": "List agent session history",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/sessions/{session_id}/history": {
@@ -4134,9 +4092,7 @@
           }
         ],
         "summary": "List session history",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/tunnel": {
@@ -4188,9 +4144,7 @@
           }
         ],
         "summary": "Connect ACP user tunnel for a session",
-        "tags": [
-          "ACP"
-        ],
+        "tags": ["ACP"],
         "x-websocket": true
       }
     },
@@ -4243,9 +4197,7 @@
           }
         ],
         "summary": "Connect ACP user tunnel",
-        "tags": [
-          "ACP"
-        ],
+        "tags": ["ACP"],
         "x-websocket": true
       }
     },
@@ -4341,9 +4293,7 @@
           }
         ],
         "summary": "List platform API keys",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       },
       "post": {
         "description": "Creates a user platform API key. The plain key is returned once.",
@@ -4436,9 +4386,7 @@
           }
         ],
         "summary": "Create platform API key",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/api-keys/{key_id}": {
@@ -4542,9 +4490,7 @@
           }
         ],
         "summary": "Revoke platform API key",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/approval-grants": {
@@ -4639,9 +4585,7 @@
           }
         ],
         "summary": "List approval grants",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/approval-grants/{grant_id}/revoke": {
@@ -4745,9 +4689,7 @@
           }
         ],
         "summary": "Revoke approval grant",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/approvals": {
@@ -4842,9 +4784,7 @@
           }
         ],
         "summary": "List approvals",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/approvals/{approval_id}": {
@@ -4948,9 +4888,7 @@
           }
         ],
         "summary": "Get approval",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/approvals/{approval_id}/decision": {
@@ -5054,9 +4992,7 @@
           }
         ],
         "summary": "Decide approval",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/envelopes": {
@@ -5067,9 +5003,7 @@
           }
         },
         "summary": "List envelopes",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       },
       "post": {
         "responses": {
@@ -5078,9 +5012,7 @@
           }
         },
         "summary": "Create envelope",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/envelopes/{envelope_id}": {
@@ -5091,9 +5023,7 @@
           }
         },
         "summary": "Get envelope",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/envelopes/{envelope_id}/accept": {
@@ -5104,9 +5034,7 @@
           }
         },
         "summary": "Accept envelope",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/envelopes/{envelope_id}/archive": {
@@ -5117,9 +5045,7 @@
           }
         },
         "summary": "Archive envelope",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/friends": {
@@ -5130,9 +5056,7 @@
           }
         },
         "summary": "List friends",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       },
       "post": {
         "responses": {
@@ -5141,9 +5065,7 @@
           }
         },
         "summary": "Create friend",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/friends/{friend_id}": {
@@ -5154,9 +5076,7 @@
           }
         },
         "summary": "Get friend",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/friends/{friend_id}/accept": {
@@ -5167,9 +5087,7 @@
           }
         },
         "summary": "Accept friend",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/friends/{friend_id}/alias": {
@@ -5180,9 +5098,7 @@
           }
         },
         "summary": "Update friend alias",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/friends/{friend_id}/block": {
@@ -5193,9 +5109,7 @@
           }
         },
         "summary": "Block friend",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/friends/{friend_id}/remove": {
@@ -5206,9 +5120,7 @@
           }
         },
         "summary": "Remove friend",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/knowledge-capsules": {
@@ -5219,9 +5131,7 @@
           }
         },
         "summary": "List knowledge capsules",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/knowledge-capsules/{capsule_id}": {
@@ -5232,9 +5142,7 @@
           }
         },
         "summary": "Get knowledge capsule",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/knowledge-capsules/{capsule_id}/archive": {
@@ -5245,9 +5153,7 @@
           }
         },
         "summary": "Archive knowledge capsule",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/me": {
@@ -5342,9 +5248,7 @@
           }
         ],
         "summary": "Get current user",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/node-registration-tokens": {
@@ -5439,9 +5343,7 @@
           }
         ],
         "summary": "Create node registration token",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/sessions/{session_id}/knowledge-capsules": {
@@ -5452,9 +5354,7 @@
           }
         },
         "summary": "Create knowledge capsule",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/sessions/{session_id}/knowledge-injections": {
@@ -5465,9 +5365,7 @@
           }
         },
         "summary": "List knowledge injections",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       },
       "post": {
         "responses": {
@@ -5476,9 +5374,7 @@
           }
         },
         "summary": "Inject knowledge capsule",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/team-invites": {
@@ -5489,9 +5385,7 @@
           }
         },
         "summary": "List team invites",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/team-invites/{invite_id}/accept": {
@@ -5502,9 +5396,7 @@
           }
         },
         "summary": "Accept team invite",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/team-invites/{invite_id}/decline": {
@@ -5515,9 +5407,7 @@
           }
         },
         "summary": "Decline team invite",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/teams": {
@@ -5528,9 +5418,7 @@
           }
         },
         "summary": "List teams",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       },
       "post": {
         "responses": {
@@ -5539,9 +5427,7 @@
           }
         },
         "summary": "Create team",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/teams/{team_id}": {
@@ -5552,9 +5438,7 @@
           }
         },
         "summary": "Get team",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/teams/{team_id}/agents": {
@@ -5565,9 +5449,7 @@
           }
         },
         "summary": "List team agents",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       },
       "post": {
         "responses": {
@@ -5576,9 +5458,7 @@
           }
         },
         "summary": "Add team agent",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/teams/{team_id}/agents/{agent_id}": {
@@ -5589,9 +5469,7 @@
           }
         },
         "summary": "Remove team agent",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/teams/{team_id}/invites": {
@@ -5602,9 +5480,7 @@
           }
         },
         "summary": "Create team invite",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/teams/{team_id}/leave": {
@@ -5615,9 +5491,7 @@
           }
         },
         "summary": "Leave team",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/teams/{team_id}/members": {
@@ -5628,9 +5502,7 @@
           }
         },
         "summary": "List team members",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/teams/{team_id}/members/{member_user_id}": {
@@ -5641,9 +5513,7 @@
           }
         },
         "summary": "Remove team member",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/nodes": {
@@ -5738,9 +5608,7 @@
           }
         ],
         "summary": "List nodes",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/nodes/{node_id}": {
@@ -5844,9 +5712,7 @@
           }
         ],
         "summary": "Get node",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       },
       "patch": {
         "description": "Updates user-maintained node name, description, and metadata.",
@@ -5948,9 +5814,7 @@
           }
         ],
         "summary": "Update node profile",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/nodes/{node_id}/agents": {
@@ -6054,9 +5918,7 @@
           }
         ],
         "summary": "List node agents",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       },
       "post": {
         "description": "Queues an agent bootstrap request for a node visible to the current user.",
@@ -6158,9 +6020,7 @@
           }
         ],
         "summary": "Bootstrap node agent",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}": {
@@ -6273,9 +6133,7 @@
           }
         ],
         "summary": "Get node agent",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       },
       "patch": {
         "description": "Updates user-maintained agent name, description, card, and metadata.",
@@ -6386,9 +6244,7 @@
           }
         ],
         "summary": "Update node agent profile",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/messages": {
@@ -6529,9 +6385,7 @@
           }
         ],
         "summary": "List node agent messages",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       },
       "post": {
         "description": "Queues a bootstrap or agent-level mailbox message.",
@@ -6642,9 +6496,7 @@
           }
         ],
         "summary": "Create node agent message",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions": {
@@ -6757,9 +6609,7 @@
           }
         ],
         "summary": "List node agent sessions",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       },
       "post": {
         "description": "Creates or reserves a session before the first user message is queued.",
@@ -6870,9 +6720,7 @@
           }
         ],
         "summary": "Create node agent session",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}": {
@@ -6994,9 +6842,7 @@
           }
         ],
         "summary": "Get node agent session",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}/messages": {
@@ -7118,9 +6964,7 @@
           }
         ],
         "summary": "List node agent session messages",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       },
       "post": {
         "description": "Queues a mailbox message for a specific session under an agent and node visible to the current user.",
@@ -7240,9 +7084,7 @@
           }
         ],
         "summary": "Create node agent session message",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/secrets": {
@@ -7337,9 +7179,7 @@
           }
         ],
         "summary": "List secrets",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       },
       "post": {
         "description": "Creates an encrypted secret with its first version. The plaintext value is not returned.",
@@ -7432,9 +7272,7 @@
           }
         ],
         "summary": "Create secret",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/secrets/{secret_id}": {
@@ -7538,9 +7376,7 @@
           }
         ],
         "summary": "Get secret",
-        "tags": [
-          "user"
-        ]
+        "tags": ["user"]
       }
     }
   },

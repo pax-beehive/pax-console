@@ -339,6 +339,7 @@ export type AgentSession = {
   updated_at?: string;
   last_active_at?: string;
   last_message_at?: string;
+  last_user_message_at?: string;
 };
 
 export type Pagination = {

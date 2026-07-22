@@ -2201,13 +2201,19 @@ function nodeLabel(node: Node) {
 
 function sessionTimestamp(session: AgentSession) {
   return (
-    session.last_active_at ?? session.last_message_at ?? session.updated_at
+    session.last_user_message_at ??
+    session.last_message_at ??
+    session.updated_at ??
+    session.last_active_at
   );
 }
 
 function sessionMessageTimestamp(session: AgentSession) {
   return (
-    session.last_message_at ?? session.updated_at ?? session.last_active_at
+    session.last_user_message_at ??
+    session.last_message_at ??
+    session.updated_at ??
+    session.last_active_at
   );
 }
 

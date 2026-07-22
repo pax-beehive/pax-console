@@ -350,6 +350,9 @@ AuthGate
 `page_size` / `page_num` pagination；`agent_id` 和 `node_id` 都可以传
 comma-separated 多 id。Home 默认只请求 20 条，滚动左侧 Sessions rail 时再加载
 下一页，避免一次性渲染 900+ sessions。
+session 排序以 `last_user_message_at`（最近一次被接受的用户 prompt）为准；
+assistant streaming、thought 和 tool activity 不得改变列表相对顺序。旧数据依次
+fallback 到 `last_message_at` 和 `updated_at`。
 
 Session workbench 的 durable history 使用只依赖 manager session id 的入口：
 
