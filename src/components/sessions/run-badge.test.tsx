@@ -1,7 +1,7 @@
 /* @vitest-environment jsdom */
 
 import "@testing-library/jest-dom/vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { RunBadge } from "./run-badge";
@@ -18,15 +18,22 @@ function renderBadge(
 }
 
 describe("RunBadge", () => {
-  it("exposes the transient conversation error in the status badge", () => {
+  it("opens the transient conversation error when the badge is clicked", () => {
     const error = new Error("backend SSE failed");
     error.name = "ConversationRunError";
 
     renderBadge("error", error);
 
-    expect(screen.getByText("error · backend SSE failed")).toBeInTheDocument();
+    const trigger = screen.getByLabelText(
+      "Session error: ConversationRunError: backend SSE failed",
+    );
+    const details = trigger.closest("details");
+
+    expect(details).not.toHaveAttribute("open");
+    fireEvent.click(trigger);
+    expect(details).toHaveAttribute("open");
     expect(
-      screen.getByLabelText("ConversationRunError: backend SSE failed"),
+      screen.getByText("ConversationRunError: backend SSE failed"),
     ).toBeInTheDocument();
   });
 
@@ -34,6 +41,8 @@ describe("RunBadge", () => {
     renderBadge("error");
 
     expect(screen.getByText("error")).toBeInTheDocument();
-    expect(screen.getByLabelText("Run failed")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Session error: The session stream failed."),
+    ).toBeInTheDocument();
   });
 });

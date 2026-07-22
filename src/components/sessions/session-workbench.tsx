@@ -83,6 +83,7 @@ import {
 } from "@/features/runtime/session-events";
 import { useConversationRun } from "@/features/runtime/use-conversation-run";
 import { useSessionObserver } from "@/features/runtime/session-observer";
+import { sessionDisplayStatus } from "@/features/runtime/session-display-status";
 import { compactId } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -553,6 +554,15 @@ export function SessionWorkbench({
     sessionId: currentSessionId,
     userId: user.user_id,
   });
+  const displayedRunStatus = sessionDisplayStatus({
+    conversationStatus: conversationRun.status,
+    observerStatus: sessionObserver.status,
+    reportedStatus: activeSession?.run_status ?? activeSession?.status,
+    remoteTurnActive:
+      activeSessionReportedRunning &&
+      observerSuppressedSessionId !== currentSessionId,
+  });
+  const displayedRunError = conversationRun.error ?? sessionObserver.error;
   const isTurnRunning =
     conversationRun.status === "streaming" ||
     conversationRun.status === "waiting_approval" ||
@@ -1188,10 +1198,7 @@ export function SessionWorkbench({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <RunBadge
-              error={conversationRun.error}
-              status={conversationRun.status}
-            />
+            <RunBadge error={displayedRunError} status={displayedRunStatus} />
             <Button
               icon={<PanelRight className="h-4 w-4" />}
               onClick={() =>
