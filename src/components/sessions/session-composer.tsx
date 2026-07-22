@@ -301,7 +301,7 @@ export const SessionComposer = memo(function SessionComposer({
             newSessionWorkspaceOpen ? (
               <label
                 className={cn(
-                  "inline-flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border bg-canvas px-2.5 text-sm transition sm:max-w-80",
+                  "order-first inline-flex min-h-9 min-w-0 basis-full items-center gap-2 rounded-lg border bg-canvas px-2.5 text-sm transition sm:order-none sm:max-w-80 sm:basis-auto sm:flex-1",
                   newSessionCwdInvalid
                     ? "border-warning text-warning"
                     : "border-hairline text-ink-muted focus-within:border-primary-focus focus-within:ring-2 focus-within:ring-primary-focus/20",
@@ -355,6 +355,11 @@ export const SessionComposer = memo(function SessionComposer({
             </div>
           ) : null}
           <button
+            aria-label={
+              approvalMode === "auto_approve_all"
+                ? "Auto approve tools without asking"
+                : "Ask before running tools"
+            }
             aria-pressed={approvalMode === "auto_approve_all"}
             className={cn(
               "inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg px-2.5 text-sm transition disabled:cursor-not-allowed disabled:opacity-60",
@@ -367,10 +372,10 @@ export const SessionComposer = memo(function SessionComposer({
             type="button"
           >
             <ShieldCheck className="h-4 w-4" />
-            <span className="hidden sm:inline">
+            <span className="whitespace-nowrap text-xs sm:text-sm">
               {approvalMode === "auto_approve_all"
-                ? "Auto approve"
-                : "Manual approve"}
+                ? "Auto approve tools"
+                : "Ask before tools"}
             </span>
           </button>
           <div className="min-w-0 flex-1" />

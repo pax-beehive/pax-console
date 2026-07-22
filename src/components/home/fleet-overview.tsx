@@ -282,6 +282,10 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     [queriedSessions],
   );
   const agents = sortAgentsForHome(discoveredAgents, latestSessionTimeByAgent);
+  const needsOnboarding =
+    !nodesQuery.isLoading &&
+    !agentsQuery.isLoading &&
+    (nodes.length === 0 || agents.length === 0);
   const activeAgent =
     agents.find((agent) => agent.agent_id === selectedAgentId) ?? agents[0];
   const normalizedNewSessionCwd = newSessionCwd.trim();
@@ -814,6 +818,32 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 </div>
                 <div className="min-h-0 flex-1 overflow-auto p-5">
                   <div className="mx-auto grid w-full max-w-4xl gap-4">
+                    {needsOnboarding && (
+                      <section className="rounded-xl border border-accent/30 bg-accent/10 p-4 text-sm">
+                        <div className="font-medium text-ink">
+                          Connect a device to start chatting
+                        </div>
+                        <p className="mt-1 leading-6 text-ink-muted">
+                          Register a node, install paxd, and start an agent
+                          connection. Your available agents will appear here
+                          automatically.
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Link
+                            className="inline-flex min-h-9 items-center rounded-md border border-primary bg-primary px-3 font-medium text-canvas hover:bg-primary-hover"
+                            href="/settings/developer?view=node-registration"
+                          >
+                            Register a node
+                          </Link>
+                          <Link
+                            className="inline-flex min-h-9 items-center rounded-md border border-hairline bg-surface-2 px-3 text-ink-muted hover:bg-surface-3 hover:text-ink"
+                            href="/settings/devices"
+                          >
+                            Open Devices
+                          </Link>
+                        </div>
+                      </section>
+                    )}
                     <motion.div
                       animate={{ opacity: 1, y: 0 }}
                       initial={{ opacity: 0, y: 8 }}
@@ -887,7 +917,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                       rows={2}
                       value={draft}
                     />
-                    <div className="flex min-w-0 items-center gap-2">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
                       {showAdminFeatures && (
                         <div className="relative">
                           <Button
@@ -948,7 +978,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                       {newSessionWorkspaceOpen ? (
                         <label
                           className={cn(
-                            "inline-flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border bg-canvas px-2.5 text-sm transition sm:max-w-80",
+                            "order-first inline-flex min-h-9 min-w-0 basis-full items-center gap-2 rounded-lg border bg-canvas px-2.5 text-sm transition sm:order-none sm:max-w-80 sm:basis-auto sm:flex-1",
                             newSessionCwdInvalid
                               ? "border-warning text-warning"
                               : "border-hairline text-ink-muted focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/25",
@@ -994,6 +1024,11 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                         />
                       )}
                       <button
+                        aria-label={
+                          newSessionApprovalMode === "auto_approve_all"
+                            ? "Auto approve tools without asking"
+                            : "Ask before running tools"
+                        }
                         aria-pressed={
                           newSessionApprovalMode === "auto_approve_all"
                         }
@@ -1013,10 +1048,10 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                         type="button"
                       >
                         <ShieldCheck className="h-4 w-4" />
-                        <span className="hidden sm:inline">
+                        <span className="whitespace-nowrap text-xs sm:text-sm">
                           {newSessionApprovalMode === "auto_approve_all"
-                            ? "Auto approve"
-                            : "Manual approve"}
+                            ? "Auto approve tools"
+                            : "Ask before tools"}
                         </span>
                       </button>
                       {attachmentName && (

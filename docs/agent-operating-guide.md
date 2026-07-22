@@ -161,6 +161,8 @@ the UI must hide the same experimental controls hidden from normal users.
 Session Artifacts and Knowledge panels, fake inquiries, global search, image
 attachment, and voice input currently follow this rule. Tool evidence remains
 available to all session users.
+The Collaboration navigation group is also admin-only for the current public
+release. Both desktop and mobile navigation must honor preview-as-user mode.
 
 Never duplicate server resources such as nodes, agents, sessions, messages,
 teams, friends, envelopes, or knowledge capsules into Zustand.

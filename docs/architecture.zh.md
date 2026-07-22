@@ -148,10 +148,14 @@ src/components/home/
   中移除，表示当前用户不处理。当前 fake inquiry 只对 admin 用户注入，避免普通
   用户看到演示数据。admin 可在右上角用户菜单启用 `Preview as user`，临时隐藏所有
   admin-only 实验入口，以检查公开版本。该模式属于 Zustand 客户端 UI 状态。
+  Collaboration 当前也属于 admin-only 工作区；普通用户和 `Preview as user` 模式
+  的桌面、移动导航都不显示该入口。
   底部 composer 保持 clean session 默认入口，并提供 agent 选择、附件入口和
   tool-call approval 偏好；重名 agent 在 target selector 中显示为
   `agent @ node`。nodes / agents 的详细列表仍放在 Settings 组的子页里，
   sessions 不再是 sidebar 一级工作区。
+  当用户还没有 node 或 agent 时，Home 会展示 node registration 和 Devices
+  的 onboarding 入口。移动端 Workspace 输入独占一行，避免被 agent 和审批控件挤压。
 
 src/components/resources/
   Settings 组下的资源页。Devices 聚合 Nodes / Agents，Security 只管理 active
