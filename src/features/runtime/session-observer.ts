@@ -152,7 +152,7 @@ export async function streamSessionObserverWithQueuedReplay({
   let remainingAttempts = maxQueuedTurnAttempts;
 
   while (!options.signal?.aborted) {
-    let terminalType: "no_running_turn" | "turn_done" | undefined;
+    let terminalType: "error" | "no_running_turn" | "turn_done" | undefined;
     await streamSessionObserver({
       ...options,
       afterMessageId: waitingForFollowUp ? undefined : options.afterMessageId,
@@ -169,12 +169,17 @@ export async function streamSessionObserverWithQueuedReplay({
           envelope.type === "turn_done"
         ) {
           terminalType = envelope.type;
+        } else if (envelope.type === "error") {
+          terminalType = "error";
         }
       },
     });
 
     if (options.signal?.aborted) {
       return;
+    }
+    if (!terminalType) {
+      throw new SessionObserverDisconnectedError();
     }
     if (terminalType === "turn_done" && followUpAvailable) {
       waitingForFollowUp = true;
@@ -192,6 +197,48 @@ export async function streamSessionObserverWithQueuedReplay({
     }
     remainingAttempts -= 1;
     await waitForQueuedTurnRetry(retryDelayMs);
+  }
+}
+
+export async function streamSessionObserverWithReconnect({
+  maxReconnectAttempts = Number.POSITIVE_INFINITY,
+  onReconnect,
+  reconnectDelayMs = 500,
+  reconnectMaxDelayMs = 5_000,
+  ...options
+}: Parameters<typeof streamSessionObserverWithQueuedReplay>[0] & {
+  maxReconnectAttempts?: number;
+  onReconnect?: (attempt: number, error: Error) => void;
+  reconnectDelayMs?: number;
+  reconnectMaxDelayMs?: number;
+}) {
+  let attempt = 0;
+  let delayMs = Math.max(0, reconnectDelayMs);
+
+  while (!options.signal?.aborted) {
+    try {
+      await streamSessionObserverWithQueuedReplay(options);
+      return;
+    } catch (caught) {
+      if (options.signal?.aborted) {
+        return;
+      }
+      const error =
+        caught instanceof Error ? caught : new Error(String(caught));
+      if (
+        !isRetriableSessionObserverError(error) ||
+        attempt >= maxReconnectAttempts
+      ) {
+        throw error;
+      }
+      attempt += 1;
+      onReconnect?.(attempt, error);
+      await waitForObserverRetry(delayMs, options.signal);
+      delayMs = Math.min(
+        Math.max(delayMs * 2, reconnectDelayMs),
+        reconnectMaxDelayMs,
+      );
+    }
   }
 }
 
@@ -249,7 +296,7 @@ export function useSessionObserver({
       setStatus("observing");
     });
 
-    void streamSessionObserverWithQueuedReplay({
+    void streamSessionObserverWithReconnect({
       afterMessageId,
       agentId,
       followQueuedTurn,
@@ -269,6 +316,10 @@ export function useSessionObserver({
       onQueuedTurnStarted,
       onQueuedTurnFinished,
       onQueuedTurnUnavailable,
+      onReconnect: () => {
+        setError(null);
+        setStatus("observing");
+      },
     })
       .then(flushEvents)
       .catch((caught) => {
@@ -384,6 +435,39 @@ export function handleSessionObserverEnvelope(
 function waitForQueuedTurnRetry(delayMs: number) {
   return new Promise<void>((resolve) => {
     globalThis.setTimeout(resolve, Math.max(0, delayMs));
+  });
+}
+
+class SessionObserverDisconnectedError extends Error {
+  constructor() {
+    super("Session observer stream disconnected before the turn completed");
+    this.name = "SessionObserverDisconnectedError";
+  }
+}
+
+export function isRetriableSessionObserverError(error: Error) {
+  return (
+    error instanceof TypeError ||
+    error instanceof SessionObserverDisconnectedError ||
+    (error instanceof ApiError &&
+      [408, 429, 502, 503, 504].includes(error.status))
+  );
+}
+
+function waitForObserverRetry(delayMs: number, signal?: AbortSignal) {
+  if (signal?.aborted || delayMs <= 0) {
+    return Promise.resolve();
+  }
+
+  return new Promise<void>((resolve) => {
+    const timeoutId = globalThis.setTimeout(done, delayMs);
+    signal?.addEventListener("abort", done, { once: true });
+
+    function done() {
+      globalThis.clearTimeout(timeoutId);
+      signal?.removeEventListener("abort", done);
+      resolve();
+    }
   });
 }
 

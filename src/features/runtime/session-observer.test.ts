@@ -3,6 +3,7 @@ import {
   SessionObserverEnvelope,
   parseSessionObserverSseBlock,
   streamSessionObserver,
+  streamSessionObserverWithReconnect,
   streamSessionObserverWithQueuedReplay,
 } from "./session-observer";
 
@@ -167,6 +168,48 @@ describe("streamSessionObserver", () => {
       "acp",
       "turn_done",
     ]);
+  });
+
+  it("reconnects after a browser network error and keeps observing", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError("NetworkError"))
+      .mockResolvedValueOnce(
+        new Response(
+          streamFromChunks([
+            'data: {"type":"acp","session_id":"sess_1","turn_id":"turn_1","frame":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess_1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"continued"}}}}}\n\n',
+            'data: {"type":"turn_done","session_id":"sess_1","turn_id":"turn_1"}\n\n',
+          ]),
+          {
+            headers: { "content-type": "text/event-stream" },
+            status: 200,
+          },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const envelopes: SessionObserverEnvelope[] = [];
+    const onReconnect = vi.fn();
+
+    await streamSessionObserverWithReconnect({
+      afterMessageId: "msg_1",
+      agentId: "agent_1",
+      maxReconnectAttempts: 1,
+      onEnvelope: (envelope) => envelopes.push(envelope),
+      onReconnect,
+      reconnectDelayMs: 0,
+      sessionId: "sess_1",
+      userId: "self",
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(onReconnect).toHaveBeenCalledOnce();
+    expect(envelopes.map((envelope) => envelope.type)).toEqual([
+      "acp",
+      "turn_done",
+    ]);
+    expect((fetchMock as Mock).mock.calls[1]?.[0]).toContain(
+      "after_message_id=msg_1",
+    );
   });
 });
 
