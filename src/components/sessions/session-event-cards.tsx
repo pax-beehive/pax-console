@@ -690,7 +690,9 @@ function WorkGroupCard({
         ) : (
           <span className="h-2 w-2 rounded-full bg-ink-tertiary" />
         )}
-        <span className="shrink-0">{isWorking ? "Working" : "Work"}</span>
+        <span className="shrink-0">
+          {isWorking ? "Working" : "Work process"}
+        </span>
         {pendingPermissionCount > 0 && (
           <Badge className="shrink-0" tone="warning">
             {pendingPermissionCount} approval
