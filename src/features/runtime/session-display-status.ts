@@ -18,11 +18,11 @@ export function sessionDisplayStatus({
   reportedStatus?: string;
   remoteTurnActive: boolean;
 }): SessionDisplayStatus {
-  const idleTimeoutRecovered =
+  const conversationErrorRecovered =
     conversationStatus === "error" &&
-    isConversationIdleTimeout(conversationError) &&
+    isConversationObserverRecoverableError(conversationError) &&
     observerStatus === "observing";
-  if (conversationStatus === "error" && !idleTimeoutRecovered) {
+  if (conversationStatus === "error" && !conversationErrorRecovered) {
     return "error";
   }
   if (
@@ -49,4 +49,16 @@ export function sessionDisplayStatus({
 
 export function isConversationIdleTimeout(error?: Error | null) {
   return error?.message.toLowerCase().includes("idle timed out") ?? false;
+}
+
+export function isConversationObserverRecoverableError(error?: Error | null) {
+  if (!error) {
+    return false;
+  }
+  if (isConversationIdleTimeout(error) || error.name === "TypeError") {
+    return true;
+  }
+  return /failed to fetch|load failed|network(?:error| error| request failed)/i.test(
+    error.message,
+  );
 }
