@@ -1,10 +1,12 @@
 /* @vitest-environment jsdom */
 
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { RunBadge } from "./run-badge";
+
+afterEach(cleanup);
 
 function renderBadge(
   status: Parameters<typeof RunBadge>[0]["status"],
@@ -43,6 +45,20 @@ describe("RunBadge", () => {
     expect(screen.getByText("error")).toBeInTheDocument();
     expect(
       screen.getByLabelText("Session error: The session stream failed."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows an idle timeout as an inactive state instead of a red error", () => {
+    const error = new Error("ACP request idle timed out: session/prompt");
+    error.name = "ConversationRunError";
+
+    renderBadge("error", error);
+
+    expect(screen.getByText("inactive")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(
+        "Session inactive: ConversationRunError: ACP request idle timed out: session/prompt",
+      ),
     ).toBeInTheDocument();
   });
 });
