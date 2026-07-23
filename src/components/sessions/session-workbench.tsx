@@ -86,6 +86,7 @@ import { useSessionObserver } from "@/features/runtime/session-observer";
 import {
   isConversationObserverRecoverableError,
   sessionDisplayStatus,
+  sessionReportedStatus,
 } from "@/features/runtime/session-display-status";
 import { compactId } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -213,7 +214,7 @@ export function SessionWorkbench({
     [currentSessionId, sessionMetadata, sessionsQuery.data?.sessions],
   );
   const activeSessionReportedRunning = isActiveSessionRunStatus(
-    activeSession?.run_status ?? activeSession?.status,
+    sessionReportedStatus(activeSession),
   );
   const [observerSuppressedSessionId, setObserverSuppressedSessionId] =
     useState<string | null>(null);
@@ -578,7 +579,7 @@ export function SessionWorkbench({
     conversationError: conversationRun.error,
     conversationStatus: conversationRun.status,
     observerStatus: sessionObserver.status,
-    reportedStatus: activeSession?.run_status ?? activeSession?.status,
+    reportedStatus: sessionReportedStatus(activeSession),
     remoteTurnActive:
       activeSessionReportedRunning &&
       observerSuppressedSessionId !== currentSessionId,
