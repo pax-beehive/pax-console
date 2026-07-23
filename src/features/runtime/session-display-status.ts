@@ -3,13 +3,6 @@ import type { SessionObserverStatus } from "./session-observer";
 
 export type SessionDisplayStatus = ConversationRunStatus;
 
-export function sessionReportedStatus(session?: {
-  run_status?: string;
-  status?: string;
-}) {
-  return session?.run_status?.trim() || session?.status?.trim() || undefined;
-}
-
 export function sessionDisplayStatus({
   autoApprove = false,
   conversationError,
