@@ -579,7 +579,10 @@ Home New session composer
 Home session rail
   Refetches on window focus and every 15 seconds while mounted. Session
   assignment and runtime completion also invalidate the user-scoped session
-  list so status, preview, timestamps, and ordering do not remain stale.
+  list so status, preview, timestamps, and ordering do not remain stale. Its
+  TanStack Query namespace is `session-list`; do not use the `sessions` prefix,
+  which belongs to session-scoped metadata, history, artifacts, and observer
+  cursor dependencies.
 
 Session workbench composer
   POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/conversation
