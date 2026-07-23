@@ -249,6 +249,8 @@ status / count pill
 Sidebar 折叠
   使用 Zustand 的 sidebarCollapsed，不要放进 URL 或服务端数据。
   ConsoleLayout 使用 flex；Sidebar 自己用 width: 248/76px 控制展开/收起，并带 overflow-hidden。
+  Console shell 固定在动态视口内并持有页面级 overflow；内部 pane 必须用 flex
+  可用高度，不要再用 100vh 或 min-h-screen 撑开根页面，滚动只留在对应 pane 内。
   手机宽度隐藏 Sidebar，保留 Topbar；Home 默认显示 clean composer，并用左侧抽屉承载 Sessions / Inbox rail。
   Sidebar 自身使用安静的 surface 和 compact nav rows，不保留固定的 Current node 区块。
   Sidebar 一级入口保持粗粒度：顶部只有 Home 和 Collaboration；
@@ -391,6 +393,7 @@ Console shell：
 ```txt
 ConsoleLayout
   flex 主布局
+  固定在动态视口内，页面根节点不滚动
   Sidebar 独立控制宽度
   content area flex-1 min-w-0
 

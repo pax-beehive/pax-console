@@ -497,6 +497,9 @@ Sidebar layout rules:
 
 ```txt
 ConsoleLayout uses flex, not CSS grid columns.
+The console shell is fixed to the dynamic viewport and owns page-level
+overflow. Shell children must fill the available flex height instead of using
+100vh or min-h-screen; scrolling belongs to the relevant inner pane.
 Sidebar controls its own width with inline width 248/76px and overflow-hidden.
 Mobile widths hide the Sidebar, keep a compact Topbar, and expose a fixed
 Home / Collaboration / Settings bottom navigation.
