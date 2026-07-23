@@ -8,6 +8,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { isConversationIdleTimeout } from "@/features/runtime/session-display-status";
 import type { ConversationRunStatus } from "@/features/runtime/use-conversation-run";
 import { cn } from "@/lib/utils";
 
@@ -101,8 +102,4 @@ export function RunBadge({
 
 function formatError(error: Error) {
   return error.name ? `${error.name}: ${error.message}` : error.message;
-}
-
-function isConversationIdleTimeout(error?: Error | null) {
-  return error?.message.toLowerCase().includes("idle timed out") ?? false;
 }

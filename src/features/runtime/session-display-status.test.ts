@@ -57,6 +57,32 @@ describe("sessionDisplayStatus", () => {
     ).toBe("error");
   });
 
+  it("returns to streaming when the observer resumes after an idle timeout", () => {
+    expect(
+      sessionDisplayStatus({
+        conversationError: new Error(
+          "ACP request idle timed out: session/prompt",
+        ),
+        conversationStatus: "error",
+        observerStatus: "observing",
+        reportedStatus: "running",
+        remoteTurnActive: true,
+      }),
+    ).toBe("streaming");
+  });
+
+  it("does not hide a non-timeout conversation error when observing resumes", () => {
+    expect(
+      sessionDisplayStatus({
+        conversationError: new Error("ACP request failed"),
+        conversationStatus: "error",
+        observerStatus: "observing",
+        reportedStatus: "running",
+        remoteTurnActive: true,
+      }),
+    ).toBe("error");
+  });
+
   it("keeps approval visible when its observer times out", () => {
     expect(
       sessionDisplayStatus({
