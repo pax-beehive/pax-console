@@ -1,5 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { sessionDisplayStatus } from "./session-display-status";
+import {
+  sessionDisplayStatus,
+  sessionReportedStatus,
+} from "./session-display-status";
+
+describe("sessionReportedStatus", () => {
+  it("falls back to status when run_status is empty", () => {
+    expect(sessionReportedStatus({ run_status: "", status: "running" })).toBe(
+      "running",
+    );
+  });
+
+  it("prefers a non-empty run_status", () => {
+    expect(
+      sessionReportedStatus({ run_status: "waiting_approval", status: "idle" }),
+    ).toBe("waiting_approval");
+  });
+});
 
 describe("sessionDisplayStatus", () => {
   it("shows a remotely observed turn as streaming", () => {
