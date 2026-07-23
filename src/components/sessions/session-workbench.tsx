@@ -83,7 +83,10 @@ import {
 } from "@/features/runtime/session-events";
 import { useConversationRun } from "@/features/runtime/use-conversation-run";
 import { useSessionObserver } from "@/features/runtime/session-observer";
-import { sessionDisplayStatus } from "@/features/runtime/session-display-status";
+import {
+  isConversationIdleTimeout,
+  sessionDisplayStatus,
+} from "@/features/runtime/session-display-status";
 import { compactId } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { canSeeAdminFeatures } from "@/features/auth/admin-view";
@@ -572,6 +575,7 @@ export function SessionWorkbench({
   });
   const displayedRunStatus = sessionDisplayStatus({
     autoApprove: displayedApprovalMode === "auto_approve_all",
+    conversationError: conversationRun.error,
     conversationStatus: conversationRun.status,
     observerStatus: sessionObserver.status,
     reportedStatus: activeSession?.run_status ?? activeSession?.status,
@@ -579,7 +583,13 @@ export function SessionWorkbench({
       activeSessionReportedRunning &&
       observerSuppressedSessionId !== currentSessionId,
   });
-  const displayedRunError = conversationRun.error ?? sessionObserver.error;
+  const idleTimeoutRecovered =
+    conversationRun.status === "error" &&
+    isConversationIdleTimeout(conversationRun.error) &&
+    sessionObserver.status === "observing";
+  const displayedRunError = idleTimeoutRecovered
+    ? sessionObserver.error
+    : (conversationRun.error ?? sessionObserver.error);
   const isTurnRunning =
     conversationRun.status === "streaming" ||
     conversationRun.status === "waiting_approval" ||

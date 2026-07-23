@@ -5,18 +5,24 @@ export type SessionDisplayStatus = ConversationRunStatus;
 
 export function sessionDisplayStatus({
   autoApprove = false,
+  conversationError,
   conversationStatus,
   observerStatus,
   reportedStatus,
   remoteTurnActive,
 }: {
   autoApprove?: boolean;
+  conversationError?: Error | null;
   conversationStatus: ConversationRunStatus;
   observerStatus: SessionObserverStatus;
   reportedStatus?: string;
   remoteTurnActive: boolean;
 }): SessionDisplayStatus {
-  if (conversationStatus === "error") {
+  const idleTimeoutRecovered =
+    conversationStatus === "error" &&
+    isConversationIdleTimeout(conversationError) &&
+    observerStatus === "observing";
+  if (conversationStatus === "error" && !idleTimeoutRecovered) {
     return "error";
   }
   if (
@@ -39,4 +45,8 @@ export function sessionDisplayStatus({
     return "streaming";
   }
   return "idle";
+}
+
+export function isConversationIdleTimeout(error?: Error | null) {
+  return error?.message.toLowerCase().includes("idle timed out") ?? false;
 }
