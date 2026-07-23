@@ -258,6 +258,9 @@ export function SessionWorkbench({
           ),
         });
       }
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.userSessionsRoot(user.user_id),
+      });
       const params = new URLSearchParams();
       if (activeNodeId) {
         params.set("nodeId", activeNodeId);
@@ -453,6 +456,9 @@ export function SessionWorkbench({
     userId: user.user_id,
   });
   const refreshActiveSessionRuntime = useCallback(() => {
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.userSessionsRoot(user.user_id),
+    });
     if (activeNodeId && activeAgentId) {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.sessions(user.user_id, activeNodeId, activeAgentId),

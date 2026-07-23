@@ -153,6 +153,7 @@ const kindIcon: Record<WorkItemKind, React.ReactNode> = {
 };
 
 export function FleetOverview({ user }: FleetOverviewProps) {
+  const queryClient = useQueryClient();
   const previewAsUser = useConsoleStore((state) => state.previewAsUser);
   const showAdminFeatures = canSeeAdminFeatures(user, previewAsUser);
   const searchParams = useSearchParams();
@@ -269,6 +270,8 @@ export function FleetOverview({ user }: FleetOverviewProps) {
         : undefined;
     },
     initialPageParam: 1,
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: "always",
   });
   const queriedSessions = useMemo(
     () =>
@@ -785,6 +788,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 nodeId={activeSessionTarget.nodeId}
                 onMobileMenu={() => setMobileRailOpen(true)}
                 onSessionAssigned={(sessionId) => {
+                  void queryClient.invalidateQueries({
+                    queryKey: queryKeys.userSessionsRoot(user.user_id),
+                  });
                   const nextTarget = {
                     ...activeSessionTarget,
                     sessionId,

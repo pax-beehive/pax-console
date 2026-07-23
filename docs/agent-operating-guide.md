@@ -576,6 +576,11 @@ Currently implemented API-backed actions:
 Home New session composer
   Opens canonical /sessions/new without creating a server session
 
+Home session rail
+  Refetches on window focus and every 15 seconds while mounted. Session
+  assignment and runtime completion also invalidate the user-scoped session
+  list so status, preview, timestamps, and ordering do not remain stale.
+
 Session workbench composer
   POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/conversation
   with fetch streaming; type=acp frames still go through normalizeTunnelFrame
