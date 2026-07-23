@@ -166,6 +166,11 @@ src/components/resources/
 src/components/sessions/
   Session workbench。把 REST 历史消息和 WebSocket live events 合成时间线。
 
+  Session observer 的 `/events` SSE 在浏览器网络错误、无 terminal event 的提前
+  断流、以及 408/429/502/503/504 时自动重连。重连保留 history cursor 和当前
+  timeline buffer，采用最大 5 秒的指数退避；鉴权错误、非瞬时 API 错误、组件卸载
+  或切换 session 时停止重试。
+
   公开用户的 Session 右侧上下文面板只提供 Tool evidence。Artifacts、Knowledge、
   未接通的语音输入等实验入口只对 admin 展示，并受 `Preview as user` 开关控制。
 

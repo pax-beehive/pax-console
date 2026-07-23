@@ -67,4 +67,16 @@ describe("sessionDisplayStatus", () => {
       }),
     ).toBe("waiting_approval");
   });
+
+  it("does not show approval for an auto-approve session", () => {
+    expect(
+      sessionDisplayStatus({
+        autoApprove: true,
+        conversationStatus: "waiting_approval",
+        observerStatus: "idle",
+        reportedStatus: "waiting_approval",
+        remoteTurnActive: true,
+      }),
+    ).toBe("streaming");
+  });
 });

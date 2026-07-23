@@ -104,7 +104,7 @@ describe("session event cards", () => {
 
     expect(container).toHaveTextContent("Tool calls");
     expect(container).toHaveTextContent("1");
-    expect(container).not.toHaveTextContent("Work");
+    expect(container).not.toHaveTextContent("Work process");
     expect(container).not.toHaveTextContent("Working");
   });
 

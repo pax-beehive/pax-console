@@ -565,6 +565,7 @@ export function SessionWorkbench({
     userId: user.user_id,
   });
   const displayedRunStatus = sessionDisplayStatus({
+    autoApprove: displayedApprovalMode === "auto_approve_all",
     conversationStatus: conversationRun.status,
     observerStatus: sessionObserver.status,
     reportedStatus: activeSession?.run_status ?? activeSession?.status,

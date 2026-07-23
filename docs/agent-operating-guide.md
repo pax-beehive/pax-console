@@ -263,6 +263,12 @@ with `{ "reason": "user_requested" }`. This sends a manager-side stop command
 and does not abort the browser's active SSE reader; live updates can continue
 until the backend and agent finish cancelling.
 
+The session observer automatically reconnects when the browser `fetch` stream
+fails at the network layer, ends before a terminal event, or receives a
+transient 408/429/502/503/504 response. It keeps the same history cursor and
+buffered timeline, uses capped exponential backoff, and stops retrying on
+authentication, other non-transient API errors, unmount, or session change.
+
 While a turn is running, composer submit queues the current draft through:
 
 ```txt
