@@ -1059,23 +1059,24 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                           {attachmentName}
                         </Badge>
                       )}
-                      <div className="min-w-0 flex-1" />
-                      <AgentSelector
-                        agents={agents}
-                        nodes={nodes}
-                        selectedAgentId={activeAgent?.agent_id}
-                        onChange={setSelectedAgentId}
-                      />
-                      <Button
-                        disabled={
-                          !activeAgent?.agent_id || newSessionCwdInvalid
-                        }
-                        icon={<ArrowUp className="h-5 w-5" />}
-                        size="icon"
-                        tooltip="Start session"
-                        type="submit"
-                        variant="primary"
-                      />
+                      <div className="ml-auto flex shrink-0 items-center gap-2">
+                        <AgentSelector
+                          agents={agents}
+                          nodes={nodes}
+                          selectedAgentId={activeAgent?.agent_id}
+                          onChange={setSelectedAgentId}
+                        />
+                        <Button
+                          disabled={
+                            !activeAgent?.agent_id || newSessionCwdInvalid
+                          }
+                          icon={<ArrowUp className="h-5 w-5" />}
+                          size="icon"
+                          tooltip="Start session"
+                          type="submit"
+                          variant="primary"
+                        />
+                      </div>
                     </div>
                   </div>
                 </form>
