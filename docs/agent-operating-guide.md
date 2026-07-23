@@ -152,7 +152,17 @@ drawer state
 composer drafts
 local filters
 temporary UI selections
+admin preview-as-user mode
 ```
+
+Admin-only experimental UI must use the shared effective admin view. A real
+admin can enable `Preview as user` from the top-right user menu; while enabled,
+the UI must hide the same experimental controls hidden from normal users.
+Session Artifacts and Knowledge panels, fake inquiries, global search, image
+attachment, and voice input currently follow this rule. Tool evidence remains
+available to all session users.
+The Collaboration navigation group is also admin-only for the current public
+release. Both desktop and mobile navigation must honor preview-as-user mode.
 
 Never duplicate server resources such as nodes, agents, sessions, messages,
 teams, friends, envelopes, or knowledge capsules into Zustand.

@@ -48,6 +48,7 @@ describe("SessionComposer", () => {
           onUpdateQueuedTurn={async () => true}
           queueTurnPending={false}
           queuedTurn={null}
+          showAdminFeatures={false}
           steerTurnPending={false}
           stopTurnPending={false}
           updateQueuedTurnPending={false}
@@ -56,6 +57,10 @@ describe("SessionComposer", () => {
     );
 
     const textarea = screen.getByPlaceholderText("Send a prompt to this agent");
+    expect(screen.queryByLabelText("Open artifacts")).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Voice input is not available yet"),
+    ).not.toBeInTheDocument();
     fireEvent.change(textarea, { target: { value: "hello" } });
 
     expect(textarea).toHaveValue("hello");

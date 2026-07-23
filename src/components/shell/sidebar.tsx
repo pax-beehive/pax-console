@@ -65,7 +65,7 @@ const settingsNavItem: NavItem = {
   ],
 };
 
-export function Sidebar() {
+export function Sidebar({ showAdminFeatures }: { showAdminFeatures: boolean }) {
   const collapsed = useConsoleStore((state) => state.sidebarCollapsed);
   const setCollapsed = useConsoleStore((state) => state.setSidebarCollapsed);
 
@@ -113,9 +113,13 @@ export function Sidebar() {
 
       <nav className="mt-3 flex min-h-0 flex-1 flex-col">
         <div className="grid flex-1 content-start gap-0.5 overflow-y-auto">
-          {primaryNavItems.map((item) => (
-            <NavEntry collapsed={collapsed} item={item} key={item.label} />
-          ))}
+          {primaryNavItems
+            .filter(
+              (item) => showAdminFeatures || item.label !== "Collaboration",
+            )
+            .map((item) => (
+              <NavEntry collapsed={collapsed} item={item} key={item.label} />
+            ))}
         </div>
         <div className="mt-2 border-t border-hairline pt-2">
           <NavEntry collapsed={collapsed} item={settingsNavItem} />
