@@ -90,6 +90,7 @@ export const queryKeys = {
         pageSize: filters?.pageSize ?? "default",
       },
     ] as const,
+  userSessionsRoot: (userId: string) => ["users", userId, "sessions"] as const,
   sessions: (userId: string, nodeId: string, agentId: string) =>
     ["users", userId, "nodes", nodeId, "agents", agentId, "sessions"] as const,
   session: (

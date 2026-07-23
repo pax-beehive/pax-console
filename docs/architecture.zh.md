@@ -156,6 +156,9 @@ src/components/home/
   sessions 不再是 sidebar 一级工作区。
   当用户还没有 node 或 agent 时，Home 会展示 node registration 和 Devices
   的 onboarding 入口。移动端 Workspace 输入独占一行，避免被 agent 和审批控件挤压。
+  左侧 Session rail 在窗口重新聚焦时立即刷新，并在页面可见期间每 15 秒低频轮询；
+  Session 分配和 runtime 完成也会失效 user-scoped session list，使状态、预览、时间和
+  排序不会停留在首次加载结果。
 
 src/components/resources/
   Settings 组下的资源页。Devices 聚合 Nodes / Agents，Security 只管理 active
