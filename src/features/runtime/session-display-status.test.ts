@@ -71,6 +71,20 @@ describe("sessionDisplayStatus", () => {
     ).toBe("streaming");
   });
 
+  it("returns to streaming when the observer recovers a network TypeError", () => {
+    const networkError = new TypeError("Failed to fetch");
+
+    expect(
+      sessionDisplayStatus({
+        conversationError: networkError,
+        conversationStatus: "error",
+        observerStatus: "observing",
+        reportedStatus: "running",
+        remoteTurnActive: true,
+      }),
+    ).toBe("streaming");
+  });
+
   it("does not hide a non-timeout conversation error when observing resumes", () => {
     expect(
       sessionDisplayStatus({

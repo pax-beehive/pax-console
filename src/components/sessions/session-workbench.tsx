@@ -84,7 +84,7 @@ import {
 import { useConversationRun } from "@/features/runtime/use-conversation-run";
 import { useSessionObserver } from "@/features/runtime/session-observer";
 import {
-  isConversationIdleTimeout,
+  isConversationObserverRecoverableError,
   sessionDisplayStatus,
 } from "@/features/runtime/session-display-status";
 import { compactId } from "@/lib/format";
@@ -583,11 +583,11 @@ export function SessionWorkbench({
       activeSessionReportedRunning &&
       observerSuppressedSessionId !== currentSessionId,
   });
-  const idleTimeoutRecovered =
+  const conversationErrorRecovered =
     conversationRun.status === "error" &&
-    isConversationIdleTimeout(conversationRun.error) &&
+    isConversationObserverRecoverableError(conversationRun.error) &&
     sessionObserver.status === "observing";
-  const displayedRunError = idleTimeoutRecovered
+  const displayedRunError = conversationErrorRecovered
     ? sessionObserver.error
     : (conversationRun.error ?? sessionObserver.error);
   const isTurnRunning =
