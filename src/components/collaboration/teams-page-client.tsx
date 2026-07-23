@@ -35,7 +35,7 @@ export function TeamsPageClient({ user }: { user: User }) {
 
   return (
     <ConsoleLayout user={user}>
-      <div className="grid min-h-[calc(100vh-var(--topbar-h))] min-w-0 grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)]">
+      <div className="grid min-h-0 min-w-0 flex-1 grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)]">
         <aside className="min-w-0 border-b border-hairline bg-surface-1 lg:border-b-0 lg:border-r">
           <TeamListPanel
             invites={teamInvites}

@@ -71,7 +71,7 @@ export function Sidebar({ showAdminFeatures }: { showAdminFeatures: boolean }) {
 
   return (
     <aside
-      className="flex min-h-screen shrink-0 flex-col overflow-hidden border-r border-hairline bg-surface-1 px-2 py-3 transition-[width] duration-200"
+      className="flex h-full min-h-0 shrink-0 flex-col overflow-hidden border-r border-hairline bg-surface-1 px-2 py-3 transition-[width] duration-200"
       style={{ width: collapsed ? 76 : 248 }}
     >
       <div

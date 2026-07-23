@@ -1170,7 +1170,7 @@ export function SessionWorkbench({
     <div
       className={cn(
         "relative flex min-h-0 min-w-0 overflow-hidden bg-canvas",
-        embedded ? "h-full" : "flex-1 lg:h-[calc(100vh-var(--topbar-h))]",
+        embedded ? "h-full" : "flex-1",
       )}
     >
       <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-canvas">
