@@ -7,9 +7,11 @@ import {
   ReactNode,
   isValidElement,
   memo,
+  useEffect,
+  useId,
   useState,
 } from "react";
-import { Check, Copy } from "lucide-react";
+import { Check, Code2, Copy, Eye } from "lucide-react";
 import ReactMarkdown, { Components } from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
@@ -23,10 +25,37 @@ type MarkdownMessageProps = {
   streaming?: boolean;
 };
 
+const localFileHrefPattern =
+  /^(?:file:\/+|[a-zA-Z]:[\\/]|\/(?:Users|home|private|tmp|var|opt|workspace|workspaces|mnt|Volumes)(?:\/|$))/;
+
+export function isLocalFileHref(href: string) {
+  let decodedHref = href;
+
+  try {
+    decodedHref = decodeURIComponent(href);
+  } catch {
+    // Keep malformed URLs inert only when their undecoded form is a local path.
+  }
+
+  return localFileHrefPattern.test(decodedHref);
+}
+
 const markdownComponents: Components = {
   a({ children, href, ...props }) {
     if (!href) {
       return <span>{children}</span>;
+    }
+
+    if (isLocalFileHref(href)) {
+      return (
+        <span
+          className="break-words text-ink-subtle underline decoration-dotted underline-offset-4"
+          title="This local file is unavailable from the remote console"
+          {...props}
+        >
+          {children}
+        </span>
+      );
     }
 
     if (href.startsWith("/")) {
@@ -170,6 +199,24 @@ const highlightedMarkdownPlugins: NonNullable<
   ComponentProps<typeof ReactMarkdown>["rehypePlugins"]
 > = [[rehypeHighlight, { detect: false, ignoreMissing: true }]];
 
+let mermaidModulePromise: Promise<typeof import("mermaid").default> | undefined;
+
+function loadMermaid() {
+  if (!mermaidModulePromise) {
+    mermaidModulePromise = import("mermaid").then(({ default: mermaid }) => {
+      mermaid.initialize({
+        securityLevel: "strict",
+        startOnLoad: false,
+        suppressErrorRendering: true,
+        theme: "dark",
+      });
+      return mermaid;
+    });
+  }
+
+  return mermaidModulePromise;
+}
+
 function MarkdownPre({
   children,
   className,
@@ -178,6 +225,24 @@ function MarkdownPre({
   const [copied, setCopied] = useState(false);
   const codeText = textFromReactNode(children).replace(/\n$/, "");
   const language = languageFromReactNode(children) ?? "text";
+  const isMermaid = language.toLowerCase() === "mermaid";
+  const [showMermaidPreview, setShowMermaidPreview] = useState(true);
+
+  if (isMermaid) {
+    return (
+      <MermaidBlock
+        className={className}
+        codeText={codeText}
+        copied={copied}
+        onCopy={copyCode}
+        onPreviewChange={setShowMermaidPreview}
+        preview={showMermaidPreview}
+        preProps={props}
+      >
+        {children}
+      </MermaidBlock>
+    );
+  }
 
   async function copyCode() {
     if (!codeText || typeof navigator === "undefined") {
@@ -237,6 +302,168 @@ function MarkdownPre({
         {children}
       </pre>
     </div>
+  );
+}
+
+function MermaidBlock({
+  children,
+  className,
+  codeText,
+  copied,
+  onCopy,
+  onPreviewChange,
+  preview,
+  preProps,
+}: {
+  children: ReactNode;
+  className?: string;
+  codeText: string;
+  copied: boolean;
+  onCopy: () => Promise<void>;
+  onPreviewChange: (preview: boolean) => void;
+  preview: boolean;
+  preProps: Omit<ComponentPropsWithoutRef<"pre">, "children" | "className">;
+}) {
+  const renderId = `mermaid-${useId().replace(/:/g, "")}`;
+  const [renderResult, setRenderResult] = useState({
+    code: "",
+    error: "",
+    svg: "",
+  });
+
+  useEffect(() => {
+    if (!preview || !codeText) {
+      return;
+    }
+
+    let cancelled = false;
+
+    void loadMermaid()
+      .then((mermaid) => mermaid.render(renderId, codeText))
+      .then(({ svg: renderedSvg }) => {
+        if (!cancelled) {
+          setRenderResult({ code: codeText, error: "", svg: renderedSvg });
+        }
+      })
+      .catch((renderError: unknown) => {
+        if (!cancelled) {
+          setRenderResult({
+            code: codeText,
+            error:
+              renderError instanceof Error
+                ? renderError.message
+                : "Unable to render this Mermaid diagram.",
+            svg: "",
+          });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [codeText, preview, renderId]);
+
+  const currentResult =
+    renderResult.code === codeText ? renderResult : undefined;
+
+  return (
+    <div className="my-2 max-w-full overflow-hidden rounded-lg border border-white/10 bg-[#242424] text-[#f4f4f5] shadow-sm">
+      <div className="flex h-9 items-center justify-between gap-3 px-3">
+        <span className="min-w-0 truncate font-mono text-xs text-[#b8b8b8]">
+          mermaid
+        </span>
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            aria-label={
+              preview ? "Show Mermaid code" : "Preview Mermaid diagram"
+            }
+            aria-pressed={preview}
+            className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs text-[#b8b8b8] transition hover:bg-white/10 hover:text-white"
+            onClick={() => onPreviewChange(!preview)}
+            type="button"
+          >
+            {preview ? (
+              <Code2 className="h-4 w-4" />
+            ) : (
+              <Eye className="h-4 w-4" />
+            )}
+            {preview ? "Code" : "Preview"}
+          </button>
+          <button
+            aria-label={copied ? "Copied code" : "Copy code"}
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#b8b8b8] transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={!codeText}
+            onClick={onCopy}
+            type="button"
+          >
+            {copied ? (
+              <Check className="h-4 w-4" />
+            ) : (
+              <Copy className="h-4 w-4" />
+            )}
+          </button>
+        </div>
+      </div>
+      {preview ? (
+        <div
+          aria-label="Mermaid diagram preview"
+          className="min-h-24 max-w-full overflow-auto border-t border-white/10 p-3 [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-w-full"
+        >
+          {currentResult?.error ? (
+            <div className="rounded-md border border-danger/30 bg-danger/10 p-3 text-xs text-danger">
+              Could not render this Mermaid diagram. Switch to code to inspect
+              the source.
+            </div>
+          ) : currentResult?.svg ? (
+            <div dangerouslySetInnerHTML={{ __html: currentResult.svg }} />
+          ) : (
+            <div className="py-6 text-center text-xs text-[#b8b8b8]">
+              Rendering diagram…
+            </div>
+          )}
+        </div>
+      ) : (
+        <MarkdownCodePre className={className} preProps={preProps}>
+          {children}
+        </MarkdownCodePre>
+      )}
+    </div>
+  );
+}
+
+function MarkdownCodePre({
+  children,
+  className,
+  preProps,
+}: {
+  children: ReactNode;
+  className?: string;
+  preProps: Omit<ComponentPropsWithoutRef<"pre">, "children" | "className">;
+}) {
+  return (
+    <pre
+      className={cn(
+        "max-w-full overflow-auto bg-transparent px-3 pb-3 pt-1 text-xs leading-5",
+        "[&_code]:border-0 [&_code]:bg-transparent [&_code]:p-0 [&_code]:text-[#f4f4f5]",
+        "[&_.hljs-attr]:text-[#00d7b0] [&_.hljs-attribute]:text-[#79c0ff]",
+        "[&_.hljs-built_in]:text-[#ffa657] [&_.hljs-bullet]:text-[#79c0ff]",
+        "[&_.hljs-comment]:text-[#8b949e] [&_.hljs-doctag]:text-[#ff7b72]",
+        "[&_.hljs-keyword]:text-[#ff7b72] [&_.hljs-literal]:text-[#79c0ff]",
+        "[&_.hljs-meta]:text-[#8b949e] [&_.hljs-name]:text-[#7ee787]",
+        "[&_.hljs-number]:text-[#79c0ff] [&_.hljs-operator]:text-[#ff7b72]",
+        "[&_.hljs-params]:text-[#f4f4f5] [&_.hljs-property]:text-[#00d7b0]",
+        "[&_.hljs-punctuation]:text-[#c9d1d9] [&_.hljs-regexp]:text-[#a5d6ff]",
+        "[&_.hljs-section]:text-[#d2a8ff] [&_.hljs-selector-class]:text-[#d2a8ff]",
+        "[&_.hljs-selector-id]:text-[#d2a8ff] [&_.hljs-string]:text-[#00d7b0]",
+        "[&_.hljs-subst]:text-[#f4f4f5] [&_.hljs-symbol]:text-[#79c0ff]",
+        "[&_.hljs-tag]:text-[#7ee787] [&_.hljs-title]:text-[#d2a8ff]",
+        "[&_.hljs-type]:text-[#ffa657] [&_.hljs-variable]:text-[#ffa657]",
+        className,
+      )}
+      {...preProps}
+    >
+      {children}
+    </pre>
   );
 }
 
