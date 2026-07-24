@@ -46,6 +46,7 @@ import {
   createArtifactUpload,
   decideApproval,
   deleteQueuedSessionTurn,
+  flattenSessionHistoryPages,
   getArtifactContentURL,
   getQueuedSessionTurn,
   injectKnowledgeCapsule,
@@ -74,6 +75,10 @@ import {
   HistoryMessage,
   User,
 } from "@/features/api/types";
+import {
+  restoredScrollTop,
+  shouldLoadEarlierHistory,
+} from "@/components/sessions/session-history-scroll";
 import { filterMergedLiveEventsAlreadyInHistory } from "@/features/runtime/filter-live-history-events";
 import { normalizeHistoryMessages } from "@/features/runtime/normalize-history-message";
 import { mergeEvents } from "@/features/runtime/merge-session-events";
@@ -185,6 +190,11 @@ export function SessionWorkbench({
   const [sendError, setSendError] = useState<Error | null>(null);
   const timelineScrollRef = useRef<HTMLDivElement>(null);
   const shouldStickToBottomRef = useRef(true);
+  const pendingHistoryPrependRef = useRef<{
+    expectedPageCount: number;
+    scrollHeight: number;
+    scrollTop: number;
+  } | null>(null);
   const [activeSidePanelId, setActiveSidePanelId] =
     useState<SessionSidePanelId | null>(null);
   const [selectedToolEvidence, setSelectedToolEvidence] =
@@ -277,6 +287,16 @@ export function SessionWorkbench({
     [activeAgentId, activeNodeId, onSessionAssigned, queryClient, user.user_id],
   );
   const historyQuery = useSessionHistory(user.user_id, currentSessionId);
+  const historyMessages = useMemo(
+    () => flattenSessionHistoryPages(historyQuery.data?.pages),
+    [historyQuery.data?.pages],
+  );
+  const historyPageCount = historyQuery.data?.pages.length ?? 0;
+  const {
+    fetchNextPage: fetchNextHistoryPage,
+    hasNextPage: hasNextHistoryPage,
+    isFetchingNextPage: isFetchingNextHistoryPage,
+  } = historyQuery;
   const capsulesQuery = useKnowledgeCapsules(user.user_id, {
     status: "active",
   });
@@ -468,7 +488,7 @@ export function SessionWorkbench({
     queryClient,
     user.user_id,
   ]);
-  const lastHistoryMessageID = lastMessageID(historyQuery.data?.messages);
+  const lastHistoryMessageID = lastMessageID(historyMessages);
   const shouldObserveSessionTurn =
     Boolean(activeAgentId && currentSessionId) &&
     activeSessionReportedRunning &&
@@ -788,9 +808,8 @@ export function SessionWorkbench({
   // The timeline merges durable REST history with live conversation events.
   // REST gives refresh/resume safety; the run stream gives low-latency updates.
   const historyEvents = useMemo(
-    () =>
-      mergeEvents(normalizeHistoryMessages(historyQuery.data?.messages ?? [])),
-    [historyQuery.data?.messages],
+    () => mergeEvents(normalizeHistoryMessages(historyMessages)),
+    [historyMessages],
   );
 
   const mergedRuntimeEvents = useMemo(
@@ -852,6 +871,41 @@ export function SessionWorkbench({
       scrollElement.clientHeight;
     shouldStickToBottomRef.current = distanceFromBottom < 96;
   }, []);
+  const loadEarlierHistory = useCallback(() => {
+    const scrollElement = timelineScrollRef.current;
+    if (
+      !scrollElement ||
+      pendingHistoryPrependRef.current ||
+      !shouldLoadEarlierHistory({
+        hasNextPage: Boolean(hasNextHistoryPage),
+        isFetchingNextPage: isFetchingNextHistoryPage,
+        scrollTop: scrollElement.scrollTop,
+      })
+    ) {
+      return;
+    }
+
+    pendingHistoryPrependRef.current = {
+      expectedPageCount: historyPageCount + 1,
+      scrollHeight: scrollElement.scrollHeight,
+      scrollTop: scrollElement.scrollTop,
+    };
+    shouldStickToBottomRef.current = false;
+    void fetchNextHistoryPage().then((result) => {
+      if (result.isError) {
+        pendingHistoryPrependRef.current = null;
+      }
+    });
+  }, [
+    fetchNextHistoryPage,
+    hasNextHistoryPage,
+    historyPageCount,
+    isFetchingNextHistoryPage,
+  ]);
+  const handleTimelineScroll = useCallback(() => {
+    updateTimelineStickiness();
+    loadEarlierHistory();
+  }, [loadEarlierHistory, updateTimelineStickiness]);
 
   const queueDraft = queueTurn.mutateAsync;
   const sendConversationMessage = conversationRun.sendMessage;
@@ -1028,21 +1082,46 @@ export function SessionWorkbench({
   ]);
 
   useEffect(() => {
-    if (!shouldStickToBottomRef.current) {
+    pendingHistoryPrependRef.current = null;
+    shouldStickToBottomRef.current = true;
+  }, [currentSessionId]);
+
+  useEffect(() => {
+    const pendingPrepend = pendingHistoryPrependRef.current;
+    const shouldRestorePrepend =
+      pendingPrepend && historyPageCount >= pendingPrepend.expectedPageCount;
+    if (!shouldRestorePrepend && !shouldStickToBottomRef.current) {
       return;
     }
 
     const frameId = window.requestAnimationFrame(() => {
       const scrollElement = timelineScrollRef.current;
-      if (!scrollElement || !shouldStickToBottomRef.current) {
+      if (!scrollElement) {
         return;
       }
-      scrollElement.scrollTop = scrollElement.scrollHeight;
-      shouldStickToBottomRef.current = true;
+
+      const currentPrepend = pendingHistoryPrependRef.current;
+      if (
+        currentPrepend &&
+        historyPageCount >= currentPrepend.expectedPageCount
+      ) {
+        scrollElement.scrollTop = restoredScrollTop(
+          currentPrepend,
+          scrollElement.scrollHeight,
+        );
+        pendingHistoryPrependRef.current = null;
+        updateTimelineStickiness();
+        return;
+      }
+
+      if (shouldStickToBottomRef.current) {
+        scrollElement.scrollTop = scrollElement.scrollHeight;
+        shouldStickToBottomRef.current = true;
+      }
     });
 
     return () => window.cancelAnimationFrame(frameId);
-  }, [workstreamItems]);
+  }, [historyPageCount, updateTimelineStickiness, workstreamItems]);
 
   const sidePanels: SessionSidePanel[] = [
     {
@@ -1211,10 +1290,18 @@ export function SessionWorkbench({
 
         <div
           className="min-h-0 flex-1 overflow-auto bg-canvas p-3 sm:p-4"
-          onScroll={updateTimelineStickiness}
+          onScroll={handleTimelineScroll}
           ref={timelineScrollRef}
         >
           <div className="mx-auto grid w-full max-w-4xl gap-2">
+            {isFetchingNextHistoryPage && (
+              <div
+                className="py-1 text-center text-xs text-ink-tertiary"
+                role="status"
+              >
+                Loading earlier messages
+              </div>
+            )}
             <SessionErrors
               messagesError={historyQuery.error}
               missingRouteState={!activeNodeId || !activeAgentId}
