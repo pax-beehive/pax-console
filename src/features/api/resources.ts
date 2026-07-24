@@ -68,7 +68,9 @@ type ListUserSessionsOptions = {
 };
 
 type UpdateAgentSessionInput = {
-  pax_config: {
+  name?: string;
+  use_reported_name?: boolean;
+  pax_config?: {
     approval_mode: SessionApprovalMode;
   };
 };

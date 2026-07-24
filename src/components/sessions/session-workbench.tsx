@@ -14,12 +14,15 @@ import {
   AlertCircle,
   ArrowLeft,
   Brain,
+  Check,
   Download,
   FileText,
   LoaderCircle,
   Menu,
   PanelRight,
+  Pencil,
   RefreshCw,
+  RotateCcw,
   UploadCloud,
   Wrench,
   X,
@@ -93,6 +96,7 @@ import {
   sessionDisplayStatus,
 } from "@/features/runtime/session-display-status";
 import { compactId } from "@/lib/format";
+import { useDocumentTitle } from "@/lib/use-document-title";
 import { cn } from "@/lib/utils";
 import { canSeeAdminFeatures } from "@/features/auth/admin-view";
 import { useConsoleStore } from "@/stores/console-store";
@@ -196,6 +200,8 @@ export function SessionWorkbench({
   );
   const initialPromptSentRef = useRef(false);
   const [sendError, setSendError] = useState<Error | null>(null);
+  const [sessionNameEditing, setSessionNameEditing] = useState(false);
+  const [sessionNameDraft, setSessionNameDraft] = useState("");
   const timelineScrollRef = useRef<HTMLDivElement>(null);
   const shouldStickToBottomRef = useRef(true);
   const pendingHistoryPrependRef = useRef<{
@@ -217,9 +223,10 @@ export function SessionWorkbench({
     !isAbsolutePath(normalizedNewSessionCwd);
   const activeSession = useMemo(
     () =>
+      sessionMetadata ??
       sessionsQuery.data?.sessions.find(
         (session) => session.session_id === currentSessionId,
-      ) ?? sessionMetadata,
+      ),
     [currentSessionId, sessionMetadata, sessionsQuery.data?.sessions],
   );
   const activeSessionReportedRunning = isActiveSessionRunStatus(
@@ -260,6 +267,7 @@ export function SessionWorkbench({
   const sessionDisplayName =
     activeSession?.name?.trim() ||
     (currentSessionId ? compactId(currentSessionId) : "New session");
+  useDocumentTitle(sessionDisplayName);
   const sessionTitleTooltip =
     activeSession?.name && currentSessionId
       ? `${activeSession.name} (${currentSessionId})`
@@ -663,6 +671,68 @@ export function SessionWorkbench({
       );
     },
   });
+  const updateSessionName = useMutation({
+    mutationFn: async (
+      input: { name: string } | { use_reported_name: true },
+    ) => {
+      if (!activeNodeId || !activeAgentId || !currentSessionId) {
+        throw new Error("Start the session before changing its name.");
+      }
+
+      return updateAgentSession(
+        user.user_id,
+        activeNodeId,
+        activeAgentId,
+        currentSessionId,
+        input,
+      );
+    },
+    onSuccess: (session) => {
+      queryClient.setQueryData(
+        queryKeys.sessionMetadata(user.user_id, session.session_id),
+        session,
+      );
+      setSessionNameEditing(false);
+      setSessionNameDraft("");
+      setSendError(null);
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.userSessionsRoot(user.user_id),
+      });
+      if (activeNodeId && activeAgentId) {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.sessions(
+            user.user_id,
+            activeNodeId,
+            activeAgentId,
+          ),
+        });
+      }
+    },
+    onError: (caught) => {
+      setSendError(
+        caught instanceof Error ? caught : new Error(String(caught)),
+      );
+    },
+  });
+
+  function beginSessionNameEdit() {
+    setSessionNameDraft(sessionDisplayName);
+    setSessionNameEditing(true);
+  }
+
+  function submitSessionName(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = sessionNameDraft.trim();
+    if (
+      !name ||
+      name.length > 120 ||
+      name === activeSession?.name ||
+      updateSessionName.isPending
+    ) {
+      return;
+    }
+    updateSessionName.mutate({ name });
+  }
 
   const stopTurn = useMutation({
     mutationFn: async () => {
@@ -1306,13 +1376,102 @@ export function SessionWorkbench({
                   {activeAgent?.name ?? activeAgentId ?? "Unknown agent"}
                 </TruncatedText>
               </div>
-              <div className="mt-1 flex min-w-0 items-center gap-2">
-                <TruncatedText
-                  className="text-base font-medium sm:text-lg"
-                  tooltip={sessionTitleTooltip}
-                >
-                  {sessionDisplayName}
-                </TruncatedText>
+              <div className="mt-1 flex min-w-0 items-center gap-1">
+                {sessionNameEditing ? (
+                  <form
+                    className="flex min-w-0 items-center gap-1"
+                    onSubmit={submitSessionName}
+                  >
+                    <input
+                      aria-label="Session name"
+                      autoFocus
+                      className="h-8 min-w-0 max-w-80 rounded-md border border-hairline-strong bg-surface-2 px-2 text-sm font-medium text-ink outline-none focus:border-primary"
+                      maxLength={120}
+                      onChange={(event) =>
+                        setSessionNameDraft(event.target.value)
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key === "Escape") {
+                          setSessionNameEditing(false);
+                          setSessionNameDraft("");
+                        }
+                      }}
+                      value={sessionNameDraft}
+                    />
+                    <Button
+                      aria-label="Save session name"
+                      className="h-8 w-8"
+                      disabled={
+                        !sessionNameDraft.trim() ||
+                        sessionNameDraft.trim() === activeSession?.name ||
+                        updateSessionName.isPending
+                      }
+                      icon={
+                        updateSessionName.isPending ? (
+                          <LoaderCircle className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Check className="h-4 w-4" />
+                        )
+                      }
+                      size="icon"
+                      tooltip="Save session name"
+                      type="submit"
+                      variant="ghost"
+                    />
+                    {activeSession?.name_is_custom && (
+                      <Button
+                        aria-label="Use reported session name"
+                        className="h-8 w-8"
+                        disabled={updateSessionName.isPending}
+                        icon={<RotateCcw className="h-4 w-4" />}
+                        onClick={() =>
+                          updateSessionName.mutate({
+                            use_reported_name: true,
+                          })
+                        }
+                        size="icon"
+                        tooltip={`Use reported name: ${activeSession.reported_name ?? currentSessionId}`}
+                        type="button"
+                        variant="ghost"
+                      />
+                    )}
+                    <Button
+                      aria-label="Cancel session name edit"
+                      className="h-8 w-8"
+                      disabled={updateSessionName.isPending}
+                      icon={<X className="h-4 w-4" />}
+                      onClick={() => {
+                        setSessionNameEditing(false);
+                        setSessionNameDraft("");
+                      }}
+                      size="icon"
+                      tooltip="Cancel"
+                      type="button"
+                      variant="ghost"
+                    />
+                  </form>
+                ) : (
+                  <>
+                    <TruncatedText
+                      className="text-base font-medium sm:text-lg"
+                      tooltip={sessionTitleTooltip}
+                    >
+                      {sessionDisplayName}
+                    </TruncatedText>
+                    {currentSessionId && (
+                      <Button
+                        aria-label="Rename session"
+                        className="h-8 w-8"
+                        icon={<Pencil className="h-3.5 w-3.5" />}
+                        onClick={beginSessionNameEdit}
+                        size="icon"
+                        tooltip="Rename session"
+                        type="button"
+                        variant="ghost"
+                      />
+                    )}
+                  </>
+                )}
               </div>
             </div>
           </div>

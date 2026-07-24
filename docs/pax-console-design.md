@@ -432,6 +432,12 @@ do not move concurrently running sessions. Older API rows fall back to
 Conversation
 POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/conversation
 POST /api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/turn/stop
+PATCH /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}
+
+The session PATCH accepts `{ "name": "..." }` to set a user-owned display
+name and `{ "use_reported_name": true }` to restore the latest paxd-reported
+name. Session responses expose `name`, `reported_name`, and `name_is_custom`;
+periodic reports update only the reported name.
 
 WebSocket
 GET /api/v1/user/self/agents/{agent_id}/tunnel

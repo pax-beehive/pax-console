@@ -52,6 +52,25 @@ describe("MarkdownMessage links", () => {
   });
 });
 
+describe("MarkdownMessage GFM syntax", () => {
+  it("does not treat home-directory tildes as strikethrough delimiters", () => {
+    const content =
+      "Copy ~/pax_workspace/pax-nexus into ~/pax_workspace/backup.";
+    const { container } = render(<MarkdownMessage content={content} />);
+
+    expect(container).toHaveTextContent(content);
+    expect(container.querySelector("del")).not.toBeInTheDocument();
+  });
+
+  it("keeps double-tilde strikethrough support", () => {
+    const { container } = render(
+      <MarkdownMessage content="This is ~~deprecated~~." />,
+    );
+
+    expect(container.querySelector("del")).toHaveTextContent("deprecated");
+  });
+});
+
 describe("MarkdownMessage Mermaid blocks", () => {
   it("previews Mermaid by default and switches between preview and code", async () => {
     render(
