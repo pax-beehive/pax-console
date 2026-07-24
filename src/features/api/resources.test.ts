@@ -452,6 +452,17 @@ describe("listSessionHistory", () => {
       ]).map((message) => message.message_id),
     ).toEqual(["msg_1", "msg_2", "msg_3", "msg_4"]);
   });
+
+  it("treats a null empty-history response as no messages", () => {
+    expect(
+      flattenSessionHistoryPages([
+        {
+          messages: null,
+          pagination: { has_more: false },
+        },
+      ]),
+    ).toEqual([]);
+  });
 });
 
 describe("listAgentOwnerInfos", () => {

@@ -225,6 +225,11 @@ export function SessionWorkbench({
   const activeSessionReportedRunning = isActiveSessionRunStatus(
     activeSession?.run_status ?? activeSession?.status,
   );
+  const isExternallyCreatedSession = Boolean(
+    currentSessionId &&
+    activeSession?.source &&
+    activeSession.source !== "acp_tunnel",
+  );
   const [observerSuppressedSessionId, setObserverSuppressedSessionId] =
     useState<string | null>(null);
   useEffect(() => {
@@ -1374,6 +1379,19 @@ export function SessionWorkbench({
               )}
           </div>
         </div>
+
+        {isExternallyCreatedSession && (
+          <div className="border-t border-warning/30 bg-warning/10 px-3 py-2 text-xs text-ink-muted sm:px-4">
+            <div className="mx-auto flex w-full max-w-4xl items-start gap-2">
+              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+              <p>
+                This session was started outside Pax. You can continue chatting
+                here, but messages sent from Pax may not appear in the original
+                app.
+              </p>
+            </div>
+          </div>
+        )}
 
         <SessionComposer
           activeAgentId={activeAgentId}
