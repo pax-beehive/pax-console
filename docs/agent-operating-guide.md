@@ -331,6 +331,20 @@ type=done     End the streaming state.
 type=error    Surface the message and end the streaming state.
 ```
 
+Session names are updated through the existing node/agent-scoped endpoint:
+
+```txt
+PATCH /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}
+{ "name": "Release planning" }
+{ "use_reported_name": true }
+```
+
+Manager responses expose the effective `name`, the latest agent-provided
+`reported_name`, and `name_is_custom`. A custom name takes precedence over
+periodic paxd session reports until the user explicitly restores the reported
+name. After a successful update, refresh both session metadata and the
+user-scoped `session-list` query namespace.
+
 `AgentTunnelRuntime` is retained for direct ACP tunnel experiments and legacy
 coverage, but React session components should use `useConversationRun` for
 normal composer sends. Components must not build or parse raw ACP frames.

@@ -323,6 +323,8 @@ export type AgentSession = {
   agent_type?: string;
   project_id?: string;
   name?: string;
+  reported_name?: string;
+  name_is_custom?: boolean;
   preview?: string;
   current_task?: string;
   status?: string;

@@ -142,6 +142,34 @@ describe("listAgentSessions", () => {
     );
   });
 
+  it("updates and resets a custom session name", async () => {
+    apiFetch.mockResolvedValue({ session_id: "sess_1" });
+
+    await updateAgentSession("u1", "n1", "a1", "sess_1", {
+      name: "Release planning",
+    });
+    await updateAgentSession("u1", "n1", "a1", "sess_1", {
+      use_reported_name: true,
+    });
+
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/user/u1/nodes/n1/agents/a1/sessions/sess_1",
+      {
+        body: JSON.stringify({ name: "Release planning" }),
+        method: "PATCH",
+      },
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/user/u1/nodes/n1/agents/a1/sessions/sess_1",
+      {
+        body: JSON.stringify({ use_reported_name: true }),
+        method: "PATCH",
+      },
+    );
+  });
+
   it("stops a session turn with a user-requested reason and idempotency key", async () => {
     apiFetch.mockResolvedValueOnce({
       command_id: "cmd_stop_1",

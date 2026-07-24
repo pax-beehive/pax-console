@@ -199,6 +199,10 @@ const highlightedMarkdownPlugins: NonNullable<
   ComponentProps<typeof ReactMarkdown>["rehypePlugins"]
 > = [[rehypeHighlight, { detect: false, ignoreMissing: true }]];
 
+const markdownRemarkPlugins: NonNullable<
+  ComponentProps<typeof ReactMarkdown>["remarkPlugins"]
+> = [[remarkGfm, { singleTilde: false }]];
+
 let mermaidModulePromise: Promise<typeof import("mermaid").default> | undefined;
 
 function loadMermaid() {
@@ -638,7 +642,7 @@ export const MarkdownMessage = memo(function MarkdownMessage({
       <ReactMarkdown
         components={markdownComponents}
         rehypePlugins={streaming ? [] : highlightedMarkdownPlugins}
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={markdownRemarkPlugins}
       >
         {renderedContent}
       </ReactMarkdown>

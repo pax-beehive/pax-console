@@ -170,6 +170,11 @@ src/components/resources/
 
 src/components/sessions/
   Session workbench。把 REST 历史消息和 WebSocket live events 合成时间线。
+  Header 支持通过 node/agent-scoped session PATCH 内联修改名称。Manager 返回的
+  `name` 是最终显示名，`reported_name` 是 paxd 最近上报的原始名称，
+  `name_is_custom` 表示用户覆盖是否生效。周期性 session report 不覆盖自定义名称；
+  用户选择恢复时发送 `{ "use_reported_name": true }`。成功后同时更新 session
+  metadata，并失效 agent session collection 与 user-scoped `session-list`。
 
   Session observer 的 `/events` SSE 在浏览器网络错误、无 terminal event 的提前
   断流、以及 408/429/502/503/504 时自动重连。重连保留 history cursor 和当前
