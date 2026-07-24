@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { API_BASE_URL, apiFetch, userPath } from "./client";
 import { ApiError } from "./errors";
 import { queryKeys } from "./query-keys";
@@ -79,6 +79,10 @@ type MailboxListData = {
 
 type HistoryListData = {
   messages: HistoryMessage[];
+  pagination?: {
+    has_more?: boolean;
+    next_before_id?: number;
+  };
 };
 
 type ApiKeyListData = {
@@ -608,11 +612,19 @@ export function listSessionHistory(
   userId: string,
   sessionId: string,
   limit = 1000,
+  beforeId = 0,
 ) {
   const params = new URLSearchParams({ limit: String(limit) });
+  if (beforeId > 0) {
+    params.set("before_id", String(beforeId));
+  }
   return apiFetch<HistoryListData>(
     `${userPath(userId, `/sessions/${sessionId}/history`)}?${params}`,
   );
+}
+
+export function flattenSessionHistoryPages(pages?: HistoryListData[]) {
+  return [...(pages ?? [])].reverse().flatMap((page) => page.messages);
 }
 
 export function stopSessionTurn(
@@ -1681,13 +1693,26 @@ export function useSessionMessages(
 }
 
 export function useSessionHistory(userId?: string, sessionId?: string) {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: queryKeys.sessionHistory(
       userId ?? "pending",
       sessionId ?? "pending",
     ),
-    queryFn: () => listSessionHistory(userId as string, sessionId as string),
+    queryFn: ({ pageParam }) =>
+      listSessionHistory(
+        userId as string,
+        sessionId as string,
+        1000,
+        pageParam,
+      ),
     enabled: Boolean(userId && sessionId),
+    getNextPageParam: (lastPage) => {
+      const nextBeforeId = lastPage.pagination?.next_before_id;
+      return lastPage.pagination?.has_more && nextBeforeId && nextBeforeId > 0
+        ? nextBeforeId
+        : undefined;
+    },
+    initialPageParam: 0,
     refetchOnWindowFocus: true,
   });
 }

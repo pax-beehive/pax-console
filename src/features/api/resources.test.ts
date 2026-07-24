@@ -20,6 +20,7 @@ const {
   deleteNode,
   deleteNodeAgent,
   discoverNodeDaemonHarnesses,
+  flattenSessionHistoryPages,
   getAgent,
   getNodeDaemonCommand,
   getNodeDaemonStatus,
@@ -422,6 +423,34 @@ describe("listSessionHistory", () => {
     expect(apiFetch).toHaveBeenCalledWith(
       "/api/v1/user/u1/sessions/sess_1/history?limit=1000",
     );
+  });
+
+  it("requests the next history page with the previous page cursor", async () => {
+    apiFetch.mockResolvedValueOnce({
+      messages: [],
+      pagination: { has_more: false },
+    });
+
+    await listSessionHistory("u1", "sess_1", 1000, 73834);
+
+    expect(apiFetch).toHaveBeenCalledWith(
+      "/api/v1/user/u1/sessions/sess_1/history?limit=1000&before_id=73834",
+    );
+  });
+
+  it("prepends older history pages while preserving chronological order", () => {
+    expect(
+      flattenSessionHistoryPages([
+        {
+          messages: [{ message_id: "msg_3" }, { message_id: "msg_4" }],
+          pagination: { has_more: true, next_before_id: 3 },
+        },
+        {
+          messages: [{ message_id: "msg_1" }, { message_id: "msg_2" }],
+          pagination: { has_more: false },
+        },
+      ]).map((message) => message.message_id),
+    ).toEqual(["msg_1", "msg_2", "msg_3", "msg_4"]);
   });
 });
 
