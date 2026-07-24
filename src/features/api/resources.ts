@@ -78,7 +78,7 @@ type MailboxListData = {
 };
 
 type HistoryListData = {
-  messages: HistoryMessage[];
+  messages: HistoryMessage[] | null;
   pagination?: {
     has_more?: boolean;
     next_before_id?: number;
@@ -624,7 +624,7 @@ export function listSessionHistory(
 }
 
 export function flattenSessionHistoryPages(pages?: HistoryListData[]) {
-  return [...(pages ?? [])].reverse().flatMap((page) => page.messages);
+  return [...(pages ?? [])].reverse().flatMap((page) => page.messages ?? []);
 }
 
 export function stopSessionTurn(
