@@ -32,7 +32,12 @@ import {
   WorkstreamItem,
 } from "@/features/runtime/session-events";
 import { invocationBodyContent } from "@/features/runtime/invocation-body-content";
-import { CodePatch, codePatchToText } from "@/features/runtime/tool-patches";
+import {
+  CodePatch,
+  codePatchGroupStats,
+  codePatchStats,
+  codePatchToText,
+} from "@/features/runtime/tool-patches";
 import { cn } from "@/lib/utils";
 
 export type PermissionDecisionOption =
@@ -365,7 +370,7 @@ function ThoughtCard({
     >
       <summary className="flex cursor-pointer list-none items-center gap-2 text-sm text-ink-muted outline-none transition hover:text-ink [&::-webkit-details-marker]:hidden">
         <PaxThoughtIcon />
-        <span>{event.streaming ? "思考中" : "已思考"}</span>
+        <span>{event.streaming ? "Thinking" : "Thought"}</span>
         <ChevronDown className="ml-auto h-3.5 w-3.5 -rotate-90 text-ink-tertiary transition group-open:rotate-0" />
       </summary>
       {expanded && (
@@ -690,7 +695,9 @@ function WorkGroupCard({
         ) : (
           <span className="h-2 w-2 rounded-full bg-ink-tertiary" />
         )}
-        <span className="shrink-0">{isWorking ? "工作中" : "工作过程"}</span>
+        <span className="shrink-0">
+          {isWorking ? "Working" : "Work process"}
+        </span>
         {pendingPermissionCount > 0 && (
           <Badge className="shrink-0" tone="warning">
             {pendingPermissionCount} approval
@@ -790,7 +797,7 @@ function ToolGroupCard({
         ) : (
           <span className="h-2 w-2 rounded-full bg-ink-tertiary" />
         )}
-        <span className="shrink-0">工具调用</span>
+        <span className="shrink-0">Tool calls</span>
         <Badge className="font-mono">{String(events.length)}</Badge>
         {runningPreview && (
           <TruncatedText
@@ -1479,52 +1486,6 @@ type DiffLine = {
   newLine?: number;
   oldLine?: number;
 };
-
-function codePatchStats(patch: CodePatch) {
-  if (!patch.diffText) {
-    return {
-      added: patch.newText === undefined ? 0 : changedLineCount(patch.newText),
-      removed:
-        patch.oldText === undefined ? 0 : changedLineCount(patch.oldText),
-    };
-  }
-
-  return diffStats(codePatchToText(patch));
-}
-
-function codePatchGroupStats(patches: CodePatch[]) {
-  return patches.reduce(
-    (total, patch) => {
-      const stats = codePatchStats(patch);
-      return {
-        added: total.added + stats.added,
-        removed: total.removed + stats.removed,
-      };
-    },
-    { added: 0, removed: 0 },
-  );
-}
-
-function changedLineCount(value: string) {
-  if (value.length === 0) {
-    return 0;
-  }
-  return value.replace(/\n$/, "").split("\n").length;
-}
-
-function diffStats(diffText: string) {
-  return diffText.split("\n").reduce(
-    (stats, line) => {
-      if (line.startsWith("+") && !line.startsWith("+++")) {
-        stats.added += 1;
-      } else if (line.startsWith("-") && !line.startsWith("---")) {
-        stats.removed += 1;
-      }
-      return stats;
-    },
-    { added: 0, removed: 0 },
-  );
-}
 
 function diffLinesForPatch(patch: CodePatch) {
   const lines = codePatchToText(patch).split("\n");

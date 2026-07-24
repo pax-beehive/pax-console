@@ -748,6 +748,32 @@ describe("normalizeTunnelFrame", () => {
     ]);
   });
 
+  it("does not treat terminal git diff stdout as an applied patch", () => {
+    const events = normalizeTunnelFrame({
+      jsonrpc: "2.0",
+      method: "session/update",
+      params: {
+        sessionId: "sess_1",
+        update: {
+          output:
+            "diff --git a/example.txt b/example.txt\n--- a/example.txt\n+++ b/example.txt\n@@ -1 +1 @@\n-old\n+new\n",
+          sessionUpdate: "tool_call_update",
+          status: "completed",
+          title: "terminal: git diff",
+          toolCallId: "tc-git-diff",
+        },
+      },
+    });
+
+    expect(events).toMatchObject([
+      {
+        type: "tool_call",
+        name: "terminal: git diff",
+      },
+    ]);
+    expect(events[0]).not.toHaveProperty("patches");
+  });
+
   it("extracts Gemini edit blocks from completed tool call updates as output patches", () => {
     const events = normalizeTunnelFrame({
       jsonrpc: "2.0",

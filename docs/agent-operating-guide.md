@@ -152,7 +152,17 @@ drawer state
 composer drafts
 local filters
 temporary UI selections
+admin preview-as-user mode
 ```
+
+Admin-only experimental UI must use the shared effective admin view. A real
+admin can enable `Preview as user` from the top-right user menu; while enabled,
+the UI must hide the same experimental controls hidden from normal users.
+Session Artifacts and Knowledge panels, fake inquiries, global search, image
+attachment, and voice input currently follow this rule. Tool evidence remains
+available to all session users.
+The Collaboration navigation group is also admin-only for the current public
+release. Both desktop and mobile navigation must honor preview-as-user mode.
 
 Never duplicate server resources such as nodes, agents, sessions, messages,
 teams, friends, envelopes, or knowledge capsules into Zustand.
@@ -252,6 +262,12 @@ Content-Type: application/json
 with `{ "reason": "user_requested" }`. This sends a manager-side stop command
 and does not abort the browser's active SSE reader; live updates can continue
 until the backend and agent finish cancelling.
+
+The session observer automatically reconnects when the browser `fetch` stream
+fails at the network layer, ends before a terminal event, or receives a
+transient 408/429/502/503/504 response. It keeps the same history cursor and
+buffered timeline, uses capped exponential backoff, and stops retrying on
+authentication, other non-transient API errors, unmount, or session change.
 
 While a turn is running, composer submit queues the current draft through:
 
@@ -481,6 +497,9 @@ Sidebar layout rules:
 
 ```txt
 ConsoleLayout uses flex, not CSS grid columns.
+The console shell is fixed to the dynamic viewport and owns page-level
+overflow. Shell children must fill the available flex height instead of using
+100vh or min-h-screen; scrolling belongs to the relevant inner pane.
 Sidebar controls its own width with inline width 248/76px and overflow-hidden.
 Mobile widths hide the Sidebar, keep a compact Topbar, and expose a fixed
 Home / Collaboration / Settings bottom navigation.
@@ -559,6 +578,14 @@ Currently implemented API-backed actions:
 ```txt
 Home New session composer
   Opens canonical /sessions/new without creating a server session
+
+Home session rail
+  Refetches on window focus and every 15 seconds while mounted. Session
+  assignment and runtime completion also invalidate the user-scoped session
+  list so status, preview, timestamps, and ordering do not remain stale. Its
+  TanStack Query namespace is `session-list`; do not use the `sessions` prefix,
+  which belongs to session-scoped metadata, history, artifacts, and observer
+  cursor dependencies.
 
 Session workbench composer
   POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/conversation

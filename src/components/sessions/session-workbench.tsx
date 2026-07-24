@@ -88,8 +88,14 @@ import {
 } from "@/features/runtime/session-events";
 import { useConversationRun } from "@/features/runtime/use-conversation-run";
 import { useSessionObserver } from "@/features/runtime/session-observer";
+import {
+  isConversationObserverRecoverableError,
+  sessionDisplayStatus,
+} from "@/features/runtime/session-display-status";
 import { compactId } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { canSeeAdminFeatures } from "@/features/auth/admin-view";
+import { useConsoleStore } from "@/stores/console-store";
 
 type SessionWorkbenchProps = {
   user: User;
@@ -147,6 +153,8 @@ export function SessionWorkbench({
   onMobileBack,
   onMobileMenu,
 }: SessionWorkbenchProps) {
+  const previewAsUser = useConsoleStore((state) => state.previewAsUser);
+  const showAdminFeatures = canSeeAdminFeatures(user, previewAsUser);
   const queryClient = useQueryClient();
   const routeSessionId = sessionId === "new" ? undefined : sessionId;
   const [currentSessionId, setCurrentSessionId] = useState(routeSessionId);
@@ -263,6 +271,9 @@ export function SessionWorkbench({
           ),
         });
       }
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.userSessionsRoot(user.user_id),
+      });
       const params = new URLSearchParams();
       if (activeNodeId) {
         params.set("nodeId", activeNodeId);
@@ -297,14 +308,20 @@ export function SessionWorkbench({
     hasNextPage: hasNextHistoryPage,
     isFetchingNextPage: isFetchingNextHistoryPage,
   } = historyQuery;
-  const capsulesQuery = useKnowledgeCapsules(user.user_id, {
-    status: "active",
-  });
-  const injectionsQuery = useKnowledgeInjections(
-    user.user_id,
-    currentSessionId,
+  const capsulesQuery = useKnowledgeCapsules(
+    showAdminFeatures ? user.user_id : undefined,
+    {
+      status: "active",
+    },
   );
-  const artifactsQuery = useSessionArtifacts(user.user_id, currentSessionId);
+  const injectionsQuery = useKnowledgeInjections(
+    showAdminFeatures ? user.user_id : undefined,
+    showAdminFeatures ? currentSessionId : undefined,
+  );
+  const artifactsQuery = useSessionArtifacts(
+    showAdminFeatures ? user.user_id : undefined,
+    showAdminFeatures ? currentSessionId : undefined,
+  );
   const [capsuleKeyword, setCapsuleKeyword] = useState("");
   const [selectedCapsuleId, setSelectedCapsuleId] = useState("");
   const [selectedArtifactId, setSelectedArtifactId] = useState("");
@@ -462,6 +479,9 @@ export function SessionWorkbench({
     userId: user.user_id,
   });
   const refreshActiveSessionRuntime = useCallback(() => {
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.userSessionsRoot(user.user_id),
+    });
     if (activeNodeId && activeAgentId) {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.sessions(user.user_id, activeNodeId, activeAgentId),
@@ -573,6 +593,23 @@ export function SessionWorkbench({
     sessionId: currentSessionId,
     userId: user.user_id,
   });
+  const displayedRunStatus = sessionDisplayStatus({
+    autoApprove: displayedApprovalMode === "auto_approve_all",
+    conversationError: conversationRun.error,
+    conversationStatus: conversationRun.status,
+    observerStatus: sessionObserver.status,
+    reportedStatus: activeSession?.run_status ?? activeSession?.status,
+    remoteTurnActive:
+      activeSessionReportedRunning &&
+      observerSuppressedSessionId !== currentSessionId,
+  });
+  const conversationErrorRecovered =
+    conversationRun.status === "error" &&
+    isConversationObserverRecoverableError(conversationRun.error) &&
+    sessionObserver.status === "observing";
+  const displayedRunError = conversationErrorRecovered
+    ? sessionObserver.error
+    : (conversationRun.error ?? sessionObserver.error);
   const isTurnRunning =
     conversationRun.status === "streaming" ||
     conversationRun.status === "waiting_approval" ||
@@ -1123,81 +1160,89 @@ export function SessionWorkbench({
     return () => window.cancelAnimationFrame(frameId);
   }, [historyPageCount, updateTimelineStickiness, workstreamItems]);
 
-  const sidePanels: SessionSidePanel[] = [
-    {
-      id: "tool",
-      label: "Tool",
-      description: "Selected timeline evidence",
-      icon: <Wrench className="h-4 w-4" />,
-      content: (
-        <ToolEvidencePanel
-          permissionDecision={permissionDecision}
-          selection={selectedToolEvidence}
-        />
-      ),
-    },
-    {
-      id: "artifacts",
-      label: "Artifacts",
-      description: "Uploaded files and generated outputs",
-      icon: <FileText className="h-4 w-4" />,
-      content: (
-        <ArtifactTools
-          artifacts={activeArtifacts}
-          canUpload={Boolean(currentSessionId)}
-          downloadHref={(artifact, ref) =>
-            artifactContentDownloadHref(user.user_id, artifact.artifact_id, ref)
-          }
-          isLoading={artifactsQuery.isLoading}
-          onPreview={(artifact) => previewArtifact.mutate(artifact)}
-          onRefresh={refreshArtifacts}
-          onSelect={(artifactId) => {
-            setSelectedArtifactId(artifactId);
-            setArtifactPreviewUrl("");
-            setArtifactPreviewError(null);
-          }}
-          onUpload={(file) => uploadArtifact.mutate(file)}
-          previewError={
-            artifactPreviewError ??
-            (previewArtifact.error instanceof Error
-              ? previewArtifact.error
-              : null)
-          }
-          previewPending={previewArtifact.isPending}
-          previewUrl={artifactPreviewUrl}
-          selectedArtifact={selectedArtifact}
-          selectedArtifactId={selectedArtifact?.artifact_id ?? ""}
-          uploadError={
-            uploadArtifact.error instanceof Error ? uploadArtifact.error : null
-          }
-          uploadPending={uploadArtifact.isPending}
-        />
-      ),
-    },
-    {
-      id: "knowledge",
-      label: "Knowledge",
-      description: "Capsules and system handoff injections",
-      icon: <Brain className="h-4 w-4" />,
-      content: (
-        <KnowledgeTools
-          capsules={activeCapsules}
-          capsuleKeyword={capsuleKeyword}
-          createError={createCapsule.error}
-          createPending={createCapsule.isPending}
-          injectError={injectCapsule.error}
-          injectPending={injectCapsule.isPending}
-          injections={injectionsQuery.data?.injections ?? []}
-          injectionsLoading={injectionsQuery.isLoading}
-          onCreate={() => createCapsule.mutate()}
-          onInject={() => injectCapsule.mutate()}
-          onKeywordChange={setCapsuleKeyword}
-          onSelectedCapsuleChange={setSelectedCapsuleId}
-          selectedCapsuleId={selectedInjectionCapsuleId}
-        />
-      ),
-    },
-  ];
+  const sidePanels = (
+    [
+      {
+        id: "tool",
+        label: "Tool",
+        description: "Selected timeline evidence",
+        icon: <Wrench className="h-4 w-4" />,
+        content: (
+          <ToolEvidencePanel
+            permissionDecision={permissionDecision}
+            selection={selectedToolEvidence}
+          />
+        ),
+      },
+      {
+        id: "artifacts",
+        label: "Artifacts",
+        description: "Uploaded files and generated outputs",
+        icon: <FileText className="h-4 w-4" />,
+        content: (
+          <ArtifactTools
+            artifacts={activeArtifacts}
+            canUpload={Boolean(currentSessionId)}
+            downloadHref={(artifact, ref) =>
+              artifactContentDownloadHref(
+                user.user_id,
+                artifact.artifact_id,
+                ref,
+              )
+            }
+            isLoading={artifactsQuery.isLoading}
+            onPreview={(artifact) => previewArtifact.mutate(artifact)}
+            onRefresh={refreshArtifacts}
+            onSelect={(artifactId) => {
+              setSelectedArtifactId(artifactId);
+              setArtifactPreviewUrl("");
+              setArtifactPreviewError(null);
+            }}
+            onUpload={(file) => uploadArtifact.mutate(file)}
+            previewError={
+              artifactPreviewError ??
+              (previewArtifact.error instanceof Error
+                ? previewArtifact.error
+                : null)
+            }
+            previewPending={previewArtifact.isPending}
+            previewUrl={artifactPreviewUrl}
+            selectedArtifact={selectedArtifact}
+            selectedArtifactId={selectedArtifact?.artifact_id ?? ""}
+            uploadError={
+              uploadArtifact.error instanceof Error
+                ? uploadArtifact.error
+                : null
+            }
+            uploadPending={uploadArtifact.isPending}
+          />
+        ),
+      },
+      {
+        id: "knowledge",
+        label: "Knowledge",
+        description: "Capsules and system handoff injections",
+        icon: <Brain className="h-4 w-4" />,
+        content: (
+          <KnowledgeTools
+            capsules={activeCapsules}
+            capsuleKeyword={capsuleKeyword}
+            createError={createCapsule.error}
+            createPending={createCapsule.isPending}
+            injectError={injectCapsule.error}
+            injectPending={injectCapsule.isPending}
+            injections={injectionsQuery.data?.injections ?? []}
+            injectionsLoading={injectionsQuery.isLoading}
+            onCreate={() => createCapsule.mutate()}
+            onInject={() => injectCapsule.mutate()}
+            onKeywordChange={setCapsuleKeyword}
+            onSelectedCapsuleChange={setSelectedCapsuleId}
+            selectedCapsuleId={selectedInjectionCapsuleId}
+          />
+        ),
+      },
+    ] satisfies SessionSidePanel[]
+  ).filter((panel) => showAdminFeatures || panel.id === "tool");
   const activeSidePanel = sidePanels.find(
     (panel) => panel.id === activeSidePanelId,
   );
@@ -1214,7 +1259,7 @@ export function SessionWorkbench({
     <div
       className={cn(
         "relative flex min-h-0 min-w-0 overflow-hidden bg-canvas",
-        embedded ? "h-full" : "flex-1 lg:h-[calc(100vh-var(--topbar-h))]",
+        embedded ? "h-full" : "flex-1",
       )}
     >
       <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-canvas">
@@ -1267,10 +1312,7 @@ export function SessionWorkbench({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <RunBadge
-              error={conversationRun.error}
-              status={conversationRun.status}
-            />
+            <RunBadge error={displayedRunError} status={displayedRunStatus} />
             <Button
               icon={<PanelRight className="h-4 w-4" />}
               onClick={() =>
@@ -1346,6 +1388,7 @@ export function SessionWorkbench({
           }
           isNewSession={isNewSession}
           isTurnRunning={isTurnRunning}
+          showAdminFeatures={showAdminFeatures}
           newSessionCwd={newSessionCwd}
           newSessionCwdInvalid={newSessionCwdInvalid}
           newSessionWorkspaceOpen={newSessionWorkspaceOpen}

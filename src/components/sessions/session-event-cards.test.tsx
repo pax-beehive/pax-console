@@ -66,9 +66,7 @@ describe("session event cards", () => {
 
     expect(container.querySelector("details")).not.toHaveAttribute("open");
     expect(container.querySelector("details")).toHaveClass("py-0");
-    expect(screen.getByText("工作中")).toBeInTheDocument();
-    expect(container).not.toHaveTextContent("次思考");
-    expect(container).not.toHaveTextContent("个工具调用");
+    expect(screen.getByText("Working")).toBeInTheDocument();
     expect(
       container.querySelector(":scope > details > summary"),
     ).toHaveTextContent("1 approval");
@@ -104,10 +102,10 @@ describe("session event cards", () => {
       event: completedTool,
     });
 
-    expect(container).toHaveTextContent("工具调用");
+    expect(container).toHaveTextContent("Tool calls");
     expect(container).toHaveTextContent("1");
-    expect(container).not.toHaveTextContent("工作过程");
-    expect(container).not.toHaveTextContent("工作中");
+    expect(container).not.toHaveTextContent("Work process");
+    expect(container).not.toHaveTextContent("Working");
   });
 
   it("collapses thought content by default", () => {
@@ -126,7 +124,7 @@ describe("session event cards", () => {
     });
 
     expect(container.querySelector("details")).not.toHaveAttribute("open");
-    expect(container).toHaveTextContent("思考中");
+    expect(container).toHaveTextContent("Thinking");
     expect(container).not.toHaveTextContent(thought.content);
     expect(container.querySelector(".lucide-chevron-down")).toHaveClass(
       "ml-auto",

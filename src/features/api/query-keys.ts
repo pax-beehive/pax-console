@@ -83,13 +83,15 @@ export const queryKeys = {
     [
       "users",
       userId,
-      "sessions",
+      "session-list",
       {
         agentIds: [...(filters?.agentIds ?? [])].sort(),
         nodeIds: [...(filters?.nodeIds ?? [])].sort(),
         pageSize: filters?.pageSize ?? "default",
       },
     ] as const,
+  userSessionsRoot: (userId: string) =>
+    ["users", userId, "session-list"] as const,
   sessions: (userId: string, nodeId: string, agentId: string) =>
     ["users", userId, "nodes", nodeId, "agents", agentId, "sessions"] as const,
   session: (

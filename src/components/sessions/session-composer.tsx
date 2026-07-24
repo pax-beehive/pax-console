@@ -47,6 +47,7 @@ type SessionComposerProps = {
   queueTurnPending: boolean;
   queuedTurn: QueuedSessionTurnData | null | undefined;
   readOnlyWorkspace?: string;
+  showAdminFeatures: boolean;
   steerTurnPending: boolean;
   stopTurnPending: boolean;
   updateQueuedTurnPending: boolean;
@@ -77,6 +78,7 @@ export const SessionComposer = memo(function SessionComposer({
   queueTurnPending,
   queuedTurn,
   readOnlyWorkspace,
+  showAdminFeatures,
   steerTurnPending,
   stopTurnPending,
   updateQueuedTurnPending,
@@ -285,19 +287,21 @@ export const SessionComposer = memo(function SessionComposer({
           value={draft}
         />
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <Button
-            icon={<Plus className="h-4 w-4" />}
-            onClick={onOpenArtifacts}
-            size="icon"
-            tooltip="Open artifacts"
-            type="button"
-            variant="ghost"
-          />
+          {showAdminFeatures && (
+            <Button
+              icon={<Plus className="h-4 w-4" />}
+              onClick={onOpenArtifacts}
+              size="icon"
+              tooltip="Open artifacts"
+              type="button"
+              variant="ghost"
+            />
+          )}
           {isNewSession ? (
             newSessionWorkspaceOpen ? (
               <label
                 className={cn(
-                  "inline-flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border bg-canvas px-2.5 text-sm transition sm:max-w-80",
+                  "order-first inline-flex min-h-9 min-w-0 basis-full items-center gap-2 rounded-lg border bg-canvas px-2.5 text-sm transition sm:order-none sm:max-w-80 sm:basis-auto sm:flex-1",
                   newSessionCwdInvalid
                     ? "border-warning text-warning"
                     : "border-hairline text-ink-muted focus-within:border-primary-focus focus-within:ring-2 focus-within:ring-primary-focus/20",
@@ -351,6 +355,11 @@ export const SessionComposer = memo(function SessionComposer({
             </div>
           ) : null}
           <button
+            aria-label={
+              approvalMode === "auto_approve_all"
+                ? "Auto approve tools without asking"
+                : "Ask before running tools"
+            }
             aria-pressed={approvalMode === "auto_approve_all"}
             className={cn(
               "inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg px-2.5 text-sm transition disabled:cursor-not-allowed disabled:opacity-60",
@@ -363,21 +372,23 @@ export const SessionComposer = memo(function SessionComposer({
             type="button"
           >
             <ShieldCheck className="h-4 w-4" />
-            <span className="hidden sm:inline">
+            <span className="whitespace-nowrap text-xs sm:text-sm">
               {approvalMode === "auto_approve_all"
-                ? "Auto approve"
-                : "Manual approve"}
+                ? "Auto approve tools"
+                : "Ask before tools"}
             </span>
           </button>
           <div className="min-w-0 flex-1" />
-          <Button
-            disabled
-            icon={<Mic className="h-4 w-4" />}
-            size="icon"
-            tooltip="Voice input is not available yet"
-            type="button"
-            variant="ghost"
-          />
+          {showAdminFeatures && (
+            <Button
+              disabled
+              icon={<Mic className="h-4 w-4" />}
+              size="icon"
+              tooltip="Voice input is not available yet"
+              type="button"
+              variant="ghost"
+            />
+          )}
           {isTurnRunning ? (
             <>
               <Button

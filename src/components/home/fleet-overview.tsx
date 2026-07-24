@@ -68,6 +68,8 @@ import {
 } from "@/features/api/types";
 import { compactId } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { canSeeAdminFeatures } from "@/features/auth/admin-view";
+import { useConsoleStore } from "@/stores/console-store";
 
 type FleetOverviewProps = {
   user: User;
@@ -151,6 +153,9 @@ const kindIcon: Record<WorkItemKind, React.ReactNode> = {
 };
 
 export function FleetOverview({ user }: FleetOverviewProps) {
+  const queryClient = useQueryClient();
+  const previewAsUser = useConsoleStore((state) => state.previewAsUser);
+  const showAdminFeatures = canSeeAdminFeatures(user, previewAsUser);
   const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const urlSessionId = searchParams.get("sessionId") ?? "";
@@ -265,6 +270,8 @@ export function FleetOverview({ user }: FleetOverviewProps) {
         : undefined;
     },
     initialPageParam: 1,
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: "always",
   });
   const queriedSessions = useMemo(
     () =>
@@ -278,6 +285,10 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     [queriedSessions],
   );
   const agents = sortAgentsForHome(discoveredAgents, latestSessionTimeByAgent);
+  const needsOnboarding =
+    !nodesQuery.isLoading &&
+    !agentsQuery.isLoading &&
+    (nodes.length === 0 || agents.length === 0);
   const activeAgent =
     agents.find((agent) => agent.agent_id === selectedAgentId) ?? agents[0];
   const normalizedNewSessionCwd = newSessionCwd.trim();
@@ -295,7 +306,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     status: "pending",
   });
   const invitesQuery = useTeamInvites(user.user_id);
-  const showMockInquiries = canShowMockInquiries(user);
+  const showMockInquiries = showAdminFeatures;
 
   const workItems = useMemo(
     () =>
@@ -777,6 +788,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 nodeId={activeSessionTarget.nodeId}
                 onMobileMenu={() => setMobileRailOpen(true)}
                 onSessionAssigned={(sessionId) => {
+                  void queryClient.invalidateQueries({
+                    queryKey: queryKeys.userSessionsRoot(user.user_id),
+                  });
                   const nextTarget = {
                     ...activeSessionTarget,
                     sessionId,
@@ -810,6 +824,32 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 </div>
                 <div className="min-h-0 flex-1 overflow-auto p-5">
                   <div className="mx-auto grid w-full max-w-4xl gap-4">
+                    {needsOnboarding && (
+                      <section className="rounded-xl border border-accent/30 bg-accent/10 p-4 text-sm">
+                        <div className="font-medium text-ink">
+                          Connect a device to start chatting
+                        </div>
+                        <p className="mt-1 leading-6 text-ink-muted">
+                          Register a node, install paxd, and start an agent
+                          connection. Your available agents will appear here
+                          automatically.
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Link
+                            className="inline-flex min-h-9 items-center rounded-md border border-primary bg-primary px-3 font-medium text-canvas hover:bg-primary-hover"
+                            href="/settings/developer?view=node-registration"
+                          >
+                            Register a node
+                          </Link>
+                          <Link
+                            className="inline-flex min-h-9 items-center rounded-md border border-hairline bg-surface-2 px-3 text-ink-muted hover:bg-surface-3 hover:text-ink"
+                            href="/settings/devices"
+                          >
+                            Open Devices
+                          </Link>
+                        </div>
+                      </section>
+                    )}
                     <motion.div
                       animate={{ opacity: 1, y: 0 }}
                       initial={{ opacity: 0, y: 8 }}
@@ -883,60 +923,68 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                       rows={2}
                       value={draft}
                     />
-                    <div className="flex min-w-0 items-center gap-2">
-                      <div className="relative">
-                        <Button
-                          icon={<Plus className="h-4 w-4" />}
-                          onClick={() => setAttachmentMenuOpen((open) => !open)}
-                          size="icon"
-                          tooltip="Add context or upload image"
-                          type="button"
-                          variant="ghost"
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      {showAdminFeatures && (
+                        <div className="relative">
+                          <Button
+                            icon={<Plus className="h-4 w-4" />}
+                            onClick={() =>
+                              setAttachmentMenuOpen((open) => !open)
+                            }
+                            size="icon"
+                            tooltip="Add context or upload image"
+                            type="button"
+                            variant="ghost"
+                          />
+                          {attachmentMenuOpen && (
+                            <div className="absolute bottom-11 left-0 z-20 grid w-52 overflow-hidden rounded-lg border border-hairline bg-surface-1 shadow-xl shadow-black/30">
+                              <button
+                                className="flex min-h-9 items-center gap-2 px-3 text-left text-sm text-ink-muted hover:bg-surface-2 hover:text-ink"
+                                onClick={() => {
+                                  fileInputRef.current?.click();
+                                  setAttachmentMenuOpen(false);
+                                }}
+                                type="button"
+                              >
+                                <ImageIcon className="h-4 w-4" />
+                                Upload image
+                              </button>
+                              <button
+                                className="flex min-h-9 items-center gap-2 px-3 text-left text-sm text-ink-muted hover:bg-surface-2 hover:text-ink"
+                                onClick={() => {
+                                  if (selectedInquiry) {
+                                    setComposerMode("summarize-note");
+                                    setAttachmentName("summarize note");
+                                  }
+                                  setAttachmentMenuOpen(false);
+                                }}
+                                disabled={!selectedInquiry}
+                                type="button"
+                              >
+                                <Paperclip className="h-4 w-4" />
+                                Summarize with note
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {showAdminFeatures && (
+                        <input
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(event) =>
+                            setAttachmentName(
+                              event.target.files?.[0]?.name ?? "",
+                            )
+                          }
+                          ref={fileInputRef}
+                          type="file"
                         />
-                        {attachmentMenuOpen && (
-                          <div className="absolute bottom-11 left-0 z-20 grid w-52 overflow-hidden rounded-lg border border-hairline bg-surface-1 shadow-xl shadow-black/30">
-                            <button
-                              className="flex min-h-9 items-center gap-2 px-3 text-left text-sm text-ink-muted hover:bg-surface-2 hover:text-ink"
-                              onClick={() => {
-                                fileInputRef.current?.click();
-                                setAttachmentMenuOpen(false);
-                              }}
-                              type="button"
-                            >
-                              <ImageIcon className="h-4 w-4" />
-                              Upload image
-                            </button>
-                            <button
-                              className="flex min-h-9 items-center gap-2 px-3 text-left text-sm text-ink-muted hover:bg-surface-2 hover:text-ink"
-                              onClick={() => {
-                                if (selectedInquiry) {
-                                  setComposerMode("summarize-note");
-                                  setAttachmentName("summarize note");
-                                }
-                                setAttachmentMenuOpen(false);
-                              }}
-                              disabled={!selectedInquiry}
-                              type="button"
-                            >
-                              <Paperclip className="h-4 w-4" />
-                              Summarize with note
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      <input
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(event) =>
-                          setAttachmentName(event.target.files?.[0]?.name ?? "")
-                        }
-                        ref={fileInputRef}
-                        type="file"
-                      />
+                      )}
                       {newSessionWorkspaceOpen ? (
                         <label
                           className={cn(
-                            "inline-flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border bg-canvas px-2.5 text-sm transition sm:max-w-80",
+                            "order-first inline-flex min-h-9 min-w-0 basis-full items-center gap-2 rounded-lg border bg-canvas px-2.5 text-sm transition sm:order-none sm:max-w-80 sm:basis-auto sm:flex-1",
                             newSessionCwdInvalid
                               ? "border-warning text-warning"
                               : "border-hairline text-ink-muted focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/25",
@@ -982,6 +1030,11 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                         />
                       )}
                       <button
+                        aria-label={
+                          newSessionApprovalMode === "auto_approve_all"
+                            ? "Auto approve tools without asking"
+                            : "Ask before running tools"
+                        }
                         aria-pressed={
                           newSessionApprovalMode === "auto_approve_all"
                         }
@@ -1001,10 +1054,10 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                         type="button"
                       >
                         <ShieldCheck className="h-4 w-4" />
-                        <span className="hidden sm:inline">
+                        <span className="whitespace-nowrap text-xs sm:text-sm">
                           {newSessionApprovalMode === "auto_approve_all"
-                            ? "Auto approve"
-                            : "Manual approve"}
+                            ? "Auto approve tools"
+                            : "Ask before tools"}
                         </span>
                       </button>
                       {attachmentName && (
@@ -1012,23 +1065,24 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                           {attachmentName}
                         </Badge>
                       )}
-                      <div className="min-w-0 flex-1" />
-                      <AgentSelector
-                        agents={agents}
-                        nodes={nodes}
-                        selectedAgentId={activeAgent?.agent_id}
-                        onChange={setSelectedAgentId}
-                      />
-                      <Button
-                        disabled={
-                          !activeAgent?.agent_id || newSessionCwdInvalid
-                        }
-                        icon={<ArrowUp className="h-5 w-5" />}
-                        size="icon"
-                        tooltip="Start session"
-                        type="submit"
-                        variant="primary"
-                      />
+                      <div className="ml-auto flex shrink-0 items-center gap-2">
+                        <AgentSelector
+                          agents={agents}
+                          nodes={nodes}
+                          selectedAgentId={activeAgent?.agent_id}
+                          onChange={setSelectedAgentId}
+                        />
+                        <Button
+                          disabled={
+                            !activeAgent?.agent_id || newSessionCwdInvalid
+                          }
+                          icon={<ArrowUp className="h-5 w-5" />}
+                          size="icon"
+                          tooltip="Start session"
+                          type="submit"
+                          variant="primary"
+                        />
+                      </div>
                     </div>
                   </div>
                 </form>
@@ -1793,15 +1847,6 @@ function approvalOptionLabel(optionId: string) {
 
 function homeSessionHref(session: AgentSession) {
   return `/sessions/${encodeURIComponent(session.session_id)}`;
-}
-
-function canShowMockInquiries(user: User) {
-  const role = user.role?.toLowerCase();
-  const isAdmin = Boolean(
-    user.is_admin || role === "admin" || role === "owner",
-  );
-  const isLocalDebug = process.env.NODE_ENV !== "production";
-  return isAdmin || isLocalDebug;
 }
 
 function fakeInquiryWorkItems(agents: Agent[], nodes: Node[]): WorkItem[] {

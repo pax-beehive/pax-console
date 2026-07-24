@@ -145,12 +145,22 @@ src/components/home/
   inquiry 可从空 session 生成 draft、从已有 conversation 总结 draft、
   通过小三角带 note 总结，或对已有 draft 留 comment；右上角关闭 inquiry
   context 后，composer 回到 clean session；archive inquiry 则把它从 queue
-  中移除，表示当前用户不处理。当前 fake inquiry 只在 admin 用户或本地 debug
-  构建中注入，避免普通生产用户看到演示数据。
+  中移除，表示当前用户不处理。当前 fake inquiry 只对 admin 用户注入，避免普通
+  用户看到演示数据。admin 可在右上角用户菜单启用 `Preview as user`，临时隐藏所有
+  admin-only 实验入口，以检查公开版本。该模式属于 Zustand 客户端 UI 状态。
+  Collaboration 当前也属于 admin-only 工作区；普通用户和 `Preview as user` 模式
+  的桌面、移动导航都不显示该入口。
   底部 composer 保持 clean session 默认入口，并提供 agent 选择、附件入口和
   tool-call approval 偏好；重名 agent 在 target selector 中显示为
   `agent @ node`。nodes / agents 的详细列表仍放在 Settings 组的子页里，
   sessions 不再是 sidebar 一级工作区。
+  当用户还没有 node 或 agent 时，Home 会展示 node registration 和 Devices
+  的 onboarding 入口。移动端 Workspace 输入独占一行，避免被 agent 和审批控件挤压。
+  左侧 Session rail 在窗口重新聚焦时立即刷新，并在页面可见期间每 15 秒低频轮询；
+  Session 分配和 runtime 完成也会失效 user-scoped session list，使状态、预览、时间和
+  排序不会停留在首次加载结果。列表使用独立的 `session-list` query namespace，不能
+  用 session resource 的 `sessions` 前缀，避免误刷新 history cursor 并重启 `/events`
+  observer。
 
 src/components/resources/
   Settings 组下的资源页。Devices 聚合 Nodes / Agents，Security 只管理 active
@@ -160,6 +170,14 @@ src/components/resources/
 
 src/components/sessions/
   Session workbench。把 REST 历史消息和 WebSocket live events 合成时间线。
+
+  Session observer 的 `/events` SSE 在浏览器网络错误、无 terminal event 的提前
+  断流、以及 408/429/502/503/504 时自动重连。重连保留 history cursor 和当前
+  timeline buffer，采用最大 5 秒的指数退避；鉴权错误、非瞬时 API 错误、组件卸载
+  或切换 session 时停止重试。
+
+  公开用户的 Session 右侧上下文面板只提供 Tool evidence。Artifacts、Knowledge、
+  未接通的语音输入等实验入口只对 admin 展示，并受 `Preview as user` 开关控制。
 
   连续的 thought/progress 与 tool call 达到 2 个时，按原顺序聚合为一个默认折叠的
   work block；单独一个 thought 或 tool call 直接展示。子事件仍在运行时标题只显示
@@ -231,6 +249,8 @@ status / count pill
 Sidebar 折叠
   使用 Zustand 的 sidebarCollapsed，不要放进 URL 或服务端数据。
   ConsoleLayout 使用 flex；Sidebar 自己用 width: 248/76px 控制展开/收起，并带 overflow-hidden。
+  Console shell 固定在动态视口内并持有页面级 overflow；内部 pane 必须用 flex
+  可用高度，不要再用 100vh 或 min-h-screen 撑开根页面，滚动只留在对应 pane 内。
   手机宽度隐藏 Sidebar，保留 Topbar；Home 默认显示 clean composer，并用左侧抽屉承载 Sessions / Inbox rail。
   Sidebar 自身使用安静的 surface 和 compact nav rows，不保留固定的 Current node 区块。
   Sidebar 一级入口保持粗粒度：顶部只有 Home 和 Collaboration；
@@ -373,6 +393,7 @@ Console shell：
 ```txt
 ConsoleLayout
   flex 主布局
+  固定在动态视口内，页面根节点不滚动
   Sidebar 独立控制宽度
   content area flex-1 min-w-0
 
