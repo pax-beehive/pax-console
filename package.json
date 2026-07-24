@@ -36,6 +36,7 @@
     "ahooks": "^3.9.7",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "diff": "^9.0.0",
     "lucide-react": "^1.18.0",
     "motion": "^12.40.0",
     "next": "16.2.9",

@@ -15,6 +15,14 @@ export type RawCodePatch = Omit<CodePatch, "operation"> & {
 };
 
 export function normalizeCodePatch(raw: RawCodePatch): CodePatch | undefined {
+  if (
+    raw.oldText !== undefined &&
+    raw.newText !== undefined &&
+    raw.oldText === raw.newText
+  ) {
+    return undefined;
+  }
+
   const metaKind = raw.metaKind?.toLowerCase();
   const addedFile =
     metaKind === "add" && raw.oldText === "" && raw.newText !== undefined;

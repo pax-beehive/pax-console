@@ -2,6 +2,8 @@ import {
   CodePatch,
   coalesceCodePatches,
   extractCodePatches,
+  extractCodePatchesWithOptions,
+  toolCallMayEditFiles,
 } from "./tool-patches";
 
 export type PermissionDecision = {
@@ -317,10 +319,20 @@ export function groupWorkstreamEvents(
 }
 
 export function toolCallAppliedPatches(event: ToolCallEvent) {
+  const includeStringDiffs = toolCallMayEditFiles(event.name);
   const directPatches = coalesceCodePatches([
-    ...(event.patches ?? []),
-    ...extractCodePatches(event.input, "input"),
-    ...extractCodePatches(event.output, "output"),
+    ...(event.patches ?? []).filter(
+      (patch) =>
+        includeStringDiffs ||
+        patch.diffText === undefined ||
+        patch.operation === "delete",
+    ),
+    ...extractCodePatchesWithOptions(event.input, "input", {
+      includeStringDiffs,
+    }),
+    ...extractCodePatchesWithOptions(event.output, "output", {
+      includeStringDiffs,
+    }),
   ]);
   if (directPatches.length > 0) {
     return directPatches;

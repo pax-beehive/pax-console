@@ -1,11 +1,104 @@
 import { describe, expect, it } from "vitest";
 import {
   coalesceCodePatches,
+  codePatchGroupStats,
+  codePatchStats,
   codePatchToText,
   extractCodePatches,
+  extractCodePatchesWithOptions,
 } from "./tool-patches";
 
 describe("tool patches", () => {
+  it("computes a line-level unified diff from old and new contents", () => {
+    const text = codePatchToText({
+      operation: "patch",
+      path: "/tmp/weather.ts",
+      oldText: "const city = 'Paris';\nconst units = 'c';\n",
+      newText: "const city = 'Tokyo';\nconst units = 'c';\n",
+    });
+
+    expect(text).toContain("@@ -1,2 +1,2 @@");
+    expect(text).toContain("-const city = 'Paris';");
+    expect(text).toContain("+const city = 'Tokyo';");
+    expect(text).toContain(" const units = 'c';");
+    expect(text).not.toContain("-const units = 'c';");
+    expect(text).not.toContain("+const units = 'c';");
+  });
+
+  it("can ignore unstructured git diff command output", () => {
+    const diff =
+      "diff --git a/weather.ts b/weather.ts\n--- a/weather.ts\n+++ b/weather.ts\n@@ -1 +1 @@\n-old\n+new";
+
+    expect(
+      extractCodePatchesWithOptions(diff, "output", {
+        includeStringDiffs: false,
+      }),
+    ).toEqual([]);
+    expect(extractCodePatches(diff, "output")).toHaveLength(1);
+  });
+
+  it("drops old and new contents that are identical", () => {
+    expect(
+      extractCodePatches(
+        {
+          path: "/tmp/weather.ts",
+          oldText: "const city = 'Paris';\n",
+          newText: "const city = 'Paris';\n",
+        },
+        "output",
+      ),
+    ).toEqual([]);
+  });
+
+  it("uses the computed diff for old and new content stats", () => {
+    expect(
+      codePatchStats({
+        operation: "patch",
+        path: "/tmp/weather.ts",
+        oldText: "const city = 'Paris';\nconst units = 'c';\n",
+        newText: "const city = 'Tokyo';\nconst units = 'c';\n",
+      }),
+    ).toEqual({ added: 1, removed: 1 });
+  });
+
+  it("computes net stats for chained edits to the same file", () => {
+    expect(
+      codePatchGroupStats([
+        {
+          operation: "patch",
+          path: "/tmp/weather.ts",
+          oldText: "const city = 'Paris';\n",
+          newText: "const city = 'Tokyo';\n",
+        },
+        {
+          operation: "patch",
+          path: "/tmp/weather.ts",
+          oldText: "const city = 'Tokyo';\n",
+          newText: "const city = 'Paris';\n",
+        },
+      ]),
+    ).toEqual({ added: 0, removed: 0 });
+  });
+
+  it("sums stats when multiple edits cannot be safely chained", () => {
+    expect(
+      codePatchGroupStats([
+        {
+          operation: "patch",
+          path: "/tmp/weather.ts",
+          oldText: "Paris",
+          newText: "Tokyo",
+        },
+        {
+          operation: "patch",
+          path: "/tmp/weather.ts",
+          oldText: "celsius",
+          newText: "fahrenheit",
+        },
+      ]),
+    ).toEqual({ added: 2, removed: 2 });
+  });
+
   it("extracts Hermes write_file permission payloads as content-only writes", () => {
     const patches = extractCodePatches(
       {

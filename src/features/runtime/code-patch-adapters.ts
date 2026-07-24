@@ -49,9 +49,24 @@ const nestedKeys = [
 ];
 
 export function extractCodePatches(value: unknown, source?: CodePatchSource) {
+  return extractCodePatchesWithOptions(value, source);
+}
+
+export function extractCodePatchesWithOptions(
+  value: unknown,
+  source?: CodePatchSource,
+  options: { includeStringDiffs?: boolean } = {},
+) {
   const patches: CodePatch[] = [];
   const seen = new Set<string>();
-  collectCodePatches(value, source, patches, seen, 0);
+  collectCodePatches(
+    value,
+    source,
+    patches,
+    seen,
+    0,
+    options.includeStringDiffs ?? true,
+  );
   return patches;
 }
 
@@ -61,19 +76,34 @@ function collectCodePatches(
   patches: CodePatch[],
   seen: Set<string>,
   depth: number,
+  includeStringDiffs: boolean,
 ) {
   if (value === undefined || value === null || depth > 8) {
     return;
   }
 
   if (typeof value === "string") {
-    collectStringPatches(value, source, patches, seen, depth);
+    collectStringPatches(
+      value,
+      source,
+      patches,
+      seen,
+      depth,
+      includeStringDiffs,
+    );
     return;
   }
 
   if (Array.isArray(value)) {
     for (const item of value) {
-      collectCodePatches(item, source, patches, seen, depth + 1);
+      collectCodePatches(
+        item,
+        source,
+        patches,
+        seen,
+        depth + 1,
+        includeStringDiffs,
+      );
     }
     return;
   }
@@ -88,7 +118,14 @@ function collectCodePatches(
   }
 
   for (const key of nestedKeys) {
-    collectCodePatches(record[key], source, patches, seen, depth + 1);
+    collectCodePatches(
+      record[key],
+      source,
+      patches,
+      seen,
+      depth + 1,
+      includeStringDiffs,
+    );
   }
 }
 
@@ -98,13 +135,21 @@ function collectStringPatches(
   patches: CodePatch[],
   seen: Set<string>,
   depth: number,
+  includeStringDiffs: boolean,
 ) {
   const parsed = parseJSONLike(value);
   if (parsed !== undefined) {
-    collectCodePatches(parsed, source, patches, seen, depth + 1);
+    collectCodePatches(
+      parsed,
+      source,
+      patches,
+      seen,
+      depth + 1,
+      includeStringDiffs,
+    );
     return;
   }
-  if (looksLikeDiff(value)) {
+  if (includeStringDiffs && looksLikeDiff(value)) {
     pushPatch(patches, seen, { diffText: value, operation: "diff", source });
   }
 }

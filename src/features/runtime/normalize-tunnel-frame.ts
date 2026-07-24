@@ -4,7 +4,12 @@ import {
   invocationStateFromType,
   isPaxInvocationDisplayType,
 } from "./invocation-display";
-import { CodePatch, extractCodePatches } from "./tool-patches";
+import {
+  CodePatch,
+  extractCodePatches,
+  extractCodePatchesWithOptions,
+  toolCallMayEditFiles,
+} from "./tool-patches";
 import { extractToolCallOutputUpdate } from "./tool-call-output";
 
 type TunnelFrame = {
@@ -255,9 +260,7 @@ function normalizeToolCall(
     createdAt,
   };
 
-  if (
-    outputUpdate
-  ) {
+  if (outputUpdate) {
     event.output = outputUpdate.value;
     event.outputMode = outputUpdate.mode;
   } else if (
@@ -270,12 +273,18 @@ function normalizeToolCall(
     event.output = payload;
   }
 
+  const includeStringDiffs = toolCallMayEditFiles(event.name);
   const patches = uniqueCodePatches([
-    ...extractCodePatches(event.input, "input"),
-    ...extractCodePatches(event.output, "output"),
-    ...extractCodePatches(
+    ...extractCodePatchesWithOptions(event.input, "input", {
+      includeStringDiffs,
+    }),
+    ...extractCodePatchesWithOptions(event.output, "output", {
+      includeStringDiffs,
+    }),
+    ...extractCodePatchesWithOptions(
       frame,
       event.output === undefined ? "input" : "output",
+      { includeStringDiffs },
     ),
   ]);
   if (patches.length > 0) {

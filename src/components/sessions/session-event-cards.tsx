@@ -32,7 +32,12 @@ import {
   WorkstreamItem,
 } from "@/features/runtime/session-events";
 import { invocationBodyContent } from "@/features/runtime/invocation-body-content";
-import { CodePatch, codePatchToText } from "@/features/runtime/tool-patches";
+import {
+  CodePatch,
+  codePatchGroupStats,
+  codePatchStats,
+  codePatchToText,
+} from "@/features/runtime/tool-patches";
 import { cn } from "@/lib/utils";
 
 export type PermissionDecisionOption =
@@ -1481,52 +1486,6 @@ type DiffLine = {
   newLine?: number;
   oldLine?: number;
 };
-
-function codePatchStats(patch: CodePatch) {
-  if (!patch.diffText) {
-    return {
-      added: patch.newText === undefined ? 0 : changedLineCount(patch.newText),
-      removed:
-        patch.oldText === undefined ? 0 : changedLineCount(patch.oldText),
-    };
-  }
-
-  return diffStats(codePatchToText(patch));
-}
-
-function codePatchGroupStats(patches: CodePatch[]) {
-  return patches.reduce(
-    (total, patch) => {
-      const stats = codePatchStats(patch);
-      return {
-        added: total.added + stats.added,
-        removed: total.removed + stats.removed,
-      };
-    },
-    { added: 0, removed: 0 },
-  );
-}
-
-function changedLineCount(value: string) {
-  if (value.length === 0) {
-    return 0;
-  }
-  return value.replace(/\n$/, "").split("\n").length;
-}
-
-function diffStats(diffText: string) {
-  return diffText.split("\n").reduce(
-    (stats, line) => {
-      if (line.startsWith("+") && !line.startsWith("+++")) {
-        stats.added += 1;
-      } else if (line.startsWith("-") && !line.startsWith("---")) {
-        stats.removed += 1;
-      }
-      return stats;
-    },
-    { added: 0, removed: 0 },
-  );
-}
 
 function diffLinesForPatch(patch: CodePatch) {
   const lines = codePatchToText(patch).split("\n");
