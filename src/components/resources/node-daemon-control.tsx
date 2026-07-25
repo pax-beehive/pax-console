@@ -55,13 +55,20 @@ type LastDaemonCommand = {
   status: string;
 };
 
+type DiscoverFeedback = {
+  available: number;
+  discoveredAt: number;
+  total: number;
+};
+
 export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<NodeDaemonAgentConnection>();
   const [removeTarget, setRemoveTarget] = useState<NodeDaemonAgentConnection>();
   const [lastCommand, setLastCommand] = useState<LastDaemonCommand>();
-  const [inventoryNodeId, setInventoryNodeId] = useState<string>();
+  const [discoverFeedback, setDiscoverFeedback] =
+    useState<DiscoverFeedback>();
   const runtimeTarget = lastCommand?.runtime;
 
   // paxd intentionally permits only one query request/response at a time, so
@@ -145,11 +152,18 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
     mutationFn: () =>
       discoverNodeDaemonHarnesses(userId, nodeId, { probe: true }),
     onSuccess: async (data) => {
+      const discoveredHarnesses = data.harnesses?.items ?? [];
       queryClient.setQueryData(
         queryKeys.nodeDaemonHarnesses(userId, nodeId),
         data,
       );
-      setInventoryNodeId(nodeId);
+      setDiscoverFeedback({
+        available: discoveredHarnesses.filter(
+          (item) => item.state === "available",
+        ).length,
+        discoveredAt: Date.now(),
+        total: discoveredHarnesses.length,
+      });
       await connectionsQuery.refetch();
     },
   });
@@ -202,6 +216,26 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
   });
 
   const harnesses = harnessesQuery.data?.harnesses?.items ?? [];
+  const availableHarnesses = harnesses.filter(
+    (item) => item.state === "available",
+  );
+  const canCreateAgent = availableHarnesses.length > 0;
+  const discoverStatusTone = discover.isPending
+    ? "warning"
+    : canCreateAgent
+      ? "success"
+      : "neutral";
+  const discoverStatusLabel = discover.isPending
+    ? "discovering"
+    : canCreateAgent
+      ? "ready to create"
+      : "no harnesses";
+  const discoverMessage = buildDiscoverMessage({
+    canCreateAgent,
+    discoverFeedback,
+    isLoading: harnessesQuery.isLoading,
+    isPending: discover.isPending,
+  });
   const phase = statusQuery.data?.status?.phase;
   const queryError =
     statusQuery.error ?? harnessesQuery.error ?? connectionsQuery.error;
@@ -257,7 +291,7 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
           </Button>
           <Button
             disabled={
-              !harnesses.length ||
+              !canCreateAgent ||
               runtimeReconciling ||
               controlQueryBusy ||
               discover.isPending
@@ -265,6 +299,11 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
             icon={<Plus className="h-4 w-4" />}
             onClick={() => setCreateOpen((open) => !open)}
             size="sm"
+            tooltip={
+              canCreateAgent
+                ? "Create a new agent from an available harness"
+                : "Run Discover and make sure at least one harness is available before creating an agent"
+            }
             type="button"
             variant="primary"
           >
@@ -273,10 +312,19 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
         </div>
       </div>
 
-      <p className="text-sm leading-6 text-ink-muted">
-        Create and reconcile paxd-managed agent connections over this
-        node&apos;s control tunnel.
-      </p>
+      <div className="grid gap-2 rounded-md border border-hairline bg-canvas px-3 py-2.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <Badge tone={discoverStatusTone}>{discoverStatusLabel}</Badge>
+          <span className="text-sm text-ink-muted">{discoverMessage}</span>
+        </div>
+        <div className="flex min-w-0 flex-wrap gap-x-3 gap-y-1 text-xs text-ink-tertiary">
+          <span>
+            {availableHarnesses.length}/{harnesses.length} harnesses available
+          </span>
+          <span>{connections.length} current connections</span>
+          <span>New agents inherit their agent type from the selected harness.</span>
+        </div>
+      </div>
 
       {(queryError || controlError || mutationError) && (
         <div className="rounded-md border border-warning bg-canvas px-3 py-2 text-xs text-ink-muted">
@@ -349,7 +397,11 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
         )}
       </div>
 
-      {inventoryNodeId === nodeId && <HarnessInventory harnesses={harnesses} />}
+      <HarnessInventory
+        harnesses={harnesses}
+        isLoading={harnessesQuery.isLoading}
+        lastDiscoveredAt={discoverFeedback?.discoveredAt}
+      />
 
       <ConfirmDialog
         confirmLabel={action.isPending ? "Removing..." : "Remove connection"}
@@ -378,57 +430,79 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
   );
 }
 
-function HarnessInventory({ harnesses }: { harnesses: NodeDaemonHarness[] }) {
+function HarnessInventory({
+  harnesses,
+  isLoading,
+  lastDiscoveredAt,
+}: {
+  harnesses: NodeDaemonHarness[];
+  isLoading?: boolean;
+  lastDiscoveredAt?: number;
+}) {
   const available = harnesses.filter(
     (item) => item.state === "available",
   ).length;
+  const loadingState = Boolean(isLoading && harnesses.length === 0);
+  const headerText = isLoading
+    ? "refreshing inventory…"
+    : `${available}/${harnesses.length} available${
+        lastDiscoveredAt
+          ? ` · last discover ${formatDiscoverTime(lastDiscoveredAt)}`
+          : ""
+      }`;
 
   return (
     <div className="grid min-w-0 gap-2">
       <div className="flex min-w-0 items-center justify-between gap-3">
         <h3 className="text-sm font-medium text-ink">Harness inventory</h3>
-        <span className="text-xs text-ink-tertiary">
-          {available}/{harnesses.length} available
-        </span>
+        <span className="text-xs text-ink-tertiary">{headerText}</span>
       </div>
       <div className="grid min-w-0 overflow-hidden rounded-md border border-hairline">
-        {harnesses.map((harness) => {
-          const detail = harness.last_error || harness.install_hint;
-          const provenance = [harness.version, harness.source]
-            .filter(Boolean)
-            .join(" · ");
-          return (
-            <div
-              className="grid min-w-0 gap-2 border-b border-hairline bg-canvas px-3 py-2.5 last:border-b-0 md:grid-cols-[180px_minmax(0,1fr)_180px]"
-              key={harness.harness}
-            >
-              <div className="flex min-w-0 items-center gap-2">
-                <TruncatedText className="font-medium text-ink">
-                  {harness.display_name ?? harness.harness}
-                </TruncatedText>
-                <Badge tone={harnessTone(harness.state)}>{harness.state}</Badge>
-              </div>
-              <div className="min-w-0">
-                <TruncatedText className="font-mono text-xs text-ink-muted">
-                  {harness.command?.join(" ") || "No command detected"}
-                </TruncatedText>
-                {detail && (
-                  <TruncatedText
-                    className={`mt-1 text-xs ${harness.last_error ? "text-warning" : "text-ink-tertiary"}`}
-                  >
-                    {detail}
-                  </TruncatedText>
-                )}
-              </div>
-              <TruncatedText className="text-xs text-ink-tertiary md:text-right">
-                {provenance || harness.harness}
-              </TruncatedText>
-            </div>
-          );
-        })}
-        {harnesses.length === 0 && (
+        {loadingState && (
           <div className="bg-canvas px-3 py-4 text-center text-sm text-ink-tertiary">
-            Discover completed without a harness result.
+            Loading harness inventory…
+          </div>
+        )}
+        {!loadingState &&
+          harnesses.map((harness) => {
+            const detail = harness.last_error || harness.install_hint;
+            const provenance = [harness.version, harness.source]
+              .filter(Boolean)
+              .join(" · ");
+            return (
+              <div
+                className="grid min-w-0 gap-2 border-b border-hairline bg-canvas px-3 py-2.5 last:border-b-0 md:grid-cols-[180px_minmax(0,1fr)_180px]"
+                key={harness.harness}
+              >
+                <div className="flex min-w-0 items-center gap-2">
+                  <TruncatedText className="font-medium text-ink">
+                    {harness.display_name ?? harness.harness}
+                  </TruncatedText>
+                  <Badge tone={harnessTone(harness.state)}>{harness.state}</Badge>
+                </div>
+                <div className="min-w-0">
+                  <TruncatedText className="font-mono text-xs text-ink-muted">
+                    {harness.command?.join(" ") || "No command detected"}
+                  </TruncatedText>
+                  {detail && (
+                    <TruncatedText
+                      className={`mt-1 text-xs ${harness.last_error ? "text-warning" : "text-ink-tertiary"}`}
+                    >
+                      {detail}
+                    </TruncatedText>
+                  )}
+                </div>
+                <TruncatedText className="text-xs text-ink-tertiary md:text-right">
+                  {provenance || harness.harness}
+                </TruncatedText>
+              </div>
+            );
+          })}
+        {!loadingState && harnesses.length === 0 && (
+          <div className="bg-canvas px-3 py-4 text-center text-sm text-ink-tertiary">
+            {lastDiscoveredAt
+              ? "Discovery finished, but paxd did not report any harnesses."
+              : "No harnesses reported yet. Run Discover to probe this node."}
           </div>
         )}
       </div>
@@ -477,7 +551,9 @@ function ConnectionRow({
       </div>
       <div className="min-w-0">
         <div className="text-xs text-ink-muted">
-          {connection.harness} · generation {connection.generation} ·{" "}
+          {connection.agent_type && connection.agent_type !== connection.harness
+            ? `${connection.agent_type} via ${connection.harness}`
+            : connection.harness} · generation {connection.generation} ·{" "}
           {connection.desired_acp_slots} desired slots
         </div>
         <MonoId className="mt-1" tooltip={connection.id}>
@@ -545,7 +621,7 @@ function CreateConnectionForm({
   onSubmit,
 }: {
   disabled: boolean;
-  harnesses: { display_name?: string; harness: string; state: string }[];
+  harnesses: NodeDaemonHarness[];
   onCancel: () => void;
   onSubmit: (input: {
     agent_type: string;
@@ -556,15 +632,45 @@ function CreateConnectionForm({
     working_dir?: string;
   }) => void;
 }) {
-  const firstHarness =
-    harnesses.find((item) => item.state === "available")?.harness ?? "";
+  const availableHarnesses = harnesses.filter(
+    (item) => item.state === "available",
+  );
+  const firstHarness = availableHarnesses[0]?.harness ?? "";
   const [name, setName] = useState("");
   const [harness, setHarness] = useState(firstHarness);
-  const [agentType, setAgentType] = useState(firstHarness);
   const [instanceId, setInstanceId] = useState("");
   const [workingDir, setWorkingDir] = useState("");
   const [desiredSlots, setDesiredSlots] = useState(2);
   const desiredSlotsValid = validDesiredSlots(desiredSlots);
+  const selectedHarness =
+    availableHarnesses.find((item) => item.harness === harness) ??
+    availableHarnesses[0];
+  const effectiveHarness = selectedHarness?.harness ?? firstHarness;
+  const agentType = selectedHarness?.harness ?? "";
+  const provenance = [selectedHarness?.version, selectedHarness?.source]
+    .filter(Boolean)
+    .join(" · ");
+
+  if (!availableHarnesses.length) {
+    return (
+      <div className="grid gap-3 rounded-md border border-hairline bg-canvas p-3">
+        <p className="text-sm leading-6 text-ink-muted">
+          No available harnesses yet. Run Discover and make sure a harness is
+          installed on this node before creating an agent.
+        </p>
+        <div className="flex justify-end">
+          <Button
+            icon={<X className="h-4 w-4" />}
+            onClick={onCancel}
+            type="button"
+            variant="ghost"
+          >
+            Close
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="grid gap-3 rounded-md border border-hairline bg-canvas p-3">
@@ -572,22 +678,18 @@ function CreateConnectionForm({
         <Field
           label="Name"
           onChange={setName}
-          placeholder="work"
+          placeholder={agentType ? `${agentType}-work` : "work"}
           value={name}
         />
         <SelectHarness
-          harnesses={harnesses}
-          onChange={(value) => {
-            setHarness(value);
-            if (!agentType) setAgentType(value);
-          }}
-          value={harness}
+          harnesses={availableHarnesses}
+          onChange={setHarness}
+          value={effectiveHarness}
         />
-        <Field
+        <ReadonlyField
+          helper="Derived from harness"
           label="Agent type"
-          onChange={setAgentType}
-          placeholder="codex"
-          value={agentType}
+          value={agentType || "Select a harness"}
         />
         <Field
           label="Instance ID (optional)"
@@ -602,6 +704,17 @@ function CreateConnectionForm({
           onChange={setDesiredSlots}
           value={desiredSlots}
         />
+      </div>
+      <div className="grid gap-1 rounded-md border border-hairline bg-surface-1 px-3 py-2">
+        <span className="text-xs text-ink-muted">
+          The selected harness defines the runtime and agent type automatically.
+        </span>
+        <TruncatedText className="font-mono text-xs text-ink-tertiary">
+          {selectedHarness?.command?.join(" ") || "No command detected"}
+        </TruncatedText>
+        {provenance && (
+          <span className="text-xs text-ink-tertiary">{provenance}</span>
+        )}
       </div>
       <Field
         label="Working directory (optional)"
@@ -620,18 +733,14 @@ function CreateConnectionForm({
         </Button>
         <Button
           disabled={
-            disabled ||
-            !name.trim() ||
-            !harness ||
-            !agentType.trim() ||
-            !desiredSlotsValid
+            disabled || !name.trim() || !effectiveHarness || !desiredSlotsValid
           }
           icon={<Plus className="h-4 w-4" />}
           onClick={() =>
             onSubmit({
-              agent_type: agentType.trim(),
+              agent_type: agentType,
               desired_slots: desiredSlots,
-              harness,
+              harness: effectiveHarness,
               instance_id: instanceId.trim() || undefined,
               name: name.trim(),
               working_dir: workingDir.trim() || undefined,
@@ -783,6 +892,28 @@ function NumberField({
   );
 }
 
+function ReadonlyField({
+  helper,
+  label,
+  value,
+}: {
+  helper?: string;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="grid min-w-0 gap-1 text-xs text-ink-tertiary">
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <span>{label}</span>
+        {helper && <span className="text-[11px] text-ink-tertiary">{helper}</span>}
+      </div>
+      <div className="flex min-h-9 min-w-0 items-center rounded-lg border border-hairline bg-surface-1 px-3 text-sm text-ink">
+        <TruncatedText className="font-mono text-sm text-ink">{value}</TruncatedText>
+      </div>
+    </div>
+  );
+}
+
 function validDesiredSlots(value: number) {
   return Number.isInteger(value) && value >= 1 && value <= 16;
 }
@@ -792,7 +923,7 @@ function SelectHarness({
   onChange,
   value,
 }: {
-  harnesses: { display_name?: string; harness: string; state: string }[];
+  harnesses: Pick<NodeDaemonHarness, "display_name" | "harness" | "state">[];
   onChange: (value: string) => void;
   value: string;
 }) {
@@ -804,6 +935,7 @@ function SelectHarness({
         onChange={(event) => onChange(event.target.value)}
         value={value}
       >
+        {harnesses.length === 0 && <option value="">No harnesses available</option>}
         {harnesses.map((item) => (
           <option
             disabled={item.state !== "available"}
@@ -858,4 +990,39 @@ function harnessTone(
   if (state === "available") return "success";
   if (state === "missing" || state === "error") return "danger";
   return state === "discovering" ? "warning" : "neutral";
+}
+
+function buildDiscoverMessage({
+  canCreateAgent,
+  discoverFeedback,
+  isLoading,
+  isPending,
+}: {
+  canCreateAgent: boolean;
+  discoverFeedback?: DiscoverFeedback;
+  isLoading: boolean;
+  isPending: boolean;
+}) {
+  if (isPending) {
+    return "Scanning this node for installed harnesses…";
+  }
+  if (isLoading) {
+    return "Loading the current harness inventory…";
+  }
+  if (discoverFeedback) {
+    if (discoverFeedback.total === 0) {
+      return `Discovery finished at ${formatDiscoverTime(discoverFeedback.discoveredAt)}, but paxd did not report any harnesses.`;
+    }
+    return `Inventory refreshed at ${formatDiscoverTime(discoverFeedback.discoveredAt)}. ${discoverFeedback.available}/${discoverFeedback.total} harnesses are ready below.`;
+  }
+  return canCreateAgent
+    ? "Available harnesses are ready below. Re-run Discover any time to rescan this node."
+    : "Run Discover to probe this node for installed harnesses, then create agents from the available results.";
+}
+
+function formatDiscoverTime(value: number) {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
 }
