@@ -664,6 +664,51 @@ describe("normalizeHistoryMessage", () => {
     ]);
   });
 
+  it("restores aggregated terminal output from message parts", () => {
+    const events = normalizeHistoryMessage({
+      message_id: "msg_terminal_output",
+      session_id: "sess_history",
+      message_type: "tool_call_update",
+      role: "assistant",
+      created_at: "2026-07-24T12:00:00.000Z",
+      raw_json: {
+        method: "session/update",
+        params: {
+          sessionId: "sess_history",
+          update: {
+            _meta: {
+              terminal_output_delta: {
+                data: " M first.go\n",
+                terminal_id: "call_1",
+              },
+            },
+            sessionUpdate: "tool_call_update",
+            toolCallId: "call_1",
+          },
+        },
+        jsonrpc: "2.0",
+      },
+      parts: [
+        {
+          message_id: "msg_terminal_output",
+          part_index: 0,
+          part_type: "text",
+          text: " M first.go\n M second.go\n",
+        },
+      ],
+    });
+
+    expect(events).toMatchObject([
+      {
+        type: "tool_call",
+        id: "sess_history:tool:call_1",
+        toolCallId: "call_1",
+        output: " M first.go\n M second.go\n",
+        outputMode: "replace",
+      },
+    ]);
+  });
+
   it("marks stored user-approved permission responses as user decisions", () => {
     const requested = normalizeHistoryMessage({
       message_id: "msg_permission_request",
