@@ -41,6 +41,7 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { PaxdGettingStartedGuide } from "@/components/connect/paxd-getting-started";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import { SessionWorkbench } from "@/components/sessions/session-workbench";
 import { Badge } from "@/components/ui/badge";
@@ -406,6 +407,8 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     envelopesQuery.error ??
     invitesQuery.error ??
     null;
+  const fleetSetupGuideKind =
+    nodes.length === 0 ? "node" : agents.length === 0 ? "agent" : null;
   const mobileDetailOpen = Boolean(activeSessionTarget || composerContextItem);
   const mobilePaneOpen = mobileDetailOpen || mobileComposerOpen;
   const mobileDetailTitle = activeSessionTarget
@@ -760,7 +763,12 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 <div className="p-4 text-sm text-ink-tertiary">
                   {homeRailTab === "sessions" && sessionsQuery.isLoading
                     ? "Loading sessions..."
-                    : "No items match this view."}
+                    : homeRailTab === "sessions" && fleetSetupGuideKind === "node"
+                      ? "No nodes yet. Use the setup guide on the right."
+                      : homeRailTab === "sessions" &&
+                          fleetSetupGuideKind === "agent"
+                        ? "No agents yet. Create the first paxd connection with the guide on the right."
+                        : "No items match this view."}
                 </div>
               )}
             </div>
@@ -801,6 +809,12 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 sessionId={activeSessionTarget.sessionId}
                 user={user}
               />
+            ) : fleetSetupGuideKind ? (
+              <div className="min-h-0 flex-1 overflow-auto p-5">
+                <div className="mx-auto w-full max-w-4xl">
+                  <PaxdGettingStartedGuide kind={fleetSetupGuideKind} />
+                </div>
+              </div>
             ) : (
               <>
                 <div className="flex min-w-0 items-center gap-2 border-b border-hairline bg-surface-1 px-3 py-2 lg:hidden">
