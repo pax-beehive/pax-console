@@ -613,7 +613,7 @@ export function listSessionMessages(
 export function listSessionHistory(
   userId: string,
   sessionId: string,
-  limit = 1000,
+  limit = 500,
   beforeId = 0,
 ) {
   const params = new URLSearchParams({ limit: String(limit) });
@@ -1704,7 +1704,7 @@ export function useSessionHistory(userId?: string, sessionId?: string) {
       listSessionHistory(
         userId as string,
         sessionId as string,
-        1000,
+        500,
         pageParam,
       ),
     enabled: Boolean(userId && sessionId),

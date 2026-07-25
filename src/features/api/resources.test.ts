@@ -449,7 +449,7 @@ describe("listSessionHistory", () => {
     });
 
     expect(apiFetch).toHaveBeenCalledWith(
-      "/api/v1/user/u1/sessions/sess_1/history?limit=1000",
+      "/api/v1/user/u1/sessions/sess_1/history?limit=500",
     );
   });
 
@@ -459,10 +459,10 @@ describe("listSessionHistory", () => {
       pagination: { has_more: false },
     });
 
-    await listSessionHistory("u1", "sess_1", 1000, 73834);
+    await listSessionHistory("u1", "sess_1", 500, 73834);
 
     expect(apiFetch).toHaveBeenCalledWith(
-      "/api/v1/user/u1/sessions/sess_1/history?limit=1000&before_id=73834",
+      "/api/v1/user/u1/sessions/sess_1/history?limit=500&before_id=73834",
     );
   });
 

@@ -241,11 +241,27 @@ function normalizeHistoryFrames(
   createdAt: string,
 ) {
   const events: SessionEvent[] = [];
+  const aggregatedTerminalOutput =
+    message.message_type === "tool_call_update"
+      ? textFromParts(message, isTextPartType)
+      : "";
   for (const candidate of historyFrameCandidates(message)) {
+    const candidateEvents = normalizeTunnelFrame(
+      withHistorySession(candidate, sessionId),
+      { createdAt },
+    );
     events.push(
-      ...normalizeTunnelFrame(withHistorySession(candidate, sessionId), {
-        createdAt,
-      }),
+      ...candidateEvents.map((event) =>
+        aggregatedTerminalOutput &&
+        event.type === "tool_call" &&
+        event.outputMode === "append"
+          ? {
+              ...event,
+              output: aggregatedTerminalOutput,
+              outputMode: "replace" as const,
+            }
+          : event,
+      ),
     );
   }
 
