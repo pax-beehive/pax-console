@@ -116,6 +116,18 @@ export function normalizeTunnelFrame(
     });
   }
 
+  if (kind === "pax:artifact") {
+    const events = normalizeArtifactPublication(
+      frame,
+      sessionId,
+      createdAt,
+      id,
+    );
+    if (events.length > 0) {
+      return events;
+    }
+  }
+
   if (isIgnoredSessionUpdate(kind)) {
     return [];
   }
@@ -292,6 +304,51 @@ function normalizeToolCall(
   }
 
   return [event] satisfies SessionEvent[];
+}
+
+function normalizeArtifactPublication(
+  frame: TunnelFrame,
+  sessionId: string,
+  createdAt: string,
+  id: string,
+) {
+  const parts = Array.isArray(valueFrom(frame, "parts"))
+    ? (valueFrom(frame, "parts") as unknown[])
+    : [];
+  const events: SessionEvent[] = [];
+
+  for (const [index, part] of parts.entries()) {
+    const record = asRecord(part);
+    if (stringFromValue(record, "part_type") !== "artifact") {
+      continue;
+    }
+
+    const payload = asRecord(valueFrom(record, "payload_json"));
+    const artifactUri = stringFromValue(record, "artifact_uri");
+    const publicationId =
+      stringFromValue(payload, "publication_id") ??
+      publicationIdFromArtifactUri(artifactUri);
+    if (!publicationId) {
+      continue;
+    }
+
+    const partIndex =
+      numberFromRecord(record, "part_index") ??
+      numberFromRecord(record, "partIndex") ??
+      index;
+
+    events.push({
+      type: "artifact_publication",
+      id: `${id}:artifact:${partIndex}:${publicationId}`,
+      sessionId,
+      publicationId,
+      contentRef: artifactContentRef(artifactUri),
+      ...(artifactUri ? { artifactUri } : {}),
+      createdAt,
+    });
+  }
+
+  return events;
 }
 
 function normalizePermissionRequest(
@@ -669,6 +726,16 @@ function extractText(value: unknown): string | undefined {
   }
 
   return undefined;
+}
+
+function publicationIdFromArtifactUri(value: string | undefined) {
+  const match = /^artifact-publication:\/\/([^/]+)\//.exec(value ?? "");
+  return match?.[1];
+}
+
+function artifactContentRef(value: string | undefined) {
+  const match = /^artifact-publication:\/\/[^/]+\/(.+)$/.exec(value ?? "");
+  return match?.[1] ?? "main";
 }
 
 function toolCallIdFromFrame(frame: TunnelFrame) {

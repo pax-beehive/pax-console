@@ -29,6 +29,9 @@ describe("SessionComposer", () => {
           activeNodeId="node_1"
           approvalMode="manual"
           approvalModePending={false}
+          attachmentError={null}
+          attachmentUploadPending={false}
+          attachments={[]}
           currentSessionId="sess_1"
           deleteQueuedTurnPending={false}
           draftKey="sess_1"
@@ -37,8 +40,10 @@ describe("SessionComposer", () => {
           newSessionCwd=""
           newSessionCwdInvalid={false}
           newSessionWorkspaceOpen={false}
+          onAddAttachments={async () => undefined}
           onDeleteQueuedTurn={vi.fn()}
           onOpenArtifacts={vi.fn()}
+          onRemoveAttachment={vi.fn()}
           onSetNewSessionCwd={vi.fn()}
           onSetNewSessionWorkspaceOpen={vi.fn()}
           onSteer={async () => true}

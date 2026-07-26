@@ -206,6 +206,12 @@ src/components/sessions/
   也会归一成同一种 timeline event，并在 merge 阶段替换已经显示过的 parent
   或 pending event。
 
+  `pax:artifact` 是 Agent publish_artifact 成功接收后的展示替身消息。
+  timeline 以 durable history 为准恢复 publication 卡片；如果 live frame 也带着
+  同一条 `pax:artifact`，merge 会按同一个 message/part id 去重。卡片内部轮询
+  publication state，`queued/uploading` 显示 spinner，`available` 再请求
+  `/content/main` 获取 preview/download。
+
 src/components/shell/
   Console 外壳：sidebar、topbar、主布局。
 
@@ -330,9 +336,23 @@ Knowledge
   注入通过 /sessions/{session_id}/knowledge-injections 创建 system_handoff 消息，
   UI 仍然通过 REST history 和 runtime events 渲染时间线。
 
+Attachments
+  Session composer 通过 /attachments 创建用户附件，浏览器按返回的 GCS
+  resumable upload ticket 直传文件，再调用 /attachments/{attachment_id}/complete
+  把状态变成 completed。真正发 prompt 时，前端把 attachment_id 放进
+  /conversation 的 content block；附件本身不绑定 agent。
+
+Artifact publications
+  Session timeline 识别 `message_type = "pax:artifact"`，从
+  `parts[*].payload_json.publication_id` 或
+  `artifact-publication://{publication_id}/main` 里恢复 publication id，随后轮询
+  /artifact-publications/{publication_id}，并用
+  /artifact-publications/{publication_id}/content/main 获取安全预览或下载地址。
+  前端以 publication id 作为卡片 key，不按 artifact id 去重。
+
 Artifacts
-  Session workbench 通过 /artifact-uploads 创建上传票据，浏览器拿 GCS signed
-  URL 直接 PUT 文件，再调用 complete 生成 session artifact。列表走
+  旧的 admin Session artifact 工具仍通过 /artifact-uploads 创建上传票据，浏览器拿
+  GCS signed URL 直接 PUT 文件，再调用 complete 生成 session artifact。列表走
   /sessions/{session_id}/artifacts，预览/下载走 artifact content endpoint 返回的
   signed GET URL 或 redirect。文件内容不要经由 Next /api/pax proxy 中转上传。
 ```
@@ -566,17 +586,24 @@ Accept: text/event-stream
 Content-Type: application/json
 ```
 
-请求体第一版只暴露：
+默认纯文本请求仍可发送：
 
 ```json
 { "input": "hello" }
 ```
 
-续聊时附加：
+当 composer 带附件时，前端改为发送结构化 content block：
 
 ```json
-{ "input": "continue", "session_id": "sess_xxx" }
+{
+  "content": [
+    { "type": "text", "text": "请分析这个文件" },
+    { "type": "attachment", "attachment_id": "att_..." }
+  ]
+}
 ```
+
+续聊时附加 `session_id`。queued turn / steer 仍然只支持文本输入，不带附件。
 
 前端使用 fetch streaming 读取 response body，不能用原生 EventSource
 （这个接口是 POST + JSON body）。每条默认 SSE `data:` 是一个 PAX envelope：

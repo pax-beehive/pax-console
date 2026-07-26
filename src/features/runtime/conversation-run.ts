@@ -47,9 +47,20 @@ export type ConversationRunEnvelope =
       message: string;
     };
 
+export type ConversationInputBlock =
+  | {
+      type: "text";
+      text: string;
+    }
+  | {
+      type: "attachment";
+      attachment_id: string;
+    };
+
 export type StreamConversationRunOptions = {
   agentId: string;
   approvalMode?: SessionApprovalMode;
+  content?: ConversationInputBlock[];
   cwd?: string;
   input?: string;
   nodeId: string;
@@ -65,6 +76,7 @@ export type StreamConversationRunOptions = {
 export async function streamConversationRun({
   agentId,
   approvalMode,
+  content,
   cwd,
   input,
   nodeId,
@@ -74,6 +86,8 @@ export async function streamConversationRun({
   signal,
   userId,
 }: StreamConversationRunOptions) {
+  const requestContent = content && content.length > 0 ? content : undefined;
+
   const response = await fetch(
     `${API_BASE_URL}${userPath(
       userId,
@@ -81,7 +95,8 @@ export async function streamConversationRun({
     )}`,
     {
       body: JSON.stringify({
-        ...(input ? { input } : {}),
+        ...(requestContent ? { content: requestContent } : {}),
+        ...(!requestContent && input ? { input } : {}),
         ...(sessionId ? { session_id: sessionId } : {}),
         ...(!sessionId && cwd ? { cwd } : {}),
         ...(!sessionId && approvalMode ? { approval_mode: approvalMode } : {}),

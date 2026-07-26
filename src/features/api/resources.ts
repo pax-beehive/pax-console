@@ -2,7 +2,7 @@
 
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { API_BASE_URL, apiFetch, userPath } from "./client";
-import { ApiError } from "./errors";
+import { ApiError, AuthError } from "./errors";
 import { queryKeys } from "./query-keys";
 import {
   ApiRecord,
@@ -15,6 +15,8 @@ import {
   ApprovedNodeRegistration,
   ApprovedPaxlDeviceLogin,
   ArtifactContentURL,
+  ArtifactPublicationContentState,
+  ArtifactPublicationState,
   ArtifactUploadTicket,
   CompleteArtifactUploadData,
   CreatedNodeRegistrationToken,
@@ -35,6 +37,8 @@ import {
   RepresentativeAgent,
   SessionApprovalMode,
   SessionArtifact,
+  UserAttachment,
+  UserAttachmentUploadTicket,
   SessionKnowledgeInjection,
   Team,
   TeamAgent,
@@ -145,6 +149,15 @@ type SessionArtifactListData = {
 
 type SessionArtifactData = {
   artifact: SessionArtifact;
+};
+
+type UserAttachmentUploadData = {
+  attachment: UserAttachment;
+};
+
+type ArtifactPublicationContentQuery = {
+  disposition?: "inline" | "attachment";
+  redirect?: boolean;
 };
 
 type RepresentativeAgentListData = {
@@ -797,6 +810,164 @@ export function artifactContentDownloadHref(
     redirect: "1",
   });
   return `${API_BASE_URL}${userPath(userId, `/artifacts/${artifactId}/content/${ref}`)}?${params}`;
+}
+
+export function createUserAttachment(
+  userId: string,
+  input: {
+    content_type?: string;
+    conversation_id?: string;
+    filename: string;
+    sha256?: string;
+    size_bytes?: number;
+  },
+) {
+  return apiFetch<UserAttachmentUploadTicket>(
+    userPath(userId, "/attachments"),
+    {
+      body: JSON.stringify(input),
+      method: "POST",
+    },
+  );
+}
+
+export function completeUserAttachment(userId: string, attachmentId: string) {
+  return apiFetch<UserAttachmentUploadData>(
+    userPath(userId, `/attachments/${attachmentId}/complete`),
+    {
+      body: JSON.stringify({}),
+      method: "POST",
+    },
+  );
+}
+
+export async function uploadUserAttachmentFile(
+  ticket: UserAttachmentUploadTicket,
+  file: File,
+) {
+  const initHeaders = new Headers(ticket.upload.headers);
+  const initResponse = await fetch(ticket.upload.url, {
+    body: null,
+    credentials: "omit",
+    headers: initHeaders,
+    method: ticket.upload.method,
+  });
+
+  if (!initResponse.ok) {
+    throw new Error(
+      `Attachment upload initialization failed with ${initResponse.status}`,
+    );
+  }
+
+  const sessionUrl = initResponse.headers.get("Location");
+  if (!sessionUrl) {
+    throw new Error(
+      "Attachment upload initialization did not return a resumable session URL.",
+    );
+  }
+
+  const uploadHeaders = new Headers();
+  const contentType = ticket.attachment.content_type || file.type;
+  if (contentType) {
+    uploadHeaders.set("Content-Type", contentType);
+  }
+
+  const uploadResponse = await fetch(sessionUrl, {
+    body: file,
+    credentials: "omit",
+    headers: uploadHeaders,
+    method: "PUT",
+  });
+
+  if (!uploadResponse.ok) {
+    throw new Error(`Attachment upload failed with ${uploadResponse.status}`);
+  }
+}
+
+export function getArtifactPublication(userId: string, publicationId: string) {
+  return apiFetch<ArtifactPublicationState>(
+    userPath(userId, `/artifact-publications/${publicationId}`),
+  );
+}
+
+export async function getArtifactPublicationContent(
+  userId: string,
+  publicationId: string,
+  ref = "main",
+  query: ArtifactPublicationContentQuery = {},
+) {
+  const params = new URLSearchParams();
+  if (query.disposition) {
+    params.set("disposition", query.disposition);
+  }
+  if (query.redirect) {
+    params.set("redirect", "true");
+  }
+
+  const response = await fetch(
+    `${API_BASE_URL}${userPath(userId, `/artifact-publications/${publicationId}/content/${ref}`)}${params.size > 0 ? `?${params}` : ""}`,
+    {
+      credentials: "include",
+      redirect: "manual",
+    },
+  );
+
+  if (
+    response.status === 0 ||
+    response.status === 401 ||
+    response.status === 403 ||
+    (response.status >= 300 && response.status < 400) ||
+    response.type === "opaqueredirect"
+  ) {
+    throw new AuthError();
+  }
+
+  const contentType = response.headers.get("content-type");
+  if (!contentType?.includes("application/json")) {
+    throw new ApiError(
+      `Expected JSON response from PAX API, received ${contentType ?? "unknown content type"}`,
+      response.status,
+      null,
+    );
+  }
+
+  const body = (await response.json()) as {
+    code: number;
+    data: ArtifactPublicationContentState;
+    message?: string;
+  };
+
+  if (response.status === 202 || response.status === 409) {
+    return {
+      ...body.data,
+      retry_after_seconds: retryAfterSeconds(response),
+    } satisfies ArtifactPublicationContentState;
+  }
+
+  if (!response.ok || body.code >= 400) {
+    throw new ApiError(
+      body.message ?? "PAX API request failed",
+      response.status,
+      body,
+    );
+  }
+
+  return {
+    ...body.data,
+    retry_after_seconds: retryAfterSeconds(response),
+  } satisfies ArtifactPublicationContentState;
+}
+
+export function artifactPublicationContentDownloadHref(
+  userId: string,
+  publicationId: string,
+  ref = "main",
+) {
+  const params = new URLSearchParams({
+    disposition: "attachment",
+    redirect: "true",
+  });
+  return `${API_BASE_URL}${userPath(userId, `/artifact-publications/${publicationId}/content/${ref}`)}?${params}`;
 }
 
 export function listRepresentativeAgents(
@@ -1701,12 +1872,7 @@ export function useSessionHistory(userId?: string, sessionId?: string) {
       sessionId ?? "pending",
     ),
     queryFn: ({ pageParam }) =>
-      listSessionHistory(
-        userId as string,
-        sessionId as string,
-        500,
-        pageParam,
-      ),
+      listSessionHistory(userId as string, sessionId as string, 500, pageParam),
     enabled: Boolean(userId && sessionId),
     getNextPageParam: (lastPage) => {
       const nextBeforeId = lastPage.pagination?.next_before_id;
@@ -1727,6 +1893,26 @@ export function useSessionArtifacts(userId?: string, sessionId?: string) {
     ),
     queryFn: () => listSessionArtifacts(userId as string, sessionId as string),
     enabled: Boolean(userId && sessionId),
+    refetchOnWindowFocus: true,
+  });
+}
+
+export function useArtifactPublication(
+  userId?: string,
+  publicationId?: string,
+) {
+  return useQuery({
+    queryKey: queryKeys.artifactPublication(
+      userId ?? "pending",
+      publicationId ?? "pending",
+    ),
+    queryFn: () =>
+      getArtifactPublication(userId as string, publicationId as string),
+    enabled: Boolean(userId && publicationId),
+    refetchInterval: (query) => {
+      const status = query.state.data?.publication.status;
+      return status === "queued" || status === "uploading" ? 2_000 : false;
+    },
     refetchOnWindowFocus: true,
   });
 }
@@ -1754,6 +1940,12 @@ function compactSearchParams(values: Record<string, string | undefined>) {
   });
 
   return params.toString();
+}
+
+function retryAfterSeconds(response: Response) {
+  const retryAfter = response.headers.get("retry-after");
+  const parsed = retryAfter ? Number(retryAfter) : Number.NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 function createIdempotencyKey() {

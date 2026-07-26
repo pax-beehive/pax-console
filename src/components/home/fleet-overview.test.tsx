@@ -15,9 +15,12 @@ import type { User } from "@/features/api/types";
 import { FleetOverview } from "./fleet-overview";
 
 const mocks = vi.hoisted(() => ({
+  completeUserAttachment: vi.fn(),
+  createUserAttachment: vi.fn(),
   listAgents: vi.fn(),
   listUserSessions: vi.fn(),
   routerPush: vi.fn(),
+  uploadUserAttachmentFile: vi.fn(),
   useApprovals: vi.fn(),
   useEnvelopes: vi.fn(),
   useNodes: vi.fn(),
@@ -37,12 +40,14 @@ vi.mock("@/components/sessions/session-workbench", () => ({
   SessionWorkbench: ({
     agentId,
     embedded,
+    initialAttachments,
     initialPrompt,
     nodeId,
     sessionId,
   }: {
     agentId?: string;
     embedded?: boolean;
+    initialAttachments?: Array<{ attachmentId: string }>;
     initialPrompt?: string;
     nodeId?: string;
     sessionId: string;
@@ -50,6 +55,9 @@ vi.mock("@/components/sessions/session-workbench", () => ({
     <div
       data-agent-id={agentId}
       data-embedded={String(Boolean(embedded))}
+      data-initial-attachments={initialAttachments
+        ?.map((attachment) => attachment.attachmentId)
+        .join(",")}
       data-initial-prompt={initialPrompt}
       data-node-id={nodeId}
       data-testid="session-workbench"
@@ -64,8 +72,11 @@ vi.mock("@/features/api/resources", async (importOriginal) => {
     await importOriginal<typeof import("@/features/api/resources")>();
   return {
     ...actual,
+    completeUserAttachment: mocks.completeUserAttachment,
+    createUserAttachment: mocks.createUserAttachment,
     listAgents: mocks.listAgents,
     listUserSessions: mocks.listUserSessions,
+    uploadUserAttachmentFile: mocks.uploadUserAttachmentFile,
     useApprovals: mocks.useApprovals,
     useEnvelopes: mocks.useEnvelopes,
     useNodes: mocks.useNodes,
@@ -75,7 +86,32 @@ vi.mock("@/features/api/resources", async (importOriginal) => {
 
 beforeEach(() => {
   window.history.replaceState(null, "", "/");
+  mocks.completeUserAttachment.mockReset();
+  mocks.createUserAttachment.mockReset();
   mocks.routerPush.mockReset();
+  mocks.uploadUserAttachmentFile.mockReset();
+  mocks.createUserAttachment.mockResolvedValue({
+    attachment: {
+      attachment_id: "att_1",
+      content_type: "text/plain",
+      filename: "notes.txt",
+      size_bytes: 5,
+    },
+    upload: {
+      headers: {},
+      method: "POST",
+      url: "https://upload.example.test",
+    },
+  });
+  mocks.uploadUserAttachmentFile.mockResolvedValue(undefined);
+  mocks.completeUserAttachment.mockResolvedValue({
+    attachment: {
+      attachment_id: "att_1",
+      content_type: "text/plain",
+      filename: "notes.txt",
+      size_bytes: 5,
+    },
+  });
   mocks.listAgents.mockResolvedValue({
     agents: [
       {
@@ -171,6 +207,59 @@ describe("FleetOverview session rail", () => {
     expect(window.location.pathname).toBe("/");
     expect(window.location.search).toBe("");
     expect(mocks.routerPush).not.toHaveBeenCalled();
+  });
+
+  it("uploads files from the Home composer and forwards them to the new session", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    const { container } = render(
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <FleetOverview user={{ user_id: "user_1" } as User} />
+        </TooltipProvider>
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByRole("button", { name: "Attach files" }),
+    ).toBeInTheDocument();
+    const fileInput = container.querySelector<HTMLInputElement>(
+      'input[type="file"][multiple]',
+    );
+    expect(fileInput).not.toBeNull();
+    const file = new File(["notes"], "notes.txt", { type: "text/plain" });
+    fireEvent.change(fileInput!, { target: { files: [file] } });
+
+    expect(await screen.findByText("notes.txt")).toBeInTheDocument();
+    expect(mocks.createUserAttachment).toHaveBeenCalledWith("user_1", {
+      content_type: "text/plain",
+      filename: "notes.txt",
+      sha256: "",
+      size_bytes: 5,
+    });
+    expect(mocks.uploadUserAttachmentFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attachment: expect.objectContaining({ attachment_id: "att_1" }),
+      }),
+      file,
+    );
+
+    const composer = screen.getByPlaceholderText(
+      "Ask an agent to do something",
+    );
+    fireEvent.change(composer, {
+      target: { value: "Read the attachment" },
+    });
+    fireEvent.submit(composer.closest("form")!);
+
+    const workbench = await screen.findByTestId("session-workbench");
+    expect(workbench).toHaveAttribute("data-initial-attachments", "att_1");
+    expect(workbench).toHaveAttribute(
+      "data-initial-prompt",
+      "Read the attachment",
+    );
   });
 });
 

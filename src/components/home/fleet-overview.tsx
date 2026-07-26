@@ -29,6 +29,7 @@ import {
   Image as ImageIcon,
   Inbox,
   ListFilter,
+  LoaderCircle,
   Menu,
   MessageSquare,
   MoreHorizontal,
@@ -43,14 +44,20 @@ import {
 } from "lucide-react";
 import { PaxdGettingStartedGuide } from "@/components/connect/paxd-getting-started";
 import { ConsoleLayout } from "@/components/shell/console-layout";
-import { SessionWorkbench } from "@/components/sessions/session-workbench";
+import {
+  type ComposerAttachment,
+  SessionWorkbench,
+} from "@/components/sessions/session-workbench";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TruncatedText } from "@/components/ui/text";
 import {
+  completeUserAttachment,
+  createUserAttachment,
   listAgents,
   listUserSessions,
   decideApproval,
+  uploadUserAttachmentFile,
   useApprovals,
   useEnvelopes,
   useNodes,
@@ -121,6 +128,7 @@ type WorkItem = {
 type EmbeddedSessionTarget = {
   agentId?: string;
   initialApprovalMode?: SessionApprovalMode;
+  initialAttachments?: ComposerAttachment[];
   initialCwd?: string;
   initialPrompt?: string;
   key: string;
@@ -159,6 +167,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const showAdminFeatures = canSeeAdminFeatures(user, previewAsUser);
   const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const composerFileInputRef = useRef<HTMLInputElement>(null);
   const urlSessionId = searchParams.get("sessionId") ?? "";
   const [composerMode, setComposerMode] = useState<ComposerMode>("clean");
   const [draft, setDraft] = useState("");
@@ -171,6 +180,13 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     useState<SessionApprovalMode>("manual");
   const [attachmentName, setAttachmentName] = useState("");
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
+  const [composerAttachments, setComposerAttachments] = useState<
+    ComposerAttachment[]
+  >([]);
+  const [composerAttachmentError, setComposerAttachmentError] =
+    useState<Error | null>(null);
+  const [composerAttachmentUploadPending, setComposerAttachmentUploadPending] =
+    useState(false);
   const [archivedWorkItemIds, setArchivedWorkItemIds] = useState<string[]>([]);
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const [homeRailTab, setHomeRailTab] = useState<HomeRailTab>("sessions");
@@ -478,7 +494,8 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     if (
       !activeAgent?.agent_id ||
       !activeAgent.node_id ||
-      newSessionCwdInvalid
+      newSessionCwdInvalid ||
+      composerAttachmentUploadPending
     ) {
       return;
     }
@@ -488,6 +505,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     setEmbeddedSessionTarget({
       agentId: activeAgent.agent_id,
       initialApprovalMode: newSessionApprovalMode,
+      initialAttachments: composerAttachments,
       initialCwd: normalizedNewSessionCwd || undefined,
       initialPrompt: initialPrompt || undefined,
       key: `new:${nonce}`,
@@ -502,6 +520,47 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     setContextClosed(false);
     setComposerMode("clean");
     setDraft("");
+    setComposerAttachments([]);
+    setComposerAttachmentError(null);
+  }
+
+  async function addComposerAttachments(files: File[]) {
+    if (files.length === 0) {
+      return;
+    }
+
+    setComposerAttachmentError(null);
+    setComposerAttachmentUploadPending(true);
+    try {
+      for (const file of files) {
+        const ticket = await createUserAttachment(user.user_id, {
+          content_type: file.type || "application/octet-stream",
+          filename: file.name,
+          sha256: "",
+          size_bytes: file.size,
+        });
+        await uploadUserAttachmentFile(ticket, file);
+        const completed = await completeUserAttachment(
+          user.user_id,
+          ticket.attachment.attachment_id,
+        );
+        setComposerAttachments((current) => [
+          ...current,
+          {
+            attachmentId: completed.attachment.attachment_id,
+            contentType: completed.attachment.content_type,
+            filename: completed.attachment.filename,
+            sizeBytes: completed.attachment.size_bytes,
+          },
+        ]);
+      }
+    } catch (caught) {
+      setComposerAttachmentError(
+        caught instanceof Error ? caught : new Error(String(caught)),
+      );
+    } finally {
+      setComposerAttachmentUploadPending(false);
+    }
   }
 
   function showCleanComposer() {
@@ -763,7 +822,8 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 <div className="p-4 text-sm text-ink-tertiary">
                   {homeRailTab === "sessions" && sessionsQuery.isLoading
                     ? "Loading sessions..."
-                    : homeRailTab === "sessions" && fleetSetupGuideKind === "node"
+                    : homeRailTab === "sessions" &&
+                        fleetSetupGuideKind === "node"
                       ? "No nodes yet. Use the setup guide on the right."
                       : homeRailTab === "sessions" &&
                           fleetSetupGuideKind === "agent"
@@ -789,6 +849,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 agentId={activeSessionTarget.agentId}
                 embedded
                 initialApprovalMode={activeSessionTarget.initialApprovalMode}
+                initialAttachments={activeSessionTarget.initialAttachments}
                 initialCwd={activeSessionTarget.initialCwd}
                 initialPrompt={activeSessionTarget.initialPrompt}
                 key={activeSessionTarget.key}
@@ -929,6 +990,57 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                         setDraft("");
                       }}
                     />
+                    <input
+                      className="sr-only"
+                      multiple
+                      onChange={(event) => {
+                        const files = [...(event.currentTarget.files ?? [])];
+                        if (files.length > 0) {
+                          void addComposerAttachments(files);
+                        }
+                        event.currentTarget.value = "";
+                      }}
+                      ref={composerFileInputRef}
+                      type="file"
+                    />
+                    {composerAttachments.length > 0 && (
+                      <div className="mb-2 flex flex-wrap gap-2">
+                        {composerAttachments.map((attachment) => (
+                          <Badge
+                            className="max-w-full"
+                            key={attachment.attachmentId}
+                            tooltip={attachment.filename}
+                          >
+                            <span className="max-w-44 truncate">
+                              {attachment.filename}
+                            </span>
+                            <button
+                              aria-label={`Remove ${attachment.filename}`}
+                              className="ml-1 shrink-0 text-ink-tertiary transition hover:text-ink"
+                              onClick={() => {
+                                setComposerAttachments((current) =>
+                                  current.filter(
+                                    (item) =>
+                                      item.attachmentId !==
+                                      attachment.attachmentId,
+                                  ),
+                                );
+                                setComposerAttachmentError(null);
+                              }}
+                              type="button"
+                            >
+                              ×
+                            </button>
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                    {composerAttachmentError && (
+                      <div className="mb-2 text-xs text-warning">
+                        {composerAttachmentError.name}:{" "}
+                        {composerAttachmentError.message}
+                      </div>
+                    )}
                     <textarea
                       className="max-h-40 min-h-12 w-full resize-none overflow-y-auto bg-transparent px-1 py-1 text-sm leading-5 text-ink outline-none [field-sizing:content] placeholder:text-ink-tertiary"
                       onKeyDown={handleComposerKeyDown}
@@ -938,6 +1050,22 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                       value={draft}
                     />
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <Button
+                        aria-label="Attach files"
+                        disabled={composerAttachmentUploadPending}
+                        icon={
+                          composerAttachmentUploadPending ? (
+                            <LoaderCircle className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Paperclip className="h-4 w-4" />
+                          )
+                        }
+                        onClick={() => composerFileInputRef.current?.click()}
+                        size="icon"
+                        tooltip="Attach files"
+                        type="button"
+                        variant="ghost"
+                      />
                       {showAdminFeatures && (
                         <div className="relative">
                           <Button
@@ -1088,7 +1216,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                         />
                         <Button
                           disabled={
-                            !activeAgent?.agent_id || newSessionCwdInvalid
+                            !activeAgent?.agent_id ||
+                            newSessionCwdInvalid ||
+                            composerAttachmentUploadPending
                           }
                           icon={<ArrowUp className="h-5 w-5" />}
                           size="icon"

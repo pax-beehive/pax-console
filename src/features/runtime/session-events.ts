@@ -90,6 +90,15 @@ export type SessionEvent =
       createdAt: string;
     }
   | {
+      type: "artifact_publication";
+      id: string;
+      sessionId: string;
+      publicationId: string;
+      contentRef: string;
+      artifactUri?: string;
+      createdAt: string;
+    }
+  | {
       type: "tool_call";
       id: string;
       sessionId: string;

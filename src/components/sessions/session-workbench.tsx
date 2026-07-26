@@ -45,8 +45,10 @@ import { RunBadge } from "@/components/sessions/run-badge";
 import {
   artifactContentDownloadHref,
   completeArtifactUpload,
+  completeUserAttachment,
   createKnowledgeCapsule,
   createArtifactUpload,
+  createUserAttachment,
   decideApproval,
   deleteQueuedSessionTurn,
   flattenSessionHistoryPages,
@@ -58,6 +60,7 @@ import {
   stopSessionTurn,
   updateAgentSession,
   updateQueuedSessionTurn,
+  uploadUserAttachmentFile,
   useAgentOwnerInfos,
   useKnowledgeCapsules,
   useKnowledgeInjections,
@@ -108,6 +111,7 @@ type SessionWorkbenchProps = {
   agentId?: string;
   embedded?: boolean;
   initialApprovalMode?: SessionApprovalMode;
+  initialAttachments?: ComposerAttachment[];
   initialCwd?: string;
   initialPrompt?: string;
   initialPromptKey?: string;
@@ -128,11 +132,19 @@ type SessionSidePanel = {
   content: ReactNode;
 };
 
+export type ComposerAttachment = {
+  attachmentId: string;
+  contentType?: string;
+  filename: string;
+  sizeBytes?: number;
+};
+
 // Event types that count as visible agent output in the timeline. Meta events
 // (run_status, token_usage, turn_done, ...) must not dismiss the pending
 // indicator, and the optimistic user_message must not either.
 const AGENT_OUTPUT_EVENT_TYPES: ReadonlySet<SessionEvent["type"]> = new Set([
   "agent_message",
+  "artifact_publication",
   "file_change",
   "invocation",
   "permission_request",
@@ -148,6 +160,7 @@ export function SessionWorkbench({
   agentId,
   embedded = false,
   initialApprovalMode,
+  initialAttachments,
   initialCwd,
   initialPrompt,
   initialPromptKey,
@@ -200,6 +213,13 @@ export function SessionWorkbench({
   );
   const initialPromptSentRef = useRef(false);
   const [sendError, setSendError] = useState<Error | null>(null);
+  const [composerAttachments, setComposerAttachments] = useState<
+    ComposerAttachment[]
+  >(() => [...(initialAttachments ?? [])]);
+  const [composerAttachmentError, setComposerAttachmentError] =
+    useState<Error | null>(null);
+  const [composerAttachmentUploadPending, setComposerAttachmentUploadPending] =
+    useState(false);
   const [sessionNameEditing, setSessionNameEditing] = useState(false);
   const [sessionNameDraft, setSessionNameDraft] = useState("");
   const timelineScrollRef = useRef<HTMLDivElement>(null);
@@ -241,11 +261,19 @@ export function SessionWorkbench({
     useState<string | null>(null);
   useEffect(() => {
     if (
-      observerSuppressedSessionId === currentSessionId &&
-      !activeSessionReportedRunning
+      observerSuppressedSessionId !== currentSessionId ||
+      activeSessionReportedRunning
     ) {
-      setObserverSuppressedSessionId(null);
+      return;
     }
+
+    const timeoutId = window.setTimeout(() => {
+      setObserverSuppressedSessionId(null);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [
     activeSessionReportedRunning,
     currentSessionId,
@@ -264,6 +292,9 @@ export function SessionWorkbench({
   const shouldShowReadOnlyWorkspace =
     Boolean(currentSessionId && displayedWorkspace) &&
     displayedWorkspace !== "/tmp";
+  const composerDraftKey =
+    currentSessionId ??
+    `new:${activeNodeId ?? "node"}:${activeAgentId ?? "agent"}`;
   const sessionDisplayName =
     activeSession?.name?.trim() ||
     (currentSessionId ? compactId(currentSessionId) : "New session");
@@ -453,6 +484,54 @@ export function SessionWorkbench({
       );
     },
   });
+  const handleAddComposerAttachments = useCallback(
+    async (files: File[]) => {
+      if (files.length === 0) {
+        return;
+      }
+
+      setComposerAttachmentError(null);
+      setComposerAttachmentUploadPending(true);
+      try {
+        for (const file of files) {
+          const ticket = await createUserAttachment(user.user_id, {
+            content_type: file.type || "application/octet-stream",
+            filename: file.name,
+            sha256: "",
+            size_bytes: file.size,
+          });
+          await uploadUserAttachmentFile(ticket, file);
+          const completed = await completeUserAttachment(
+            user.user_id,
+            ticket.attachment.attachment_id,
+          );
+          setComposerAttachments((current) => [
+            ...current,
+            {
+              attachmentId: completed.attachment.attachment_id,
+              contentType: completed.attachment.content_type,
+              filename: completed.attachment.filename,
+              sizeBytes: completed.attachment.size_bytes,
+            },
+          ]);
+        }
+      } catch (caught) {
+        setComposerAttachmentError(
+          caught instanceof Error ? caught : new Error(String(caught)),
+        );
+      } finally {
+        setComposerAttachmentUploadPending(false);
+      }
+    },
+    [user.user_id],
+  );
+  const handleRemoveComposerAttachment = useCallback((attachmentId: string) => {
+    setComposerAttachments((current) =>
+      current.filter((attachment) => attachment.attachmentId !== attachmentId),
+    );
+    setComposerAttachmentError(null);
+  }, []);
+
   const createCapsule = useMutation({
     mutationFn: () => {
       if (!currentSessionId) {
@@ -1027,9 +1106,21 @@ export function SessionWorkbench({
         return false;
       }
 
+      const attachmentIds = composerAttachments.map(
+        (attachment) => attachment.attachmentId,
+      );
+
       setSendError(null);
       try {
         if (isTurnRunning) {
+          if (attachmentIds.length > 0) {
+            setComposerAttachmentError(
+              new Error(
+                "Attachments can only be sent on a fresh turn. Wait for the current run to finish or remove the files.",
+              ),
+            );
+            return false;
+          }
           await queueDraft(content);
           return true;
         }
@@ -1040,15 +1131,17 @@ export function SessionWorkbench({
             approval_mode: newSessionApprovalMode,
           });
         }
-        await sendConversationMessage(
-          content,
-          isNewSession
+        await sendConversationMessage(content, {
+          ...(isNewSession
             ? {
                 approvalMode: newSessionApprovalMode,
                 cwd: normalizedNewSessionCwd || undefined,
               }
-            : undefined,
-        );
+            : {}),
+          ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
+        });
+        setComposerAttachments([]);
+        setComposerAttachmentError(null);
         return true;
       } catch (caught) {
         if (isNewSession) {
@@ -1063,6 +1156,7 @@ export function SessionWorkbench({
     [
       activeAgentId,
       activeNodeId,
+      composerAttachments,
       isNewSession,
       isTurnRunning,
       newSessionApprovalMode,
@@ -1083,7 +1177,7 @@ export function SessionWorkbench({
   );
   const handleOpenArtifacts = useCallback(
     () => setActiveSidePanelId("artifacts"),
-    [],
+    [setActiveSidePanelId],
   );
   const handleSteerTurn = useCallback(
     async (content: string) => {
@@ -1163,11 +1257,17 @@ export function SessionWorkbench({
         cwd: normalizedNewSessionCwd || undefined,
         approval_mode: newSessionApprovalMode,
       });
+      const attachmentIds = composerAttachments.map(
+        (attachment) => attachment.attachmentId,
+      );
       void sendConversationMessage(content, {
         approvalMode: newSessionApprovalMode,
         cwd: normalizedNewSessionCwd || undefined,
+        ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
       })
         .then(() => {
+          setComposerAttachments([]);
+          setComposerAttachmentError(null);
           removeStoredInitialPrompt(initialPromptKey);
         })
         .catch((caught) => {
@@ -1184,6 +1284,7 @@ export function SessionWorkbench({
   }, [
     activeAgentId,
     activeNodeId,
+    composerAttachments,
     conversationRun.status,
     initialPromptKey,
     newSessionCwdInvalid,
@@ -1327,7 +1428,7 @@ export function SessionWorkbench({
       setSelectedToolEvidence(selection);
       setActiveSidePanelId("tool");
     },
-    [],
+    [setActiveSidePanelId, setSelectedToolEvidence],
   );
 
   const workbench = (
@@ -1525,6 +1626,7 @@ export function SessionWorkbench({
                   item={item}
                   onSelectToolEvidence={handleSelectToolEvidence}
                   permissionDecision={permissionDecision}
+                  userId={user.user_id}
                 />
               </div>
             ))}
@@ -1557,20 +1659,22 @@ export function SessionWorkbench({
           activeNodeId={activeNodeId}
           approvalMode={displayedApprovalMode}
           approvalModePending={updateSessionApprovalMode.isPending}
+          attachmentError={composerAttachmentError}
+          attachmentUploadPending={composerAttachmentUploadPending}
+          attachments={composerAttachments}
           currentSessionId={currentSessionId}
           deleteQueuedTurnPending={deleteQueuedTurn.isPending}
-          draftKey={
-            currentSessionId ??
-            `new:${activeNodeId ?? "node"}:${activeAgentId ?? "agent"}`
-          }
+          draftKey={composerDraftKey}
           isNewSession={isNewSession}
           isTurnRunning={isTurnRunning}
           showAdminFeatures={showAdminFeatures}
           newSessionCwd={newSessionCwd}
           newSessionCwdInvalid={newSessionCwdInvalid}
           newSessionWorkspaceOpen={newSessionWorkspaceOpen}
+          onAddAttachments={handleAddComposerAttachments}
           onDeleteQueuedTurn={handleDeleteQueuedTurn}
           onOpenArtifacts={handleOpenArtifacts}
+          onRemoveAttachment={handleRemoveComposerAttachment}
           onSetNewSessionCwd={setNewSessionCwd}
           onSetNewSessionWorkspaceOpen={setNewSessionWorkspaceOpen}
           onSteer={handleSteerTurn}

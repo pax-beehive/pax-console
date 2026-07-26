@@ -1,11 +1,19 @@
 "use client";
 
-import { FormEvent, KeyboardEvent, memo, useCallback, useState } from "react";
+import {
+  FormEvent,
+  KeyboardEvent,
+  memo,
+  useCallback,
+  useRef,
+  useState,
+} from "react";
 import {
   FolderOpen,
   FolderPlus,
   LoaderCircle,
   Mic,
+  Paperclip,
   Pencil,
   Plus,
   RefreshCw,
@@ -15,6 +23,7 @@ import {
   Square,
   Trash2,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { QueuedSessionTurnData } from "@/features/api/resources";
 import type { SessionApprovalMode } from "@/features/api/types";
@@ -22,11 +31,21 @@ import { compactId } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useConsoleStore } from "@/stores/console-store";
 
+type ComposerAttachment = {
+  attachmentId: string;
+  contentType?: string;
+  filename: string;
+  sizeBytes?: number;
+};
+
 type SessionComposerProps = {
   activeAgentId?: string;
   activeNodeId?: string;
   approvalMode: SessionApprovalMode;
   approvalModePending: boolean;
+  attachmentError: Error | null;
+  attachmentUploadPending: boolean;
+  attachments: ComposerAttachment[];
   currentSessionId?: string;
   deleteQueuedTurnPending: boolean;
   draftKey: string;
@@ -35,8 +54,10 @@ type SessionComposerProps = {
   newSessionCwd: string;
   newSessionCwdInvalid: boolean;
   newSessionWorkspaceOpen: boolean;
+  onAddAttachments: (files: File[]) => Promise<void>;
   onDeleteQueuedTurn: () => void;
   onOpenArtifacts: () => void;
+  onRemoveAttachment: (attachmentId: string) => void;
   onSetNewSessionCwd: (value: string) => void;
   onSetNewSessionWorkspaceOpen: (open: boolean) => void;
   onSteer: (content: string) => Promise<boolean>;
@@ -58,6 +79,9 @@ export const SessionComposer = memo(function SessionComposer({
   activeNodeId,
   approvalMode,
   approvalModePending,
+  attachmentError,
+  attachmentUploadPending,
+  attachments,
   currentSessionId,
   deleteQueuedTurnPending,
   draftKey,
@@ -66,8 +90,10 @@ export const SessionComposer = memo(function SessionComposer({
   newSessionCwd,
   newSessionCwdInvalid,
   newSessionWorkspaceOpen,
+  onAddAttachments,
   onDeleteQueuedTurn,
   onOpenArtifacts,
+  onRemoveAttachment,
   onSetNewSessionCwd,
   onSetNewSessionWorkspaceOpen,
   onSteer,
@@ -91,21 +117,28 @@ export const SessionComposer = memo(function SessionComposer({
     null,
   );
   const [queuedTurnDraft, setQueuedTurnDraft] = useState("");
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const content = draft.trim();
+  const hasAttachments = attachments.length > 0;
   const canSend =
     Boolean(activeAgentId && activeNodeId) &&
     !isTurnRunning &&
     !newSessionCwdInvalid &&
+    !attachmentUploadPending &&
     content.length > 0;
   const canQueueTurn =
     isTurnRunning &&
     Boolean(activeAgentId && currentSessionId) &&
     content.length > 0 &&
+    !hasAttachments &&
+    !attachmentUploadPending &&
     !queueTurnPending;
   const canSteerTurn =
     isTurnRunning &&
     Boolean(activeAgentId && currentSessionId) &&
     content.length > 0 &&
+    !hasAttachments &&
+    !attachmentUploadPending &&
     !steerTurnPending;
   const canStopTurn =
     isTurnRunning &&
@@ -174,6 +207,19 @@ export const SessionComposer = memo(function SessionComposer({
       className="mobile-safe-bottom relative z-10 border-t border-hairline bg-surface-1 p-3"
       onSubmit={submit}
     >
+      <input
+        className="sr-only"
+        multiple
+        onChange={(event) => {
+          const files = [...(event.currentTarget.files ?? [])];
+          if (files.length > 0) {
+            void onAddAttachments(files);
+          }
+          event.currentTarget.value = "";
+        }}
+        ref={fileInputRef}
+        type="file"
+      />
       <div className="mx-auto w-full max-w-4xl rounded-[22px] border border-hairline bg-surface-2 px-3 py-2 shadow-lg shadow-black/20">
         {queuedTurn && (
           <div className="mb-2 grid gap-2 rounded-xl border border-primary/25 bg-primary/5 p-2.5">
@@ -273,6 +319,32 @@ export const SessionComposer = memo(function SessionComposer({
             )}
           </div>
         )}
+        {attachments.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-2">
+            {attachments.map((attachment) => (
+              <Badge
+                className="max-w-full"
+                key={attachment.attachmentId}
+                tooltip={attachment.filename}
+              >
+                <span className="max-w-44 truncate">{attachment.filename}</span>
+                <button
+                  aria-label={`Remove ${attachment.filename}`}
+                  className="ml-1 shrink-0 text-ink-tertiary transition hover:text-ink"
+                  onClick={() => onRemoveAttachment(attachment.attachmentId)}
+                  type="button"
+                >
+                  ×
+                </button>
+              </Badge>
+            ))}
+          </div>
+        )}
+        {attachmentError && (
+          <div className="mb-2 text-xs text-warning">
+            {attachmentError.name}: {attachmentError.message}
+          </div>
+        )}
         <textarea
           className="max-h-40 min-h-12 w-full resize-none overflow-y-auto bg-transparent px-1 py-1 text-sm leading-5 text-ink outline-none [field-sizing:content] placeholder:text-ink-tertiary"
           disabled={!activeAgentId}
@@ -287,6 +359,21 @@ export const SessionComposer = memo(function SessionComposer({
           value={draft}
         />
         <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <Button
+            disabled={attachmentUploadPending}
+            icon={
+              attachmentUploadPending ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : (
+                <Paperclip className="h-4 w-4" />
+              )
+            }
+            onClick={() => fileInputRef.current?.click()}
+            size="icon"
+            tooltip="Attach files"
+            type="button"
+            variant="ghost"
+          />
           {showAdminFeatures && (
             <Button
               icon={<Plus className="h-4 w-4" />}
@@ -379,6 +466,11 @@ export const SessionComposer = memo(function SessionComposer({
             </span>
           </button>
           <div className="min-w-0 flex-1" />
+          {isTurnRunning && hasAttachments && (
+            <span className="text-xs text-warning">
+              Wait for the current turn to finish before sending attachments.
+            </span>
+          )}
           {showAdminFeatures && (
             <Button
               disabled
