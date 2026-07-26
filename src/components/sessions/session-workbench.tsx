@@ -111,6 +111,7 @@ type SessionWorkbenchProps = {
   agentId?: string;
   embedded?: boolean;
   initialApprovalMode?: SessionApprovalMode;
+  initialAttachments?: ComposerAttachment[];
   initialCwd?: string;
   initialPrompt?: string;
   initialPromptKey?: string;
@@ -131,7 +132,7 @@ type SessionSidePanel = {
   content: ReactNode;
 };
 
-type ComposerAttachment = {
+export type ComposerAttachment = {
   attachmentId: string;
   contentType?: string;
   filename: string;
@@ -159,6 +160,7 @@ export function SessionWorkbench({
   agentId,
   embedded = false,
   initialApprovalMode,
+  initialAttachments,
   initialCwd,
   initialPrompt,
   initialPromptKey,
@@ -213,7 +215,7 @@ export function SessionWorkbench({
   const [sendError, setSendError] = useState<Error | null>(null);
   const [composerAttachments, setComposerAttachments] = useState<
     ComposerAttachment[]
-  >([]);
+  >(() => [...(initialAttachments ?? [])]);
   const [composerAttachmentError, setComposerAttachmentError] =
     useState<Error | null>(null);
   const [composerAttachmentUploadPending, setComposerAttachmentUploadPending] =
@@ -1255,11 +1257,17 @@ export function SessionWorkbench({
         cwd: normalizedNewSessionCwd || undefined,
         approval_mode: newSessionApprovalMode,
       });
+      const attachmentIds = composerAttachments.map(
+        (attachment) => attachment.attachmentId,
+      );
       void sendConversationMessage(content, {
         approvalMode: newSessionApprovalMode,
         cwd: normalizedNewSessionCwd || undefined,
+        ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
       })
         .then(() => {
+          setComposerAttachments([]);
+          setComposerAttachmentError(null);
           removeStoredInitialPrompt(initialPromptKey);
         })
         .catch((caught) => {
@@ -1276,6 +1284,7 @@ export function SessionWorkbench({
   }, [
     activeAgentId,
     activeNodeId,
+    composerAttachments,
     conversationRun.status,
     initialPromptKey,
     newSessionCwdInvalid,
