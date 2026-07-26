@@ -158,6 +158,44 @@ describe("streamConversationRun", () => {
     );
   });
 
+  it("posts structured content blocks when attachments are present", async () => {
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        streamFromChunks([
+          'data: {"type":"done","node_id":"node_1","agent_id":"agent_1","session_id":"sess_1"}\n\n',
+        ]),
+        {
+          headers: { "content-type": "text/event-stream" },
+          status: 200,
+        },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await streamConversationRun({
+      agentId: "agent_1",
+      content: [
+        { type: "text", text: "Please review this file" },
+        { type: "attachment", attachment_id: "att_1" },
+      ],
+      nodeId: "node_1",
+      onEnvelope: vi.fn(),
+      sessionId: "sess_existing",
+      userId: "self",
+    });
+
+    const [, init] = (fetchMock as Mock).mock.calls[0] as [string, RequestInit];
+    expect(init.body).toBe(
+      JSON.stringify({
+        content: [
+          { type: "text", text: "Please review this file" },
+          { type: "attachment", attachment_id: "att_1" },
+        ],
+        session_id: "sess_existing",
+      }),
+    );
+  });
+
   it("posts resume JSON for a decided permission approval", async () => {
     const fetchMock = vi.fn(async () => {
       return new Response(

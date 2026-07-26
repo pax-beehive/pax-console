@@ -432,6 +432,78 @@ export type ArtifactContentURL = {
   content: ArtifactContent;
 };
 
+export type UserAttachment = {
+  attachment_id: string;
+  conversation_id?: string;
+  filename: string;
+  content_type?: string;
+  size_bytes?: number;
+  sha256?: string;
+  generation?: number;
+  upload_status: "pending" | "completed" | string;
+  upload_expires_at?: string;
+  completed_at?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type UserAttachmentUpload = {
+  protocol: string;
+  method: "POST" | string;
+  url: string;
+  headers?: Record<string, string>;
+  chunk_alignment?: number;
+  expires_at?: string;
+};
+
+export type UserAttachmentUploadTicket = {
+  attachment: UserAttachment;
+  upload: UserAttachmentUpload;
+  complete_url?: string;
+};
+
+export type ArtifactPublication = {
+  publication_id: string;
+  node_id?: string;
+  agent_id?: string;
+  session_id?: string;
+  filename?: string;
+  title?: string;
+  status: "queued" | "uploading" | "available" | "failed" | string;
+  artifact_id?: string;
+  error_code?: string;
+  error_message?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type ArtifactPublicationState = {
+  publication: ArtifactPublication;
+  artifact?: SessionArtifact;
+};
+
+export type ArtifactPreviewKind =
+  | "image"
+  | "pdf"
+  | "text"
+  | "markdown"
+  | "json"
+  | "download"
+  | string;
+
+export type ArtifactPublicationContentState = {
+  status: "available" | "not_available" | "failed" | string;
+  retryable: boolean;
+  publication: ArtifactPublication;
+  artifact?: Pick<SessionArtifact, "artifact_id">;
+  content?: ArtifactContent;
+  url?: string;
+  expires_at?: string;
+  preview_kind?: ArtifactPreviewKind;
+  disposition?: "inline" | "attachment" | string;
+  retry_after_seconds?: number;
+};
+
 export type SessionApprovalMode = "manual" | "auto_approve_all";
 
 export type SessionPaxConfig = {

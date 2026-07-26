@@ -37,6 +37,7 @@ type UseConversationRunOptions = {
 
 type SendMessageOptions = {
   approvalMode?: SessionApprovalMode;
+  attachmentIds?: string[];
   cwd?: string;
 };
 
@@ -75,7 +76,10 @@ export function useConversationRun({
       }
 
       const content = input.trim();
-      if (!content) {
+      const attachmentIds = [...new Set(options?.attachmentIds ?? [])].filter(
+        Boolean,
+      );
+      if (!content && attachmentIds.length === 0) {
         throw new Error("Prompt cannot be empty");
       }
 
@@ -88,15 +92,17 @@ export function useConversationRun({
 
       setError(null);
       setStatus("streaming");
-      appendEvents([
-        {
-          type: "user_message",
-          id: `${optimisticSessionId}:user:${Date.now()}`,
-          sessionId: optimisticSessionId,
-          content,
-          createdAt: new Date().toISOString(),
-        },
-      ]);
+      if (content) {
+        appendEvents([
+          {
+            type: "user_message",
+            id: `${optimisticSessionId}:user:${Date.now()}`,
+            sessionId: optimisticSessionId,
+            content,
+            createdAt: new Date().toISOString(),
+          },
+        ]);
+      }
       flushEvents();
 
       try {
@@ -104,7 +110,19 @@ export function useConversationRun({
           agentId,
           approvalMode: promptSessionId ? undefined : options?.approvalMode,
           cwd: promptSessionId ? undefined : options?.cwd,
-          input: content,
+          ...(attachmentIds.length > 0
+            ? {
+                content: [
+                  ...(content
+                    ? ([{ type: "text", text: content }] as const)
+                    : []),
+                  ...attachmentIds.map((attachmentId) => ({
+                    type: "attachment" as const,
+                    attachment_id: attachmentId,
+                  })),
+                ],
+              }
+            : { input: content }),
           nodeId,
           onEnvelope: (envelope) =>
             handleConversationEnvelope(envelope, {

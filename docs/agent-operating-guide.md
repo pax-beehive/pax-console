@@ -221,11 +221,25 @@ Collaboration and knowledge resources are normal user-scoped REST resources:
 /knowledge-capsules and /sessions/{session_id}/knowledge-injections
   Reusable session knowledge and system_handoff delivery into sessions.
 
+/attachments
+  User prompt attachments are input-only. Browser code creates an attachment,
+  starts the returned GCS resumable upload session directly from the browser,
+  uploads the file to GCS, completes it through the manager, and only then
+  references the returned `attachment_id` inside `/conversation` content
+  blocks. Attachments are not agent-bound.
+
+/artifact-publications/{publication_id} and
+/artifact-publications/{publication_id}/content/main
+  Agent publish_artifact output is output-only. The browser never creates these
+  uploads. The session timeline detects `message_type = "pax:artifact"`, polls
+  publication state until `available` or `failed`, and uses the publication
+  content endpoint for preview/download URLs. Treat publication ids as the UI
+  card key; do not manage lifecycle by artifact id.
+
 /artifact-uploads, /artifacts, and /sessions/{session_id}/artifacts
-  Session artifacts use manager-issued GCS signed URLs. Browser code first
-  creates an upload ticket, PUTs the file to GCS, completes the upload, then
-  reads artifacts through TanStack Query. Preview/download URLs come from the
-  artifact content endpoint; do not upload files through the Next proxy.
+  The legacy session-artifact admin tools still use manager-issued GCS signed
+  URLs. Browser code first creates an upload ticket, PUTs the file to GCS,
+  completes the upload, then reads artifacts through TanStack Query.
 ```
 
 ## Conversation Runtime Rules
@@ -320,9 +334,19 @@ tail. On terminal prompt response it emits `type=turn_done` and closes. Normal
 live payloads use `type=acp` with the same `frame` shape as `/conversation`, so
 the UI should pass `frame` to `normalizeTunnelFrame`.
 
-New sessions send `{ "input": "..." }`; continued sessions add
-`"session_id": "sess_*"`. The browser reads the POST response body as a stream
-of default SSE `data:` messages. Each message is a PAX envelope:
+New sessions usually send `{ "input": "..." }`; when prompt attachments are
+present, the browser sends structured `content` blocks instead:
+
+```json
+[
+  { "type": "text", "text": "Please inspect this file" },
+  { "type": "attachment", "attachment_id": "att_..." }
+]
+```
+
+Continued sessions add `"session_id": "sess_*"`. Queue/steer endpoints remain
+text-only. The browser reads the POST response body as a stream of default SSE
+`data:` messages. Each message is a PAX envelope:
 
 ```txt
 type=session  Save the returned manager session id and replace the URL.
@@ -390,6 +414,13 @@ Live `session/update` frames with `message_type = "pax:invocation"` or
 `message_type = "pax:invocation_pending"` normalize to the same invocation
 timeline event, and `merge-session-events.ts` applies the same replacement
 rule if the real or pending event has already rendered.
+
+Agent artifact cards use `message_type = "pax:artifact"`. History is the
+reliable source: the frontend extracts `publication_id` from
+`parts[*].payload_json.publication_id` or `artifact-publication://...` URIs,
+renders one timeline card per publication id, polls
+`GET /artifact-publications/{publication_id}`, and only calls
+`/content/main` for preview/download handling.
 
 Runs of two or more contiguous thought/progress and tool-call events render as
 one collapsed work block, preserving their original order. A single thought or

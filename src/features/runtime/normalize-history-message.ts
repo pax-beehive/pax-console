@@ -38,6 +38,18 @@ export function normalizeHistoryMessage(
     });
   }
 
+  if (message.message_type === "pax:artifact") {
+    const artifacts = normalizeArtifactPublicationMessage(
+      message,
+      sessionId,
+      createdAt,
+      id,
+    );
+    if (artifacts.length > 0) {
+      return artifacts;
+    }
+  }
+
   if (message.message_type === "permission_response") {
     const events = normalizePermissionResponse(message, sessionId, createdAt);
     if (events.length > 0) {
@@ -339,6 +351,54 @@ function unwrapHistoryFrame(candidate: unknown) {
   }
 
   return candidate;
+}
+
+function normalizeArtifactPublicationMessage(
+  message: HistoryMessage,
+  sessionId: string,
+  createdAt: string,
+  id: string,
+): SessionEvent[] {
+  const events: SessionEvent[] = [];
+  const parts = [...(message.parts ?? [])].sort(
+    (a, b) => a.part_index - b.part_index,
+  );
+
+  for (const part of parts) {
+    if (part.part_type !== "artifact") {
+      continue;
+    }
+
+    const payload = asRecord(part.payload_json);
+    const publicationId =
+      stringFromValue(payload, "publication_id") ??
+      publicationIdFromArtifactUri(part.artifact_uri);
+    if (!publicationId) {
+      continue;
+    }
+
+    events.push({
+      type: "artifact_publication",
+      id: `${id}:artifact:${part.part_index}:${publicationId}`,
+      sessionId,
+      publicationId,
+      contentRef: artifactContentRef(part.artifact_uri),
+      ...(part.artifact_uri ? { artifactUri: part.artifact_uri } : {}),
+      createdAt,
+    });
+  }
+
+  return events;
+}
+
+function publicationIdFromArtifactUri(value: string | undefined) {
+  const match = /^artifact-publication:\/\/([^/]+)\//.exec(value ?? "");
+  return match?.[1];
+}
+
+function artifactContentRef(value: string | undefined) {
+  const match = /^artifact-publication:\/\/[^/]+\/(.+)$/.exec(value ?? "");
+  return match?.[1] ?? "main";
 }
 
 function asRecord(value: unknown) {

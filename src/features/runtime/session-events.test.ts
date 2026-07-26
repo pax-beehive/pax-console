@@ -38,6 +38,14 @@ describe("isVisibleTimelineEvent", () => {
         createdAt: "2026-06-26T12:00:02Z",
       },
       {
+        type: "artifact_publication",
+        id: "artifact-1",
+        sessionId: "sess_1",
+        publicationId: "apub_1",
+        contentRef: "main",
+        createdAt: "2026-06-26T12:00:02.500Z",
+      },
+      {
         type: "agent_message",
         id: "agent-1",
         sessionId: "sess_1",
@@ -48,7 +56,7 @@ describe("isVisibleTimelineEvent", () => {
 
     expect(
       events.filter(isVisibleTimelineEvent).map((event) => event.type),
-    ).toEqual(["user_message", "agent_message"]);
+    ).toEqual(["user_message", "artifact_publication", "agent_message"]);
   });
 });
 

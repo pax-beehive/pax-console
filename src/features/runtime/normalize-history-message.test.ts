@@ -230,6 +230,37 @@ describe("normalizeHistoryMessage", () => {
     });
   });
 
+  it("restores artifact publication cards from pax artifact history messages", () => {
+    const events = normalizeHistoryMessage({
+      message_id: "msg_artifact",
+      session_id: "sess_1",
+      message_type: "pax:artifact",
+      created_at: "2026-07-26T12:00:00.000Z",
+      parts: [
+        {
+          message_id: "msg_artifact",
+          part_index: 0,
+          part_type: "artifact",
+          artifact_uri: "artifact-publication://apub_123/main",
+          payload_json: {
+            publication_id: "apub_123",
+          },
+        },
+      ],
+    });
+
+    expect(events).toMatchObject([
+      {
+        type: "artifact_publication",
+        id: "msg_artifact:artifact:0:apub_123",
+        sessionId: "sess_1",
+        publicationId: "apub_123",
+        contentRef: "main",
+        artifactUri: "artifact-publication://apub_123/main",
+      },
+    ]);
+  });
+
   it("hides the invocation parent when replaces_message_ids is absent", () => {
     const events = normalizeHistoryMessages([
       {

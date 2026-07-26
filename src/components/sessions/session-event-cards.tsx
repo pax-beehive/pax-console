@@ -1,4 +1,5 @@
 import { memo, type MouseEvent, useCallback, useState } from "react";
+import Image from "next/image";
 import { createPortal } from "react-dom";
 import { motion } from "motion/react";
 import {
@@ -8,7 +9,9 @@ import {
   CheckCircle2,
   ChevronDown,
   Copy,
+  Download,
   FileCode,
+  FileText,
   LoaderCircle,
   ShieldCheck,
   ThumbsDown,
@@ -20,7 +23,12 @@ import { Button } from "@/components/ui/button";
 import { MarkdownMessage } from "@/components/ui/markdown-message";
 import { PaxLogo } from "@/components/ui/pax-logo";
 import { MonoId, TruncatedText } from "@/components/ui/text";
-import { AgentOwnerInfo } from "@/features/api/types";
+import {
+  artifactPublicationContentDownloadHref,
+  getArtifactPublicationContent,
+  useArtifactPublication,
+} from "@/features/api/resources";
+import { AgentOwnerInfo, ArtifactPreviewKind } from "@/features/api/types";
 import {
   PermissionDecision,
   permissionRequestCodePatches,
@@ -75,6 +83,7 @@ type WorkstreamItemCardProps = {
   item: WorkstreamItem;
   onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
   permissionDecision: PermissionDecisionState;
+  userId?: string;
 };
 
 const permissionDecisionOptions: {
@@ -106,6 +115,7 @@ export const WorkstreamItemCard = memo(function WorkstreamItemCard({
   item,
   onSelectToolEvidence,
   permissionDecision,
+  userId,
 }: WorkstreamItemCardProps) {
   if (item.type === "work_group") {
     return (
@@ -133,6 +143,7 @@ export const WorkstreamItemCard = memo(function WorkstreamItemCard({
       event={item.event}
       onSelectToolEvidence={onSelectToolEvidence}
       permissionDecision={permissionDecision}
+      userId={userId}
     />
   );
 }, areWorkstreamItemCardPropsEqual);
@@ -145,6 +156,7 @@ function areWorkstreamItemCardPropsEqual(
     previous.agentOwnerInfos === next.agentOwnerInfos &&
     previous.onSelectToolEvidence === next.onSelectToolEvidence &&
     previous.permissionDecision === next.permissionDecision &&
+    previous.userId === next.userId &&
     areWorkstreamItemsEqual(previous.item, next.item)
   );
 }
@@ -255,11 +267,13 @@ function EventCard({
   event,
   onSelectToolEvidence,
   permissionDecision,
+  userId,
 }: {
   agentOwnerInfos?: Record<string, AgentOwnerInfo>;
   event: SessionEvent;
   onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
   permissionDecision: PermissionDecisionState;
+  userId?: string;
 }) {
   if (event.type === "file_change") {
     return <FileChangeCard event={event} />;
@@ -267,6 +281,10 @@ function EventCard({
 
   if (event.type === "progress") {
     return <ThoughtCard event={event} />;
+  }
+
+  if (event.type === "artifact_publication") {
+    return <ArtifactPublicationCard event={event} userId={userId} />;
   }
 
   if (event.type === "tool_call") {
@@ -415,6 +433,272 @@ function AgentMessageCard({
         streaming={event.streaming}
       />
     </article>
+  );
+}
+
+function ArtifactPublicationCard({
+  event,
+  userId,
+}: {
+  event: Extract<SessionEvent, { type: "artifact_publication" }>;
+  userId?: string;
+}) {
+  const publicationQuery = useArtifactPublication(userId, event.publicationId);
+  const publication = publicationQuery.data?.publication;
+  const artifact = publicationQuery.data?.artifact;
+  const [preview, setPreview] = useState<{
+    content?: string;
+    disposition?: string;
+    kind: ArtifactPreviewKind;
+    url?: string;
+  } | null>(null);
+  const [previewError, setPreviewError] = useState<Error | null>(null);
+  const [previewPending, setPreviewPending] = useState(false);
+  const title =
+    publication?.title ||
+    publication?.filename ||
+    artifact?.title ||
+    event.publicationId;
+  const primaryContent = artifact?.contents?.find(
+    (content) => content.ref === event.contentRef,
+  );
+
+  const loadPreview = useCallback(async () => {
+    if (!userId) {
+      return;
+    }
+
+    setPreviewPending(true);
+    setPreviewError(null);
+    try {
+      const data = await getArtifactPublicationContent(
+        userId,
+        event.publicationId,
+        event.contentRef,
+        {
+          disposition: "inline",
+        },
+      );
+
+      if (data.status !== "available" || !data.url) {
+        throw new Error(
+          data.status === "failed"
+            ? data.publication.error_message || "Artifact preview failed."
+            : "Artifact preview is not ready yet.",
+        );
+      }
+
+      const nextPreview: {
+        content?: string;
+        disposition?: string;
+        kind: ArtifactPreviewKind;
+        url?: string;
+      } = {
+        disposition: data.disposition,
+        kind: data.preview_kind ?? "download",
+        url: data.url,
+      };
+
+      if (
+        nextPreview.kind === "text" ||
+        nextPreview.kind === "markdown" ||
+        nextPreview.kind === "json"
+      ) {
+        const response = await fetch(data.url, {
+          credentials: "omit",
+        });
+        if (!response.ok) {
+          throw new Error(`Preview fetch failed with ${response.status}`);
+        }
+        nextPreview.content = await response.text();
+      }
+
+      setPreview(nextPreview);
+    } catch (caught) {
+      setPreviewError(
+        caught instanceof Error ? caught : new Error(String(caught)),
+      );
+    } finally {
+      setPreviewPending(false);
+    }
+  }, [event.contentRef, event.publicationId, userId]);
+
+  return (
+    <article className="min-w-0 rounded-lg border border-hairline bg-surface-1 p-3">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-xs uppercase tracking-wide text-ink-tertiary">
+            artifact
+          </div>
+          <TruncatedText className="mt-1 text-sm font-medium text-ink">
+            {title}
+          </TruncatedText>
+          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2 text-xs text-ink-tertiary">
+            <MonoId tooltip={event.publicationId}>{event.publicationId}</MonoId>
+            {primaryContent?.filename && (
+              <TruncatedText tooltip={primaryContent.filename}>
+                {primaryContent.filename}
+              </TruncatedText>
+            )}
+            {primaryContent?.size_bytes ? (
+              <span>{formatPreviewBytes(primaryContent.size_bytes)}</span>
+            ) : null}
+          </div>
+        </div>
+        <Badge tone={artifactPublicationTone(publication?.status)}>
+          {publication?.status ??
+            (publicationQuery.isLoading ? "queued" : "loading")}
+        </Badge>
+      </div>
+
+      {publicationQuery.isLoading && (
+        <div className="mt-3 flex items-center gap-2 text-sm text-ink-muted">
+          <LoaderCircle className="h-4 w-4 animate-spin" />
+          Preparing artifact
+        </div>
+      )}
+
+      {publicationQuery.error instanceof Error && (
+        <div className="mt-3 text-xs text-warning">
+          {publicationQuery.error.name}: {publicationQuery.error.message}
+        </div>
+      )}
+
+      {publication?.status === "failed" && (
+        <div className="mt-3 text-xs text-warning">
+          {publication.error_code ? `${publication.error_code}: ` : ""}
+          {publication.error_message ?? "Artifact publication failed."}
+        </div>
+      )}
+
+      {(publication?.status === "queued" ||
+        publication?.status === "uploading") && (
+        <div className="mt-3 flex items-center gap-2 text-sm text-ink-muted">
+          <LoaderCircle className="h-4 w-4 animate-spin" />
+          Uploading artifact
+        </div>
+      )}
+
+      {publication?.status === "available" && userId && (
+        <div className="mt-3 grid gap-3">
+          <div className="flex items-center gap-2">
+            <Button
+              disabled={previewPending}
+              icon={
+                previewPending ? (
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                ) : (
+                  <FileText className="h-4 w-4" />
+                )
+              }
+              onClick={() => {
+                void loadPreview();
+              }}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              Preview
+            </Button>
+            <Button
+              asChild
+              icon={<Download className="h-4 w-4" />}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              <a
+                href={artifactPublicationContentDownloadHref(
+                  userId,
+                  event.publicationId,
+                  event.contentRef,
+                )}
+                rel="noreferrer"
+                target="_blank"
+              >
+                Download
+              </a>
+            </Button>
+          </div>
+
+          {previewError && (
+            <div className="text-xs text-warning">
+              {previewError.name}: {previewError.message}
+            </div>
+          )}
+
+          {preview && (
+            <ArtifactPreviewContent preview={preview} title={title} />
+          )}
+        </div>
+      )}
+    </article>
+  );
+}
+
+function ArtifactPreviewContent({
+  preview,
+  title,
+}: {
+  preview: {
+    content?: string;
+    disposition?: string;
+    kind: ArtifactPreviewKind;
+    url?: string;
+  };
+  title: string;
+}) {
+  if (preview.kind === "image" && preview.url) {
+    return (
+      <div className="relative h-80 w-full overflow-hidden rounded-lg border border-hairline bg-canvas">
+        <Image
+          alt={title}
+          className="object-contain"
+          fill
+          sizes="(max-width: 1024px) 100vw, 768px"
+          src={preview.url}
+          unoptimized
+        />
+      </div>
+    );
+  }
+
+  if (preview.kind === "pdf" && preview.url) {
+    return (
+      <iframe
+        className="h-80 w-full rounded-lg border border-hairline bg-white"
+        src={preview.url}
+        title={title}
+      />
+    );
+  }
+
+  if (preview.kind === "markdown" && preview.content !== undefined) {
+    return (
+      <div className="rounded-lg border border-hairline bg-canvas p-3">
+        <MarkdownMessage
+          className="text-sm leading-5 text-ink"
+          content={preview.content}
+        />
+      </div>
+    );
+  }
+
+  if (
+    (preview.kind === "text" || preview.kind === "json") &&
+    preview.content !== undefined
+  ) {
+    return (
+      <pre className="max-h-80 overflow-auto rounded-lg border border-hairline bg-canvas p-3 text-xs leading-5 text-ink-muted">
+        {preview.content}
+      </pre>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-dashed border-hairline bg-canvas p-3 text-xs text-ink-tertiary">
+      This artifact can only be downloaded.
+    </div>
   );
 }
 
@@ -1650,6 +1934,34 @@ function ToolPayloadSection({
       )}
     </section>
   );
+}
+
+function artifactPublicationTone(status?: string) {
+  if (status === "available") {
+    return "success" as const;
+  }
+
+  if (status === "failed") {
+    return "warning" as const;
+  }
+
+  return "neutral" as const;
+}
+
+function formatPreviewBytes(value: number) {
+  if (!Number.isFinite(value) || value <= 0) {
+    return "0 B";
+  }
+
+  const units = ["B", "KB", "MB", "GB"];
+  let size = value;
+  let unit = 0;
+  while (size >= 1024 && unit < units.length - 1) {
+    size /= 1024;
+    unit += 1;
+  }
+
+  return `${size >= 10 || unit === 0 ? size.toFixed(0) : size.toFixed(1)} ${units[unit]}`;
 }
 
 function ToolStatusBadge({ status }: { status: ToolCallEvent["status"] }) {

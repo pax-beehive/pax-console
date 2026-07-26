@@ -21,6 +21,8 @@ export const queryKeys = {
     ["users", userId, "sessions", sessionId, "artifacts"] as const,
   artifact: (userId: string, artifactId: string) =>
     ["users", userId, "artifacts", artifactId] as const,
+  artifactPublication: (userId: string, publicationId: string) =>
+    ["users", userId, "artifact-publications", publicationId] as const,
   teams: (userId: string) => ["users", userId, "teams"] as const,
   team: (userId: string, teamId: string) =>
     ["users", userId, "teams", teamId] as const,
