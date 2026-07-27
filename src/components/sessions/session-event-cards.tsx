@@ -15,7 +15,10 @@ import {
   ThumbsUp,
   X,
 } from "lucide-react";
-import { artifactDocumentFromPublication } from "@/components/artifacts/artifact-document";
+import {
+  artifactDocumentFromPublication,
+  artifactPreviewPageHref,
+} from "@/components/artifacts/artifact-document";
 import { ArtifactViewerShell } from "@/components/artifacts/artifact-viewer-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -493,6 +496,11 @@ function ArtifactPublicationCard({
           : undefined
       }
       loadPreview={userId ? loadPreview : undefined}
+      viewerHref={artifactPreviewPageHref(
+        "publication",
+        event.publicationId,
+        event.contentRef,
+      )}
     />
   );
 }

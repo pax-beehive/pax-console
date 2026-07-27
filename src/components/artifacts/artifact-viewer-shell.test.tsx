@@ -46,6 +46,7 @@ describe("ArtifactViewerShell", () => {
             previewKind: "json",
             url: "https://signed.example/result.json",
           })}
+          viewerHref="/artifacts/files/artifact_1?ref=main"
         />
       </TooltipProvider>,
     );
@@ -59,10 +60,88 @@ describe("ArtifactViewerShell", () => {
       "https://signed.example/result.json",
       { credentials: "omit" },
     );
-    expect(screen.getByRole("link", { name: "Open" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Open file" })).toHaveAttribute(
       "href",
       "https://signed.example/result.json",
     );
+    expect(screen.getByRole("link", { name: "Open page" })).toHaveAttribute(
+      "href",
+      "/artifacts/files/artifact_1?ref=main",
+    );
+  });
+
+  it("renders markdown filenames as documents despite generic text metadata", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response("# Rendered heading\n\nReadable paragraph.", {
+            headers: { "content-type": "text/plain" },
+            status: 200,
+          }),
+      ),
+    );
+
+    render(
+      <TooltipProvider>
+        <ArtifactViewerShell
+          artifact={{
+            ...artifact,
+            contentType: "text/plain",
+            filename: "README.md",
+          }}
+          loadPreview={async () => ({
+            contentType: "text/plain",
+            filename: "README.md",
+            previewKind: "text",
+            url: "https://signed.example/README.md",
+          })}
+        />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Rendered heading" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Readable paragraph.")).toBeInTheDocument();
+  });
+
+  it("auto-loads available content in standalone mode", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response("# Standalone reader", {
+            headers: { "content-type": "text/markdown" },
+            status: 200,
+          }),
+      ),
+    );
+
+    render(
+      <TooltipProvider>
+        <ArtifactViewerShell
+          artifact={{
+            ...artifact,
+            contentType: "text/markdown",
+            filename: "preview.md",
+          }}
+          autoLoad
+          loadPreview={async () => ({
+            contentType: "text/markdown",
+            filename: "preview.md",
+            url: "https://signed.example/preview.md",
+          })}
+          standalone
+        />
+      </TooltipProvider>,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Standalone reader" }),
+    ).toBeInTheDocument();
   });
 
   it("opens and closes the host-owned fullscreen dialog", () => {

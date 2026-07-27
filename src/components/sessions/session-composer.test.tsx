@@ -105,8 +105,8 @@ describe("SessionComposer", () => {
       screen.getByRole("menuitem", { name: "Attach files" }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("menuitem", { name: "Open artifacts" }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("menuitem", { name: "Open artifacts" }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByLabelText("Voice input is not available yet"),
     ).not.toBeInTheDocument();
@@ -121,7 +121,7 @@ describe("SessionComposer", () => {
     expect(timelineRenderCount).toBe(1);
   });
 
-  it("keeps artifact access in the shared add menu for admins", async () => {
+  it("opens artifacts from the shared add menu", async () => {
     const onOpenArtifacts = vi.fn();
 
     render(

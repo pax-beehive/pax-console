@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import {
   artifactDocumentFromSessionArtifact,
+  artifactPreviewPageHref,
   type ArtifactPreviewDescriptor,
 } from "@/components/artifacts/artifact-document";
 import { ArtifactViewerShell } from "@/components/artifacts/artifact-viewer-shell";
@@ -1823,6 +1824,11 @@ function ArtifactTools({
             ),
           )}
           loadPreview={() => onLoadPreview(selectedArtifact)}
+          viewerHref={artifactPreviewPageHref(
+            "session_artifact",
+            selectedArtifact.artifact_id,
+            primaryArtifactContent(selectedArtifact)?.ref ?? "main",
+          )}
         />
       )}
     </div>

@@ -1897,6 +1897,15 @@ export function useSessionArtifacts(userId?: string, sessionId?: string) {
   });
 }
 
+export function useArtifact(userId?: string, artifactId?: string) {
+  return useQuery({
+    queryKey: queryKeys.artifact(userId ?? "pending", artifactId ?? "pending"),
+    queryFn: () => getArtifact(userId as string, artifactId as string),
+    enabled: Boolean(userId && artifactId),
+    refetchOnWindowFocus: true,
+  });
+}
+
 export function useArtifactPublication(
   userId?: string,
   publicationId?: string,

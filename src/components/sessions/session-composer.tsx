@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import {
+  FileText,
   FolderOpen,
   FolderPlus,
   LoaderCircle,
@@ -388,15 +389,13 @@ export const SessionComposer = memo(function SessionComposer({
                 <Paperclip className="h-4 w-4" />
                 Attach files
               </DropdownMenuItem>
-              {showAdminFeatures && (
-                <DropdownMenuItem
-                  aria-label="Open artifacts"
-                  onSelect={onOpenArtifacts}
-                >
-                  <Plus className="h-4 w-4" />
-                  Open artifacts
-                </DropdownMenuItem>
-              )}
+              <DropdownMenuItem
+                aria-label="Open artifacts"
+                onSelect={onOpenArtifacts}
+              >
+                <FileText className="h-4 w-4" />
+                Open artifacts
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           {isNewSession ? (
