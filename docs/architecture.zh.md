@@ -181,8 +181,10 @@ src/components/sessions/
   timeline buffer，采用最大 5 秒的指数退避；鉴权错误、非瞬时 API 错误、组件卸载
   或切换 session 时停止重试。
 
-  公开用户的 Session 右侧上下文面板只提供 Tool evidence。Artifacts、Knowledge、
-  未接通的语音输入等实验入口只对 admin 展示，并受 `Preview as user` 开关控制。
+  公开用户的 Session 右侧上下文面板提供 Tool evidence 和只读 Artifacts；
+  Artifacts 支持列表、刷新、signed URL 预览和下载，不提供旧的浏览器上传入口。
+  Knowledge、未接通的语音输入等实验入口只对 admin 展示，并受
+  `Preview as user` 开关控制。
 
   连续的 thought/progress 与 tool call 达到 2 个时，按原顺序聚合为一个默认折叠的
   work block；单独一个 thought 或 tool call 直接展示。子事件仍在运行时标题只显示
@@ -351,10 +353,9 @@ Artifact publications
   前端以 publication id 作为卡片 key，不按 artifact id 去重。
 
 Artifacts
-  旧的 admin Session artifact 工具仍通过 /artifact-uploads 创建上传票据，浏览器拿
-  GCS signed URL 直接 PUT 文件，再调用 complete 生成 session artifact。列表走
+  Session Artifacts 面板对所有 session 用户开放只读能力。列表走
   /sessions/{session_id}/artifacts，预览/下载走 artifact content endpoint 返回的
-  signed GET URL 或 redirect。文件内容不要经由 Next /api/pax proxy 中转上传。
+  signed GET URL 或 redirect。Console 不再展示旧的浏览器 artifact 上传入口。
 ```
 
 这些 API 仍然走浏览器同源 `/api/pax` proxy；不要从组件直连

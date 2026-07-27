@@ -23,7 +23,6 @@ import {
   Pencil,
   RefreshCw,
   RotateCcw,
-  UploadCloud,
   Wrench,
   X,
 } from "lucide-react";
@@ -41,13 +40,15 @@ import {
   WorkstreamItemCard,
 } from "@/components/sessions/session-event-cards";
 import { SessionComposer } from "@/components/sessions/session-composer";
+import {
+  canSeeSessionSidePanel,
+  type SessionSidePanelId,
+} from "@/components/sessions/session-side-panels";
 import { RunBadge } from "@/components/sessions/run-badge";
 import {
   artifactContentDownloadHref,
-  completeArtifactUpload,
   completeUserAttachment,
   createKnowledgeCapsule,
-  createArtifactUpload,
   createUserAttachment,
   decideApproval,
   deleteQueuedSessionTurn,
@@ -121,8 +122,6 @@ type SessionWorkbenchProps = {
   onMobileBack?: () => void;
   onMobileMenu?: () => void;
 };
-
-type SessionSidePanelId = "tool" | "artifacts" | "knowledge";
 
 type SessionSidePanel = {
   id: SessionSidePanelId;
@@ -362,10 +361,7 @@ export function SessionWorkbench({
     showAdminFeatures ? user.user_id : undefined,
     showAdminFeatures ? currentSessionId : undefined,
   );
-  const artifactsQuery = useSessionArtifacts(
-    showAdminFeatures ? user.user_id : undefined,
-    showAdminFeatures ? currentSessionId : undefined,
-  );
+  const artifactsQuery = useSessionArtifacts(user.user_id, currentSessionId);
   const [capsuleKeyword, setCapsuleKeyword] = useState("");
   const [selectedCapsuleId, setSelectedCapsuleId] = useState("");
   const [selectedArtifactId, setSelectedArtifactId] = useState("");
@@ -407,59 +403,6 @@ export function SessionWorkbench({
       queryKey: queryKeys.sessionArtifacts(user.user_id, currentSessionId),
     });
   };
-  const uploadArtifact = useMutation({
-    mutationFn: async (file: File) => {
-      if (!currentSessionId) {
-        throw new Error("Start the session before uploading an artifact.");
-      }
-
-      const contentType = file.type || "application/octet-stream";
-      const kind = inferArtifactKind(file);
-      const ticket = await createArtifactUpload(user.user_id, {
-        content_type: contentType,
-        filename: file.name,
-        kind,
-        session_id: currentSessionId,
-        size_bytes: file.size,
-        title: file.name,
-      });
-      const headers = new Headers(ticket.headers);
-      if (!headers.has("Content-Type")) {
-        headers.set("Content-Type", contentType);
-      }
-      if (!isMockSignedUploadUrl(ticket.url)) {
-        const uploadResponse = await fetch(ticket.url, {
-          body: file,
-          headers,
-          method: ticket.method,
-        });
-        if (!uploadResponse.ok) {
-          throw new Error(`GCS upload failed with ${uploadResponse.status}`);
-        }
-      }
-      return completeArtifactUpload(user.user_id, ticket.upload_id, {
-        kind,
-        payload_json: {
-          content_type: contentType,
-          filename: file.name,
-          size_bytes: file.size,
-        },
-        session_id: currentSessionId,
-        title: file.name,
-      });
-    },
-    onSuccess: (data) => {
-      setSelectedArtifactId(data.artifact.artifact_id);
-      setArtifactPreviewUrl("");
-      setArtifactPreviewError(null);
-      refreshArtifacts();
-    },
-    onError: (caught) => {
-      setArtifactPreviewError(
-        caught instanceof Error ? caught : new Error(String(caught)),
-      );
-    },
-  });
   const previewArtifact = useMutation({
     mutationFn: async (artifact: SessionArtifact) => {
       const content = artifact.contents?.[0];
@@ -1358,7 +1301,6 @@ export function SessionWorkbench({
         content: (
           <ArtifactTools
             artifacts={activeArtifacts}
-            canUpload={Boolean(currentSessionId)}
             downloadHref={(artifact, ref) =>
               artifactContentDownloadHref(
                 user.user_id,
@@ -1374,7 +1316,6 @@ export function SessionWorkbench({
               setArtifactPreviewUrl("");
               setArtifactPreviewError(null);
             }}
-            onUpload={(file) => uploadArtifact.mutate(file)}
             previewError={
               artifactPreviewError ??
               (previewArtifact.error instanceof Error
@@ -1385,12 +1326,6 @@ export function SessionWorkbench({
             previewUrl={artifactPreviewUrl}
             selectedArtifact={selectedArtifact}
             selectedArtifactId={selectedArtifact?.artifact_id ?? ""}
-            uploadError={
-              uploadArtifact.error instanceof Error
-                ? uploadArtifact.error
-                : null
-            }
-            uploadPending={uploadArtifact.isPending}
           />
         ),
       },
@@ -1418,7 +1353,7 @@ export function SessionWorkbench({
         ),
       },
     ] satisfies SessionSidePanel[]
-  ).filter((panel) => showAdminFeatures || panel.id === "tool");
+  ).filter((panel) => canSeeSessionSidePanel(panel.id, showAdminFeatures));
   const activeSidePanel = sidePanels.find(
     (panel) => panel.id === activeSidePanelId,
   );
@@ -1814,70 +1749,32 @@ function removeStoredInitialPrompt(initialPromptKey?: string) {
 
 function ArtifactTools({
   artifacts,
-  canUpload,
   downloadHref,
   isLoading,
   onPreview,
   onRefresh,
   onSelect,
-  onUpload,
   previewError,
   previewPending,
   previewUrl,
   selectedArtifact,
   selectedArtifactId,
-  uploadError,
-  uploadPending,
 }: {
   artifacts: SessionArtifact[];
-  canUpload: boolean;
   downloadHref: (artifact: SessionArtifact, ref: string) => string;
   isLoading: boolean;
   onPreview: (artifact: SessionArtifact) => void;
   onRefresh: () => void;
   onSelect: (artifactId: string) => void;
-  onUpload: (file: File) => void;
   previewError: Error | null;
   previewPending: boolean;
   previewUrl: string;
   selectedArtifact?: SessionArtifact;
   selectedArtifactId: string;
-  uploadError: Error | null;
-  uploadPending: boolean;
 }) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   return (
     <div className="grid gap-4">
-      <input
-        className="sr-only"
-        disabled={!canUpload || uploadPending}
-        onChange={(event) => {
-          const file = event.currentTarget.files?.[0];
-          if (file) {
-            onUpload(file);
-          }
-          event.currentTarget.value = "";
-        }}
-        ref={fileInputRef}
-        type="file"
-      />
       <div className="flex min-w-0 items-center gap-2">
-        <Button
-          disabled={!canUpload || uploadPending}
-          icon={
-            uploadPending ? (
-              <LoaderCircle className="h-4 w-4 animate-spin" />
-            ) : (
-              <UploadCloud className="h-4 w-4" />
-            )
-          }
-          onClick={() => fileInputRef.current?.click()}
-          type="button"
-          variant="primary"
-        >
-          Upload
-        </Button>
         <Button
           icon={<RefreshCw className="h-4 w-4" />}
           onClick={onRefresh}
@@ -1889,12 +1786,6 @@ function ArtifactTools({
         <div className="min-w-0 flex-1" />
         <Badge className="font-mono">{String(artifacts.length)}</Badge>
       </div>
-      {!canUpload && (
-        <div className="rounded-lg border border-dashed border-hairline bg-canvas p-2 text-xs text-ink-tertiary">
-          Start the session before uploading artifacts.
-        </div>
-      )}
-      {uploadError && <InlineError error={uploadError} />}
 
       <section className="grid gap-2">
         {isLoading && (
@@ -2200,46 +2091,6 @@ function artifactTitle(artifact: SessionArtifact) {
     primaryArtifactContent(artifact)?.filename ||
     compactId(artifact.artifact_id)
   );
-}
-
-function inferArtifactKind(file: File) {
-  const name = file.name.toLowerCase();
-  if (file.type.startsWith("image/")) {
-    return "image";
-  }
-  if (
-    file.type === "text/html" ||
-    name.endsWith(".html") ||
-    name.endsWith(".htm")
-  ) {
-    return "html_preview";
-  }
-  if (
-    name.endsWith(".diff") ||
-    name.endsWith(".patch") ||
-    file.type === "text/x-diff"
-  ) {
-    return "code_diff";
-  }
-  if (
-    name.endsWith(".xlsx") ||
-    name.endsWith(".xls") ||
-    name.endsWith(".csv")
-  ) {
-    return "spreadsheet";
-  }
-  if (file.type.startsWith("text/")) {
-    return "code_file";
-  }
-  return "file";
-}
-
-function isMockSignedUploadUrl(value: string) {
-  try {
-    return new URL(value).hostname === "mock-gcs.local";
-  } catch {
-    return false;
-  }
 }
 
 function formatBytes(value: number) {
