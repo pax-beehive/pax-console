@@ -158,9 +158,11 @@ admin preview-as-user mode
 Admin-only experimental UI must use the shared effective admin view. A real
 admin can enable `Preview as user` from the top-right user menu; while enabled,
 the UI must hide the same experimental controls hidden from normal users.
-Session Artifacts and Knowledge panels, fake inquiries, global search, image
-attachment, and voice input currently follow this rule. Tool evidence remains
-available to all session users.
+Knowledge panels, fake inquiries, global search, image attachment, and voice
+input currently follow this rule. Tool evidence and the read-only Session
+Artifacts panel remain available to all session users. The Artifacts panel
+supports list, refresh, signed preview, and download; it does not expose the
+legacy browser upload control.
 The Collaboration navigation group is also admin-only for the current public
 release. Both desktop and mobile navigation must honor preview-as-user mode.
 
@@ -237,9 +239,9 @@ Collaboration and knowledge resources are normal user-scoped REST resources:
   card key; do not manage lifecycle by artifact id.
 
 /artifact-uploads, /artifacts, and /sessions/{session_id}/artifacts
-  The legacy session-artifact admin tools still use manager-issued GCS signed
-  URLs. Browser code first creates an upload ticket, PUTs the file to GCS,
-  completes the upload, then reads artifacts through TanStack Query.
+  The Session Artifacts panel reads artifacts through TanStack Query and lets
+  every session user preview or download content through manager-issued signed
+  URLs. The Console no longer exposes the legacy browser upload flow.
 ```
 
 ## Conversation Runtime Rules

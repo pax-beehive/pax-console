@@ -26,7 +26,6 @@ import {
   ChevronDown,
   FolderOpen,
   FolderPlus,
-  Image as ImageIcon,
   Inbox,
   ListFilter,
   LoaderCircle,
@@ -50,6 +49,12 @@ import {
 } from "@/components/sessions/session-workbench";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { TruncatedText } from "@/components/ui/text";
 import {
   completeUserAttachment,
@@ -166,7 +171,6 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const previewAsUser = useConsoleStore((state) => state.previewAsUser);
   const showAdminFeatures = canSeeAdminFeatures(user, previewAsUser);
   const searchParams = useSearchParams();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const composerFileInputRef = useRef<HTMLInputElement>(null);
   const urlSessionId = searchParams.get("sessionId") ?? "";
   const [composerMode, setComposerMode] = useState<ComposerMode>("clean");
@@ -179,7 +183,6 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const [newSessionApprovalMode, setNewSessionApprovalMode] =
     useState<SessionApprovalMode>("manual");
   const [attachmentName, setAttachmentName] = useState("");
-  const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
   const [composerAttachments, setComposerAttachments] = useState<
     ComposerAttachment[]
   >([]);
@@ -1050,79 +1053,53 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                       value={draft}
                     />
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
-                      <Button
-                        aria-label="Attach files"
-                        disabled={composerAttachmentUploadPending}
-                        icon={
-                          composerAttachmentUploadPending ? (
-                            <LoaderCircle className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Paperclip className="h-4 w-4" />
-                          )
-                        }
-                        onClick={() => composerFileInputRef.current?.click()}
-                        size="icon"
-                        tooltip="Attach files"
-                        type="button"
-                        variant="ghost"
-                      />
-                      {showAdminFeatures && (
-                        <div className="relative">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
                           <Button
-                            icon={<Plus className="h-4 w-4" />}
-                            onClick={() =>
-                              setAttachmentMenuOpen((open) => !open)
+                            aria-label="Add files or context"
+                            disabled={composerAttachmentUploadPending}
+                            icon={
+                              composerAttachmentUploadPending ? (
+                                <LoaderCircle className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Plus className="h-4 w-4" />
+                              )
                             }
                             size="icon"
-                            tooltip="Add context or upload image"
+                            tooltip="Add files or context"
                             type="button"
                             variant="ghost"
                           />
-                          {attachmentMenuOpen && (
-                            <div className="absolute bottom-11 left-0 z-20 grid w-52 overflow-hidden rounded-lg border border-hairline bg-surface-1 shadow-xl shadow-black/30">
-                              <button
-                                className="flex min-h-9 items-center gap-2 px-3 text-left text-sm text-ink-muted hover:bg-surface-2 hover:text-ink"
-                                onClick={() => {
-                                  fileInputRef.current?.click();
-                                  setAttachmentMenuOpen(false);
-                                }}
-                                type="button"
-                              >
-                                <ImageIcon className="h-4 w-4" />
-                                Upload image
-                              </button>
-                              <button
-                                className="flex min-h-9 items-center gap-2 px-3 text-left text-sm text-ink-muted hover:bg-surface-2 hover:text-ink"
-                                onClick={() => {
-                                  if (selectedInquiry) {
-                                    setComposerMode("summarize-note");
-                                    setAttachmentName("summarize note");
-                                  }
-                                  setAttachmentMenuOpen(false);
-                                }}
-                                disabled={!selectedInquiry}
-                                type="button"
-                              >
-                                <Paperclip className="h-4 w-4" />
-                                Summarize with note
-                              </button>
-                            </div>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="start"
+                          className="w-52"
+                          side="top"
+                        >
+                          <DropdownMenuItem
+                            onSelect={() =>
+                              composerFileInputRef.current?.click()
+                            }
+                          >
+                            <Paperclip className="h-4 w-4" />
+                            Attach files
+                          </DropdownMenuItem>
+                          {showAdminFeatures && (
+                            <DropdownMenuItem
+                              disabled={!selectedInquiry}
+                              onSelect={() => {
+                                if (selectedInquiry) {
+                                  setComposerMode("summarize-note");
+                                  setAttachmentName("summarize note");
+                                }
+                              }}
+                            >
+                              <Paperclip className="h-4 w-4" />
+                              Summarize with note
+                            </DropdownMenuItem>
                           )}
-                        </div>
-                      )}
-                      {showAdminFeatures && (
-                        <input
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(event) =>
-                            setAttachmentName(
-                              event.target.files?.[0]?.name ?? "",
-                            )
-                          }
-                          ref={fileInputRef}
-                          type="file"
-                        />
-                      )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                       {newSessionWorkspaceOpen ? (
                         <label
                           className={cn(
