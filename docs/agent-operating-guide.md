@@ -532,6 +532,10 @@ Components should not know Cloudflare internals. Components may show errors, but
 
 Use `src/components/ui/button.tsx` for command buttons, `badge.tsx` for compact actionable status labels, `search-box.tsx` for search inputs, `dropdown-menu.tsx` for click-to-open menus (e.g. the topbar user/sign-out menu), and `text.tsx` for long IDs/names. Agent ids, node ids, session ids, API key prefixes, endpoint paths, and file paths should be truncated with tooltip access to the full value. Prefer `compactId` from `src/lib/format.ts` when an id should be recognizable but not visually dominant.
 
+`Button asChild` may render an icon beside its delegated child because the
+primitive marks that child with Radix `Slottable`. Callers must still provide
+one React element, such as an anchor, as the delegated child.
+
 The UI direction is Codex-like dark workbench, not a generic dashboard. Prefer split panes, compact rows, timelines, and evidence panels over large hero sections, KPI-card grids, and floating card sections. Cards are reserved for selectable entities, modals, and isolated tools. Ordinary metadata should be muted text or monospace text; use `Badge` for states that need scanning or action, such as connected, running, failed, approval required, revoked, or offline.
 
 The signature accent (`--color-accent` #5e6ad2, with `--color-accent-bright` #96a0ff for small text/icons) is reserved for small interactive signals: selected-state tinted backgrounds (bg-accent/10, hover bg-accent/15; bg-accent/15 with accent-bright text for segmented tabs), left indicator bars, focus rings and glows, and hover emphasis. Do not use accent fills or gradients as large-area brand decoration. The body carries a very subtle accent radial gradient for depth, and `::selection` uses the accent color. Entrance micro-animations use the `motion` package (`motion/react`); keep them short (~200ms) and subtle.

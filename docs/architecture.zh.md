@@ -244,6 +244,8 @@ status / count pill
 
 按钮和搜索框
   优先使用 src/components/ui 下的 Button 和 SearchBox，避免每个页面重新手写尺寸。
+  Button 使用 asChild 且同时带 icon 时，由 primitive 内部的 Radix Slottable
+  标记真正承接 props 的单个 React element；调用方仍需提供一个元素（例如 a）作为 child。
 
 整体界面风格
   走 Codex-like dark workbench，而不是通用 dashboard。
