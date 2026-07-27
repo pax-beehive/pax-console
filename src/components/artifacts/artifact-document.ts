@@ -89,10 +89,24 @@ export function resolveArtifactRenderer(
   artifact: Pick<ArtifactDocument, "contentType" | "filename" | "previewKind">,
   preview?: ArtifactPreviewDescriptor,
 ) {
+  const previewKind = kindFromPreview(
+    preview?.previewKind ?? artifact.previewKind,
+  );
+  const contentTypeKind = kindFromContentType(
+    preview?.contentType ?? artifact.contentType,
+  );
+  const filenameKind = kindFromFilename(preview?.filename ?? artifact.filename);
+  const structuredFilenameKind =
+    filenameKind && filenameKind !== "text" && filenameKind !== "download"
+      ? filenameKind
+      : undefined;
   const kind =
-    kindFromPreview(preview?.previewKind ?? artifact.previewKind) ??
-    kindFromContentType(preview?.contentType ?? artifact.contentType) ??
-    kindFromFilename(preview?.filename ?? artifact.filename) ??
+    (previewKind !== "text" ? previewKind : undefined) ??
+    (contentTypeKind !== "text" ? contentTypeKind : undefined) ??
+    structuredFilenameKind ??
+    previewKind ??
+    contentTypeKind ??
+    filenameKind ??
     "download";
 
   return rendererDefinitions[kind];
@@ -137,8 +151,9 @@ export function artifactDocumentFromPublication({
 export function artifactDocumentFromSessionArtifact(
   artifact: SessionArtifact,
   downloadHref?: string,
+  preferredRef = "main",
 ): ArtifactDocument {
-  const content = primaryArtifactContent(artifact);
+  const content = primaryArtifactContent(artifact, preferredRef);
 
   return {
     id: artifact.artifact_id,
@@ -153,6 +168,16 @@ export function artifactDocumentFromSessionArtifact(
     downloadHref,
     createdAt: artifact.created_at,
   };
+}
+
+export function artifactPreviewPageHref(
+  sourceType: ArtifactSourceType,
+  artifactId: string,
+  contentRef = "main",
+) {
+  const sourceSegment = sourceType === "publication" ? "publications" : "files";
+  const params = new URLSearchParams({ ref: contentRef });
+  return `/artifacts/${sourceSegment}/${encodeURIComponent(artifactId)}?${params}`;
 }
 
 export function primaryArtifactContent(

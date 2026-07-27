@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import {
   CSSProperties,
   ReactNode,
@@ -47,21 +48,28 @@ type LoadedArtifactPreview = ArtifactPreviewDescriptor &
 
 type ArtifactViewerShellProps = {
   artifact: ArtifactDocument;
+  autoLoad?: boolean;
   className?: string;
   error?: Error | null;
   loadPreview?: () => Promise<ArtifactPreviewDescriptor>;
+  standalone?: boolean;
+  viewerHref?: string;
 };
 
 export function ArtifactViewerShell({
   artifact,
+  autoLoad = false,
   className,
   error: sourceError,
   loadPreview,
+  standalone = false,
+  viewerHref,
 }: ArtifactViewerShellProps) {
   const [preview, setPreview] = useState<LoadedArtifactPreview>();
   const [previewError, setPreviewError] = useState<Error | null>(null);
   const [previewPending, setPreviewPending] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const autoLoadedArtifactRef = useRef<string | undefined>(undefined);
   const renderer = resolveArtifactRenderer(artifact, preview);
 
   useEffect(() => {
@@ -109,6 +117,23 @@ export function ArtifactViewerShell({
     }
   }, [artifact, loadPreview]);
 
+  useEffect(() => {
+    if (
+      !autoLoad ||
+      !loadPreview ||
+      !isArtifactAvailable(artifact.status) ||
+      autoLoadedArtifactRef.current === artifact.id
+    ) {
+      return;
+    }
+
+    autoLoadedArtifactRef.current = artifact.id;
+    const frame = window.requestAnimationFrame(() => {
+      void handlePreview();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [artifact.id, artifact.status, autoLoad, handlePreview, loadPreview]);
+
   const shell = (
     <section
       aria-label={`Artifact viewer: ${artifact.title}`}
@@ -116,7 +141,9 @@ export function ArtifactViewerShell({
         "flex min-w-0 flex-col overflow-hidden rounded-lg border border-hairline bg-surface-1",
         fullscreen
           ? "h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] shadow-2xl"
-          : "max-h-[42rem]",
+          : standalone
+            ? "h-full max-h-none"
+            : "max-h-[42rem]",
         className,
       )}
       role={fullscreen ? "dialog" : undefined}
@@ -165,6 +192,14 @@ export function ArtifactViewerShell({
         >
           {preview ? "Refresh" : "Preview"}
         </Button>
+        {viewerHref && (
+          <Button asChild size="sm" variant="secondary">
+            <Link href={viewerHref}>
+              <ExternalLink className="h-4 w-4" />
+              <span className="min-w-0 truncate">Open page</span>
+            </Link>
+          </Button>
+        )}
         {artifact.downloadHref && (
           <Button asChild size="sm" variant="ghost">
             <a href={artifact.downloadHref} rel="noreferrer" target="_blank">
@@ -177,7 +212,7 @@ export function ArtifactViewerShell({
           <Button asChild size="sm" variant="ghost">
             <a href={preview.url} rel="noreferrer" target="_blank">
               <ExternalLink className="h-4 w-4" />
-              <span className="min-w-0 truncate">Open</span>
+              <span className="min-w-0 truncate">Open file</span>
             </a>
           </Button>
         )}
@@ -219,6 +254,7 @@ export function ArtifactViewerShell({
           pending={previewPending}
           preview={preview}
           rendererKind={renderer.kind}
+          standalone={standalone}
         />
       </div>
     </section>
@@ -242,12 +278,14 @@ function ArtifactViewerBody({
   pending,
   preview,
   rendererKind,
+  standalone,
 }: {
   artifact: ArtifactDocument;
   error?: Error | null;
   pending: boolean;
   preview?: LoadedArtifactPreview;
   rendererKind: DocumentRendererKind;
+  standalone: boolean;
 }) {
   if (pending || artifact.status === "loading") {
     return (
@@ -280,7 +318,7 @@ function ArtifactViewerBody({
   }
 
   return (
-    <div className="min-h-full">
+    <div className={cn("min-h-full", standalone && "h-full")}>
       {preview.truncated && (
         <div className="border-b border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
           Preview truncated.{" "}
@@ -292,6 +330,7 @@ function ArtifactViewerBody({
         artifact={artifact}
         kind={rendererKind}
         preview={preview}
+        standalone={standalone}
       />
     </div>
   );
@@ -301,14 +340,21 @@ function DocumentRenderer({
   artifact,
   kind,
   preview,
+  standalone,
 }: {
   artifact: ArtifactDocument;
   kind: DocumentRendererKind;
   preview: LoadedArtifactPreview;
+  standalone: boolean;
 }) {
   if (kind === "image" && preview.url) {
     return (
-      <div className="relative min-h-80 w-full bg-[linear-gradient(45deg,#111_25%,transparent_25%),linear-gradient(-45deg,#111_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#111_75%),linear-gradient(-45deg,transparent_75%,#111_75%)] bg-[length:20px_20px] bg-[position:0_0,0_10px,10px_-10px,-10px_0px]">
+      <div
+        className={cn(
+          "relative min-h-80 w-full bg-[linear-gradient(45deg,#111_25%,transparent_25%),linear-gradient(-45deg,#111_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#111_75%),linear-gradient(-45deg,transparent_75%,#111_75%)] bg-[length:20px_20px] bg-[position:0_0,0_10px,10px_-10px,-10px_0px]",
+          standalone && "h-full min-h-[calc(100dvh-13rem)]",
+        )}
+      >
         <Image
           alt={artifact.title}
           className="object-contain p-3"
@@ -323,7 +369,10 @@ function DocumentRenderer({
   if (kind === "pdf" && preview.url) {
     return (
       <iframe
-        className="h-[38rem] w-full bg-white"
+        className={cn(
+          "h-[38rem] w-full bg-white",
+          standalone && "h-full min-h-[calc(100dvh-13rem)]",
+        )}
         src={preview.url}
         title={artifact.title}
       />
@@ -332,7 +381,10 @@ function DocumentRenderer({
   if (kind === "html" && preview.url) {
     return (
       <iframe
-        className="h-[38rem] w-full bg-white"
+        className={cn(
+          "h-[38rem] w-full bg-white",
+          standalone && "h-full min-h-[calc(100dvh-13rem)]",
+        )}
         sandbox=""
         src={preview.url}
         title={artifact.title}
@@ -340,7 +392,12 @@ function DocumentRenderer({
     );
   }
   if (kind === "markdown" && preview.content !== undefined) {
-    return <DocumentMarkdownRenderer content={preview.content} />;
+    return (
+      <DocumentMarkdownRenderer
+        content={preview.content}
+        standalone={standalone}
+      />
+    );
   }
   if (kind === "json" && preview.content !== undefined) {
     return <DocumentJsonRenderer content={preview.content} />;
@@ -353,7 +410,12 @@ function DocumentRenderer({
   }
   if (kind === "text" && preview.content !== undefined) {
     return (
-      <pre className="min-h-80 overflow-auto whitespace-pre-wrap break-words p-4 font-mono text-xs leading-5 text-ink-muted">
+      <pre
+        className={cn(
+          "min-h-80 overflow-auto whitespace-pre-wrap break-words p-4 font-mono text-xs leading-5 text-ink-muted",
+          standalone && "min-h-full",
+        )}
+      >
         {preview.content || "This text file is empty."}
       </pre>
     );
@@ -367,7 +429,13 @@ function DocumentRenderer({
   );
 }
 
-function DocumentMarkdownRenderer({ content }: { content: string }) {
+function DocumentMarkdownRenderer({
+  content,
+  standalone,
+}: {
+  content: string;
+  standalone: boolean;
+}) {
   const readerRef = useRef<HTMLDivElement>(null);
   const headings = useMemo(() => markdownHeadings(content), [content]);
   const [fontSize, setFontSize] = useStoredNumber(
@@ -397,7 +465,10 @@ function DocumentMarkdownRenderer({ content }: { content: string }) {
 
   return (
     <div
-      className="grid min-h-80 grid-cols-1 bg-[#11110f] lg:grid-cols-[minmax(0,1fr)_13rem]"
+      className={cn(
+        "grid min-h-80 grid-cols-1 bg-[#11110f] lg:grid-cols-[minmax(0,1fr)_13rem]",
+        standalone && "min-h-full",
+      )}
       style={readerStyle}
     >
       <article

@@ -424,8 +424,13 @@ renders one timeline card per publication id, polls
 `GET /artifact-publications/{publication_id}`, and only calls
 `/content/main` for preview/download handling. Available publications and
 legacy session artifacts both mount the shared ArtifactViewerShell; the shell
-owns Preview / Download / Open / fullscreen and delegates only its content
-region to the builtin document renderer registry.
+owns Preview / Download / Open page / Open file / fullscreen and delegates only
+its content region to the builtin document renderer registry. Embedded viewers
+stay compact for quick inspection. Their Open page action routes to the
+AuthGate-protected full-width preview at
+`/artifacts/publications/[publicationId]?ref=...` or
+`/artifacts/files/[artifactId]?ref=...`; those pages reuse the same renderer,
+auto-load a short-lived URL, and do not expose public artifact links.
 
 Runs of two or more contiguous thought/progress and tool-call events render as
 one collapsed work block, preserving their original order. A single thought or
@@ -525,6 +530,9 @@ src/components/artifacts/*
   Markdown, text, JSON, JSONL, CSV, or download fallback. Text renderers enforce
   preview byte/line/record/table budgets, and HTML stays inside a sandboxed
   iframe. Keep signed URL acquisition in the source-specific API adapter.
+  Timeline cards and the Session Artifacts panel provide a compact viewer plus
+  an Open page link; the dedicated full-width route reuses this shell with
+  auto-load rather than defining a second rendering stack.
 
 src/components/collaboration/*
   Collaboration workspace pages. Teams (/collaboration/teams) and Friends
@@ -592,6 +600,8 @@ These deep links should remain directly reachable:
 /                              Home
 /sessions/new                  New session
 /sessions/[sessionId]          Session workbench
+/artifacts/publications/[id]       Full-width publication preview; ?ref=main
+/artifacts/files/[id]              Full-width session artifact preview; ?ref=main
 /inquiries                     Home action deep-link
 /conversations/[conversationId] Conversation deep-link
 /collaboration/teams           Teams

@@ -173,9 +173,12 @@ src/components/artifacts/
   viewer。Source adapter 先把 publication / session artifact 归一为
   ArtifactDocument，builtin renderer registry 再按后端 preview_kind、
   content_type、filename 后缀依次解析 image / pdf / html / markdown / text /
-  json / jsonl / csv / download。宿主 shell 统一负责 Preview、Download、Open、
-  fullscreen 和状态；文本 renderer 有 byte / line / record / table 预览预算，
-  HTML 只在 sandbox iframe 中展示。
+  json / jsonl / csv / download。宿主 shell 统一负责 Preview、Download、
+  Open page、Open file、fullscreen 和状态；文本 renderer 有 byte / line /
+  record / table 预览预算，HTML 只在 sandbox iframe 中展示。侧栏和 timeline
+  保留紧凑预览，同时链接到受 AuthGate 保护的全宽独立页
+  /artifacts/publications/[publicationId] 与 /artifacts/files/[artifactId]；
+  独立页复用同一 renderer，并自动取得短效 preview URL。
 
 src/components/sessions/
   Session workbench。把 REST 历史消息和 WebSocket live events 合成时间线。
@@ -363,7 +366,9 @@ Artifact publications
   /artifact-publications/{publication_id}/content/main 获取安全预览或下载地址。
   前端以 publication id 作为卡片 key，不按 artifact id 去重。publication 卡片
   和旧 Session artifact 工具都进入 src/components/artifacts 下的共享
-  ArtifactViewerShell；两种 source 只负责取得各自的受控短效 URL。
+  ArtifactViewerShell；两种 source 只负责取得各自的受控短效 URL。卡片和侧栏
+  的 Open page 分别进入 /artifacts/publications/{publication_id}?ref=... 与
+  /artifacts/files/{artifact_id}?ref=...，独立页不会产生公开 artifact URL。
 
 Artifacts
   Session Artifacts 面板对所有 session 用户开放只读能力。列表走
@@ -492,6 +497,8 @@ Sidebar 一级入口是粗粒度工作区（顶部 Home / Collaboration，底部
 /                              Home: Sessions + Inbox
 /sessions/new                  New session workbench
 /sessions/[sessionId]          Canonical session workbench
+/artifacts/publications/[id]       Full-width publication preview; ?ref=main
+/artifacts/files/[id]              Full-width session artifact preview; ?ref=main
 /inquiries                     Home deep-link / agent inquiry composer
 /conversations                 Home deep-link / conversation index
 /conversations/[id]            Conversation detail

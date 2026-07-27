@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   artifactDocumentFromSessionArtifact,
+  artifactPreviewPageHref,
   builtinArtifactRendererRegistry,
   resolveArtifactRenderer,
 } from "./artifact-document";
@@ -31,6 +32,37 @@ describe("artifact document renderer registry", () => {
   ])("resolves %s / %s to %s", (contentType, filename, expected) => {
     expect(resolveArtifactRenderer({ contentType, filename }).id).toBe(
       expected,
+    );
+  });
+
+  it.each([
+    ["README.md", "builtin:markdown"],
+    ["events.jsonl", "builtin:jsonl"],
+    ["metrics.csv", "builtin:csv"],
+    ["report.json", "builtin:json"],
+    ["preview.html", "builtin:html"],
+  ])(
+    "lets the structured %s filename override generic text metadata",
+    (filename, expected) => {
+      expect(
+        resolveArtifactRenderer(
+          { filename },
+          {
+            contentType: "text/plain",
+            filename,
+            previewKind: "text",
+          },
+        ).id,
+      ).toBe(expected);
+    },
+  );
+
+  it("builds protected standalone preview links for both sources", () => {
+    expect(
+      artifactPreviewPageHref("publication", "publication_1", "report draft"),
+    ).toBe("/artifacts/publications/publication_1?ref=report+draft");
+    expect(artifactPreviewPageHref("session_artifact", "artifact_1")).toBe(
+      "/artifacts/files/artifact_1?ref=main",
     );
   });
 
