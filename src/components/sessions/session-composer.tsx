@@ -25,6 +25,12 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { QueuedSessionTurnData } from "@/features/api/resources";
 import type { SessionApprovalMode } from "@/features/api/types";
 import { compactId } from "@/lib/format";
@@ -359,31 +365,40 @@ export const SessionComposer = memo(function SessionComposer({
           value={draft}
         />
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <Button
-            disabled={attachmentUploadPending}
-            icon={
-              attachmentUploadPending ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-              ) : (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                aria-label="Add files or context"
+                disabled={attachmentUploadPending}
+                icon={
+                  attachmentUploadPending ? (
+                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Plus className="h-4 w-4" />
+                  )
+                }
+                size="icon"
+                tooltip="Add files or context"
+                type="button"
+                variant="ghost"
+              />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-52" side="top">
+              <DropdownMenuItem onSelect={() => fileInputRef.current?.click()}>
                 <Paperclip className="h-4 w-4" />
-              )
-            }
-            onClick={() => fileInputRef.current?.click()}
-            size="icon"
-            tooltip="Attach files"
-            type="button"
-            variant="ghost"
-          />
-          {showAdminFeatures && (
-            <Button
-              icon={<Plus className="h-4 w-4" />}
-              onClick={onOpenArtifacts}
-              size="icon"
-              tooltip="Open artifacts"
-              type="button"
-              variant="ghost"
-            />
-          )}
+                Attach files
+              </DropdownMenuItem>
+              {showAdminFeatures && (
+                <DropdownMenuItem
+                  aria-label="Open artifacts"
+                  onSelect={onOpenArtifacts}
+                >
+                  <Plus className="h-4 w-4" />
+                  Open artifacts
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
           {isNewSession ? (
             newSessionWorkspaceOpen ? (
               <label
