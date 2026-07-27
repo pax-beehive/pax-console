@@ -15,7 +15,6 @@ import {
   ArrowLeft,
   Brain,
   Check,
-  Download,
   FileText,
   LoaderCircle,
   Menu,
@@ -26,6 +25,11 @@ import {
   Wrench,
   X,
 } from "lucide-react";
+import {
+  artifactDocumentFromSessionArtifact,
+  type ArtifactPreviewDescriptor,
+} from "@/components/artifacts/artifact-document";
+import { ArtifactViewerShell } from "@/components/artifacts/artifact-viewer-shell";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -365,9 +369,6 @@ export function SessionWorkbench({
   const [capsuleKeyword, setCapsuleKeyword] = useState("");
   const [selectedCapsuleId, setSelectedCapsuleId] = useState("");
   const [selectedArtifactId, setSelectedArtifactId] = useState("");
-  const [artifactPreviewUrl, setArtifactPreviewUrl] = useState("");
-  const [artifactPreviewError, setArtifactPreviewError] =
-    useState<Error | null>(null);
   const activeCapsules = capsulesQuery.data?.capsules ?? [];
   const activeArtifacts = artifactsQuery.data?.artifacts ?? [];
   const selectedInjectionCapsuleId =
@@ -403,30 +404,6 @@ export function SessionWorkbench({
       queryKey: queryKeys.sessionArtifacts(user.user_id, currentSessionId),
     });
   };
-  const previewArtifact = useMutation({
-    mutationFn: async (artifact: SessionArtifact) => {
-      const content = artifact.contents?.[0];
-      if (!content) {
-        throw new Error("Artifact has no content.");
-      }
-      return getArtifactContentURL(
-        user.user_id,
-        artifact.artifact_id,
-        content.ref || "main",
-        "inline",
-      );
-    },
-    onSuccess: (data) => {
-      setSelectedArtifactId(data.artifact.artifact_id);
-      setArtifactPreviewUrl(data.url);
-      setArtifactPreviewError(null);
-    },
-    onError: (caught) => {
-      setArtifactPreviewError(
-        caught instanceof Error ? caught : new Error(String(caught)),
-      );
-    },
-  });
   const handleAddComposerAttachments = useCallback(
     async (files: File[]) => {
       if (files.length === 0) {
@@ -1309,21 +1286,25 @@ export function SessionWorkbench({
               )
             }
             isLoading={artifactsQuery.isLoading}
-            onPreview={(artifact) => previewArtifact.mutate(artifact)}
-            onRefresh={refreshArtifacts}
-            onSelect={(artifactId) => {
-              setSelectedArtifactId(artifactId);
-              setArtifactPreviewUrl("");
-              setArtifactPreviewError(null);
+            onLoadPreview={async (artifact) => {
+              const content = primaryArtifactContent(artifact);
+              if (!content) {
+                throw new Error("Artifact has no content.");
+              }
+              const data = await getArtifactContentURL(
+                user.user_id,
+                artifact.artifact_id,
+                content.ref || "main",
+                "inline",
+              );
+              return {
+                contentType: data.content.content_type,
+                filename: data.content.filename,
+                url: data.url,
+              };
             }}
-            previewError={
-              artifactPreviewError ??
-              (previewArtifact.error instanceof Error
-                ? previewArtifact.error
-                : null)
-            }
-            previewPending={previewArtifact.isPending}
-            previewUrl={artifactPreviewUrl}
+            onRefresh={refreshArtifacts}
+            onSelect={setSelectedArtifactId}
             selectedArtifact={selectedArtifact}
             selectedArtifactId={selectedArtifact?.artifact_id ?? ""}
           />
@@ -1751,24 +1732,20 @@ function ArtifactTools({
   artifacts,
   downloadHref,
   isLoading,
-  onPreview,
+  onLoadPreview,
   onRefresh,
   onSelect,
-  previewError,
-  previewPending,
-  previewUrl,
   selectedArtifact,
   selectedArtifactId,
 }: {
   artifacts: SessionArtifact[];
   downloadHref: (artifact: SessionArtifact, ref: string) => string;
   isLoading: boolean;
-  onPreview: (artifact: SessionArtifact) => void;
+  onLoadPreview: (
+    artifact: SessionArtifact,
+  ) => Promise<ArtifactPreviewDescriptor>;
   onRefresh: () => void;
   onSelect: (artifactId: string) => void;
-  previewError: Error | null;
-  previewPending: boolean;
-  previewUrl: string;
   selectedArtifact?: SessionArtifact;
   selectedArtifactId: string;
 }) {
@@ -1836,59 +1813,17 @@ function ArtifactTools({
       </section>
 
       {selectedArtifact && (
-        <section className="grid gap-2">
-          <div className="flex min-w-0 items-center justify-between gap-2">
-            <TruncatedText className="text-sm font-medium">
-              {artifactTitle(selectedArtifact)}
-            </TruncatedText>
-            <div className="flex shrink-0 items-center gap-1">
-              <Button
-                disabled={previewPending}
-                icon={
-                  previewPending ? (
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <FileText className="h-4 w-4" />
-                  )
-                }
-                onClick={() => onPreview(selectedArtifact)}
-                size="icon"
-                tooltip="Preview artifact"
-                type="button"
-                variant="ghost"
-              />
-              <Button
-                icon={<Download className="h-4 w-4" />}
-                onClick={() => {
-                  window.open(
-                    downloadHref(
-                      selectedArtifact,
-                      primaryArtifactContent(selectedArtifact)?.ref ?? "main",
-                    ),
-                    "_blank",
-                    "noreferrer",
-                  );
-                }}
-                size="icon"
-                tooltip="Download artifact"
-                type="button"
-                variant="ghost"
-              />
-            </div>
-          </div>
-          {previewError && <InlineError error={previewError} />}
-          {previewUrl ? (
-            <iframe
-              className="h-64 w-full rounded-lg border border-hairline bg-white"
-              src={previewUrl}
-              title="Artifact preview"
-            />
-          ) : (
-            <div className="rounded-lg border border-dashed border-hairline bg-canvas p-3 text-xs text-ink-tertiary">
-              Select Preview to load a signed view URL.
-            </div>
+        <ArtifactViewerShell
+          key={selectedArtifact.artifact_id}
+          artifact={artifactDocumentFromSessionArtifact(
+            selectedArtifact,
+            downloadHref(
+              selectedArtifact,
+              primaryArtifactContent(selectedArtifact)?.ref ?? "main",
+            ),
           )}
-        </section>
+          loadPreview={() => onLoadPreview(selectedArtifact)}
+        />
       )}
     </div>
   );

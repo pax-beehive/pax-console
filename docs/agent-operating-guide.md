@@ -422,7 +422,10 @@ reliable source: the frontend extracts `publication_id` from
 `parts[*].payload_json.publication_id` or `artifact-publication://...` URIs,
 renders one timeline card per publication id, polls
 `GET /artifact-publications/{publication_id}`, and only calls
-`/content/main` for preview/download handling.
+`/content/main` for preview/download handling. Available publications and
+legacy session artifacts both mount the shared ArtifactViewerShell; the shell
+owns Preview / Download / Open / fullscreen and delegates only its content
+region to the builtin document renderer registry.
 
 Runs of two or more contiguous thought/progress and tool-call events render as
 one collapsed work block, preserving their original order. A single thought or
@@ -515,6 +518,14 @@ src/components/resources/*
 src/components/sessions/*
   session workbench
 
+src/components/artifacts/*
+  Shared permission-safe document viewer for both timeline publications and
+  legacy session artifacts. Source adapters normalize both resources into one
+  ArtifactDocument; the builtin renderer registry resolves image, PDF, HTML,
+  Markdown, text, JSON, JSONL, CSV, or download fallback. Text renderers enforce
+  preview byte/line/record/table budgets, and HTML stays inside a sandboxed
+  iframe. Keep signed URL acquisition in the source-specific API adapter.
+
 src/components/collaboration/*
   Collaboration workspace pages. Teams (/collaboration/teams) and Friends
   (/collaboration/friends) are separate canonical routes; the teams page is
@@ -532,7 +543,7 @@ src/features/*
 
 Components should not know Cloudflare internals. Components may show errors, but auth/proxy behavior belongs in `features/api` or `app/api/pax`.
 
-Use `src/components/ui/button.tsx` for command buttons, `badge.tsx` for compact actionable status labels, `search-box.tsx` for search inputs, `dropdown-menu.tsx` for click-to-open menus (e.g. the topbar user/sign-out menu), and `text.tsx` for long IDs/names. Agent ids, node ids, session ids, API key prefixes, endpoint paths, and file paths should be truncated with tooltip access to the full value. Prefer `compactId` from `src/lib/format.ts` when an id should be recognizable but not visually dominant.
+Use `src/components/ui/button.tsx` for command buttons, `badge.tsx` for compact actionable status labels, `search-box.tsx` for search inputs, `dropdown-menu.tsx` for click-to-open menus (e.g. the topbar user/sign-out menu), and `text.tsx` for long IDs/names. Agent ids, node ids, session ids, API key prefixes, endpoint paths, and file paths should be truncated with tooltip access to the full value. Prefer `compactId` from `src/lib/format.ts` when an id should be recognizable but not visually dominant. Button uses Radix Slottable for `asChild`; link buttons must keep one slottable anchor while icons remain valid siblings.
 
 `Button asChild` may render an icon beside its delegated child because the
 primitive marks that child with Radix `Slottable`. Callers must still provide
