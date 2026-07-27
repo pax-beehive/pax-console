@@ -168,6 +168,15 @@ src/components/resources/
   Diagnostics 承载 Monitor。Inquiries 和 Conversations 属于 Home action/deep-link，
   不再伪装成系统设置。旧资源列表 URL 保留 redirect。
 
+src/components/artifacts/
+  timeline publication 与 Session Artifacts 侧栏共用的权限安全 document
+  viewer。Source adapter 先把 publication / session artifact 归一为
+  ArtifactDocument，builtin renderer registry 再按后端 preview_kind、
+  content_type、filename 后缀依次解析 image / pdf / html / markdown / text /
+  json / jsonl / csv / download。宿主 shell 统一负责 Preview、Download、Open、
+  fullscreen 和状态；文本 renderer 有 byte / line / record / table 预览预算，
+  HTML 只在 sandbox iframe 中展示。
+
 src/components/sessions/
   Session workbench。把 REST 历史消息和 WebSocket live events 合成时间线。
   Header 支持通过 node/agent-scoped session PATCH 内联修改名称。Manager 返回的
@@ -352,12 +361,17 @@ Artifact publications
   `artifact-publication://{publication_id}/main` 里恢复 publication id，随后轮询
   /artifact-publications/{publication_id}，并用
   /artifact-publications/{publication_id}/content/main 获取安全预览或下载地址。
-  前端以 publication id 作为卡片 key，不按 artifact id 去重。
+  前端以 publication id 作为卡片 key，不按 artifact id 去重。publication 卡片
+  和旧 Session artifact 工具都进入 src/components/artifacts 下的共享
+  ArtifactViewerShell；两种 source 只负责取得各自的受控短效 URL。
 
 Artifacts
   Session Artifacts 面板对所有 session 用户开放只读能力。列表走
   /sessions/{session_id}/artifacts，预览/下载走 artifact content endpoint 返回的
-  signed GET URL 或 redirect。Console 不再展示旧的浏览器 artifact 上传入口。
+  signed GET URL 或 redirect。普通文件预览由共享 builtin document renderer
+  registry 解析；Markdown/text/JSON/JSONL/CSV 只拉取有预算的只读预览，
+  image/PDF/HTML 直接消费 signed URL，其中 HTML 必须 sandbox。Console 不再
+  展示旧的浏览器 artifact 上传入口。
 ```
 
 这些 API 仍然走浏览器同源 `/api/pax` proxy；不要从组件直连
