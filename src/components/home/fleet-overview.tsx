@@ -1227,15 +1227,28 @@ function WorkItemRow({
 }) {
   if (item.kind === "session") {
     return (
-      <button
+      <Link
         className={cn(
           "grid min-w-0 gap-1 border-b border-hairline px-4 py-3 text-left transition hover:bg-surface-2",
           selected
             ? "bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)] hover:bg-accent/15"
             : "bg-surface-1",
         )}
-        onClick={onSelect}
-        type="button"
+        href={item.href}
+        onClick={(event) => {
+          if (
+            event.button !== 0 ||
+            event.metaKey ||
+            event.ctrlKey ||
+            event.shiftKey ||
+            event.altKey
+          ) {
+            return;
+          }
+
+          event.preventDefault();
+          onSelect();
+        }}
       >
         <TruncatedText className="text-sm font-medium text-ink">
           {item.title}
@@ -1243,7 +1256,7 @@ function WorkItemRow({
         <TruncatedText className="text-xs text-ink-tertiary">
           {item.context} · {relativeTime(item.createdAt)}
         </TruncatedText>
-      </button>
+      </Link>
     );
   }
 
