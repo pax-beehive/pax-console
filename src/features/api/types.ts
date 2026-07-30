@@ -321,7 +321,7 @@ export type AgentSession = {
   node_id: string;
   agent_id: string;
   agent_type?: string;
-  project_id?: string;
+  primary_project_id?: string;
   name?: string;
   reported_name?: string;
   name_is_custom?: boolean;
@@ -342,6 +342,54 @@ export type AgentSession = {
   last_active_at?: string;
   last_message_at?: string;
   last_user_message_at?: string;
+};
+
+export type Project = {
+  project_id: string;
+  owner_user_id: string;
+  display_name: string;
+  parent_project_id?: string;
+  archived_at?: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ProjectTarget = {
+  target_id: string;
+  project_id: string;
+  agent_id: string;
+  display_name: string;
+  cwd: string;
+  is_default: boolean;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CreateProjectInput = {
+  display_name: string;
+  parent_project_id?: string;
+};
+
+export type UpdateProjectInput = {
+  display_name?: string;
+  parent_project_id?: string;
+};
+
+export type CreateProjectTargetInput = {
+  agent_id: string;
+  display_name: string;
+  cwd: string;
+  is_default?: boolean;
+  enabled?: boolean;
+};
+
+export type UpdateProjectTargetInput = {
+  agent_id?: string;
+  display_name?: string;
+  cwd?: string;
+  is_default?: boolean;
+  enabled?: boolean;
 };
 
 export type Pagination = {
