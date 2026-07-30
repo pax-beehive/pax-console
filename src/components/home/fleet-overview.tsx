@@ -26,12 +26,12 @@ import {
   ChevronDown,
   FolderOpen,
   FolderPlus,
+  FolderTree,
   Inbox,
   ListFilter,
   LoaderCircle,
   Menu,
   MessageSquare,
-  MoreHorizontal,
   Paperclip,
   Plus,
   Radio,
@@ -42,6 +42,7 @@ import {
   X,
 } from "lucide-react";
 import { PaxdGettingStartedGuide } from "@/components/connect/paxd-getting-started";
+import { ProjectRail } from "@/components/home/project-rail";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import {
   type ComposerAttachment,
@@ -96,9 +97,7 @@ type WorkItemKind =
   | "invite"
   | "session"
   | "system";
-type HomeRailTab = "sessions" | "inbox";
-type InboxFilter = "all" | "inquiries" | "needs-action";
-type InboxOrder = "recent" | "priority";
+type HomeRailTab = "sessions" | "projects";
 type ComposerMode = "clean" | "comment-draft" | "summarize-note";
 type InquiryState = "draft-ready" | "needs-draft" | "needs-summary";
 
@@ -142,17 +141,6 @@ type EmbeddedSessionTarget = {
   sessionId: string;
 };
 
-const inboxFilters: Array<{ label: string; value: InboxFilter }> = [
-  { label: "All", value: "all" },
-  { label: "Inquiries", value: "inquiries" },
-  { label: "Needs action", value: "needs-action" },
-];
-
-const inboxOrders: Array<{ label: string; value: InboxOrder }> = [
-  { label: "Recent", value: "recent" },
-  { label: "Priority", value: "priority" },
-];
-
 const allSessionAgentsValue = "__all_session_agents__";
 const allSessionNodesValue = "__all_session_nodes__";
 const homeSessionPageSize = 20;
@@ -192,14 +180,11 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const [composerAttachmentUploadPending, setComposerAttachmentUploadPending] =
     useState(false);
   const [archivedWorkItemIds, setArchivedWorkItemIds] = useState<string[]>([]);
-  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const [homeRailTab, setHomeRailTab] = useState<HomeRailTab>("sessions");
-  const [inboxFilter, setInboxFilter] = useState<InboxFilter>("all");
-  const [inboxOrder, setInboxOrder] = useState<InboxOrder>("recent");
+  const [selectedProjectId, setSelectedProjectId] = useState("");
   const [mobileComposerOpen, setMobileComposerOpen] = useState(true);
   const [mobileRailOpen, setMobileRailOpen] = useState(false);
   const [contextClosed, setContextClosed] = useState(false);
-  const [orderMenuOpen, setOrderMenuOpen] = useState(false);
   const [sessionAgentFilter, setSessionAgentFilter] = useState(
     allSessionAgentsValue,
   );
@@ -356,22 +341,12 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   );
   const visibleWorkItems = useMemo(
     () =>
-      filterAndOrderWorkItems(
+      filterSessionWorkItems(
         activeWorkItems,
-        homeRailTab,
-        inboxFilter,
-        inboxOrder,
         effectiveSessionAgentFilter,
         effectiveSessionNodeFilter,
       ),
-    [
-      activeWorkItems,
-      effectiveSessionAgentFilter,
-      effectiveSessionNodeFilter,
-      homeRailTab,
-      inboxFilter,
-      inboxOrder,
-    ],
+    [activeWorkItems, effectiveSessionAgentFilter, effectiveSessionNodeFilter],
   );
   const sessionAgentFilterLabel =
     sessionAgentFilterOptions.find(
@@ -411,14 +386,11 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     Boolean(activeSessionTarget) &&
     activeSessionTarget?.sessionId !== "new" &&
     (!activeSessionTarget?.nodeId || !activeSessionTarget?.agentId);
-  const needsActionCount = activeWorkItems.filter(
-    (item) => item.kind !== "session",
-  ).length;
-  const railTitle = homeRailTab === "sessions" ? "Sessions" : "Inbox queue";
+  const railTitle = homeRailTab === "sessions" ? "Sessions" : "Projects";
   const railSubtitle =
     homeRailTab === "sessions"
       ? `Recent sessions · ${sessionAgentFilterLabel} · ${sessionNodeFilterLabel}`
-      : `${filterLabel(inboxFilter)} · ${orderLabel(inboxOrder)}`;
+      : "Logical workspaces and nested groups";
   const apiError =
     nodesQuery.error ??
     agentsQuery.error ??
@@ -435,8 +407,8 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     ? "Session"
     : mobileComposerOpen
       ? "New chat"
-      : homeRailTab === "inbox"
-        ? "Inbox"
+      : homeRailTab === "projects"
+        ? "Project"
         : "Composer";
 
   useEffect(() => {
@@ -518,6 +490,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     });
     clearHomeSessionUrl();
     setHomeRailTab("sessions");
+    setSelectedProjectId("");
     setMobileComposerOpen(false);
     setMobileRailOpen(false);
     setSelectedWorkItemId("");
@@ -581,6 +554,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     setEmbeddedSessionTarget(null);
     clearHomeSessionUrl();
     setHomeRailTab("sessions");
+    setSelectedProjectId("");
     setMobileComposerOpen(true);
     setMobileRailOpen(false);
     setSelectedWorkItemId("");
@@ -639,8 +613,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                   )}
                   onClick={() => {
                     setHomeRailTab("sessions");
-                    setFilterMenuOpen(false);
-                    setOrderMenuOpen(false);
+                    setSelectedProjectId("");
                     setSessionAgentMenuOpen(false);
                     setSessionNodeMenuOpen(false);
                     clearHomeSessionUrl();
@@ -656,12 +629,12 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 <button
                   className={cn(
                     "inline-flex min-h-8 min-w-0 items-center justify-center gap-2 rounded-sm px-2 text-xs font-medium transition",
-                    homeRailTab === "inbox"
+                    homeRailTab === "projects"
                       ? "bg-accent/15 text-accent-bright"
                       : "text-ink-tertiary hover:bg-surface-2 hover:text-ink-muted",
                   )}
                   onClick={() => {
-                    setHomeRailTab("inbox");
+                    setHomeRailTab("projects");
                     setSessionAgentMenuOpen(false);
                     setSessionNodeMenuOpen(false);
                     setEmbeddedSessionTarget(null);
@@ -672,20 +645,14 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                   }}
                   type="button"
                 >
-                  <Inbox className="h-4 w-4" />
-                  <span>Inbox</span>
-                  <Badge className="max-w-10">{needsActionCount}</Badge>
+                  <FolderTree className="h-4 w-4" />
+                  <span>Projects</span>
                 </button>
               </div>
               <div className="flex min-w-0 items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex min-w-0 items-center gap-2">
                     <div className="text-sm font-medium">{railTitle}</div>
-                    {homeRailTab === "inbox" && (
-                      <Badge className="max-w-24">
-                        {visibleWorkItems.length}
-                      </Badge>
-                    )}
                   </div>
                   <TruncatedText
                     className="mt-1 text-xs text-ink-tertiary"
@@ -754,88 +721,67 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                       </Button>
                     </>
                   )}
-                  {homeRailTab === "inbox" && (
-                    <InboxMenu
-                      icon={<ListFilter className="h-4 w-4" />}
-                      label="Filter by"
-                      onOpenChange={setFilterMenuOpen}
-                      open={filterMenuOpen}
-                      options={inboxFilters}
-                      selectedValue={inboxFilter}
-                      onSelect={(value) => {
-                        setInboxFilter(value as InboxFilter);
-                        setFilterMenuOpen(false);
-                        setSelectedWorkItemId("");
-                        setContextClosed(false);
-                        setComposerMode("clean");
-                      }}
-                    />
-                  )}
-                  {homeRailTab === "inbox" && (
-                    <InboxMenu
-                      icon={<MoreHorizontal className="h-4 w-4 rotate-90" />}
-                      label="Order by"
-                      onOpenChange={setOrderMenuOpen}
-                      open={orderMenuOpen}
-                      options={inboxOrders}
-                      selectedValue={inboxOrder}
-                      onSelect={(value) => {
-                        setInboxOrder(value as InboxOrder);
-                        setOrderMenuOpen(false);
-                        setSelectedWorkItemId("");
-                        setContextClosed(false);
-                        setComposerMode("clean");
-                      }}
-                    />
-                  )}
                 </div>
               </div>
             </div>
-            <div className="grid">
-              {visibleWorkItems.map((item) => (
-                <WorkItemRow
-                  item={item}
-                  key={item.id}
-                  onSelect={() => {
-                    setEmbeddedSessionTarget(null);
-                    if (item.kind === "session" && item.sessionId) {
-                      replaceHomeSessionUrl(item.sessionId);
-                    } else {
-                      clearHomeSessionUrl();
+            {homeRailTab === "projects" ? (
+              <ProjectRail
+                onSelectProject={(projectId) => {
+                  setSelectedProjectId(projectId);
+                  setEmbeddedSessionTarget(null);
+                  clearHomeSessionUrl();
+                  setSelectedWorkItemId("");
+                  setMobileComposerOpen(false);
+                  setMobileRailOpen(false);
+                  setContextClosed(false);
+                }}
+                selectedProjectId={selectedProjectId}
+                userId={user.user_id}
+              />
+            ) : (
+              <div className="grid">
+                {visibleWorkItems.map((item) => (
+                  <WorkItemRow
+                    item={item}
+                    key={item.id}
+                    onSelect={() => {
+                      setEmbeddedSessionTarget(null);
+                      if (item.kind === "session" && item.sessionId) {
+                        replaceHomeSessionUrl(item.sessionId);
+                      } else {
+                        clearHomeSessionUrl();
+                      }
+                      setSelectedWorkItemId(item.id);
+                      setMobileComposerOpen(false);
+                      setMobileRailOpen(false);
+                      setContextClosed(false);
+                      setComposerMode("clean");
+                    }}
+                    selected={
+                      item.id === selectedWorkItem?.id ||
+                      (item.kind === "session" &&
+                        item.sessionId === activeSessionTarget?.sessionId)
                     }
-                    setSelectedWorkItemId(item.id);
-                    setMobileComposerOpen(false);
-                    setMobileRailOpen(false);
-                    setContextClosed(false);
-                    setComposerMode("clean");
-                  }}
-                  selected={
-                    item.id === selectedWorkItem?.id ||
-                    (item.kind === "session" &&
-                      item.sessionId === activeSessionTarget?.sessionId)
-                  }
-                />
-              ))}
-              {homeRailTab === "sessions" &&
-                sessionsQuery.isFetchingNextPage && (
+                  />
+                ))}
+                {sessionsQuery.isFetchingNextPage && (
                   <div className="border-b border-hairline px-4 py-3 text-sm text-ink-tertiary">
                     Loading more sessions...
                   </div>
                 )}
-              {visibleWorkItems.length === 0 && (
-                <div className="p-4 text-sm text-ink-tertiary">
-                  {homeRailTab === "sessions" && sessionsQuery.isLoading
-                    ? "Loading sessions..."
-                    : homeRailTab === "sessions" &&
-                        fleetSetupGuideKind === "node"
-                      ? "No nodes yet. Use the setup guide on the right."
-                      : homeRailTab === "sessions" &&
-                          fleetSetupGuideKind === "agent"
-                        ? "No agents yet. Create the first paxd connection with the guide on the right."
-                        : "No items match this view."}
-                </div>
-              )}
-            </div>
+                {visibleWorkItems.length === 0 && (
+                  <div className="p-4 text-sm text-ink-tertiary">
+                    {sessionsQuery.isLoading
+                      ? "Loading sessions..."
+                      : fleetSetupGuideKind === "node"
+                        ? "No nodes yet. Use the setup guide on the right."
+                        : fleetSetupGuideKind === "agent"
+                          ? "No agents yet. Create the first paxd connection with the guide on the right."
+                          : "No items match this view."}
+                  </div>
+                )}
+              </div>
+            )}
           </section>
 
           <section
@@ -2209,57 +2155,22 @@ function buildNodeDisplayLabels(nodes: Node[]) {
   );
 }
 
-function filterAndOrderWorkItems(
+function filterSessionWorkItems(
   items: WorkItem[],
-  tab: HomeRailTab,
-  filter: InboxFilter,
-  order: InboxOrder,
   sessionAgentFilter: string,
   sessionNodeFilter: string,
 ) {
-  if (tab === "sessions") {
-    return byRecent(
-      items.filter(
-        (item) =>
-          item.kind === "session" &&
-          (sessionAgentFilter === allSessionAgentsValue ||
-            item.agentId === sessionAgentFilter) &&
-          (sessionNodeFilter === allSessionNodesValue ||
-            item.nodeId === sessionNodeFilter),
-      ),
-      (item) => item.createdAt,
-    );
-  }
-
-  const filtered = items.filter((item) => {
-    if (filter === "inquiries") {
-      return item.kind === "inquiry";
-    }
-
-    if (filter === "needs-action") {
-      return item.kind !== "session";
-    }
-
-    return item.kind !== "session";
-  });
-
-  return orderWorkItems(filtered, order);
-}
-
-function orderWorkItems(items: WorkItem[], order: InboxOrder) {
-  if (order === "priority") {
-    return [...items].sort((left, right) => {
-      const priorityDelta =
-        priorityRank(right.priority) - priorityRank(left.priority);
-      if (priorityDelta !== 0) {
-        return priorityDelta;
-      }
-
-      return timeValue(right.createdAt) - timeValue(left.createdAt);
-    });
-  }
-
-  return byRecent(items, (item) => item.createdAt);
+  return byRecent(
+    items.filter(
+      (item) =>
+        item.kind === "session" &&
+        (sessionAgentFilter === allSessionAgentsValue ||
+          item.agentId === sessionAgentFilter) &&
+        (sessionNodeFilter === allSessionNodesValue ||
+          item.nodeId === sessionNodeFilter),
+    ),
+    (item) => item.createdAt,
+  );
 }
 
 function removeArchivedWorkItems(items: WorkItem[], archivedIds: string[]) {
@@ -2269,29 +2180,6 @@ function removeArchivedWorkItems(items: WorkItem[], archivedIds: string[]) {
 
   const archived = new Set(archivedIds);
   return items.filter((item) => !archived.has(item.id));
-}
-
-function filterLabel(filter: InboxFilter) {
-  return (
-    inboxFilters.find((option) => option.value === filter)?.label ?? filter
-  );
-}
-
-function orderLabel(order: InboxOrder) {
-  const label = inboxOrders.find((option) => option.value === order)?.label;
-  return `Order: ${label ?? order}`;
-}
-
-function priorityRank(priority: WorkItem["priority"]) {
-  if (priority === "high") {
-    return 3;
-  }
-
-  if (priority === "medium") {
-    return 2;
-  }
-
-  return 1;
 }
 
 function sortOnlineFirst<T>(

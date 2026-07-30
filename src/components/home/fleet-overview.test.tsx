@@ -34,6 +34,7 @@ const mocks = vi.hoisted(() => ({
   useApprovals: vi.fn(),
   useEnvelopes: vi.fn(),
   useNodes: vi.fn(),
+  useProjects: vi.fn(),
   useTeamInvites: vi.fn(),
 }));
 
@@ -105,6 +106,7 @@ vi.mock("@/features/api/resources", async (importOriginal) => {
     useApprovals: mocks.useApprovals,
     useEnvelopes: mocks.useEnvelopes,
     useNodes: mocks.useNodes,
+    useProjects: mocks.useProjects,
     useTeamInvites: mocks.useTeamInvites,
   };
 });
@@ -166,6 +168,21 @@ beforeEach(() => {
     error: null,
     isLoading: false,
   });
+  mocks.useProjects.mockReturnValue({
+    data: {
+      projects: [
+        {
+          created_at: "2026-07-20T12:00:00.000Z",
+          display_name: "Pax",
+          owner_user_id: "user_1",
+          project_id: "project_1",
+          updated_at: "2026-07-20T12:00:00.000Z",
+        },
+      ],
+    },
+    error: null,
+    isLoading: false,
+  });
   mocks.useApprovals.mockReturnValue(emptyQueryData("approvals"));
   mocks.useEnvelopes.mockReturnValue(emptyQueryData("envelopes"));
   mocks.useTeamInvites.mockReturnValue(emptyQueryData("invites"));
@@ -174,6 +191,30 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("FleetOverview session rail", () => {
+  it("replaces Inbox with a Projects rail", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <FleetOverview user={{ user_id: "user_1" } as User} />
+        </TooltipProvider>
+      </QueryClientProvider>,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Inbox" }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Projects" }));
+
+    expect(
+      screen.getByText("Logical workspaces and nested groups"),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Pax" })).toBeVisible();
+  });
+
   it("keeps Home mounted and opens a selected session in the embedded workbench", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
