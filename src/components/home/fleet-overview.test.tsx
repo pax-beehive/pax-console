@@ -187,7 +187,7 @@ describe("FleetOverview session rail", () => {
       </QueryClientProvider>,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: /Session one/ }));
+    fireEvent.click(await screen.findByRole("link", { name: /Session one/ }));
 
     const workbench = await screen.findByTestId("session-workbench");
     expect(workbench).toHaveTextContent("sess_1");
@@ -198,6 +198,39 @@ describe("FleetOverview session rail", () => {
     expect(window.location.pathname).toBe("/");
     expect(window.location.search).toBe("?sessionId=sess_1");
     await waitFor(() => expect(mocks.routerPush).not.toHaveBeenCalled());
+  });
+
+  it("leaves command-click navigation to the canonical session link", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <FleetOverview user={{ user_id: "user_1" } as User} />
+        </TooltipProvider>
+      </QueryClientProvider>,
+    );
+
+    const sessionLink = await screen.findByRole("link", {
+      name: /Session one/,
+    });
+
+    expect(sessionLink).toHaveAttribute("href", "/sessions/sess_1");
+    let componentPreventedNavigation = true;
+    const preventJsdomNavigation = (event: MouseEvent) => {
+      componentPreventedNavigation = event.defaultPrevented;
+      event.preventDefault();
+    };
+    document.addEventListener("click", preventJsdomNavigation);
+    fireEvent.click(sessionLink, { metaKey: true });
+    document.removeEventListener("click", preventJsdomNavigation);
+
+    expect(componentPreventedNavigation).toBe(false);
+    expect(screen.queryByTestId("session-workbench")).not.toBeInTheDocument();
+    expect(window.location.pathname).toBe("/");
+    expect(window.location.search).toBe("");
   });
 
   it("starts a new chat inside Home without navigating to the session route", async () => {
