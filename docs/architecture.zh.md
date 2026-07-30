@@ -136,17 +136,20 @@ src/components/collaboration/
   的 useTeamInvalidation / useFriendInvalidation。
 
 src/components/home/
-  Home 工作台。左侧提供 Sessions / Projects 两个 tab；Sessions tab 聚合所有
-  可见 agent 的 sessions，支持分别按 agent 和 node 过滤；正常选择 session
+  Home 工作台。左侧是统一的 Project / Session 树：Project 下嵌套其
+  primary sessions，未绑定 Project 的 session 放在 Recents；session 仍支持
+  分别按 agent 和 node 过滤。正常选择 session
   会保持 Home 挂载并通过 `/?sessionId=...` 在右侧打开 embedded workbench，
   独立 `/sessions/{session_id}` 继续作为外部客户端和分享链接的 canonical
-  deep link。Projects tab 展示 owner-scoped 的可嵌套 Project tree，支持创建、
-  改名、调整父级和归档；选中 Project 后，右侧展示 reusable workspace Targets
-  与该 Project 的最近 Sessions。Target 绑定 Agent 和 cwd intent，支持同一
+  deep link。Project 创建、改名、调整父级、归档以及 Target CRUD 都位于
+  Settings / Projects；Home 只负责选中 Project 和开始工作。Target 绑定 Agent
+  和 cwd intent，支持同一
   Project/Agent 下多个不同 cwd、编辑、启用/禁用和唯一 enabled default。
   启动时若只有一个 enabled Target 则自动选择；有多个时要求用户显式选择，
-  再调用 Target session endpoint，后端把 Agent、cwd 和
-  `primary_project_id` 固化到 Session。`primary_project_id` 只表达单一的主要
+  然后由普通 composer 调用 Conversation endpoint，并在创建请求中携带
+  `primary_project_id` / `project_target_id`。后端先创建 native ACP session，
+  成功后才把 Agent、cwd 和 `primary_project_id` 固化到 PAX Session。
+  `primary_project_id` 只表达单一的主要
   启动上下文；未来 secretary agent 给一个 Session 标多个 Project 应使用独立
   多对多 label/association，不复用这个字段。admin 可在右上角用户菜单启用
   `Preview as user`，临时隐藏所有 admin-only 实验入口，以检查公开版本。
@@ -290,13 +293,13 @@ Sidebar 折叠
   ConsoleLayout 使用 flex；Sidebar 自己用 width: 248/76px 控制展开/收起，并带 overflow-hidden。
   Console shell 固定在动态视口内并持有页面级 overflow；内部 pane 必须用 flex
   可用高度，不要再用 100vh 或 min-h-screen 撑开根页面，滚动只留在对应 pane 内。
-  手机宽度隐藏 Sidebar，保留 Topbar；Home 默认显示 clean composer，并用左侧抽屉承载 Sessions / Inbox rail。
+  手机宽度隐藏 Sidebar，保留 Topbar；Home 默认显示 clean composer，并用左侧抽屉承载 Project / Session rail。
   Sidebar 自身使用安静的 surface 和 compact nav rows，不保留固定的 Current node 区块。
   Sidebar 一级入口保持粗粒度：顶部只有 Home 和 Collaboration；
   其余入口收进钉在侧栏底部的 Settings 展开组。
   Collaboration / Settings 是彼此独立的 disclosure，不是 accordion；多个组可以同时保持展开。
-  Settings 展开时在 Sidebar 二级导航承载 Nodes、Agents、Inquiries、Conversations、
-  Approvals、Monitor、API Keys、Node Registration。
+  Settings 展开时在 Sidebar 二级导航承载 Projects、Devices、Security、
+  Developer 和 Diagnostics。
   Collaboration 展开时在 Sidebar 二级导航承载 Teams、Friends、Envelopes、Knowledge。
   Team invites 属于 Teams 页面里的 team action queue，不作为 Collaboration 并列二级入口。
   不要把这些全局二级 tabs 放进具体页面 header 或页面组件内部。
@@ -408,7 +411,7 @@ AuthGate
   -> listUserSessions(user.user_id, page_size=20, page_num=1, optional comma-separated agent_id/node_id)
   -> scroll left rail to fetch the next session page
   -> support agent and node filtering, render embedded SessionWorkbench when selected
-  -> on mobile, default to the clean composer and open Sessions/Inbox as a left drawer
+  -> on mobile, default to the clean composer and open Project/Session rail as a left drawer
   -> useApprovals(user.user_id)
   -> useEnvelopes(user.user_id, direction=received, status=pending)
   -> useTeamInvites(user.user_id)

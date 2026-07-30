@@ -281,14 +281,15 @@ PAX Console
 
 The sidebar keeps only Home and Collaboration as top-level entries; everything
 else lives in one Settings disclosure group pinned to the bottom of the
-sidebar. Home owns the user-facing Sessions and Projects tabs plus the embedded
-session workbench; do not add Sessions or Projects as separate first-level
-sidebar items.
+sidebar. Home owns one unified Projects / Recents session rail plus the
+embedded session workbench; do not add Sessions or Projects as separate
+first-level sidebar items.
 First-level groups are independent disclosures, not an accordion. Settings
-aggregates Devices (nodes/agents), Security (approval grants), Developer
-(API keys/node registration), and Diagnostics. Collaboration owns teams,
-friends, envelopes, and knowledge as secondary tabs; team invites stay inside
-the Teams surface as a team action queue. Legacy deep links such as `/nodes`,
+aggregates Projects (project/target CRUD), Devices (nodes/agents), Security
+(approval grants), Developer (API keys/node registration), and Diagnostics.
+Collaboration owns teams, friends, envelopes, and knowledge as secondary tabs;
+team invites stay inside the Teams surface as a team action queue. Legacy deep
+links such as `/nodes`,
 `/sessions`, `/approvals`, `/friends`, and `/knowledge` remain valid through
 redirects.
 
@@ -451,14 +452,15 @@ POST  /api/v1/user/{user_id}/projects/{project_id}/targets
 GET   /api/v1/user/{user_id}/projects/{project_id}/targets
 GET   /api/v1/user/{user_id}/projects/{project_id}/targets/{target_id}
 PATCH /api/v1/user/{user_id}/projects/{project_id}/targets/{target_id}
-POST  /api/v1/user/{user_id}/projects/{project_id}/targets/{target_id}/sessions
 
 Projects are logical, owner-scoped work groups and may be nested. Targets are
-reusable launch settings containing an Agent and cwd intent. The Manager stores
-the path exactly as intent; paxd expands `~` and validates it on the Agent
-machine. Projectless Sessions remain valid. A Target-based launch writes the
-optional immutable `primary_project_id`; this is a single primary context, not
-a future multi-Project label model.
+reusable launch settings containing an Agent and cwd intent. Project and Target
+CRUD lives in Settings. Starting from a Project still uses the normal
+Conversation endpoint; its creation-only request adds `primary_project_id` and
+`project_target_id`. Manager resolves the Target, creates the native ACP
+session, and only then persists the PAX Session with immutable
+`primary_project_id`. Projectless Sessions remain valid; the primary context is
+not a future multi-Project label model.
 
 WebSocket
 GET /api/v1/user/self/agents/{agent_id}/tunnel

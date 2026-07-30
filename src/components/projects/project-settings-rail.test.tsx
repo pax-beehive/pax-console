@@ -16,7 +16,7 @@ import {
 } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { Project } from "@/features/api/types";
-import { ProjectRail } from "./project-rail";
+import { ProjectSettingsRail } from "./project-settings-rail";
 
 const mocks = vi.hoisted(() => ({
   archiveProject: vi.fn(),
@@ -191,7 +191,7 @@ function renderRail(onSelectProject: (projectId: string) => void) {
   return render(
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <ProjectRail
+        <ProjectSettingsRail
           onSelectProject={onSelectProject}
           selectedProjectId="project_1"
           userId="user_1"

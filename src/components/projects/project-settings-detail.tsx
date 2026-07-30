@@ -2,15 +2,13 @@
 
 import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   CheckCircle2,
   CircleOff,
   FolderPlus,
-  History,
   Laptop,
   Pencil,
-  Play,
   Power,
   Star,
 } from "lucide-react";
@@ -20,27 +18,17 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { InlineError } from "@/components/ui/inline-error";
 import {
   createProjectTarget,
-  createProjectTargetSession,
-  listUserSessions,
   updateProjectTarget,
   useProject,
   useProjects,
   useProjectTargets,
 } from "@/features/api/resources";
 import { queryKeys } from "@/features/api/query-keys";
-import type {
-  Agent,
-  AgentSession,
-  Node,
-  Project,
-  ProjectTarget,
-} from "@/features/api/types";
-import { compactDateTime } from "@/lib/format";
+import type { Agent, Node, Project, ProjectTarget } from "@/features/api/types";
 
-type ProjectDetailProps = {
+type ProjectSettingsDetailProps = {
   agents: Agent[];
   nodes: Node[];
-  onOpenSession: (session: AgentSession) => void;
   projectId: string;
   userId: string;
 };
@@ -49,40 +37,19 @@ type TargetEditorState =
   | { mode: "create"; target?: undefined }
   | { mode: "edit"; target: ProjectTarget };
 
-export function ProjectDetail({
+export function ProjectSettingsDetail({
   agents,
   nodes,
-  onOpenSession,
   projectId,
   userId,
-}: ProjectDetailProps) {
+}: ProjectSettingsDetailProps) {
   const queryClient = useQueryClient();
   const projectQuery = useProject(userId, projectId);
   const projectsQuery = useProjects(userId);
   const targetsQuery = useProjectTargets(userId, projectId);
-  const sessionsQuery = useQuery({
-    queryKey: queryKeys.userSessions(userId, {
-      pageSize: 10,
-      primaryProjectId: projectId,
-    }),
-    queryFn: () =>
-      listUserSessions(userId, {
-        pageSize: 10,
-        primaryProjectId: projectId,
-      }),
-  });
   const [editor, setEditor] = useState<TargetEditorState | null>(null);
-  const [sessionName, setSessionName] = useState("");
-  const [selectedTargetId, setSelectedTargetId] = useState("");
   const project = projectQuery.data?.project;
   const targets = targetsQuery.data?.targets ?? [];
-  const enabledTargets = targets.filter((target) => target.enabled);
-  const effectiveTargetId =
-    enabledTargets.length === 1
-      ? enabledTargets[0].target_id
-      : enabledTargets.some((target) => target.target_id === selectedTargetId)
-        ? selectedTargetId
-        : "";
   const path = useMemo(
     () =>
       project ? projectPath(project, projectsQuery.data?.projects ?? []) : [],
@@ -105,35 +72,27 @@ export function ProjectDetail({
     }) => updateProjectTarget(userId, projectId, targetId, input),
     onSuccess: invalidateTargets,
   });
-  const launch = useMutation({
-    mutationFn: () =>
-      createProjectTargetSession(
-        userId,
-        projectId,
-        effectiveTargetId,
-        sessionName.trim() || undefined,
-      ),
-    onSuccess: (session) => {
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.userSessionsRoot(userId),
-      });
-      onOpenSession(session);
-    },
-  });
-
   if (projectQuery.isLoading) {
-    return <ProjectDetailFrame body={<EmptyState label="Loading project" />} />;
+    return (
+      <ProjectSettingsDetailFrame
+        body={<EmptyState label="Loading project" />}
+      />
+    );
   }
 
   if (projectQuery.error) {
     return (
-      <ProjectDetailFrame body={<InlineError error={projectQuery.error} />} />
+      <ProjectSettingsDetailFrame
+        body={<InlineError error={projectQuery.error} />}
+      />
     );
   }
 
   if (!project) {
     return (
-      <ProjectDetailFrame body={<EmptyState label="Project not found" />} />
+      <ProjectSettingsDetailFrame
+        body={<EmptyState label="Project not found" />}
+      />
     );
   }
 
@@ -150,59 +109,11 @@ export function ProjectDetail({
           <div className="mt-2 text-sm text-ink-tertiary">
             {path.map((item) => item.display_name).join(" / ")}
           </div>
-          <div className="mt-5 grid gap-3 border-t border-hairline pt-4 md:grid-cols-[minmax(0,1fr)_minmax(220px,0.8fr)_auto] md:items-end">
-            <label className="grid gap-1 text-xs text-ink-tertiary">
-              Session name
-              <input
-                aria-label="Session name"
-                className="min-h-9 rounded-md border border-hairline bg-canvas px-2.5 text-sm text-ink outline-none focus:border-primary-focus"
-                onChange={(event) => setSessionName(event.target.value)}
-                placeholder="Optional"
-                value={sessionName}
-              />
-            </label>
-            {enabledTargets.length === 1 ? (
-              <div className="flex min-h-9 items-center rounded-md border border-hairline bg-canvas px-2.5 text-sm text-ink-muted">
-                Using {enabledTargets[0].display_name}
-              </div>
-            ) : (
-              <label className="grid gap-1 text-xs text-ink-tertiary">
-                Workspace target
-                <select
-                  aria-label="Session target"
-                  className="min-h-9 rounded-md border border-hairline bg-canvas px-2.5 text-sm text-ink outline-none focus:border-primary-focus"
-                  disabled={enabledTargets.length === 0}
-                  onChange={(event) => setSelectedTargetId(event.target.value)}
-                  value={effectiveTargetId}
-                >
-                  <option value="">
-                    {enabledTargets.length === 0
-                      ? "No enabled targets"
-                      : "Select a target"}
-                  </option>
-                  {enabledTargets.map((target) => (
-                    <option key={target.target_id} value={target.target_id}>
-                      {target.display_name} · {target.cwd}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            <Button
-              disabled={!effectiveTargetId || launch.isPending}
-              icon={<Play className="h-4 w-4" />}
-              onClick={() => launch.mutate()}
-              type="button"
-              variant="primary"
-            >
-              Start session
-            </Button>
-          </div>
-          {launch.error && (
-            <div className="mt-3">
-              <InlineError error={launch.error} />
-            </div>
-          )}
+          <p className="mt-4 max-w-2xl border-t border-hairline pt-4 text-sm leading-6 text-ink-muted">
+            Configure reusable agent and workspace combinations here. Start
+            project sessions from Home, where they use the normal conversation
+            flow.
+          </p>
         </header>
 
         <section className="rounded-xl border border-hairline bg-surface-1">
@@ -352,60 +263,12 @@ export function ProjectDetail({
             </div>
           )}
         </section>
-
-        <section className="rounded-xl border border-hairline bg-surface-1">
-          <div className="flex items-center gap-2 border-b border-hairline p-4">
-            <History className="h-4 w-4 text-ink-tertiary" />
-            <h2 className="font-medium text-ink">Recent sessions</h2>
-          </div>
-          {sessionsQuery.error ? (
-            <div className="p-4">
-              <InlineError error={sessionsQuery.error} />
-            </div>
-          ) : sessionsQuery.isLoading ? (
-            <div className="p-4">
-              <EmptyState label="Loading recent sessions" />
-            </div>
-          ) : !sessionsQuery.data?.sessions.length ? (
-            <div className="p-4">
-              <EmptyState label="No sessions for this project yet" />
-            </div>
-          ) : (
-            <div className="divide-y divide-hairline">
-              {sessionsQuery.data.sessions.map((session) => (
-                <button
-                  aria-label={`Open session ${sessionDisplayName(session)}`}
-                  className="flex w-full items-center justify-between gap-4 p-4 text-left transition hover:bg-surface-2"
-                  key={session.session_id}
-                  onClick={() => onOpenSession(session)}
-                  type="button"
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium text-ink">
-                      {sessionDisplayName(session)}
-                    </span>
-                    <span className="mt-1 block truncate text-xs text-ink-tertiary">
-                      {agentLabel(
-                        agents.find(
-                          (agent) => agent.agent_id === session.agent_id,
-                        ),
-                        session.agent_id,
-                      )}{" "}
-                      · {compactDateTime(sessionTimestamp(session))}
-                    </span>
-                  </span>
-                  <Play className="h-4 w-4 shrink-0 text-ink-tertiary" />
-                </button>
-              ))}
-            </div>
-          )}
-        </section>
       </div>
     </div>
   );
 }
 
-function ProjectDetailFrame({ body }: { body: React.ReactNode }) {
+function ProjectSettingsDetailFrame({ body }: { body: React.ReactNode }) {
   return (
     <div className="min-h-0 flex-1 overflow-auto p-5">
       <div className="mx-auto w-full max-w-5xl">{body}</div>
@@ -566,17 +429,4 @@ function agentLabel(agent: Agent | undefined, fallback: string) {
 
 function nodeLabel(node: Node | undefined) {
   return node?.name ?? node?.hostname ?? "Unknown node";
-}
-
-function sessionDisplayName(session: AgentSession) {
-  return session.name ?? session.current_task ?? session.session_id;
-}
-
-function sessionTimestamp(session: AgentSession) {
-  return (
-    session.last_user_message_at ??
-    session.last_message_at ??
-    session.updated_at ??
-    session.last_active_at
-  );
 }

@@ -24,9 +24,10 @@ import {
   ArrowUp,
   Bot,
   ChevronDown,
+  ChevronRight,
+  Folder,
   FolderOpen,
   FolderPlus,
-  FolderTree,
   Inbox,
   ListFilter,
   LoaderCircle,
@@ -42,8 +43,6 @@ import {
   X,
 } from "lucide-react";
 import { PaxdGettingStartedGuide } from "@/components/connect/paxd-getting-started";
-import { ProjectDetail } from "@/components/home/project-detail";
-import { ProjectRail } from "@/components/home/project-rail";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import {
   type ComposerAttachment,
@@ -68,6 +67,8 @@ import {
   useApprovals,
   useEnvelopes,
   useNodes,
+  useProjects,
+  useProjectTargets,
   useTeamInvites,
 } from "@/features/api/resources";
 import { queryKeys } from "@/features/api/query-keys";
@@ -77,6 +78,8 @@ import {
   AgentSession,
   Envelope,
   Node,
+  Project,
+  ProjectTarget,
   SessionApprovalMode,
   TeamInvite,
   User,
@@ -98,7 +101,6 @@ type WorkItemKind =
   | "invite"
   | "session"
   | "system";
-type HomeRailTab = "sessions" | "projects";
 type ComposerMode = "clean" | "comment-draft" | "summarize-note";
 type InquiryState = "draft-ready" | "needs-draft" | "needs-summary";
 
@@ -122,6 +124,7 @@ type WorkItem = {
   inquiryState?: InquiryState;
   kind: WorkItemKind;
   nodeId?: string;
+  primaryProjectId?: string;
   ownerAlias?: string;
   priority: "high" | "medium" | "low";
   question?: string;
@@ -139,6 +142,8 @@ type EmbeddedSessionTarget = {
   initialPrompt?: string;
   key: string;
   nodeId?: string;
+  primaryProjectId?: string;
+  projectTargetId?: string;
   sessionId: string;
 };
 
@@ -181,8 +186,8 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const [composerAttachmentUploadPending, setComposerAttachmentUploadPending] =
     useState(false);
   const [archivedWorkItemIds, setArchivedWorkItemIds] = useState<string[]>([]);
-  const [homeRailTab, setHomeRailTab] = useState<HomeRailTab>("sessions");
   const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [selectedProjectTargetId, setSelectedProjectTargetId] = useState("");
   const [mobileComposerOpen, setMobileComposerOpen] = useState(true);
   const [mobileRailOpen, setMobileRailOpen] = useState(false);
   const [contextClosed, setContextClosed] = useState(false);
@@ -296,10 +301,53 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     !nodesQuery.isLoading &&
     !agentsQuery.isLoading &&
     (nodes.length === 0 || agents.length === 0);
+  const projectsQuery = useProjects(user.user_id);
+  const projects = useMemo(
+    () => projectsQuery.data?.projects ?? [],
+    [projectsQuery.data?.projects],
+  );
+  const selectedProject = projects.find(
+    (project) => project.project_id === selectedProjectId,
+  );
+  const selectedProjectPath = useMemo(
+    () =>
+      selectedProject
+        ? projectPath(selectedProject, projects)
+        : ([] as Project[]),
+    [projects, selectedProject],
+  );
+  const projectTargetsQuery = useProjectTargets(
+    user.user_id,
+    selectedProjectId,
+  );
+  const enabledProjectTargets = useMemo(
+    () =>
+      (projectTargetsQuery.data?.targets ?? []).filter(
+        (target) => target.enabled,
+      ),
+    [projectTargetsQuery.data?.targets],
+  );
+  const effectiveProjectTargetId =
+    enabledProjectTargets.length === 1
+      ? enabledProjectTargets[0].target_id
+      : enabledProjectTargets.some(
+            (target) => target.target_id === selectedProjectTargetId,
+          )
+        ? selectedProjectTargetId
+        : "";
+  const activeProjectTarget = enabledProjectTargets.find(
+    (target) => target.target_id === effectiveProjectTargetId,
+  );
   const activeAgent =
     agents.find((agent) => agent.agent_id === selectedAgentId) ?? agents[0];
-  const normalizedNewSessionCwd = newSessionCwd.trim();
+  const composerAgent = selectedProjectId
+    ? agents.find((agent) => agent.agent_id === activeProjectTarget?.agent_id)
+    : activeAgent;
+  const normalizedNewSessionCwd = selectedProjectId
+    ? (activeProjectTarget?.cwd ?? "")
+    : newSessionCwd.trim();
   const newSessionCwdInvalid =
+    !selectedProjectId &&
     normalizedNewSessionCwd.length > 0 &&
     !isSupportedSessionWorkspace(normalizedNewSessionCwd);
 
@@ -387,14 +435,12 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     Boolean(activeSessionTarget) &&
     activeSessionTarget?.sessionId !== "new" &&
     (!activeSessionTarget?.nodeId || !activeSessionTarget?.agentId);
-  const railTitle = homeRailTab === "sessions" ? "Sessions" : "Projects";
-  const railSubtitle =
-    homeRailTab === "sessions"
-      ? `Recent sessions · ${sessionAgentFilterLabel} · ${sessionNodeFilterLabel}`
-      : "Logical workspaces and nested groups";
+  const railSubtitle = `${sessionAgentFilterLabel} · ${sessionNodeFilterLabel}`;
   const apiError =
     nodesQuery.error ??
     agentsQuery.error ??
+    projectsQuery.error ??
+    projectTargetsQuery.error ??
     sessionsQuery.error ??
     approvalsQuery.error ??
     envelopesQuery.error ??
@@ -410,7 +456,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     ? "Session"
     : mobileComposerOpen
       ? "New chat"
-      : homeRailTab === "projects"
+      : selectedProjectId
         ? "Project"
         : "Composer";
 
@@ -435,7 +481,6 @@ export function FleetOverview({ user }: FleetOverviewProps) {
 
   function handleRailScroll(event: UIEvent<HTMLElement>) {
     if (
-      homeRailTab !== "sessions" ||
       !sessionsQuery.hasNextPage ||
       sessionsQuery.isFetchingNextPage ||
       sessionsQuery.isLoading
@@ -471,8 +516,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     }
 
     if (
-      !activeAgent?.agent_id ||
-      !activeAgent.node_id ||
+      !composerAgent?.agent_id ||
+      !composerAgent.node_id ||
+      (selectedProjectId && !activeProjectTarget) ||
       newSessionCwdInvalid ||
       composerAttachmentUploadPending
     ) {
@@ -482,18 +528,18 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     const nonce = Date.now();
     const initialPrompt = draft.trim();
     setEmbeddedSessionTarget({
-      agentId: activeAgent.agent_id,
+      agentId: composerAgent.agent_id,
       initialApprovalMode: newSessionApprovalMode,
       initialAttachments: composerAttachments,
       initialCwd: normalizedNewSessionCwd || undefined,
       initialPrompt: initialPrompt || undefined,
       key: `new:${nonce}`,
-      nodeId: activeAgent.node_id,
+      nodeId: composerAgent.node_id,
+      primaryProjectId: selectedProjectId || undefined,
+      projectTargetId: activeProjectTarget?.target_id,
       sessionId: "new",
     });
     clearHomeSessionUrl();
-    setHomeRailTab("sessions");
-    setSelectedProjectId("");
     setMobileComposerOpen(false);
     setMobileRailOpen(false);
     setSelectedWorkItemId("");
@@ -556,8 +602,8 @@ export function FleetOverview({ user }: FleetOverviewProps) {
 
     setEmbeddedSessionTarget(null);
     clearHomeSessionUrl();
-    setHomeRailTab("sessions");
     setSelectedProjectId("");
+    setSelectedProjectTargetId("");
     setMobileComposerOpen(true);
     setMobileRailOpen(false);
     setSelectedWorkItemId("");
@@ -606,57 +652,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
             onScroll={handleRailScroll}
           >
             <div className="sticky top-0 z-10 border-b border-hairline bg-surface-1 px-4 py-3">
-              <div className="mb-3 grid grid-cols-2 gap-1 rounded-md border border-hairline bg-canvas p-1">
-                <button
-                  className={cn(
-                    "inline-flex min-h-8 min-w-0 items-center justify-center gap-2 rounded-sm px-2 text-xs font-medium transition",
-                    homeRailTab === "sessions"
-                      ? "bg-accent/15 text-accent-bright"
-                      : "text-ink-tertiary hover:bg-surface-2 hover:text-ink-muted",
-                  )}
-                  onClick={() => {
-                    setHomeRailTab("sessions");
-                    setSelectedProjectId("");
-                    setSessionAgentMenuOpen(false);
-                    setSessionNodeMenuOpen(false);
-                    clearHomeSessionUrl();
-                    setSelectedWorkItemId("");
-                    setContextClosed(false);
-                    setComposerMode("clean");
-                  }}
-                  type="button"
-                >
-                  <TerminalSquare className="h-4 w-4" />
-                  <span>Sessions</span>
-                </button>
-                <button
-                  className={cn(
-                    "inline-flex min-h-8 min-w-0 items-center justify-center gap-2 rounded-sm px-2 text-xs font-medium transition",
-                    homeRailTab === "projects"
-                      ? "bg-accent/15 text-accent-bright"
-                      : "text-ink-tertiary hover:bg-surface-2 hover:text-ink-muted",
-                  )}
-                  onClick={() => {
-                    setHomeRailTab("projects");
-                    setSessionAgentMenuOpen(false);
-                    setSessionNodeMenuOpen(false);
-                    setEmbeddedSessionTarget(null);
-                    clearHomeSessionUrl();
-                    setSelectedWorkItemId("");
-                    setContextClosed(false);
-                    setComposerMode("clean");
-                  }}
-                  type="button"
-                >
-                  <FolderTree className="h-4 w-4" />
-                  <span>Projects</span>
-                </button>
-              </div>
               <div className="flex min-w-0 items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <div className="text-sm font-medium">{railTitle}</div>
-                  </div>
+                  <div className="text-sm font-medium">Work</div>
                   <TruncatedText
                     className="mt-1 text-xs text-ink-tertiary"
                     tooltip={railSubtitle}
@@ -665,124 +663,80 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                   </TruncatedText>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
-                  {homeRailTab === "sessions" && (
-                    <>
-                      <InboxMenu
-                        icon={<ListFilter className="h-4 w-4" />}
-                        label="Filter by agent"
-                        onOpenChange={(open) => {
-                          setSessionAgentMenuOpen(open);
-                          if (open) {
-                            setSessionNodeMenuOpen(false);
-                          }
-                        }}
-                        open={sessionAgentMenuOpen}
-                        options={sessionAgentFilterOptions}
-                        selectedValue={effectiveSessionAgentFilter}
-                        onSelect={(value) => {
-                          setSessionAgentFilter(value);
-                          setSessionAgentMenuOpen(false);
-                          setEmbeddedSessionTarget(null);
-                          clearHomeSessionUrl();
-                          setSelectedWorkItemId("");
-                          setContextClosed(false);
-                          setComposerMode("clean");
-                        }}
-                      />
-                      <InboxMenu
-                        icon={<Server className="h-4 w-4" />}
-                        label="Filter by node"
-                        onOpenChange={(open) => {
-                          setSessionNodeMenuOpen(open);
-                          if (open) {
-                            setSessionAgentMenuOpen(false);
-                          }
-                        }}
-                        open={sessionNodeMenuOpen}
-                        options={sessionNodeFilterOptions}
-                        selectedValue={effectiveSessionNodeFilter}
-                        onSelect={(value) => {
-                          setSessionNodeFilter(value);
-                          setSessionNodeMenuOpen(false);
-                          setEmbeddedSessionTarget(null);
-                          clearHomeSessionUrl();
-                          setSelectedWorkItemId("");
-                          setContextClosed(false);
-                          setComposerMode("clean");
-                        }}
-                      />
-                      <Button
-                        className="shrink-0"
-                        icon={<Plus className="h-3.5 w-3.5" />}
-                        onClick={showCleanComposer}
-                        size="sm"
-                        tooltip="Start a new chat"
-                        type="button"
-                        variant="primary"
-                      >
-                        New chat
-                      </Button>
-                    </>
-                  )}
+                  <InboxMenu
+                    icon={<ListFilter className="h-4 w-4" />}
+                    label="Filter by agent"
+                    onOpenChange={(open) => {
+                      setSessionAgentMenuOpen(open);
+                      if (open) setSessionNodeMenuOpen(false);
+                    }}
+                    open={sessionAgentMenuOpen}
+                    options={sessionAgentFilterOptions}
+                    selectedValue={effectiveSessionAgentFilter}
+                    onSelect={(value) => {
+                      setSessionAgentFilter(value);
+                      setSessionAgentMenuOpen(false);
+                    }}
+                  />
+                  <InboxMenu
+                    icon={<Server className="h-4 w-4" />}
+                    label="Filter by node"
+                    onOpenChange={(open) => {
+                      setSessionNodeMenuOpen(open);
+                      if (open) setSessionAgentMenuOpen(false);
+                    }}
+                    open={sessionNodeMenuOpen}
+                    options={sessionNodeFilterOptions}
+                    selectedValue={effectiveSessionNodeFilter}
+                    onSelect={(value) => {
+                      setSessionNodeFilter(value);
+                      setSessionNodeMenuOpen(false);
+                    }}
+                  />
                 </div>
               </div>
+              <Button
+                className="mt-3 w-full justify-start"
+                icon={<Plus className="h-4 w-4" />}
+                onClick={showCleanComposer}
+                type="button"
+                variant="primary"
+              >
+                New session
+              </Button>
             </div>
-            {homeRailTab === "projects" ? (
-              <ProjectRail
-                onSelectProject={(projectId) => {
-                  setSelectedProjectId(projectId);
-                  setEmbeddedSessionTarget(null);
-                  clearHomeSessionUrl();
-                  setSelectedWorkItemId("");
-                  setMobileComposerOpen(false);
-                  setMobileRailOpen(false);
-                  setContextClosed(false);
-                }}
-                selectedProjectId={selectedProjectId}
-                userId={user.user_id}
-              />
-            ) : (
-              <div className="grid">
-                {visibleWorkItems.map((item) => (
-                  <WorkItemRow
-                    item={item}
-                    key={item.id}
-                    onSelect={() => {
-                      setEmbeddedSessionTarget(null);
-                      if (item.kind === "session" && item.sessionId) {
-                        replaceHomeSessionUrl(item.sessionId);
-                      } else {
-                        clearHomeSessionUrl();
-                      }
-                      setSelectedWorkItemId(item.id);
-                      setMobileComposerOpen(false);
-                      setMobileRailOpen(false);
-                      setContextClosed(false);
-                      setComposerMode("clean");
-                    }}
-                    selected={
-                      item.id === selectedWorkItem?.id ||
-                      (item.kind === "session" &&
-                        item.sessionId === activeSessionTarget?.sessionId)
-                    }
-                  />
-                ))}
-                {sessionsQuery.isFetchingNextPage && (
-                  <div className="border-b border-hairline px-4 py-3 text-sm text-ink-tertiary">
-                    Loading more sessions...
-                  </div>
-                )}
-                {visibleWorkItems.length === 0 && (
-                  <div className="p-4 text-sm text-ink-tertiary">
-                    {sessionsQuery.isLoading
-                      ? "Loading sessions..."
-                      : fleetSetupGuideKind === "node"
-                        ? "No nodes yet. Use the setup guide on the right."
-                        : fleetSetupGuideKind === "agent"
-                          ? "No agents yet. Create the first paxd connection with the guide on the right."
-                          : "No items match this view."}
-                  </div>
-                )}
+            <ProjectSessionRail
+              activeSessionId={activeSessionTarget?.sessionId}
+              loading={projectsQuery.isLoading || sessionsQuery.isLoading}
+              onSelectProject={(projectId) => {
+                setSelectedProjectId(projectId);
+                setSelectedProjectTargetId("");
+                setEmbeddedSessionTarget(null);
+                clearHomeSessionUrl();
+                setSelectedWorkItemId("");
+                setMobileComposerOpen(true);
+                setMobileRailOpen(false);
+                setContextClosed(false);
+                setComposerMode("clean");
+              }}
+              onSelectSession={(item) => {
+                setEmbeddedSessionTarget(null);
+                setSelectedProjectId(item.primaryProjectId ?? "");
+                setSelectedProjectTargetId("");
+                if (item.sessionId) replaceHomeSessionUrl(item.sessionId);
+                setSelectedWorkItemId(item.id);
+                setMobileComposerOpen(false);
+                setMobileRailOpen(false);
+                setContextClosed(false);
+                setComposerMode("clean");
+              }}
+              projects={projects}
+              selectedProjectId={selectedProjectId}
+              sessions={visibleWorkItems}
+            />
+            {sessionsQuery.isFetchingNextPage && (
+              <div className="border-b border-hairline px-4 py-3 text-sm text-ink-tertiary">
+                Loading more sessions...
               </div>
             )}
           </section>
@@ -804,7 +758,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 initialApprovalMode={activeSessionTarget.initialApprovalMode}
                 initialAttachments={activeSessionTarget.initialAttachments}
                 initialCwd={activeSessionTarget.initialCwd}
+                initialPrimaryProjectId={activeSessionTarget.primaryProjectId}
                 initialPrompt={activeSessionTarget.initialPrompt}
+                initialProjectTargetId={activeSessionTarget.projectTargetId}
                 key={activeSessionTarget.key}
                 mobileMenuLabel="Chat sidebar"
                 nodeId={activeSessionTarget.nodeId}
@@ -822,24 +778,6 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 }}
                 sessionId={activeSessionTarget.sessionId}
                 user={user}
-              />
-            ) : homeRailTab === "projects" && selectedProjectId ? (
-              <ProjectDetail
-                agents={discoveredAgents}
-                nodes={nodes}
-                onOpenSession={(session) => {
-                  setEmbeddedSessionTarget({
-                    agentId: session.agent_id,
-                    key: `project-session:${session.session_id}`,
-                    nodeId: session.node_id,
-                    sessionId: session.session_id,
-                  });
-                  replaceHomeSessionUrl(session.session_id);
-                  setMobileComposerOpen(false);
-                  setMobileRailOpen(false);
-                }}
-                projectId={selectedProjectId}
-                userId={user.user_id}
               />
             ) : fleetSetupGuideKind ? (
               <div className="min-h-0 flex-1 overflow-auto p-5">
@@ -870,6 +808,35 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 </div>
                 <div className="min-h-0 flex-1 overflow-auto p-5">
                   <div className="mx-auto grid w-full max-w-4xl gap-4">
+                    {selectedProject && (
+                      <section className="rounded-xl border border-accent/25 bg-accent/10 p-5">
+                        <div className="flex flex-wrap items-start justify-between gap-4">
+                          <div className="min-w-0">
+                            <div className="text-xs font-medium uppercase tracking-[0.16em] text-accent-bright">
+                              Project
+                            </div>
+                            <h1 className="mt-2 text-2xl font-semibold text-ink">
+                              {selectedProject.display_name}
+                            </h1>
+                            <div className="mt-2 text-sm text-ink-tertiary">
+                              {selectedProjectPath
+                                .map((project) => project.display_name)
+                                .join(" / ")}
+                            </div>
+                          </div>
+                          <Link
+                            className="text-sm text-accent-bright transition hover:text-ink"
+                            href={`/settings/projects?project=${encodeURIComponent(selectedProject.project_id)}`}
+                          >
+                            Configure targets
+                          </Link>
+                        </div>
+                        <p className="mt-4 max-w-2xl text-sm leading-6 text-ink-muted">
+                          New sessions started here stay grouped under this
+                          project and use one of its reusable workspace targets.
+                        </p>
+                      </section>
+                    )}
                     {needsOnboarding && (
                       <section className="rounded-xl border border-accent/30 bg-accent/10 p-4 text-sm">
                         <div className="font-medium text-ink">
@@ -1068,7 +1035,41 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                           )}
                         </DropdownMenuContent>
                       </DropdownMenu>
-                      {newSessionWorkspaceOpen ? (
+                      {selectedProjectId ? (
+                        enabledProjectTargets.length === 1 ? (
+                          <ProjectTargetSummary
+                            agents={agents}
+                            target={enabledProjectTargets[0]}
+                          />
+                        ) : (
+                          <label className="inline-flex min-h-9 min-w-0 max-w-96 flex-1 items-center gap-2 rounded-lg border border-hairline bg-canvas px-2.5">
+                            <FolderOpen className="h-4 w-4 shrink-0 text-ink-tertiary" />
+                            <select
+                              aria-label="Workspace target"
+                              className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none"
+                              disabled={enabledProjectTargets.length === 0}
+                              onChange={(event) =>
+                                setSelectedProjectTargetId(event.target.value)
+                              }
+                              value={effectiveProjectTargetId}
+                            >
+                              <option value="">
+                                {enabledProjectTargets.length === 0
+                                  ? "No enabled targets"
+                                  : "Select a workspace target"}
+                              </option>
+                              {enabledProjectTargets.map((target) => (
+                                <option
+                                  key={target.target_id}
+                                  value={target.target_id}
+                                >
+                                  {target.display_name} · {target.cwd}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        )
+                      ) : newSessionWorkspaceOpen ? (
                         <label
                           className={cn(
                             "order-first inline-flex min-h-9 min-w-0 basis-full items-center gap-2 rounded-lg border bg-canvas px-2.5 text-sm transition sm:order-none sm:max-w-80 sm:basis-auto sm:flex-1",
@@ -1153,15 +1154,20 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                         </Badge>
                       )}
                       <div className="ml-auto flex shrink-0 items-center gap-2">
-                        <AgentSelector
-                          agents={agents}
-                          nodes={nodes}
-                          selectedAgentId={activeAgent?.agent_id}
-                          onChange={setSelectedAgentId}
-                        />
+                        {!selectedProjectId && (
+                          <AgentSelector
+                            agents={agents}
+                            nodes={nodes}
+                            selectedAgentId={activeAgent?.agent_id}
+                            onChange={setSelectedAgentId}
+                          />
+                        )}
                         <Button
+                          aria-label="Start session"
                           disabled={
-                            !activeAgent?.agent_id ||
+                            !composerAgent?.agent_id ||
+                            (Boolean(selectedProjectId) &&
+                              !activeProjectTarget) ||
                             newSessionCwdInvalid ||
                             composerAttachmentUploadPending
                           }
@@ -1184,101 +1190,256 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   );
 }
 
-function WorkItemRow({
-  item,
-  onSelect,
-  selected,
-}: {
-  item: WorkItem;
-  onSelect: () => void;
-  selected: boolean;
-}) {
-  if (item.kind === "session") {
-    return (
-      <Link
-        className={cn(
-          "grid min-w-0 gap-1 border-b border-hairline px-4 py-3 text-left transition hover:bg-surface-2",
-          selected
-            ? "bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)] hover:bg-accent/15"
-            : "bg-surface-1",
-        )}
-        href={item.href}
-        onClick={(event) => {
-          if (
-            event.button !== 0 ||
-            event.metaKey ||
-            event.ctrlKey ||
-            event.shiftKey ||
-            event.altKey
-          ) {
-            return;
-          }
+type HomeProjectTreeNode = {
+  children: HomeProjectTreeNode[];
+  project: Project;
+};
 
-          event.preventDefault();
-          onSelect();
-        }}
-      >
-        <TruncatedText className="text-sm font-medium text-ink">
-          {item.title}
-        </TruncatedText>
-        <TruncatedText className="text-xs text-ink-tertiary">
-          {item.context} · {relativeTime(item.createdAt)}
-        </TruncatedText>
-      </Link>
-    );
+function ProjectSessionRail({
+  activeSessionId,
+  loading,
+  onSelectProject,
+  onSelectSession,
+  projects,
+  selectedProjectId,
+  sessions,
+}: {
+  activeSessionId?: string;
+  loading: boolean;
+  onSelectProject: (projectId: string) => void;
+  onSelectSession: (session: WorkItem) => void;
+  projects: Project[];
+  selectedProjectId: string;
+  sessions: WorkItem[];
+}) {
+  const [collapsedProjectIds, setCollapsedProjectIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const tree = useMemo(() => buildHomeProjectTree(projects), [projects]);
+  const projectIds = useMemo(
+    () => new Set(projects.map((project) => project.project_id)),
+    [projects],
+  );
+  const recentSessions = sessions.filter(
+    (session) =>
+      !session.primaryProjectId || !projectIds.has(session.primaryProjectId),
+  );
+
+  function toggleProject(projectId: string) {
+    setCollapsedProjectIds((current) => {
+      const next = new Set(current);
+      if (next.has(projectId)) next.delete(projectId);
+      else next.add(projectId);
+      return next;
+    });
   }
 
   return (
-    <button
-      className={cn(
-        "group grid min-w-0 gap-2 border-b border-hairline px-4 py-3 text-left transition hover:bg-surface-2",
-        selected
-          ? "bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)] hover:bg-accent/15"
-          : "bg-surface-1",
-      )}
-      onClick={onSelect}
-      type="button"
-    >
-      <div className="flex min-w-0 items-start gap-3">
-        <span
-          className={cn(
-            "mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border",
-            item.priority === "high"
-              ? "border-warning/30 bg-warning/10 text-warning"
-              : "border-hairline bg-canvas text-ink-subtle",
-          )}
+    <div className="grid pb-4">
+      <div className="flex items-center justify-between px-4 pb-2 pt-4">
+        <span className="text-xs font-medium uppercase tracking-[0.14em] text-ink-tertiary">
+          Projects
+        </span>
+        <Link
+          className="text-xs text-accent-bright transition hover:text-ink"
+          href="/settings/projects"
         >
-          {kindIcon[item.kind]}
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-2">
-            <TruncatedText className="text-sm font-medium text-ink">
-              {item.title}
-            </TruncatedText>
-            {item.priority === "high" ? (
-              <Badge className="max-w-24" tone="warning">
-                {item.kind}
-              </Badge>
-            ) : (
-              <span className="shrink-0 text-xs text-ink-tertiary">
-                {item.kind}
-              </span>
-            )}
-          </div>
-          <TruncatedText className="mt-1 text-xs text-ink-tertiary">
-            {item.source} · {relativeTime(item.createdAt)}
-          </TruncatedText>
+          Manage
+        </Link>
+      </div>
+      {tree.map((node) => (
+        <HomeProjectTreeRow
+          activeSessionId={activeSessionId}
+          collapsedProjectIds={collapsedProjectIds}
+          depth={0}
+          key={node.project.project_id}
+          node={node}
+          onSelectProject={onSelectProject}
+          onSelectSession={onSelectSession}
+          onToggleProject={toggleProject}
+          selectedProjectId={selectedProjectId}
+          sessions={sessions}
+        />
+      ))}
+      {!loading && tree.length === 0 && (
+        <div className="px-4 py-3 text-sm text-ink-tertiary">
+          No projects yet. Create one in Settings.
         </div>
+      )}
+
+      <div className="px-4 pb-2 pt-5 text-xs font-medium uppercase tracking-[0.14em] text-ink-tertiary">
+        Recents
       </div>
-      <div className="flex min-w-0 items-center justify-between gap-3 pl-10">
-        <TruncatedText className="text-xs text-ink-subtle">
-          {item.context}
-        </TruncatedText>
-        <span className="shrink-0 text-xs text-ink-tertiary transition group-hover:text-accent-bright">
-          {item.actionLabel}
-        </span>
+      {recentSessions.map((session) => (
+        <HomeSessionRow
+          active={session.sessionId === activeSessionId}
+          depth={0}
+          key={session.id}
+          onSelect={() => onSelectSession(session)}
+          session={session}
+        />
+      ))}
+      {!loading && recentSessions.length === 0 && (
+        <div className="px-4 py-3 text-sm text-ink-tertiary">
+          No unassigned sessions.
+        </div>
+      )}
+      {loading && (
+        <div className="px-4 py-3 text-sm text-ink-tertiary">Loading...</div>
+      )}
+    </div>
+  );
+}
+
+function HomeProjectTreeRow({
+  activeSessionId,
+  collapsedProjectIds,
+  depth,
+  node,
+  onSelectProject,
+  onSelectSession,
+  onToggleProject,
+  selectedProjectId,
+  sessions,
+}: {
+  activeSessionId?: string;
+  collapsedProjectIds: Set<string>;
+  depth: number;
+  node: HomeProjectTreeNode;
+  onSelectProject: (projectId: string) => void;
+  onSelectSession: (session: WorkItem) => void;
+  onToggleProject: (projectId: string) => void;
+  selectedProjectId: string;
+  sessions: WorkItem[];
+}) {
+  const projectId = node.project.project_id;
+  const collapsed = collapsedProjectIds.has(projectId);
+  const projectSessions = sessions.filter(
+    (session) => session.primaryProjectId === projectId,
+  );
+
+  return (
+    <div>
+      <div
+        className={cn(
+          "group flex min-w-0 items-center gap-1 pr-2 transition hover:bg-surface-2",
+          selectedProjectId === projectId && !activeSessionId
+            ? "bg-accent/10 text-accent-bright"
+            : "text-ink-muted",
+        )}
+        style={{ paddingLeft: `${8 + depth * 16}px` }}
+      >
+        <button
+          aria-label={`${collapsed ? "Expand" : "Collapse"} ${node.project.display_name}`}
+          className="grid h-8 w-6 shrink-0 place-items-center text-ink-tertiary"
+          onClick={() => onToggleProject(projectId)}
+          type="button"
+        >
+          {collapsed ? (
+            <ChevronRight className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronDown className="h-3.5 w-3.5" />
+          )}
+        </button>
+        <button
+          className="flex min-h-9 min-w-0 flex-1 items-center gap-2 text-left text-sm"
+          onClick={() => onSelectProject(projectId)}
+          type="button"
+        >
+          <Folder className="h-4 w-4 shrink-0" />
+          <span className="truncate">{node.project.display_name}</span>
+        </button>
       </div>
-    </button>
+      {!collapsed && (
+        <>
+          {projectSessions.map((session) => (
+            <HomeSessionRow
+              active={session.sessionId === activeSessionId}
+              depth={depth + 1}
+              key={session.id}
+              onSelect={() => onSelectSession(session)}
+              session={session}
+            />
+          ))}
+          {node.children.map((child) => (
+            <HomeProjectTreeRow
+              activeSessionId={activeSessionId}
+              collapsedProjectIds={collapsedProjectIds}
+              depth={depth + 1}
+              key={child.project.project_id}
+              node={child}
+              onSelectProject={onSelectProject}
+              onSelectSession={onSelectSession}
+              onToggleProject={onToggleProject}
+              selectedProjectId={selectedProjectId}
+              sessions={sessions}
+            />
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
+
+function HomeSessionRow({
+  active,
+  depth,
+  onSelect,
+  session,
+}: {
+  active: boolean;
+  depth: number;
+  onSelect: () => void;
+  session: WorkItem;
+}) {
+  return (
+    <Link
+      className={cn(
+        "grid min-w-0 gap-0.5 py-2 pr-3 text-left transition hover:bg-surface-2",
+        active
+          ? "bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)]"
+          : "text-ink-muted",
+      )}
+      href={session.href}
+      onClick={(event) => {
+        if (
+          event.button !== 0 ||
+          event.metaKey ||
+          event.ctrlKey ||
+          event.shiftKey ||
+          event.altKey
+        ) {
+          return;
+        }
+        event.preventDefault();
+        onSelect();
+      }}
+      style={{ paddingLeft: `${40 + depth * 16}px` }}
+    >
+      <span className="truncate text-sm text-ink">{session.title}</span>
+      <span className="truncate text-xs text-ink-tertiary">
+        {session.context} · {relativeTime(session.createdAt)}
+      </span>
+    </Link>
+  );
+}
+
+function ProjectTargetSummary({
+  agents,
+  target,
+}: {
+  agents: Agent[];
+  target: ProjectTarget;
+}) {
+  const agent = agents.find((item) => item.agent_id === target.agent_id);
+  return (
+    <div className="inline-flex min-h-9 min-w-0 max-w-96 flex-1 items-center gap-2 rounded-lg border border-hairline bg-canvas px-2.5 text-sm text-ink-muted">
+      <FolderOpen className="h-4 w-4 shrink-0" />
+      <TruncatedText tooltip={`${target.display_name} · ${target.cwd}`}>
+        {target.display_name} · {agent ? agentLabel(agent) : target.agent_id} ·{" "}
+        {target.cwd}
+      </TruncatedText>
+    </div>
   );
 }
 
@@ -1913,6 +2074,7 @@ function buildWorkItems({
           id: `session:${session.session_id}`,
           kind: "session",
           nodeId: session.node_id,
+          primaryProjectId: session.primary_project_id,
           priority: session.run_status === "waiting_approval" ? "high" : "low",
           sessionId: session.session_id,
           source: "Recent session",
@@ -2278,6 +2440,46 @@ function latestSessionMessageTimeByAgent(sessions: AgentSession[]) {
   }
 
   return latestByAgent;
+}
+
+function buildHomeProjectTree(projects: Project[]) {
+  const nodes = new Map<string, HomeProjectTreeNode>(
+    projects.map((project) => [project.project_id, { children: [], project }]),
+  );
+  const roots: HomeProjectTreeNode[] = [];
+
+  for (const node of nodes.values()) {
+    const parent = node.project.parent_project_id
+      ? nodes.get(node.project.parent_project_id)
+      : undefined;
+    if (parent) parent.children.push(node);
+    else roots.push(node);
+  }
+
+  const sortNodes = (items: HomeProjectTreeNode[]) => {
+    items.sort((left, right) =>
+      left.project.display_name.localeCompare(right.project.display_name),
+    );
+    for (const item of items) sortNodes(item.children);
+  };
+  sortNodes(roots);
+  return roots;
+}
+
+function projectPath(project: Project, projects: Project[]) {
+  const byId = new Map(projects.map((item) => [item.project_id, item]));
+  const path: Project[] = [];
+  const visited = new Set<string>();
+  let current: Project | undefined = project;
+
+  while (current && !visited.has(current.project_id)) {
+    path.unshift(current);
+    visited.add(current.project_id);
+    current = current.parent_project_id
+      ? byId.get(current.parent_project_id)
+      : undefined;
+  }
+  return path;
 }
 
 function agentLabel(agent: Agent) {

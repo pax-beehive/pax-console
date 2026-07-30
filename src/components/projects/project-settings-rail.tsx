@@ -32,7 +32,7 @@ import { queryKeys } from "@/features/api/query-keys";
 import type { Project } from "@/features/api/types";
 import { cn } from "@/lib/utils";
 
-type ProjectRailProps = {
+type ProjectSettingsRailProps = {
   onSelectProject: (projectId: string) => void;
   selectedProjectId?: string;
   userId: string;
@@ -47,11 +47,11 @@ type ProjectTreeNode = {
   project: Project;
 };
 
-export function ProjectRail({
+export function ProjectSettingsRail({
   onSelectProject,
   selectedProjectId,
   userId,
-}: ProjectRailProps) {
+}: ProjectSettingsRailProps) {
   const queryClient = useQueryClient();
   const projectsQuery = useProjects(userId);
   const projects = useMemo(
