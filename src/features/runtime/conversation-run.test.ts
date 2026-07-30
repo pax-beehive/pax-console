@@ -104,7 +104,7 @@ describe("streamConversationRun", () => {
     ]);
   });
 
-  it("posts cwd and approval mode only for new sessions", async () => {
+  it("posts project context, cwd, and approval mode only for new sessions", async () => {
     const fetchMock = vi.fn(async () => {
       return new Response(
         streamFromChunks([
@@ -125,6 +125,8 @@ describe("streamConversationRun", () => {
       input: "hello",
       nodeId: "node_1",
       onEnvelope: vi.fn(),
+      primaryProjectId: "proj_1",
+      projectTargetId: "ptgt_1",
       userId: "self",
     });
     await streamConversationRun({
@@ -134,6 +136,8 @@ describe("streamConversationRun", () => {
       input: "hello",
       nodeId: "node_1",
       onEnvelope: vi.fn(),
+      primaryProjectId: "proj_1",
+      projectTargetId: "ptgt_1",
       sessionId: "sess_existing",
       userId: "self",
     });
@@ -151,6 +155,8 @@ describe("streamConversationRun", () => {
         input: "hello",
         cwd: "/Users/demo/project",
         approval_mode: "auto_approve_all",
+        primary_project_id: "proj_1",
+        project_target_id: "ptgt_1",
       }),
     );
     expect(existingSessionInit.body).toBe(

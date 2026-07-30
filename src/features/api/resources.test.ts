@@ -15,7 +15,6 @@ const {
   createEnvelope,
   createProject,
   createProjectTarget,
-  createProjectTargetSession,
   createKnowledgeCapsule,
   createNodeDaemonAgentConnection,
   createTeamInvite,
@@ -502,7 +501,7 @@ describe("project resources", () => {
     );
   });
 
-  it("uses nested Target CRUD and session creation routes", async () => {
+  it("uses nested Target CRUD routes", async () => {
     apiFetch.mockResolvedValue({});
 
     await listProjectTargets("usr_1", "proj_1");
@@ -516,13 +515,6 @@ describe("project resources", () => {
     await updateProjectTarget("usr_1", "proj_1", "ptgt_1", {
       enabled: false,
     });
-    await createProjectTargetSession(
-      "usr_1",
-      "proj_1",
-      "ptgt_1",
-      " Target session ",
-    );
-
     expect(apiFetch).toHaveBeenNthCalledWith(
       1,
       "/api/v1/user/usr_1/projects/proj_1/targets",
@@ -550,14 +542,6 @@ describe("project resources", () => {
       {
         body: JSON.stringify({ enabled: false }),
         method: "PATCH",
-      },
-    );
-    expect(apiFetch).toHaveBeenNthCalledWith(
-      5,
-      "/api/v1/user/usr_1/projects/proj_1/targets/ptgt_1/sessions",
-      {
-        body: JSON.stringify({ name: "Target session" }),
-        method: "POST",
       },
     );
   });

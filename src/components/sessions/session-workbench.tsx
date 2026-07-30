@@ -120,8 +120,10 @@ type SessionWorkbenchProps = {
   initialApprovalMode?: SessionApprovalMode;
   initialAttachments?: ComposerAttachment[];
   initialCwd?: string;
+  initialPrimaryProjectId?: string;
   initialPrompt?: string;
   initialPromptKey?: string;
+  initialProjectTargetId?: string;
   mobileBackLabel?: string;
   mobileMenuLabel?: string;
   onSessionAssigned?: (sessionId: string) => void;
@@ -167,8 +169,10 @@ export function SessionWorkbench({
   initialApprovalMode,
   initialAttachments,
   initialCwd,
+  initialPrimaryProjectId,
   initialPrompt,
   initialPromptKey,
+  initialProjectTargetId,
   mobileBackLabel,
   mobileMenuLabel,
   onSessionAssigned,
@@ -1058,6 +1062,8 @@ export function SessionWorkbench({
             ? {
                 approvalMode: newSessionApprovalMode,
                 cwd: normalizedNewSessionCwd || undefined,
+                primaryProjectId: initialPrimaryProjectId,
+                projectTargetId: initialProjectTargetId,
               }
             : {}),
           ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
@@ -1081,6 +1087,8 @@ export function SessionWorkbench({
       composerAttachments,
       isNewSession,
       isTurnRunning,
+      initialPrimaryProjectId,
+      initialProjectTargetId,
       newSessionApprovalMode,
       newSessionCwdInvalid,
       normalizedNewSessionCwd,
@@ -1185,6 +1193,8 @@ export function SessionWorkbench({
       void sendConversationMessage(content, {
         approvalMode: newSessionApprovalMode,
         cwd: normalizedNewSessionCwd || undefined,
+        primaryProjectId: initialPrimaryProjectId,
+        projectTargetId: initialProjectTargetId,
         ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
       })
         .then(() => {
@@ -1208,7 +1218,9 @@ export function SessionWorkbench({
     activeNodeId,
     composerAttachments,
     conversationRun.status,
+    initialPrimaryProjectId,
     initialPromptKey,
+    initialProjectTargetId,
     newSessionCwdInvalid,
     sessionId,
     newSessionApprovalMode,

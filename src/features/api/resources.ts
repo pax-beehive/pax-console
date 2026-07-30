@@ -1301,21 +1301,6 @@ export function updateProjectTarget(
   );
 }
 
-export function createProjectTargetSession(
-  userId: string,
-  projectId: string,
-  targetId: string,
-  name?: string,
-) {
-  return apiFetch<AgentSession>(
-    userPath(userId, `/projects/${projectId}/targets/${targetId}/sessions`),
-    {
-      body: JSON.stringify(name?.trim() ? { name: name.trim() } : {}),
-      method: "POST",
-    },
-  );
-}
-
 export function listTeams(userId: string) {
   return apiFetch<TeamListData>(userPath(userId, "/teams"));
 }
