@@ -31,6 +31,12 @@ src/app/api/pax/[...path]/route.ts
 
 Do not spread Cloudflare cookie handling into React components.
 
+Home has two resource rails: Sessions and Projects. Projects are logical,
+owner-scoped, nestable work groups. A reusable Project Target binds an Agent to
+a working-directory intent. Starting through a Target creates a Session whose
+optional `primary_project_id` is immutable. Do not overload that singular field
+for future multi-Project labels; use a separate association model.
+
 ## Local Development
 
 Expected local env:

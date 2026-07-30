@@ -136,18 +136,21 @@ src/components/collaboration/
   的 useTeamInvalidation / useFriendInvalidation。
 
 src/components/home/
-  Home 工作台。左侧提供 Sessions / Inbox 两个 tab；Sessions tab 聚合所有
+  Home 工作台。左侧提供 Sessions / Projects 两个 tab；Sessions tab 聚合所有
   可见 agent 的 sessions，支持分别按 agent 和 node 过滤；正常选择 session
   会保持 Home 挂载并通过 `/?sessionId=...` 在右侧打开 embedded workbench，
   独立 `/sessions/{session_id}` 继续作为外部客户端和分享链接的 canonical
-  deep link。Inbox tab 聚合 approvals、received envelopes、team invites
-  和 inquiry 草稿状态成一个可扫的 action queue；选中一项后显示上下文，
-  inquiry 可从空 session 生成 draft、从已有 conversation 总结 draft、
-  通过小三角带 note 总结，或对已有 draft 留 comment；右上角关闭 inquiry
-  context 后，composer 回到 clean session；archive inquiry 则把它从 queue
-  中移除，表示当前用户不处理。当前 fake inquiry 只对 admin 用户注入，避免普通
-  用户看到演示数据。admin 可在右上角用户菜单启用 `Preview as user`，临时隐藏所有
-  admin-only 实验入口，以检查公开版本。该模式属于 Zustand 客户端 UI 状态。
+  deep link。Projects tab 展示 owner-scoped 的可嵌套 Project tree，支持创建、
+  改名、调整父级和归档；选中 Project 后，右侧展示 reusable workspace Targets
+  与该 Project 的最近 Sessions。Target 绑定 Agent 和 cwd intent，支持同一
+  Project/Agent 下多个不同 cwd、编辑、启用/禁用和唯一 enabled default。
+  启动时若只有一个 enabled Target 则自动选择；有多个时要求用户显式选择，
+  再调用 Target session endpoint，后端把 Agent、cwd 和
+  `primary_project_id` 固化到 Session。`primary_project_id` 只表达单一的主要
+  启动上下文；未来 secretary agent 给一个 Session 标多个 Project 应使用独立
+  多对多 label/association，不复用这个字段。admin 可在右上角用户菜单启用
+  `Preview as user`，临时隐藏所有 admin-only 实验入口，以检查公开版本。
+  该模式属于 Zustand 客户端 UI 状态。
   Collaboration 当前也属于 admin-only 工作区；普通用户和 `Preview as user` 模式
   的桌面、移动导航都不显示该入口。
   底部 composer 保持 clean session 默认入口，并提供 agent 选择、附件入口和
@@ -161,6 +164,15 @@ src/components/home/
   排序不会停留在首次加载结果。列表使用独立的 `session-list` query namespace，不能
   用 session resource 的 `sessions` 前缀，避免误刷新 history cursor 并重启 `/events`
   observer。
+
+src/components/home/project-rail.tsx
+  Project 层级导航和 Project CRUD。服务端 hierarchy 是真相；前端仅构树、排序，
+  并在编辑父级时排除自身和 descendants。
+
+src/components/home/project-detail.tsx
+  Project 详情、Target CRUD、Target picker、Target-based Session launch 和
+  `primary_project_id` 过滤后的最近 Sessions。共享数据继续由 TanStack Query
+  管理，mutation 后失效 Project/Target/Session 对应 query namespace。
 
 src/components/resources/
   Settings 组下的资源页。Devices 聚合 Nodes / Agents，Security 只管理 active
