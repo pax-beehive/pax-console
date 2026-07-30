@@ -82,6 +82,7 @@ import {
 import { compactId } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { canSeeAdminFeatures } from "@/features/auth/admin-view";
+import { isSupportedSessionWorkspace } from "@/features/runtime/workspace-path";
 import { useConsoleStore } from "@/stores/console-store";
 
 type FleetOverviewProps = {
@@ -314,7 +315,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const normalizedNewSessionCwd = newSessionCwd.trim();
   const newSessionCwdInvalid =
     normalizedNewSessionCwd.length > 0 &&
-    !normalizedNewSessionCwd.startsWith("/");
+    !isSupportedSessionWorkspace(normalizedNewSessionCwd);
 
   const sessions = useMemo(
     () => byRecent(queriedSessions, sessionTimestamp),
@@ -1133,7 +1134,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                             onChange={(event) =>
                               setNewSessionCwd(event.target.value)
                             }
-                            placeholder="/Users/me/project"
+                            placeholder="~/project"
                             spellCheck={false}
                             value={newSessionCwd}
                           />

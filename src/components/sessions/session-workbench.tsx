@@ -104,6 +104,7 @@ import {
   isConversationObserverRecoverableError,
   sessionDisplayStatus,
 } from "@/features/runtime/session-display-status";
+import { isSupportedSessionWorkspace } from "@/features/runtime/workspace-path";
 import { compactId } from "@/lib/format";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { cn } from "@/lib/utils";
@@ -244,7 +245,7 @@ export function SessionWorkbench({
   const newSessionCwdInvalid =
     isNewSession &&
     normalizedNewSessionCwd.length > 0 &&
-    !isAbsolutePath(normalizedNewSessionCwd);
+    !isSupportedSessionWorkspace(normalizedNewSessionCwd);
   const activeSession = useMemo(
     () =>
       sessionMetadata ??
@@ -1694,10 +1695,6 @@ function readInitialPrompt(initialPrompt?: string, initialPromptKey?: string) {
   } catch {
     return "";
   }
-}
-
-function isAbsolutePath(path: string) {
-  return path.startsWith("/");
 }
 
 function lastMessageID(messages?: HistoryMessage[]) {

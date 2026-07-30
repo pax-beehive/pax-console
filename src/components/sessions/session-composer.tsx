@@ -429,7 +429,7 @@ export const SessionComposer = memo(function SessionComposer({
                   autoFocus
                   className="min-w-0 flex-1 bg-transparent font-mono text-xs text-ink outline-none placeholder:text-ink-tertiary"
                   onChange={(event) => onSetNewSessionCwd(event.target.value)}
-                  placeholder="/Users/me/project"
+                  placeholder="~/project"
                   spellCheck={false}
                   value={newSessionCwd}
                 />
