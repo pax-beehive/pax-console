@@ -59,6 +59,7 @@ import {
 import { TruncatedText } from "@/components/ui/text";
 import {
   completeUserAttachment,
+  createProjectTarget,
   createUserAttachment,
   listAgents,
   listUserSessions,
@@ -79,7 +80,6 @@ import {
   Envelope,
   Node,
   Project,
-  ProjectTarget,
   SessionApprovalMode,
   TeamInvite,
   User,
@@ -167,6 +167,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const showAdminFeatures = canSeeAdminFeatures(user, previewAsUser);
   const searchParams = useSearchParams();
   const composerFileInputRef = useRef<HTMLInputElement>(null);
+  const persistedTargetSessionIdsRef = useRef(new Set<string>());
   const urlSessionId = searchParams.get("sessionId") ?? "";
   const [composerMode, setComposerMode] = useState<ComposerMode>("clean");
   const [draft, setDraft] = useState("");
@@ -185,9 +186,10 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     useState<Error | null>(null);
   const [composerAttachmentUploadPending, setComposerAttachmentUploadPending] =
     useState(false);
+  const [projectTargetSaveError, setProjectTargetSaveError] =
+    useState<Error | null>(null);
   const [archivedWorkItemIds, setArchivedWorkItemIds] = useState<string[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState("");
-  const [selectedProjectTargetId, setSelectedProjectTargetId] = useState("");
   const [mobileComposerOpen, setMobileComposerOpen] = useState(true);
   const [mobileRailOpen, setMobileRailOpen] = useState(false);
   const [contextClosed, setContextClosed] = useState(false);
@@ -327,29 +329,24 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       ),
     [projectTargetsQuery.data?.targets],
   );
-  const effectiveProjectTargetId =
-    enabledProjectTargets.length === 1
-      ? enabledProjectTargets[0].target_id
-      : enabledProjectTargets.some(
-            (target) => target.target_id === selectedProjectTargetId,
-          )
-        ? selectedProjectTargetId
-        : "";
-  const activeProjectTarget = enabledProjectTargets.find(
-    (target) => target.target_id === effectiveProjectTargetId,
-  );
   const activeAgent =
     agents.find((agent) => agent.agent_id === selectedAgentId) ?? agents[0];
-  const composerAgent = selectedProjectId
-    ? agents.find((agent) => agent.agent_id === activeProjectTarget?.agent_id)
-    : activeAgent;
-  const normalizedNewSessionCwd = selectedProjectId
-    ? (activeProjectTarget?.cwd ?? "")
-    : newSessionCwd.trim();
+  const normalizedNewSessionCwd = newSessionCwd.trim();
   const newSessionCwdInvalid =
-    !selectedProjectId &&
     normalizedNewSessionCwd.length > 0 &&
     !isSupportedSessionWorkspace(normalizedNewSessionCwd);
+  const matchingProjectTarget = selectedProjectId
+    ? enabledProjectTargets.find(
+        (target) =>
+          target.agent_id === activeAgent?.agent_id &&
+          target.cwd === normalizedNewSessionCwd,
+      )
+    : undefined;
+  const suggestedProjectTargets = selectedProjectId
+    ? enabledProjectTargets.filter(
+        (target) => target.agent_id === activeAgent?.agent_id,
+      )
+    : [];
 
   const sessions = useMemo(
     () => byRecent(queriedSessions, sessionTimestamp),
@@ -441,6 +438,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     agentsQuery.error ??
     projectsQuery.error ??
     projectTargetsQuery.error ??
+    projectTargetSaveError ??
     sessionsQuery.error ??
     approvalsQuery.error ??
     envelopesQuery.error ??
@@ -516,9 +514,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     }
 
     if (
-      !composerAgent?.agent_id ||
-      !composerAgent.node_id ||
-      (selectedProjectId && !activeProjectTarget) ||
+      !activeAgent?.agent_id ||
+      !activeAgent.node_id ||
+      (selectedProjectId && !normalizedNewSessionCwd) ||
       newSessionCwdInvalid ||
       composerAttachmentUploadPending
     ) {
@@ -527,16 +525,17 @@ export function FleetOverview({ user }: FleetOverviewProps) {
 
     const nonce = Date.now();
     const initialPrompt = draft.trim();
+    setProjectTargetSaveError(null);
     setEmbeddedSessionTarget({
-      agentId: composerAgent.agent_id,
+      agentId: activeAgent.agent_id,
       initialApprovalMode: newSessionApprovalMode,
       initialAttachments: composerAttachments,
       initialCwd: normalizedNewSessionCwd || undefined,
       initialPrompt: initialPrompt || undefined,
       key: `new:${nonce}`,
-      nodeId: composerAgent.node_id,
+      nodeId: activeAgent.node_id,
       primaryProjectId: selectedProjectId || undefined,
-      projectTargetId: activeProjectTarget?.target_id,
+      projectTargetId: matchingProjectTarget?.target_id,
       sessionId: "new",
     });
     clearHomeSessionUrl();
@@ -603,7 +602,6 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     setEmbeddedSessionTarget(null);
     clearHomeSessionUrl();
     setSelectedProjectId("");
-    setSelectedProjectTargetId("");
     setMobileComposerOpen(true);
     setMobileRailOpen(false);
     setSelectedWorkItemId("");
@@ -710,7 +708,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
               loading={projectsQuery.isLoading || sessionsQuery.isLoading}
               onSelectProject={(projectId) => {
                 setSelectedProjectId(projectId);
-                setSelectedProjectTargetId("");
+                setNewSessionWorkspaceOpen(true);
                 setEmbeddedSessionTarget(null);
                 clearHomeSessionUrl();
                 setSelectedWorkItemId("");
@@ -722,7 +720,6 @@ export function FleetOverview({ user }: FleetOverviewProps) {
               onSelectSession={(item) => {
                 setEmbeddedSessionTarget(null);
                 setSelectedProjectId(item.primaryProjectId ?? "");
-                setSelectedProjectTargetId("");
                 if (item.sessionId) replaceHomeSessionUrl(item.sessionId);
                 setSelectedWorkItemId(item.id);
                 setMobileComposerOpen(false);
@@ -769,6 +766,37 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                   void queryClient.invalidateQueries({
                     queryKey: queryKeys.userSessionsRoot(user.user_id),
                   });
+                  if (
+                    activeSessionTarget.sessionId === "new" &&
+                    activeSessionTarget.primaryProjectId &&
+                    activeSessionTarget.agentId &&
+                    activeSessionTarget.initialCwd &&
+                    !activeSessionTarget.projectTargetId &&
+                    !persistedTargetSessionIdsRef.current.has(sessionId)
+                  ) {
+                    const projectId = activeSessionTarget.primaryProjectId;
+                    persistedTargetSessionIdsRef.current.add(sessionId);
+                    void createProjectTarget(user.user_id, projectId, {
+                      agent_id: activeSessionTarget.agentId,
+                      cwd: activeSessionTarget.initialCwd,
+                    })
+                      .then(() =>
+                        queryClient.invalidateQueries({
+                          queryKey: queryKeys.projectTargets(
+                            user.user_id,
+                            projectId,
+                          ),
+                        }),
+                      )
+                      .catch((caught) => {
+                        persistedTargetSessionIdsRef.current.delete(sessionId);
+                        setProjectTargetSaveError(
+                          caught instanceof Error
+                            ? caught
+                            : new Error(String(caught)),
+                        );
+                      });
+                  }
                   const nextTarget = {
                     ...activeSessionTarget,
                     sessionId,
@@ -832,8 +860,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                           </Link>
                         </div>
                         <p className="mt-4 max-w-2xl text-sm leading-6 text-ink-muted">
-                          New sessions started here stay grouped under this
-                          project and use one of its reusable workspace targets.
+                          Choose an agent and workspace below. Existing
+                          workspaces are reused; new ones are saved after the
+                          session starts.
                         </p>
                       </section>
                     )}
@@ -1035,41 +1064,38 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                           )}
                         </DropdownMenuContent>
                       </DropdownMenu>
-                      {selectedProjectId ? (
-                        enabledProjectTargets.length === 1 ? (
-                          <ProjectTargetSummary
-                            agents={agents}
-                            target={enabledProjectTargets[0]}
-                          />
-                        ) : (
-                          <label className="inline-flex min-h-9 min-w-0 max-w-96 flex-1 items-center gap-2 rounded-lg border border-hairline bg-canvas px-2.5">
-                            <FolderOpen className="h-4 w-4 shrink-0 text-ink-tertiary" />
-                            <select
-                              aria-label="Workspace target"
-                              className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none"
-                              disabled={enabledProjectTargets.length === 0}
-                              onChange={(event) =>
-                                setSelectedProjectTargetId(event.target.value)
-                              }
-                              value={effectiveProjectTargetId}
+                      <label className="inline-flex min-h-9 min-w-0 max-w-64 items-center gap-2 rounded-lg border border-hairline bg-canvas px-2.5 text-sm text-ink-muted focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/25">
+                        <Folder className="h-4 w-4 shrink-0" />
+                        <span className="shrink-0 text-xs font-medium text-ink-tertiary">
+                          Project
+                        </span>
+                        <select
+                          aria-label="Project"
+                          className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none"
+                          onChange={(event) => {
+                            const projectId = event.target.value;
+                            setSelectedProjectId(projectId);
+                            setNewSessionWorkspaceOpen(
+                              Boolean(projectId || newSessionCwd.trim()),
+                            );
+                            setProjectTargetSaveError(null);
+                          }}
+                          value={selectedProjectId}
+                        >
+                          <option value="">No project</option>
+                          {projects.map((project) => (
+                            <option
+                              key={project.project_id}
+                              value={project.project_id}
                             >
-                              <option value="">
-                                {enabledProjectTargets.length === 0
-                                  ? "No enabled targets"
-                                  : "Select a workspace target"}
-                              </option>
-                              {enabledProjectTargets.map((target) => (
-                                <option
-                                  key={target.target_id}
-                                  value={target.target_id}
-                                >
-                                  {target.display_name} · {target.cwd}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                        )
-                      ) : newSessionWorkspaceOpen ? (
+                              {projectPath(project, projects)
+                                .map((item) => item.display_name)
+                                .join(" / ")}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      {selectedProjectId || newSessionWorkspaceOpen ? (
                         <label
                           className={cn(
                             "order-first inline-flex min-h-9 min-w-0 basis-full items-center gap-2 rounded-lg border bg-canvas px-2.5 text-sm transition sm:order-none sm:max-w-80 sm:basis-auto sm:flex-1",
@@ -1078,6 +1104,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                               : "border-hairline text-ink-muted focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/25",
                           )}
                           onBlur={(event) => {
+                            if (selectedProjectId) {
+                              return;
+                            }
                             const nextTarget = event.relatedTarget;
                             if (
                               (nextTarget instanceof globalThis.Node &&
@@ -1099,6 +1128,11 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                             aria-label="Workspace"
                             autoFocus
                             className="min-w-0 flex-1 bg-transparent font-mono text-xs text-ink outline-none placeholder:text-ink-tertiary"
+                            list={
+                              suggestedProjectTargets.length > 0
+                                ? "project-workspace-targets"
+                                : undefined
+                            }
                             onChange={(event) =>
                               setNewSessionCwd(event.target.value)
                             }
@@ -1106,6 +1140,18 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                             spellCheck={false}
                             value={newSessionCwd}
                           />
+                          {suggestedProjectTargets.length > 0 && (
+                            <datalist id="project-workspace-targets">
+                              {suggestedProjectTargets.map((target) => (
+                                <option
+                                  key={target.target_id}
+                                  value={target.cwd}
+                                >
+                                  {target.display_name}
+                                </option>
+                              ))}
+                            </datalist>
+                          )}
                         </label>
                       ) : (
                         <Button
@@ -1117,6 +1163,15 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                           variant="ghost"
                         />
                       )}
+                      {selectedProject &&
+                        normalizedNewSessionCwd &&
+                        !newSessionCwdInvalid && (
+                          <div className="order-last basis-full pl-1 text-xs text-ink-tertiary">
+                            {matchingProjectTarget
+                              ? `Using saved target ${matchingProjectTarget.display_name}`
+                              : `New workspace · will be saved to ${selectedProject.display_name}`}
+                          </div>
+                        )}
                       <button
                         aria-label={
                           newSessionApprovalMode === "auto_approve_all"
@@ -1154,20 +1209,18 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                         </Badge>
                       )}
                       <div className="ml-auto flex shrink-0 items-center gap-2">
-                        {!selectedProjectId && (
-                          <AgentSelector
-                            agents={agents}
-                            nodes={nodes}
-                            selectedAgentId={activeAgent?.agent_id}
-                            onChange={setSelectedAgentId}
-                          />
-                        )}
+                        <AgentSelector
+                          agents={agents}
+                          nodes={nodes}
+                          selectedAgentId={activeAgent?.agent_id}
+                          onChange={setSelectedAgentId}
+                        />
                         <Button
                           aria-label="Start session"
                           disabled={
-                            !composerAgent?.agent_id ||
+                            !activeAgent?.agent_id ||
                             (Boolean(selectedProjectId) &&
-                              !activeProjectTarget) ||
+                              !normalizedNewSessionCwd) ||
                             newSessionCwdInvalid ||
                             composerAttachmentUploadPending
                           }
@@ -1421,25 +1474,6 @@ function HomeSessionRow({
         {session.context} · {relativeTime(session.createdAt)}
       </span>
     </Link>
-  );
-}
-
-function ProjectTargetSummary({
-  agents,
-  target,
-}: {
-  agents: Agent[];
-  target: ProjectTarget;
-}) {
-  const agent = agents.find((item) => item.agent_id === target.agent_id);
-  return (
-    <div className="inline-flex min-h-9 min-w-0 max-w-96 flex-1 items-center gap-2 rounded-lg border border-hairline bg-canvas px-2.5 text-sm text-ink-muted">
-      <FolderOpen className="h-4 w-4 shrink-0" />
-      <TruncatedText tooltip={`${target.display_name} · ${target.cwd}`}>
-        {target.display_name} · {agent ? agentLabel(agent) : target.agent_id} ·{" "}
-        {target.cwd}
-      </TruncatedText>
-    </div>
   );
 }
 

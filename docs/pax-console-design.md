@@ -236,10 +236,9 @@ PAX Console
 |   +-- sessions tab with globally sorted sessions plus agent and node filters
 |   +-- embedded session workbench for selected or newly started sessions
 |   +-- projects tab with nested logical Project tree and CRUD
-|   +-- Project detail with reusable Agent/workspace Targets
-|   +-- explicit Target picker when multiple enabled Targets exist
-|   +-- Target-based session launch and recent Project sessions
-|   +-- composer with context attachment, agent select (`agent @ node` for duplicate names), and tool approval preference
+|   +-- Project settings with reusable Agent/workspace Targets
+|   +-- composer with optional Project, Agent, Workspace, context attachment, and tool approval preference
+|   +-- implicit Target reuse or post-start creation for Project sessions
 +-- Collaboration
 |   +-- Teams & Friends
 |   |   +-- teams
@@ -457,10 +456,13 @@ Projects are logical, owner-scoped work groups and may be nested. Targets are
 reusable launch settings containing an Agent and cwd intent. Project and Target
 CRUD lives in Settings. Starting from a Project still uses the normal
 Conversation endpoint; its creation-only request adds `primary_project_id` and
-`project_target_id`. Manager resolves the Target, creates the native ACP
-session, and only then persists the PAX Session with immutable
-`primary_project_id`. Projectless Sessions remain valid; the primary context is
-not a future multi-Project label model.
+adds `project_target_id` only when the chosen Agent and cwd match an enabled
+Target. A new cwd is sent directly to Conversation; after native session
+assignment succeeds, the Console creates a reusable Target and lets the backend
+derive its display name. Manager creates the native ACP session before it
+persists the PAX Session with immutable `primary_project_id`. Projectless
+Sessions remain valid; the primary context is not a future multi-Project label
+model.
 
 WebSocket
 GET /api/v1/user/self/agents/{agent_id}/tunnel
@@ -473,7 +475,7 @@ Implemented
 - Auth check through GET /me.
 - Home workbench through nodes, agents, sessions, approvals, envelopes, and team invites.
 - Home Projects tree CRUD, reusable Target CRUD/default/enable state, Project
-  recent Sessions, and Target-based Session launch.
+  recent Sessions, and implicit Target reuse/creation during Session launch.
 - Session detail history through the session-scoped durable history endpoint.
 - Home composer opens an embedded new session; the first prompt creates `sess_*` through POST /conversation.
 - API key list/create/revoke.

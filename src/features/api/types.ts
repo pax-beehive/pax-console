@@ -378,7 +378,7 @@ export type UpdateProjectInput = {
 
 export type CreateProjectTargetInput = {
   agent_id: string;
-  display_name: string;
+  display_name?: string;
   cwd: string;
   is_default?: boolean;
   enabled?: boolean;

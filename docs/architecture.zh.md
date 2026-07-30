@@ -145,10 +145,12 @@ src/components/home/
   Settings / Projects；Home 只负责选中 Project 和开始工作。Target 绑定 Agent
   和 cwd intent，支持同一
   Project/Agent 下多个不同 cwd、编辑、启用/禁用和唯一 enabled default。
-  启动时若只有一个 enabled Target 则自动选择；有多个时要求用户显式选择，
-  然后由普通 composer 调用 Conversation endpoint，并在创建请求中携带
-  `primary_project_id` / `project_target_id`。后端先创建 native ACP session，
-  成功后才把 Agent、cwd 和 `primary_project_id` 固化到 PAX Session。
+  Home composer 不直接暴露 Target，而是让用户选择可选 Project、Agent 并输入
+  Workspace 路径。若已有相同 Project/Agent/cwd 的 enabled Target，则复用并在
+  Conversation 请求中携带 `project_target_id`；否则请求只携带
+  `primary_project_id` 和 cwd，native session 分配成功后才自动创建 Target。
+  后端先创建 native ACP session，成功后才把 Agent、cwd 和
+  `primary_project_id` 固化到 PAX Session。
   `primary_project_id` 只表达单一的主要
   启动上下文；未来 secretary agent 给一个 Session 标多个 Project 应使用独立
   多对多 label/association，不复用这个字段。admin 可在右上角用户菜单启用
@@ -157,7 +159,7 @@ src/components/home/
   Collaboration 当前也属于 admin-only 工作区；普通用户和 `Preview as user` 模式
   的桌面、移动导航都不显示该入口。
   底部 composer 保持 clean session 默认入口，并提供 agent 选择、附件入口和
-  tool-call approval 偏好；重名 agent 在 target selector 中显示为
+  tool-call approval 偏好；重名 agent 在 agent selector 中显示为
   `agent @ node`。nodes / agents 的详细列表仍放在 Settings 组的子页里，
   sessions 不再是 sidebar 一级工作区。
   当用户还没有 node 或 agent 时，Home 会展示 node registration 和 Devices
@@ -171,11 +173,6 @@ src/components/home/
 src/components/home/project-rail.tsx
   Project 层级导航和 Project CRUD。服务端 hierarchy 是真相；前端仅构树、排序，
   并在编辑父级时排除自身和 descendants。
-
-src/components/home/project-detail.tsx
-  Project 详情、Target CRUD、Target picker、Target-based Session launch 和
-  `primary_project_id` 过滤后的最近 Sessions。共享数据继续由 TanStack Query
-  管理，mutation 后失效 Project/Target/Session 对应 query namespace。
 
 src/components/resources/
   Settings 组下的资源页。Devices 聚合 Nodes / Agents，Security 只管理 active

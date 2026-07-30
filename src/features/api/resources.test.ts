@@ -509,7 +509,6 @@ describe("project resources", () => {
     await createProjectTarget("usr_1", "proj_1", {
       agent_id: "agent_1",
       cwd: "~/repo",
-      display_name: "Mac main",
       is_default: true,
     });
     await updateProjectTarget("usr_1", "proj_1", "ptgt_1", {
@@ -530,7 +529,6 @@ describe("project resources", () => {
         body: JSON.stringify({
           agent_id: "agent_1",
           cwd: "~/repo",
-          display_name: "Mac main",
           is_default: true,
         }),
         method: "POST",
