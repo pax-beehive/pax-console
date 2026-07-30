@@ -42,6 +42,7 @@ import {
   X,
 } from "lucide-react";
 import { PaxdGettingStartedGuide } from "@/components/connect/paxd-getting-started";
+import { ProjectDetail } from "@/components/home/project-detail";
 import { ProjectRail } from "@/components/home/project-rail";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import {
@@ -401,7 +402,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     null;
   const fleetSetupGuideKind =
     nodes.length === 0 ? "node" : agents.length === 0 ? "agent" : null;
-  const mobileDetailOpen = Boolean(activeSessionTarget || composerContextItem);
+  const mobileDetailOpen = Boolean(
+    activeSessionTarget || composerContextItem || selectedProjectId,
+  );
   const mobilePaneOpen = mobileDetailOpen || mobileComposerOpen;
   const mobileDetailTitle = activeSessionTarget
     ? "Session"
@@ -819,6 +822,24 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 }}
                 sessionId={activeSessionTarget.sessionId}
                 user={user}
+              />
+            ) : homeRailTab === "projects" && selectedProjectId ? (
+              <ProjectDetail
+                agents={discoveredAgents}
+                nodes={nodes}
+                onOpenSession={(session) => {
+                  setEmbeddedSessionTarget({
+                    agentId: session.agent_id,
+                    key: `project-session:${session.session_id}`,
+                    nodeId: session.node_id,
+                    sessionId: session.session_id,
+                  });
+                  replaceHomeSessionUrl(session.session_id);
+                  setMobileComposerOpen(false);
+                  setMobileRailOpen(false);
+                }}
+                projectId={selectedProjectId}
+                userId={user.user_id}
               />
             ) : fleetSetupGuideKind ? (
               <div className="min-h-0 flex-1 overflow-auto p-5">
