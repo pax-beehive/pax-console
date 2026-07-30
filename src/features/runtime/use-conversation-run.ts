@@ -39,6 +39,8 @@ type SendMessageOptions = {
   approvalMode?: SessionApprovalMode;
   attachmentIds?: string[];
   cwd?: string;
+  primaryProjectId?: string;
+  projectTargetId?: string;
 };
 
 export function useConversationRun({
@@ -136,6 +138,12 @@ export function useConversationRun({
               streamId,
               updateEvents,
             }),
+          primaryProjectId: promptSessionId
+            ? undefined
+            : options?.primaryProjectId,
+          projectTargetId: promptSessionId
+            ? undefined
+            : options?.projectTargetId,
           sessionId: promptSessionId,
           signal: abortController.signal,
           userId,

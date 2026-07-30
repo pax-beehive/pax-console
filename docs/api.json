@@ -104,6 +104,9 @@
           "grant_session_id": {
             "type": "string"
           },
+          "native_id": {
+            "type": "string"
+          },
           "operation": {
             "type": "string"
           },
@@ -150,6 +153,86 @@
             "type": "string"
           },
           "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AgentAuditEvent": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "approval_id": {
+            "type": "string"
+          },
+          "approval_status": {
+            "type": "string"
+          },
+          "decided_at": {
+            "type": "string"
+          },
+          "decided_by_user_id": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "decision_scope": {
+            "type": "string"
+          },
+          "event_id": {
+            "type": "string"
+          },
+          "event_key": {
+            "type": "string"
+          },
+          "event_type": {
+            "type": "string"
+          },
+          "message_id": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "occurred_at": {
+            "type": "string"
+          },
+          "owner_user_id": {
+            "type": "string"
+          },
+          "raw": {
+            "type": "object"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "risk_level": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "source_type": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "tool_input": {
+            "type": "object"
+          },
+          "tool_name": {
+            "type": "string"
+          },
+          "turn_id": {
             "type": "string"
           }
         },
@@ -233,13 +316,22 @@
           "name": {
             "type": "string"
           },
+          "name_is_custom": {
+            "type": "boolean"
+          },
           "node_id": {
             "type": "string"
+          },
+          "pax_config": {
+            "$ref": "#/components/schemas/SessionPaxConfig"
           },
           "preview": {
             "type": "string"
           },
-          "project_id": {
+          "primary_project_id": {
+            "type": "string"
+          },
+          "reported_name": {
             "type": "string"
           },
           "run_id": {
@@ -323,6 +415,29 @@
             "type": "array"
           },
           "status": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AgentStatusReportRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "hostname": {
+            "type": "string"
+          },
+          "sessions": {
+            "items": {
+              "$ref": "#/components/schemas/SessionStatusInput"
+            },
+            "type": "array"
+          },
+          "system": {
+            "type": "object"
+          },
+          "timestamp": {
             "type": "string"
           }
         },
@@ -420,6 +535,63 @@
         },
         "type": "object"
       },
+      "ArchiveProjectRequest": {
+        "properties": {
+          "project_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AuditEventListData": {
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/AgentAuditEvent"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "AuditEventListResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AuditEventListData"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CreateAgentMessageRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "message_type": {
+            "type": "string"
+          },
+          "payload": {
+            "type": "object"
+          },
+          "session_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "CreateNodeAgentApprovalRequest": {
         "properties": {
           "action_fingerprint": {
@@ -435,6 +607,9 @@
             "type": "string"
           },
           "expires_at": {
+            "type": "string"
+          },
+          "native_id": {
             "type": "string"
           },
           "operation": {
@@ -606,7 +781,7 @@
           "node_id": {
             "type": "string"
           },
-          "project_id": {
+          "primary_project_id": {
             "type": "string"
           },
           "session_id": {
@@ -623,6 +798,99 @@
               "type": "string"
             },
             "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "CreateNodeDaemonAgentConnectionData": {
+        "properties": {
+          "agent": {
+            "$ref": "#/components/schemas/Agent"
+          },
+          "agent_id": {
+            "type": "string"
+          },
+          "bootstrap_message": {
+            "$ref": "#/components/schemas/MailboxMessage"
+          },
+          "command_ack": {
+            "type": "object"
+          },
+          "command_id": {
+            "type": "string"
+          },
+          "command_status": {
+            "type": "string"
+          },
+          "connection_id": {
+            "type": "string"
+          },
+          "desired_generation": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "dispatch_error": {
+            "type": "string"
+          },
+          "dispatch_status": {
+            "type": "string"
+          },
+          "remote_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CreateNodeDaemonAgentConnectionRequest": {
+        "properties": {
+          "agent_type": {
+            "type": "string"
+          },
+          "command": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "command_id": {
+            "type": "string"
+          },
+          "desired_slots": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "harness": {
+            "type": "string"
+          },
+          "instance_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "working_dir": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CreateNodeDaemonAgentConnectionResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CreateNodeDaemonAgentConnectionData"
+          },
+          "message": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -721,6 +989,61 @@
         },
         "type": "object"
       },
+      "CreateProjectRequest": {
+        "properties": {
+          "display_name": {
+            "type": "string"
+          },
+          "parent_project_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CreateProjectTargetRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "cwd": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "is_default": {
+            "type": "boolean"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CreateRegistrationTokenRequest": {
+        "properties": {
+          "expires_in_seconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "owner_email": {
+            "type": "string"
+          },
+          "owner_user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "CreateSecretData": {
         "properties": {
           "secret": {
@@ -742,6 +1065,26 @@
             "$ref": "#/components/schemas/CreateSecretData"
           },
           "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CreateSessionMessageRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "message_type": {
+            "type": "string"
+          },
+          "payload": {
+            "type": "object"
+          },
+          "session_id": {
             "type": "string"
           }
         },
@@ -859,6 +1202,51 @@
         },
         "type": "object"
       },
+      "DeleteNodeAgentRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "DeleteNodeRequest": {
+        "properties": {
+          "node_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "DiscoverNodeDaemonHarnessesRequest": {
+        "properties": {
+          "names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "probe": {
+            "type": "boolean"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "EmptyRequest": {
         "properties": {},
         "type": "object"
@@ -894,6 +1282,25 @@
             "type": "string"
           },
           "tool": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "GetAgentRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "GetAgentSessionRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "session_id": {
             "type": "string"
           }
         },
@@ -949,9 +1356,59 @@
         },
         "type": "object"
       },
+      "GetNodeDaemonCommandRequest": {
+        "properties": {
+          "command_id": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "GetNodeDaemonStatusRequest": {
+        "properties": {
+          "node_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "GetNodeRequest": {
         "properties": {
           "node_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "GetProjectRequest": {
+        "properties": {
+          "project_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "GetProjectTargetRequest": {
+        "properties": {
+          "project_id": {
+            "type": "string"
+          },
+          "target_id": {
             "type": "string"
           },
           "user_id": {
@@ -1000,6 +1457,43 @@
             "$ref": "#/components/schemas/HealthData"
           },
           "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ListAgentMessagesRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ListAgentSessionMessagesRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ListAgentSessionsRequest": {
+        "properties": {
+          "agent_id": {
             "type": "string"
           }
         },
@@ -1071,8 +1565,58 @@
         },
         "type": "object"
       },
+      "ListNodeDaemonAgentConnectionsRequest": {
+        "properties": {
+          "include_disabled": {
+            "type": "boolean"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ListNodeDaemonHarnessesRequest": {
+        "properties": {
+          "include_missing": {
+            "type": "boolean"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ListNodesRequest": {
         "properties": {
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ListProjectTargetsRequest": {
+        "properties": {
+          "project_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ListProjectsRequest": {
+        "properties": {
+          "include_archived": {
+            "type": "boolean"
+          },
           "user_id": {
             "type": "string"
           }
@@ -1171,8 +1715,63 @@
         },
         "type": "object"
       },
+      "ListUserAuditEventsRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "approval_id": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "event_type": {
+            "type": "string"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "q": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ListUserSecretsRequest": {
         "properties": {
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ListUserSessionsRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "page_num": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "page_size": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "primary_project_id": {
+            "type": "string"
+          },
           "user_id": {
             "type": "string"
           }
@@ -1383,6 +1982,94 @@
         },
         "type": "object"
       },
+      "NodeAgentSessionReportRequest": {
+        "properties": {
+          "sessions": {
+            "items": {
+              "$ref": "#/components/schemas/SessionStatusInput"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "NodeDaemonAgentConnectionActionRequest": {
+        "properties": {
+          "command_id": {
+            "type": "string"
+          },
+          "connection_id": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "NodeDaemonCommandData": {
+        "properties": {
+          "command_ack": {
+            "type": "object"
+          },
+          "command_id": {
+            "type": "string"
+          },
+          "command_status": {
+            "type": "string"
+          },
+          "connection_id": {
+            "type": "string"
+          },
+          "desired_generation": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "dispatch_error": {
+            "type": "string"
+          },
+          "dispatch_status": {
+            "type": "string"
+          },
+          "remote_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "NodeDaemonCommandResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/NodeDaemonCommandData"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "NodeDaemonQueryResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "type": "object"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "NodeListData": {
         "properties": {
           "nodes": {
@@ -1476,6 +2163,196 @@
       "OpenAPI": {
         "type": "object"
       },
+      "Pagination": {
+        "properties": {
+          "page_num": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "page_size": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "total_pages": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "Project": {
+        "properties": {
+          "archived_at": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "owner_user_id": {
+            "type": "string"
+          },
+          "parent_project_id": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ProjectData": {
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/Project"
+          }
+        },
+        "type": "object"
+      },
+      "ProjectListData": {
+        "properties": {
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/Project"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ProjectListResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ProjectListData"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ProjectResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ProjectData"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ProjectTarget": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "cwd": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "is_default": {
+            "type": "boolean"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "target_id": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ProjectTargetData": {
+        "properties": {
+          "target": {
+            "$ref": "#/components/schemas/ProjectTarget"
+          }
+        },
+        "type": "object"
+      },
+      "ProjectTargetListData": {
+        "properties": {
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectTarget"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ProjectTargetListResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ProjectTargetListData"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ProjectTargetResponse": {
+        "properties": {
+          "code": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ProjectTargetData"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PullMailboxRequest": {
+        "properties": {
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "offset": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "PullMailboxResponse": {
         "properties": {
           "code": {
@@ -1535,6 +2412,51 @@
           "offset": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "PullSessionMailboxRequest": {
+        "properties": {
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "offset": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "session_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "RegisterAgentRequest": {
+        "properties": {
+          "agent_type": {
+            "type": "string"
+          },
+          "api_endpoint": {
+            "type": "string"
+          },
+          "hermes_version": {
+            "type": "string"
+          },
+          "hostname": {
+            "type": "string"
+          },
+          "machine_type": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          },
+          "os": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -1638,6 +2560,26 @@
             "$ref": "#/components/schemas/RegisterNodeData"
           },
           "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ReportMessageResultRequest": {
+        "properties": {
+          "completed_at": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "message_id": {
+            "type": "string"
+          },
+          "result": {
+            "type": "string"
+          },
+          "status": {
             "type": "string"
           }
         },
@@ -1886,6 +2828,9 @@
       },
       "SessionListData": {
         "properties": {
+          "pagination": {
+            "$ref": "#/components/schemas/Pagination"
+          },
           "sessions": {
             "items": {
               "$ref": "#/components/schemas/AgentSession"
@@ -1905,6 +2850,17 @@
             "$ref": "#/components/schemas/SessionListData"
           },
           "message": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SessionPaxConfig": {
+        "properties": {
+          "approval_mode": {
+            "type": "string"
+          },
+          "cwd": {
             "type": "string"
           }
         },
@@ -1938,9 +2894,6 @@
             "type": "string"
           },
           "preview": {
-            "type": "string"
-          },
-          "project_id": {
             "type": "string"
           },
           "run_id": {
@@ -2015,11 +2968,177 @@
         },
         "type": "object"
       },
+      "UpdateMailboxOffsetRequest": {
+        "properties": {
+          "offset": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateNodeAgentRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "card": {
+            "type": "object"
+          },
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "user_metadata": {
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateNodeAgentSessionRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "pax_config": {
+            "$ref": "#/components/schemas/SessionPaxConfig"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "use_reported_name": {
+            "type": "boolean"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateNodeDaemonAgentConnectionRequest": {
+        "properties": {
+          "command": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "command_id": {
+            "type": "string"
+          },
+          "connection_id": {
+            "type": "string"
+          },
+          "desired_slots": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "desired_state": {
+            "type": "string"
+          },
+          "harness": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "working_dir": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "UpdateNodeMailboxOffsetRequest": {
         "properties": {
           "offset": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateNodeRequest": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "user_metadata": {
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateProjectRequest": {
+        "properties": {
+          "display_name": {
+            "type": "string"
+          },
+          "parent_project_id": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateProjectTargetRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "cwd": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "is_default": {
+            "type": "boolean"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "target_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -2172,52 +3291,6 @@
           }
         },
         "type": "object"
-      },
-      "UpdateNodeAgentRequest": {
-        "properties": {
-          "agent_id": {
-            "type": "string"
-          },
-          "card": {
-            "type": "object"
-          },
-          "description": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "node_id": {
-            "type": "string"
-          },
-          "user_id": {
-            "type": "string"
-          },
-          "user_metadata": {
-            "type": "object"
-          }
-        },
-        "type": "object"
-      },
-      "UpdateNodeRequest": {
-        "properties": {
-          "description": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "node_id": {
-            "type": "string"
-          },
-          "user_id": {
-            "type": "string"
-          },
-          "user_metadata": {
-            "type": "object"
-          }
-        },
-        "type": "object"
       }
     },
     "securitySchemes": {
@@ -2226,12 +3299,6 @@
         "in": "header",
         "name": "Cf-Access-Jwt-Assertion",
         "type": "apiKey"
-      },
-      "googleIam": {
-        "bearerFormat": "Google ID token",
-        "description": "Google-signed identity token for an allowed IAM principal.",
-        "scheme": "bearer",
-        "type": "http"
       },
       "nodeBearer": {
         "description": "Node API key returned during registration.",
@@ -2247,137 +3314,6 @@
   },
   "openapi": "3.1.0",
   "paths": {
-    "/api/v1/admin/artifacts": {
-      "post": {
-        "description": "Records metadata for a product binary already uploaded to GCS. The caller must present a Google-signed identity token for an allowed IAM principal.",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "required": [
-                  "product",
-                  "platform",
-                  "version",
-                  "bucket",
-                  "object",
-                  "sha256"
-                ],
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Artifact metadata recorded."
-          },
-          "401": {
-            "description": "Missing or invalid bearer token."
-          },
-          "403": {
-            "description": "Principal is not allowed."
-          }
-        },
-        "security": [
-          {
-            "googleIam": []
-          }
-        ],
-        "summary": "Publish artifact metadata",
-        "tags": ["artifacts"]
-      }
-    },
-    "/api/v1/admin/paxd/artifacts": {
-      "post": {
-        "description": "Compatibility alias for the generic artifact publish endpoint with product=paxd. The caller must present a Google-signed identity token for an allowed IAM principal.",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "required": [
-                  "platform",
-                  "version",
-                  "bucket",
-                  "object",
-                  "sha256"
-                ],
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Artifact metadata recorded."
-          },
-          "401": {
-            "description": "Missing or invalid Google identity token."
-          },
-          "403": {
-            "description": "IAM principal is not allowed."
-          }
-        },
-        "security": [
-          {
-            "googleIam": []
-          }
-        ],
-        "summary": "Publish paxd artifact metadata",
-        "tags": ["paxd"]
-      }
-    },
-    "/api/v1/agent/tunnel": {
-      "get": {
-        "description": "Upgrades to a WebSocket used by paxd to forward ACP JSON-RPC frames between pax-manager and a local ACP server.",
-        "parameters": [
-          {
-            "description": "Agent ID served by this paxd node.",
-            "in": "query",
-            "name": "agent_id",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Local runtime instance ID. Defaults to default.",
-            "in": "query",
-            "name": "instance_id",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "ACP session ID served by this tunnel.",
-            "in": "query",
-            "name": "session_id",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "101": {
-            "description": "WebSocket tunnel established."
-          },
-          "401": {
-            "description": "Node or agent authentication failed."
-          }
-        },
-        "security": [
-          {
-            "nodeBearer": []
-          }
-        ],
-        "summary": "Connect ACP agent tunnel",
-        "tags": ["ACP"],
-        "x-websocket": true
-      }
-    },
     "/api/v1/health": {
       "get": {
         "description": "",
@@ -2867,6 +3803,101 @@
           }
         ],
         "summary": "Pull node agent mailbox",
+        "tags": ["node"]
+      }
+    },
+    "/api/v1/node/agents/{agent_id}/sessions": {
+      "post": {
+        "description": "Upserts session status for one agent owned by the authenticated node without changing node or agent liveness fields.",
+        "parameters": [
+          {
+            "description": "Agent identifier.",
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NodeAgentSessionReportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OKResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "nodeBearer": []
+          }
+        ],
+        "summary": "Report node agent sessions",
         "tags": ["node"]
       }
     },
@@ -3811,396 +4842,6 @@
         "tags": ["node"]
       }
     },
-    "/api/v1/public/artifacts/download": {
-      "get": {
-        "description": "Returns a short-lived signed GCS URL for the newest binary matching the requested product, platform, and tags.",
-        "parameters": [
-          {
-            "description": "Product such as paxd or paxl.",
-            "in": "query",
-            "name": "product",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Platform such as linux/amd64 or darwin/arm64.",
-            "in": "query",
-            "name": "platform",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Required tags. Multiple values use AND semantics.",
-            "in": "query",
-            "name": "tags",
-            "required": false,
-            "schema": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Signed download URL."
-          },
-          "404": {
-            "description": "No matching artifact."
-          }
-        },
-        "summary": "Get signed artifact download URL",
-        "tags": ["artifacts"]
-      }
-    },
-    "/api/v1/public/paxd/download": {
-      "get": {
-        "description": "Compatibility alias for the generic artifact resolver with product=paxd.",
-        "parameters": [
-          {
-            "description": "Platform such as linux/amd64 or darwin/arm64.",
-            "in": "query",
-            "name": "platform",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Required tags. Multiple values use AND semantics.",
-            "in": "query",
-            "name": "tags",
-            "required": false,
-            "schema": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Signed download URL."
-          },
-          "404": {
-            "description": "No matching paxd artifact."
-          }
-        },
-        "summary": "Get signed paxd download URL",
-        "tags": ["paxd"]
-      }
-    },
-    "/api/v1/public/paxd/install.sh": {
-      "get": {
-        "description": "Redirects to a short-lived signed GCS URL for the latest stable paxd installer shell script.",
-        "responses": {
-          "302": {
-            "description": "Redirect to signed installer URL."
-          }
-        },
-        "summary": "Redirect to paxd installer script",
-        "tags": ["paxd"]
-      }
-    },
-    "/api/v1/public/paxl/download": {
-      "get": {
-        "description": "Friendly alias for the generic artifact resolver with product=paxl.",
-        "parameters": [
-          {
-            "description": "Platform such as linux/amd64 or darwin/arm64.",
-            "in": "query",
-            "name": "platform",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Required tags. Multiple values use AND semantics.",
-            "in": "query",
-            "name": "tags",
-            "required": false,
-            "schema": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Signed download URL."
-          },
-          "404": {
-            "description": "No matching paxl artifact."
-          }
-        },
-        "summary": "Get signed paxl download URL",
-        "tags": ["paxl"]
-      }
-    },
-    "/api/v1/public/paxl/install.sh": {
-      "get": {
-        "description": "Redirects to a short-lived signed GCS URL for the latest stable paxl installer shell script.",
-        "responses": {
-          "302": {
-            "description": "Redirect to signed installer URL."
-          }
-        },
-        "summary": "Redirect to paxl installer script",
-        "tags": ["paxl"]
-      }
-    },
-    "/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/history": {
-      "get": {
-        "description": "Lists a page of durable session history messages with their message parts. The first page contains the latest messages; responses are ordered chronologically.",
-        "parameters": [
-          {
-            "description": "User ID or self.",
-            "in": "path",
-            "name": "user_id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Agent identifier.",
-            "in": "path",
-            "name": "agent_id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Session identifier.",
-            "in": "path",
-            "name": "session_id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Maximum number of history messages to return. Defaults to 1000.",
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "maximum": 1000,
-              "type": "integer"
-            }
-          },
-          {
-            "description": "Returns messages with a database ID lower than this value. Use pagination.next_before_id to load older history.",
-            "in": "query",
-            "name": "before_id",
-            "required": false,
-            "schema": {
-              "format": "int64",
-              "minimum": 1,
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Session history messages."
-          },
-          "401": {
-            "description": "User authentication failed."
-          },
-          "404": {
-            "description": "Agent or session not found."
-          }
-        },
-        "security": [
-          {
-            "cloudflareAccess": []
-          }
-        ],
-        "summary": "List agent session history",
-        "tags": ["user"]
-      }
-    },
-    "/api/v1/user/{user_id}/sessions/{session_id}/history": {
-      "get": {
-        "description": "Lists a page of durable session history messages with their message parts. The first page contains the latest messages; responses are ordered chronologically.",
-        "parameters": [
-          {
-            "description": "User ID or self.",
-            "in": "path",
-            "name": "user_id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Session identifier.",
-            "in": "path",
-            "name": "session_id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Maximum number of history messages to return. Defaults to 1000.",
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "maximum": 1000,
-              "type": "integer"
-            }
-          },
-          {
-            "description": "Returns messages with a database ID lower than this value. Use pagination.next_before_id to load older history.",
-            "in": "query",
-            "name": "before_id",
-            "required": false,
-            "schema": {
-              "format": "int64",
-              "minimum": 1,
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Session history messages."
-          },
-          "401": {
-            "description": "User authentication failed."
-          },
-          "404": {
-            "description": "Session not found."
-          }
-        },
-        "security": [
-          {
-            "cloudflareAccess": []
-          }
-        ],
-        "summary": "List session history",
-        "tags": ["user"]
-      }
-    },
-    "/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/tunnel": {
-      "get": {
-        "description": "Upgrades to a WebSocket used by an ACP client to exchange JSON-RPC frames with a connected paxd agent tunnel for one ACP session.",
-        "parameters": [
-          {
-            "description": "User ID or self.",
-            "in": "path",
-            "name": "user_id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Agent ID to connect to.",
-            "in": "path",
-            "name": "agent_id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "ACP session ID to connect to.",
-            "in": "path",
-            "name": "session_id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "101": {
-            "description": "WebSocket tunnel established."
-          },
-          "401": {
-            "description": "User authentication failed."
-          },
-          "404": {
-            "description": "Agent tunnel is not connected."
-          }
-        },
-        "security": [
-          {
-            "cloudflareAccess": []
-          }
-        ],
-        "summary": "Connect ACP user tunnel for a session",
-        "tags": ["ACP"],
-        "x-websocket": true
-      }
-    },
-    "/api/v1/user/{user_id}/agents/{agent_id}/tunnel": {
-      "get": {
-        "description": "Upgrades to a WebSocket used by an ACP client to exchange JSON-RPC frames with a connected paxd agent tunnel.",
-        "parameters": [
-          {
-            "description": "User ID or self.",
-            "in": "path",
-            "name": "user_id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Agent ID to connect to.",
-            "in": "path",
-            "name": "agent_id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "ACP session ID to connect to. Omit only for tunnels registered without a session ID.",
-            "in": "query",
-            "name": "session_id",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "101": {
-            "description": "WebSocket tunnel established."
-          },
-          "401": {
-            "description": "User authentication failed."
-          },
-          "404": {
-            "description": "Agent tunnel is not connected."
-          }
-        },
-        "security": [
-          {
-            "cloudflareAccess": []
-          }
-        ],
-        "summary": "Connect ACP user tunnel",
-        "tags": ["ACP"],
-        "x-websocket": true
-      }
-    },
     "/api/v1/user/{user_id}/api-keys": {
       "get": {
         "description": "Lists API keys owned by the current user.",
@@ -4995,164 +5636,162 @@
         "tags": ["user"]
       }
     },
-    "/api/v1/user/{user_id}/envelopes": {
+    "/api/v1/user/{user_id}/audit-events": {
       "get": {
+        "description": "Lists normalized agent and session audit events visible to the current user.",
+        "parameters": [
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by agent identifier.",
+            "in": "query",
+            "name": "agent_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by approval identifier.",
+            "in": "query",
+            "name": "approval_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by approval decision.",
+            "in": "query",
+            "name": "decision",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by audit event type.",
+            "in": "query",
+            "name": "event_type",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum number of events to return.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Keyword search over title, summary, tool name, reason, raw event, and tool input.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by session identifier.",
+            "in": "query",
+            "name": "session_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListUserAuditEventsRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "Envelope list."
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditEventListResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
           }
         },
-        "summary": "List envelopes",
-        "tags": ["user"]
-      },
-      "post": {
-        "responses": {
-          "200": {
-            "description": "Created envelope."
+        "security": [
+          {
+            "cloudflareAccess": []
           }
-        },
-        "summary": "Create envelope",
-        "tags": ["user"]
-      }
-    },
-    "/api/v1/user/{user_id}/envelopes/{envelope_id}": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "Envelope detail."
-          }
-        },
-        "summary": "Get envelope",
-        "tags": ["user"]
-      }
-    },
-    "/api/v1/user/{user_id}/envelopes/{envelope_id}/accept": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "Accepted envelope."
-          }
-        },
-        "summary": "Accept envelope",
-        "tags": ["user"]
-      }
-    },
-    "/api/v1/user/{user_id}/envelopes/{envelope_id}/archive": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "Archived envelope."
-          }
-        },
-        "summary": "Archive envelope",
-        "tags": ["user"]
-      }
-    },
-    "/api/v1/user/{user_id}/friends": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "Friend list."
-          }
-        },
-        "summary": "List friends",
-        "tags": ["user"]
-      },
-      "post": {
-        "responses": {
-          "200": {
-            "description": "Created friend request."
-          }
-        },
-        "summary": "Create friend",
-        "tags": ["user"]
-      }
-    },
-    "/api/v1/user/{user_id}/friends/{friend_id}": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "Friend detail."
-          }
-        },
-        "summary": "Get friend",
-        "tags": ["user"]
-      }
-    },
-    "/api/v1/user/{user_id}/friends/{friend_id}/accept": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "Accepted friend request."
-          }
-        },
-        "summary": "Accept friend",
-        "tags": ["user"]
-      }
-    },
-    "/api/v1/user/{user_id}/friends/{friend_id}/alias": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "Updated friend alias."
-          }
-        },
-        "summary": "Update friend alias",
-        "tags": ["user"]
-      }
-    },
-    "/api/v1/user/{user_id}/friends/{friend_id}/block": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "Blocked friend."
-          }
-        },
-        "summary": "Block friend",
-        "tags": ["user"]
-      }
-    },
-    "/api/v1/user/{user_id}/friends/{friend_id}/remove": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "Removed friend."
-          }
-        },
-        "summary": "Remove friend",
-        "tags": ["user"]
-      }
-    },
-    "/api/v1/user/{user_id}/knowledge-capsules": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "Knowledge capsule list."
-          }
-        },
-        "summary": "List knowledge capsules",
-        "tags": ["user"]
-      }
-    },
-    "/api/v1/user/{user_id}/knowledge-capsules/{capsule_id}": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "Knowledge capsule detail."
-          }
-        },
-        "summary": "Get knowledge capsule",
-        "tags": ["user"]
-      }
-    },
-    "/api/v1/user/{user_id}/knowledge-capsules/{capsule_id}/archive": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "Archived knowledge capsule."
-          }
-        },
-        "summary": "Archive knowledge capsule",
+        ],
+        "summary": "List agent audit events",
         "tags": ["user"]
       }
     },
@@ -5346,176 +5985,6 @@
         "tags": ["user"]
       }
     },
-    "/api/v1/user/{user_id}/sessions/{session_id}/knowledge-capsules": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "Created knowledge capsule from session history."
-          }
-        },
-        "summary": "Create knowledge capsule",
-        "tags": ["user"]
-      }
-    },
-    "/api/v1/user/{user_id}/sessions/{session_id}/knowledge-injections": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "Knowledge injection list."
-          }
-        },
-        "summary": "List knowledge injections",
-        "tags": ["user"]
-      },
-      "post": {
-        "responses": {
-          "200": {
-            "description": "Created knowledge injection."
-          }
-        },
-        "summary": "Inject knowledge capsule",
-        "tags": ["user"]
-      }
-    },
-    "/api/v1/user/{user_id}/team-invites": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "Pending team invite list."
-          }
-        },
-        "summary": "List team invites",
-        "tags": ["user"]
-      }
-    },
-    "/api/v1/user/{user_id}/team-invites/{invite_id}/accept": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "Accepted team invite."
-          }
-        },
-        "summary": "Accept team invite",
-        "tags": ["user"]
-      }
-    },
-    "/api/v1/user/{user_id}/team-invites/{invite_id}/decline": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "Declined team invite."
-          }
-        },
-        "summary": "Decline team invite",
-        "tags": ["user"]
-      }
-    },
-    "/api/v1/user/{user_id}/teams": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "Team summary list."
-          }
-        },
-        "summary": "List teams",
-        "tags": ["user"]
-      },
-      "post": {
-        "responses": {
-          "200": {
-            "description": "Created team."
-          }
-        },
-        "summary": "Create team",
-        "tags": ["user"]
-      }
-    },
-    "/api/v1/user/{user_id}/teams/{team_id}": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "Team detail."
-          }
-        },
-        "summary": "Get team",
-        "tags": ["user"]
-      }
-    },
-    "/api/v1/user/{user_id}/teams/{team_id}/agents": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "Team agent list."
-          }
-        },
-        "summary": "List team agents",
-        "tags": ["user"]
-      },
-      "post": {
-        "responses": {
-          "200": {
-            "description": "Added team agent."
-          }
-        },
-        "summary": "Add team agent",
-        "tags": ["user"]
-      }
-    },
-    "/api/v1/user/{user_id}/teams/{team_id}/agents/{agent_id}": {
-      "delete": {
-        "responses": {
-          "200": {
-            "description": "Removed team agent."
-          }
-        },
-        "summary": "Remove team agent",
-        "tags": ["user"]
-      }
-    },
-    "/api/v1/user/{user_id}/teams/{team_id}/invites": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "Created team invite."
-          }
-        },
-        "summary": "Create team invite",
-        "tags": ["user"]
-      }
-    },
-    "/api/v1/user/{user_id}/teams/{team_id}/leave": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "Left team."
-          }
-        },
-        "summary": "Leave team",
-        "tags": ["user"]
-      }
-    },
-    "/api/v1/user/{user_id}/teams/{team_id}/members": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "Team member list."
-          }
-        },
-        "summary": "List team members",
-        "tags": ["user"]
-      }
-    },
-    "/api/v1/user/{user_id}/teams/{team_id}/members/{member_user_id}": {
-      "delete": {
-        "responses": {
-          "200": {
-            "description": "Removed team member."
-          }
-        },
-        "summary": "Remove team member",
-        "tags": ["user"]
-      }
-    },
     "/api/v1/user/{user_id}/nodes": {
       "get": {
         "description": "Lists nodes visible to the current user.",
@@ -5612,6 +6081,108 @@
       }
     },
     "/api/v1/user/{user_id}/nodes/{node_id}": {
+      "delete": {
+        "description": "Soft-deletes a node owned by the current user, hides it from fleet lists, revokes its API key, and soft-deletes hosted agents.",
+        "parameters": [
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteNodeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Delete node",
+        "tags": ["user"]
+      },
       "get": {
         "description": "Returns a node visible to the current user.",
         "parameters": [
@@ -6024,6 +6595,117 @@
       }
     },
     "/api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}": {
+      "delete": {
+        "description": "Soft-deletes an agent owned by the current user, hides it from fleet lists, and revokes its API key.",
+        "parameters": [
+          {
+            "description": "Agent identifier.",
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteNodeAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Delete node agent",
+        "tags": ["user"]
+      },
       "get": {
         "description": "Returns an agent under a node visible to the current user.",
         "parameters": [
@@ -6843,6 +7525,126 @@
         ],
         "summary": "Get node agent session",
         "tags": ["user"]
+      },
+      "patch": {
+        "description": "Updates mutable session configuration such as the PAX approval mode. The session cwd is create-only and cannot be changed.",
+        "parameters": [
+          {
+            "description": "Agent identifier.",
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session identifier.",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNodeAgentSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSessionResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Update node agent session",
+        "tags": ["user"]
       }
     },
     "/api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}/messages": {
@@ -7085,6 +7887,2024 @@
         ],
         "summary": "Create node agent session message",
         "tags": ["user"]
+      }
+    },
+    "/api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections": {
+      "get": {
+        "description": "Forwards an agent_connections.list query to the connected paxd control tunnel.",
+        "parameters": [
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListNodeDaemonAgentConnectionsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeDaemonQueryResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "List node daemon agent connections",
+        "tags": ["user"]
+      },
+      "post": {
+        "description": "Creates a cloud Agent and forwards agent_connection.create to the connected paxd control tunnel.",
+        "parameters": [
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateNodeDaemonAgentConnectionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateNodeDaemonAgentConnectionResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Create node daemon agent connection",
+        "tags": ["user"]
+      }
+    },
+    "/api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections/{connection_id}": {
+      "delete": {
+        "description": "Forwards agent_connection.delete to the connected paxd control tunnel without deleting the cloud Agent.",
+        "parameters": [
+          {
+            "description": "Agent connection identifier.",
+            "in": "path",
+            "name": "connection_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NodeDaemonAgentConnectionActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeDaemonCommandResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Remove node daemon agent connection",
+        "tags": ["user"]
+      },
+      "patch": {
+        "description": "Forwards agent_connection.update to the connected paxd control tunnel.",
+        "parameters": [
+          {
+            "description": "Agent connection identifier.",
+            "in": "path",
+            "name": "connection_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNodeDaemonAgentConnectionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeDaemonCommandResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Update node daemon agent connection",
+        "tags": ["user"]
+      }
+    },
+    "/api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections/{connection_id}/restart": {
+      "post": {
+        "description": "Forwards agent_connection.restart to the connected paxd control tunnel.",
+        "parameters": [
+          {
+            "description": "Agent connection identifier.",
+            "in": "path",
+            "name": "connection_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NodeDaemonAgentConnectionActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeDaemonCommandResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Restart node daemon agent connection",
+        "tags": ["user"]
+      }
+    },
+    "/api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections/{connection_id}/stop": {
+      "post": {
+        "description": "Sets the paxd agent connection desired state to stopped.",
+        "parameters": [
+          {
+            "description": "Agent connection identifier.",
+            "in": "path",
+            "name": "connection_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NodeDaemonAgentConnectionActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeDaemonCommandResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Stop node daemon agent connection",
+        "tags": ["user"]
+      }
+    },
+    "/api/v1/user/{user_id}/nodes/{node_id}/daemon/commands/{command_id}": {
+      "get": {
+        "description": "Forwards command.get to the connected paxd control tunnel.",
+        "parameters": [
+          {
+            "description": "Command identifier.",
+            "in": "path",
+            "name": "command_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetNodeDaemonCommandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeDaemonQueryResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Get node daemon command",
+        "tags": ["user"]
+      }
+    },
+    "/api/v1/user/{user_id}/nodes/{node_id}/daemon/harnesses": {
+      "get": {
+        "description": "Forwards a harnesses.list query to the connected paxd control tunnel.",
+        "parameters": [
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListNodeDaemonHarnessesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeDaemonQueryResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "List node daemon harnesses",
+        "tags": ["user"]
+      }
+    },
+    "/api/v1/user/{user_id}/nodes/{node_id}/daemon/harnesses/discover": {
+      "post": {
+        "description": "Forwards a harnesses.discover query to the connected paxd control tunnel.",
+        "parameters": [
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscoverNodeDaemonHarnessesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeDaemonQueryResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Discover node daemon harnesses",
+        "tags": ["user"]
+      }
+    },
+    "/api/v1/user/{user_id}/nodes/{node_id}/daemon/status": {
+      "get": {
+        "description": "Forwards a status.get query to the connected paxd control tunnel.",
+        "parameters": [
+          {
+            "description": "Node identifier.",
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetNodeDaemonStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeDaemonQueryResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Get node daemon status",
+        "tags": ["user"]
+      }
+    },
+    "/api/v1/user/{user_id}/projects": {
+      "get": {
+        "description": "Lists the current user's logical projects. Archived projects are excluded by default.",
+        "parameters": [
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Include archived projects.",
+            "in": "query",
+            "name": "include_archived",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListProjectsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectListResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "List projects",
+        "tags": ["project"]
+      },
+      "post": {
+        "description": "Creates a user-owned logical project, optionally nested under another active project.",
+        "parameters": [
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProjectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Create project",
+        "tags": ["project"]
+      }
+    },
+    "/api/v1/user/{user_id}/projects/{project_id}": {
+      "get": {
+        "description": "Returns one logical project owned by the current user.",
+        "parameters": [
+          {
+            "description": "Project identifier.",
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetProjectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Get project",
+        "tags": ["project"]
+      },
+      "patch": {
+        "description": "Renames or moves an active logical project. An empty parent_project_id moves it to the root.",
+        "parameters": [
+          {
+            "description": "Project identifier.",
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProjectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Update project",
+        "tags": ["project"]
+      }
+    },
+    "/api/v1/user/{user_id}/projects/{project_id}/archive": {
+      "post": {
+        "description": "Archives a logical project without cascading to its children.",
+        "parameters": [
+          {
+            "description": "Project identifier.",
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArchiveProjectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Archive project",
+        "tags": ["project"]
+      }
+    },
+    "/api/v1/user/{user_id}/projects/{project_id}/targets": {
+      "get": {
+        "description": "Lists every explicitly configured target for a project, including disabled targets.",
+        "parameters": [
+          {
+            "description": "Project identifier.",
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListProjectTargetsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectTargetListResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "List project targets",
+        "tags": ["project"]
+      },
+      "post": {
+        "description": "Adds an explicit Agent and configured cwd template to a logical project.",
+        "parameters": [
+          {
+            "description": "Project identifier.",
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProjectTargetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectTargetResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Create project target",
+        "tags": ["project"]
+      }
+    },
+    "/api/v1/user/{user_id}/projects/{project_id}/targets/{target_id}": {
+      "get": {
+        "description": "Returns one explicitly configured project target.",
+        "parameters": [
+          {
+            "description": "Project identifier.",
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Project target identifier.",
+            "in": "path",
+            "name": "target_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetProjectTargetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectTargetResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Get project target",
+        "tags": ["project"]
+      },
+      "patch": {
+        "description": "Edits, enables, disables, or makes a project target the sole enabled default.",
+        "parameters": [
+          {
+            "description": "Project identifier.",
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Project target identifier.",
+            "in": "path",
+            "name": "target_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User identifier.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProjectTargetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectTargetResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "Update project target",
+        "tags": ["project"]
       }
     },
     "/api/v1/user/{user_id}/secrets": {
@@ -7378,13 +10198,148 @@
         "summary": "Get secret",
         "tags": ["user"]
       }
+    },
+    "/api/v1/user/{user_id}/sessions": {
+      "get": {
+        "description": "Lists sessions across agents owned by the current user with pagination.",
+        "parameters": [
+          {
+            "description": "User identifier or self.",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional agent identifier filter. Use comma-separated IDs for multiple agents.",
+            "in": "query",
+            "name": "agent_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional node identifier filter. Use comma-separated IDs for multiple nodes.",
+            "in": "query",
+            "name": "node_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "One-based page number.",
+            "in": "query",
+            "name": "page_num",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum number of sessions per page.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional primary logical project identifier filter.",
+            "in": "query",
+            "name": "primary_project_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListUserSessionsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionListResponse"
+                }
+              }
+            },
+            "description": "Successful response."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "security": [
+          {
+            "cloudflareAccess": []
+          }
+        ],
+        "summary": "List user sessions",
+        "tags": ["user"]
+      }
     }
   },
-  "servers": [
-    {
-      "url": "https://app.paxtech.net"
-    }
-  ],
   "tags": [
     {
       "description": "Health and metadata endpoints.",

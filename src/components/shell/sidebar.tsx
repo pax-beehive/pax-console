@@ -9,6 +9,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Inbox,
+  FolderTree,
   KeyRound,
   MailPlus,
   Radio,
@@ -58,6 +59,7 @@ const settingsNavItem: NavItem = {
   label: "Settings",
   matches: ["/settings", "/nodes", "/agents", "/approvals", "/monitor"],
   children: [
+    { href: "/settings/projects", icon: FolderTree, label: "Projects" },
     { href: "/settings/devices", icon: Server, label: "Devices" },
     { href: "/settings/security", icon: ShieldCheck, label: "Security" },
     { href: "/settings/developer", icon: KeyRound, label: "Developer" },
