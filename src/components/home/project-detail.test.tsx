@@ -11,6 +11,7 @@ import { ProjectDetail } from "./project-detail";
 
 const mocks = vi.hoisted(() => ({
   createProjectTarget: vi.fn(),
+  createProjectTargetSession: vi.fn(),
   listUserSessions: vi.fn(),
   updateProjectTarget: vi.fn(),
   useProject: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock("@/features/api/resources", async (importOriginal) => {
   return {
     ...actual,
     createProjectTarget: mocks.createProjectTarget,
+    createProjectTargetSession: mocks.createProjectTargetSession,
     listUserSessions: mocks.listUserSessions,
     updateProjectTarget: mocks.updateProjectTarget,
     useProject: mocks.useProject,
@@ -58,9 +60,34 @@ const session: AgentSession = {
   session_id: "session_1",
   updated_at: "2026-07-29T12:00:00Z",
 };
+const targets = [
+  {
+    agent_id: "agent_1",
+    created_at: "2026-07-29T12:00:00Z",
+    cwd: "~/pax-manager",
+    display_name: "Local manager",
+    enabled: true,
+    is_default: true,
+    project_id: "project_2",
+    target_id: "target_1",
+    updated_at: "2026-07-29T12:00:00Z",
+  },
+  {
+    agent_id: "agent_2",
+    created_at: "2026-07-29T12:00:00Z",
+    cwd: "~/pax-manager-docs",
+    display_name: "Docs workspace",
+    enabled: true,
+    is_default: false,
+    project_id: "project_2",
+    target_id: "target_2",
+    updated_at: "2026-07-29T12:00:00Z",
+  },
+];
 
 beforeEach(() => {
   mocks.createProjectTarget.mockReset();
+  mocks.createProjectTargetSession.mockReset();
   mocks.listUserSessions.mockReset();
   mocks.updateProjectTarget.mockReset();
   mocks.useProject.mockReset();
@@ -102,32 +129,7 @@ beforeEach(() => {
     },
   });
   mocks.useProjectTargets.mockReturnValue({
-    data: {
-      targets: [
-        {
-          agent_id: "agent_1",
-          created_at: "2026-07-29T12:00:00Z",
-          cwd: "~/pax-manager",
-          display_name: "Local manager",
-          enabled: true,
-          is_default: true,
-          project_id: "project_2",
-          target_id: "target_1",
-          updated_at: "2026-07-29T12:00:00Z",
-        },
-        {
-          agent_id: "agent_2",
-          created_at: "2026-07-29T12:00:00Z",
-          cwd: "~/pax-manager-docs",
-          display_name: "Docs workspace",
-          enabled: true,
-          is_default: false,
-          project_id: "project_2",
-          target_id: "target_2",
-          updated_at: "2026-07-29T12:00:00Z",
-        },
-      ],
-    },
+    data: { targets },
     error: null,
     isLoading: false,
   });
@@ -251,6 +253,70 @@ describe("ProjectDetail", () => {
         { enabled: false },
       );
     });
+  });
+
+  it("requires an explicit target choice when multiple are enabled", async () => {
+    const onOpenSession = vi.fn();
+    mocks.createProjectTargetSession.mockResolvedValue(session);
+
+    renderDetail(onOpenSession);
+
+    expect(
+      screen.getByRole("button", { name: "Start session" }),
+    ).toBeDisabled();
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: "Session target" }),
+      "target_2",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Start session" }),
+    );
+
+    await waitFor(() =>
+      expect(mocks.createProjectTargetSession).toHaveBeenCalledWith(
+        "user_1",
+        "project_2",
+        "target_2",
+        undefined,
+      ),
+    );
+    expect(onOpenSession).toHaveBeenCalledWith(session);
+  });
+
+  it("automatically uses the only enabled target and excludes disabled targets", async () => {
+    const onOpenSession = vi.fn();
+    mocks.useProjectTargets.mockReturnValue({
+      data: {
+        targets: [targets[0], { ...targets[1], enabled: false }],
+      },
+      error: null,
+      isLoading: false,
+    });
+    mocks.createProjectTargetSession.mockResolvedValue(session);
+
+    renderDetail(onOpenSession);
+
+    expect(screen.getByText("Using Local manager")).toBeVisible();
+    expect(
+      screen.queryByRole("combobox", { name: "Session target" }),
+    ).not.toBeInTheDocument();
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Session name" }),
+      "Review KEV-8",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Start session" }),
+    );
+
+    await waitFor(() =>
+      expect(mocks.createProjectTargetSession).toHaveBeenCalledWith(
+        "user_1",
+        "project_2",
+        "target_1",
+        "Review KEV-8",
+      ),
+    );
+    expect(onOpenSession).toHaveBeenCalledWith(session);
   });
 });
 

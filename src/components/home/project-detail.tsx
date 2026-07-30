@@ -20,6 +20,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { InlineError } from "@/components/ui/inline-error";
 import {
   createProjectTarget,
+  createProjectTargetSession,
   listUserSessions,
   updateProjectTarget,
   useProject,
@@ -71,8 +72,17 @@ export function ProjectDetail({
       }),
   });
   const [editor, setEditor] = useState<TargetEditorState | null>(null);
+  const [sessionName, setSessionName] = useState("");
+  const [selectedTargetId, setSelectedTargetId] = useState("");
   const project = projectQuery.data?.project;
   const targets = targetsQuery.data?.targets ?? [];
+  const enabledTargets = targets.filter((target) => target.enabled);
+  const effectiveTargetId =
+    enabledTargets.length === 1
+      ? enabledTargets[0].target_id
+      : enabledTargets.some((target) => target.target_id === selectedTargetId)
+        ? selectedTargetId
+        : "";
   const path = useMemo(
     () =>
       project ? projectPath(project, projectsQuery.data?.projects ?? []) : [],
@@ -94,6 +104,21 @@ export function ProjectDetail({
       targetId: string;
     }) => updateProjectTarget(userId, projectId, targetId, input),
     onSuccess: invalidateTargets,
+  });
+  const launch = useMutation({
+    mutationFn: () =>
+      createProjectTargetSession(
+        userId,
+        projectId,
+        effectiveTargetId,
+        sessionName.trim() || undefined,
+      ),
+    onSuccess: (session) => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.userSessionsRoot(userId),
+      });
+      onOpenSession(session);
+    },
   });
 
   if (projectQuery.isLoading) {
@@ -125,6 +150,59 @@ export function ProjectDetail({
           <div className="mt-2 text-sm text-ink-tertiary">
             {path.map((item) => item.display_name).join(" / ")}
           </div>
+          <div className="mt-5 grid gap-3 border-t border-hairline pt-4 md:grid-cols-[minmax(0,1fr)_minmax(220px,0.8fr)_auto] md:items-end">
+            <label className="grid gap-1 text-xs text-ink-tertiary">
+              Session name
+              <input
+                aria-label="Session name"
+                className="min-h-9 rounded-md border border-hairline bg-canvas px-2.5 text-sm text-ink outline-none focus:border-primary-focus"
+                onChange={(event) => setSessionName(event.target.value)}
+                placeholder="Optional"
+                value={sessionName}
+              />
+            </label>
+            {enabledTargets.length === 1 ? (
+              <div className="flex min-h-9 items-center rounded-md border border-hairline bg-canvas px-2.5 text-sm text-ink-muted">
+                Using {enabledTargets[0].display_name}
+              </div>
+            ) : (
+              <label className="grid gap-1 text-xs text-ink-tertiary">
+                Workspace target
+                <select
+                  aria-label="Session target"
+                  className="min-h-9 rounded-md border border-hairline bg-canvas px-2.5 text-sm text-ink outline-none focus:border-primary-focus"
+                  disabled={enabledTargets.length === 0}
+                  onChange={(event) => setSelectedTargetId(event.target.value)}
+                  value={effectiveTargetId}
+                >
+                  <option value="">
+                    {enabledTargets.length === 0
+                      ? "No enabled targets"
+                      : "Select a target"}
+                  </option>
+                  {enabledTargets.map((target) => (
+                    <option key={target.target_id} value={target.target_id}>
+                      {target.display_name} · {target.cwd}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <Button
+              disabled={!effectiveTargetId || launch.isPending}
+              icon={<Play className="h-4 w-4" />}
+              onClick={() => launch.mutate()}
+              type="button"
+              variant="primary"
+            >
+              Start session
+            </Button>
+          </div>
+          {launch.error && (
+            <div className="mt-3">
+              <InlineError error={launch.error} />
+            </div>
+          )}
         </header>
 
         <section className="rounded-xl border border-hairline bg-surface-1">
@@ -296,7 +374,7 @@ export function ProjectDetail({
             <div className="divide-y divide-hairline">
               {sessionsQuery.data.sessions.map((session) => (
                 <button
-                  aria-label={`Open session ${sessionName(session)}`}
+                  aria-label={`Open session ${sessionDisplayName(session)}`}
                   className="flex w-full items-center justify-between gap-4 p-4 text-left transition hover:bg-surface-2"
                   key={session.session_id}
                   onClick={() => onOpenSession(session)}
@@ -304,7 +382,7 @@ export function ProjectDetail({
                 >
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-medium text-ink">
-                      {sessionName(session)}
+                      {sessionDisplayName(session)}
                     </span>
                     <span className="mt-1 block truncate text-xs text-ink-tertiary">
                       {agentLabel(
@@ -490,7 +568,7 @@ function nodeLabel(node: Node | undefined) {
   return node?.name ?? node?.hostname ?? "Unknown node";
 }
 
-function sessionName(session: AgentSession) {
+function sessionDisplayName(session: AgentSession) {
   return session.name ?? session.current_task ?? session.session_id;
 }
 

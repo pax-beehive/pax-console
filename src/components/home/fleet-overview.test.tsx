@@ -26,6 +26,7 @@ import { FleetOverview } from "./fleet-overview";
 
 const mocks = vi.hoisted(() => ({
   completeUserAttachment: vi.fn(),
+  createProjectTargetSession: vi.fn(),
   createUserAttachment: vi.fn(),
   listAgents: vi.fn(),
   listUserSessions: vi.fn(),
@@ -34,7 +35,9 @@ const mocks = vi.hoisted(() => ({
   useApprovals: vi.fn(),
   useEnvelopes: vi.fn(),
   useNodes: vi.fn(),
+  useProject: vi.fn(),
   useProjects: vi.fn(),
+  useProjectTargets: vi.fn(),
   useTeamInvites: vi.fn(),
 }));
 
@@ -99,6 +102,7 @@ vi.mock("@/features/api/resources", async (importOriginal) => {
   return {
     ...actual,
     completeUserAttachment: mocks.completeUserAttachment,
+    createProjectTargetSession: mocks.createProjectTargetSession,
     createUserAttachment: mocks.createUserAttachment,
     listAgents: mocks.listAgents,
     listUserSessions: mocks.listUserSessions,
@@ -106,7 +110,9 @@ vi.mock("@/features/api/resources", async (importOriginal) => {
     useApprovals: mocks.useApprovals,
     useEnvelopes: mocks.useEnvelopes,
     useNodes: mocks.useNodes,
+    useProject: mocks.useProject,
     useProjects: mocks.useProjects,
+    useProjectTargets: mocks.useProjectTargets,
     useTeamInvites: mocks.useTeamInvites,
   };
 });
@@ -114,6 +120,7 @@ vi.mock("@/features/api/resources", async (importOriginal) => {
 beforeEach(() => {
   window.history.replaceState(null, "", "/");
   mocks.completeUserAttachment.mockReset();
+  mocks.createProjectTargetSession.mockReset();
   mocks.createUserAttachment.mockReset();
   mocks.routerPush.mockReset();
   mocks.uploadUserAttachmentFile.mockReset();
@@ -183,6 +190,38 @@ beforeEach(() => {
     error: null,
     isLoading: false,
   });
+  mocks.useProject.mockReturnValue({
+    data: {
+      project: {
+        created_at: "2026-07-20T12:00:00.000Z",
+        display_name: "Pax",
+        owner_user_id: "user_1",
+        project_id: "project_1",
+        updated_at: "2026-07-20T12:00:00.000Z",
+      },
+    },
+    error: null,
+    isLoading: false,
+  });
+  mocks.useProjectTargets.mockReturnValue({
+    data: {
+      targets: [
+        {
+          agent_id: "agent_1",
+          created_at: "2026-07-20T12:00:00.000Z",
+          cwd: "~/pax",
+          display_name: "Local Pax",
+          enabled: true,
+          is_default: true,
+          project_id: "project_1",
+          target_id: "target_1",
+          updated_at: "2026-07-20T12:00:00.000Z",
+        },
+      ],
+    },
+    error: null,
+    isLoading: false,
+  });
   mocks.useApprovals.mockReturnValue(emptyQueryData("approvals"));
   mocks.useEnvelopes.mockReturnValue(emptyQueryData("envelopes"));
   mocks.useTeamInvites.mockReturnValue(emptyQueryData("invites"));
@@ -213,6 +252,45 @@ describe("FleetOverview session rail", () => {
       screen.getByText("Logical workspaces and nested groups"),
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "Pax" })).toBeVisible();
+  });
+
+  it("starts a project session from its only enabled target", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    mocks.createProjectTargetSession.mockResolvedValue({
+      agent_id: "agent_1",
+      name: "Project session",
+      node_id: "node_1",
+      primary_project_id: "project_1",
+      session_id: "session_project_new",
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <FleetOverview user={{ user_id: "user_1" } as User} />
+        </TooltipProvider>
+      </QueryClientProvider>,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Projects" }));
+    await userEvent.click(screen.getByRole("button", { name: "Pax" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Start session" }),
+    );
+
+    const workbench = await screen.findByTestId("session-workbench");
+    expect(mocks.createProjectTargetSession).toHaveBeenCalledWith(
+      "user_1",
+      "project_1",
+      "target_1",
+      undefined,
+    );
+    expect(workbench).toHaveTextContent("session_project_new");
+    expect(workbench).toHaveAttribute("data-node-id", "node_1");
+    expect(workbench).toHaveAttribute("data-agent-id", "agent_1");
+    expect(window.location.search).toBe("?sessionId=session_project_new");
   });
 
   it("keeps Home mounted and opens a selected session in the embedded workbench", async () => {
