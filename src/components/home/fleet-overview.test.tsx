@@ -21,7 +21,7 @@ import {
   vi,
 } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import type { User } from "@/features/api/types";
+import type { AgentSession, Project, User } from "@/features/api/types";
 import { FleetOverview } from "./fleet-overview";
 
 const mocks = vi.hoisted(() => ({
@@ -288,6 +288,86 @@ describe("FleetOverview session rail", () => {
     ).toBeVisible();
   });
 
+  it("shows subprojects before sessions at every project nesting level", async () => {
+    const rootProject = projectFixture("project_root", "Root project");
+    const childProject = projectFixture(
+      "project_child",
+      "Child project",
+      rootProject.project_id,
+    );
+    const grandchildProject = projectFixture(
+      "project_grandchild",
+      "Grandchild project",
+      childProject.project_id,
+    );
+    setProjectContents(
+      [rootProject, childProject, grandchildProject],
+      [
+        sessionFixture("sess_root", "Root session", rootProject.project_id),
+        sessionFixture("sess_child", "Child session", childProject.project_id),
+      ],
+    );
+
+    renderOverview();
+
+    expect(
+      screen.getByRole("button", { name: "Child project" }),
+    ).toAppearBefore(await screen.findByRole("link", { name: /Root session/ }));
+    expect(
+      screen.getByRole("button", { name: "Grandchild project" }),
+    ).toAppearBefore(screen.getByRole("link", { name: /Child session/ }));
+  });
+
+  it("renders a project with sessions and no subprojects without extra contents", async () => {
+    const project = projectFixture("project_root", "Sessions only project");
+    setProjectContents(
+      [project],
+      [sessionFixture("sess_root", "Only session", project.project_id)],
+    );
+
+    renderOverview();
+
+    expect(
+      await screen.findByRole("link", { name: /Only session/ }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Child project" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders a project with subprojects and no sessions without extra contents", async () => {
+    const rootProject = projectFixture(
+      "project_root",
+      "Subprojects only project",
+    );
+    const childProject = projectFixture(
+      "project_child",
+      "Child project",
+      rootProject.project_id,
+    );
+    setProjectContents([rootProject, childProject], []);
+
+    renderOverview();
+
+    expect(screen.getByRole("button", { name: "Child project" })).toBeVisible();
+    expect(
+      screen.queryByRole("link", { name: /Only session/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders a project with no sessions or subprojects without a project placeholder", async () => {
+    const project = projectFixture("project_root", "Empty project");
+    setProjectContents([project], []);
+
+    renderOverview();
+
+    const projectRow = screen
+      .getByRole("button", { name: "Empty project" })
+      .closest("div");
+    const projectContents = projectRow?.parentElement;
+    expect(projectContents?.nextElementSibling).toHaveTextContent("Recents");
+  });
+
   it("starts a project session through the normal Home composer", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
@@ -432,6 +512,64 @@ describe("FleetOverview session rail", () => {
     expect(window.location.search).toBe("");
   });
 
+  it("keeps an ordinary new session click inside Home", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <FleetOverview user={{ user_id: "user_1" } as User} />
+        </TooltipProvider>
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(await screen.findByRole("link", { name: /Session one/ }));
+    expect(await screen.findByTestId("session-workbench")).toHaveTextContent(
+      "sess_1",
+    );
+
+    const newSessionLink = screen.getByRole("link", { name: "New session" });
+    expect(fireEvent.click(newSessionLink)).toBe(false);
+
+    expect(screen.queryByTestId("session-workbench")).not.toBeInTheDocument();
+    expect(window.location.pathname).toBe("/");
+    expect(window.location.search).toBe("");
+  });
+
+  it("leaves command-click navigation to the canonical new session link", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <FleetOverview user={{ user_id: "user_1" } as User} />
+        </TooltipProvider>
+      </QueryClientProvider>,
+    );
+
+    const newSessionLink = await screen.findByRole("link", {
+      name: "New session",
+    });
+
+    expect(newSessionLink).toHaveAttribute("href", "/sessions/new");
+    let componentPreventedNavigation = true;
+    const preventJsdomNavigation = (event: MouseEvent) => {
+      componentPreventedNavigation = event.defaultPrevented;
+      event.preventDefault();
+    };
+    document.addEventListener("click", preventJsdomNavigation);
+    fireEvent.click(newSessionLink, { metaKey: true });
+    document.removeEventListener("click", preventJsdomNavigation);
+
+    expect(componentPreventedNavigation).toBe(false);
+    expect(window.location.pathname).toBe("/");
+    expect(window.location.search).toBe("");
+  });
+
   it("starts a new chat inside Home without navigating to the session route", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
@@ -526,6 +664,67 @@ describe("FleetOverview session rail", () => {
     );
   });
 });
+
+function projectFixture(
+  projectId: string,
+  displayName: string,
+  parentProjectId?: string,
+): Project {
+  return {
+    created_at: "2026-07-20T12:00:00.000Z",
+    display_name: displayName,
+    owner_user_id: "user_1",
+    parent_project_id: parentProjectId,
+    project_id: projectId,
+    updated_at: "2026-07-20T12:00:00.000Z",
+  };
+}
+
+function sessionFixture(
+  sessionId: string,
+  name: string,
+  primaryProjectId: string,
+): AgentSession {
+  return {
+    agent_id: "agent_1",
+    name,
+    node_id: "node_1",
+    primary_project_id: primaryProjectId,
+    session_id: sessionId,
+    updated_at: "2026-07-20T12:00:00.000Z",
+  };
+}
+
+function setProjectContents(projects: Project[], sessions: AgentSession[]) {
+  mocks.useProjects.mockReturnValue({
+    data: { projects },
+    error: null,
+    isLoading: false,
+  });
+  mocks.listUserSessions.mockResolvedValue({
+    pagination: {
+      page_num: 1,
+      page_size: 20,
+      total: sessions.length,
+      total_pages: sessions.length > 0 ? 1 : 0,
+    },
+    sessions,
+  });
+}
+
+function renderOverview() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <FleetOverview user={{ user_id: "user_1" } as User} />
+      </TooltipProvider>
+    </QueryClientProvider>,
+  );
+}
 
 function emptyQueryData(key: string) {
   return {

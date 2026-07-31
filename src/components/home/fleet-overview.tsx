@@ -694,13 +694,29 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 </div>
               </div>
               <Button
+                asChild
                 className="mt-3 w-full justify-start"
                 icon={<Plus className="h-4 w-4" />}
-                onClick={showCleanComposer}
-                type="button"
                 variant="primary"
               >
-                New session
+                <Link
+                  href="/sessions/new"
+                  onClick={(event) => {
+                    if (
+                      event.button !== 0 ||
+                      event.metaKey ||
+                      event.ctrlKey ||
+                      event.shiftKey ||
+                      event.altKey
+                    ) {
+                      return;
+                    }
+                    event.preventDefault();
+                    showCleanComposer();
+                  }}
+                >
+                  New session
+                </Link>
               </Button>
             </div>
             <ProjectSessionRail
@@ -1405,15 +1421,6 @@ function HomeProjectTreeRow({
       </div>
       {!collapsed && (
         <>
-          {projectSessions.map((session) => (
-            <HomeSessionRow
-              active={session.sessionId === activeSessionId}
-              depth={depth + 1}
-              key={session.id}
-              onSelect={() => onSelectSession(session)}
-              session={session}
-            />
-          ))}
           {node.children.map((child) => (
             <HomeProjectTreeRow
               activeSessionId={activeSessionId}
@@ -1426,6 +1433,15 @@ function HomeProjectTreeRow({
               onToggleProject={onToggleProject}
               selectedProjectId={selectedProjectId}
               sessions={sessions}
+            />
+          ))}
+          {projectSessions.map((session) => (
+            <HomeSessionRow
+              active={session.sessionId === activeSessionId}
+              depth={depth + 1}
+              key={session.id}
+              onSelect={() => onSelectSession(session)}
+              session={session}
             />
           ))}
         </>
