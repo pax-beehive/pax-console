@@ -234,6 +234,41 @@ describe("streamConversationRun", () => {
       }),
     );
   });
+
+  it("returns the backend status and message for a rejected conversation", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json(
+          {
+            code: 409,
+            data: null,
+            message: "project is archived",
+          },
+          { status: 409 },
+        ),
+      ),
+    );
+
+    const request = streamConversationRun({
+      agentId: "agent_1",
+      input: "hello",
+      nodeId: "node_1",
+      onEnvelope: vi.fn(),
+      userId: "self",
+    });
+
+    await expect(request).rejects.toMatchObject({
+      body: {
+        code: 409,
+        data: null,
+        message: "project is archived",
+      },
+      message: "project is archived",
+      name: "ApiError",
+      status: 409,
+    });
+  });
 });
 
 function streamFromChunks(chunks: string[]) {

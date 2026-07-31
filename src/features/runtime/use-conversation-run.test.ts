@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ApiError } from "../api/errors";
 import {
   ConversationRunStatus,
   handleConversationEnvelope,
@@ -19,6 +20,7 @@ describe("handleConversationEnvelope", () => {
         node_id: "node_1",
         agent_id: "agent_1",
         session_id: "sess_1",
+        status_code: 504,
         message: "ACP request idle timed out: session/prompt",
       },
       {
@@ -42,8 +44,10 @@ describe("handleConversationEnvelope", () => {
     );
 
     expect(sessionId).toBe("sess_1");
+    expect(error).toBeInstanceOf(ApiError);
     expect(error).toMatchObject({
-      name: "ConversationRunError",
+      name: "ApiError",
+      status: 504,
       message: "ACP request idle timed out: session/prompt",
     });
     expect(status).toBe("error");

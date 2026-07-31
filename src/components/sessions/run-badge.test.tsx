@@ -4,6 +4,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ApiError } from "@/features/api/errors";
 import { RunBadge } from "./run-badge";
 
 afterEach(cleanup);
@@ -45,6 +46,19 @@ describe("RunBadge", () => {
     expect(screen.getByText("error")).toBeInTheDocument();
     expect(
       screen.getByLabelText("Session error: The session stream failed."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the backend HTTP status and message for an API error", () => {
+    renderBadge("error", new ApiError("project is archived", 409, null));
+
+    const trigger = screen.getByLabelText(
+      "Session error: HTTP 409: project is archived",
+    );
+    fireEvent.click(trigger);
+
+    expect(
+      screen.getByText("HTTP 409: project is archived"),
     ).toBeInTheDocument();
   });
 

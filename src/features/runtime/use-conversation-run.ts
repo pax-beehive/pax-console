@@ -19,6 +19,7 @@ import {
   useBufferedSessionEvents,
 } from "./use-buffered-session-events";
 import type { ApprovalOption, SessionApprovalMode } from "../api/types";
+import { ApiError } from "../api/errors";
 
 export type ConversationRunStatus =
   | "idle"
@@ -356,8 +357,13 @@ export function handleConversationEnvelope(
     if (envelope.session_id) {
       onSession(envelope.session_id);
     }
-    const nextError = new Error(envelope.message);
-    nextError.name = "ConversationRunError";
+    const nextError =
+      typeof envelope.status_code === "number"
+        ? new ApiError(envelope.message, envelope.status_code, envelope)
+        : new Error(envelope.message);
+    if (!(nextError instanceof ApiError)) {
+      nextError.name = "ConversationRunError";
+    }
     setError(nextError);
     appendConversationEvents({ appendEvents, setEvents }, [
       {

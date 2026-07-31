@@ -614,6 +614,12 @@ New sessions send `{ "input": "..." }`; continued sessions send
 body, the frontend reads `response.body` with fetch streaming instead of
 EventSource.
 
+Errors returned before streaming use the standard
+`{ "data": null, "code": <status>, "message": "..." }` API envelope. Errors
+returned after streaming starts use an SSE `error` envelope with
+`status_code` and `message`. The runtime retains both values so the workbench
+can display `HTTP <status>: <message>`.
+
 While a turn is running, the composer send button becomes a stop button and
 calls:
 
