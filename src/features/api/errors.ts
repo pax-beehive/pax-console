@@ -16,3 +16,11 @@ export class ApiError extends Error {
     this.body = body;
   }
 }
+
+export function formatErrorDetail(error: Error) {
+  if (error instanceof ApiError) {
+    return `HTTP ${error.status}: ${error.message}`;
+  }
+
+  return error.name ? `${error.name}: ${error.message}` : error.message;
+}

@@ -78,6 +78,7 @@ import {
   useSessionArtifacts,
 } from "@/features/api/resources";
 import { queryKeys } from "@/features/api/query-keys";
+import { formatErrorDetail } from "@/features/api/errors";
 import {
   KnowledgeCapsule,
   SessionKnowledgeInjection,
@@ -2013,7 +2014,9 @@ function SessionErrors({
         <TruncatedText className="mt-1 font-mono text-xs text-ink-tertiary">
           {missingRouteState
             ? "Missing nodeId or agentId. Open a session from the fleet overview to connect both REST and WebSocket."
-            : `${error?.name}: ${error?.message}`}
+            : error
+              ? formatErrorDetail(error)
+              : ""}
         </TruncatedText>
       </div>
     </div>
@@ -2023,7 +2026,7 @@ function SessionErrors({
 function InlineError({ error }: { error: Error }) {
   return (
     <TruncatedText className="text-xs text-warning">
-      {error.name}: {error.message}
+      {formatErrorDetail(error)}
     </TruncatedText>
   );
 }

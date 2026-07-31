@@ -44,6 +44,7 @@ export type ConversationRunEnvelope =
       node_id?: string;
       agent_id?: string;
       session_id?: string;
+      status_code?: number;
       message: string;
     };
 
@@ -264,6 +265,11 @@ function messageFromBody(body: unknown) {
     return undefined;
   }
 
-  const message = (body as Record<string, unknown>).message;
-  return typeof message === "string" ? message : undefined;
+  const record = body as Record<string, unknown>;
+  const message = record.message;
+  if (typeof message === "string") {
+    return message;
+  }
+
+  return typeof record.error === "string" ? record.error : undefined;
 }

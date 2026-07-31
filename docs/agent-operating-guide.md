@@ -276,6 +276,20 @@ Accept: text/event-stream
 Content-Type: application/json
 ```
 
+Failures before the SSE stream starts use the standard JSON API envelope:
+
+```json
+{
+  "data": null,
+  "code": 409,
+  "message": "project is archived"
+}
+```
+
+After the stream starts, failures arrive as an SSE error envelope with both
+`status_code` and `message`. The Console preserves those values in `ApiError`
+and displays them as `HTTP <status>: <message>`.
+
 While a turn is running, the workbench stop button calls:
 
 ```txt

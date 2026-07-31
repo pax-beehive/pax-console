@@ -622,6 +622,20 @@ Accept: text/event-stream
 Content-Type: application/json
 ```
 
+SSE 开始前的失败使用统一 JSON API envelope，包含后端状态码和消息：
+
+```json
+{
+  "data": null,
+  "code": 409,
+  "message": "project is archived"
+}
+```
+
+SSE 开始后的失败通过 `type=error` envelope 返回 `status_code` 与
+`message`。前端保留这两个字段为 `ApiError`，并显示为
+`HTTP <status>: <message>`。
+
 默认纯文本请求仍可发送：
 
 ```json
