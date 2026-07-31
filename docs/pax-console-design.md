@@ -235,12 +235,10 @@ PAX Console
 +-- Home
 |   +-- sessions tab with globally sorted sessions plus agent and node filters
 |   +-- embedded session workbench for selected or newly started sessions
-|   +-- action inbox queue
-|   +-- selected inquiry / draft preview
-|   +-- inquiry actions for generate draft, summarize draft, comment, and send
-|   +-- detach inquiry context to return the composer to a clean session
-|   +-- archive inquiry to ignore it and remove it from the queue
-|   +-- composer with context attachment, agent select (`agent @ node` for duplicate names), and tool approval preference
+|   +-- projects tab with nested logical Project tree and CRUD
+|   +-- Project settings with reusable Agent/workspace Targets
+|   +-- composer with optional Project, Agent, Workspace, context attachment, and tool approval preference
+|   +-- implicit Target reuse or post-start creation for Project sessions
 +-- Collaboration
 |   +-- Teams & Friends
 |   |   +-- teams
@@ -282,13 +280,15 @@ PAX Console
 
 The sidebar keeps only Home and Collaboration as top-level entries; everything
 else lives in one Settings disclosure group pinned to the bottom of the
-sidebar. Home owns the user-facing Sessions tab and embedded session
-workbench; do not add Sessions as a separate first-level sidebar item.
+sidebar. Home owns one unified Projects / Recents session rail plus the
+embedded session workbench; do not add Sessions or Projects as separate
+first-level sidebar items.
 First-level groups are independent disclosures, not an accordion. Settings
-aggregates Devices (nodes/agents), Security (approval grants), Developer
-(API keys/node registration), and Diagnostics. Collaboration owns teams,
-friends, envelopes, and knowledge as secondary tabs; team invites stay inside
-the Teams surface as a team action queue. Legacy deep links such as `/nodes`,
+aggregates Projects (project/target CRUD), Devices (nodes/agents), Security
+(approval grants), Developer (API keys/node registration), and Diagnostics.
+Collaboration owns teams, friends, envelopes, and knowledge as secondary tabs;
+team invites stay inside the Teams surface as a team action queue. Legacy deep
+links such as `/nodes`,
 `/sessions`, `/approvals`, `/friends`, and `/knowledge` remain valid through
 redirects.
 
@@ -362,6 +362,8 @@ UserAPIKey
 Node
 Agent
 AgentSession
+Project
+ProjectTarget
 MailboxMessage
 TokenUsage
 FileChange
@@ -409,7 +411,7 @@ DELETE /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections/{connecti
 GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/commands/{command_id}
 
 Sessions
-GET  /api/v1/user/{user_id}/sessions?page_size=20&page_num=1
+GET  /api/v1/user/{user_id}/sessions?page_size=20&page_num=1&primary_project_id={project_id}
 GET  /api/v1/user/{user_id}/sessions/{session_id}/history
 GET  /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions
 GET  /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}
@@ -439,6 +441,29 @@ name and `{ "use_reported_name": true }` to restore the latest paxd-reported
 name. Session responses expose `name`, `reported_name`, and `name_is_custom`;
 periodic reports update only the reported name.
 
+Projects
+POST  /api/v1/user/{user_id}/projects
+GET   /api/v1/user/{user_id}/projects
+GET   /api/v1/user/{user_id}/projects/{project_id}
+PATCH /api/v1/user/{user_id}/projects/{project_id}
+POST  /api/v1/user/{user_id}/projects/{project_id}/archive
+POST  /api/v1/user/{user_id}/projects/{project_id}/targets
+GET   /api/v1/user/{user_id}/projects/{project_id}/targets
+GET   /api/v1/user/{user_id}/projects/{project_id}/targets/{target_id}
+PATCH /api/v1/user/{user_id}/projects/{project_id}/targets/{target_id}
+
+Projects are logical, owner-scoped work groups and may be nested. Targets are
+reusable launch settings containing an Agent and cwd intent. Project and Target
+CRUD lives in Settings. Starting from a Project still uses the normal
+Conversation endpoint; its creation-only request adds `primary_project_id` and
+adds `project_target_id` only when the chosen Agent and cwd match an enabled
+Target. A new cwd is sent directly to Conversation; after native session
+assignment succeeds, the Console creates a reusable Target and lets the backend
+derive its display name. Manager creates the native ACP session before it
+persists the PAX Session with immutable `primary_project_id`. Projectless
+Sessions remain valid; the primary context is not a future multi-Project label
+model.
+
 WebSocket
 GET /api/v1/user/self/agents/{agent_id}/tunnel
 ```
@@ -449,6 +474,8 @@ Current implemented frontend coverage:
 Implemented
 - Auth check through GET /me.
 - Home workbench through nodes, agents, sessions, approvals, envelopes, and team invites.
+- Home Projects tree CRUD, reusable Target CRUD/default/enable state, Project
+  recent Sessions, and implicit Target reuse/creation during Session launch.
 - Session detail history through the session-scoped durable history endpoint.
 - Home composer opens an embedded new session; the first prompt creates `sess_*` through POST /conversation.
 - API key list/create/revoke.

@@ -26,6 +26,7 @@ import { FleetOverview } from "./fleet-overview";
 
 const mocks = vi.hoisted(() => ({
   completeUserAttachment: vi.fn(),
+  createProjectTarget: vi.fn(),
   createUserAttachment: vi.fn(),
   listAgents: vi.fn(),
   listUserSessions: vi.fn(),
@@ -34,6 +35,9 @@ const mocks = vi.hoisted(() => ({
   useApprovals: vi.fn(),
   useEnvelopes: vi.fn(),
   useNodes: vi.fn(),
+  useProject: vi.fn(),
+  useProjects: vi.fn(),
+  useProjectTargets: vi.fn(),
   useTeamInvites: vi.fn(),
 }));
 
@@ -66,15 +70,23 @@ vi.mock("@/components/sessions/session-workbench", () => ({
     agentId,
     embedded,
     initialAttachments,
+    initialCwd,
+    initialPrimaryProjectId,
     initialPrompt,
+    initialProjectTargetId,
     nodeId,
+    onSessionAssigned,
     sessionId,
   }: {
     agentId?: string;
     embedded?: boolean;
     initialAttachments?: Array<{ attachmentId: string }>;
+    initialCwd?: string;
+    initialPrimaryProjectId?: string;
     initialPrompt?: string;
+    initialProjectTargetId?: string;
     nodeId?: string;
+    onSessionAssigned?: (sessionId: string) => void;
     sessionId: string;
   }) => (
     <div
@@ -83,11 +95,22 @@ vi.mock("@/components/sessions/session-workbench", () => ({
       data-initial-attachments={initialAttachments
         ?.map((attachment) => attachment.attachmentId)
         .join(",")}
+      data-initial-cwd={initialCwd}
+      data-primary-project-id={initialPrimaryProjectId}
       data-initial-prompt={initialPrompt}
+      data-project-target-id={initialProjectTargetId}
       data-node-id={nodeId}
       data-testid="session-workbench"
     >
       {sessionId}
+      {sessionId === "new" && (
+        <button
+          onClick={() => onSessionAssigned?.("sess_native")}
+          type="button"
+        >
+          Assign native session
+        </button>
+      )}
     </div>
   ),
 }));
@@ -98,6 +121,7 @@ vi.mock("@/features/api/resources", async (importOriginal) => {
   return {
     ...actual,
     completeUserAttachment: mocks.completeUserAttachment,
+    createProjectTarget: mocks.createProjectTarget,
     createUserAttachment: mocks.createUserAttachment,
     listAgents: mocks.listAgents,
     listUserSessions: mocks.listUserSessions,
@@ -105,6 +129,9 @@ vi.mock("@/features/api/resources", async (importOriginal) => {
     useApprovals: mocks.useApprovals,
     useEnvelopes: mocks.useEnvelopes,
     useNodes: mocks.useNodes,
+    useProject: mocks.useProject,
+    useProjects: mocks.useProjects,
+    useProjectTargets: mocks.useProjectTargets,
     useTeamInvites: mocks.useTeamInvites,
   };
 });
@@ -112,6 +139,7 @@ vi.mock("@/features/api/resources", async (importOriginal) => {
 beforeEach(() => {
   window.history.replaceState(null, "", "/");
   mocks.completeUserAttachment.mockReset();
+  mocks.createProjectTarget.mockReset();
   mocks.createUserAttachment.mockReset();
   mocks.routerPush.mockReset();
   mocks.uploadUserAttachmentFile.mockReset();
@@ -135,6 +163,17 @@ beforeEach(() => {
       content_type: "text/plain",
       filename: "notes.txt",
       size_bytes: 5,
+    },
+  });
+  mocks.createProjectTarget.mockResolvedValue({
+    target: {
+      agent_id: "agent_1",
+      cwd: "~/worktrees/kev-8",
+      display_name: "kev-8",
+      enabled: true,
+      is_default: false,
+      project_id: "project_1",
+      target_id: "target_2",
     },
   });
   mocks.listAgents.mockResolvedValue({
@@ -166,6 +205,53 @@ beforeEach(() => {
     error: null,
     isLoading: false,
   });
+  mocks.useProjects.mockReturnValue({
+    data: {
+      projects: [
+        {
+          created_at: "2026-07-20T12:00:00.000Z",
+          display_name: "Pax",
+          owner_user_id: "user_1",
+          project_id: "project_1",
+          updated_at: "2026-07-20T12:00:00.000Z",
+        },
+      ],
+    },
+    error: null,
+    isLoading: false,
+  });
+  mocks.useProject.mockReturnValue({
+    data: {
+      project: {
+        created_at: "2026-07-20T12:00:00.000Z",
+        display_name: "Pax",
+        owner_user_id: "user_1",
+        project_id: "project_1",
+        updated_at: "2026-07-20T12:00:00.000Z",
+      },
+    },
+    error: null,
+    isLoading: false,
+  });
+  mocks.useProjectTargets.mockReturnValue({
+    data: {
+      targets: [
+        {
+          agent_id: "agent_1",
+          created_at: "2026-07-20T12:00:00.000Z",
+          cwd: "~/pax",
+          display_name: "Local Pax",
+          enabled: true,
+          is_default: true,
+          project_id: "project_1",
+          target_id: "target_1",
+          updated_at: "2026-07-20T12:00:00.000Z",
+        },
+      ],
+    },
+    error: null,
+    isLoading: false,
+  });
   mocks.useApprovals.mockReturnValue(emptyQueryData("approvals"));
   mocks.useEnvelopes.mockReturnValue(emptyQueryData("envelopes"));
   mocks.useTeamInvites.mockReturnValue(emptyQueryData("invites"));
@@ -174,6 +260,119 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("FleetOverview session rail", () => {
+  it("shows projects and recent sessions in one unified rail", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <FleetOverview user={{ user_id: "user_1" } as User} />
+        </TooltipProvider>
+      </QueryClientProvider>,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Inbox" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Projects")).toBeVisible();
+    expect(screen.getByText("Recents")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Manage" })).toHaveAttribute(
+      "href",
+      "/settings/projects",
+    );
+    expect(screen.getByRole("button", { name: "Pax" })).toBeVisible();
+    expect(
+      await screen.findByRole("link", { name: /Session one/ }),
+    ).toBeVisible();
+  });
+
+  it("starts a project session through the normal Home composer", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <FleetOverview user={{ user_id: "user_1" } as User} />
+        </TooltipProvider>
+      </QueryClientProvider>,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Pax" }));
+    expect(screen.getByRole("heading", { name: "Pax" })).toBeVisible();
+    await userEvent.type(screen.getByLabelText("Workspace"), "~/pax");
+    expect(screen.getByText("Using saved target Local Pax")).toBeVisible();
+    const composer = screen.getByPlaceholderText(
+      "Ask an agent to do something",
+    );
+    await userEvent.type(composer, "Work on KEV-8");
+    fireEvent.submit(composer.closest("form")!);
+
+    const workbench = await screen.findByTestId("session-workbench");
+    expect(workbench).toHaveTextContent("new");
+    expect(workbench).toHaveAttribute("data-node-id", "node_1");
+    expect(workbench).toHaveAttribute("data-agent-id", "agent_1");
+    expect(workbench).toHaveAttribute("data-primary-project-id", "project_1");
+    expect(workbench).toHaveAttribute("data-project-target-id", "target_1");
+    expect(workbench).toHaveAttribute("data-initial-cwd", "~/pax");
+    expect(window.location.search).toBe("");
+  });
+
+  it("creates a target for a new project workspace only after native session assignment", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <FleetOverview user={{ user_id: "user_1" } as User} />
+        </TooltipProvider>
+      </QueryClientProvider>,
+    );
+
+    await userEvent.selectOptions(
+      await screen.findByRole("combobox", { name: "Project" }),
+      "project_1",
+    );
+    await userEvent.type(
+      screen.getByLabelText("Workspace"),
+      "~/worktrees/kev-8",
+    );
+    expect(
+      screen.getByText("New workspace · will be saved to Pax"),
+    ).toBeVisible();
+    const composer = screen.getByPlaceholderText(
+      "Ask an agent to do something",
+    );
+    const submit = composer
+      .closest("form")!
+      .querySelector<HTMLButtonElement>('button[type="submit"]')!;
+    expect(submit).toBeEnabled();
+    await userEvent.type(composer, "Work on KEV-8");
+    await userEvent.click(submit);
+
+    const workbench = await screen.findByTestId("session-workbench");
+    expect(workbench).not.toHaveAttribute("data-project-target-id");
+    expect(workbench).toHaveAttribute("data-initial-cwd", "~/worktrees/kev-8");
+    expect(mocks.createProjectTarget).not.toHaveBeenCalled();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Assign native session" }),
+    );
+    await waitFor(() =>
+      expect(mocks.createProjectTarget).toHaveBeenCalledWith(
+        "user_1",
+        "project_1",
+        {
+          agent_id: "agent_1",
+          cwd: "~/worktrees/kev-8",
+        },
+      ),
+    );
+  });
+
   it("keeps Home mounted and opens a selected session in the embedded workbench", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
@@ -187,17 +386,50 @@ describe("FleetOverview session rail", () => {
       </QueryClientProvider>,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: /Session one/ }));
+    fireEvent.click(await screen.findByRole("link", { name: /Session one/ }));
 
     const workbench = await screen.findByTestId("session-workbench");
     expect(workbench).toHaveTextContent("sess_1");
     expect(workbench).toHaveAttribute("data-embedded", "true");
     expect(workbench).toHaveAttribute("data-node-id", "node_1");
     expect(workbench).toHaveAttribute("data-agent-id", "agent_1");
-    expect(screen.getAllByText("Sessions").length).toBeGreaterThan(0);
+    expect(screen.getByText("Recents")).toBeVisible();
     expect(window.location.pathname).toBe("/");
     expect(window.location.search).toBe("?sessionId=sess_1");
     await waitFor(() => expect(mocks.routerPush).not.toHaveBeenCalled());
+  });
+
+  it("leaves command-click navigation to the canonical session link", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <FleetOverview user={{ user_id: "user_1" } as User} />
+        </TooltipProvider>
+      </QueryClientProvider>,
+    );
+
+    const sessionLink = await screen.findByRole("link", {
+      name: /Session one/,
+    });
+
+    expect(sessionLink).toHaveAttribute("href", "/sessions/sess_1");
+    let componentPreventedNavigation = true;
+    const preventJsdomNavigation = (event: MouseEvent) => {
+      componentPreventedNavigation = event.defaultPrevented;
+      event.preventDefault();
+    };
+    document.addEventListener("click", preventJsdomNavigation);
+    fireEvent.click(sessionLink, { metaKey: true });
+    document.removeEventListener("click", preventJsdomNavigation);
+
+    expect(componentPreventedNavigation).toBe(false);
+    expect(screen.queryByTestId("session-workbench")).not.toBeInTheDocument();
+    expect(window.location.pathname).toBe("/");
+    expect(window.location.search).toBe("");
   });
 
   it("starts a new chat inside Home without navigating to the session route", async () => {
@@ -228,7 +460,7 @@ describe("FleetOverview session rail", () => {
       "data-initial-prompt",
       "Keep this chat on Home",
     );
-    expect(screen.getAllByText("Sessions").length).toBeGreaterThan(0);
+    expect(screen.getByText("Recents")).toBeVisible();
     expect(window.location.pathname).toBe("/");
     expect(window.location.search).toBe("");
     expect(mocks.routerPush).not.toHaveBeenCalled();

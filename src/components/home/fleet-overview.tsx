@@ -24,6 +24,8 @@ import {
   ArrowUp,
   Bot,
   ChevronDown,
+  ChevronRight,
+  Folder,
   FolderOpen,
   FolderPlus,
   Inbox,
@@ -31,7 +33,6 @@ import {
   LoaderCircle,
   Menu,
   MessageSquare,
-  MoreHorizontal,
   Paperclip,
   Plus,
   Radio,
@@ -58,6 +59,7 @@ import {
 import { TruncatedText } from "@/components/ui/text";
 import {
   completeUserAttachment,
+  createProjectTarget,
   createUserAttachment,
   listAgents,
   listUserSessions,
@@ -66,6 +68,8 @@ import {
   useApprovals,
   useEnvelopes,
   useNodes,
+  useProjects,
+  useProjectTargets,
   useTeamInvites,
 } from "@/features/api/resources";
 import { queryKeys } from "@/features/api/query-keys";
@@ -75,6 +79,7 @@ import {
   AgentSession,
   Envelope,
   Node,
+  Project,
   SessionApprovalMode,
   TeamInvite,
   User,
@@ -82,6 +87,7 @@ import {
 import { compactId } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { canSeeAdminFeatures } from "@/features/auth/admin-view";
+import { isSupportedSessionWorkspace } from "@/features/runtime/workspace-path";
 import { useConsoleStore } from "@/stores/console-store";
 
 type FleetOverviewProps = {
@@ -95,9 +101,6 @@ type WorkItemKind =
   | "invite"
   | "session"
   | "system";
-type HomeRailTab = "sessions" | "inbox";
-type InboxFilter = "all" | "inquiries" | "needs-action";
-type InboxOrder = "recent" | "priority";
 type ComposerMode = "clean" | "comment-draft" | "summarize-note";
 type InquiryState = "draft-ready" | "needs-draft" | "needs-summary";
 
@@ -121,6 +124,7 @@ type WorkItem = {
   inquiryState?: InquiryState;
   kind: WorkItemKind;
   nodeId?: string;
+  primaryProjectId?: string;
   ownerAlias?: string;
   priority: "high" | "medium" | "low";
   question?: string;
@@ -138,19 +142,10 @@ type EmbeddedSessionTarget = {
   initialPrompt?: string;
   key: string;
   nodeId?: string;
+  primaryProjectId?: string;
+  projectTargetId?: string;
   sessionId: string;
 };
-
-const inboxFilters: Array<{ label: string; value: InboxFilter }> = [
-  { label: "All", value: "all" },
-  { label: "Inquiries", value: "inquiries" },
-  { label: "Needs action", value: "needs-action" },
-];
-
-const inboxOrders: Array<{ label: string; value: InboxOrder }> = [
-  { label: "Recent", value: "recent" },
-  { label: "Priority", value: "priority" },
-];
 
 const allSessionAgentsValue = "__all_session_agents__";
 const allSessionNodesValue = "__all_session_nodes__";
@@ -172,6 +167,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const showAdminFeatures = canSeeAdminFeatures(user, previewAsUser);
   const searchParams = useSearchParams();
   const composerFileInputRef = useRef<HTMLInputElement>(null);
+  const persistedTargetSessionIdsRef = useRef(new Set<string>());
   const urlSessionId = searchParams.get("sessionId") ?? "";
   const [composerMode, setComposerMode] = useState<ComposerMode>("clean");
   const [draft, setDraft] = useState("");
@@ -190,15 +186,13 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     useState<Error | null>(null);
   const [composerAttachmentUploadPending, setComposerAttachmentUploadPending] =
     useState(false);
+  const [projectTargetSaveError, setProjectTargetSaveError] =
+    useState<Error | null>(null);
   const [archivedWorkItemIds, setArchivedWorkItemIds] = useState<string[]>([]);
-  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
-  const [homeRailTab, setHomeRailTab] = useState<HomeRailTab>("sessions");
-  const [inboxFilter, setInboxFilter] = useState<InboxFilter>("all");
-  const [inboxOrder, setInboxOrder] = useState<InboxOrder>("recent");
+  const [selectedProjectId, setSelectedProjectId] = useState("");
   const [mobileComposerOpen, setMobileComposerOpen] = useState(true);
   const [mobileRailOpen, setMobileRailOpen] = useState(false);
   const [contextClosed, setContextClosed] = useState(false);
-  const [orderMenuOpen, setOrderMenuOpen] = useState(false);
   const [sessionAgentFilter, setSessionAgentFilter] = useState(
     allSessionAgentsValue,
   );
@@ -309,12 +303,50 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     !nodesQuery.isLoading &&
     !agentsQuery.isLoading &&
     (nodes.length === 0 || agents.length === 0);
+  const projectsQuery = useProjects(user.user_id);
+  const projects = useMemo(
+    () => projectsQuery.data?.projects ?? [],
+    [projectsQuery.data?.projects],
+  );
+  const selectedProject = projects.find(
+    (project) => project.project_id === selectedProjectId,
+  );
+  const selectedProjectPath = useMemo(
+    () =>
+      selectedProject
+        ? projectPath(selectedProject, projects)
+        : ([] as Project[]),
+    [projects, selectedProject],
+  );
+  const projectTargetsQuery = useProjectTargets(
+    user.user_id,
+    selectedProjectId,
+  );
+  const enabledProjectTargets = useMemo(
+    () =>
+      (projectTargetsQuery.data?.targets ?? []).filter(
+        (target) => target.enabled,
+      ),
+    [projectTargetsQuery.data?.targets],
+  );
   const activeAgent =
     agents.find((agent) => agent.agent_id === selectedAgentId) ?? agents[0];
   const normalizedNewSessionCwd = newSessionCwd.trim();
   const newSessionCwdInvalid =
     normalizedNewSessionCwd.length > 0 &&
-    !normalizedNewSessionCwd.startsWith("/");
+    !isSupportedSessionWorkspace(normalizedNewSessionCwd);
+  const matchingProjectTarget = selectedProjectId
+    ? enabledProjectTargets.find(
+        (target) =>
+          target.agent_id === activeAgent?.agent_id &&
+          target.cwd === normalizedNewSessionCwd,
+      )
+    : undefined;
+  const suggestedProjectTargets = selectedProjectId
+    ? enabledProjectTargets.filter(
+        (target) => target.agent_id === activeAgent?.agent_id,
+      )
+    : [];
 
   const sessions = useMemo(
     () => byRecent(queriedSessions, sessionTimestamp),
@@ -355,22 +387,12 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   );
   const visibleWorkItems = useMemo(
     () =>
-      filterAndOrderWorkItems(
+      filterSessionWorkItems(
         activeWorkItems,
-        homeRailTab,
-        inboxFilter,
-        inboxOrder,
         effectiveSessionAgentFilter,
         effectiveSessionNodeFilter,
       ),
-    [
-      activeWorkItems,
-      effectiveSessionAgentFilter,
-      effectiveSessionNodeFilter,
-      homeRailTab,
-      inboxFilter,
-      inboxOrder,
-    ],
+    [activeWorkItems, effectiveSessionAgentFilter, effectiveSessionNodeFilter],
   );
   const sessionAgentFilterLabel =
     sessionAgentFilterOptions.find(
@@ -410,17 +432,13 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     Boolean(activeSessionTarget) &&
     activeSessionTarget?.sessionId !== "new" &&
     (!activeSessionTarget?.nodeId || !activeSessionTarget?.agentId);
-  const needsActionCount = activeWorkItems.filter(
-    (item) => item.kind !== "session",
-  ).length;
-  const railTitle = homeRailTab === "sessions" ? "Sessions" : "Inbox queue";
-  const railSubtitle =
-    homeRailTab === "sessions"
-      ? `Recent sessions · ${sessionAgentFilterLabel} · ${sessionNodeFilterLabel}`
-      : `${filterLabel(inboxFilter)} · ${orderLabel(inboxOrder)}`;
+  const railSubtitle = `${sessionAgentFilterLabel} · ${sessionNodeFilterLabel}`;
   const apiError =
     nodesQuery.error ??
     agentsQuery.error ??
+    projectsQuery.error ??
+    projectTargetsQuery.error ??
+    projectTargetSaveError ??
     sessionsQuery.error ??
     approvalsQuery.error ??
     envelopesQuery.error ??
@@ -428,14 +446,16 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     null;
   const fleetSetupGuideKind =
     nodes.length === 0 ? "node" : agents.length === 0 ? "agent" : null;
-  const mobileDetailOpen = Boolean(activeSessionTarget || composerContextItem);
+  const mobileDetailOpen = Boolean(
+    activeSessionTarget || composerContextItem || selectedProjectId,
+  );
   const mobilePaneOpen = mobileDetailOpen || mobileComposerOpen;
   const mobileDetailTitle = activeSessionTarget
     ? "Session"
     : mobileComposerOpen
       ? "New chat"
-      : homeRailTab === "inbox"
-        ? "Inbox"
+      : selectedProjectId
+        ? "Project"
         : "Composer";
 
   useEffect(() => {
@@ -459,7 +479,6 @@ export function FleetOverview({ user }: FleetOverviewProps) {
 
   function handleRailScroll(event: UIEvent<HTMLElement>) {
     if (
-      homeRailTab !== "sessions" ||
       !sessionsQuery.hasNextPage ||
       sessionsQuery.isFetchingNextPage ||
       sessionsQuery.isLoading
@@ -497,6 +516,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     if (
       !activeAgent?.agent_id ||
       !activeAgent.node_id ||
+      (selectedProjectId && !normalizedNewSessionCwd) ||
       newSessionCwdInvalid ||
       composerAttachmentUploadPending
     ) {
@@ -505,6 +525,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
 
     const nonce = Date.now();
     const initialPrompt = draft.trim();
+    setProjectTargetSaveError(null);
     setEmbeddedSessionTarget({
       agentId: activeAgent.agent_id,
       initialApprovalMode: newSessionApprovalMode,
@@ -513,10 +534,11 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       initialPrompt: initialPrompt || undefined,
       key: `new:${nonce}`,
       nodeId: activeAgent.node_id,
+      primaryProjectId: selectedProjectId || undefined,
+      projectTargetId: matchingProjectTarget?.target_id,
       sessionId: "new",
     });
     clearHomeSessionUrl();
-    setHomeRailTab("sessions");
     setMobileComposerOpen(false);
     setMobileRailOpen(false);
     setSelectedWorkItemId("");
@@ -579,7 +601,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
 
     setEmbeddedSessionTarget(null);
     clearHomeSessionUrl();
-    setHomeRailTab("sessions");
+    setSelectedProjectId("");
     setMobileComposerOpen(true);
     setMobileRailOpen(false);
     setSelectedWorkItemId("");
@@ -628,64 +650,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
             onScroll={handleRailScroll}
           >
             <div className="sticky top-0 z-10 border-b border-hairline bg-surface-1 px-4 py-3">
-              <div className="mb-3 grid grid-cols-2 gap-1 rounded-md border border-hairline bg-canvas p-1">
-                <button
-                  className={cn(
-                    "inline-flex min-h-8 min-w-0 items-center justify-center gap-2 rounded-sm px-2 text-xs font-medium transition",
-                    homeRailTab === "sessions"
-                      ? "bg-accent/15 text-accent-bright"
-                      : "text-ink-tertiary hover:bg-surface-2 hover:text-ink-muted",
-                  )}
-                  onClick={() => {
-                    setHomeRailTab("sessions");
-                    setFilterMenuOpen(false);
-                    setOrderMenuOpen(false);
-                    setSessionAgentMenuOpen(false);
-                    setSessionNodeMenuOpen(false);
-                    clearHomeSessionUrl();
-                    setSelectedWorkItemId("");
-                    setContextClosed(false);
-                    setComposerMode("clean");
-                  }}
-                  type="button"
-                >
-                  <TerminalSquare className="h-4 w-4" />
-                  <span>Sessions</span>
-                </button>
-                <button
-                  className={cn(
-                    "inline-flex min-h-8 min-w-0 items-center justify-center gap-2 rounded-sm px-2 text-xs font-medium transition",
-                    homeRailTab === "inbox"
-                      ? "bg-accent/15 text-accent-bright"
-                      : "text-ink-tertiary hover:bg-surface-2 hover:text-ink-muted",
-                  )}
-                  onClick={() => {
-                    setHomeRailTab("inbox");
-                    setSessionAgentMenuOpen(false);
-                    setSessionNodeMenuOpen(false);
-                    setEmbeddedSessionTarget(null);
-                    clearHomeSessionUrl();
-                    setSelectedWorkItemId("");
-                    setContextClosed(false);
-                    setComposerMode("clean");
-                  }}
-                  type="button"
-                >
-                  <Inbox className="h-4 w-4" />
-                  <span>Inbox</span>
-                  <Badge className="max-w-10">{needsActionCount}</Badge>
-                </button>
-              </div>
               <div className="flex min-w-0 items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <div className="text-sm font-medium">{railTitle}</div>
-                    {homeRailTab === "inbox" && (
-                      <Badge className="max-w-24">
-                        {visibleWorkItems.length}
-                      </Badge>
-                    )}
-                  </div>
+                  <div className="text-sm font-medium">Work</div>
                   <TruncatedText
                     className="mt-1 text-xs text-ink-tertiary"
                     tooltip={railSubtitle}
@@ -694,147 +661,81 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                   </TruncatedText>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
-                  {homeRailTab === "sessions" && (
-                    <>
-                      <InboxMenu
-                        icon={<ListFilter className="h-4 w-4" />}
-                        label="Filter by agent"
-                        onOpenChange={(open) => {
-                          setSessionAgentMenuOpen(open);
-                          if (open) {
-                            setSessionNodeMenuOpen(false);
-                          }
-                        }}
-                        open={sessionAgentMenuOpen}
-                        options={sessionAgentFilterOptions}
-                        selectedValue={effectiveSessionAgentFilter}
-                        onSelect={(value) => {
-                          setSessionAgentFilter(value);
-                          setSessionAgentMenuOpen(false);
-                          setEmbeddedSessionTarget(null);
-                          clearHomeSessionUrl();
-                          setSelectedWorkItemId("");
-                          setContextClosed(false);
-                          setComposerMode("clean");
-                        }}
-                      />
-                      <InboxMenu
-                        icon={<Server className="h-4 w-4" />}
-                        label="Filter by node"
-                        onOpenChange={(open) => {
-                          setSessionNodeMenuOpen(open);
-                          if (open) {
-                            setSessionAgentMenuOpen(false);
-                          }
-                        }}
-                        open={sessionNodeMenuOpen}
-                        options={sessionNodeFilterOptions}
-                        selectedValue={effectiveSessionNodeFilter}
-                        onSelect={(value) => {
-                          setSessionNodeFilter(value);
-                          setSessionNodeMenuOpen(false);
-                          setEmbeddedSessionTarget(null);
-                          clearHomeSessionUrl();
-                          setSelectedWorkItemId("");
-                          setContextClosed(false);
-                          setComposerMode("clean");
-                        }}
-                      />
-                      <Button
-                        className="shrink-0"
-                        icon={<Plus className="h-3.5 w-3.5" />}
-                        onClick={showCleanComposer}
-                        size="sm"
-                        tooltip="Start a new chat"
-                        type="button"
-                        variant="primary"
-                      >
-                        New chat
-                      </Button>
-                    </>
-                  )}
-                  {homeRailTab === "inbox" && (
-                    <InboxMenu
-                      icon={<ListFilter className="h-4 w-4" />}
-                      label="Filter by"
-                      onOpenChange={setFilterMenuOpen}
-                      open={filterMenuOpen}
-                      options={inboxFilters}
-                      selectedValue={inboxFilter}
-                      onSelect={(value) => {
-                        setInboxFilter(value as InboxFilter);
-                        setFilterMenuOpen(false);
-                        setSelectedWorkItemId("");
-                        setContextClosed(false);
-                        setComposerMode("clean");
-                      }}
-                    />
-                  )}
-                  {homeRailTab === "inbox" && (
-                    <InboxMenu
-                      icon={<MoreHorizontal className="h-4 w-4 rotate-90" />}
-                      label="Order by"
-                      onOpenChange={setOrderMenuOpen}
-                      open={orderMenuOpen}
-                      options={inboxOrders}
-                      selectedValue={inboxOrder}
-                      onSelect={(value) => {
-                        setInboxOrder(value as InboxOrder);
-                        setOrderMenuOpen(false);
-                        setSelectedWorkItemId("");
-                        setContextClosed(false);
-                        setComposerMode("clean");
-                      }}
-                    />
-                  )}
+                  <InboxMenu
+                    icon={<ListFilter className="h-4 w-4" />}
+                    label="Filter by agent"
+                    onOpenChange={(open) => {
+                      setSessionAgentMenuOpen(open);
+                      if (open) setSessionNodeMenuOpen(false);
+                    }}
+                    open={sessionAgentMenuOpen}
+                    options={sessionAgentFilterOptions}
+                    selectedValue={effectiveSessionAgentFilter}
+                    onSelect={(value) => {
+                      setSessionAgentFilter(value);
+                      setSessionAgentMenuOpen(false);
+                    }}
+                  />
+                  <InboxMenu
+                    icon={<Server className="h-4 w-4" />}
+                    label="Filter by node"
+                    onOpenChange={(open) => {
+                      setSessionNodeMenuOpen(open);
+                      if (open) setSessionAgentMenuOpen(false);
+                    }}
+                    open={sessionNodeMenuOpen}
+                    options={sessionNodeFilterOptions}
+                    selectedValue={effectiveSessionNodeFilter}
+                    onSelect={(value) => {
+                      setSessionNodeFilter(value);
+                      setSessionNodeMenuOpen(false);
+                    }}
+                  />
                 </div>
               </div>
+              <Button
+                className="mt-3 w-full justify-start"
+                icon={<Plus className="h-4 w-4" />}
+                onClick={showCleanComposer}
+                type="button"
+                variant="primary"
+              >
+                New session
+              </Button>
             </div>
-            <div className="grid">
-              {visibleWorkItems.map((item) => (
-                <WorkItemRow
-                  item={item}
-                  key={item.id}
-                  onSelect={() => {
-                    setEmbeddedSessionTarget(null);
-                    if (item.kind === "session" && item.sessionId) {
-                      replaceHomeSessionUrl(item.sessionId);
-                    } else {
-                      clearHomeSessionUrl();
-                    }
-                    setSelectedWorkItemId(item.id);
-                    setMobileComposerOpen(false);
-                    setMobileRailOpen(false);
-                    setContextClosed(false);
-                    setComposerMode("clean");
-                  }}
-                  selected={
-                    item.id === selectedWorkItem?.id ||
-                    (item.kind === "session" &&
-                      item.sessionId === activeSessionTarget?.sessionId)
-                  }
-                />
-              ))}
-              {homeRailTab === "sessions" &&
-                sessionsQuery.isFetchingNextPage && (
-                  <div className="border-b border-hairline px-4 py-3 text-sm text-ink-tertiary">
-                    Loading more sessions...
-                  </div>
-                )}
-              {visibleWorkItems.length === 0 && (
-                <div className="p-4 text-sm text-ink-tertiary">
-                  {homeRailTab === "sessions" && sessionsQuery.isLoading
-                    ? "Loading sessions..."
-                    : homeRailTab === "sessions" &&
-                        fleetSetupGuideKind === "node"
-                      ? "No nodes yet. Use the setup guide on the right."
-                      : homeRailTab === "sessions" &&
-                          fleetSetupGuideKind === "agent"
-                        ? "No agents yet. Create the first paxd connection with the guide on the right."
-                        : "No items match this view."}
-                </div>
-              )}
-            </div>
+            <ProjectSessionRail
+              activeSessionId={activeSessionTarget?.sessionId}
+              loading={projectsQuery.isLoading || sessionsQuery.isLoading}
+              onSelectProject={(projectId) => {
+                setSelectedProjectId(projectId);
+                setNewSessionWorkspaceOpen(true);
+                setEmbeddedSessionTarget(null);
+                clearHomeSessionUrl();
+                setSelectedWorkItemId("");
+                setMobileComposerOpen(true);
+                setMobileRailOpen(false);
+                setContextClosed(false);
+                setComposerMode("clean");
+              }}
+              onSelectSession={(item) => {
+                setEmbeddedSessionTarget(null);
+                setSelectedProjectId(item.primaryProjectId ?? "");
+                if (item.sessionId) replaceHomeSessionUrl(item.sessionId);
+                setSelectedWorkItemId(item.id);
+                setMobileComposerOpen(false);
+                setMobileRailOpen(false);
+                setContextClosed(false);
+                setComposerMode("clean");
+              }}
+              projects={projects}
+              selectedProjectId={selectedProjectId}
+              sessions={visibleWorkItems}
+            />
+            {sessionsQuery.isFetchingNextPage && (
+              <div className="border-b border-hairline px-4 py-3 text-sm text-ink-tertiary">
+                Loading more sessions...
+              </div>
+            )}
           </section>
 
           <section
@@ -854,7 +755,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 initialApprovalMode={activeSessionTarget.initialApprovalMode}
                 initialAttachments={activeSessionTarget.initialAttachments}
                 initialCwd={activeSessionTarget.initialCwd}
+                initialPrimaryProjectId={activeSessionTarget.primaryProjectId}
                 initialPrompt={activeSessionTarget.initialPrompt}
+                initialProjectTargetId={activeSessionTarget.projectTargetId}
                 key={activeSessionTarget.key}
                 mobileMenuLabel="Chat sidebar"
                 nodeId={activeSessionTarget.nodeId}
@@ -863,6 +766,37 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                   void queryClient.invalidateQueries({
                     queryKey: queryKeys.userSessionsRoot(user.user_id),
                   });
+                  if (
+                    activeSessionTarget.sessionId === "new" &&
+                    activeSessionTarget.primaryProjectId &&
+                    activeSessionTarget.agentId &&
+                    activeSessionTarget.initialCwd &&
+                    !activeSessionTarget.projectTargetId &&
+                    !persistedTargetSessionIdsRef.current.has(sessionId)
+                  ) {
+                    const projectId = activeSessionTarget.primaryProjectId;
+                    persistedTargetSessionIdsRef.current.add(sessionId);
+                    void createProjectTarget(user.user_id, projectId, {
+                      agent_id: activeSessionTarget.agentId,
+                      cwd: activeSessionTarget.initialCwd,
+                    })
+                      .then(() =>
+                        queryClient.invalidateQueries({
+                          queryKey: queryKeys.projectTargets(
+                            user.user_id,
+                            projectId,
+                          ),
+                        }),
+                      )
+                      .catch((caught) => {
+                        persistedTargetSessionIdsRef.current.delete(sessionId);
+                        setProjectTargetSaveError(
+                          caught instanceof Error
+                            ? caught
+                            : new Error(String(caught)),
+                        );
+                      });
+                  }
                   const nextTarget = {
                     ...activeSessionTarget,
                     sessionId,
@@ -902,6 +836,36 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 </div>
                 <div className="min-h-0 flex-1 overflow-auto p-5">
                   <div className="mx-auto grid w-full max-w-4xl gap-4">
+                    {selectedProject && (
+                      <section className="rounded-xl border border-accent/25 bg-accent/10 p-5">
+                        <div className="flex flex-wrap items-start justify-between gap-4">
+                          <div className="min-w-0">
+                            <div className="text-xs font-medium uppercase tracking-[0.16em] text-accent-bright">
+                              Project
+                            </div>
+                            <h1 className="mt-2 text-2xl font-semibold text-ink">
+                              {selectedProject.display_name}
+                            </h1>
+                            <div className="mt-2 text-sm text-ink-tertiary">
+                              {selectedProjectPath
+                                .map((project) => project.display_name)
+                                .join(" / ")}
+                            </div>
+                          </div>
+                          <Link
+                            className="text-sm text-accent-bright transition hover:text-ink"
+                            href={`/settings/projects?project=${encodeURIComponent(selectedProject.project_id)}`}
+                          >
+                            Configure targets
+                          </Link>
+                        </div>
+                        <p className="mt-4 max-w-2xl text-sm leading-6 text-ink-muted">
+                          Choose an agent and workspace below. Existing
+                          workspaces are reused; new ones are saved after the
+                          session starts.
+                        </p>
+                      </section>
+                    )}
                     {needsOnboarding && (
                       <section className="rounded-xl border border-accent/30 bg-accent/10 p-4 text-sm">
                         <div className="font-medium text-ink">
@@ -1100,7 +1064,38 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                           )}
                         </DropdownMenuContent>
                       </DropdownMenu>
-                      {newSessionWorkspaceOpen ? (
+                      <label className="inline-flex min-h-9 min-w-0 max-w-64 items-center gap-2 rounded-lg border border-hairline bg-canvas px-2.5 text-sm text-ink-muted focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/25">
+                        <Folder className="h-4 w-4 shrink-0" />
+                        <span className="shrink-0 text-xs font-medium text-ink-tertiary">
+                          Project
+                        </span>
+                        <select
+                          aria-label="Project"
+                          className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none"
+                          onChange={(event) => {
+                            const projectId = event.target.value;
+                            setSelectedProjectId(projectId);
+                            setNewSessionWorkspaceOpen(
+                              Boolean(projectId || newSessionCwd.trim()),
+                            );
+                            setProjectTargetSaveError(null);
+                          }}
+                          value={selectedProjectId}
+                        >
+                          <option value="">No project</option>
+                          {projects.map((project) => (
+                            <option
+                              key={project.project_id}
+                              value={project.project_id}
+                            >
+                              {projectPath(project, projects)
+                                .map((item) => item.display_name)
+                                .join(" / ")}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      {selectedProjectId || newSessionWorkspaceOpen ? (
                         <label
                           className={cn(
                             "order-first inline-flex min-h-9 min-w-0 basis-full items-center gap-2 rounded-lg border bg-canvas px-2.5 text-sm transition sm:order-none sm:max-w-80 sm:basis-auto sm:flex-1",
@@ -1109,6 +1104,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                               : "border-hairline text-ink-muted focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/25",
                           )}
                           onBlur={(event) => {
+                            if (selectedProjectId) {
+                              return;
+                            }
                             const nextTarget = event.relatedTarget;
                             if (
                               (nextTarget instanceof globalThis.Node &&
@@ -1130,13 +1128,30 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                             aria-label="Workspace"
                             autoFocus
                             className="min-w-0 flex-1 bg-transparent font-mono text-xs text-ink outline-none placeholder:text-ink-tertiary"
+                            list={
+                              suggestedProjectTargets.length > 0
+                                ? "project-workspace-targets"
+                                : undefined
+                            }
                             onChange={(event) =>
                               setNewSessionCwd(event.target.value)
                             }
-                            placeholder="/Users/me/project"
+                            placeholder="~/project"
                             spellCheck={false}
                             value={newSessionCwd}
                           />
+                          {suggestedProjectTargets.length > 0 && (
+                            <datalist id="project-workspace-targets">
+                              {suggestedProjectTargets.map((target) => (
+                                <option
+                                  key={target.target_id}
+                                  value={target.cwd}
+                                >
+                                  {target.display_name}
+                                </option>
+                              ))}
+                            </datalist>
+                          )}
                         </label>
                       ) : (
                         <Button
@@ -1148,6 +1163,15 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                           variant="ghost"
                         />
                       )}
+                      {selectedProject &&
+                        normalizedNewSessionCwd &&
+                        !newSessionCwdInvalid && (
+                          <div className="order-last basis-full pl-1 text-xs text-ink-tertiary">
+                            {matchingProjectTarget
+                              ? `Using saved target ${matchingProjectTarget.display_name}`
+                              : `New workspace · will be saved to ${selectedProject.display_name}`}
+                          </div>
+                        )}
                       <button
                         aria-label={
                           newSessionApprovalMode === "auto_approve_all"
@@ -1192,8 +1216,11 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                           onChange={setSelectedAgentId}
                         />
                         <Button
+                          aria-label="Start session"
                           disabled={
                             !activeAgent?.agent_id ||
+                            (Boolean(selectedProjectId) &&
+                              !normalizedNewSessionCwd) ||
                             newSessionCwdInvalid ||
                             composerAttachmentUploadPending
                           }
@@ -1216,88 +1243,237 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   );
 }
 
-function WorkItemRow({
-  item,
-  onSelect,
-  selected,
+type HomeProjectTreeNode = {
+  children: HomeProjectTreeNode[];
+  project: Project;
+};
+
+function ProjectSessionRail({
+  activeSessionId,
+  loading,
+  onSelectProject,
+  onSelectSession,
+  projects,
+  selectedProjectId,
+  sessions,
 }: {
-  item: WorkItem;
-  onSelect: () => void;
-  selected: boolean;
+  activeSessionId?: string;
+  loading: boolean;
+  onSelectProject: (projectId: string) => void;
+  onSelectSession: (session: WorkItem) => void;
+  projects: Project[];
+  selectedProjectId: string;
+  sessions: WorkItem[];
 }) {
-  if (item.kind === "session") {
-    return (
-      <button
-        className={cn(
-          "grid min-w-0 gap-1 border-b border-hairline px-4 py-3 text-left transition hover:bg-surface-2",
-          selected
-            ? "bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)] hover:bg-accent/15"
-            : "bg-surface-1",
-        )}
-        onClick={onSelect}
-        type="button"
-      >
-        <TruncatedText className="text-sm font-medium text-ink">
-          {item.title}
-        </TruncatedText>
-        <TruncatedText className="text-xs text-ink-tertiary">
-          {item.context} · {relativeTime(item.createdAt)}
-        </TruncatedText>
-      </button>
-    );
+  const [collapsedProjectIds, setCollapsedProjectIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const tree = useMemo(() => buildHomeProjectTree(projects), [projects]);
+  const projectIds = useMemo(
+    () => new Set(projects.map((project) => project.project_id)),
+    [projects],
+  );
+  const recentSessions = sessions.filter(
+    (session) =>
+      !session.primaryProjectId || !projectIds.has(session.primaryProjectId),
+  );
+
+  function toggleProject(projectId: string) {
+    setCollapsedProjectIds((current) => {
+      const next = new Set(current);
+      if (next.has(projectId)) next.delete(projectId);
+      else next.add(projectId);
+      return next;
+    });
   }
 
   return (
-    <button
-      className={cn(
-        "group grid min-w-0 gap-2 border-b border-hairline px-4 py-3 text-left transition hover:bg-surface-2",
-        selected
-          ? "bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)] hover:bg-accent/15"
-          : "bg-surface-1",
-      )}
-      onClick={onSelect}
-      type="button"
-    >
-      <div className="flex min-w-0 items-start gap-3">
-        <span
-          className={cn(
-            "mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border",
-            item.priority === "high"
-              ? "border-warning/30 bg-warning/10 text-warning"
-              : "border-hairline bg-canvas text-ink-subtle",
-          )}
+    <div className="grid pb-4">
+      <div className="flex items-center justify-between px-4 pb-2 pt-4">
+        <span className="text-xs font-medium uppercase tracking-[0.14em] text-ink-tertiary">
+          Projects
+        </span>
+        <Link
+          className="text-xs text-accent-bright transition hover:text-ink"
+          href="/settings/projects"
         >
-          {kindIcon[item.kind]}
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-2">
-            <TruncatedText className="text-sm font-medium text-ink">
-              {item.title}
-            </TruncatedText>
-            {item.priority === "high" ? (
-              <Badge className="max-w-24" tone="warning">
-                {item.kind}
-              </Badge>
-            ) : (
-              <span className="shrink-0 text-xs text-ink-tertiary">
-                {item.kind}
-              </span>
-            )}
-          </div>
-          <TruncatedText className="mt-1 text-xs text-ink-tertiary">
-            {item.source} · {relativeTime(item.createdAt)}
-          </TruncatedText>
+          Manage
+        </Link>
+      </div>
+      {tree.map((node) => (
+        <HomeProjectTreeRow
+          activeSessionId={activeSessionId}
+          collapsedProjectIds={collapsedProjectIds}
+          depth={0}
+          key={node.project.project_id}
+          node={node}
+          onSelectProject={onSelectProject}
+          onSelectSession={onSelectSession}
+          onToggleProject={toggleProject}
+          selectedProjectId={selectedProjectId}
+          sessions={sessions}
+        />
+      ))}
+      {!loading && tree.length === 0 && (
+        <div className="px-4 py-3 text-sm text-ink-tertiary">
+          No projects yet. Create one in Settings.
         </div>
+      )}
+
+      <div className="px-4 pb-2 pt-5 text-xs font-medium uppercase tracking-[0.14em] text-ink-tertiary">
+        Recents
       </div>
-      <div className="flex min-w-0 items-center justify-between gap-3 pl-10">
-        <TruncatedText className="text-xs text-ink-subtle">
-          {item.context}
-        </TruncatedText>
-        <span className="shrink-0 text-xs text-ink-tertiary transition group-hover:text-accent-bright">
-          {item.actionLabel}
-        </span>
+      {recentSessions.map((session) => (
+        <HomeSessionRow
+          active={session.sessionId === activeSessionId}
+          depth={0}
+          key={session.id}
+          onSelect={() => onSelectSession(session)}
+          session={session}
+        />
+      ))}
+      {!loading && recentSessions.length === 0 && (
+        <div className="px-4 py-3 text-sm text-ink-tertiary">
+          No unassigned sessions.
+        </div>
+      )}
+      {loading && (
+        <div className="px-4 py-3 text-sm text-ink-tertiary">Loading...</div>
+      )}
+    </div>
+  );
+}
+
+function HomeProjectTreeRow({
+  activeSessionId,
+  collapsedProjectIds,
+  depth,
+  node,
+  onSelectProject,
+  onSelectSession,
+  onToggleProject,
+  selectedProjectId,
+  sessions,
+}: {
+  activeSessionId?: string;
+  collapsedProjectIds: Set<string>;
+  depth: number;
+  node: HomeProjectTreeNode;
+  onSelectProject: (projectId: string) => void;
+  onSelectSession: (session: WorkItem) => void;
+  onToggleProject: (projectId: string) => void;
+  selectedProjectId: string;
+  sessions: WorkItem[];
+}) {
+  const projectId = node.project.project_id;
+  const collapsed = collapsedProjectIds.has(projectId);
+  const projectSessions = sessions.filter(
+    (session) => session.primaryProjectId === projectId,
+  );
+
+  return (
+    <div>
+      <div
+        className={cn(
+          "group flex min-w-0 items-center gap-1 pr-2 transition hover:bg-surface-2",
+          selectedProjectId === projectId && !activeSessionId
+            ? "bg-accent/10 text-accent-bright"
+            : "text-ink-muted",
+        )}
+        style={{ paddingLeft: `${8 + depth * 16}px` }}
+      >
+        <button
+          aria-label={`${collapsed ? "Expand" : "Collapse"} ${node.project.display_name}`}
+          className="grid h-8 w-6 shrink-0 place-items-center text-ink-tertiary"
+          onClick={() => onToggleProject(projectId)}
+          type="button"
+        >
+          {collapsed ? (
+            <ChevronRight className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronDown className="h-3.5 w-3.5" />
+          )}
+        </button>
+        <button
+          className="flex min-h-9 min-w-0 flex-1 items-center gap-2 text-left text-sm"
+          onClick={() => onSelectProject(projectId)}
+          type="button"
+        >
+          <Folder className="h-4 w-4 shrink-0" />
+          <span className="truncate">{node.project.display_name}</span>
+        </button>
       </div>
-    </button>
+      {!collapsed && (
+        <>
+          {projectSessions.map((session) => (
+            <HomeSessionRow
+              active={session.sessionId === activeSessionId}
+              depth={depth + 1}
+              key={session.id}
+              onSelect={() => onSelectSession(session)}
+              session={session}
+            />
+          ))}
+          {node.children.map((child) => (
+            <HomeProjectTreeRow
+              activeSessionId={activeSessionId}
+              collapsedProjectIds={collapsedProjectIds}
+              depth={depth + 1}
+              key={child.project.project_id}
+              node={child}
+              onSelectProject={onSelectProject}
+              onSelectSession={onSelectSession}
+              onToggleProject={onToggleProject}
+              selectedProjectId={selectedProjectId}
+              sessions={sessions}
+            />
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
+
+function HomeSessionRow({
+  active,
+  depth,
+  onSelect,
+  session,
+}: {
+  active: boolean;
+  depth: number;
+  onSelect: () => void;
+  session: WorkItem;
+}) {
+  return (
+    <Link
+      className={cn(
+        "grid min-w-0 gap-0.5 py-2 pr-3 text-left transition hover:bg-surface-2",
+        active
+          ? "bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)]"
+          : "text-ink-muted",
+      )}
+      href={session.href}
+      onClick={(event) => {
+        if (
+          event.button !== 0 ||
+          event.metaKey ||
+          event.ctrlKey ||
+          event.shiftKey ||
+          event.altKey
+        ) {
+          return;
+        }
+        event.preventDefault();
+        onSelect();
+      }}
+      style={{ paddingLeft: `${40 + depth * 16}px` }}
+    >
+      <span className="truncate text-sm text-ink">{session.title}</span>
+      <span className="truncate text-xs text-ink-tertiary">
+        {session.context} · {relativeTime(session.createdAt)}
+      </span>
+    </Link>
   );
 }
 
@@ -1932,6 +2108,7 @@ function buildWorkItems({
           id: `session:${session.session_id}`,
           kind: "session",
           nodeId: session.node_id,
+          primaryProjectId: session.primary_project_id,
           priority: session.run_status === "waiting_approval" ? "high" : "low",
           sessionId: session.session_id,
           source: "Recent session",
@@ -2195,57 +2372,22 @@ function buildNodeDisplayLabels(nodes: Node[]) {
   );
 }
 
-function filterAndOrderWorkItems(
+function filterSessionWorkItems(
   items: WorkItem[],
-  tab: HomeRailTab,
-  filter: InboxFilter,
-  order: InboxOrder,
   sessionAgentFilter: string,
   sessionNodeFilter: string,
 ) {
-  if (tab === "sessions") {
-    return byRecent(
-      items.filter(
-        (item) =>
-          item.kind === "session" &&
-          (sessionAgentFilter === allSessionAgentsValue ||
-            item.agentId === sessionAgentFilter) &&
-          (sessionNodeFilter === allSessionNodesValue ||
-            item.nodeId === sessionNodeFilter),
-      ),
-      (item) => item.createdAt,
-    );
-  }
-
-  const filtered = items.filter((item) => {
-    if (filter === "inquiries") {
-      return item.kind === "inquiry";
-    }
-
-    if (filter === "needs-action") {
-      return item.kind !== "session";
-    }
-
-    return item.kind !== "session";
-  });
-
-  return orderWorkItems(filtered, order);
-}
-
-function orderWorkItems(items: WorkItem[], order: InboxOrder) {
-  if (order === "priority") {
-    return [...items].sort((left, right) => {
-      const priorityDelta =
-        priorityRank(right.priority) - priorityRank(left.priority);
-      if (priorityDelta !== 0) {
-        return priorityDelta;
-      }
-
-      return timeValue(right.createdAt) - timeValue(left.createdAt);
-    });
-  }
-
-  return byRecent(items, (item) => item.createdAt);
+  return byRecent(
+    items.filter(
+      (item) =>
+        item.kind === "session" &&
+        (sessionAgentFilter === allSessionAgentsValue ||
+          item.agentId === sessionAgentFilter) &&
+        (sessionNodeFilter === allSessionNodesValue ||
+          item.nodeId === sessionNodeFilter),
+    ),
+    (item) => item.createdAt,
+  );
 }
 
 function removeArchivedWorkItems(items: WorkItem[], archivedIds: string[]) {
@@ -2255,29 +2397,6 @@ function removeArchivedWorkItems(items: WorkItem[], archivedIds: string[]) {
 
   const archived = new Set(archivedIds);
   return items.filter((item) => !archived.has(item.id));
-}
-
-function filterLabel(filter: InboxFilter) {
-  return (
-    inboxFilters.find((option) => option.value === filter)?.label ?? filter
-  );
-}
-
-function orderLabel(order: InboxOrder) {
-  const label = inboxOrders.find((option) => option.value === order)?.label;
-  return `Order: ${label ?? order}`;
-}
-
-function priorityRank(priority: WorkItem["priority"]) {
-  if (priority === "high") {
-    return 3;
-  }
-
-  if (priority === "medium") {
-    return 2;
-  }
-
-  return 1;
 }
 
 function sortOnlineFirst<T>(
@@ -2355,6 +2474,46 @@ function latestSessionMessageTimeByAgent(sessions: AgentSession[]) {
   }
 
   return latestByAgent;
+}
+
+function buildHomeProjectTree(projects: Project[]) {
+  const nodes = new Map<string, HomeProjectTreeNode>(
+    projects.map((project) => [project.project_id, { children: [], project }]),
+  );
+  const roots: HomeProjectTreeNode[] = [];
+
+  for (const node of nodes.values()) {
+    const parent = node.project.parent_project_id
+      ? nodes.get(node.project.parent_project_id)
+      : undefined;
+    if (parent) parent.children.push(node);
+    else roots.push(node);
+  }
+
+  const sortNodes = (items: HomeProjectTreeNode[]) => {
+    items.sort((left, right) =>
+      left.project.display_name.localeCompare(right.project.display_name),
+    );
+    for (const item of items) sortNodes(item.children);
+  };
+  sortNodes(roots);
+  return roots;
+}
+
+function projectPath(project: Project, projects: Project[]) {
+  const byId = new Map(projects.map((item) => [item.project_id, item]));
+  const path: Project[] = [];
+  const visited = new Set<string>();
+  let current: Project | undefined = project;
+
+  while (current && !visited.has(current.project_id)) {
+    path.unshift(current);
+    visited.add(current.project_id);
+    current = current.parent_project_id
+      ? byId.get(current.parent_project_id)
+      : undefined;
+  }
+  return path;
 }
 
 function agentLabel(agent: Agent) {

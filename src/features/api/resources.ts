@@ -19,6 +19,8 @@ import {
   ArtifactPublicationState,
   ArtifactUploadTicket,
   CompleteArtifactUploadData,
+  CreateProjectInput,
+  CreateProjectTargetInput,
   CreatedNodeRegistrationToken,
   CreatedUserAPIKey,
   Envelope,
@@ -35,6 +37,8 @@ import {
   Pagination,
   PaxdConnectPreview,
   RepresentativeAgent,
+  Project,
+  ProjectTarget,
   SessionApprovalMode,
   SessionArtifact,
   UserAttachment,
@@ -47,6 +51,8 @@ import {
   TeamMember,
   TeamSummary,
   TeamRole,
+  UpdateProjectInput,
+  UpdateProjectTargetInput,
   UserAPIKey,
   CreatedNodeDaemonAgentConnection,
 } from "./types";
@@ -69,6 +75,23 @@ type ListUserSessionsOptions = {
   nodeIds?: string[];
   pageNum?: number;
   pageSize?: number;
+  primaryProjectId?: string;
+};
+
+type ProjectListData = {
+  projects: Project[];
+};
+
+type ProjectData = {
+  project: Project;
+};
+
+type ProjectTargetListData = {
+  targets: ProjectTarget[];
+};
+
+type ProjectTargetData = {
+  target: ProjectTarget;
 };
 
 type UpdateAgentSessionInput = {
@@ -486,6 +509,9 @@ export function listUserSessions(
   }
   if (options.pageNum) {
     params.set("page_num", String(options.pageNum));
+  }
+  if (options.primaryProjectId?.trim()) {
+    params.set("primary_project_id", options.primaryProjectId.trim());
   }
 
   const query = params.toString();
@@ -1196,6 +1222,85 @@ export function createAgentSession(
   );
 }
 
+export function listProjects(userId: string, includeArchived = false) {
+  const query = includeArchived ? "?include_archived=true" : "";
+  return apiFetch<ProjectListData>(userPath(userId, `/projects${query}`));
+}
+
+export function getProject(userId: string, projectId: string) {
+  return apiFetch<ProjectData>(userPath(userId, `/projects/${projectId}`));
+}
+
+export function createProject(userId: string, input: CreateProjectInput) {
+  return apiFetch<ProjectData>(userPath(userId, "/projects"), {
+    body: JSON.stringify(input),
+    method: "POST",
+  });
+}
+
+export function updateProject(
+  userId: string,
+  projectId: string,
+  input: UpdateProjectInput,
+) {
+  return apiFetch<ProjectData>(userPath(userId, `/projects/${projectId}`), {
+    body: JSON.stringify(input),
+    method: "PATCH",
+  });
+}
+
+export function archiveProject(userId: string, projectId: string) {
+  return apiFetch<ProjectData>(
+    userPath(userId, `/projects/${projectId}/archive`),
+    { method: "POST" },
+  );
+}
+
+export function listProjectTargets(userId: string, projectId: string) {
+  return apiFetch<ProjectTargetListData>(
+    userPath(userId, `/projects/${projectId}/targets`),
+  );
+}
+
+export function getProjectTarget(
+  userId: string,
+  projectId: string,
+  targetId: string,
+) {
+  return apiFetch<ProjectTargetData>(
+    userPath(userId, `/projects/${projectId}/targets/${targetId}`),
+  );
+}
+
+export function createProjectTarget(
+  userId: string,
+  projectId: string,
+  input: CreateProjectTargetInput,
+) {
+  return apiFetch<ProjectTargetData>(
+    userPath(userId, `/projects/${projectId}/targets`),
+    {
+      body: JSON.stringify(input),
+      method: "POST",
+    },
+  );
+}
+
+export function updateProjectTarget(
+  userId: string,
+  projectId: string,
+  targetId: string,
+  input: UpdateProjectTargetInput,
+) {
+  return apiFetch<ProjectTargetData>(
+    userPath(userId, `/projects/${projectId}/targets/${targetId}`),
+    {
+      body: JSON.stringify(input),
+      method: "PATCH",
+    },
+  );
+}
+
 export function listTeams(userId: string) {
   return apiFetch<TeamListData>(userPath(userId, "/teams"));
 }
@@ -1679,6 +1784,54 @@ export function useTeams(userId?: string) {
     queryKey: queryKeys.teams(userId ?? "pending"),
     queryFn: () => listTeams(userId as string),
     enabled: Boolean(userId),
+  });
+}
+
+export function useProjects(userId?: string, includeArchived = false) {
+  return useQuery({
+    queryKey: queryKeys.projects(userId ?? "pending", includeArchived),
+    queryFn: () => listProjects(userId as string, includeArchived),
+    enabled: Boolean(userId),
+  });
+}
+
+export function useProject(userId?: string, projectId?: string) {
+  return useQuery({
+    queryKey: queryKeys.project(userId ?? "pending", projectId ?? "pending"),
+    queryFn: () => getProject(userId as string, projectId as string),
+    enabled: Boolean(userId && projectId),
+  });
+}
+
+export function useProjectTargets(userId?: string, projectId?: string) {
+  return useQuery({
+    queryKey: queryKeys.projectTargets(
+      userId ?? "pending",
+      projectId ?? "pending",
+    ),
+    queryFn: () => listProjectTargets(userId as string, projectId as string),
+    enabled: Boolean(userId && projectId),
+  });
+}
+
+export function useProjectTarget(
+  userId?: string,
+  projectId?: string,
+  targetId?: string,
+) {
+  return useQuery({
+    queryKey: queryKeys.projectTarget(
+      userId ?? "pending",
+      projectId ?? "pending",
+      targetId ?? "pending",
+    ),
+    queryFn: () =>
+      getProjectTarget(
+        userId as string,
+        projectId as string,
+        targetId as string,
+      ),
+    enabled: Boolean(userId && projectId && targetId),
   });
 }
 

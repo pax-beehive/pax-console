@@ -10,8 +10,11 @@ vi.mock("./client", () => ({
 
 const {
   archiveTeam,
+  archiveProject,
   cancelTeamInvite,
   createEnvelope,
+  createProject,
+  createProjectTarget,
   createKnowledgeCapsule,
   createNodeDaemonAgentConnection,
   createTeamInvite,
@@ -22,6 +25,8 @@ const {
   discoverNodeDaemonHarnesses,
   flattenSessionHistoryPages,
   getAgent,
+  getProject,
+  getProjectTarget,
   getNodeDaemonCommand,
   getNodeDaemonStatus,
   getQueuedSessionTurn,
@@ -35,6 +40,8 @@ const {
   listKnowledgeCapsules,
   listNodeDaemonAgentConnections,
   listNodeDaemonHarnesses,
+  listProjects,
+  listProjectTargets,
   listSessionHistory,
   listTeamAuditEvents,
   listTeams,
@@ -52,6 +59,8 @@ const {
   updateNodeAgentProfile,
   updateNodeDaemonAgentConnection,
   updateNodeProfile,
+  updateProject,
+  updateProjectTarget,
   updateTeamMemberRole,
 } = await import("./resources");
 
@@ -400,6 +409,7 @@ describe("listUserSessions", () => {
         nodeIds: ["n2", "n1"],
         pageNum: 2,
         pageSize: 20,
+        primaryProjectId: " proj_1 ",
       }),
     ).resolves.toEqual({
       pagination: { page_num: 2, page_size: 20, total: 21, total_pages: 2 },
@@ -407,7 +417,7 @@ describe("listUserSessions", () => {
     });
 
     expect(apiFetch).toHaveBeenCalledWith(
-      "/api/v1/user/u1/sessions?node_id=n1%2Cn2&agent_id=a1%2Ca2&page_size=20&page_num=2",
+      "/api/v1/user/u1/sessions?node_id=n1%2Cn2&agent_id=a1%2Ca2&page_size=20&page_num=2&primary_project_id=proj_1",
     );
   });
 
@@ -436,6 +446,101 @@ describe("listUserSessions", () => {
     expect(apiFetch).toHaveBeenNthCalledWith(
       2,
       "/api/v1/user/u1/sessions?page_size=200&page_num=2",
+    );
+  });
+});
+
+describe("project resources", () => {
+  it("uses the Project CRUD routes and payloads", async () => {
+    apiFetch.mockResolvedValue({});
+
+    await listProjects("usr_1");
+    await listProjects("usr_1", true);
+    await getProject("usr_1", "proj_1");
+    await createProject("usr_1", {
+      display_name: "Manager",
+      parent_project_id: "proj_root",
+    });
+    await updateProject("usr_1", "proj_1", {
+      display_name: "Pax Manager",
+      parent_project_id: "",
+    });
+    await archiveProject("usr_1", "proj_1");
+
+    expect(apiFetch).toHaveBeenNthCalledWith(1, "/api/v1/user/usr_1/projects");
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/user/usr_1/projects?include_archived=true",
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      3,
+      "/api/v1/user/usr_1/projects/proj_1",
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(4, "/api/v1/user/usr_1/projects", {
+      body: JSON.stringify({
+        display_name: "Manager",
+        parent_project_id: "proj_root",
+      }),
+      method: "POST",
+    });
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      5,
+      "/api/v1/user/usr_1/projects/proj_1",
+      {
+        body: JSON.stringify({
+          display_name: "Pax Manager",
+          parent_project_id: "",
+        }),
+        method: "PATCH",
+      },
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      6,
+      "/api/v1/user/usr_1/projects/proj_1/archive",
+      { method: "POST" },
+    );
+  });
+
+  it("uses nested Target CRUD routes", async () => {
+    apiFetch.mockResolvedValue({});
+
+    await listProjectTargets("usr_1", "proj_1");
+    await getProjectTarget("usr_1", "proj_1", "ptgt_1");
+    await createProjectTarget("usr_1", "proj_1", {
+      agent_id: "agent_1",
+      cwd: "~/repo",
+      is_default: true,
+    });
+    await updateProjectTarget("usr_1", "proj_1", "ptgt_1", {
+      enabled: false,
+    });
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/user/usr_1/projects/proj_1/targets",
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/user/usr_1/projects/proj_1/targets/ptgt_1",
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      3,
+      "/api/v1/user/usr_1/projects/proj_1/targets",
+      {
+        body: JSON.stringify({
+          agent_id: "agent_1",
+          cwd: "~/repo",
+          is_default: true,
+        }),
+        method: "POST",
+      },
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      4,
+      "/api/v1/user/usr_1/projects/proj_1/targets/ptgt_1",
+      {
+        body: JSON.stringify({ enabled: false }),
+        method: "PATCH",
+      },
     );
   });
 });

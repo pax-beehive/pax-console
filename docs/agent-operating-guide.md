@@ -31,6 +31,15 @@ src/app/api/pax/[...path]/route.ts
 
 Do not spread Cloudflare cookie handling into React components.
 
+Home has two resource rails: Sessions and Projects. Projects are logical,
+owner-scoped, nestable work groups. A reusable Project Target binds an Agent to
+a working-directory intent. The Home composer exposes Project, Agent, and
+Workspace instead of asking users to manage Targets. An enabled Target with the
+same Project, Agent, and cwd is reused; otherwise the Console saves one only
+after native session assignment succeeds. The Session's optional
+`primary_project_id` is immutable. Do not overload that singular field for
+future multi-Project labels; use a separate association model.
+
 ## Local Development
 
 Expected local env:
@@ -633,15 +642,20 @@ loads 20 sessions and the left rail fetches the next page as the user scrolls.
 Session ordering uses `last_user_message_at`, the latest accepted user prompt.
 Assistant streaming, thoughts, and tool activity must not reorder rows; legacy
 records fall back to `last_message_at`, then `updated_at`.
-The Sessions rail exposes separate agent and node filters. In the new-session
-target selector, duplicate agent names are qualified as `agent @ node`.
-Clicking a session in the Home rail keeps Home mounted and opens the embedded
-workbench at `/?sessionId={session_id}`, preserving the Sessions / Inbox rail.
+The unified Home rail exposes separate agent and node filters, nests sessions
+under their primary Project, and keeps projectless sessions in Recents. In the
+new-session agent selector, duplicate agent names are qualified as
+`agent @ node`. Clicking a session keeps Home mounted and opens the embedded
+workbench at `/?sessionId={session_id}`, preserving the Project / Session rail.
 Standalone `/sessions/{session_id}` remains the canonical direct deep link for
-external clients and shared URLs. Starting from the Home composer opens
-`/sessions/new` with the selected target and prompt carried in query/session
-storage.
-On mobile widths, Home defaults to the clean composer. The Sessions/Inbox rail
+external clients and shared URLs. Starting from either the global or
+Project-scoped Home composer opens the embedded new workbench. A Project-scoped
+first prompt uses the normal Conversation endpoint with `primary_project_id`
+and, when an enabled Project/Agent/cwd match exists, `project_target_id`.
+Otherwise it uses the typed cwd and saves the reusable Target after native
+session assignment succeeds. There is no separate Target session-creation
+endpoint.
+On mobile widths, Home defaults to the clean composer. The Project/Session rail
 opens as a left drawer over the composer or embedded SessionWorkbench instead
 of replacing the whole page.
 

@@ -65,6 +65,8 @@ export type StreamConversationRunOptions = {
   input?: string;
   nodeId: string;
   onEnvelope: (envelope: ConversationRunEnvelope) => void;
+  primaryProjectId?: string;
+  projectTargetId?: string;
   resume?: {
     approvalId: string;
   };
@@ -81,6 +83,8 @@ export async function streamConversationRun({
   input,
   nodeId,
   onEnvelope,
+  primaryProjectId,
+  projectTargetId,
   resume,
   sessionId,
   signal,
@@ -100,6 +104,12 @@ export async function streamConversationRun({
         ...(sessionId ? { session_id: sessionId } : {}),
         ...(!sessionId && cwd ? { cwd } : {}),
         ...(!sessionId && approvalMode ? { approval_mode: approvalMode } : {}),
+        ...(!sessionId && primaryProjectId
+          ? { primary_project_id: primaryProjectId }
+          : {}),
+        ...(!sessionId && projectTargetId
+          ? { project_target_id: projectTargetId }
+          : {}),
         ...(resume ? { resume: { approval_id: resume.approvalId } } : {}),
       }),
       credentials: "include",

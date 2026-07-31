@@ -104,6 +104,7 @@ import {
   isConversationObserverRecoverableError,
   sessionDisplayStatus,
 } from "@/features/runtime/session-display-status";
+import { isSupportedSessionWorkspace } from "@/features/runtime/workspace-path";
 import { compactId } from "@/lib/format";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { cn } from "@/lib/utils";
@@ -119,8 +120,10 @@ type SessionWorkbenchProps = {
   initialApprovalMode?: SessionApprovalMode;
   initialAttachments?: ComposerAttachment[];
   initialCwd?: string;
+  initialPrimaryProjectId?: string;
   initialPrompt?: string;
   initialPromptKey?: string;
+  initialProjectTargetId?: string;
   mobileBackLabel?: string;
   mobileMenuLabel?: string;
   onSessionAssigned?: (sessionId: string) => void;
@@ -166,8 +169,10 @@ export function SessionWorkbench({
   initialApprovalMode,
   initialAttachments,
   initialCwd,
+  initialPrimaryProjectId,
   initialPrompt,
   initialPromptKey,
+  initialProjectTargetId,
   mobileBackLabel,
   mobileMenuLabel,
   onSessionAssigned,
@@ -244,7 +249,7 @@ export function SessionWorkbench({
   const newSessionCwdInvalid =
     isNewSession &&
     normalizedNewSessionCwd.length > 0 &&
-    !isAbsolutePath(normalizedNewSessionCwd);
+    !isSupportedSessionWorkspace(normalizedNewSessionCwd);
   const activeSession = useMemo(
     () =>
       sessionMetadata ??
@@ -1057,6 +1062,8 @@ export function SessionWorkbench({
             ? {
                 approvalMode: newSessionApprovalMode,
                 cwd: normalizedNewSessionCwd || undefined,
+                primaryProjectId: initialPrimaryProjectId,
+                projectTargetId: initialProjectTargetId,
               }
             : {}),
           ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
@@ -1080,6 +1087,8 @@ export function SessionWorkbench({
       composerAttachments,
       isNewSession,
       isTurnRunning,
+      initialPrimaryProjectId,
+      initialProjectTargetId,
       newSessionApprovalMode,
       newSessionCwdInvalid,
       normalizedNewSessionCwd,
@@ -1184,6 +1193,8 @@ export function SessionWorkbench({
       void sendConversationMessage(content, {
         approvalMode: newSessionApprovalMode,
         cwd: normalizedNewSessionCwd || undefined,
+        primaryProjectId: initialPrimaryProjectId,
+        projectTargetId: initialProjectTargetId,
         ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
       })
         .then(() => {
@@ -1207,7 +1218,9 @@ export function SessionWorkbench({
     activeNodeId,
     composerAttachments,
     conversationRun.status,
+    initialPrimaryProjectId,
     initialPromptKey,
+    initialProjectTargetId,
     newSessionCwdInvalid,
     sessionId,
     newSessionApprovalMode,
@@ -1694,10 +1707,6 @@ function readInitialPrompt(initialPrompt?: string, initialPromptKey?: string) {
   } catch {
     return "";
   }
-}
-
-function isAbsolutePath(path: string) {
-  return path.startsWith("/");
 }
 
 function lastMessageID(messages?: HistoryMessage[]) {
