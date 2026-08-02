@@ -169,6 +169,16 @@ src/components/home/
   排序不会停留在首次加载结果。列表使用独立的 `session-list` query namespace，不能
   用 session resource 的 `sessions` 前缀，避免误刷新 history cursor 并重启 `/events`
   observer。
+  手机端在全局 Topbar 下方提供独立的 Session tabs 行，与 Session tools header 和
+  composer 分层。点击 tab 直接切换，关闭 tab 提供 Undo，但不会 archive/delete
+  Session，也不会 stop/cancel 后台 agent。工作集按用户只在 localStorage 保存有序
+  session_id，标题和 run status 仍来自 TanStack Query；同一时间只挂载当前
+  SessionWorkbench。手机全局 Topbar 同时提供等价于浏览器刷新按钮的 hard reload。
+  Android 预览包使用 package id `net.paxtech.console` 的 Bubblewrap TWA；网页 manifest
+  位于 `public/manifest.webmanifest`，签名证书指纹位于
+  `public/.well-known/assetlinks.json`。两者随现有 `https://ws.paxtech.net` 的正常
+  Console 发布上线，不需要第二套部署。Cloudflare Access 必须允许匿名读取
+  `/.well-known/assetlinks.json`，Android 才能验证域名并隐藏 Custom Tab 地址栏。
 
 src/components/home/project-rail.tsx
   Project 层级导航和 Project CRUD。服务端 hierarchy 是真相；前端仅构树、排序，
@@ -336,7 +346,11 @@ drawer open/close
 composer drafts
 local filters
 临时 UI selection
+手机 open-session tabs 的有序 session_id（localStorage 持久化）
 ```
+
+Open-session tabs 只保存 UI selection id，不复制 Session resource。标题和状态继续
+从 TanStack Query 的 user session list 派生。
 
 不要把 nodes、agents、sessions、messages 复制进 Zustand。否则会出现两个 truth source。
 同理，teams、friends、envelopes、knowledge capsules/injections、session artifacts

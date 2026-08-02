@@ -164,6 +164,13 @@ temporary UI selections
 admin preview-as-user mode
 ```
 
+The mobile Home workbench also keeps a user-scoped open-session workset in
+`localStorage`. Persist only the ordered `session_id` list; session names, run
+state, and ownership continue to come from the TanStack Query session list.
+Closing a top tab is UI-only: it must not archive or delete the durable session,
+stop a turn, or cancel the agent. Only the active tab mounts
+`SessionWorkbench`.
+
 Admin-only experimental UI must use the shared effective admin view. A real
 admin can enable `Preview as user` from the top-right user menu; while enabled,
 the UI must hide the same experimental controls hidden from normal users.
@@ -672,6 +679,22 @@ endpoint.
 On mobile widths, Home defaults to the clean composer. The Project/Session rail
 opens as a left drawer over the composer or embedded SessionWorkbench instead
 of replacing the whole page.
+Below the global mobile Topbar, Home exposes locally opened sessions as a
+dedicated horizontally scrolling tab row. Tapping switches directly, closing a
+tab offers Undo without stopping its session, and the trailing New session
+action returns to the clean composer. The row remains separate from both the
+Session tools header and the composer. The global mobile Topbar includes a hard
+reload action equivalent to the browser refresh button.
+
+Android preview packages use a Bubblewrap-generated Trusted Web Activity with
+package id `net.paxtech.console`. Keep `public/manifest.webmanifest` linked from
+the root layout, and keep the signing certificate fingerprint in
+`public/.well-known/assetlinks.json` aligned with the APK keystore. Without the
+Digital Asset Links file on the existing `https://ws.paxtech.net` deployment,
+Android falls back to a Custom Tab with browser chrome rather than the verified
+full-screen TWA. This does not require a second console deployment. Cloudflare
+Access must allow anonymous reads of `/.well-known/assetlinks.json` so Android
+can verify the origin.
 
 Currently implemented API-backed actions:
 

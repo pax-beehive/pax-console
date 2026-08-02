@@ -43,6 +43,10 @@ import {
   X,
 } from "lucide-react";
 import { PaxdGettingStartedGuide } from "@/components/connect/paxd-getting-started";
+import {
+  MobileSessionTabs,
+  type MobileSessionTabItem,
+} from "@/components/home/mobile-session-tabs";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import {
   type ComposerAttachment,
@@ -88,6 +92,7 @@ import { compactId } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { canSeeAdminFeatures } from "@/features/auth/admin-view";
 import { isSupportedSessionWorkspace } from "@/features/runtime/workspace-path";
+import { useSessionDeck } from "@/features/session-deck/use-session-deck";
 import { useConsoleStore } from "@/stores/console-store";
 
 type FleetOverviewProps = {
@@ -125,6 +130,7 @@ type WorkItem = {
   kind: WorkItemKind;
   nodeId?: string;
   primaryProjectId?: string;
+  runStatus?: string;
   ownerAlias?: string;
   priority: "high" | "medium" | "low";
   question?: string;
@@ -192,6 +198,18 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [mobileComposerOpen, setMobileComposerOpen] = useState(true);
   const [mobileRailOpen, setMobileRailOpen] = useState(false);
+  const [dismissedDeckSession, setDismissedDeckSession] = useState<{
+    index: number;
+    sessionId: string;
+    title: string;
+  } | null>(null);
+  const dismissUndoTimerRef = useRef<number | null>(null);
+  const {
+    dismissSession: dismissDeckSession,
+    rememberSession,
+    restoreSession,
+    sessionIds: openSessionIds,
+  } = useSessionDeck(user.user_id);
   const [contextClosed, setContextClosed] = useState(false);
   const [sessionAgentFilter, setSessionAgentFilter] = useState(
     allSessionAgentsValue,
@@ -403,7 +421,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       (option) => option.value === effectiveSessionNodeFilter,
     )?.label ?? "All nodes";
   const selectedWorkItem = selectedWorkItemId
-    ? visibleWorkItems.find((item) => item.id === selectedWorkItemId)
+    ? activeWorkItems.find((item) => item.id === selectedWorkItemId)
     : undefined;
   const composerContextItem =
     contextClosed || !selectedWorkItem ? undefined : selectedWorkItem;
@@ -432,6 +450,21 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     Boolean(activeSessionTarget) &&
     activeSessionTarget?.sessionId !== "new" &&
     (!activeSessionTarget?.nodeId || !activeSessionTarget?.agentId);
+  const mobileSessionTabItems = useMemo(
+    () =>
+      openSessionIds.map((sessionId): MobileSessionTabItem => {
+        const item = workItems.find(
+          (candidate) =>
+            candidate.kind === "session" && candidate.sessionId === sessionId,
+        );
+        return {
+          runStatus: item?.runStatus,
+          sessionId,
+          title: item?.title ?? compactId(sessionId),
+        };
+      }),
+    [openSessionIds, workItems],
+  );
   const railSubtitle = `${sessionAgentFilterLabel} · ${sessionNodeFilterLabel}`;
   const apiError =
     nodesQuery.error ??
@@ -477,6 +510,22 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     urlSessionId,
   ]);
 
+  useEffect(() => {
+    const sessionId = activeSessionTarget?.sessionId;
+    if (sessionId && sessionId !== "new") {
+      rememberSession(sessionId);
+    }
+  }, [activeSessionTarget?.sessionId, rememberSession]);
+
+  useEffect(
+    () => () => {
+      if (dismissUndoTimerRef.current !== null) {
+        window.clearTimeout(dismissUndoTimerRef.current);
+      }
+    },
+    [],
+  );
+
   function handleRailScroll(event: UIEvent<HTMLElement>) {
     if (
       !sessionsQuery.hasNextPage ||
@@ -492,6 +541,85 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       nextSessionPageScrollOffset
     ) {
       void sessionsQuery.fetchNextPage();
+    }
+  }
+
+  function openSessionItem(item: WorkItem) {
+    if (!item.sessionId) {
+      return;
+    }
+    rememberSession(item.sessionId);
+    setEmbeddedSessionTarget(null);
+    setSelectedProjectId(item.primaryProjectId ?? "");
+    replaceHomeSessionUrl(item.sessionId);
+    setSelectedWorkItemId(item.id);
+    setMobileComposerOpen(false);
+    setMobileRailOpen(false);
+    setContextClosed(false);
+    setComposerMode("clean");
+  }
+
+  function openTabSession(sessionId: string) {
+    const item = workItems.find(
+      (candidate) =>
+        candidate.kind === "session" && candidate.sessionId === sessionId,
+    );
+    if (item) {
+      openSessionItem(item);
+      return;
+    }
+
+    setSessionAgentFilter(allSessionAgentsValue);
+    setSessionNodeFilter(allSessionNodesValue);
+    setEmbeddedSessionTarget({
+      key: `tab:${sessionId}`,
+      sessionId,
+    });
+    setSelectedProjectId("");
+    setSelectedWorkItemId("");
+    replaceHomeSessionUrl(sessionId);
+    setMobileComposerOpen(false);
+    setMobileRailOpen(false);
+    setContextClosed(false);
+    setComposerMode("clean");
+  }
+
+  function closeSessionTab(sessionId: string) {
+    const index = openSessionIds.indexOf(sessionId);
+    const title =
+      mobileSessionTabItems.find((item) => item.sessionId === sessionId)
+        ?.title ?? compactId(sessionId);
+    setDismissedDeckSession({ index: Math.max(0, index), sessionId, title });
+    dismissDeckSession(sessionId);
+
+    if (dismissUndoTimerRef.current !== null) {
+      window.clearTimeout(dismissUndoTimerRef.current);
+    }
+    dismissUndoTimerRef.current = window.setTimeout(() => {
+      setDismissedDeckSession(null);
+      dismissUndoTimerRef.current = null;
+    }, 5_000);
+
+    if (activeSessionTarget?.sessionId === sessionId) {
+      const remainingIds = openSessionIds.filter((id) => id !== sessionId);
+      const nextSessionId = remainingIds[index] ?? remainingIds[index - 1];
+      if (nextSessionId) {
+        openTabSession(nextSessionId);
+      } else {
+        showCleanComposer();
+      }
+    }
+  }
+
+  function undoTabClose() {
+    if (!dismissedDeckSession) {
+      return;
+    }
+    restoreSession(dismissedDeckSession.sessionId, dismissedDeckSession.index);
+    setDismissedDeckSession(null);
+    if (dismissUndoTimerRef.current !== null) {
+      window.clearTimeout(dismissUndoTimerRef.current);
+      dismissUndoTimerRef.current = null;
     }
   }
 
@@ -629,6 +757,16 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-canvas">
         {apiError && <ApiState error={apiError} />}
 
+        <MobileSessionTabs
+          activeSessionId={activeSessionTarget?.sessionId}
+          dismissedTitle={dismissedDeckSession?.title}
+          items={mobileSessionTabItems}
+          onDismiss={closeSessionTab}
+          onNewSession={showCleanComposer}
+          onSelect={openTabSession}
+          onUndoDismiss={undoTabClose}
+        />
+
         <main className="relative grid min-h-0 flex-1 overflow-hidden lg:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]">
           {mobilePaneOpen && mobileRailOpen && (
             <button
@@ -734,14 +872,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 setComposerMode("clean");
               }}
               onSelectSession={(item) => {
-                setEmbeddedSessionTarget(null);
-                setSelectedProjectId(item.primaryProjectId ?? "");
-                if (item.sessionId) replaceHomeSessionUrl(item.sessionId);
-                setSelectedWorkItemId(item.id);
-                setMobileComposerOpen(false);
-                setMobileRailOpen(false);
-                setContextClosed(false);
-                setComposerMode("clean");
+                openSessionItem(item);
               }}
               projects={projects}
               selectedProjectId={selectedProjectId}
@@ -818,6 +949,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                     sessionId,
                   };
                   setEmbeddedSessionTarget(nextTarget);
+                  rememberSession(sessionId);
                   replaceHomeSessionUrl(sessionId);
                 }}
                 sessionId={activeSessionTarget.sessionId}
@@ -2126,6 +2258,7 @@ function buildWorkItems({
           nodeId: session.node_id,
           primaryProjectId: session.primary_project_id,
           priority: session.run_status === "waiting_approval" ? "high" : "low",
+          runStatus: session.run_status,
           sessionId: session.session_id,
           source: "Recent session",
           title: session.name ?? session.current_task ?? session.session_id,
