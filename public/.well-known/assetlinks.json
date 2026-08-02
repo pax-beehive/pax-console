@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "net.paxtech.console",
+      "sha256_cert_fingerprints": [
+        "2B:C1:98:9B:1F:B0:13:47:ED:03:70:4C:16:99:28:44:F8:0E:B2:E1:1C:DB:97:96:86:08:95:71:AC:39:E6:7B"
+      ]
+    }
+  }
+]

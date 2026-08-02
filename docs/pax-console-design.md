@@ -70,7 +70,13 @@ drawer state
 composer drafts
 local filters
 tunnel connection display state
+mobile open-session tab ids
 ```
+
+The mobile open-session workset persists only user-scoped session ids. Its top
+tabs derive names and run state from TanStack Query. Closing a tab means closing
+a local work surface, not archiving/deleting the session or cancelling agent
+work.
 
 ahooks `useRequest` is allowed for local or action-style requests:
 
@@ -838,6 +844,15 @@ The runtime assigns a turn-scoped stream id at `sendUserMessage` time. Chunks fo
 ## Session Experience
 
 The session page is the product center.
+
+On narrow screens, locally opened sessions occupy a dedicated horizontally
+scrolling tab row immediately below the global Topbar. This global work-surface
+navigation remains separate from the current Session tools header and composer.
+Tapping switches directly, closing a tab offers Undo without stopping agent
+work, and the trailing New session action returns to the clean composer. Status
+remains an ambient dot rather than a navigation section, and tab order stays
+stable while background agents update. Only the selected tab mounts the full
+workbench.
 
 Recommended layout:
 

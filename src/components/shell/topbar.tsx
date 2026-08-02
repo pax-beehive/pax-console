@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown, LogOut } from "lucide-react";
+import { Check, ChevronDown, LogOut, RefreshCw } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,6 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SearchBox } from "@/components/ui/search-box";
+import { Button } from "@/components/ui/button";
 import { TruncatedText } from "@/components/ui/text";
 import { LOGOUT_URL } from "@/features/api/client";
 import { User } from "@/features/api/types";
@@ -34,6 +35,16 @@ export function Topbar({ user }: TopbarProps) {
         )}
       </div>
       <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+        <Button
+          aria-label="Reload PAX Console"
+          className="lg:hidden"
+          icon={<RefreshCw className="h-4 w-4" />}
+          onClick={() => window.location.reload()}
+          size="icon"
+          tooltip="Reload page"
+          type="button"
+          variant="ghost"
+        />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
