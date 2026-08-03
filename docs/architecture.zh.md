@@ -684,9 +684,12 @@ manager 负责代理 ACP initialize / session/new / session/prompt。续聊时�
 
 Session 的持久化运行状态只有一个权威来源：REST Session 对象中的
 `runtime_status`（`idle` / `running` / `waiting_approval`）。列表、详情、Home、
-移动端 activity dot 和 workbench badge 都只能读取该字段，不能回退到 `status`、
-`run_status`、ACP frame、observer 状态或 agent 在线状态。conversation / observer
-的本地状态仍负责当前窗口的 composer、stop、queue 和流式交互，但不再冒充持久化状态。
+移动端 activity dot 都只能读取该字段，不能回退到 `status`、`run_status`、ACP
+frame、observer 状态或 agent 在线状态。当前窗口明确提交 conversation turn 后，
+workbench badge 可以用该窗口拥有的本地状态乐观覆盖为 `running` 或
+`waiting_approval`；本地进入 `done` / `error` 后立即清除覆盖，重新服从
+`runtime_status`。该本地状态同时负责当前窗口的 composer、stop、queue 和流式交互，
+但不会写成或冒充持久化状态。
 Session query 仅保留 30 秒低频轮询作为断连兜底。
 
 罕见的假活跃状态通过 workbench overflow 菜单执行 compare-and-reset：前端把只读的

@@ -449,13 +449,16 @@ name. Session responses expose `name`, `reported_name`, and `name_is_custom`;
 periodic reports update only the reported name.
 
 Session responses also expose canonical `runtime_status` and the read-only
-`runtime_turn_instance_id`. All session status surfaces consume
-`runtime_status` exclusively; legacy `status` / `run_status`, live ACP frames,
-observer state, and agent connectivity are not runtime-status fallbacks. The
-overflow action **Reset stale status** posts the current turn instance ID to
-the runtime reset endpoint after a non-cancellation warning, then invalidates
-detail and list queries. A 30-second query interval is only a disconnected
-client fallback.
+`runtime_turn_instance_id`. Persisted and ambient session status surfaces
+consume `runtime_status` exclusively; legacy `status` / `run_status`, live ACP
+frames, observer state, and agent connectivity are not runtime-status
+fallbacks. The current workbench badge may overlay `running` or
+`waiting_approval` while its window owns an explicitly submitted conversation
+turn. Local `done` or `error` clears that overlay and restores canonical
+authority. The overflow action **Reset stale status** posts the current turn
+instance ID to the runtime reset endpoint after a non-cancellation warning,
+then invalidates detail and list queries. A 30-second query interval is only a
+disconnected client fallback.
 
 Projects
 POST  /api/v1/user/{user_id}/projects

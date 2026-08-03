@@ -264,12 +264,14 @@ Collaboration and knowledge resources are normal user-scoped REST resources:
 
 Session runtime display state has one durable authority: the session API's
 `runtime_status` field (`idle`, `running`, or `waiting_approval`). Lists,
-details, Home work items, mobile activity dots, and the workbench badge must
-not fall back to `status`, `run_status`, ACP frames, observer state, or agent
-connectivity. Live conversation and observer state still control the current
-window's composer, stop, queue, and stream behavior, but do not present a
-persisted session status. Session queries use 30-second polling only as a
-disconnected-client fallback.
+details, Home work items, and mobile activity dots must not fall back to
+`status`, `run_status`, ACP frames, observer state, or agent connectivity. The
+current workbench may optimistically overlay `running` or `waiting_approval`
+while that window owns an explicitly submitted conversation turn. A local
+`done` or `error` removes the overlay and returns display authority to
+`runtime_status`. This overlay also controls the current window's composer,
+stop, queue, and stream behavior, but is never persisted as session status.
+Session queries use 30-second polling only as a disconnected-client fallback.
 
 For a rare false-alive projection, the workbench overflow menu calls:
 
