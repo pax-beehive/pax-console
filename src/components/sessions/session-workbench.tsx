@@ -45,6 +45,7 @@ import {
   WorkstreamItemCard,
 } from "@/components/sessions/session-event-cards";
 import { SessionComposer } from "@/components/sessions/session-composer";
+import { SessionRuntimeActions } from "@/components/sessions/session-runtime-actions";
 import {
   canSeeSessionSidePanel,
   type SessionSidePanelId,
@@ -62,6 +63,7 @@ import {
   getQueuedSessionTurn,
   injectKnowledgeCapsule,
   queueSessionTurn,
+  resetSessionRuntime,
   steerSessionTurn,
   stopSessionTurn,
   updateAgentSession,
@@ -684,6 +686,49 @@ export function SessionWorkbench({
       setSessionNameEditing(false);
       setSessionNameDraft("");
       setSendError(null);
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.userSessionsRoot(user.user_id),
+      });
+      if (activeNodeId && activeAgentId) {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.sessions(
+            user.user_id,
+            activeNodeId,
+            activeAgentId,
+          ),
+        });
+      }
+    },
+    onError: (caught) => {
+      setSendError(
+        caught instanceof Error ? caught : new Error(String(caught)),
+      );
+    },
+  });
+
+  const resetStaleSessionStatus = useMutation({
+    mutationFn: async () => {
+      if (
+        !activeAgentId ||
+        !currentSessionId ||
+        !activeSession?.runtime_turn_instance_id
+      ) {
+        throw new Error("This session has no active runtime turn to reset.");
+      }
+      return resetSessionRuntime(
+        user.user_id,
+        activeAgentId,
+        currentSessionId,
+        activeSession.runtime_turn_instance_id,
+      );
+    },
+    onMutate: () => setSendError(null),
+    onSuccess: () => {
+      if (currentSessionId) {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.sessionMetadata(user.user_id, currentSessionId),
+        });
+      }
       void queryClient.invalidateQueries({
         queryKey: queryKeys.userSessionsRoot(user.user_id),
       });
@@ -1492,6 +1537,14 @@ export function SessionWorkbench({
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <RunBadge status={displayedRunStatus} />
+            <SessionRuntimeActions
+              canReset={Boolean(
+                activeSession?.runtime_turn_instance_id &&
+                activeSession.runtime_status !== "idle",
+              )}
+              isPending={resetStaleSessionStatus.isPending}
+              onReset={() => resetStaleSessionStatus.mutateAsync()}
+            />
             <Button
               icon={<PanelRight className="h-4 w-4" />}
               onClick={() =>

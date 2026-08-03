@@ -214,6 +214,14 @@ type StopSessionTurnData = {
   status: string;
 };
 
+export type ResetSessionRuntimeData = {
+  command_id: string;
+  expected_turn_instance_id: string;
+  projection_revision: number;
+  reset_status: string;
+  status: "accepted_pending" | string;
+};
+
 type QueueSessionTurnInput = {
   input: string;
 };
@@ -681,6 +689,23 @@ export function stopSessionTurn(
       headers: {
         "Idempotency-Key": createIdempotencyKey(),
       },
+      method: "POST",
+    },
+  );
+}
+
+export function resetSessionRuntime(
+  userId: string,
+  agentId: string,
+  sessionId: string,
+  expectedTurnInstanceId: string,
+) {
+  return apiFetch<ResetSessionRuntimeData>(
+    userPath(userId, `/agents/${agentId}/sessions/${sessionId}/runtime/reset`),
+    {
+      body: JSON.stringify({
+        expected_turn_instance_id: expectedTurnInstanceId,
+      }),
       method: "POST",
     },
   );
@@ -1979,6 +2004,7 @@ export function useAgentSessions(
     queryFn: () =>
       listAgentSessions(userId as string, nodeId as string, agentId as string),
     enabled: Boolean(userId && nodeId && agentId),
+    refetchInterval: 30_000,
   });
 }
 
@@ -1990,6 +2016,7 @@ export function useUserSession(userId?: string, sessionId?: string) {
     ),
     queryFn: () => getUserSession(userId as string, sessionId as string),
     enabled: Boolean(userId && sessionId),
+    refetchInterval: 30_000,
   });
 }
 
