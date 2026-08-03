@@ -5,6 +5,7 @@ import {
   dismissSessionFromDeck,
   readSessionDeck,
   rememberSessionInDeck,
+  reorderSessionDeck,
   restoreSessionToDeck,
   sessionDeckStorageKey,
   writeSessionDeck,
@@ -46,5 +47,14 @@ describe("session deck", () => {
       "sess_2",
       "sess_3",
     ]);
+  });
+
+  it("reorders known sessions without dropping concurrent entries", () => {
+    expect(
+      reorderSessionDeck(
+        ["sess_1", "sess_2", "sess_3"],
+        ["sess_2", "unknown", "sess_1"],
+      ),
+    ).toEqual(["sess_2", "sess_1", "sess_3"]);
   });
 });

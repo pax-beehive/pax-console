@@ -5,6 +5,7 @@ import {
   dismissSessionFromDeck,
   readSessionDeck,
   rememberSessionInDeck,
+  reorderSessionDeck,
   restoreSessionToDeck,
   sessionDeckStorageKey,
   writeSessionDeck,
@@ -91,9 +92,17 @@ export function useSessionDeck(userId: string) {
     [updateSessionDeck],
   );
 
+  const reorderSessions = useCallback(
+    (sessionIds: string[]) => {
+      updateSessionDeck((current) => reorderSessionDeck(current, sessionIds));
+    },
+    [updateSessionDeck],
+  );
+
   return {
     dismissSession,
     rememberSession,
+    reorderSessions,
     restoreSession,
     sessionIds,
   };

@@ -207,6 +207,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const {
     dismissSession: dismissDeckSession,
     rememberSession,
+    reorderSessions: reorderDeckSessions,
     restoreSession,
     sessionIds: openSessionIds,
   } = useSessionDeck(user.user_id);
@@ -763,6 +764,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
           items={mobileSessionTabItems}
           onDismiss={closeSessionTab}
           onNewSession={showCleanComposer}
+          onReorder={reorderDeckSessions}
           onSelect={openTabSession}
           onUndoDismiss={undoTabClose}
         />

@@ -684,7 +684,9 @@ dedicated horizontally scrolling tab row. Tapping switches directly, closing a
 tab offers Undo without stopping its session, and the trailing New session
 action returns to the clean composer. The row remains separate from both the
 Session tools header and the composer. The global mobile Topbar includes a hard
-reload action equivalent to the browser refresh button.
+reload action equivalent to the browser refresh button. Long-pressing a tab
+starts horizontal drag reordering; normal horizontal movement continues to
+scroll the strip, and tab labels must not become browser text selections.
 
 Android preview packages use a Bubblewrap-generated Trusted Web Activity with
 package id `net.paxtech.console`. Keep `public/manifest.webmanifest` linked from
