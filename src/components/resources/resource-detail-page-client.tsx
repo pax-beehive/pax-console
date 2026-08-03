@@ -211,7 +211,7 @@ export function AgentDetailPageClient({
                 </div>
                 <div className="flex items-start lg:justify-end">
                   <Badge>
-                    {session.run_status ?? session.status ?? "unknown"}
+                    {session.runtime_status ?? "unknown"}
                   </Badge>
                 </div>
               </Link>

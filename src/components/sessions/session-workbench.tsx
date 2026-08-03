@@ -101,10 +101,7 @@ import {
 } from "@/features/runtime/session-events";
 import { useConversationRun } from "@/features/runtime/use-conversation-run";
 import { useSessionObserver } from "@/features/runtime/session-observer";
-import {
-  isConversationObserverRecoverableError,
-  sessionDisplayStatus,
-} from "@/features/runtime/session-display-status";
+import { sessionDisplayStatus } from "@/features/runtime/session-display-status";
 import { isSupportedSessionWorkspace } from "@/features/runtime/workspace-path";
 import { compactId } from "@/lib/format";
 import { useDocumentTitle } from "@/lib/use-document-title";
@@ -260,7 +257,7 @@ export function SessionWorkbench({
     [currentSessionId, sessionMetadata, sessionsQuery.data?.sessions],
   );
   const activeSessionReportedRunning = isActiveSessionRunStatus(
-    activeSession?.run_status ?? activeSession?.status,
+    activeSession?.runtime_status,
   );
   const isExternallyCreatedSession = Boolean(
     currentSessionId &&
@@ -612,23 +609,9 @@ export function SessionWorkbench({
     sessionId: currentSessionId,
     userId: user.user_id,
   });
-  const displayedRunStatus = sessionDisplayStatus({
-    autoApprove: displayedApprovalMode === "auto_approve_all",
-    conversationError: conversationRun.error,
-    conversationStatus: conversationRun.status,
-    observerStatus: sessionObserver.status,
-    reportedStatus: activeSession?.run_status ?? activeSession?.status,
-    remoteTurnActive:
-      activeSessionReportedRunning &&
-      observerSuppressedSessionId !== currentSessionId,
-  });
-  const conversationErrorRecovered =
-    conversationRun.status === "error" &&
-    isConversationObserverRecoverableError(conversationRun.error) &&
-    sessionObserver.status === "observing";
-  const displayedRunError = conversationErrorRecovered
-    ? sessionObserver.error
-    : (conversationRun.error ?? sessionObserver.error);
+  const displayedRunStatus = sessionDisplayStatus(
+    activeSession?.runtime_status,
+  );
   const isTurnRunning =
     conversationRun.status === "streaming" ||
     conversationRun.status === "waiting_approval" ||
@@ -1508,7 +1491,7 @@ export function SessionWorkbench({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <RunBadge error={displayedRunError} status={displayedRunStatus} />
+            <RunBadge status={displayedRunStatus} />
             <Button
               icon={<PanelRight className="h-4 w-4" />}
               onClick={() =>

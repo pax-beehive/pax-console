@@ -144,7 +144,7 @@ export function isActiveAgent(agent: Agent) {
 }
 
 export function isActiveSession(session: AgentSession) {
-  return isActiveStatus(session.run_status ?? session.status);
+  return session.runtime_status !== "idle";
 }
 
 export function buildSessionRows(
