@@ -682,6 +682,19 @@ type=error    展示错误并结束 streaming state
 manager 负责代理 ACP initialize / session/new / session/prompt。续聊时必须传
 已有且属于当前用户、URL 中 node/agent 下的 `sess_*`，并且后端已有 native id 绑定。
 
+Session 的持久化运行状态只有一个权威来源：REST Session 对象中的
+`runtime_status`（`idle` / `running` / `waiting_approval`）。列表、详情、Home、
+移动端 activity dot 和 workbench badge 都只能读取该字段，不能回退到 `status`、
+`run_status`、ACP frame、observer 状态或 agent 在线状态。conversation / observer
+的本地状态仍负责当前窗口的 composer、stop、queue 和流式交互，但不再冒充持久化状态。
+Session query 仅保留 30 秒低频轮询作为断连兜底。
+
+罕见的假活跃状态通过 workbench overflow 菜单执行 compare-and-reset：前端把只读的
+`runtime_turn_instance_id` POST 到
+`/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/runtime/reset`。
+确认框必须说明该操作只修正展示状态，不会 cancel 或 terminate 底层任务；接受后失效
+Session detail、agent Session list 与全局 Session list query。
+
 `src/features/runtime/agent-tunnel-runtime.ts` 仍保留直接 ACP tunnel runtime，
 主要用于旧路径和调试。正常 Session workbench 发送 prompt 应使用
 `src/features/runtime/use-conversation-run.ts`。

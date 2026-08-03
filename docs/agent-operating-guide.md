@@ -262,6 +262,29 @@ Collaboration and knowledge resources are normal user-scoped REST resources:
 
 ## Conversation Runtime Rules
 
+Session runtime display state has one durable authority: the session API's
+`runtime_status` field (`idle`, `running`, or `waiting_approval`). Lists,
+details, Home work items, mobile activity dots, and the workbench badge must
+not fall back to `status`, `run_status`, ACP frames, observer state, or agent
+connectivity. Live conversation and observer state still control the current
+window's composer, stop, queue, and stream behavior, but do not present a
+persisted session status. Session queries use 30-second polling only as a
+disconnected-client fallback.
+
+For a rare false-alive projection, the workbench overflow menu calls:
+
+```txt
+POST /api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/runtime/reset
+Content-Type: application/json
+
+{ "expected_turn_instance_id": "<runtime_turn_instance_id>" }
+```
+
+This is a compare-and-reset request. The UI must echo the current read-only
+turn instance ID, confirm the action, explain that it does not cancel or
+terminate the underlying task, and invalidate session detail plus both session
+list query families after acceptance.
+
 The current runtime files are:
 
 ```txt
