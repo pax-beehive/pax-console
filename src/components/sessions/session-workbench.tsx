@@ -782,6 +782,8 @@ export function SessionWorkbench({
       setSendError(null);
     },
     onSuccess: () => {
+      conversationRun.markCancelled();
+      refreshActiveSessionRuntime();
       if (activeNodeId && activeAgentId) {
         void queryClient.invalidateQueries({
           queryKey: queryKeys.sessions(
@@ -1536,7 +1538,10 @@ export function SessionWorkbench({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <RunBadge status={displayedRunStatus} />
+            <RunBadge
+              error={conversationRun.error}
+              status={displayedRunStatus}
+            />
             <SessionRuntimeActions
               canReset={Boolean(
                 activeSession?.runtime_turn_instance_id &&

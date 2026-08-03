@@ -26,6 +26,7 @@ export type ConversationRunStatus =
   | "streaming"
   | "waiting_approval"
   | "done"
+  | "cancelled"
   | "error";
 
 type UseConversationRunOptions = {
@@ -261,9 +262,17 @@ export function useConversationRun({
     ],
   );
 
+  const markCancelled = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setError(null);
+    setStatus("cancelled");
+  }, []);
+
   return {
     error,
     events,
+    markCancelled,
     resumePermission,
     sendMessage,
     status: agentId && nodeId ? status : "idle",
@@ -309,6 +318,11 @@ export function handleConversationEnvelope(
     );
     if (events.length > 0) {
       appendConversationEvents({ appendEvents, setEvents }, events);
+    }
+    if (events.some((event) => event.type === "turn_done")) {
+      setStatus((current) =>
+        current === "error" || current === "cancelled" ? current : "done",
+      );
     }
     return;
   }

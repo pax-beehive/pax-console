@@ -48,6 +48,12 @@ export function RunBadge({
       tone: "success" as const,
       tooltip: "Run completed",
     },
+    cancelled: {
+      icon: <Circle className="h-3.5 w-3.5" />,
+      label: "cancelled",
+      tone: "neutral" as const,
+      tooltip: "Run cancelled",
+    },
     error: {
       icon: <AlertCircle className="h-3.5 w-3.5" />,
       label: error ? `error · ${error.message}` : "error",

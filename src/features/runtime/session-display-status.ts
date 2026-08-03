@@ -8,6 +8,13 @@ export function sessionDisplayStatus(
     ownedConversationStatus?: ConversationRunStatus;
   },
 ): SessionDisplayStatus {
+  if (
+    options?.ownedConversationStatus === "done" ||
+    options?.ownedConversationStatus === "cancelled" ||
+    options?.ownedConversationStatus === "error"
+  ) {
+    return options.ownedConversationStatus;
+  }
   if (options?.ownedConversationStatus === "waiting_approval") {
     return "waiting_approval";
   }

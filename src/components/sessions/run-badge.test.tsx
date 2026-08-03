@@ -75,4 +75,11 @@ describe("RunBadge", () => {
       ),
     ).toBeInTheDocument();
   });
+
+  it("renders an acknowledged cancellation as a terminal status", () => {
+    renderBadge("cancelled");
+
+    expect(screen.getByText("cancelled")).toBeInTheDocument();
+    expect(screen.getByLabelText("Run cancelled")).toBeInTheDocument();
+  });
 });
