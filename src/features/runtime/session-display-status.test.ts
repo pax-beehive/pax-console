@@ -35,15 +35,12 @@ describe("sessionDisplayStatus", () => {
       ).toBe("waiting_approval");
     });
 
-    it.each(["done", "error"] as const)(
-      "returns authority to the canonical snapshot after local status becomes %s",
+    it.each(["done", "error", "cancelled"] as const)(
+      "shows the locally observed terminal status %s over a stale running snapshot",
       (ownedConversationStatus) => {
         expect(
           sessionDisplayStatus("running", { ownedConversationStatus }),
-        ).toBe("streaming");
-        expect(
-          sessionDisplayStatus("idle", { ownedConversationStatus }),
-        ).toBe("idle");
+        ).toBe(ownedConversationStatus);
       },
     );
   });

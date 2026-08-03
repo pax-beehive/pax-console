@@ -223,6 +223,7 @@ describe("handleConversationEnvelope", () => {
         sessionId: "sess_1",
       },
     ]);
+    expect(status).toBe("done");
   });
 
   it("updates a permission request when manager approval metadata arrives", () => {
