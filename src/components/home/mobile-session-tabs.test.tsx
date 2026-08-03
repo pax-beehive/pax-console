@@ -90,4 +90,27 @@ describe("MobileSessionTabs", () => {
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));
     expect(onUndoDismiss).toHaveBeenCalledOnce();
   });
+
+  it("prevents text selection and supports keyboard reordering", () => {
+    const onReorder = vi.fn();
+    renderTabs(
+      <MobileSessionTabs
+        items={items}
+        onDismiss={vi.fn()}
+        onNewSession={vi.fn()}
+        onReorder={onReorder}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    const firstTab = screen.getByRole("tab", { name: "Concurrency fix" });
+    const tabSurface = firstTab.closest("[data-session-tab]");
+    expect(tabSurface).toHaveClass("select-none");
+    expect(
+      fireEvent.contextMenu(tabSurface as HTMLElement),
+    ).toBe(false);
+
+    fireEvent.keyDown(firstTab, { altKey: true, key: "ArrowRight" });
+    expect(onReorder).toHaveBeenCalledWith(["sess_2", "sess_1"]);
+  });
 });

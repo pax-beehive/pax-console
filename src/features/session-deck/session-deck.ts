@@ -66,6 +66,20 @@ export function restoreSessionToDeck(
   ]);
 }
 
+export function reorderSessionDeck(
+  sessionIds: string[],
+  reorderedSessionIds: string[],
+) {
+  const current = normalizeSessionDeck(sessionIds);
+  const currentIds = new Set(current);
+  const reordered = normalizeSessionDeck(reorderedSessionIds).filter((id) =>
+    currentIds.has(id),
+  );
+  const reorderedIds = new Set(reordered);
+
+  return [...reordered, ...current.filter((id) => !reorderedIds.has(id))];
+}
+
 function normalizeSessionDeck(sessionIds: string[]) {
   const seen = new Set<string>();
   const normalized: string[] = [];

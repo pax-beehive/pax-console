@@ -851,8 +851,9 @@ navigation remains separate from the current Session tools header and composer.
 Tapping switches directly, closing a tab offers Undo without stopping agent
 work, and the trailing New session action returns to the clean composer. Status
 remains an ambient dot rather than a navigation section, and tab order stays
-stable while background agents update. Only the selected tab mounts the full
-workbench.
+stable while background agents update. Long press starts drag reordering
+without allowing browser text selection; a normal horizontal gesture still
+scrolls the strip. Only the selected tab mounts the full workbench.
 
 Recommended layout:
 
