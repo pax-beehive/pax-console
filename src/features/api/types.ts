@@ -330,6 +330,8 @@ export type AgentSession = {
   status?: string;
   run_id?: string;
   run_status?: string;
+  runtime_status?: "idle" | "running" | "waiting_approval";
+  runtime_turn_instance_id?: string;
   source?: string;
   model?: string;
   message_count?: number;

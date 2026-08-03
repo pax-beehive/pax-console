@@ -2259,8 +2259,9 @@ function buildWorkItems({
           kind: "session",
           nodeId: session.node_id,
           primaryProjectId: session.primary_project_id,
-          priority: session.run_status === "waiting_approval" ? "high" : "low",
-          runStatus: session.run_status,
+          priority:
+            session.runtime_status === "waiting_approval" ? "high" : "low",
+          runStatus: session.runtime_status,
           sessionId: session.session_id,
           source: "Recent session",
           title: session.name ?? session.current_task ?? session.session_id,

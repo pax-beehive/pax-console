@@ -321,7 +321,7 @@ describe("resource list models", () => {
       isActiveSession({
         agent_id: "agent_1",
         node_id: "node_1",
-        run_status: "running",
+        runtime_status: "running",
         session_id: "session_1",
       }),
     ).toBe(true);
@@ -329,8 +329,21 @@ describe("resource list models", () => {
       isActiveSession({
         agent_id: "agent_1",
         node_id: "node_1",
-        run_status: "done",
+        runtime_status: "idle",
         session_id: "session_2",
+      }),
+    ).toBe(false);
+  });
+
+  it("ignores legacy status fields when deciding session activity", () => {
+    expect(
+      isActiveSession({
+        agent_id: "agent_1",
+        node_id: "node_1",
+        runtime_status: "idle",
+        run_status: "running",
+        status: "running",
+        session_id: "session_1",
       }),
     ).toBe(false);
   });

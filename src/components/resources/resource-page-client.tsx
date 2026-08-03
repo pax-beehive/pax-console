@@ -749,7 +749,7 @@ function SessionGrid({
               </MonoId>
             </div>
             <div className="flex items-start lg:justify-end">
-              <Badge>{session.run_status ?? session.status ?? "unknown"}</Badge>
+              <Badge>{session.runtime_status ?? "unknown"}</Badge>
             </div>
           </Link>
         ))}

@@ -440,12 +440,25 @@ do not move concurrently running sessions. Older API rows fall back to
 Conversation
 POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/conversation
 POST /api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/turn/stop
+POST /api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/runtime/reset
 PATCH /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}
 
 The session PATCH accepts `{ "name": "..." }` to set a user-owned display
 name and `{ "use_reported_name": true }` to restore the latest paxd-reported
 name. Session responses expose `name`, `reported_name`, and `name_is_custom`;
 periodic reports update only the reported name.
+
+Session responses also expose canonical `runtime_status` and the read-only
+`runtime_turn_instance_id`. Persisted and ambient session status surfaces
+consume `runtime_status` exclusively; legacy `status` / `run_status`, live ACP
+frames, observer state, and agent connectivity are not runtime-status
+fallbacks. The current workbench badge may overlay `running` or
+`waiting_approval` while its window owns an explicitly submitted conversation
+turn. Local `done` or `error` clears that overlay and restores canonical
+authority. The overflow action **Reset stale status** posts the current turn
+instance ID to the runtime reset endpoint after a non-cancellation warning,
+then invalidates detail and list queries. A 30-second query interval is only a
+disconnected client fallback.
 
 Projects
 POST  /api/v1/user/{user_id}/projects
@@ -850,7 +863,8 @@ scrolling tab row immediately below the global Topbar. This global work-surface
 navigation remains separate from the current Session tools header and composer.
 Tapping switches directly, closing a tab offers Undo without stopping agent
 work, and the trailing New session action returns to the clean composer. Status
-remains an ambient dot rather than a navigation section, and tab order stays
+comes from canonical `runtime_status` and remains an ambient dot rather than a
+navigation section, and tab order stays
 stable while background agents update. Long press starts drag reordering
 without allowing browser text selection; a normal horizontal gesture still
 scrolls the strip. Only the selected tab mounts the full workbench.

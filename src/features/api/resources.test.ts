@@ -48,6 +48,7 @@ const {
   listUserSessions,
   queueSessionTurn,
   removeNodeDaemonAgentConnection,
+  resetSessionRuntime,
   restartNodeDaemonAgentConnection,
   startNodeDaemonAgentConnection,
   steerSessionTurn,
@@ -197,6 +198,23 @@ describe("listAgentSessions", () => {
         headers: {
           "Idempotency-Key": expect.any(String),
         },
+        method: "POST",
+      },
+    );
+  });
+
+  it("requests a compare-and-reset for the displayed runtime turn", async () => {
+    apiFetch.mockResolvedValueOnce({
+      expected_turn_instance_id: "turn_1",
+      status: "accepted_pending",
+    });
+
+    await resetSessionRuntime("u1", "a1", "sess_1", "turn_1");
+
+    expect(apiFetch).toHaveBeenCalledWith(
+      "/api/v1/user/u1/agents/a1/sessions/sess_1/runtime/reset",
+      {
+        body: JSON.stringify({ expected_turn_instance_id: "turn_1" }),
         method: "POST",
       },
     );
