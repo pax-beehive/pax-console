@@ -4,7 +4,16 @@ export type SessionDisplayStatus = ConversationRunStatus;
 
 export function sessionDisplayStatus(
   runtimeStatus?: string,
+  options?: {
+    ownedConversationStatus?: ConversationRunStatus;
+  },
 ): SessionDisplayStatus {
+  if (options?.ownedConversationStatus === "waiting_approval") {
+    return "waiting_approval";
+  }
+  if (options?.ownedConversationStatus === "streaming") {
+    return "streaming";
+  }
   if (runtimeStatus === "waiting_approval") {
     return "waiting_approval";
   }

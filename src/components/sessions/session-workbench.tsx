@@ -611,9 +611,9 @@ export function SessionWorkbench({
     sessionId: currentSessionId,
     userId: user.user_id,
   });
-  const displayedRunStatus = sessionDisplayStatus(
-    activeSession?.runtime_status,
-  );
+  const displayedRunStatus = sessionDisplayStatus(activeSession?.runtime_status, {
+    ownedConversationStatus: conversationRun.status,
+  });
   const isTurnRunning =
     conversationRun.status === "streaming" ||
     conversationRun.status === "waiting_approval" ||
