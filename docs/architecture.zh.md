@@ -693,6 +693,12 @@ workbench badge 可以用该窗口拥有的本地状态乐观覆盖为 `running`
 或冒充持久化状态。
 Session query 仅保留 30 秒低频轮询作为断连兜底。
 
+`/conversation` SSE 的可恢复 transport error 不等于 turn error：当前 workbench
+保持 `running` 展示，并立即启用 Session `/events` observer 接管，即使 running
+snapshot 尚未到达。observer 建连成功后清除连接提示；收到 `turn_done` 或
+`no_running_turn` 后把本地展示落为 `done`。只有 conversation 明确返回的业务
+error envelope 才是 terminal `error`。
+
 罕见的假活跃状态通过 workbench overflow 菜单执行 compare-and-reset：前端把只读的
 `runtime_turn_instance_id` POST 到
 `/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/runtime/reset`。

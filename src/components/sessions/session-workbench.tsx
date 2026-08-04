@@ -529,10 +529,11 @@ export function SessionWorkbench({
   const lastHistoryMessageID = lastMessageID(historyMessages);
   const shouldObserveSessionTurn =
     Boolean(activeAgentId && currentSessionId) &&
-    activeSessionReportedRunning &&
     observerSuppressedSessionId !== currentSessionId &&
-    conversationRun.status !== "streaming" &&
-    conversationRun.status !== "waiting_approval";
+    (conversationRun.transportInterrupted ||
+      (activeSessionReportedRunning &&
+        conversationRun.status !== "streaming" &&
+        conversationRun.status !== "waiting_approval"));
   const queuedTurnQueryKey = queryKeys.queuedSessionTurn(
     user.user_id,
     activeAgentId ?? "pending",
@@ -590,10 +591,33 @@ export function SessionWorkbench({
     setQueuedFollowUpSessionId(null);
     refreshActiveSessionRuntime();
   }, [refreshActiveSessionRuntime]);
+  const finishConversationRunFromObserver =
+    conversationRun.finishObservedTurn;
+  const markConversationObserverConnected =
+    conversationRun.markObserverConnected;
+  const conversationTransportInterrupted =
+    conversationRun.transportInterrupted;
   const handleNoRunningTurn = useCallback(() => {
+    finishConversationRunFromObserver();
     setObserverSuppressedSessionId(currentSessionId ?? null);
     refreshActiveSessionRuntime();
-  }, [currentSessionId, refreshActiveSessionRuntime]);
+  }, [
+    currentSessionId,
+    finishConversationRunFromObserver,
+    refreshActiveSessionRuntime,
+  ]);
+  const handleObserverConnected = useCallback(() => {
+    if (conversationTransportInterrupted) {
+      markConversationObserverConnected();
+    }
+  }, [
+    conversationTransportInterrupted,
+    markConversationObserverConnected,
+  ]);
+  const handleObservedTurnDone = useCallback(() => {
+    finishConversationRunFromObserver();
+    refreshActiveSessionRuntime();
+  }, [finishConversationRunFromObserver, refreshActiveSessionRuntime]);
   const sessionObserver = useSessionObserver({
     afterMessageId: shouldFollowQueuedTurn ? undefined : lastHistoryMessageID,
     agentId: activeAgentId,
@@ -603,11 +627,12 @@ export function SessionWorkbench({
     enabled: shouldObserveSessionTurn || shouldFollowQueuedTurn,
     followQueuedTurn: shouldFollowQueuedTurn,
     onBufferMiss: refreshActiveSessionRuntime,
+    onConnected: handleObserverConnected,
     onNoRunningTurn: handleNoRunningTurn,
     onQueuedTurnFinished: handleQueuedTurnFinished,
     onQueuedTurnStarted: handleQueuedTurnStarted,
     onQueuedTurnUnavailable: handleQueuedTurnUnavailable,
-    onTurnDone: refreshActiveSessionRuntime,
+    onTurnDone: handleObservedTurnDone,
     sessionId: currentSessionId,
     userId: user.user_id,
   });

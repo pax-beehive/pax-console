@@ -274,6 +274,14 @@ still active. This overlay also controls the current window's composer, stop,
 queue, and stream behavior, but is never persisted as session status.
 Session queries use 30-second polling only as a disconnected-client fallback.
 
+A recoverable `/conversation` SSE transport failure does not terminate the
+turn or change its badge to `error`. The current workbench keeps the run
+displayed as `running` and immediately hands ownership to the session `/events`
+observer, even if the canonical running snapshot has not arrived yet. A
+successful observer connection clears the transport notice; observer
+`turn_done` or `no_running_turn` completes the local display. Only an explicit
+conversation business-error envelope is a terminal run error.
+
 For a rare false-alive projection, the workbench overflow menu calls:
 
 ```txt

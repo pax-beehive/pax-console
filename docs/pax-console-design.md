@@ -461,6 +461,13 @@ current turn instance ID to the runtime reset endpoint after a non-cancellation
 warning, then invalidates detail and list queries. A 30-second query interval
 is only a disconnected client fallback.
 
+A recoverable `/conversation` SSE transport failure keeps the owned run
+displayed as `running` and enables the session `/events` observer immediately,
+without waiting for the canonical running snapshot. Observer connection clears
+the transport notice, while observer `turn_done` or `no_running_turn` completes
+the local display. Only explicit conversation business-error envelopes are
+terminal run errors.
+
 Projects
 POST  /api/v1/user/{user_id}/projects
 GET   /api/v1/user/{user_id}/projects
