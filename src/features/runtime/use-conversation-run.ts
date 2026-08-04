@@ -20,12 +20,14 @@ import {
 } from "./use-buffered-session-events";
 import type { ApprovalOption, SessionApprovalMode } from "../api/types";
 import { ApiError } from "../api/errors";
+import { isConversationObserverRecoverableError } from "./session-display-status";
 
 export type ConversationRunStatus =
   | "idle"
   | "streaming"
   | "waiting_approval"
   | "done"
+  | "cancelled"
   | "error";
 
 type UseConversationRunOptions = {
@@ -55,6 +57,7 @@ export function useConversationRun({
   const sessionIdRef = useRef(sessionId);
   const [status, setStatus] = useState<ConversationRunStatus>("idle");
   const [error, setError] = useState<Error | null>(null);
+  const [transportInterrupted, setTransportInterrupted] = useState(false);
   const {
     append: appendEvents,
     events,
@@ -94,6 +97,7 @@ export function useConversationRun({
       const streamId = `${optimisticSessionId}:turn:${Date.now()}`;
 
       setError(null);
+      setTransportInterrupted(false);
       setStatus("streaming");
       if (content) {
         appendEvents([
@@ -164,6 +168,11 @@ export function useConversationRun({
 
         const nextError =
           caught instanceof Error ? caught : new Error(String(caught));
+        if (isConversationObserverRecoverableError(nextError)) {
+          setError(nextError);
+          setTransportInterrupted(true);
+          return { sessionId: sessionIdRef.current };
+        }
         setError(nextError);
         setStatus("error");
         throw nextError;
@@ -203,6 +212,7 @@ export function useConversationRun({
       const streamId = `${currentSessionId}:resume:${approvalId}:${Date.now()}`;
 
       setError(null);
+      setTransportInterrupted(false);
       setStatus("streaming");
 
       try {
@@ -241,6 +251,11 @@ export function useConversationRun({
 
         const nextError =
           caught instanceof Error ? caught : new Error(String(caught));
+        if (isConversationObserverRecoverableError(nextError)) {
+          setError(nextError);
+          setTransportInterrupted(true);
+          return { sessionId: sessionIdRef.current };
+        }
         setError(nextError);
         setStatus("error");
         throw nextError;
@@ -261,12 +276,34 @@ export function useConversationRun({
     ],
   );
 
+  const markCancelled = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setError(null);
+    setTransportInterrupted(false);
+    setStatus("cancelled");
+  }, []);
+
+  const markObserverConnected = useCallback(() => {
+    setError(null);
+  }, []);
+
+  const finishObservedTurn = useCallback(() => {
+    setError(null);
+    setTransportInterrupted(false);
+    setStatus((current) => (current === "cancelled" ? current : "done"));
+  }, []);
+
   return {
     error,
     events,
+    finishObservedTurn,
+    markCancelled,
+    markObserverConnected,
     resumePermission,
     sendMessage,
     status: agentId && nodeId ? status : "idle",
+    transportInterrupted,
   };
 }
 
@@ -309,6 +346,11 @@ export function handleConversationEnvelope(
     );
     if (events.length > 0) {
       appendConversationEvents({ appendEvents, setEvents }, events);
+    }
+    if (events.some((event) => event.type === "turn_done")) {
+      setStatus((current) =>
+        current === "error" || current === "cancelled" ? current : "done",
+      );
     }
     return;
   }

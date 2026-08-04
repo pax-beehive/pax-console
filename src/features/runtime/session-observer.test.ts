@@ -50,16 +50,19 @@ describe("streamSessionObserver", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     const envelopes: SessionObserverEnvelope[] = [];
+    const onConnected = vi.fn();
 
     await streamSessionObserver({
       afterMessageId: "msg_1",
       agentId: "agent_1",
+      onConnected,
       onEnvelope: (envelope) => envelopes.push(envelope),
       sessionId: "sess_1",
       userId: "self",
     });
 
     expect(fetchMock).toHaveBeenCalledOnce();
+    expect(onConnected).toHaveBeenCalledOnce();
     const [url, init] = (fetchMock as Mock).mock.calls[0] as [
       string,
       RequestInit,

@@ -63,6 +63,7 @@ export type SessionObserverStatus =
 type StreamSessionObserverOptions = {
   afterMessageId?: string;
   agentId: string;
+  onConnected?: () => void;
   onEnvelope: (envelope: SessionObserverEnvelope) => void;
   sessionId: string;
   signal?: AbortSignal;
@@ -75,6 +76,7 @@ type UseSessionObserverOptions = {
   enabled?: boolean;
   followQueuedTurn?: boolean;
   onBufferMiss?: () => void;
+  onConnected?: () => void;
   onNoRunningTurn?: () => void;
   onQueuedTurnStarted?: () => void;
   onQueuedTurnFinished?: () => void;
@@ -87,6 +89,7 @@ type UseSessionObserverOptions = {
 export async function streamSessionObserver({
   afterMessageId,
   agentId,
+  onConnected,
   onEnvelope,
   sessionId,
   signal,
@@ -127,6 +130,7 @@ export async function streamSessionObserver({
     throw await observerErrorFromResponse(response);
   }
 
+  onConnected?.();
   await streamSseResponse(response, parseSessionObserverSseBlock, onEnvelope);
 }
 
@@ -252,6 +256,7 @@ export function useSessionObserver({
   enabled = true,
   followQueuedTurn,
   onBufferMiss,
+  onConnected,
   onNoRunningTurn,
   onQueuedTurnStarted,
   onQueuedTurnFinished,
@@ -300,6 +305,7 @@ export function useSessionObserver({
       afterMessageId,
       agentId,
       followQueuedTurn,
+      onConnected,
       onEnvelope: (envelope) =>
         handleSessionObserverEnvelope(envelope, {
           onBufferMiss,
@@ -346,6 +352,7 @@ export function useSessionObserver({
     flushEvents,
     followQueuedTurn,
     onBufferMiss,
+    onConnected,
     onNoRunningTurn,
     onQueuedTurnStarted,
     onQueuedTurnFinished,

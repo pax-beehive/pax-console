@@ -454,11 +454,19 @@ consume `runtime_status` exclusively; legacy `status` / `run_status`, live ACP
 frames, observer state, and agent connectivity are not runtime-status
 fallbacks. The current workbench badge may overlay `running` or
 `waiting_approval` while its window owns an explicitly submitted conversation
-turn. Local `done` or `error` clears that overlay and restores canonical
-authority. The overflow action **Reset stale status** posts the current turn
-instance ID to the runtime reset endpoint after a non-cancellation warning,
-then invalidates detail and list queries. A 30-second query interval is only a
-disconnected client fallback.
+turn. An ACP `end_turn`, conversation error, or acknowledged stop immediately
+overlays `done`, `error`, or `cancelled` without waiting for the stale active
+snapshot to reconcile. The overflow action **Reset stale status** posts the
+current turn instance ID to the runtime reset endpoint after a non-cancellation
+warning, then invalidates detail and list queries. A 30-second query interval
+is only a disconnected client fallback.
+
+A recoverable `/conversation` SSE transport failure keeps the owned run
+displayed as `running` and enables the session `/events` observer immediately,
+without waiting for the canonical running snapshot. Observer connection clears
+the transport notice, while observer `turn_done` or `no_running_turn` completes
+the local display. Only explicit conversation business-error envelopes are
+terminal run errors.
 
 Projects
 POST  /api/v1/user/{user_id}/projects
