@@ -428,9 +428,10 @@ A `permission_required` interruption pauses that turn; the following request-
 scoped `done` must not complete it. Permission resume reuses the same turn ID,
 while a queued follow-up receives a different ID. Durable history stores all
 turn projections with `turn_id` and ends the turn with a
-`message_type=turn_done`, `status=complete` marker. Live SSE owns a running
-turn until that marker appears, then the timeline swaps the entire turn to
-history instead of rendering both sources.
+`message_type=turn_done`, `status=complete` marker. A locally started
+conversation stream owns its whole running turn until that marker appears.
+An observer attached mid-turn is incremental: the timeline keeps the durable
+prefix and appends or coalesces the observed suffix.
 
 Session names are updated through the existing node/agent-scoped endpoint:
 

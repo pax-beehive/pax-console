@@ -995,13 +995,14 @@ export function SessionWorkbench({
     [historyMessages],
   );
 
-  const mergedRuntimeEvents = useMemo(
-    () => mergeEvents([...conversationRun.events, ...sessionObserver.events]),
-    [conversationRun.events, sessionObserver.events],
-  );
   const reconciledTimeline = useMemo(
-    () => reconcileSessionTimeline(historyEvents, mergedRuntimeEvents),
-    [historyEvents, mergedRuntimeEvents],
+    () =>
+      reconcileSessionTimeline(
+        historyEvents,
+        conversationRun.events,
+        sessionObserver.events,
+      ),
+    [conversationRun.events, historyEvents, sessionObserver.events],
   );
   const { timeline } = reconciledTimeline;
   const invocationOwnerLookups = useMemo(
@@ -1016,8 +1017,10 @@ export function SessionWorkbench({
     () => groupWorkstreamEvents(timeline),
     [timeline],
   );
-  const currentRuntimeTurnId = latestRuntimeTurnId(mergedRuntimeEvents);
-  const currentTurnHasAgentOutput = mergedRuntimeEvents.some(
+  const currentRuntimeTurnId = latestRuntimeTurnId(
+    reconciledTimeline.liveEvents,
+  );
+  const currentTurnHasAgentOutput = reconciledTimeline.liveEvents.some(
     (event) =>
       (!currentRuntimeTurnId || event.turnId === currentRuntimeTurnId) &&
       AGENT_OUTPUT_EVENT_TYPES.has(event.type),

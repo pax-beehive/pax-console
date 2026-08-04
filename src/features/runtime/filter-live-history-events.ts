@@ -42,7 +42,11 @@ function textEventKey(event: SessionEvent) {
     return undefined;
   }
 
-  return `${event.type}:${event.sessionId}:${normalizeTimelineText(event.content)}`;
+  const turnScope =
+    event.turnId && !event.turnId.startsWith("pending-turn:")
+      ? `turn:${event.turnId}`
+      : "turn:legacy";
+  return `${turnScope}:${event.type}:${event.sessionId}:${normalizeTimelineText(event.content)}`;
 }
 
 function normalizeTimelineText(content: string) {

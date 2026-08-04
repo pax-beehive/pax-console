@@ -106,4 +106,31 @@ describe("filterLiveEventsAlreadyInHistory", () => {
       },
     ]);
   });
+
+  it("keeps identical text from different business turns", () => {
+    const historyEvents: SessionEvent[] = [
+      {
+        type: "agent_message",
+        id: "history",
+        sessionId: "sess_1",
+        turnId: "turn_1",
+        content: "Same answer",
+        createdAt: "2026-07-07T12:00:01.000Z",
+      },
+    ];
+    const liveEvents: SessionEvent[] = [
+      {
+        type: "agent_message",
+        id: "live",
+        sessionId: "sess_1",
+        turnId: "turn_2",
+        content: "Same answer",
+        createdAt: "2026-07-07T12:00:02.000Z",
+      },
+    ];
+
+    expect(filterLiveEventsAlreadyInHistory(liveEvents, historyEvents)).toEqual(
+      liveEvents,
+    );
+  });
 });

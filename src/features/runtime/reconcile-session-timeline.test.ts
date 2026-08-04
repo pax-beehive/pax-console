@@ -74,6 +74,82 @@ describe("reconcileSessionTimeline", () => {
     expect(result.liveEvents).toEqual([]);
     expect(result.timeline.map((item) => item.id)).toEqual(["history"]);
   });
+
+  it("keeps the durable prefix when an observer attaches mid-turn", () => {
+    const history = [
+      event("agent_message", "history-prefix", "turn_1", "Stored prefix "),
+    ];
+    const observer = [
+      event("agent_message", "observer-suffix", "turn_1", "and live suffix"),
+    ];
+
+    const result = reconcileSessionTimeline(history, [], observer);
+
+    expect(result.timeline).toMatchObject([
+      {
+        id: "history-prefix",
+        content: "Stored prefix and live suffix",
+        turnId: "turn_1",
+      },
+    ]);
+  });
+
+  it("uses observer replay instead of a second conversation copy", () => {
+    const history = [
+      event("agent_message", "history-partial", "turn_1", "Hel"),
+    ];
+    const conversation = [
+      user("conversation-user", "turn_1", "Question"),
+      event("agent_message", "conversation-partial", "turn_1", "Hello"),
+    ];
+    const observer = [
+      event("agent_message", "observer-replay", "turn_1", "Hello there"),
+    ];
+
+    const result = reconcileSessionTimeline(
+      history,
+      conversation,
+      observer,
+    );
+
+    expect(result.timeline).toMatchObject([
+      {
+        id: "conversation-user",
+        content: "Question",
+        turnId: "turn_1",
+      },
+      {
+        id: "observer-replay",
+        content: "Hello there",
+        turnId: "turn_1",
+      },
+    ]);
+  });
+
+  it("drops both live sources after durable turn completion", () => {
+    const history = [
+      event("agent_message", "history-complete", "turn_1", "Complete"),
+      done("history-done", "turn_1"),
+    ];
+    const conversation = [
+      event("agent_message", "conversation-copy", "turn_1", "Complete"),
+    ];
+    const observer = [
+      event("agent_message", "observer-copy", "turn_1", "Complete"),
+    ];
+
+    const result = reconcileSessionTimeline(
+      history,
+      conversation,
+      observer,
+    );
+
+    expect(result.liveEvents).toEqual([]);
+    expect(result.timeline.map((item) => item.id)).toEqual([
+      "history-complete",
+      "history-done",
+    ]);
+  });
 });
 
 function event(
@@ -87,6 +163,17 @@ function event(
     id,
     sessionId: "sess_1",
     ...(turnId ? { turnId } : {}),
+    content,
+    createdAt,
+  };
+}
+
+function user(id: string, turnId: string, content: string): SessionEvent {
+  return {
+    type: "user_message",
+    id,
+    sessionId: "sess_1",
+    turnId,
     content,
     createdAt,
   };

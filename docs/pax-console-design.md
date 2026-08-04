@@ -674,8 +674,9 @@ error         Show the message and end the current streaming state.
 Approval pauses retain the same business turn across the resume request, and
 request-scoped `done` does not complete a paused turn. Queued follow-ups use a
 new turn ID. Durable history ends each completed turn with a
-`message_type=turn_done`, `status=complete` marker; the live timeline owns the
-whole running turn until that marker allows an atomic handoff to history.
+`message_type=turn_done`, `status=complete` marker. A locally owned
+conversation stream uses atomic turn handoff; an observer attached mid-turn
+keeps the durable prefix and appends or coalesces its incremental suffix.
 
 PAX Manager owns ACP initialize, optional authenticate, session/new,
 native-session binding, and session/prompt. The frontend should not expose
