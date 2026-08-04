@@ -12,12 +12,76 @@ export function normalizeHistoryMessages(
   messages: HistoryMessage[],
 ): SessionEvent[] {
   return finalizeHistoryTextChunks(
-    mergeAdjacentHistoryTextChunks(
-      projectHistoryMessagesForDisplay(messages).flatMap((message) =>
-        normalizeHistoryMessage(message),
+    orderAggregatedHistoryText(
+      mergeAdjacentHistoryTextChunks(
+        projectHistoryMessagesForDisplay(messages).flatMap((message) =>
+          normalizeHistoryMessage(message),
+        ),
       ),
     ),
   );
+}
+
+/**
+ * The durable history store aggregates every agent_message_chunk in a turn
+ * into one message row. That row keeps the ID/created_at of the first chunk,
+ * even though its text eventually contains the final answer emitted after the
+ * turn's tool calls. Keep live streams in receipt order, but place this
+ * history-only aggregate immediately before the durable turn boundary.
+ */
+function orderAggregatedHistoryText(events: SessionEvent[]) {
+  const completedTurnIds = new Set(
+    events
+      .filter((event) => event.type === "turn_done" && event.turnId)
+      .map((event) => event.turnId as string),
+  );
+  const deferredByTurn = new Map<string, SessionEvent[]>();
+
+  for (const event of events) {
+    if (
+      event.type !== "agent_message" ||
+      !event.turnId ||
+      !completedTurnIds.has(event.turnId) ||
+      !["agent_message_chunk", "message_delta"].includes(
+        event.sessionUpdate ?? "",
+      )
+    ) {
+      continue;
+    }
+
+    deferredByTurn.set(event.turnId, [
+      ...(deferredByTurn.get(event.turnId) ?? []),
+      event,
+    ]);
+  }
+
+  if (deferredByTurn.size === 0) {
+    return events;
+  }
+
+  const ordered: SessionEvent[] = [];
+  const placedTurnIds = new Set<string>();
+  for (const event of events) {
+    if (
+      event.type === "agent_message" &&
+      event.turnId &&
+      deferredByTurn.get(event.turnId)?.includes(event)
+    ) {
+      continue;
+    }
+
+    if (
+      event.type === "turn_done" &&
+      event.turnId &&
+      !placedTurnIds.has(event.turnId)
+    ) {
+      ordered.push(...(deferredByTurn.get(event.turnId) ?? []));
+      placedTurnIds.add(event.turnId);
+    }
+    ordered.push(event);
+  }
+
+  return ordered;
 }
 
 export function normalizeHistoryMessage(

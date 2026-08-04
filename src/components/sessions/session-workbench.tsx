@@ -529,8 +529,7 @@ export function SessionWorkbench({
     queryClient,
     user.user_id,
   ]);
-  const completedConversationTurnVersion =
-    conversationRun.completedTurnVersion;
+  const completedConversationTurnVersion = conversationRun.completedTurnVersion;
   useEffect(() => {
     if (completedConversationTurnVersion > 0) {
       refreshActiveSessionRuntime();
@@ -601,12 +600,10 @@ export function SessionWorkbench({
     setQueuedFollowUpSessionId(null);
     refreshActiveSessionRuntime();
   }, [refreshActiveSessionRuntime]);
-  const finishConversationRunFromObserver =
-    conversationRun.finishObservedTurn;
+  const finishConversationRunFromObserver = conversationRun.finishObservedTurn;
   const markConversationObserverConnected =
     conversationRun.markObserverConnected;
-  const conversationTransportInterrupted =
-    conversationRun.transportInterrupted;
+  const conversationTransportInterrupted = conversationRun.transportInterrupted;
   const handleNoRunningTurn = useCallback(() => {
     finishConversationRunFromObserver();
     setObserverSuppressedSessionId(currentSessionId ?? null);
@@ -620,10 +617,7 @@ export function SessionWorkbench({
     if (conversationTransportInterrupted) {
       markConversationObserverConnected();
     }
-  }, [
-    conversationTransportInterrupted,
-    markConversationObserverConnected,
-  ]);
+  }, [conversationTransportInterrupted, markConversationObserverConnected]);
   const handleObservedTurnDone = useCallback(() => {
     finishConversationRunFromObserver();
     refreshActiveSessionRuntime();
@@ -646,9 +640,12 @@ export function SessionWorkbench({
     sessionId: currentSessionId,
     userId: user.user_id,
   });
-  const displayedRunStatus = sessionDisplayStatus(activeSession?.runtime_status, {
-    ownedConversationStatus: conversationRun.status,
-  });
+  const displayedRunStatus = sessionDisplayStatus(
+    activeSession?.runtime_status,
+    {
+      ownedConversationStatus: conversationRun.status,
+    },
+  );
   const isTurnRunning =
     conversationRun.status === "streaming" ||
     conversationRun.status === "waiting_approval" ||
@@ -1000,8 +997,13 @@ export function SessionWorkbench({
     [conversationRun.events, sessionObserver.events],
   );
   const reconciledTimeline = useMemo(
-    () => reconcileSessionTimeline(historyEvents, mergedRuntimeEvents),
-    [historyEvents, mergedRuntimeEvents],
+    () =>
+      reconcileSessionTimeline(
+        historyEvents,
+        conversationRun.events,
+        sessionObserver.events,
+      ),
+    [conversationRun.events, historyEvents, sessionObserver.events],
   );
   const { timeline } = reconciledTimeline;
   const invocationOwnerLookups = useMemo(

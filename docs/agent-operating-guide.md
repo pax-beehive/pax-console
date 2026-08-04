@@ -428,9 +428,18 @@ A `permission_required` interruption pauses that turn; the following request-
 scoped `done` must not complete it. Permission resume reuses the same turn ID,
 while a queued follow-up receives a different ID. Durable history stores all
 turn projections with `turn_id` and ends the turn with a
-`message_type=turn_done`, `status=complete` marker. Live SSE owns a running
-turn until that marker appears, then the timeline swaps the entire turn to
-history instead of rendering both sources.
+`message_type=turn_done`, `status=complete` marker. Timeline reconciliation
+keeps history, the owned conversation stream, and observer replay as separate
+ordered sources; it must not timestamp-sort them because replayed ACP frames
+receive client arrival timestamps. A locally owned conversation replaces only
+that turn's agent projection while retaining the durable user prompt at the
+turn's original history position. Observer replay extends the existing
+history/conversation prefix and filters repeated text instead of deleting the
+whole turn. Once the completion marker appears, durable history owns the turn.
+Durable storage may aggregate every `agent_message_chunk` in that turn into a
+single row anchored at the first chunk. History normalization therefore places
+that aggregate after the turn's work events and immediately before the durable
+turn boundary; live streams continue to use receipt order.
 
 Session names are updated through the existing node/agent-scoped endpoint:
 
