@@ -94,9 +94,12 @@ import {
   restoredScrollTop,
   shouldLoadEarlierHistory,
 } from "@/components/sessions/session-history-scroll";
-import { filterMergedLiveEventsAlreadyInHistory } from "@/features/runtime/filter-live-history-events";
 import { normalizeHistoryMessages } from "@/features/runtime/normalize-history-message";
 import { mergeEvents } from "@/features/runtime/merge-session-events";
+import {
+  latestRuntimeTurnId,
+  reconcileSessionTimeline,
+} from "@/features/runtime/reconcile-session-timeline";
 import {
   groupWorkstreamEvents,
   SessionEvent,
@@ -526,6 +529,13 @@ export function SessionWorkbench({
     queryClient,
     user.user_id,
   ]);
+  const completedConversationTurnVersion =
+    conversationRun.completedTurnVersion;
+  useEffect(() => {
+    if (completedConversationTurnVersion > 0) {
+      refreshActiveSessionRuntime();
+    }
+  }, [completedConversationTurnVersion, refreshActiveSessionRuntime]);
   const lastHistoryMessageID = lastMessageID(historyMessages);
   const shouldObserveSessionTurn =
     Boolean(activeAgentId && currentSessionId) &&
@@ -989,18 +999,11 @@ export function SessionWorkbench({
     () => mergeEvents([...conversationRun.events, ...sessionObserver.events]),
     [conversationRun.events, sessionObserver.events],
   );
-  const liveEvents = useMemo(
-    () =>
-      filterMergedLiveEventsAlreadyInHistory(
-        mergedRuntimeEvents,
-        historyEvents,
-      ),
+  const reconciledTimeline = useMemo(
+    () => reconcileSessionTimeline(historyEvents, mergedRuntimeEvents),
     [historyEvents, mergedRuntimeEvents],
   );
-  const timeline = useMemo(
-    () => mergeEvents([...historyEvents, ...liveEvents]),
-    [historyEvents, liveEvents],
-  );
+  const { timeline } = reconciledTimeline;
   const invocationOwnerLookups = useMemo(
     () => agentOwnerLookupsFromInvocations(timeline),
     [timeline],
@@ -1013,11 +1016,17 @@ export function SessionWorkbench({
     () => groupWorkstreamEvents(timeline),
     [timeline],
   );
+  const currentRuntimeTurnId = latestRuntimeTurnId(mergedRuntimeEvents);
+  const currentTurnHasAgentOutput = mergedRuntimeEvents.some(
+    (event) =>
+      (!currentRuntimeTurnId || event.turnId === currentRuntimeTurnId) &&
+      AGENT_OUTPUT_EVENT_TYPES.has(event.type),
+  );
   const isAgentResponsePending =
     (conversationRun.status === "streaming" ||
       conversationRun.status === "waiting_approval" ||
       (shouldObserveSessionTurn && sessionObserver.status === "observing")) &&
-    !liveEvents.some((event) => AGENT_OUTPUT_EVENT_TYPES.has(event.type));
+    !currentTurnHasAgentOutput;
   const mutateSessionApprovalMode = updateSessionApprovalMode.mutate;
   const toggleApprovalMode = useCallback(() => {
     const nextMode =

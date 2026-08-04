@@ -23,6 +23,16 @@ export function normalizeHistoryMessages(
 export function normalizeHistoryMessage(
   message: HistoryMessage,
 ): SessionEvent[] {
+  const events = normalizeHistoryMessageWithoutTurn(message);
+  if (!message.turn_id) {
+    return events;
+  }
+  return events.map((event) => ({ ...event, turnId: message.turn_id }));
+}
+
+function normalizeHistoryMessageWithoutTurn(
+  message: HistoryMessage,
+): SessionEvent[] {
   const sessionId = message.session_id ?? "unknown-session";
   const createdAt = message.created_at ?? new Date().toISOString();
   const id = message.message_id ?? String(message.id ?? crypto.randomUUID());
@@ -55,6 +65,17 @@ export function normalizeHistoryMessage(
     if (events.length > 0) {
       return events;
     }
+  }
+
+  if (message.message_type === "turn_done") {
+    return [
+      {
+        type: "turn_done",
+        id,
+        sessionId,
+        createdAt,
+      },
+    ];
   }
 
   const frameEvents = normalizeHistoryFrames(message, sessionId, createdAt);
@@ -134,6 +155,7 @@ function mergeAdjacentHistoryTextChunks(events: SessionEvent[]) {
       isHistoryTextChunk(event) &&
       previous.type === event.type &&
       previous.sessionId === event.sessionId &&
+      previous.turnId === event.turnId &&
       previous.sessionUpdate === event.sessionUpdate
     ) {
       previous.content += event.content;

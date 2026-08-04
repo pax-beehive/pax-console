@@ -673,11 +673,20 @@ SSE 开始后的失败通过 `type=error` envelope 返回 `status_code` 与
 （这个接口是 POST + JSON body）。每条默认 SSE `data:` 是一个 PAX envelope：
 
 ```txt
-type=session  保存 session_id；新会话 replaceState 到 /?sessionId={session_id}
-type=acp      取 envelope.frame，继续走 normalizeTunnelFrame / timeline
-type=done     结束本次 streaming state
-type=error    展示错误并结束 streaming state
+type=session       保存 session_id；新会话 replaceState 到 /?sessionId={session_id}
+type=turn_started  在可见输出前接管不透明的业务 turn_id
+type=acp           取 envelope.frame，保留 turn_id 并走 normalizeTunnelFrame
+type=turn_done     durable history 可查询后结束该业务 turn
+type=done          只结束本次请求流；不携带 turn_id
+type=error         展示错误并结束 streaming state
 ```
+
+`approval_required` 与 `interrupted` 保留当前业务 `turn_id`。
+`permission_required` 只暂停 turn，随后请求级 `done` 不得把它标为完成；permission
+resume 复用同一个 turn ID，queued follow-up 使用新的 ID。durable history 的同一
+turn 投影都带 `turn_id`，并以 `message_type=turn_done`、`status=complete` marker
+结束。运行期间 timeline 由 SSE 独占；只有该 marker 出现在 history 后，前端才把
+整轮原子切换到 history，避免两个来源同时渲染。
 
 manager 负责代理 ACP initialize / session/new / session/prompt。续聊时必须传
 已有且属于当前用户、URL 中 node/agent 下的 `sess_*`，并且后端已有 native id 绑定。

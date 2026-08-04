@@ -1,11 +1,75 @@
 import { Mock, afterEach, describe, expect, it, vi } from "vitest";
 import {
   SessionObserverEnvelope,
+  SessionObserverStatus,
+  handleSessionObserverEnvelope,
   parseSessionObserverSseBlock,
   streamSessionObserver,
   streamSessionObserverWithReconnect,
   streamSessionObserverWithQueuedReplay,
 } from "./session-observer";
+import { SessionEvent } from "./session-events";
+
+describe("handleSessionObserverEnvelope", () => {
+  it("preserves the business turn on ACP events and emits turn_done", () => {
+    let status: SessionObserverStatus = "observing";
+    let events: SessionEvent[] = [];
+    const options = {
+      setError: () => undefined,
+      setEvents: (
+        nextEvents:
+          | SessionEvent[]
+          | ((current: SessionEvent[]) => SessionEvent[]),
+      ) => {
+        events =
+          typeof nextEvents === "function" ? nextEvents(events) : nextEvents;
+      },
+      setStatus: (
+        nextStatus:
+          | SessionObserverStatus
+          | ((current: SessionObserverStatus) => SessionObserverStatus),
+      ) => {
+        status =
+          typeof nextStatus === "function" ? nextStatus(status) : nextStatus;
+      },
+      streamId: "sess_1:observe",
+    };
+
+    handleSessionObserverEnvelope(
+      {
+        type: "acp",
+        session_id: "sess_1",
+        turn_id: "turn_1",
+        frame: {
+          jsonrpc: "2.0",
+          method: "session/update",
+          params: {
+            sessionId: "sess_1",
+            update: {
+              content: { text: "Working", type: "text" },
+              sessionUpdate: "agent_thought_chunk",
+            },
+          },
+        },
+      },
+      options,
+    );
+    handleSessionObserverEnvelope(
+      {
+        type: "turn_done",
+        session_id: "sess_1",
+        turn_id: "turn_1",
+      },
+      options,
+    );
+
+    expect(status).toBe("done");
+    expect(events).toMatchObject([
+      { type: "progress", turnId: "turn_1" },
+      { type: "turn_done", turnId: "turn_1" },
+    ]);
+  });
+});
 
 describe("parseSessionObserverSseBlock", () => {
   it("parses no-running and turn completion envelopes", () => {

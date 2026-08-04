@@ -415,11 +415,22 @@ text-only. The browser reads the POST response body as a stream of default SSE
 `data:` messages. Each message is a PAX envelope:
 
 ```txt
-type=session  Save the returned manager session id and replace the URL.
-type=acp      Pass envelope.frame to normalizeTunnelFrame.
-type=done     End the streaming state.
-type=error    Surface the message and end the streaming state.
+type=session       Save the returned manager session id and replace the URL.
+type=turn_started  Adopt the opaque business turn_id before visible output.
+type=acp           Pass envelope.frame to normalizeTunnelFrame; preserve turn_id.
+type=turn_done     Complete that business turn after durable history is query-visible.
+type=done          End only this request stream; it has no turn_id.
+type=error         Surface the message and end the streaming state.
 ```
+
+`approval_required` and `interrupted` preserve the active business `turn_id`.
+A `permission_required` interruption pauses that turn; the following request-
+scoped `done` must not complete it. Permission resume reuses the same turn ID,
+while a queued follow-up receives a different ID. Durable history stores all
+turn projections with `turn_id` and ends the turn with a
+`message_type=turn_done`, `status=complete` marker. Live SSE owns a running
+turn until that marker appears, then the timeline swaps the entire turn to
+history instead of rendering both sources.
 
 Session names are updated through the existing node/agent-scoped endpoint:
 

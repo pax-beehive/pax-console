@@ -55,9 +55,12 @@ export function useConversationRun({
 }: UseConversationRunOptions) {
   const abortRef = useRef<AbortController | null>(null);
   const sessionIdRef = useRef(sessionId);
+  const activeTurnIdRef = useRef<string | undefined>(undefined);
+  const completedTurnKeysRef = useRef(new Set<string>());
   const [status, setStatus] = useState<ConversationRunStatus>("idle");
   const [error, setError] = useState<Error | null>(null);
   const [transportInterrupted, setTransportInterrupted] = useState(false);
+  const [completedTurnVersion, setCompletedTurnVersion] = useState(0);
   const {
     append: appendEvents,
     events,
@@ -74,6 +77,14 @@ export function useConversationRun({
   useEffect(() => {
     sessionIdRef.current = sessionId;
   }, [sessionId]);
+
+  const markTurnCompleted = useCallback((turnKey: string) => {
+    if (completedTurnKeysRef.current.has(turnKey)) {
+      return;
+    }
+    completedTurnKeysRef.current.add(turnKey);
+    setCompletedTurnVersion((current) => current + 1);
+  }, []);
 
   const sendMessage = useCallback(
     async (input: string, options?: SendMessageOptions) => {
@@ -94,7 +105,10 @@ export function useConversationRun({
       abortRef.current = abortController;
       const promptSessionId = sessionIdRef.current;
       const optimisticSessionId = promptSessionId ?? "pending-session";
-      const streamId = `${optimisticSessionId}:turn:${Date.now()}`;
+      const startedAt = Date.now();
+      const optimisticTurnId = `pending-turn:${startedAt}`;
+      const streamId = `${optimisticSessionId}:turn:${startedAt}`;
+      activeTurnIdRef.current = optimisticTurnId;
 
       setError(null);
       setTransportInterrupted(false);
@@ -105,6 +119,7 @@ export function useConversationRun({
             type: "user_message",
             id: `${optimisticSessionId}:user:${Date.now()}`,
             sessionId: optimisticSessionId,
+            turnId: optimisticTurnId,
             content,
             createdAt: new Date().toISOString(),
           },
@@ -139,6 +154,13 @@ export function useConversationRun({
               },
               setError,
               appendEvents,
+              fallbackTurnId: activeTurnIdRef.current,
+              onTurnStarted: (turnId) => {
+                activeTurnIdRef.current = turnId;
+              },
+              onTurnDone: (turnId) => {
+                markTurnCompleted(turnId ?? streamId);
+              },
               setStatus,
               streamId,
               updateEvents,
@@ -188,6 +210,7 @@ export function useConversationRun({
       flushEvents,
       nodeId,
       onSession,
+      markTurnCompleted,
       updateEvents,
       userId,
     ],
@@ -227,6 +250,13 @@ export function useConversationRun({
               },
               setError,
               appendEvents,
+              fallbackTurnId: activeTurnIdRef.current,
+              onTurnStarted: (turnId) => {
+                activeTurnIdRef.current = turnId;
+              },
+              onTurnDone: (turnId) => {
+                markTurnCompleted(turnId ?? streamId);
+              },
               setStatus,
               streamId,
               updateEvents,
@@ -271,6 +301,7 @@ export function useConversationRun({
       flushEvents,
       nodeId,
       onSession,
+      markTurnCompleted,
       updateEvents,
       userId,
     ],
@@ -297,6 +328,7 @@ export function useConversationRun({
   return {
     error,
     events,
+    completedTurnVersion,
     finishObservedTurn,
     markCancelled,
     markObserverConnected,
@@ -313,6 +345,9 @@ export function handleConversationEnvelope(
     onSession,
     setError,
     appendEvents,
+    fallbackTurnId,
+    onTurnStarted,
+    onTurnDone,
     setEvents,
     setStatus,
     streamId,
@@ -321,6 +356,9 @@ export function handleConversationEnvelope(
     onSession: (sessionId: string) => void;
     setError: Dispatch<SetStateAction<Error | null>>;
     appendEvents?: (events: SessionEvent[]) => void;
+    fallbackTurnId?: string;
+    onTurnStarted?: (turnId: string) => void;
+    onTurnDone?: (turnId?: string) => void;
     setEvents?: Dispatch<SetStateAction<SessionEvent[]>>;
     setStatus: Dispatch<SetStateAction<ConversationRunStatus>>;
     streamId: string;
@@ -337,12 +375,37 @@ export function handleConversationEnvelope(
     return;
   }
 
-  if (envelope.type === "acp") {
-    const events = normalizeTunnelFrame(
-      withEnvelopeSession(envelope.frame, envelope.session_id),
+  adoptConversationTurn(
+    { setEvents, updateEvents },
+    fallbackTurnId,
+    envelope.turn_id,
+    onTurnStarted,
+  );
+
+  if (envelope.type === "turn_started") {
+    appendConversationEvents({ appendEvents, setEvents }, [
       {
-        streamId,
+        type: "run_status",
+        id: `${envelope.session_id}:turn:${envelope.turn_id}:started`,
+        sessionId: envelope.session_id,
+        turnId: envelope.turn_id,
+        status: "running",
+        createdAt: new Date().toISOString(),
       },
+    ]);
+    setStatus("streaming");
+    return;
+  }
+
+  if (envelope.type === "acp") {
+    const events = withConversationTurn(
+      normalizeTunnelFrame(
+        withEnvelopeSession(envelope.frame, envelope.session_id),
+        {
+          streamId,
+        },
+      ),
+      envelope.turn_id ?? fallbackTurnId,
     );
     if (events.length > 0) {
       appendConversationEvents({ appendEvents, setEvents }, events);
@@ -356,15 +419,18 @@ export function handleConversationEnvelope(
   }
 
   if (envelope.type === "approval_required") {
-    const events = normalizeTunnelFrame(
-      withEnvelopeSession(envelope.frame, envelope.session_id),
-      {
-        streamId,
-      },
-    ).map((event) =>
-      event.type === "permission_request"
-        ? withApproval(event, envelope)
-        : event,
+    const events = withConversationTurn(
+      normalizeTunnelFrame(
+        withEnvelopeSession(envelope.frame, envelope.session_id),
+        {
+          streamId,
+        },
+      ).map((event) =>
+        event.type === "permission_request"
+          ? withApproval(event, envelope)
+          : event,
+      ),
+      envelope.turn_id ?? fallbackTurnId,
     );
     if (events.length > 0) {
       appendConversationEvents({ appendEvents, setEvents }, events);
@@ -382,16 +448,32 @@ export function handleConversationEnvelope(
     throw new Error(`Conversation interrupted: ${envelope.reason}`);
   }
 
-  if (envelope.type === "done") {
+  if (envelope.type === "turn_done") {
+    const turnId = envelope.turn_id;
     appendConversationEvents({ appendEvents, setEvents }, [
       {
         type: "turn_done",
-        id: `${envelope.session_id}:done`,
+        id: turnId
+          ? `${envelope.session_id}:turn:${turnId}:done`
+          : `${envelope.session_id}:done`,
         sessionId: envelope.session_id,
+        ...(turnId ? { turnId } : {}),
         createdAt: new Date().toISOString(),
       },
     ]);
+    onTurnDone?.(turnId);
     setStatus((current) => (current === "error" ? current : "done"));
+    return;
+  }
+
+  if (envelope.type === "done") {
+    setStatus((current) =>
+      current === "error" ||
+      current === "cancelled" ||
+      current === "waiting_approval"
+        ? current
+        : "done",
+    );
     return;
   }
 
@@ -412,6 +494,9 @@ export function handleConversationEnvelope(
         type: "run_status",
         id: `${envelope.session_id ?? "unknown-session"}:error:${Date.now()}`,
         sessionId: envelope.session_id ?? "unknown-session",
+        ...((envelope.turn_id ?? fallbackTurnId)
+          ? { turnId: envelope.turn_id ?? fallbackTurnId }
+          : {}),
         status: "error",
         createdAt: new Date().toISOString(),
       },
@@ -421,6 +506,36 @@ export function handleConversationEnvelope(
   }
 
   throw new Error("Unknown conversation stream event");
+}
+
+function withConversationTurn(events: SessionEvent[], turnId?: string) {
+  return turnId
+    ? events.map((event) => ({ ...event, turnId }) as SessionEvent)
+    : events;
+}
+
+function adoptConversationTurn(
+  target: {
+    setEvents?: Dispatch<SetStateAction<SessionEvent[]>>;
+    updateEvents?: (update: (events: SessionEvent[]) => SessionEvent[]) => void;
+  },
+  previousTurnId: string | undefined,
+  turnId: string | undefined,
+  onTurnStarted: ((turnId: string) => void) | undefined,
+) {
+  if (!turnId || turnId === previousTurnId) {
+    return;
+  }
+  if (previousTurnId?.startsWith("pending-turn:")) {
+    updateConversationEvents(target, (current) =>
+      current.map((event) =>
+        event.turnId === previousTurnId
+          ? ({ ...event, turnId } as SessionEvent)
+          : event,
+      ),
+    );
+  }
+  onTurnStarted?.(turnId);
 }
 
 function appendConversationEvents(

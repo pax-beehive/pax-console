@@ -10,10 +10,18 @@ export type ConversationRunEnvelope =
       session_id: string;
     }
   | {
+      type: "turn_started";
+      node_id: string;
+      agent_id: string;
+      session_id: string;
+      turn_id: string;
+    }
+  | {
       type: "acp";
       node_id: string;
       agent_id: string;
       session_id: string;
+      turn_id?: string;
       frame: unknown;
     }
   | {
@@ -21,6 +29,7 @@ export type ConversationRunEnvelope =
       node_id: string;
       agent_id: string;
       session_id: string;
+      turn_id?: string;
       approval_id: string;
       approval?: AgentApproval;
       frame: unknown;
@@ -30,6 +39,7 @@ export type ConversationRunEnvelope =
       node_id?: string;
       agent_id?: string;
       session_id?: string;
+      turn_id?: string;
       approval_id?: string;
       reason: string;
     }
@@ -38,12 +48,21 @@ export type ConversationRunEnvelope =
       node_id: string;
       agent_id: string;
       session_id: string;
+      turn_id?: string;
+    }
+  | {
+      type: "turn_done";
+      node_id: string;
+      agent_id: string;
+      session_id: string;
+      turn_id: string;
     }
   | {
       type: "error";
       node_id?: string;
       agent_id?: string;
       session_id?: string;
+      turn_id?: string;
       status_code?: number;
       message: string;
     };
