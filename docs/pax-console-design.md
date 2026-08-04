@@ -674,8 +674,17 @@ error         Show the message and end the current streaming state.
 Approval pauses retain the same business turn across the resume request, and
 request-scoped `done` does not complete a paused turn. Queued follow-ups use a
 new turn ID. Durable history ends each completed turn with a
-`message_type=turn_done`, `status=complete` marker; the live timeline owns the
-whole running turn until that marker allows an atomic handoff to history.
+`message_type=turn_done`, `status=complete` marker. Timeline reconciliation
+keeps history, the owned conversation stream, and observer replay as separate
+ordered sources rather than timestamp-sorting replayed frames. Conversation
+owns the active turn's agent projection but retains its durable user prompt and
+history anchor. Observer replay extends that prefix and removes repeated text;
+it does not replace the whole turn. The completion marker hands final ownership
+to durable history.
+Durable storage can aggregate all `agent_message_chunk` updates for a turn into
+one row anchored at the first chunk. History normalization moves that aggregate
+after the turn's work events and immediately before the durable turn boundary;
+live streams remain in receipt order.
 
 PAX Manager owns ACP initialize, optional authenticate, session/new,
 native-session binding, and session/prompt. The frontend should not expose

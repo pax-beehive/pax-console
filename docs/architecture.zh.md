@@ -685,8 +685,15 @@ type=error         展示错误并结束 streaming state
 `permission_required` 只暂停 turn，随后请求级 `done` 不得把它标为完成；permission
 resume 复用同一个 turn ID，queued follow-up 使用新的 ID。durable history 的同一
 turn 投影都带 `turn_id`，并以 `message_type=turn_done`、`status=complete` marker
-结束。运行期间 timeline 由 SSE 独占；只有该 marker 出现在 history 后，前端才把
-整轮原子切换到 history，避免两个来源同时渲染。
+结束。timeline 必须把 history、当前窗口拥有的 conversation stream、observer replay
+作为三条独立有序流协调，不能按 `createdAt` 重排（observer 重放帧使用客户端接收时间）。
+本地 conversation 只接管该 turn 的 agent 输出，同时保留 durable user prompt，并把
+该 turn 留在原 history 位置；observer 只在现有 history/conversation 前缀后追加增量，
+过滤重放文本，不能删除整轮 history。只有 completion marker 出现在 history 后，
+durable history 才完整接管该 turn。
+durable history 可能把同一 turn 的全部 `agent_message_chunk` 聚合进第一条 chunk
+对应的记录；history normalization 必须把该聚合文本放在该 turn 的工作事件之后、
+durable turn boundary 之前。实时流仍按接收顺序展示。
 
 manager 负责代理 ACP initialize / session/new / session/prompt。续聊时必须传
 已有且属于当前用户、URL 中 node/agent 下的 `sess_*`，并且后端已有 native id 绑定。

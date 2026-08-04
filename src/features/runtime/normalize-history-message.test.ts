@@ -117,6 +117,63 @@ describe("normalizeHistoryMessage", () => {
     ]);
   });
 
+  it("places an aggregated final answer after its turn tool calls", () => {
+    const turnId = "turn_1";
+    const events = mergeEvents(
+      normalizeHistoryMessages([
+        {
+          message_id: "msg_user",
+          session_id: "sess_1",
+          turn_id: turnId,
+          role: "user",
+          created_at: "2026-08-04T21:06:35.000Z",
+          parts: [
+            {
+              message_id: "msg_user",
+              part_index: 0,
+              part_type: "text",
+              text: "Please fix the ordering",
+            },
+          ],
+        },
+        {
+          ...historyTextChunk(
+            "msg_thought",
+            "Inspecting the timeline",
+            "agent_thought_chunk",
+          ),
+          turn_id: turnId,
+        },
+        {
+          ...historyTextChunk("msg_answer", "Starting now. Fixed."),
+          turn_id: turnId,
+        },
+        historyToolCall("msg_tool_start", turnId, "tool_call", "in_progress"),
+        historyToolCall(
+          "msg_tool_done",
+          turnId,
+          "tool_call_update",
+          "completed",
+        ),
+        {
+          message_id: "msg_turn_done",
+          message_type: "turn_done",
+          session_id: "sess_1",
+          turn_id: turnId,
+          created_at: "2026-08-04T21:17:23.000Z",
+        },
+      ]),
+    );
+
+    expect(events.map((event) => event.type)).toEqual([
+      "user_message",
+      "progress",
+      "tool_call",
+      "agent_message",
+      "turn_done",
+    ]);
+  });
+
   it("restores thought parts as progress events", () => {
     const events = normalizeHistoryMessage({
       message_id: "msg_2",
@@ -856,5 +913,38 @@ function historyTextChunk(
         text,
       },
     ],
+  };
+}
+
+function historyToolCall(
+  messageId: string,
+  turnId: string,
+  sessionUpdate: "tool_call" | "tool_call_update",
+  status: "in_progress" | "completed",
+) {
+  return {
+    message_id: messageId,
+    session_id: "sess_1",
+    turn_id: turnId,
+    role: "assistant",
+    message_type: sessionUpdate,
+    created_at: "2026-08-04T21:07:00.000Z",
+    raw_json: {
+      type: "acp",
+      session_id: "sess_1",
+      frame: {
+        jsonrpc: "2.0",
+        method: "session/update",
+        params: {
+          sessionId: "sess_1",
+          update: {
+            sessionUpdate,
+            status,
+            title: "terminal",
+            toolCallId: "tool_1",
+          },
+        },
+      },
+    },
   };
 }
