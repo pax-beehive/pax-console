@@ -6,6 +6,40 @@ import {
 } from "./normalize-history-message";
 
 describe("normalizeHistoryMessage", () => {
+  it("preserves the durable business turn id", () => {
+    expect(
+      normalizeHistoryMessage({
+        message_id: "msg_1",
+        session_id: "sess_1",
+        turn_id: "turn_1",
+        role: "assistant",
+        parts: [{ part_index: 0, part_type: "text", text: "Hello" }],
+      }),
+    ).toMatchObject([{ type: "agent_message", turnId: "turn_1" }]);
+  });
+
+  it("normalizes the durable turn completion marker", () => {
+    expect(
+      normalizeHistoryMessages([
+        {
+          message_id: "msg_turn_1_done",
+          message_type: "turn_done",
+          session_id: "sess_1",
+          status: "complete",
+          turn_id: "turn_1",
+          raw_json: { turn_status: "complete" },
+        },
+      ]),
+    ).toEqual([
+      expect.objectContaining({
+        type: "turn_done",
+        id: "msg_turn_1_done",
+        sessionId: "sess_1",
+        turnId: "turn_1",
+      }),
+    ]);
+  });
+
   it("restores aggregated text from ordered message parts", () => {
     const events = normalizeHistoryMessage({
       message_id: "msg_1",

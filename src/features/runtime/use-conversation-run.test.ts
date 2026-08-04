@@ -140,67 +140,22 @@ describe("handleConversationEnvelope", () => {
     ]);
   });
 
-  it("emits an explicit turn completion event when the conversation is done", () => {
-    let sessionId = "";
+  it("reassigns an optimistic turn when the business turn starts", () => {
     let error: Error | null = null;
     let status: ConversationRunStatus = "streaming";
-    let events: SessionEvent[] = [];
-
-    handleConversationEnvelope(
+    let events: SessionEvent[] = [
       {
-        type: "done",
-        node_id: "node_1",
-        agent_id: "agent_1",
-        session_id: "sess_1",
-      },
-      handlers({
-        getError: () => error,
-        getEvents: () => events,
-        getStatus: () => status,
-        setError: (nextError) => {
-          error = nextError;
-        },
-        setEvents: (nextEvents) => {
-          events = nextEvents;
-        },
-        setSessionId: (nextSessionId) => {
-          sessionId = nextSessionId;
-        },
-        setStatus: (nextStatus) => {
-          status = nextStatus;
-        },
-      }),
-    );
-
-    expect(sessionId).toBe("");
-    expect(status).toBe("done");
-    expect(events).toMatchObject([
-      {
-        type: "turn_done",
-        id: "sess_1:done",
+        type: "user_message",
+        id: "sess_1:user:1",
         sessionId: "sess_1",
+        turnId: "pending-turn:1",
+        content: "hello",
+        createdAt: "2026-06-30T12:00:00.000Z",
       },
-    ]);
-  });
-
-  it("emits an explicit turn completion event for ACP end_turn results", () => {
-    let error: Error | null = null;
-    let status: ConversationRunStatus = "streaming";
-    let events: SessionEvent[] = [];
-
-    handleConversationEnvelope(
-      {
-        type: "acp",
-        node_id: "node_1",
-        agent_id: "agent_1",
-        session_id: "sess_1",
-        frame: {
-          id: 4,
-          result: { stopReason: "end_turn" },
-          jsonrpc: "2.0",
-        },
-      },
-      handlers({
+    ];
+    let activeTurnId = "";
+    const handlerOptions = {
+      ...handlers({
         getError: () => error,
         getEvents: () => events,
         getStatus: () => status,
@@ -215,6 +170,175 @@ describe("handleConversationEnvelope", () => {
           status = nextStatus;
         },
       }),
+      fallbackTurnId: "pending-turn:1",
+      onTurnStarted: (turnId: string) => {
+        activeTurnId = turnId;
+      },
+    };
+
+    handleConversationEnvelope(
+      {
+        type: "turn_started",
+        node_id: "node_1",
+        agent_id: "agent_1",
+        session_id: "sess_1",
+        turn_id: "turn_1",
+      },
+      handlerOptions,
+    );
+
+    expect(activeTurnId).toBe("turn_1");
+    expect(events).toMatchObject([
+      { type: "user_message", turnId: "turn_1" },
+      { type: "run_status", turnId: "turn_1", status: "running" },
+    ]);
+  });
+
+  it("carries the envelope turn id into normalized ACP events", () => {
+    let error: Error | null = null;
+    let status: ConversationRunStatus = "streaming";
+    let events: SessionEvent[] = [
+      {
+        type: "user_message",
+        id: "sess_1:user:1",
+        sessionId: "sess_1",
+        turnId: "pending-turn:1",
+        content: "hello",
+        createdAt: "2026-06-30T12:00:00.000Z",
+      },
+    ];
+    let activeTurnId = "";
+
+    handleConversationEnvelope(
+      {
+        ...acpTextChunkEnvelope({
+          sessionId: "sess_1",
+          text: "Hello",
+        }),
+        turn_id: "turn_1",
+      },
+      {
+        ...handlers({
+          getError: () => error,
+          getEvents: () => events,
+          getStatus: () => status,
+          setError: (nextError) => {
+            error = nextError;
+          },
+          setEvents: (nextEvents) => {
+            events = nextEvents;
+          },
+          setSessionId: () => undefined,
+          setStatus: (nextStatus) => {
+            status = nextStatus;
+          },
+        }),
+        fallbackTurnId: "pending-turn:1",
+        onTurnStarted: (turnId: string) => {
+          activeTurnId = turnId;
+        },
+      },
+    );
+
+    expect(activeTurnId).toBe("turn_1");
+    expect(events).toMatchObject([
+      { type: "user_message", turnId: "turn_1" },
+      {
+        type: "agent_message",
+        turnId: "turn_1",
+        content: "Hello",
+      },
+    ]);
+  });
+
+  it("emits an explicit turn completion event when the conversation is done", () => {
+    let sessionId = "";
+    let error: Error | null = null;
+    let status: ConversationRunStatus = "streaming";
+    let events: SessionEvent[] = [];
+    let completedTurns = 0;
+
+    handleConversationEnvelope(
+      {
+        type: "done",
+        node_id: "node_1",
+        agent_id: "agent_1",
+        session_id: "sess_1",
+      },
+      {
+        ...handlers({
+          getError: () => error,
+          getEvents: () => events,
+          getStatus: () => status,
+          setError: (nextError) => {
+            error = nextError;
+          },
+          setEvents: (nextEvents) => {
+            events = nextEvents;
+          },
+          setSessionId: (nextSessionId) => {
+            sessionId = nextSessionId;
+          },
+          setStatus: (nextStatus) => {
+            status = nextStatus;
+          },
+        }),
+        onTurnDone: () => {
+          completedTurns += 1;
+        },
+      },
+    );
+
+    expect(sessionId).toBe("");
+    expect(status).toBe("done");
+    expect(completedTurns).toBe(1);
+    expect(events).toMatchObject([
+      {
+        type: "turn_done",
+        id: "sess_1:done",
+        sessionId: "sess_1",
+      },
+    ]);
+  });
+
+  it("emits an explicit turn completion event for ACP end_turn results", () => {
+    let error: Error | null = null;
+    let status: ConversationRunStatus = "streaming";
+    let events: SessionEvent[] = [];
+    let completedTurns = 0;
+
+    handleConversationEnvelope(
+      {
+        type: "acp",
+        node_id: "node_1",
+        agent_id: "agent_1",
+        session_id: "sess_1",
+        frame: {
+          id: 4,
+          result: { stopReason: "end_turn" },
+          jsonrpc: "2.0",
+        },
+      },
+      {
+        ...handlers({
+          getError: () => error,
+          getEvents: () => events,
+          getStatus: () => status,
+          setError: (nextError) => {
+            error = nextError;
+          },
+          setEvents: (nextEvents) => {
+            events = nextEvents;
+          },
+          setSessionId: () => undefined,
+          setStatus: (nextStatus) => {
+            status = nextStatus;
+          },
+        }),
+        onTurnDone: () => {
+          completedTurns += 1;
+        },
+      },
     );
 
     expect(events).toMatchObject([
@@ -224,6 +348,7 @@ describe("handleConversationEnvelope", () => {
       },
     ]);
     expect(status).toBe("done");
+    expect(completedTurns).toBe(0);
   });
 
   it("updates a permission request when manager approval metadata arrives", () => {

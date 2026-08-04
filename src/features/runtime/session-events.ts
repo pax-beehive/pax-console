@@ -16,6 +16,7 @@ export type PermissionRequestEvent = {
   type: "permission_request";
   id: string;
   sessionId: string;
+  turnId?: string;
   approvalId?: string;
   description?: string;
   requestId: string;
@@ -34,7 +35,7 @@ export type PermissionRequestEvent = {
   createdAt: string;
 };
 
-export type SessionEvent =
+export type SessionEvent = (
   | {
       type: "user_message";
       id: string;
@@ -156,7 +157,10 @@ export type SessionEvent =
       totalTokens?: number;
       costUsd?: number;
       createdAt: string;
-    };
+    }
+) & {
+  turnId?: string;
+};
 
 export type SessionEventListener = (event: SessionEvent) => void;
 
@@ -208,6 +212,7 @@ export function groupWorkstreamEvents(
     | undefined;
   let turnPatches: CodePatch[] = [];
   let turnProposedPatches: CodePatch[] = [];
+  let activeTurnId: string | undefined;
   let turnSessionId = "";
   let turnCreatedAt = "";
 
@@ -263,9 +268,18 @@ export function groupWorkstreamEvents(
   };
 
   for (const event of events) {
+    if (event.turnId && activeTurnId && event.turnId !== activeTurnId) {
+      endWorkGroup();
+      markAgentTurnEnded();
+    }
+    if (event.turnId) {
+      activeTurnId = event.turnId;
+    }
+
     if (event.type === "turn_done") {
       endWorkGroup();
       markAgentTurnEnded();
+      activeTurnId = undefined;
       continue;
     }
 

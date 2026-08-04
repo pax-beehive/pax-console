@@ -61,6 +61,31 @@ describe("isVisibleTimelineEvent", () => {
 });
 
 describe("groupWorkstreamEvents", () => {
+  it("closes a Working group when the business turn changes", () => {
+    const progress = (id: string, turnId: string): SessionEvent => ({
+      type: "progress",
+      id,
+      sessionId: "sess_1",
+      turnId,
+      content: id,
+      streaming: true,
+      sessionUpdate: "agent_thought_chunk",
+      createdAt: "2026-07-04T10:00:00.000Z",
+    });
+
+    const grouped = groupWorkstreamEvents([
+      progress("turn_1:a", "turn_1"),
+      progress("turn_1:b", "turn_1"),
+      progress("turn_2:a", "turn_2"),
+      progress("turn_2:b", "turn_2"),
+    ]);
+
+    expect(grouped).toMatchObject([
+      { type: "work_group", complete: true },
+      { type: "work_group", complete: false },
+    ]);
+  });
+
   it.each([
     {
       event: {
