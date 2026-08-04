@@ -251,7 +251,7 @@ describe("handleConversationEnvelope", () => {
     ]);
   });
 
-  it("emits an explicit turn completion event when the conversation is done", () => {
+  it("completes a business turn only from turn_done", () => {
     let sessionId = "";
     let error: Error | null = null;
     let status: ConversationRunStatus = "streaming";
@@ -260,10 +260,11 @@ describe("handleConversationEnvelope", () => {
 
     handleConversationEnvelope(
       {
-        type: "done",
+        type: "turn_done",
         node_id: "node_1",
         agent_id: "agent_1",
         session_id: "sess_1",
+        turn_id: "turn_1",
       },
       {
         ...handlers({
@@ -295,10 +296,62 @@ describe("handleConversationEnvelope", () => {
     expect(events).toMatchObject([
       {
         type: "turn_done",
-        id: "sess_1:done",
+        id: "sess_1:turn:turn_1:done",
         sessionId: "sess_1",
+        turnId: "turn_1",
       },
     ]);
+  });
+
+  it("keeps a permission-paused turn waiting when the request stream ends", () => {
+    let error: Error | null = null;
+    let status: ConversationRunStatus = "streaming";
+    let events: SessionEvent[] = [];
+    let completedTurns = 0;
+    const handlerOptions = {
+      ...handlers({
+        getError: () => error,
+        getEvents: () => events,
+        getStatus: () => status,
+        setError: (nextError) => {
+          error = nextError;
+        },
+        setEvents: (nextEvents) => {
+          events = nextEvents;
+        },
+        setSessionId: () => undefined,
+        setStatus: (nextStatus) => {
+          status = nextStatus;
+        },
+      }),
+      fallbackTurnId: "turn_1",
+      onTurnDone: () => {
+        completedTurns += 1;
+      },
+    };
+
+    handleConversationEnvelope(
+      {
+        type: "interrupted",
+        session_id: "sess_1",
+        turn_id: "turn_1",
+        reason: "permission_required",
+      },
+      handlerOptions,
+    );
+    handleConversationEnvelope(
+      {
+        type: "done",
+        node_id: "node_1",
+        agent_id: "agent_1",
+        session_id: "sess_1",
+      },
+      handlerOptions,
+    );
+
+    expect(status).toBe("waiting_approval");
+    expect(events).toEqual([]);
+    expect(completedTurns).toBe(0);
   });
 
   it("emits an explicit turn completion event for ACP end_turn results", () => {

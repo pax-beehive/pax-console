@@ -663,11 +663,19 @@ the timeline.
 The stream uses default SSE data messages. Each data payload is a PAX envelope:
 
 ```txt
-session  Save `session_id`; for new sessions replace the URL to /?sessionId={session_id}.
-acp      Normalize `frame` with normalizeTunnelFrame and merge into the timeline.
-done     End the current streaming state.
-error    Show the message and end the current streaming state.
+session       Save `session_id`; for new sessions replace the URL to /?sessionId={session_id}.
+turn_started  Adopt the opaque business `turn_id` before visible output.
+acp           Normalize `frame`, preserve `turn_id`, and merge into the timeline.
+turn_done     Complete the business turn after durable history is query-visible.
+done          End only the current request stream; it has no `turn_id`.
+error         Show the message and end the current streaming state.
 ```
+
+Approval pauses retain the same business turn across the resume request, and
+request-scoped `done` does not complete a paused turn. Queued follow-ups use a
+new turn ID. Durable history ends each completed turn with a
+`message_type=turn_done`, `status=complete` marker; the live timeline owns the
+whole running turn until that marker allows an atomic handoff to history.
 
 PAX Manager owns ACP initialize, optional authenticate, session/new,
 native-session binding, and session/prompt. The frontend should not expose

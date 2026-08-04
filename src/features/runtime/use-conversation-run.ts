@@ -448,11 +448,8 @@ export function handleConversationEnvelope(
     throw new Error(`Conversation interrupted: ${envelope.reason}`);
   }
 
-  if (envelope.type === "turn_done" || envelope.type === "done") {
-    const turnId =
-      envelope.type === "turn_done"
-        ? envelope.turn_id
-        : (envelope.turn_id ?? fallbackTurnId);
+  if (envelope.type === "turn_done") {
+    const turnId = envelope.turn_id;
     appendConversationEvents({ appendEvents, setEvents }, [
       {
         type: "turn_done",
@@ -466,6 +463,17 @@ export function handleConversationEnvelope(
     ]);
     onTurnDone?.(turnId);
     setStatus((current) => (current === "error" ? current : "done"));
+    return;
+  }
+
+  if (envelope.type === "done") {
+    setStatus((current) =>
+      current === "error" ||
+      current === "cancelled" ||
+      current === "waiting_approval"
+        ? current
+        : "done",
+    );
     return;
   }
 
