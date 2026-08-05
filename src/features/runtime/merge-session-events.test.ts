@@ -3,6 +3,36 @@ import { mergeEvents } from "./merge-session-events";
 import { SessionEvent } from "./session-events";
 
 describe("mergeEvents", () => {
+  it("does not merge reused tool call ids across business turns", () => {
+    const events: SessionEvent[] = [
+      {
+        type: "tool_call",
+        id: "turn_1:tool",
+        sessionId: "sess_1",
+        turnId: "turn_1",
+        name: "first tool",
+        status: "done",
+        toolCallId: "call_1",
+        createdAt: "2026-07-04T10:00:00.000Z",
+      },
+      {
+        type: "tool_call",
+        id: "turn_2:tool",
+        sessionId: "sess_1",
+        turnId: "turn_2",
+        name: "second tool",
+        status: "running",
+        toolCallId: "call_1",
+        createdAt: "2026-07-04T10:01:00.000Z",
+      },
+    ];
+
+    expect(mergeEvents(events)).toMatchObject([
+      { id: "turn_1:tool", turnId: "turn_1", name: "first tool" },
+      { id: "turn_2:tool", turnId: "turn_2", name: "second tool" },
+    ]);
+  });
+
   it("replaces an already-rendered parent event with a pax invocation event", () => {
     const events: SessionEvent[] = [
       {

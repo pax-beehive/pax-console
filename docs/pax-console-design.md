@@ -70,7 +70,13 @@ drawer state
 composer drafts
 local filters
 tunnel connection display state
+mobile open-session tab ids
 ```
+
+The mobile open-session workset persists only user-scoped session ids. Its top
+tabs derive names and run state from TanStack Query. Closing a tab means closing
+a local work surface, not archiving/deleting the session or cancelling agent
+work.
 
 ahooks `useRequest` is allowed for local or action-style requests:
 
@@ -235,12 +241,10 @@ PAX Console
 +-- Home
 |   +-- sessions tab with globally sorted sessions plus agent and node filters
 |   +-- embedded session workbench for selected or newly started sessions
-|   +-- action inbox queue
-|   +-- selected inquiry / draft preview
-|   +-- inquiry actions for generate draft, summarize draft, comment, and send
-|   +-- detach inquiry context to return the composer to a clean session
-|   +-- archive inquiry to ignore it and remove it from the queue
-|   +-- composer with context attachment, agent select (`agent @ node` for duplicate names), and tool approval preference
+|   +-- projects tab with nested logical Project tree and CRUD
+|   +-- Project settings with reusable Agent/workspace Targets
+|   +-- composer with optional Project, Agent, Workspace, context attachment, and tool approval preference
+|   +-- implicit Target reuse or post-start creation for Project sessions
 +-- Collaboration
 |   +-- Teams & Friends
 |   |   +-- teams
@@ -282,13 +286,15 @@ PAX Console
 
 The sidebar keeps only Home and Collaboration as top-level entries; everything
 else lives in one Settings disclosure group pinned to the bottom of the
-sidebar. Home owns the user-facing Sessions tab and embedded session
-workbench; do not add Sessions as a separate first-level sidebar item.
+sidebar. Home owns one unified Projects / Recents session rail plus the
+embedded session workbench; do not add Sessions or Projects as separate
+first-level sidebar items.
 First-level groups are independent disclosures, not an accordion. Settings
-aggregates Devices (nodes/agents), Security (approval grants), Developer
-(API keys/node registration), and Diagnostics. Collaboration owns teams,
-friends, envelopes, and knowledge as secondary tabs; team invites stay inside
-the Teams surface as a team action queue. Legacy deep links such as `/nodes`,
+aggregates Projects (project/target CRUD), Devices (nodes/agents), Security
+(approval grants), Developer (API keys/node registration), and Diagnostics.
+Collaboration owns teams, friends, envelopes, and knowledge as secondary tabs;
+team invites stay inside the Teams surface as a team action queue. Legacy deep
+links such as `/nodes`,
 `/sessions`, `/approvals`, `/friends`, and `/knowledge` remain valid through
 redirects.
 
@@ -362,6 +368,8 @@ UserAPIKey
 Node
 Agent
 AgentSession
+Project
+ProjectTarget
 MailboxMessage
 TokenUsage
 FileChange
@@ -409,7 +417,7 @@ DELETE /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections/{connecti
 GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/commands/{command_id}
 
 Sessions
-GET  /api/v1/user/{user_id}/sessions?page_size=20&page_num=1
+GET  /api/v1/user/{user_id}/sessions?page_size=20&page_num=1&primary_project_id={project_id}
 GET  /api/v1/user/{user_id}/sessions/{session_id}/history
 GET  /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions
 GET  /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}
@@ -420,9 +428,9 @@ Current frontend note: Home reads the flat
 `GET /api/v1/user/{user_id}/sessions` list with `page_size=20` and increments
 `page_num` as the user scrolls the Sessions rail. Optional `node_id` and
 `agent_id` filters accept comma-separated ids. Selecting a row opens the
-embedded session workbench at `/?sessionId={session_id}` so the Home rail stays
-mounted. The standalone `/sessions/{session_id}` route remains available for
-external clients and shared deep links; it scans this paginated list by
+embedded session workbench at `/?session_id={session_id}` so the Home rail stays
+mounted. Home-generated links use this URL for ordinary and modified clicks;
+the workbench scans this paginated list by
 `session_id` before enabling agent-scoped queue/events calls, so the session's
 own `node_id` and `agent_id` remain authoritative.
 Session rows sort by `last_user_message_at`; assistant output and tool activity
@@ -432,12 +440,56 @@ do not move concurrently running sessions. Older API rows fall back to
 Conversation
 POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/conversation
 POST /api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/turn/stop
+POST /api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/runtime/reset
 PATCH /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}
 
 The session PATCH accepts `{ "name": "..." }` to set a user-owned display
 name and `{ "use_reported_name": true }` to restore the latest paxd-reported
 name. Session responses expose `name`, `reported_name`, and `name_is_custom`;
 periodic reports update only the reported name.
+
+Session responses also expose canonical `runtime_status` and the read-only
+`runtime_turn_instance_id`. Persisted and ambient session status surfaces
+consume `runtime_status` exclusively; legacy `status` / `run_status`, live ACP
+frames, observer state, and agent connectivity are not runtime-status
+fallbacks. The current workbench badge may overlay `running` or
+`waiting_approval` while its window owns an explicitly submitted conversation
+turn. An ACP `end_turn`, conversation error, or acknowledged stop immediately
+overlays `done`, `error`, or `cancelled` without waiting for the stale active
+snapshot to reconcile. The overflow action **Reset stale status** posts the
+current turn instance ID to the runtime reset endpoint after a non-cancellation
+warning, then invalidates detail and list queries. A 30-second query interval
+is only a disconnected client fallback.
+
+A recoverable `/conversation` SSE transport failure keeps the owned run
+displayed as `running` and enables the session `/events` observer immediately,
+without waiting for the canonical running snapshot. Observer connection clears
+the transport notice, while observer `turn_done` or `no_running_turn` completes
+the local display. Only explicit conversation business-error envelopes are
+terminal run errors.
+
+Projects
+POST  /api/v1/user/{user_id}/projects
+GET   /api/v1/user/{user_id}/projects
+GET   /api/v1/user/{user_id}/projects/{project_id}
+PATCH /api/v1/user/{user_id}/projects/{project_id}
+POST  /api/v1/user/{user_id}/projects/{project_id}/archive
+POST  /api/v1/user/{user_id}/projects/{project_id}/targets
+GET   /api/v1/user/{user_id}/projects/{project_id}/targets
+GET   /api/v1/user/{user_id}/projects/{project_id}/targets/{target_id}
+PATCH /api/v1/user/{user_id}/projects/{project_id}/targets/{target_id}
+
+Projects are logical, owner-scoped work groups and may be nested. Targets are
+reusable launch settings containing an Agent and cwd intent. Project and Target
+CRUD lives in Settings. Starting from a Project still uses the normal
+Conversation endpoint; its creation-only request adds `primary_project_id` and
+adds `project_target_id` only when the chosen Agent and cwd match an enabled
+Target. A new cwd is sent directly to Conversation; after native session
+assignment succeeds, the Console creates a reusable Target and lets the backend
+derive its display name. Manager creates the native ACP session before it
+persists the PAX Session with immutable `primary_project_id`. Projectless
+Sessions remain valid; the primary context is not a future multi-Project label
+model.
 
 WebSocket
 GET /api/v1/user/self/agents/{agent_id}/tunnel
@@ -449,6 +501,8 @@ Current implemented frontend coverage:
 Implemented
 - Auth check through GET /me.
 - Home workbench through nodes, agents, sessions, approvals, envelopes, and team invites.
+- Home Projects tree CRUD, reusable Target CRUD/default/enable state, Project
+  recent Sessions, and implicit Target reuse/creation during Session launch.
 - Session detail history through the session-scoped durable history endpoint.
 - Home composer opens an embedded new session; the first prompt creates `sess_*` through POST /conversation.
 - API key list/create/revoke.
@@ -587,6 +641,12 @@ New sessions send `{ "input": "..." }`; continued sessions send
 body, the frontend reads `response.body` with fetch streaming instead of
 EventSource.
 
+Errors returned before streaming use the standard
+`{ "data": null, "code": <status>, "message": "..." }` API envelope. Errors
+returned after streaming starts use an SSE `error` envelope with
+`status_code` and `message`. The runtime retains both values so the workbench
+can display `HTTP <status>: <message>`.
+
 While a turn is running, the composer send button becomes a stop button and
 calls:
 
@@ -603,11 +663,28 @@ the timeline.
 The stream uses default SSE data messages. Each data payload is a PAX envelope:
 
 ```txt
-session  Save `session_id`; for new sessions replace the URL to /?sessionId={session_id}.
-acp      Normalize `frame` with normalizeTunnelFrame and merge into the timeline.
-done     End the current streaming state.
-error    Show the message and end the current streaming state.
+session       Save `session_id`; for new sessions replace the URL to /?session_id={session_id}.
+turn_started  Adopt the opaque business `turn_id` before visible output.
+acp           Normalize `frame`, preserve `turn_id`, and merge into the timeline.
+turn_done     Complete the business turn after durable history is query-visible.
+done          End only the current request stream; it has no `turn_id`.
+error         Show the message and end the current streaming state.
 ```
+
+Approval pauses retain the same business turn across the resume request, and
+request-scoped `done` does not complete a paused turn. Queued follow-ups use a
+new turn ID. Durable history ends each completed turn with a
+`message_type=turn_done`, `status=complete` marker. Timeline reconciliation
+keeps history, the owned conversation stream, and observer replay as separate
+ordered sources rather than timestamp-sorting replayed frames. Conversation
+owns the active turn's agent projection but retains its durable user prompt and
+history anchor. Observer replay extends that prefix and removes repeated text;
+it does not replace the whole turn. The completion marker hands final ownership
+to durable history.
+Durable storage can aggregate all `agent_message_chunk` updates for a turn into
+one row anchored at the first chunk. History normalization moves that aggregate
+after the turn's work events and immediately before the durable turn boundary;
+live streams remain in receipt order.
 
 PAX Manager owns ACP initialize, optional authenticate, session/new,
 native-session binding, and session/prompt. The frontend should not expose
@@ -806,6 +883,17 @@ The runtime assigns a turn-scoped stream id at `sendUserMessage` time. Chunks fo
 
 The session page is the product center.
 
+On narrow screens, locally opened sessions occupy a dedicated horizontally
+scrolling tab row immediately below the global Topbar. This global work-surface
+navigation remains separate from the current Session tools header and composer.
+Tapping switches directly, closing a tab offers Undo without stopping agent
+work, and the trailing New session action returns to the clean composer. Status
+comes from canonical `runtime_status` and remains an ambient dot rather than a
+navigation section, and tab order stays
+stable while background agents update. Long press starts drag reordering
+without allowing browser text selection; a normal horizontal gesture still
+scrolls the strip. Only the selected tab mounts the full workbench.
+
 Recommended layout:
 
 ```txt
@@ -827,7 +915,7 @@ Recommended layout:
 ### Session Load Flow
 
 ```txt
-1. User opens /?sessionId={sessionId}.
+1. User opens /?session_id={sessionId}.
 2. Home resolves node/agent from the flattened sessions list, then queries session detail from REST.
 3. Query historical session messages from REST.
 4. Normalize mailbox messages into session events.

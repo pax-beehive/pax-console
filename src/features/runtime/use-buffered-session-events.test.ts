@@ -41,7 +41,7 @@ describe("appendSessionEvents", () => {
     ]);
   });
 
-  it("commits many frames once per 40ms window", () => {
+  it("reveals batched streaming frames progressively", () => {
     vi.useFakeTimers();
     const { result } = renderHook(() => useBufferedSessionEvents());
 
@@ -52,12 +52,84 @@ describe("appendSessionEvents", () => {
     });
     expect(result.current.events).toEqual([]);
 
-    act(() => vi.advanceTimersByTime(39));
+    act(() => vi.advanceTimersByTime(31));
     expect(result.current.events).toEqual([]);
 
     act(() => vi.advanceTimersByTime(1));
     expect(result.current.events).toMatchObject([
+      { type: "agent_message", content: "A" },
+    ]);
+
+    act(() => vi.advanceTimersByTime(64));
+    expect(result.current.events).toMatchObject([
       { type: "agent_message", content: "ABC" },
+    ]);
+  });
+
+  it("adapts the reveal rate so a large Claude-style chunk catches up", () => {
+    vi.useFakeTimers();
+    const content = "x".repeat(180);
+    const { result } = renderHook(() => useBufferedSessionEvents());
+
+    act(() => {
+      result.current.append([textChunk(content)]);
+      vi.advanceTimersByTime(32);
+    });
+    expect(result.current.events[0]).toMatchObject({
+      type: "agent_message",
+      content: "x".repeat(10),
+    });
+
+    act(() => vi.advanceTimersByTime(32 * 17));
+    expect(result.current.events[0]).toMatchObject({ content });
+  });
+
+  it("never splits a Unicode grapheme while revealing text", () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useBufferedSessionEvents());
+
+    act(() => {
+      result.current.append([textChunk("你👨‍👩‍👧‍👦好")]);
+      vi.advanceTimersByTime(32);
+    });
+    expect(result.current.events[0]).toMatchObject({ content: "你" });
+
+    act(() => vi.advanceTimersByTime(32));
+    expect(result.current.events[0]).toMatchObject({
+      content: "你👨‍👩‍👧‍👦",
+    });
+
+    act(() => vi.advanceTimersByTime(32));
+    expect(result.current.events[0]).toMatchObject({
+      content: "你👨‍👩‍👧‍👦好",
+    });
+  });
+
+  it("keeps following events behind the animated text", () => {
+    vi.useFakeTimers();
+    const tool: SessionEvent = {
+      type: "tool_call",
+      id: "tool_1",
+      sessionId: "sess_1",
+      name: "read",
+      status: "running",
+      createdAt: "2026-07-18T00:00:01.000Z",
+    };
+    const { result } = renderHook(() => useBufferedSessionEvents());
+
+    act(() => {
+      result.current.append([textChunk("ABC")]);
+      result.current.append([tool]);
+      vi.advanceTimersByTime(32);
+    });
+    expect(result.current.events).toMatchObject([
+      { type: "agent_message", content: "A" },
+    ]);
+
+    act(() => vi.advanceTimersByTime(64));
+    expect(result.current.events).toMatchObject([
+      { type: "agent_message", content: "ABC" },
+      { type: "tool_call", id: "tool_1" },
     ]);
   });
 });

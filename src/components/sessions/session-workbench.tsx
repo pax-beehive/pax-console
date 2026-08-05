@@ -15,7 +15,6 @@ import {
   ArrowLeft,
   Brain,
   Check,
-  Download,
   FileText,
   LoaderCircle,
   Menu,
@@ -23,10 +22,15 @@ import {
   Pencil,
   RefreshCw,
   RotateCcw,
-  UploadCloud,
   Wrench,
   X,
 } from "lucide-react";
+import {
+  artifactDocumentFromSessionArtifact,
+  artifactPreviewPageHref,
+  type ArtifactPreviewDescriptor,
+} from "@/components/artifacts/artifact-document";
+import { ArtifactViewerShell } from "@/components/artifacts/artifact-viewer-shell";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,12 +45,17 @@ import {
   WorkstreamItemCard,
 } from "@/components/sessions/session-event-cards";
 import { SessionComposer } from "@/components/sessions/session-composer";
+import { SessionRuntimeActions } from "@/components/sessions/session-runtime-actions";
+import {
+  canSeeSessionSidePanel,
+  type SessionSidePanelId,
+} from "@/components/sessions/session-side-panels";
 import { RunBadge } from "@/components/sessions/run-badge";
 import {
   artifactContentDownloadHref,
-  completeArtifactUpload,
+  completeUserAttachment,
   createKnowledgeCapsule,
-  createArtifactUpload,
+  createUserAttachment,
   decideApproval,
   deleteQueuedSessionTurn,
   flattenSessionHistoryPages,
@@ -54,10 +63,12 @@ import {
   getQueuedSessionTurn,
   injectKnowledgeCapsule,
   queueSessionTurn,
+  resetSessionRuntime,
   steerSessionTurn,
   stopSessionTurn,
   updateAgentSession,
   updateQueuedSessionTurn,
+  uploadUserAttachmentFile,
   useAgentOwnerInfos,
   useKnowledgeCapsules,
   useKnowledgeInjections,
@@ -69,6 +80,7 @@ import {
   useSessionArtifacts,
 } from "@/features/api/resources";
 import { queryKeys } from "@/features/api/query-keys";
+import { formatErrorDetail } from "@/features/api/errors";
 import {
   KnowledgeCapsule,
   SessionKnowledgeInjection,
@@ -82,19 +94,20 @@ import {
   restoredScrollTop,
   shouldLoadEarlierHistory,
 } from "@/components/sessions/session-history-scroll";
-import { filterMergedLiveEventsAlreadyInHistory } from "@/features/runtime/filter-live-history-events";
 import { normalizeHistoryMessages } from "@/features/runtime/normalize-history-message";
 import { mergeEvents } from "@/features/runtime/merge-session-events";
+import {
+  latestRuntimeTurnId,
+  reconcileSessionTimeline,
+} from "@/features/runtime/reconcile-session-timeline";
 import {
   groupWorkstreamEvents,
   SessionEvent,
 } from "@/features/runtime/session-events";
 import { useConversationRun } from "@/features/runtime/use-conversation-run";
 import { useSessionObserver } from "@/features/runtime/session-observer";
-import {
-  isConversationObserverRecoverableError,
-  sessionDisplayStatus,
-} from "@/features/runtime/session-display-status";
+import { sessionDisplayStatus } from "@/features/runtime/session-display-status";
+import { isSupportedSessionWorkspace } from "@/features/runtime/workspace-path";
 import { compactId } from "@/lib/format";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { cn } from "@/lib/utils";
@@ -108,17 +121,18 @@ type SessionWorkbenchProps = {
   agentId?: string;
   embedded?: boolean;
   initialApprovalMode?: SessionApprovalMode;
+  initialAttachments?: ComposerAttachment[];
   initialCwd?: string;
+  initialPrimaryProjectId?: string;
   initialPrompt?: string;
   initialPromptKey?: string;
+  initialProjectTargetId?: string;
   mobileBackLabel?: string;
   mobileMenuLabel?: string;
   onSessionAssigned?: (sessionId: string) => void;
   onMobileBack?: () => void;
   onMobileMenu?: () => void;
 };
-
-type SessionSidePanelId = "tool" | "artifacts" | "knowledge";
 
 type SessionSidePanel = {
   id: SessionSidePanelId;
@@ -128,11 +142,19 @@ type SessionSidePanel = {
   content: ReactNode;
 };
 
+export type ComposerAttachment = {
+  attachmentId: string;
+  contentType?: string;
+  filename: string;
+  sizeBytes?: number;
+};
+
 // Event types that count as visible agent output in the timeline. Meta events
 // (run_status, token_usage, turn_done, ...) must not dismiss the pending
 // indicator, and the optimistic user_message must not either.
 const AGENT_OUTPUT_EVENT_TYPES: ReadonlySet<SessionEvent["type"]> = new Set([
   "agent_message",
+  "artifact_publication",
   "file_change",
   "invocation",
   "permission_request",
@@ -148,9 +170,12 @@ export function SessionWorkbench({
   agentId,
   embedded = false,
   initialApprovalMode,
+  initialAttachments,
   initialCwd,
+  initialPrimaryProjectId,
   initialPrompt,
   initialPromptKey,
+  initialProjectTargetId,
   mobileBackLabel,
   mobileMenuLabel,
   onSessionAssigned,
@@ -200,6 +225,13 @@ export function SessionWorkbench({
   );
   const initialPromptSentRef = useRef(false);
   const [sendError, setSendError] = useState<Error | null>(null);
+  const [composerAttachments, setComposerAttachments] = useState<
+    ComposerAttachment[]
+  >(() => [...(initialAttachments ?? [])]);
+  const [composerAttachmentError, setComposerAttachmentError] =
+    useState<Error | null>(null);
+  const [composerAttachmentUploadPending, setComposerAttachmentUploadPending] =
+    useState(false);
   const [sessionNameEditing, setSessionNameEditing] = useState(false);
   const [sessionNameDraft, setSessionNameDraft] = useState("");
   const timelineScrollRef = useRef<HTMLDivElement>(null);
@@ -220,7 +252,7 @@ export function SessionWorkbench({
   const newSessionCwdInvalid =
     isNewSession &&
     normalizedNewSessionCwd.length > 0 &&
-    !isAbsolutePath(normalizedNewSessionCwd);
+    !isSupportedSessionWorkspace(normalizedNewSessionCwd);
   const activeSession = useMemo(
     () =>
       sessionMetadata ??
@@ -230,7 +262,7 @@ export function SessionWorkbench({
     [currentSessionId, sessionMetadata, sessionsQuery.data?.sessions],
   );
   const activeSessionReportedRunning = isActiveSessionRunStatus(
-    activeSession?.run_status ?? activeSession?.status,
+    activeSession?.runtime_status,
   );
   const isExternallyCreatedSession = Boolean(
     currentSessionId &&
@@ -241,11 +273,19 @@ export function SessionWorkbench({
     useState<string | null>(null);
   useEffect(() => {
     if (
-      observerSuppressedSessionId === currentSessionId &&
-      !activeSessionReportedRunning
+      observerSuppressedSessionId !== currentSessionId ||
+      activeSessionReportedRunning
     ) {
-      setObserverSuppressedSessionId(null);
+      return;
     }
+
+    const timeoutId = window.setTimeout(() => {
+      setObserverSuppressedSessionId(null);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [
     activeSessionReportedRunning,
     currentSessionId,
@@ -264,6 +304,9 @@ export function SessionWorkbench({
   const shouldShowReadOnlyWorkspace =
     Boolean(currentSessionId && displayedWorkspace) &&
     displayedWorkspace !== "/tmp";
+  const composerDraftKey =
+    currentSessionId ??
+    `new:${activeNodeId ?? "node"}:${activeAgentId ?? "agent"}`;
   const sessionDisplayName =
     activeSession?.name?.trim() ||
     (currentSessionId ? compactId(currentSessionId) : "New session");
@@ -331,16 +374,10 @@ export function SessionWorkbench({
     showAdminFeatures ? user.user_id : undefined,
     showAdminFeatures ? currentSessionId : undefined,
   );
-  const artifactsQuery = useSessionArtifacts(
-    showAdminFeatures ? user.user_id : undefined,
-    showAdminFeatures ? currentSessionId : undefined,
-  );
+  const artifactsQuery = useSessionArtifacts(user.user_id, currentSessionId);
   const [capsuleKeyword, setCapsuleKeyword] = useState("");
   const [selectedCapsuleId, setSelectedCapsuleId] = useState("");
   const [selectedArtifactId, setSelectedArtifactId] = useState("");
-  const [artifactPreviewUrl, setArtifactPreviewUrl] = useState("");
-  const [artifactPreviewError, setArtifactPreviewError] =
-    useState<Error | null>(null);
   const activeCapsules = capsulesQuery.data?.capsules ?? [];
   const activeArtifacts = artifactsQuery.data?.artifacts ?? [];
   const selectedInjectionCapsuleId =
@@ -376,83 +413,54 @@ export function SessionWorkbench({
       queryKey: queryKeys.sessionArtifacts(user.user_id, currentSessionId),
     });
   };
-  const uploadArtifact = useMutation({
-    mutationFn: async (file: File) => {
-      if (!currentSessionId) {
-        throw new Error("Start the session before uploading an artifact.");
+  const handleAddComposerAttachments = useCallback(
+    async (files: File[]) => {
+      if (files.length === 0) {
+        return;
       }
 
-      const contentType = file.type || "application/octet-stream";
-      const kind = inferArtifactKind(file);
-      const ticket = await createArtifactUpload(user.user_id, {
-        content_type: contentType,
-        filename: file.name,
-        kind,
-        session_id: currentSessionId,
-        size_bytes: file.size,
-        title: file.name,
-      });
-      const headers = new Headers(ticket.headers);
-      if (!headers.has("Content-Type")) {
-        headers.set("Content-Type", contentType);
-      }
-      if (!isMockSignedUploadUrl(ticket.url)) {
-        const uploadResponse = await fetch(ticket.url, {
-          body: file,
-          headers,
-          method: ticket.method,
-        });
-        if (!uploadResponse.ok) {
-          throw new Error(`GCS upload failed with ${uploadResponse.status}`);
+      setComposerAttachmentError(null);
+      setComposerAttachmentUploadPending(true);
+      try {
+        for (const file of files) {
+          const ticket = await createUserAttachment(user.user_id, {
+            content_type: file.type || "application/octet-stream",
+            filename: file.name,
+            sha256: "",
+            size_bytes: file.size,
+          });
+          await uploadUserAttachmentFile(ticket, file);
+          const completed = await completeUserAttachment(
+            user.user_id,
+            ticket.attachment.attachment_id,
+          );
+          setComposerAttachments((current) => [
+            ...current,
+            {
+              attachmentId: completed.attachment.attachment_id,
+              contentType: completed.attachment.content_type,
+              filename: completed.attachment.filename,
+              sizeBytes: completed.attachment.size_bytes,
+            },
+          ]);
         }
+      } catch (caught) {
+        setComposerAttachmentError(
+          caught instanceof Error ? caught : new Error(String(caught)),
+        );
+      } finally {
+        setComposerAttachmentUploadPending(false);
       }
-      return completeArtifactUpload(user.user_id, ticket.upload_id, {
-        kind,
-        payload_json: {
-          content_type: contentType,
-          filename: file.name,
-          size_bytes: file.size,
-        },
-        session_id: currentSessionId,
-        title: file.name,
-      });
     },
-    onSuccess: (data) => {
-      setSelectedArtifactId(data.artifact.artifact_id);
-      setArtifactPreviewUrl("");
-      setArtifactPreviewError(null);
-      refreshArtifacts();
-    },
-    onError: (caught) => {
-      setArtifactPreviewError(
-        caught instanceof Error ? caught : new Error(String(caught)),
-      );
-    },
-  });
-  const previewArtifact = useMutation({
-    mutationFn: async (artifact: SessionArtifact) => {
-      const content = artifact.contents?.[0];
-      if (!content) {
-        throw new Error("Artifact has no content.");
-      }
-      return getArtifactContentURL(
-        user.user_id,
-        artifact.artifact_id,
-        content.ref || "main",
-        "inline",
-      );
-    },
-    onSuccess: (data) => {
-      setSelectedArtifactId(data.artifact.artifact_id);
-      setArtifactPreviewUrl(data.url);
-      setArtifactPreviewError(null);
-    },
-    onError: (caught) => {
-      setArtifactPreviewError(
-        caught instanceof Error ? caught : new Error(String(caught)),
-      );
-    },
-  });
+    [user.user_id],
+  );
+  const handleRemoveComposerAttachment = useCallback((attachmentId: string) => {
+    setComposerAttachments((current) =>
+      current.filter((attachment) => attachment.attachmentId !== attachmentId),
+    );
+    setComposerAttachmentError(null);
+  }, []);
+
   const createCapsule = useMutation({
     mutationFn: () => {
       if (!currentSessionId) {
@@ -521,13 +529,20 @@ export function SessionWorkbench({
     queryClient,
     user.user_id,
   ]);
+  const completedConversationTurnVersion = conversationRun.completedTurnVersion;
+  useEffect(() => {
+    if (completedConversationTurnVersion > 0) {
+      refreshActiveSessionRuntime();
+    }
+  }, [completedConversationTurnVersion, refreshActiveSessionRuntime]);
   const lastHistoryMessageID = lastMessageID(historyMessages);
   const shouldObserveSessionTurn =
     Boolean(activeAgentId && currentSessionId) &&
-    activeSessionReportedRunning &&
     observerSuppressedSessionId !== currentSessionId &&
-    conversationRun.status !== "streaming" &&
-    conversationRun.status !== "waiting_approval";
+    (conversationRun.transportInterrupted ||
+      (activeSessionReportedRunning &&
+        conversationRun.status !== "streaming" &&
+        conversationRun.status !== "waiting_approval"));
   const queuedTurnQueryKey = queryKeys.queuedSessionTurn(
     user.user_id,
     activeAgentId ?? "pending",
@@ -585,10 +600,28 @@ export function SessionWorkbench({
     setQueuedFollowUpSessionId(null);
     refreshActiveSessionRuntime();
   }, [refreshActiveSessionRuntime]);
+  const finishConversationRunFromObserver = conversationRun.finishObservedTurn;
+  const markConversationObserverConnected =
+    conversationRun.markObserverConnected;
+  const conversationTransportInterrupted = conversationRun.transportInterrupted;
   const handleNoRunningTurn = useCallback(() => {
+    finishConversationRunFromObserver();
     setObserverSuppressedSessionId(currentSessionId ?? null);
     refreshActiveSessionRuntime();
-  }, [currentSessionId, refreshActiveSessionRuntime]);
+  }, [
+    currentSessionId,
+    finishConversationRunFromObserver,
+    refreshActiveSessionRuntime,
+  ]);
+  const handleObserverConnected = useCallback(() => {
+    if (conversationTransportInterrupted) {
+      markConversationObserverConnected();
+    }
+  }, [conversationTransportInterrupted, markConversationObserverConnected]);
+  const handleObservedTurnDone = useCallback(() => {
+    finishConversationRunFromObserver();
+    refreshActiveSessionRuntime();
+  }, [finishConversationRunFromObserver, refreshActiveSessionRuntime]);
   const sessionObserver = useSessionObserver({
     afterMessageId: shouldFollowQueuedTurn ? undefined : lastHistoryMessageID,
     agentId: activeAgentId,
@@ -598,31 +631,21 @@ export function SessionWorkbench({
     enabled: shouldObserveSessionTurn || shouldFollowQueuedTurn,
     followQueuedTurn: shouldFollowQueuedTurn,
     onBufferMiss: refreshActiveSessionRuntime,
+    onConnected: handleObserverConnected,
     onNoRunningTurn: handleNoRunningTurn,
     onQueuedTurnFinished: handleQueuedTurnFinished,
     onQueuedTurnStarted: handleQueuedTurnStarted,
     onQueuedTurnUnavailable: handleQueuedTurnUnavailable,
-    onTurnDone: refreshActiveSessionRuntime,
+    onTurnDone: handleObservedTurnDone,
     sessionId: currentSessionId,
     userId: user.user_id,
   });
-  const displayedRunStatus = sessionDisplayStatus({
-    autoApprove: displayedApprovalMode === "auto_approve_all",
-    conversationError: conversationRun.error,
-    conversationStatus: conversationRun.status,
-    observerStatus: sessionObserver.status,
-    reportedStatus: activeSession?.run_status ?? activeSession?.status,
-    remoteTurnActive:
-      activeSessionReportedRunning &&
-      observerSuppressedSessionId !== currentSessionId,
-  });
-  const conversationErrorRecovered =
-    conversationRun.status === "error" &&
-    isConversationObserverRecoverableError(conversationRun.error) &&
-    sessionObserver.status === "observing";
-  const displayedRunError = conversationErrorRecovered
-    ? sessionObserver.error
-    : (conversationRun.error ?? sessionObserver.error);
+  const displayedRunStatus = sessionDisplayStatus(
+    activeSession?.runtime_status,
+    {
+      ownedConversationStatus: conversationRun.status,
+    },
+  );
   const isTurnRunning =
     conversationRun.status === "streaming" ||
     conversationRun.status === "waiting_approval" ||
@@ -715,6 +738,49 @@ export function SessionWorkbench({
     },
   });
 
+  const resetStaleSessionStatus = useMutation({
+    mutationFn: async () => {
+      if (
+        !activeAgentId ||
+        !currentSessionId ||
+        !activeSession?.runtime_turn_instance_id
+      ) {
+        throw new Error("This session has no active runtime turn to reset.");
+      }
+      return resetSessionRuntime(
+        user.user_id,
+        activeAgentId,
+        currentSessionId,
+        activeSession.runtime_turn_instance_id,
+      );
+    },
+    onMutate: () => setSendError(null),
+    onSuccess: () => {
+      if (currentSessionId) {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.sessionMetadata(user.user_id, currentSessionId),
+        });
+      }
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.userSessionsRoot(user.user_id),
+      });
+      if (activeNodeId && activeAgentId) {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.sessions(
+            user.user_id,
+            activeNodeId,
+            activeAgentId,
+          ),
+        });
+      }
+    },
+    onError: (caught) => {
+      setSendError(
+        caught instanceof Error ? caught : new Error(String(caught)),
+      );
+    },
+  });
+
   function beginSessionNameEdit() {
     setSessionNameDraft(sessionDisplayName);
     setSessionNameEditing(true);
@@ -748,6 +814,8 @@ export function SessionWorkbench({
       setSendError(null);
     },
     onSuccess: () => {
+      conversationRun.markCancelled();
+      refreshActiveSessionRuntime();
       if (activeNodeId && activeAgentId) {
         void queryClient.invalidateQueries({
           queryKey: queryKeys.sessions(
@@ -928,18 +996,16 @@ export function SessionWorkbench({
     () => mergeEvents([...conversationRun.events, ...sessionObserver.events]),
     [conversationRun.events, sessionObserver.events],
   );
-  const liveEvents = useMemo(
+  const reconciledTimeline = useMemo(
     () =>
-      filterMergedLiveEventsAlreadyInHistory(
-        mergedRuntimeEvents,
+      reconcileSessionTimeline(
         historyEvents,
+        conversationRun.events,
+        sessionObserver.events,
       ),
-    [historyEvents, mergedRuntimeEvents],
+    [conversationRun.events, historyEvents, sessionObserver.events],
   );
-  const timeline = useMemo(
-    () => mergeEvents([...historyEvents, ...liveEvents]),
-    [historyEvents, liveEvents],
-  );
+  const { timeline } = reconciledTimeline;
   const invocationOwnerLookups = useMemo(
     () => agentOwnerLookupsFromInvocations(timeline),
     [timeline],
@@ -952,11 +1018,17 @@ export function SessionWorkbench({
     () => groupWorkstreamEvents(timeline),
     [timeline],
   );
+  const currentRuntimeTurnId = latestRuntimeTurnId(mergedRuntimeEvents);
+  const currentTurnHasAgentOutput = mergedRuntimeEvents.some(
+    (event) =>
+      (!currentRuntimeTurnId || event.turnId === currentRuntimeTurnId) &&
+      AGENT_OUTPUT_EVENT_TYPES.has(event.type),
+  );
   const isAgentResponsePending =
     (conversationRun.status === "streaming" ||
       conversationRun.status === "waiting_approval" ||
       (shouldObserveSessionTurn && sessionObserver.status === "observing")) &&
-    !liveEvents.some((event) => AGENT_OUTPUT_EVENT_TYPES.has(event.type));
+    !currentTurnHasAgentOutput;
   const mutateSessionApprovalMode = updateSessionApprovalMode.mutate;
   const toggleApprovalMode = useCallback(() => {
     const nextMode =
@@ -1027,9 +1099,21 @@ export function SessionWorkbench({
         return false;
       }
 
+      const attachmentIds = composerAttachments.map(
+        (attachment) => attachment.attachmentId,
+      );
+
       setSendError(null);
       try {
         if (isTurnRunning) {
+          if (attachmentIds.length > 0) {
+            setComposerAttachmentError(
+              new Error(
+                "Attachments can only be sent on a fresh turn. Wait for the current run to finish or remove the files.",
+              ),
+            );
+            return false;
+          }
           await queueDraft(content);
           return true;
         }
@@ -1040,15 +1124,19 @@ export function SessionWorkbench({
             approval_mode: newSessionApprovalMode,
           });
         }
-        await sendConversationMessage(
-          content,
-          isNewSession
+        await sendConversationMessage(content, {
+          ...(isNewSession
             ? {
                 approvalMode: newSessionApprovalMode,
                 cwd: normalizedNewSessionCwd || undefined,
+                primaryProjectId: initialPrimaryProjectId,
+                projectTargetId: initialProjectTargetId,
               }
-            : undefined,
-        );
+            : {}),
+          ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
+        });
+        setComposerAttachments([]);
+        setComposerAttachmentError(null);
         return true;
       } catch (caught) {
         if (isNewSession) {
@@ -1063,8 +1151,11 @@ export function SessionWorkbench({
     [
       activeAgentId,
       activeNodeId,
+      composerAttachments,
       isNewSession,
       isTurnRunning,
+      initialPrimaryProjectId,
+      initialProjectTargetId,
       newSessionApprovalMode,
       newSessionCwdInvalid,
       normalizedNewSessionCwd,
@@ -1083,7 +1174,7 @@ export function SessionWorkbench({
   );
   const handleOpenArtifacts = useCallback(
     () => setActiveSidePanelId("artifacts"),
-    [],
+    [setActiveSidePanelId],
   );
   const handleSteerTurn = useCallback(
     async (content: string) => {
@@ -1163,11 +1254,19 @@ export function SessionWorkbench({
         cwd: normalizedNewSessionCwd || undefined,
         approval_mode: newSessionApprovalMode,
       });
+      const attachmentIds = composerAttachments.map(
+        (attachment) => attachment.attachmentId,
+      );
       void sendConversationMessage(content, {
         approvalMode: newSessionApprovalMode,
         cwd: normalizedNewSessionCwd || undefined,
+        primaryProjectId: initialPrimaryProjectId,
+        projectTargetId: initialProjectTargetId,
+        ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
       })
         .then(() => {
+          setComposerAttachments([]);
+          setComposerAttachmentError(null);
           removeStoredInitialPrompt(initialPromptKey);
         })
         .catch((caught) => {
@@ -1184,8 +1283,11 @@ export function SessionWorkbench({
   }, [
     activeAgentId,
     activeNodeId,
+    composerAttachments,
     conversationRun.status,
+    initialPrimaryProjectId,
     initialPromptKey,
+    initialProjectTargetId,
     newSessionCwdInvalid,
     sessionId,
     newSessionApprovalMode,
@@ -1257,7 +1359,6 @@ export function SessionWorkbench({
         content: (
           <ArtifactTools
             artifacts={activeArtifacts}
-            canUpload={Boolean(currentSessionId)}
             downloadHref={(artifact, ref) =>
               artifactContentDownloadHref(
                 user.user_id,
@@ -1266,30 +1367,27 @@ export function SessionWorkbench({
               )
             }
             isLoading={artifactsQuery.isLoading}
-            onPreview={(artifact) => previewArtifact.mutate(artifact)}
-            onRefresh={refreshArtifacts}
-            onSelect={(artifactId) => {
-              setSelectedArtifactId(artifactId);
-              setArtifactPreviewUrl("");
-              setArtifactPreviewError(null);
+            onLoadPreview={async (artifact) => {
+              const content = primaryArtifactContent(artifact);
+              if (!content) {
+                throw new Error("Artifact has no content.");
+              }
+              const data = await getArtifactContentURL(
+                user.user_id,
+                artifact.artifact_id,
+                content.ref || "main",
+                "inline",
+              );
+              return {
+                contentType: data.content.content_type,
+                filename: data.content.filename,
+                url: data.url,
+              };
             }}
-            onUpload={(file) => uploadArtifact.mutate(file)}
-            previewError={
-              artifactPreviewError ??
-              (previewArtifact.error instanceof Error
-                ? previewArtifact.error
-                : null)
-            }
-            previewPending={previewArtifact.isPending}
-            previewUrl={artifactPreviewUrl}
+            onRefresh={refreshArtifacts}
+            onSelect={setSelectedArtifactId}
             selectedArtifact={selectedArtifact}
             selectedArtifactId={selectedArtifact?.artifact_id ?? ""}
-            uploadError={
-              uploadArtifact.error instanceof Error
-                ? uploadArtifact.error
-                : null
-            }
-            uploadPending={uploadArtifact.isPending}
           />
         ),
       },
@@ -1317,7 +1415,7 @@ export function SessionWorkbench({
         ),
       },
     ] satisfies SessionSidePanel[]
-  ).filter((panel) => showAdminFeatures || panel.id === "tool");
+  ).filter((panel) => canSeeSessionSidePanel(panel.id, showAdminFeatures));
   const activeSidePanel = sidePanels.find(
     (panel) => panel.id === activeSidePanelId,
   );
@@ -1327,7 +1425,7 @@ export function SessionWorkbench({
       setSelectedToolEvidence(selection);
       setActiveSidePanelId("tool");
     },
-    [],
+    [setActiveSidePanelId, setSelectedToolEvidence],
   );
 
   const workbench = (
@@ -1476,7 +1574,18 @@ export function SessionWorkbench({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <RunBadge error={displayedRunError} status={displayedRunStatus} />
+            <RunBadge
+              error={conversationRun.error}
+              status={displayedRunStatus}
+            />
+            <SessionRuntimeActions
+              canReset={Boolean(
+                activeSession?.runtime_turn_instance_id &&
+                activeSession.runtime_status !== "idle",
+              )}
+              isPending={resetStaleSessionStatus.isPending}
+              onReset={() => resetStaleSessionStatus.mutateAsync()}
+            />
             <Button
               icon={<PanelRight className="h-4 w-4" />}
               onClick={() =>
@@ -1525,6 +1634,7 @@ export function SessionWorkbench({
                   item={item}
                   onSelectToolEvidence={handleSelectToolEvidence}
                   permissionDecision={permissionDecision}
+                  userId={user.user_id}
                 />
               </div>
             ))}
@@ -1557,20 +1667,22 @@ export function SessionWorkbench({
           activeNodeId={activeNodeId}
           approvalMode={displayedApprovalMode}
           approvalModePending={updateSessionApprovalMode.isPending}
+          attachmentError={composerAttachmentError}
+          attachmentUploadPending={composerAttachmentUploadPending}
+          attachments={composerAttachments}
           currentSessionId={currentSessionId}
           deleteQueuedTurnPending={deleteQueuedTurn.isPending}
-          draftKey={
-            currentSessionId ??
-            `new:${activeNodeId ?? "node"}:${activeAgentId ?? "agent"}`
-          }
+          draftKey={composerDraftKey}
           isNewSession={isNewSession}
           isTurnRunning={isTurnRunning}
           showAdminFeatures={showAdminFeatures}
           newSessionCwd={newSessionCwd}
           newSessionCwdInvalid={newSessionCwdInvalid}
           newSessionWorkspaceOpen={newSessionWorkspaceOpen}
+          onAddAttachments={handleAddComposerAttachments}
           onDeleteQueuedTurn={handleDeleteQueuedTurn}
           onOpenArtifacts={handleOpenArtifacts}
+          onRemoveAttachment={handleRemoveComposerAttachment}
           onSetNewSessionCwd={setNewSessionCwd}
           onSetNewSessionWorkspaceOpen={setNewSessionWorkspaceOpen}
           onSteer={handleSteerTurn}
@@ -1675,10 +1787,6 @@ function readInitialPrompt(initialPrompt?: string, initialPromptKey?: string) {
   }
 }
 
-function isAbsolutePath(path: string) {
-  return path.startsWith("/");
-}
-
 function lastMessageID(messages?: HistoryMessage[]) {
   if (!messages || messages.length === 0) {
     return undefined;
@@ -1710,70 +1818,28 @@ function removeStoredInitialPrompt(initialPromptKey?: string) {
 
 function ArtifactTools({
   artifacts,
-  canUpload,
   downloadHref,
   isLoading,
-  onPreview,
+  onLoadPreview,
   onRefresh,
   onSelect,
-  onUpload,
-  previewError,
-  previewPending,
-  previewUrl,
   selectedArtifact,
   selectedArtifactId,
-  uploadError,
-  uploadPending,
 }: {
   artifacts: SessionArtifact[];
-  canUpload: boolean;
   downloadHref: (artifact: SessionArtifact, ref: string) => string;
   isLoading: boolean;
-  onPreview: (artifact: SessionArtifact) => void;
+  onLoadPreview: (
+    artifact: SessionArtifact,
+  ) => Promise<ArtifactPreviewDescriptor>;
   onRefresh: () => void;
   onSelect: (artifactId: string) => void;
-  onUpload: (file: File) => void;
-  previewError: Error | null;
-  previewPending: boolean;
-  previewUrl: string;
   selectedArtifact?: SessionArtifact;
   selectedArtifactId: string;
-  uploadError: Error | null;
-  uploadPending: boolean;
 }) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   return (
     <div className="grid gap-4">
-      <input
-        className="sr-only"
-        disabled={!canUpload || uploadPending}
-        onChange={(event) => {
-          const file = event.currentTarget.files?.[0];
-          if (file) {
-            onUpload(file);
-          }
-          event.currentTarget.value = "";
-        }}
-        ref={fileInputRef}
-        type="file"
-      />
       <div className="flex min-w-0 items-center gap-2">
-        <Button
-          disabled={!canUpload || uploadPending}
-          icon={
-            uploadPending ? (
-              <LoaderCircle className="h-4 w-4 animate-spin" />
-            ) : (
-              <UploadCloud className="h-4 w-4" />
-            )
-          }
-          onClick={() => fileInputRef.current?.click()}
-          type="button"
-          variant="primary"
-        >
-          Upload
-        </Button>
         <Button
           icon={<RefreshCw className="h-4 w-4" />}
           onClick={onRefresh}
@@ -1785,12 +1851,6 @@ function ArtifactTools({
         <div className="min-w-0 flex-1" />
         <Badge className="font-mono">{String(artifacts.length)}</Badge>
       </div>
-      {!canUpload && (
-        <div className="rounded-lg border border-dashed border-hairline bg-canvas p-2 text-xs text-ink-tertiary">
-          Start the session before uploading artifacts.
-        </div>
-      )}
-      {uploadError && <InlineError error={uploadError} />}
 
       <section className="grid gap-2">
         {isLoading && (
@@ -1841,59 +1901,22 @@ function ArtifactTools({
       </section>
 
       {selectedArtifact && (
-        <section className="grid gap-2">
-          <div className="flex min-w-0 items-center justify-between gap-2">
-            <TruncatedText className="text-sm font-medium">
-              {artifactTitle(selectedArtifact)}
-            </TruncatedText>
-            <div className="flex shrink-0 items-center gap-1">
-              <Button
-                disabled={previewPending}
-                icon={
-                  previewPending ? (
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <FileText className="h-4 w-4" />
-                  )
-                }
-                onClick={() => onPreview(selectedArtifact)}
-                size="icon"
-                tooltip="Preview artifact"
-                type="button"
-                variant="ghost"
-              />
-              <Button
-                icon={<Download className="h-4 w-4" />}
-                onClick={() => {
-                  window.open(
-                    downloadHref(
-                      selectedArtifact,
-                      primaryArtifactContent(selectedArtifact)?.ref ?? "main",
-                    ),
-                    "_blank",
-                    "noreferrer",
-                  );
-                }}
-                size="icon"
-                tooltip="Download artifact"
-                type="button"
-                variant="ghost"
-              />
-            </div>
-          </div>
-          {previewError && <InlineError error={previewError} />}
-          {previewUrl ? (
-            <iframe
-              className="h-64 w-full rounded-lg border border-hairline bg-white"
-              src={previewUrl}
-              title="Artifact preview"
-            />
-          ) : (
-            <div className="rounded-lg border border-dashed border-hairline bg-canvas p-3 text-xs text-ink-tertiary">
-              Select Preview to load a signed view URL.
-            </div>
+        <ArtifactViewerShell
+          key={selectedArtifact.artifact_id}
+          artifact={artifactDocumentFromSessionArtifact(
+            selectedArtifact,
+            downloadHref(
+              selectedArtifact,
+              primaryArtifactContent(selectedArtifact)?.ref ?? "main",
+            ),
           )}
-        </section>
+          loadPreview={() => onLoadPreview(selectedArtifact)}
+          viewerHref={artifactPreviewPageHref(
+            "session_artifact",
+            selectedArtifact.artifact_id,
+            primaryArtifactContent(selectedArtifact)?.ref ?? "main",
+          )}
+        />
       )}
     </div>
   );
@@ -2068,7 +2091,9 @@ function SessionErrors({
         <TruncatedText className="mt-1 font-mono text-xs text-ink-tertiary">
           {missingRouteState
             ? "Missing nodeId or agentId. Open a session from the fleet overview to connect both REST and WebSocket."
-            : `${error?.name}: ${error?.message}`}
+            : error
+              ? formatErrorDetail(error)
+              : ""}
         </TruncatedText>
       </div>
     </div>
@@ -2078,7 +2103,7 @@ function SessionErrors({
 function InlineError({ error }: { error: Error }) {
   return (
     <TruncatedText className="text-xs text-warning">
-      {error.name}: {error.message}
+      {formatErrorDetail(error)}
     </TruncatedText>
   );
 }
@@ -2096,46 +2121,6 @@ function artifactTitle(artifact: SessionArtifact) {
     primaryArtifactContent(artifact)?.filename ||
     compactId(artifact.artifact_id)
   );
-}
-
-function inferArtifactKind(file: File) {
-  const name = file.name.toLowerCase();
-  if (file.type.startsWith("image/")) {
-    return "image";
-  }
-  if (
-    file.type === "text/html" ||
-    name.endsWith(".html") ||
-    name.endsWith(".htm")
-  ) {
-    return "html_preview";
-  }
-  if (
-    name.endsWith(".diff") ||
-    name.endsWith(".patch") ||
-    file.type === "text/x-diff"
-  ) {
-    return "code_diff";
-  }
-  if (
-    name.endsWith(".xlsx") ||
-    name.endsWith(".xls") ||
-    name.endsWith(".csv")
-  ) {
-    return "spreadsheet";
-  }
-  if (file.type.startsWith("text/")) {
-    return "code_file";
-  }
-  return "file";
-}
-
-function isMockSignedUploadUrl(value: string) {
-  try {
-    return new URL(value).hostname === "mock-gcs.local";
-  } catch {
-    return false;
-  }
 }
 
 function formatBytes(value: number) {

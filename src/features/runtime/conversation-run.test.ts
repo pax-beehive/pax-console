@@ -104,7 +104,7 @@ describe("streamConversationRun", () => {
     ]);
   });
 
-  it("posts cwd and approval mode only for new sessions", async () => {
+  it("posts project context, cwd, and approval mode only for new sessions", async () => {
     const fetchMock = vi.fn(async () => {
       return new Response(
         streamFromChunks([
@@ -125,6 +125,8 @@ describe("streamConversationRun", () => {
       input: "hello",
       nodeId: "node_1",
       onEnvelope: vi.fn(),
+      primaryProjectId: "proj_1",
+      projectTargetId: "ptgt_1",
       userId: "self",
     });
     await streamConversationRun({
@@ -134,6 +136,8 @@ describe("streamConversationRun", () => {
       input: "hello",
       nodeId: "node_1",
       onEnvelope: vi.fn(),
+      primaryProjectId: "proj_1",
+      projectTargetId: "ptgt_1",
       sessionId: "sess_existing",
       userId: "self",
     });
@@ -151,10 +155,50 @@ describe("streamConversationRun", () => {
         input: "hello",
         cwd: "/Users/demo/project",
         approval_mode: "auto_approve_all",
+        primary_project_id: "proj_1",
+        project_target_id: "ptgt_1",
       }),
     );
     expect(existingSessionInit.body).toBe(
       JSON.stringify({ input: "hello", session_id: "sess_existing" }),
+    );
+  });
+
+  it("posts structured content blocks when attachments are present", async () => {
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        streamFromChunks([
+          'data: {"type":"done","node_id":"node_1","agent_id":"agent_1","session_id":"sess_1"}\n\n',
+        ]),
+        {
+          headers: { "content-type": "text/event-stream" },
+          status: 200,
+        },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await streamConversationRun({
+      agentId: "agent_1",
+      content: [
+        { type: "text", text: "Please review this file" },
+        { type: "attachment", attachment_id: "att_1" },
+      ],
+      nodeId: "node_1",
+      onEnvelope: vi.fn(),
+      sessionId: "sess_existing",
+      userId: "self",
+    });
+
+    const [, init] = (fetchMock as Mock).mock.calls[0] as [string, RequestInit];
+    expect(init.body).toBe(
+      JSON.stringify({
+        content: [
+          { type: "text", text: "Please review this file" },
+          { type: "attachment", attachment_id: "att_1" },
+        ],
+        session_id: "sess_existing",
+      }),
     );
   });
 
@@ -189,6 +233,41 @@ describe("streamConversationRun", () => {
         resume: { approval_id: "appr_1" },
       }),
     );
+  });
+
+  it("returns the backend status and message for a rejected conversation", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json(
+          {
+            code: 409,
+            data: null,
+            message: "project is archived",
+          },
+          { status: 409 },
+        ),
+      ),
+    );
+
+    const request = streamConversationRun({
+      agentId: "agent_1",
+      input: "hello",
+      nodeId: "node_1",
+      onEnvelope: vi.fn(),
+      userId: "self",
+    });
+
+    await expect(request).rejects.toMatchObject({
+      body: {
+        code: 409,
+        data: null,
+        message: "project is archived",
+      },
+      message: "project is archived",
+      name: "ApiError",
+      status: 409,
+    });
   });
 });
 

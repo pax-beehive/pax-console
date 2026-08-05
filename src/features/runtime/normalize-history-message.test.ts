@@ -6,6 +6,40 @@ import {
 } from "./normalize-history-message";
 
 describe("normalizeHistoryMessage", () => {
+  it("preserves the durable business turn id", () => {
+    expect(
+      normalizeHistoryMessage({
+        message_id: "msg_1",
+        session_id: "sess_1",
+        turn_id: "turn_1",
+        role: "assistant",
+        parts: [{ part_index: 0, part_type: "text", text: "Hello" }],
+      }),
+    ).toMatchObject([{ type: "agent_message", turnId: "turn_1" }]);
+  });
+
+  it("normalizes the durable turn completion marker", () => {
+    expect(
+      normalizeHistoryMessages([
+        {
+          message_id: "msg_turn_1_done",
+          message_type: "turn_done",
+          session_id: "sess_1",
+          status: "complete",
+          turn_id: "turn_1",
+          raw_json: { turn_status: "complete" },
+        },
+      ]),
+    ).toEqual([
+      expect.objectContaining({
+        type: "turn_done",
+        id: "msg_turn_1_done",
+        sessionId: "sess_1",
+        turnId: "turn_1",
+      }),
+    ]);
+  });
+
   it("restores aggregated text from ordered message parts", () => {
     const events = normalizeHistoryMessage({
       message_id: "msg_1",
@@ -80,6 +114,63 @@ describe("normalizeHistoryMessage", () => {
     expect(events.map((event) => event.type)).toEqual([
       "agent_message",
       "agent_message",
+    ]);
+  });
+
+  it("places an aggregated final answer after its turn tool calls", () => {
+    const turnId = "turn_1";
+    const events = mergeEvents(
+      normalizeHistoryMessages([
+        {
+          message_id: "msg_user",
+          session_id: "sess_1",
+          turn_id: turnId,
+          role: "user",
+          created_at: "2026-08-04T21:06:35.000Z",
+          parts: [
+            {
+              message_id: "msg_user",
+              part_index: 0,
+              part_type: "text",
+              text: "Please fix the ordering",
+            },
+          ],
+        },
+        {
+          ...historyTextChunk(
+            "msg_thought",
+            "Inspecting the timeline",
+            "agent_thought_chunk",
+          ),
+          turn_id: turnId,
+        },
+        {
+          ...historyTextChunk("msg_answer", "Starting now. Fixed."),
+          turn_id: turnId,
+        },
+        historyToolCall("msg_tool_start", turnId, "tool_call", "in_progress"),
+        historyToolCall(
+          "msg_tool_done",
+          turnId,
+          "tool_call_update",
+          "completed",
+        ),
+        {
+          message_id: "msg_turn_done",
+          message_type: "turn_done",
+          session_id: "sess_1",
+          turn_id: turnId,
+          created_at: "2026-08-04T21:17:23.000Z",
+        },
+      ]),
+    );
+
+    expect(events.map((event) => event.type)).toEqual([
+      "user_message",
+      "progress",
+      "tool_call",
+      "agent_message",
+      "turn_done",
     ]);
   });
 
@@ -228,6 +319,37 @@ describe("normalizeHistoryMessage", () => {
         userName: "Grace",
       },
     });
+  });
+
+  it("restores artifact publication cards from pax artifact history messages", () => {
+    const events = normalizeHistoryMessage({
+      message_id: "msg_artifact",
+      session_id: "sess_1",
+      message_type: "pax:artifact",
+      created_at: "2026-07-26T12:00:00.000Z",
+      parts: [
+        {
+          message_id: "msg_artifact",
+          part_index: 0,
+          part_type: "artifact",
+          artifact_uri: "artifact-publication://apub_123/main",
+          payload_json: {
+            publication_id: "apub_123",
+          },
+        },
+      ],
+    });
+
+    expect(events).toMatchObject([
+      {
+        type: "artifact_publication",
+        id: "msg_artifact:artifact:0:apub_123",
+        sessionId: "sess_1",
+        publicationId: "apub_123",
+        contentRef: "main",
+        artifactUri: "artifact-publication://apub_123/main",
+      },
+    ]);
   });
 
   it("hides the invocation parent when replaces_message_ids is absent", () => {
@@ -791,5 +913,38 @@ function historyTextChunk(
         text,
       },
     ],
+  };
+}
+
+function historyToolCall(
+  messageId: string,
+  turnId: string,
+  sessionUpdate: "tool_call" | "tool_call_update",
+  status: "in_progress" | "completed",
+) {
+  return {
+    message_id: messageId,
+    session_id: "sess_1",
+    turn_id: turnId,
+    role: "assistant",
+    message_type: sessionUpdate,
+    created_at: "2026-08-04T21:07:00.000Z",
+    raw_json: {
+      type: "acp",
+      session_id: "sess_1",
+      frame: {
+        jsonrpc: "2.0",
+        method: "session/update",
+        params: {
+          sessionId: "sess_1",
+          update: {
+            sessionUpdate,
+            status,
+            title: "terminal",
+            toolCallId: "tool_1",
+          },
+        },
+      },
+    },
   };
 }

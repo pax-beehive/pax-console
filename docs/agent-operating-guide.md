@@ -31,6 +31,15 @@ src/app/api/pax/[...path]/route.ts
 
 Do not spread Cloudflare cookie handling into React components.
 
+Home has two resource rails: Sessions and Projects. Projects are logical,
+owner-scoped, nestable work groups. A reusable Project Target binds an Agent to
+a working-directory intent. The Home composer exposes Project, Agent, and
+Workspace instead of asking users to manage Targets. An enabled Target with the
+same Project, Agent, and cwd is reused; otherwise the Console saves one only
+after native session assignment succeeds. The Session's optional
+`primary_project_id` is immutable. Do not overload that singular field for
+future multi-Project labels; use a separate association model.
+
 ## Local Development
 
 Expected local env:
@@ -155,12 +164,21 @@ temporary UI selections
 admin preview-as-user mode
 ```
 
+The mobile Home workbench also keeps a user-scoped open-session workset in
+`localStorage`. Persist only the ordered `session_id` list; session names, run
+state, and ownership continue to come from the TanStack Query session list.
+Closing a top tab is UI-only: it must not archive or delete the durable session,
+stop a turn, or cancel the agent. Only the active tab mounts
+`SessionWorkbench`.
+
 Admin-only experimental UI must use the shared effective admin view. A real
 admin can enable `Preview as user` from the top-right user menu; while enabled,
 the UI must hide the same experimental controls hidden from normal users.
-Session Artifacts and Knowledge panels, fake inquiries, global search, image
-attachment, and voice input currently follow this rule. Tool evidence remains
-available to all session users.
+Knowledge panels, fake inquiries, global search, image attachment, and voice
+input currently follow this rule. Tool evidence and the read-only Session
+Artifacts panel remain available to all session users. The Artifacts panel
+supports list, refresh, signed preview, and download; it does not expose the
+legacy browser upload control.
 The Collaboration navigation group is also admin-only for the current public
 release. Both desktop and mobile navigation must honor preview-as-user mode.
 
@@ -221,14 +239,62 @@ Collaboration and knowledge resources are normal user-scoped REST resources:
 /knowledge-capsules and /sessions/{session_id}/knowledge-injections
   Reusable session knowledge and system_handoff delivery into sessions.
 
+/attachments
+  User prompt attachments are input-only. Browser code creates an attachment,
+  starts the returned GCS resumable upload session directly from the browser,
+  uploads the file to GCS, completes it through the manager, and only then
+  references the returned `attachment_id` inside `/conversation` content
+  blocks. Attachments are not agent-bound.
+
+/artifact-publications/{publication_id} and
+/artifact-publications/{publication_id}/content/main
+  Agent publish_artifact output is output-only. The browser never creates these
+  uploads. The session timeline detects `message_type = "pax:artifact"`, polls
+  publication state until `available` or `failed`, and uses the publication
+  content endpoint for preview/download URLs. Treat publication ids as the UI
+  card key; do not manage lifecycle by artifact id.
+
 /artifact-uploads, /artifacts, and /sessions/{session_id}/artifacts
-  Session artifacts use manager-issued GCS signed URLs. Browser code first
-  creates an upload ticket, PUTs the file to GCS, completes the upload, then
-  reads artifacts through TanStack Query. Preview/download URLs come from the
-  artifact content endpoint; do not upload files through the Next proxy.
+  The Session Artifacts panel reads artifacts through TanStack Query and lets
+  every session user preview or download content through manager-issued signed
+  URLs. The Console no longer exposes the legacy browser upload flow.
 ```
 
 ## Conversation Runtime Rules
+
+Session runtime display state has one durable authority: the session API's
+`runtime_status` field (`idle`, `running`, or `waiting_approval`). Lists,
+details, Home work items, and mobile activity dots must not fall back to
+`status`, `run_status`, ACP frames, observer state, or agent connectivity. The
+current workbench may optimistically overlay `running` or `waiting_approval`
+while that window owns an explicitly submitted conversation turn. A local ACP
+`end_turn`, conversation error, or acknowledged stop immediately overlays
+`done`, `error`, or `cancelled` even when the last `runtime_status` snapshot is
+still active. This overlay also controls the current window's composer, stop,
+queue, and stream behavior, but is never persisted as session status.
+Session queries use 30-second polling only as a disconnected-client fallback.
+
+A recoverable `/conversation` SSE transport failure does not terminate the
+turn or change its badge to `error`. The current workbench keeps the run
+displayed as `running` and immediately hands ownership to the session `/events`
+observer, even if the canonical running snapshot has not arrived yet. A
+successful observer connection clears the transport notice; observer
+`turn_done` or `no_running_turn` completes the local display. Only an explicit
+conversation business-error envelope is a terminal run error.
+
+For a rare false-alive projection, the workbench overflow menu calls:
+
+```txt
+POST /api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/runtime/reset
+Content-Type: application/json
+
+{ "expected_turn_instance_id": "<runtime_turn_instance_id>" }
+```
+
+This is a compare-and-reset request. The UI must echo the current read-only
+turn instance ID, confirm the action, explain that it does not cancel or
+terminate the underlying task, and invalidate session detail plus both session
+list query families after acceptance.
 
 The current runtime files are:
 
@@ -250,6 +316,20 @@ POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/conversation
 Accept: text/event-stream
 Content-Type: application/json
 ```
+
+Failures before the SSE stream starts use the standard JSON API envelope:
+
+```json
+{
+  "data": null,
+  "code": 409,
+  "message": "project is archived"
+}
+```
+
+After the stream starts, failures arrive as an SSE error envelope with both
+`status_code` and `message`. The Console preserves those values in `ApiError`
+and displays them as `HTTP <status>: <message>`.
 
 While a turn is running, the workbench stop button calls:
 
@@ -320,16 +400,46 @@ tail. On terminal prompt response it emits `type=turn_done` and closes. Normal
 live payloads use `type=acp` with the same `frame` shape as `/conversation`, so
 the UI should pass `frame` to `normalizeTunnelFrame`.
 
-New sessions send `{ "input": "..." }`; continued sessions add
-`"session_id": "sess_*"`. The browser reads the POST response body as a stream
-of default SSE `data:` messages. Each message is a PAX envelope:
+New sessions usually send `{ "input": "..." }`; when prompt attachments are
+present, the browser sends structured `content` blocks instead:
+
+```json
+[
+  { "type": "text", "text": "Please inspect this file" },
+  { "type": "attachment", "attachment_id": "att_..." }
+]
+```
+
+Continued sessions add `"session_id": "sess_*"`. Queue/steer endpoints remain
+text-only. The browser reads the POST response body as a stream of default SSE
+`data:` messages. Each message is a PAX envelope:
 
 ```txt
-type=session  Save the returned manager session id and replace the URL.
-type=acp      Pass envelope.frame to normalizeTunnelFrame.
-type=done     End the streaming state.
-type=error    Surface the message and end the streaming state.
+type=session       Save the returned manager session id and replace the URL.
+type=turn_started  Adopt the opaque business turn_id before visible output.
+type=acp           Pass envelope.frame to normalizeTunnelFrame; preserve turn_id.
+type=turn_done     Complete that business turn after durable history is query-visible.
+type=done          End only this request stream; it has no turn_id.
+type=error         Surface the message and end the streaming state.
 ```
+
+`approval_required` and `interrupted` preserve the active business `turn_id`.
+A `permission_required` interruption pauses that turn; the following request-
+scoped `done` must not complete it. Permission resume reuses the same turn ID,
+while a queued follow-up receives a different ID. Durable history stores all
+turn projections with `turn_id` and ends the turn with a
+`message_type=turn_done`, `status=complete` marker. Timeline reconciliation
+keeps history, the owned conversation stream, and observer replay as separate
+ordered sources; it must not timestamp-sort them because replayed ACP frames
+receive client arrival timestamps. A locally owned conversation replaces only
+that turn's agent projection while retaining the durable user prompt at the
+turn's original history position. Observer replay extends the existing
+history/conversation prefix and filters repeated text instead of deleting the
+whole turn. Once the completion marker appears, durable history owns the turn.
+Durable storage may aggregate every `agent_message_chunk` in that turn into a
+single row anchored at the first chunk. History normalization therefore places
+that aggregate after the turn's work events and immediately before the durable
+turn boundary; live streams continue to use receipt order.
 
 Session names are updated through the existing node/agent-scoped endpoint:
 
@@ -390,6 +500,21 @@ Live `session/update` frames with `message_type = "pax:invocation"` or
 `message_type = "pax:invocation_pending"` normalize to the same invocation
 timeline event, and `merge-session-events.ts` applies the same replacement
 rule if the real or pending event has already rendered.
+
+Agent artifact cards use `message_type = "pax:artifact"`. History is the
+reliable source: the frontend extracts `publication_id` from
+`parts[*].payload_json.publication_id` or `artifact-publication://...` URIs,
+renders one timeline card per publication id, polls
+`GET /artifact-publications/{publication_id}`, and only calls
+`/content/main` for preview/download handling. Available publications and
+legacy session artifacts both mount the shared ArtifactViewerShell; the shell
+owns Preview / Download / Open page / Open file / fullscreen and delegates only
+its content region to the builtin document renderer registry. Embedded viewers
+stay compact for quick inspection. Their Open page action routes to the
+AuthGate-protected full-width preview at
+`/artifacts/publications/[publicationId]?ref=...` or
+`/artifacts/files/[artifactId]?ref=...`; those pages reuse the same renderer,
+auto-load a short-lived URL, and do not expose public artifact links.
 
 Runs of two or more contiguous thought/progress and tool-call events render as
 one collapsed work block, preserving their original order. A single thought or
@@ -482,6 +607,17 @@ src/components/resources/*
 src/components/sessions/*
   session workbench
 
+src/components/artifacts/*
+  Shared permission-safe document viewer for both timeline publications and
+  legacy session artifacts. Source adapters normalize both resources into one
+  ArtifactDocument; the builtin renderer registry resolves image, PDF, HTML,
+  Markdown, text, JSON, JSONL, CSV, or download fallback. Text renderers enforce
+  preview byte/line/record/table budgets, and HTML stays inside a sandboxed
+  iframe. Keep signed URL acquisition in the source-specific API adapter.
+  Timeline cards and the Session Artifacts panel provide a compact viewer plus
+  an Open page link; the dedicated full-width route reuses this shell with
+  auto-load rather than defining a second rendering stack.
+
 src/components/collaboration/*
   Collaboration workspace pages. Teams (/collaboration/teams) and Friends
   (/collaboration/friends) are separate canonical routes; the teams page is
@@ -499,7 +635,11 @@ src/features/*
 
 Components should not know Cloudflare internals. Components may show errors, but auth/proxy behavior belongs in `features/api` or `app/api/pax`.
 
-Use `src/components/ui/button.tsx` for command buttons, `badge.tsx` for compact actionable status labels, `search-box.tsx` for search inputs, `dropdown-menu.tsx` for click-to-open menus (e.g. the topbar user/sign-out menu), and `text.tsx` for long IDs/names. Agent ids, node ids, session ids, API key prefixes, endpoint paths, and file paths should be truncated with tooltip access to the full value. Prefer `compactId` from `src/lib/format.ts` when an id should be recognizable but not visually dominant.
+Use `src/components/ui/button.tsx` for command buttons, `badge.tsx` for compact actionable status labels, `search-box.tsx` for search inputs, `dropdown-menu.tsx` for click-to-open menus (e.g. the topbar user/sign-out menu), and `text.tsx` for long IDs/names. Agent ids, node ids, session ids, API key prefixes, endpoint paths, and file paths should be truncated with tooltip access to the full value. Prefer `compactId` from `src/lib/format.ts` when an id should be recognizable but not visually dominant. Button uses Radix Slottable for `asChild`; link buttons must keep one slottable anchor while icons remain valid siblings.
+
+`Button asChild` may render an icon beside its delegated child because the
+primitive marks that child with Radix `Slottable`. Callers must still provide
+one React element, such as an anchor, as the delegated child.
 
 The UI direction is Codex-like dark workbench, not a generic dashboard. Prefer split panes, compact rows, timelines, and evidence panels over large hero sections, KPI-card grids, and floating card sections. Cards are reserved for selectable entities, modals, and isolated tools. Ordinary metadata should be muted text or monospace text; use `Badge` for states that need scanning or action, such as connected, running, failed, approval required, revoked, or offline.
 
@@ -544,6 +684,8 @@ These deep links should remain directly reachable:
 /                              Home
 /sessions/new                  New session
 /sessions/[sessionId]          Session workbench
+/artifacts/publications/[id]       Full-width publication preview; ?ref=main
+/artifacts/files/[id]              Full-width session artifact preview; ?ref=main
 /inquiries                     Home action deep-link
 /conversations/[conversationId] Conversation deep-link
 /collaboration/teams           Teams
@@ -575,17 +717,40 @@ loads 20 sessions and the left rail fetches the next page as the user scrolls.
 Session ordering uses `last_user_message_at`, the latest accepted user prompt.
 Assistant streaming, thoughts, and tool activity must not reorder rows; legacy
 records fall back to `last_message_at`, then `updated_at`.
-The Sessions rail exposes separate agent and node filters. In the new-session
-target selector, duplicate agent names are qualified as `agent @ node`.
-Clicking a session in the Home rail keeps Home mounted and opens the embedded
-workbench at `/?sessionId={session_id}`, preserving the Sessions / Inbox rail.
-Standalone `/sessions/{session_id}` remains the canonical direct deep link for
-external clients and shared URLs. Starting from the Home composer opens
-`/sessions/new` with the selected target and prompt carried in query/session
-storage.
-On mobile widths, Home defaults to the clean composer. The Sessions/Inbox rail
+The unified Home rail exposes separate agent and node filters, nests sessions
+under their primary Project, and keeps projectless sessions in Recents. In the
+new-session agent selector, duplicate agent names are qualified as
+`agent @ node`. Clicking a session keeps Home mounted and opens the embedded
+workbench at `/?session_id={session_id}`, preserving the Project / Session rail.
+Home-generated links, including modified clicks that open a new tab, use this
+same query-string URL. Starting from either the global or
+Project-scoped Home composer opens the embedded new workbench. A Project-scoped
+first prompt uses the normal Conversation endpoint with `primary_project_id`
+and, when an enabled Project/Agent/cwd match exists, `project_target_id`.
+Otherwise it uses the typed cwd and saves the reusable Target after native
+session assignment succeeds. There is no separate Target session-creation
+endpoint.
+On mobile widths, Home defaults to the clean composer. The Project/Session rail
 opens as a left drawer over the composer or embedded SessionWorkbench instead
 of replacing the whole page.
+Below the global mobile Topbar, Home exposes locally opened sessions as a
+dedicated horizontally scrolling tab row. Tapping switches directly, closing a
+tab offers Undo without stopping its session, and the trailing New session
+action returns to the clean composer. The row remains separate from both the
+Session tools header and the composer. The global mobile Topbar includes a hard
+reload action equivalent to the browser refresh button. Long-pressing a tab
+starts horizontal drag reordering; normal horizontal movement continues to
+scroll the strip, and tab labels must not become browser text selections.
+
+Android preview packages use a Bubblewrap-generated Trusted Web Activity with
+package id `net.paxtech.console`. Keep `public/manifest.webmanifest` linked from
+the root layout, and keep the signing certificate fingerprint in
+`public/.well-known/assetlinks.json` aligned with the APK keystore. Without the
+Digital Asset Links file on the existing `https://ws.paxtech.net` deployment,
+Android falls back to a Custom Tab with browser chrome rather than the verified
+full-screen TWA. This does not require a second console deployment. Cloudflare
+Access must allow anonymous reads of `/.well-known/assetlinks.json` so Android
+can verify the origin.
 
 Currently implemented API-backed actions:
 

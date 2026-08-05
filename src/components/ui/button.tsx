@@ -1,6 +1,6 @@
 "use client";
 
-import { Slot } from "@radix-ui/react-slot";
+import { Slot, Slottable } from "@radix-ui/react-slot";
 import { ComponentPropsWithoutRef, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Tooltip } from "./tooltip";
@@ -53,7 +53,11 @@ export function Button({
       {...props}
     >
       {icon}
-      {children && <span className="min-w-0 truncate">{children}</span>}
+      {asChild ? (
+        <Slottable>{children}</Slottable>
+      ) : (
+        children && <span className="min-w-0 truncate">{children}</span>
+      )}
     </Comp>
   );
 

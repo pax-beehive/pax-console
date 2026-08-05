@@ -4,6 +4,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ApiError } from "@/features/api/errors";
 import { RunBadge } from "./run-badge";
 
 afterEach(cleanup);
@@ -48,6 +49,19 @@ describe("RunBadge", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows the backend HTTP status and message for an API error", () => {
+    renderBadge("error", new ApiError("project is archived", 409, null));
+
+    const trigger = screen.getByLabelText(
+      "Session error: HTTP 409: project is archived",
+    );
+    fireEvent.click(trigger);
+
+    expect(
+      screen.getByText("HTTP 409: project is archived"),
+    ).toBeInTheDocument();
+  });
+
   it("shows an idle timeout as an inactive state instead of a red error", () => {
     const error = new Error("ACP request idle timed out: session/prompt");
     error.name = "ConversationRunError";
@@ -60,5 +74,12 @@ describe("RunBadge", () => {
         "Session inactive: ConversationRunError: ACP request idle timed out: session/prompt",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("renders an acknowledged cancellation as a terminal status", () => {
+    renderBadge("cancelled");
+
+    expect(screen.getByText("cancelled")).toBeInTheDocument();
+    expect(screen.getByLabelText("Run cancelled")).toBeInTheDocument();
   });
 });

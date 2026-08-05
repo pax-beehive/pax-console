@@ -8,6 +8,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { formatErrorDetail } from "@/features/api/errors";
 import { isConversationIdleTimeout } from "@/features/runtime/session-display-status";
 import type { ConversationRunStatus } from "@/features/runtime/use-conversation-run";
 import { cn } from "@/lib/utils";
@@ -19,7 +20,8 @@ export function RunBadge({
   error?: Error | null;
   status: ConversationRunStatus;
 }) {
-  const errorDetail = status === "error" && error ? formatError(error) : null;
+  const errorDetail =
+    status === "error" && error ? formatErrorDetail(error) : null;
   const isIdleTimeout = status === "error" && isConversationIdleTimeout(error);
   const statusConfig = {
     idle: {
@@ -45,6 +47,12 @@ export function RunBadge({
       label: "done",
       tone: "success" as const,
       tooltip: "Run completed",
+    },
+    cancelled: {
+      icon: <Circle className="h-3.5 w-3.5" />,
+      label: "cancelled",
+      tone: "neutral" as const,
+      tooltip: "Run cancelled",
     },
     error: {
       icon: <AlertCircle className="h-3.5 w-3.5" />,
@@ -98,8 +106,4 @@ export function RunBadge({
       {statusConfig.label}
     </Badge>
   );
-}
-
-function formatError(error: Error) {
-  return error.name ? `${error.name}: ${error.message}` : error.message;
 }

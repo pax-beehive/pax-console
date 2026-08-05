@@ -8,21 +8,53 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import type { User } from "@/features/api/types";
+import type { AgentSession, Project, User } from "@/features/api/types";
 import { FleetOverview } from "./fleet-overview";
 
 const mocks = vi.hoisted(() => ({
+  completeUserAttachment: vi.fn(),
+  createProjectTarget: vi.fn(),
+  createUserAttachment: vi.fn(),
   listAgents: vi.fn(),
   listUserSessions: vi.fn(),
   routerPush: vi.fn(),
+  uploadUserAttachmentFile: vi.fn(),
   useApprovals: vi.fn(),
   useEnvelopes: vi.fn(),
   useNodes: vi.fn(),
+  useProject: vi.fn(),
+  useProjects: vi.fn(),
+  useProjectTargets: vi.fn(),
   useTeamInvites: vi.fn(),
 }));
+
+beforeAll(() => {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class ResizeObserver {
+      disconnect() {}
+      observe() {}
+      unobserve() {}
+    },
+  );
+});
+
+afterAll(() => {
+  vi.unstubAllGlobals();
+});
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mocks.routerPush }),
@@ -37,24 +69,48 @@ vi.mock("@/components/sessions/session-workbench", () => ({
   SessionWorkbench: ({
     agentId,
     embedded,
+    initialAttachments,
+    initialCwd,
+    initialPrimaryProjectId,
     initialPrompt,
+    initialProjectTargetId,
     nodeId,
+    onSessionAssigned,
     sessionId,
   }: {
     agentId?: string;
     embedded?: boolean;
+    initialAttachments?: Array<{ attachmentId: string }>;
+    initialCwd?: string;
+    initialPrimaryProjectId?: string;
     initialPrompt?: string;
+    initialProjectTargetId?: string;
     nodeId?: string;
+    onSessionAssigned?: (sessionId: string) => void;
     sessionId: string;
   }) => (
     <div
       data-agent-id={agentId}
       data-embedded={String(Boolean(embedded))}
+      data-initial-attachments={initialAttachments
+        ?.map((attachment) => attachment.attachmentId)
+        .join(",")}
+      data-initial-cwd={initialCwd}
+      data-primary-project-id={initialPrimaryProjectId}
       data-initial-prompt={initialPrompt}
+      data-project-target-id={initialProjectTargetId}
       data-node-id={nodeId}
       data-testid="session-workbench"
     >
       {sessionId}
+      {sessionId === "new" && (
+        <button
+          onClick={() => onSessionAssigned?.("sess_native")}
+          type="button"
+        >
+          Assign native session
+        </button>
+      )}
     </div>
   ),
 }));
@@ -64,18 +120,62 @@ vi.mock("@/features/api/resources", async (importOriginal) => {
     await importOriginal<typeof import("@/features/api/resources")>();
   return {
     ...actual,
+    completeUserAttachment: mocks.completeUserAttachment,
+    createProjectTarget: mocks.createProjectTarget,
+    createUserAttachment: mocks.createUserAttachment,
     listAgents: mocks.listAgents,
     listUserSessions: mocks.listUserSessions,
+    uploadUserAttachmentFile: mocks.uploadUserAttachmentFile,
     useApprovals: mocks.useApprovals,
     useEnvelopes: mocks.useEnvelopes,
     useNodes: mocks.useNodes,
+    useProject: mocks.useProject,
+    useProjects: mocks.useProjects,
+    useProjectTargets: mocks.useProjectTargets,
     useTeamInvites: mocks.useTeamInvites,
   };
 });
 
 beforeEach(() => {
   window.history.replaceState(null, "", "/");
+  mocks.completeUserAttachment.mockReset();
+  mocks.createProjectTarget.mockReset();
+  mocks.createUserAttachment.mockReset();
   mocks.routerPush.mockReset();
+  mocks.uploadUserAttachmentFile.mockReset();
+  mocks.createUserAttachment.mockResolvedValue({
+    attachment: {
+      attachment_id: "att_1",
+      content_type: "text/plain",
+      filename: "notes.txt",
+      size_bytes: 5,
+    },
+    upload: {
+      headers: {},
+      method: "POST",
+      url: "https://upload.example.test",
+    },
+  });
+  mocks.uploadUserAttachmentFile.mockResolvedValue(undefined);
+  mocks.completeUserAttachment.mockResolvedValue({
+    attachment: {
+      attachment_id: "att_1",
+      content_type: "text/plain",
+      filename: "notes.txt",
+      size_bytes: 5,
+    },
+  });
+  mocks.createProjectTarget.mockResolvedValue({
+    target: {
+      agent_id: "agent_1",
+      cwd: "~/worktrees/kev-8",
+      display_name: "kev-8",
+      enabled: true,
+      is_default: false,
+      project_id: "project_1",
+      target_id: "target_2",
+    },
+  });
   mocks.listAgents.mockResolvedValue({
     agents: [
       {
@@ -105,6 +205,53 @@ beforeEach(() => {
     error: null,
     isLoading: false,
   });
+  mocks.useProjects.mockReturnValue({
+    data: {
+      projects: [
+        {
+          created_at: "2026-07-20T12:00:00.000Z",
+          display_name: "Pax",
+          owner_user_id: "user_1",
+          project_id: "project_1",
+          updated_at: "2026-07-20T12:00:00.000Z",
+        },
+      ],
+    },
+    error: null,
+    isLoading: false,
+  });
+  mocks.useProject.mockReturnValue({
+    data: {
+      project: {
+        created_at: "2026-07-20T12:00:00.000Z",
+        display_name: "Pax",
+        owner_user_id: "user_1",
+        project_id: "project_1",
+        updated_at: "2026-07-20T12:00:00.000Z",
+      },
+    },
+    error: null,
+    isLoading: false,
+  });
+  mocks.useProjectTargets.mockReturnValue({
+    data: {
+      targets: [
+        {
+          agent_id: "agent_1",
+          created_at: "2026-07-20T12:00:00.000Z",
+          cwd: "~/pax",
+          display_name: "Local Pax",
+          enabled: true,
+          is_default: true,
+          project_id: "project_1",
+          target_id: "target_1",
+          updated_at: "2026-07-20T12:00:00.000Z",
+        },
+      ],
+    },
+    error: null,
+    isLoading: false,
+  });
   mocks.useApprovals.mockReturnValue(emptyQueryData("approvals"));
   mocks.useEnvelopes.mockReturnValue(emptyQueryData("envelopes"));
   mocks.useTeamInvites.mockReturnValue(emptyQueryData("invites"));
@@ -113,6 +260,199 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("FleetOverview session rail", () => {
+  it("shows projects and recent sessions in one unified rail", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <FleetOverview user={{ user_id: "user_1" } as User} />
+        </TooltipProvider>
+      </QueryClientProvider>,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Inbox" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Projects")).toBeVisible();
+    expect(screen.getByText("Recents")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Manage" })).toHaveAttribute(
+      "href",
+      "/settings/projects",
+    );
+    expect(screen.getByRole("button", { name: "Pax" })).toBeVisible();
+    expect(
+      await screen.findByRole("link", { name: /Session one/ }),
+    ).toBeVisible();
+  });
+
+  it("shows subprojects before sessions at every project nesting level", async () => {
+    const rootProject = projectFixture("project_root", "Root project");
+    const childProject = projectFixture(
+      "project_child",
+      "Child project",
+      rootProject.project_id,
+    );
+    const grandchildProject = projectFixture(
+      "project_grandchild",
+      "Grandchild project",
+      childProject.project_id,
+    );
+    setProjectContents(
+      [rootProject, childProject, grandchildProject],
+      [
+        sessionFixture("sess_root", "Root session", rootProject.project_id),
+        sessionFixture("sess_child", "Child session", childProject.project_id),
+      ],
+    );
+
+    renderOverview();
+
+    expect(
+      screen.getByRole("button", { name: "Child project" }),
+    ).toAppearBefore(await screen.findByRole("link", { name: /Root session/ }));
+    expect(
+      screen.getByRole("button", { name: "Grandchild project" }),
+    ).toAppearBefore(screen.getByRole("link", { name: /Child session/ }));
+  });
+
+  it("renders a project with sessions and no subprojects without extra contents", async () => {
+    const project = projectFixture("project_root", "Sessions only project");
+    setProjectContents(
+      [project],
+      [sessionFixture("sess_root", "Only session", project.project_id)],
+    );
+
+    renderOverview();
+
+    expect(
+      await screen.findByRole("link", { name: /Only session/ }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Child project" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders a project with subprojects and no sessions without extra contents", async () => {
+    const rootProject = projectFixture(
+      "project_root",
+      "Subprojects only project",
+    );
+    const childProject = projectFixture(
+      "project_child",
+      "Child project",
+      rootProject.project_id,
+    );
+    setProjectContents([rootProject, childProject], []);
+
+    renderOverview();
+
+    expect(screen.getByRole("button", { name: "Child project" })).toBeVisible();
+    expect(
+      screen.queryByRole("link", { name: /Only session/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders a project with no sessions or subprojects without a project placeholder", async () => {
+    const project = projectFixture("project_root", "Empty project");
+    setProjectContents([project], []);
+
+    renderOverview();
+
+    const projectRow = screen
+      .getByRole("button", { name: "Empty project" })
+      .closest("div");
+    const projectContents = projectRow?.parentElement;
+    expect(projectContents?.nextElementSibling).toHaveTextContent("Recents");
+  });
+
+  it("starts a project session through the normal Home composer", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <FleetOverview user={{ user_id: "user_1" } as User} />
+        </TooltipProvider>
+      </QueryClientProvider>,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Pax" }));
+    expect(screen.getByRole("heading", { name: "Pax" })).toBeVisible();
+    await userEvent.type(screen.getByLabelText("Workspace"), "~/pax");
+    expect(screen.getByText("Using saved target Local Pax")).toBeVisible();
+    const composer = screen.getByPlaceholderText(
+      "Ask an agent to do something",
+    );
+    await userEvent.type(composer, "Work on KEV-8");
+    fireEvent.submit(composer.closest("form")!);
+
+    const workbench = await screen.findByTestId("session-workbench");
+    expect(workbench).toHaveTextContent("new");
+    expect(workbench).toHaveAttribute("data-node-id", "node_1");
+    expect(workbench).toHaveAttribute("data-agent-id", "agent_1");
+    expect(workbench).toHaveAttribute("data-primary-project-id", "project_1");
+    expect(workbench).toHaveAttribute("data-project-target-id", "target_1");
+    expect(workbench).toHaveAttribute("data-initial-cwd", "~/pax");
+    expect(window.location.search).toBe("");
+  });
+
+  it("creates a target for a new project workspace only after native session assignment", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <FleetOverview user={{ user_id: "user_1" } as User} />
+        </TooltipProvider>
+      </QueryClientProvider>,
+    );
+
+    await userEvent.selectOptions(
+      await screen.findByRole("combobox", { name: "Project" }),
+      "project_1",
+    );
+    await userEvent.type(
+      screen.getByLabelText("Workspace"),
+      "~/worktrees/kev-8",
+    );
+    expect(
+      screen.getByText("New workspace · will be saved to Pax"),
+    ).toBeVisible();
+    const composer = screen.getByPlaceholderText(
+      "Ask an agent to do something",
+    );
+    const submit = composer
+      .closest("form")!
+      .querySelector<HTMLButtonElement>('button[type="submit"]')!;
+    expect(submit).toBeEnabled();
+    await userEvent.type(composer, "Work on KEV-8");
+    await userEvent.click(submit);
+
+    const workbench = await screen.findByTestId("session-workbench");
+    expect(workbench).not.toHaveAttribute("data-project-target-id");
+    expect(workbench).toHaveAttribute("data-initial-cwd", "~/worktrees/kev-8");
+    expect(mocks.createProjectTarget).not.toHaveBeenCalled();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Assign native session" }),
+    );
+    await waitFor(() =>
+      expect(mocks.createProjectTarget).toHaveBeenCalledWith(
+        "user_1",
+        "project_1",
+        {
+          agent_id: "agent_1",
+          cwd: "~/worktrees/kev-8",
+        },
+      ),
+    );
+  });
+
   it("keeps Home mounted and opens a selected session in the embedded workbench", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
@@ -126,17 +466,108 @@ describe("FleetOverview session rail", () => {
       </QueryClientProvider>,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: /Session one/ }));
+    fireEvent.click(await screen.findByRole("link", { name: /Session one/ }));
 
     const workbench = await screen.findByTestId("session-workbench");
     expect(workbench).toHaveTextContent("sess_1");
     expect(workbench).toHaveAttribute("data-embedded", "true");
     expect(workbench).toHaveAttribute("data-node-id", "node_1");
     expect(workbench).toHaveAttribute("data-agent-id", "agent_1");
-    expect(screen.getAllByText("Sessions").length).toBeGreaterThan(0);
+    expect(screen.getByText("Recents")).toBeVisible();
     expect(window.location.pathname).toBe("/");
-    expect(window.location.search).toBe("?sessionId=sess_1");
+    expect(window.location.search).toBe("?session_id=sess_1");
     await waitFor(() => expect(mocks.routerPush).not.toHaveBeenCalled());
+  });
+
+  it("leaves command-click navigation to the Home session link", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <FleetOverview user={{ user_id: "user_1" } as User} />
+        </TooltipProvider>
+      </QueryClientProvider>,
+    );
+
+    const sessionLink = await screen.findByRole("link", {
+      name: /Session one/,
+    });
+
+    expect(sessionLink).toHaveAttribute("href", "/?session_id=sess_1");
+    let componentPreventedNavigation = true;
+    const preventJsdomNavigation = (event: MouseEvent) => {
+      componentPreventedNavigation = event.defaultPrevented;
+      event.preventDefault();
+    };
+    document.addEventListener("click", preventJsdomNavigation);
+    fireEvent.click(sessionLink, { metaKey: true });
+    document.removeEventListener("click", preventJsdomNavigation);
+
+    expect(componentPreventedNavigation).toBe(false);
+    expect(screen.queryByTestId("session-workbench")).not.toBeInTheDocument();
+    expect(window.location.pathname).toBe("/");
+    expect(window.location.search).toBe("");
+  });
+
+  it("keeps an ordinary new session click inside Home", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <FleetOverview user={{ user_id: "user_1" } as User} />
+        </TooltipProvider>
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(await screen.findByRole("link", { name: /Session one/ }));
+    expect(await screen.findByTestId("session-workbench")).toHaveTextContent(
+      "sess_1",
+    );
+
+    const newSessionLink = screen.getByRole("link", { name: "New session" });
+    expect(fireEvent.click(newSessionLink)).toBe(false);
+
+    expect(screen.queryByTestId("session-workbench")).not.toBeInTheDocument();
+    expect(window.location.pathname).toBe("/");
+    expect(window.location.search).toBe("");
+  });
+
+  it("leaves command-click navigation to the canonical new session link", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <FleetOverview user={{ user_id: "user_1" } as User} />
+        </TooltipProvider>
+      </QueryClientProvider>,
+    );
+
+    const newSessionLink = await screen.findByRole("link", {
+      name: "New session",
+    });
+
+    expect(newSessionLink).toHaveAttribute("href", "/sessions/new");
+    let componentPreventedNavigation = true;
+    const preventJsdomNavigation = (event: MouseEvent) => {
+      componentPreventedNavigation = event.defaultPrevented;
+      event.preventDefault();
+    };
+    document.addEventListener("click", preventJsdomNavigation);
+    fireEvent.click(newSessionLink, { metaKey: true });
+    document.removeEventListener("click", preventJsdomNavigation);
+
+    expect(componentPreventedNavigation).toBe(false);
+    expect(window.location.pathname).toBe("/");
+    expect(window.location.search).toBe("");
   });
 
   it("starts a new chat inside Home without navigating to the session route", async () => {
@@ -167,12 +598,133 @@ describe("FleetOverview session rail", () => {
       "data-initial-prompt",
       "Keep this chat on Home",
     );
-    expect(screen.getAllByText("Sessions").length).toBeGreaterThan(0);
+    expect(screen.getByText("Recents")).toBeVisible();
     expect(window.location.pathname).toBe("/");
     expect(window.location.search).toBe("");
     expect(mocks.routerPush).not.toHaveBeenCalled();
   });
+
+  it("uploads files from the Home composer and forwards them to the new session", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    const { container } = render(
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <FleetOverview user={{ user_id: "user_1" } as User} />
+        </TooltipProvider>
+      </QueryClientProvider>,
+    );
+
+    const addButton = await screen.findByRole("button", {
+      name: "Add files or context",
+    });
+    expect(
+      screen.queryByRole("menuitem", { name: "Attach files" }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(addButton);
+    expect(
+      screen.getByRole("menuitem", { name: "Attach files" }),
+    ).toBeInTheDocument();
+    const fileInput = container.querySelector<HTMLInputElement>(
+      'input[type="file"][multiple]',
+    );
+    expect(fileInput).not.toBeNull();
+    const file = new File(["notes"], "notes.txt", { type: "text/plain" });
+    fireEvent.change(fileInput!, { target: { files: [file] } });
+
+    expect(await screen.findByText("notes.txt")).toBeInTheDocument();
+    expect(mocks.createUserAttachment).toHaveBeenCalledWith("user_1", {
+      content_type: "text/plain",
+      filename: "notes.txt",
+      sha256: "",
+      size_bytes: 5,
+    });
+    expect(mocks.uploadUserAttachmentFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attachment: expect.objectContaining({ attachment_id: "att_1" }),
+      }),
+      file,
+    );
+
+    const composer = screen.getByPlaceholderText(
+      "Ask an agent to do something",
+    );
+    fireEvent.change(composer, {
+      target: { value: "Read the attachment" },
+    });
+    fireEvent.submit(composer.closest("form")!);
+
+    const workbench = await screen.findByTestId("session-workbench");
+    expect(workbench).toHaveAttribute("data-initial-attachments", "att_1");
+    expect(workbench).toHaveAttribute(
+      "data-initial-prompt",
+      "Read the attachment",
+    );
+  });
 });
+
+function projectFixture(
+  projectId: string,
+  displayName: string,
+  parentProjectId?: string,
+): Project {
+  return {
+    created_at: "2026-07-20T12:00:00.000Z",
+    display_name: displayName,
+    owner_user_id: "user_1",
+    parent_project_id: parentProjectId,
+    project_id: projectId,
+    updated_at: "2026-07-20T12:00:00.000Z",
+  };
+}
+
+function sessionFixture(
+  sessionId: string,
+  name: string,
+  primaryProjectId: string,
+): AgentSession {
+  return {
+    agent_id: "agent_1",
+    name,
+    node_id: "node_1",
+    primary_project_id: primaryProjectId,
+    session_id: sessionId,
+    updated_at: "2026-07-20T12:00:00.000Z",
+  };
+}
+
+function setProjectContents(projects: Project[], sessions: AgentSession[]) {
+  mocks.useProjects.mockReturnValue({
+    data: { projects },
+    error: null,
+    isLoading: false,
+  });
+  mocks.listUserSessions.mockResolvedValue({
+    pagination: {
+      page_num: 1,
+      page_size: 20,
+      total: sessions.length,
+      total_pages: sessions.length > 0 ? 1 : 0,
+    },
+    sessions,
+  });
+}
+
+function renderOverview() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <FleetOverview user={{ user_id: "user_1" } as User} />
+      </TooltipProvider>
+    </QueryClientProvider>,
+  );
+}
 
 function emptyQueryData(key: string) {
   return {

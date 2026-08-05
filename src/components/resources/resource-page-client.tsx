@@ -6,8 +6,10 @@ import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
   Bot,
+  Check,
   ChevronLeft,
   ChevronRight,
+  Copy,
   KeyRound,
   Plus,
   Radio,
@@ -17,6 +19,7 @@ import {
   TerminalSquare,
   Trash2,
 } from "lucide-react";
+import { PaxdGettingStartedGuide } from "@/components/connect/paxd-getting-started";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -425,85 +428,88 @@ function NodeGrid({
   return (
     <div className="grid gap-3">
       {deleteError && <ApiNotice error={deleteError} />}
-      <div className="grid min-w-0 overflow-hidden rounded-lg border border-hairline">
-        {nodes.map((node) => (
-          <article
-            className="grid min-w-0 gap-3 border-b border-hairline bg-surface-1 px-3 py-2.5 transition last:border-b-0 hover:bg-surface-2 sm:grid-cols-[minmax(0,1fr)_180px_120px_40px]"
-            key={node.node_id}
-          >
-            <Link className="contents" href={`/nodes/${node.node_id}`}>
-              <div className="min-w-0">
-                <TruncatedText className="text-sm font-medium">
-                  {node.name ?? node.hostname ?? node.node_id}
-                </TruncatedText>
-                {node.description && (
-                  <TruncatedText className="mt-1 text-xs text-ink-muted">
-                    {node.description}
+      {nodes.length > 0 ? (
+        <div className="grid min-w-0 overflow-hidden rounded-lg border border-hairline">
+          {nodes.map((node) => (
+            <article
+              className="grid min-w-0 gap-3 border-b border-hairline bg-surface-1 px-3 py-2.5 transition last:border-b-0 hover:bg-surface-2 sm:grid-cols-[minmax(0,1fr)_180px_120px_40px]"
+              key={node.node_id}
+            >
+              <Link className="contents" href={`/nodes/${node.node_id}`}>
+                <div className="min-w-0">
+                  <TruncatedText className="text-sm font-medium">
+                    {node.name ?? node.hostname ?? node.node_id}
                   </TruncatedText>
-                )}
-              </div>
-              <div className="grid min-w-0 gap-1">
-                <MonoId>
-                  {node.os ?? "unknown os"} / {node.arch ?? "unknown arch"}
-                </MonoId>
-                <MonoId tooltip={node.node_id}>
-                  {compactId(node.node_id)}
-                </MonoId>
-              </div>
-              <div className="flex items-start sm:justify-end">
-                <Badge tone={node.online ? "success" : "neutral"}>
-                  {node.online ? "online" : "offline"}
-                </Badge>
-              </div>
-            </Link>
-            <div className="flex items-start justify-end">
-              <ConfirmDialog
-                confirmLabel={
-                  removeNode.isPending ? "Deleting..." : "Delete node"
-                }
-                description={
-                  <>
-                    This removes{" "}
-                    <span className="font-medium text-ink">
-                      {nodeToDelete?.name ??
-                        nodeToDelete?.hostname ??
-                        nodeToDelete?.node_id}
-                    </span>{" "}
-                    from the fleet view. Agents hosted on this node will be
-                    cleaned up at the same time.
-                  </>
-                }
-                disabled={removeNode.isPending}
-                onConfirm={() => {
-                  if (nodeToDelete) {
-                    removeNode.mutate(nodeToDelete);
+                  {node.description && (
+                    <TruncatedText className="mt-1 text-xs text-ink-muted">
+                      {node.description}
+                    </TruncatedText>
+                  )}
+                </div>
+                <div className="grid min-w-0 gap-1">
+                  <MonoId>
+                    {node.os ?? "unknown os"} / {node.arch ?? "unknown arch"}
+                  </MonoId>
+                  <MonoId tooltip={node.node_id}>
+                    {compactId(node.node_id)}
+                  </MonoId>
+                </div>
+                <div className="flex items-start sm:justify-end">
+                  <Badge tone={node.online ? "success" : "neutral"}>
+                    {node.online ? "online" : "offline"}
+                  </Badge>
+                </div>
+              </Link>
+              <div className="flex items-start justify-end">
+                <ConfirmDialog
+                  confirmLabel={
+                    removeNode.isPending ? "Deleting..." : "Delete node"
                   }
-                }}
-                onOpenChange={(open) => {
-                  if (!open) {
-                    setNodeToDelete(null);
+                  description={
+                    <>
+                      This removes{" "}
+                      <span className="font-medium text-ink">
+                        {nodeToDelete?.name ??
+                          nodeToDelete?.hostname ??
+                          nodeToDelete?.node_id}
+                      </span>{" "}
+                      from the fleet view. Agents hosted on this node will be
+                      cleaned up at the same time.
+                    </>
                   }
-                }}
-                open={nodeToDelete?.node_id === node.node_id}
-                title="Delete node?"
-              >
-                <Button
                   disabled={removeNode.isPending}
-                  icon={<Trash2 className="h-4 w-4" />}
-                  onClick={() => setNodeToDelete(node)}
-                  size="icon"
-                  tooltip="Delete node"
-                  type="button"
-                  variant="danger"
-                />
-              </ConfirmDialog>
-            </div>
-          </article>
-        ))}
-        {nodes.length === 0 && (
-          <EmptyState label={totalCount > 0 ? "No active nodes" : "No nodes"} />
-        )}
-      </div>
+                  onConfirm={() => {
+                    if (nodeToDelete) {
+                      removeNode.mutate(nodeToDelete);
+                    }
+                  }}
+                  onOpenChange={(open) => {
+                    if (!open) {
+                      setNodeToDelete(null);
+                    }
+                  }}
+                  open={nodeToDelete?.node_id === node.node_id}
+                  title="Delete node?"
+                >
+                  <Button
+                    disabled={removeNode.isPending}
+                    icon={<Trash2 className="h-4 w-4" />}
+                    onClick={() => setNodeToDelete(node)}
+                    size="icon"
+                    tooltip="Delete node"
+                    type="button"
+                    variant="danger"
+                  />
+                </ConfirmDialog>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : totalCount > 0 ? (
+        <EmptyState label="No active nodes" />
+      ) : (
+        <PaxdGettingStartedGuide kind="node" />
+      )}
     </div>
   );
 }
@@ -547,100 +553,101 @@ function AgentGrid({
         <span className="shrink-0">Scope:&nbsp;</span>
         <TruncatedText>{nodeLabel ?? "No node selected"}</TruncatedText>
       </div>
-      <div className="grid min-w-0 overflow-hidden rounded-lg border border-hairline">
-        {agents.map((agent) => (
-          <article
-            className="grid min-w-0 gap-3 border-b border-hairline bg-surface-1 px-3 py-2.5 transition last:border-b-0 hover:bg-surface-2 sm:grid-cols-[minmax(0,1fr)_220px_120px_40px]"
-            key={agent.agent_id}
-          >
-            <Link
-              className="contents"
-              href={
-                agent.node_id
-                  ? `/agents/${agent.agent_id}?nodeId=${agent.node_id}`
-                  : `/agents/${agent.agent_id}`
-              }
+      {agents.length > 0 ? (
+        <div className="grid min-w-0 overflow-hidden rounded-lg border border-hairline">
+          {agents.map((agent) => (
+            <article
+              className="grid min-w-0 gap-3 border-b border-hairline bg-surface-1 px-3 py-2.5 transition last:border-b-0 hover:bg-surface-2 sm:grid-cols-[minmax(0,1fr)_220px_120px_40px]"
+              key={agent.agent_id}
             >
-              <div className="min-w-0">
-                <TruncatedText className="text-sm font-medium">
-                  {agent.name ?? agent.agent_type ?? agent.agent_id}
-                </TruncatedText>
-                <TruncatedText className="mt-1 text-xs text-ink-muted">
-                  {agent.description ?? agentCardSummary(agent)}
-                </TruncatedText>
-              </div>
-              <div className="grid min-w-0 content-start gap-1">
-                <TruncatedText
-                  className="text-xs text-ink-muted"
-                  tooltip={agent.nodeLabel}
-                >
-                  Node: {agent.nodeLabel}
-                </TruncatedText>
-                <div className="flex min-w-0 flex-wrap gap-x-2 gap-y-1">
-                  <MonoId tooltip={agent.node_id ?? "No runtime node"}>
-                    node {compactId(agent.node_id, 10, 6, "unassigned")}
-                  </MonoId>
-                  <MonoId tooltip={agent.agent_id}>
-                    agent {compactId(agent.agent_id)}
-                  </MonoId>
-                </div>
-              </div>
-              <div className="flex items-start sm:justify-end">
-                <Badge tone={agent.online ? "success" : "neutral"}>
-                  {agent.online ? "online" : (agent.status ?? "unknown")}
-                </Badge>
-              </div>
-            </Link>
-            <div className="flex items-start justify-end">
-              <ConfirmDialog
-                confirmLabel={
-                  removeAgent.isPending ? "Deleting..." : "Delete agent"
+              <Link
+                className="contents"
+                href={
+                  agent.node_id
+                    ? `/agents/${agent.agent_id}?nodeId=${agent.node_id}`
+                    : `/agents/${agent.agent_id}`
                 }
-                description={
-                  <>
-                    This removes{" "}
-                    <span className="font-medium text-ink">
-                      {agentToDelete?.name ??
-                        agentToDelete?.agent_type ??
-                        agentToDelete?.agent_id}
-                    </span>{" "}
-                    from the agents list. Other agents on the same node are not
-                    affected.
-                  </>
-                }
-                disabled={removeAgent.isPending}
-                onConfirm={() => {
-                  if (agentToDelete) {
-                    removeAgent.mutate(agentToDelete);
-                  }
-                }}
-                onOpenChange={(open) => {
-                  if (!open) {
-                    setAgentToDelete(null);
-                  }
-                }}
-                open={agentToDelete?.agent_id === agent.agent_id}
-                title="Delete agent?"
               >
-                <Button
+                <div className="min-w-0">
+                  <TruncatedText className="text-sm font-medium">
+                    {agent.name ?? agent.agent_type ?? agent.agent_id}
+                  </TruncatedText>
+                  <TruncatedText className="mt-1 text-xs text-ink-muted">
+                    {agent.description ?? agentCardSummary(agent)}
+                  </TruncatedText>
+                </div>
+                <div className="grid min-w-0 content-start gap-1">
+                  <TruncatedText
+                    className="text-xs text-ink-muted"
+                    tooltip={agent.nodeLabel}
+                  >
+                    Node: {agent.nodeLabel}
+                  </TruncatedText>
+                  <div className="flex min-w-0 flex-wrap gap-x-2 gap-y-1">
+                    <MonoId tooltip={agent.node_id ?? "No runtime node"}>
+                      node {compactId(agent.node_id, 10, 6, "unassigned")}
+                    </MonoId>
+                    <MonoId tooltip={agent.agent_id}>
+                      agent {compactId(agent.agent_id)}
+                    </MonoId>
+                  </div>
+                </div>
+                <div className="flex items-start sm:justify-end">
+                  <Badge tone={agent.online ? "success" : "neutral"}>
+                    {agent.online ? "online" : (agent.status ?? "unknown")}
+                  </Badge>
+                </div>
+              </Link>
+              <div className="flex items-start justify-end">
+                <ConfirmDialog
+                  confirmLabel={
+                    removeAgent.isPending ? "Deleting..." : "Delete agent"
+                  }
+                  description={
+                    <>
+                      This removes{" "}
+                      <span className="font-medium text-ink">
+                        {agentToDelete?.name ??
+                          agentToDelete?.agent_type ??
+                          agentToDelete?.agent_id}
+                      </span>{" "}
+                      from the agents list. Other agents on the same node are not
+                      affected.
+                    </>
+                  }
                   disabled={removeAgent.isPending}
-                  icon={<Trash2 className="h-4 w-4" />}
-                  onClick={() => setAgentToDelete(agent)}
-                  size="icon"
-                  tooltip="Delete agent"
-                  type="button"
-                  variant="danger"
-                />
-              </ConfirmDialog>
-            </div>
-          </article>
-        ))}
-        {agents.length === 0 && (
-          <EmptyState
-            label={totalCount > 0 ? "No active agents" : "No agents"}
-          />
-        )}
-      </div>
+                  onConfirm={() => {
+                    if (agentToDelete) {
+                      removeAgent.mutate(agentToDelete);
+                    }
+                  }}
+                  onOpenChange={(open) => {
+                    if (!open) {
+                      setAgentToDelete(null);
+                    }
+                  }}
+                  open={agentToDelete?.agent_id === agent.agent_id}
+                  title="Delete agent?"
+                >
+                  <Button
+                    disabled={removeAgent.isPending}
+                    icon={<Trash2 className="h-4 w-4" />}
+                    onClick={() => setAgentToDelete(agent)}
+                    size="icon"
+                    tooltip="Delete agent"
+                    type="button"
+                    variant="danger"
+                  />
+                </ConfirmDialog>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : totalCount > 0 ? (
+        <EmptyState label="No active agents" />
+      ) : (
+        <PaxdGettingStartedGuide kind="agent" />
+      )}
     </div>
   );
 }
@@ -742,7 +749,7 @@ function SessionGrid({
               </MonoId>
             </div>
             <div className="flex items-start lg:justify-end">
-              <Badge>{session.run_status ?? session.status ?? "unknown"}</Badge>
+              <Badge>{session.runtime_status ?? "unknown"}</Badge>
             </div>
           </Link>
         ))}
@@ -792,14 +799,26 @@ function MonitorPanel({
 
 function NodeRegistrationPanel({ userId }: { userId: string }) {
   const [ttl, setTtl] = useState(3600);
+  const [copied, setCopied] = useState(false);
   const [createdToken, setCreatedToken] = useState<{
     expires_at?: string;
     token: string;
   } | null>(null);
   const createToken = useMutation({
     mutationFn: () => createNodeRegistrationToken(userId, ttl),
-    onSuccess: (data) => setCreatedToken(data),
+    onSuccess: (data) => {
+      setCopied(false);
+      setCreatedToken(data);
+    },
   });
+
+  const copyToken = async () => {
+    if (!createdToken?.token || !navigator.clipboard) {
+      return;
+    }
+    await navigator.clipboard.writeText(createdToken.token);
+    setCopied(true);
+  };
 
   return (
     <div className="grid gap-4">
@@ -834,10 +853,34 @@ function NodeRegistrationPanel({ userId }: { userId: string }) {
 
       {createdToken && (
         <section className="rounded-lg border border-warning bg-surface-1 p-3">
-          <div className="text-sm font-medium text-ink">
-            Copy this registration token now. It is one-time use.
+          <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-ink">
+                Copy this registration token now. It is one-time use.
+              </div>
+              <div className="mt-1 text-xs text-ink-tertiary">
+                The full token is shown below and wraps inside this panel.
+              </div>
+            </div>
+            <Button
+              disabled={!createdToken.token}
+              icon={
+                copied ? (
+                  <Check className="h-4 w-4" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )
+              }
+              onClick={() => void copyToken()}
+              size="sm"
+              tooltip={copied ? "Copied token" : "Copy token"}
+              type="button"
+              variant="ghost"
+            >
+              {copied ? "Copied" : "Copy"}
+            </Button>
           </div>
-          <div className="mt-3 max-h-40 overflow-auto break-all rounded-lg border border-hairline bg-canvas p-3 font-mono text-xs leading-6 text-ink-muted">
+          <div className="mt-3 min-w-0 max-w-full overflow-x-auto whitespace-pre-wrap break-all rounded-lg border border-hairline bg-canvas p-3 font-mono text-xs leading-6 text-ink-muted">
             {createdToken.token}
           </div>
           <div className="mt-3 font-mono text-xs text-ink-tertiary">

@@ -2,7 +2,7 @@
 
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { API_BASE_URL, apiFetch, userPath } from "./client";
-import { ApiError } from "./errors";
+import { ApiError, AuthError } from "./errors";
 import { queryKeys } from "./query-keys";
 import {
   ApiRecord,
@@ -15,8 +15,12 @@ import {
   ApprovedNodeRegistration,
   ApprovedPaxlDeviceLogin,
   ArtifactContentURL,
+  ArtifactPublicationContentState,
+  ArtifactPublicationState,
   ArtifactUploadTicket,
   CompleteArtifactUploadData,
+  CreateProjectInput,
+  CreateProjectTargetInput,
   CreatedNodeRegistrationToken,
   CreatedUserAPIKey,
   Envelope,
@@ -33,8 +37,12 @@ import {
   Pagination,
   PaxdConnectPreview,
   RepresentativeAgent,
+  Project,
+  ProjectTarget,
   SessionApprovalMode,
   SessionArtifact,
+  UserAttachment,
+  UserAttachmentUploadTicket,
   SessionKnowledgeInjection,
   Team,
   TeamAgent,
@@ -43,6 +51,8 @@ import {
   TeamMember,
   TeamSummary,
   TeamRole,
+  UpdateProjectInput,
+  UpdateProjectTargetInput,
   UserAPIKey,
   CreatedNodeDaemonAgentConnection,
 } from "./types";
@@ -65,6 +75,23 @@ type ListUserSessionsOptions = {
   nodeIds?: string[];
   pageNum?: number;
   pageSize?: number;
+  primaryProjectId?: string;
+};
+
+type ProjectListData = {
+  projects: Project[];
+};
+
+type ProjectData = {
+  project: Project;
+};
+
+type ProjectTargetListData = {
+  targets: ProjectTarget[];
+};
+
+type ProjectTargetData = {
+  target: ProjectTarget;
 };
 
 type UpdateAgentSessionInput = {
@@ -147,6 +174,15 @@ type SessionArtifactData = {
   artifact: SessionArtifact;
 };
 
+type UserAttachmentUploadData = {
+  attachment: UserAttachment;
+};
+
+type ArtifactPublicationContentQuery = {
+  disposition?: "inline" | "attachment";
+  redirect?: boolean;
+};
+
 type RepresentativeAgentListData = {
   representative_agents: RepresentativeAgent[];
 };
@@ -176,6 +212,14 @@ type StopSessionTurnData = {
   node_id?: string;
   session_id: string;
   status: string;
+};
+
+export type ResetSessionRuntimeData = {
+  command_id: string;
+  expected_turn_instance_id: string;
+  projection_revision: number;
+  reset_status: string;
+  status: "accepted_pending" | string;
 };
 
 type QueueSessionTurnInput = {
@@ -474,6 +518,9 @@ export function listUserSessions(
   if (options.pageNum) {
     params.set("page_num", String(options.pageNum));
   }
+  if (options.primaryProjectId?.trim()) {
+    params.set("primary_project_id", options.primaryProjectId.trim());
+  }
 
   const query = params.toString();
   return apiFetch<SessionListData>(
@@ -647,6 +694,23 @@ export function stopSessionTurn(
   );
 }
 
+export function resetSessionRuntime(
+  userId: string,
+  agentId: string,
+  sessionId: string,
+  expectedTurnInstanceId: string,
+) {
+  return apiFetch<ResetSessionRuntimeData>(
+    userPath(userId, `/agents/${agentId}/sessions/${sessionId}/runtime/reset`),
+    {
+      body: JSON.stringify({
+        expected_turn_instance_id: expectedTurnInstanceId,
+      }),
+      method: "POST",
+    },
+  );
+}
+
 export function queueSessionTurn(
   userId: string,
   agentId: string,
@@ -797,6 +861,164 @@ export function artifactContentDownloadHref(
     redirect: "1",
   });
   return `${API_BASE_URL}${userPath(userId, `/artifacts/${artifactId}/content/${ref}`)}?${params}`;
+}
+
+export function createUserAttachment(
+  userId: string,
+  input: {
+    content_type?: string;
+    conversation_id?: string;
+    filename: string;
+    sha256?: string;
+    size_bytes?: number;
+  },
+) {
+  return apiFetch<UserAttachmentUploadTicket>(
+    userPath(userId, "/attachments"),
+    {
+      body: JSON.stringify(input),
+      method: "POST",
+    },
+  );
+}
+
+export function completeUserAttachment(userId: string, attachmentId: string) {
+  return apiFetch<UserAttachmentUploadData>(
+    userPath(userId, `/attachments/${attachmentId}/complete`),
+    {
+      body: JSON.stringify({}),
+      method: "POST",
+    },
+  );
+}
+
+export async function uploadUserAttachmentFile(
+  ticket: UserAttachmentUploadTicket,
+  file: File,
+) {
+  const initHeaders = new Headers(ticket.upload.headers);
+  const initResponse = await fetch(ticket.upload.url, {
+    body: null,
+    credentials: "omit",
+    headers: initHeaders,
+    method: ticket.upload.method,
+  });
+
+  if (!initResponse.ok) {
+    throw new Error(
+      `Attachment upload initialization failed with ${initResponse.status}`,
+    );
+  }
+
+  const sessionUrl = initResponse.headers.get("Location");
+  if (!sessionUrl) {
+    throw new Error(
+      "Attachment upload initialization did not return a resumable session URL.",
+    );
+  }
+
+  const uploadHeaders = new Headers();
+  const contentType = ticket.attachment.content_type || file.type;
+  if (contentType) {
+    uploadHeaders.set("Content-Type", contentType);
+  }
+
+  const uploadResponse = await fetch(sessionUrl, {
+    body: file,
+    credentials: "omit",
+    headers: uploadHeaders,
+    method: "PUT",
+  });
+
+  if (!uploadResponse.ok) {
+    throw new Error(`Attachment upload failed with ${uploadResponse.status}`);
+  }
+}
+
+export function getArtifactPublication(userId: string, publicationId: string) {
+  return apiFetch<ArtifactPublicationState>(
+    userPath(userId, `/artifact-publications/${publicationId}`),
+  );
+}
+
+export async function getArtifactPublicationContent(
+  userId: string,
+  publicationId: string,
+  ref = "main",
+  query: ArtifactPublicationContentQuery = {},
+) {
+  const params = new URLSearchParams();
+  if (query.disposition) {
+    params.set("disposition", query.disposition);
+  }
+  if (query.redirect) {
+    params.set("redirect", "true");
+  }
+
+  const response = await fetch(
+    `${API_BASE_URL}${userPath(userId, `/artifact-publications/${publicationId}/content/${ref}`)}${params.size > 0 ? `?${params}` : ""}`,
+    {
+      credentials: "include",
+      redirect: "manual",
+    },
+  );
+
+  if (
+    response.status === 0 ||
+    response.status === 401 ||
+    response.status === 403 ||
+    (response.status >= 300 && response.status < 400) ||
+    response.type === "opaqueredirect"
+  ) {
+    throw new AuthError();
+  }
+
+  const contentType = response.headers.get("content-type");
+  if (!contentType?.includes("application/json")) {
+    throw new ApiError(
+      `Expected JSON response from PAX API, received ${contentType ?? "unknown content type"}`,
+      response.status,
+      null,
+    );
+  }
+
+  const body = (await response.json()) as {
+    code: number;
+    data: ArtifactPublicationContentState;
+    message?: string;
+  };
+
+  if (response.status === 202 || response.status === 409) {
+    return {
+      ...body.data,
+      retry_after_seconds: retryAfterSeconds(response),
+    } satisfies ArtifactPublicationContentState;
+  }
+
+  if (!response.ok || body.code >= 400) {
+    throw new ApiError(
+      body.message ?? "PAX API request failed",
+      response.status,
+      body,
+    );
+  }
+
+  return {
+    ...body.data,
+    retry_after_seconds: retryAfterSeconds(response),
+  } satisfies ArtifactPublicationContentState;
+}
+
+export function artifactPublicationContentDownloadHref(
+  userId: string,
+  publicationId: string,
+  ref = "main",
+) {
+  const params = new URLSearchParams({
+    disposition: "attachment",
+    redirect: "true",
+  });
+  return `${API_BASE_URL}${userPath(userId, `/artifact-publications/${publicationId}/content/${ref}`)}?${params}`;
 }
 
 export function listRepresentativeAgents(
@@ -1021,6 +1243,85 @@ export function createAgentSession(
         user_id: userId,
       }),
       method: "POST",
+    },
+  );
+}
+
+export function listProjects(userId: string, includeArchived = false) {
+  const query = includeArchived ? "?include_archived=true" : "";
+  return apiFetch<ProjectListData>(userPath(userId, `/projects${query}`));
+}
+
+export function getProject(userId: string, projectId: string) {
+  return apiFetch<ProjectData>(userPath(userId, `/projects/${projectId}`));
+}
+
+export function createProject(userId: string, input: CreateProjectInput) {
+  return apiFetch<ProjectData>(userPath(userId, "/projects"), {
+    body: JSON.stringify(input),
+    method: "POST",
+  });
+}
+
+export function updateProject(
+  userId: string,
+  projectId: string,
+  input: UpdateProjectInput,
+) {
+  return apiFetch<ProjectData>(userPath(userId, `/projects/${projectId}`), {
+    body: JSON.stringify(input),
+    method: "PATCH",
+  });
+}
+
+export function archiveProject(userId: string, projectId: string) {
+  return apiFetch<ProjectData>(
+    userPath(userId, `/projects/${projectId}/archive`),
+    { method: "POST" },
+  );
+}
+
+export function listProjectTargets(userId: string, projectId: string) {
+  return apiFetch<ProjectTargetListData>(
+    userPath(userId, `/projects/${projectId}/targets`),
+  );
+}
+
+export function getProjectTarget(
+  userId: string,
+  projectId: string,
+  targetId: string,
+) {
+  return apiFetch<ProjectTargetData>(
+    userPath(userId, `/projects/${projectId}/targets/${targetId}`),
+  );
+}
+
+export function createProjectTarget(
+  userId: string,
+  projectId: string,
+  input: CreateProjectTargetInput,
+) {
+  return apiFetch<ProjectTargetData>(
+    userPath(userId, `/projects/${projectId}/targets`),
+    {
+      body: JSON.stringify(input),
+      method: "POST",
+    },
+  );
+}
+
+export function updateProjectTarget(
+  userId: string,
+  projectId: string,
+  targetId: string,
+  input: UpdateProjectTargetInput,
+) {
+  return apiFetch<ProjectTargetData>(
+    userPath(userId, `/projects/${projectId}/targets/${targetId}`),
+    {
+      body: JSON.stringify(input),
+      method: "PATCH",
     },
   );
 }
@@ -1511,6 +1812,54 @@ export function useTeams(userId?: string) {
   });
 }
 
+export function useProjects(userId?: string, includeArchived = false) {
+  return useQuery({
+    queryKey: queryKeys.projects(userId ?? "pending", includeArchived),
+    queryFn: () => listProjects(userId as string, includeArchived),
+    enabled: Boolean(userId),
+  });
+}
+
+export function useProject(userId?: string, projectId?: string) {
+  return useQuery({
+    queryKey: queryKeys.project(userId ?? "pending", projectId ?? "pending"),
+    queryFn: () => getProject(userId as string, projectId as string),
+    enabled: Boolean(userId && projectId),
+  });
+}
+
+export function useProjectTargets(userId?: string, projectId?: string) {
+  return useQuery({
+    queryKey: queryKeys.projectTargets(
+      userId ?? "pending",
+      projectId ?? "pending",
+    ),
+    queryFn: () => listProjectTargets(userId as string, projectId as string),
+    enabled: Boolean(userId && projectId),
+  });
+}
+
+export function useProjectTarget(
+  userId?: string,
+  projectId?: string,
+  targetId?: string,
+) {
+  return useQuery({
+    queryKey: queryKeys.projectTarget(
+      userId ?? "pending",
+      projectId ?? "pending",
+      targetId ?? "pending",
+    ),
+    queryFn: () =>
+      getProjectTarget(
+        userId as string,
+        projectId as string,
+        targetId as string,
+      ),
+    enabled: Boolean(userId && projectId && targetId),
+  });
+}
+
 export function useTeam(userId?: string, teamId?: string) {
   return useQuery({
     queryKey: queryKeys.team(userId ?? "pending", teamId ?? "pending"),
@@ -1655,6 +2004,7 @@ export function useAgentSessions(
     queryFn: () =>
       listAgentSessions(userId as string, nodeId as string, agentId as string),
     enabled: Boolean(userId && nodeId && agentId),
+    refetchInterval: 30_000,
   });
 }
 
@@ -1666,6 +2016,7 @@ export function useUserSession(userId?: string, sessionId?: string) {
     ),
     queryFn: () => getUserSession(userId as string, sessionId as string),
     enabled: Boolean(userId && sessionId),
+    refetchInterval: 30_000,
   });
 }
 
@@ -1701,12 +2052,7 @@ export function useSessionHistory(userId?: string, sessionId?: string) {
       sessionId ?? "pending",
     ),
     queryFn: ({ pageParam }) =>
-      listSessionHistory(
-        userId as string,
-        sessionId as string,
-        500,
-        pageParam,
-      ),
+      listSessionHistory(userId as string, sessionId as string, 500, pageParam),
     enabled: Boolean(userId && sessionId),
     getNextPageParam: (lastPage) => {
       const nextBeforeId = lastPage.pagination?.next_before_id;
@@ -1727,6 +2073,35 @@ export function useSessionArtifacts(userId?: string, sessionId?: string) {
     ),
     queryFn: () => listSessionArtifacts(userId as string, sessionId as string),
     enabled: Boolean(userId && sessionId),
+    refetchOnWindowFocus: true,
+  });
+}
+
+export function useArtifact(userId?: string, artifactId?: string) {
+  return useQuery({
+    queryKey: queryKeys.artifact(userId ?? "pending", artifactId ?? "pending"),
+    queryFn: () => getArtifact(userId as string, artifactId as string),
+    enabled: Boolean(userId && artifactId),
+    refetchOnWindowFocus: true,
+  });
+}
+
+export function useArtifactPublication(
+  userId?: string,
+  publicationId?: string,
+) {
+  return useQuery({
+    queryKey: queryKeys.artifactPublication(
+      userId ?? "pending",
+      publicationId ?? "pending",
+    ),
+    queryFn: () =>
+      getArtifactPublication(userId as string, publicationId as string),
+    enabled: Boolean(userId && publicationId),
+    refetchInterval: (query) => {
+      const status = query.state.data?.publication.status;
+      return status === "queued" || status === "uploading" ? 2_000 : false;
+    },
     refetchOnWindowFocus: true,
   });
 }
@@ -1754,6 +2129,12 @@ function compactSearchParams(values: Record<string, string | undefined>) {
   });
 
   return params.toString();
+}
+
+function retryAfterSeconds(response: Response) {
+  const retryAfter = response.headers.get("retry-after");
+  const parsed = retryAfter ? Number(retryAfter) : Number.NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 function createIdempotencyKey() {

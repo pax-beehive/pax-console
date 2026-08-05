@@ -19,12 +19,15 @@ import {
   useBufferedSessionEvents,
 } from "./use-buffered-session-events";
 import type { ApprovalOption, SessionApprovalMode } from "../api/types";
+import { ApiError } from "../api/errors";
+import { isConversationObserverRecoverableError } from "./session-display-status";
 
 export type ConversationRunStatus =
   | "idle"
   | "streaming"
   | "waiting_approval"
   | "done"
+  | "cancelled"
   | "error";
 
 type UseConversationRunOptions = {
@@ -37,7 +40,10 @@ type UseConversationRunOptions = {
 
 type SendMessageOptions = {
   approvalMode?: SessionApprovalMode;
+  attachmentIds?: string[];
   cwd?: string;
+  primaryProjectId?: string;
+  projectTargetId?: string;
 };
 
 export function useConversationRun({
@@ -49,8 +55,12 @@ export function useConversationRun({
 }: UseConversationRunOptions) {
   const abortRef = useRef<AbortController | null>(null);
   const sessionIdRef = useRef(sessionId);
+  const activeTurnIdRef = useRef<string | undefined>(undefined);
+  const completedTurnKeysRef = useRef(new Set<string>());
   const [status, setStatus] = useState<ConversationRunStatus>("idle");
   const [error, setError] = useState<Error | null>(null);
+  const [transportInterrupted, setTransportInterrupted] = useState(false);
+  const [completedTurnVersion, setCompletedTurnVersion] = useState(0);
   const {
     append: appendEvents,
     events,
@@ -68,6 +78,14 @@ export function useConversationRun({
     sessionIdRef.current = sessionId;
   }, [sessionId]);
 
+  const markTurnCompleted = useCallback((turnKey: string) => {
+    if (completedTurnKeysRef.current.has(turnKey)) {
+      return;
+    }
+    completedTurnKeysRef.current.add(turnKey);
+    setCompletedTurnVersion((current) => current + 1);
+  }, []);
+
   const sendMessage = useCallback(
     async (input: string, options?: SendMessageOptions) => {
       if (!agentId || !nodeId) {
@@ -75,7 +93,10 @@ export function useConversationRun({
       }
 
       const content = input.trim();
-      if (!content) {
+      const attachmentIds = [...new Set(options?.attachmentIds ?? [])].filter(
+        Boolean,
+      );
+      if (!content && attachmentIds.length === 0) {
         throw new Error("Prompt cannot be empty");
       }
 
@@ -84,19 +105,26 @@ export function useConversationRun({
       abortRef.current = abortController;
       const promptSessionId = sessionIdRef.current;
       const optimisticSessionId = promptSessionId ?? "pending-session";
-      const streamId = `${optimisticSessionId}:turn:${Date.now()}`;
+      const startedAt = Date.now();
+      const optimisticTurnId = `pending-turn:${startedAt}`;
+      const streamId = `${optimisticSessionId}:turn:${startedAt}`;
+      activeTurnIdRef.current = optimisticTurnId;
 
       setError(null);
+      setTransportInterrupted(false);
       setStatus("streaming");
-      appendEvents([
-        {
-          type: "user_message",
-          id: `${optimisticSessionId}:user:${Date.now()}`,
-          sessionId: optimisticSessionId,
-          content,
-          createdAt: new Date().toISOString(),
-        },
-      ]);
+      if (content) {
+        appendEvents([
+          {
+            type: "user_message",
+            id: `${optimisticSessionId}:user:${Date.now()}`,
+            sessionId: optimisticSessionId,
+            turnId: optimisticTurnId,
+            content,
+            createdAt: new Date().toISOString(),
+          },
+        ]);
+      }
       flushEvents();
 
       try {
@@ -104,7 +132,19 @@ export function useConversationRun({
           agentId,
           approvalMode: promptSessionId ? undefined : options?.approvalMode,
           cwd: promptSessionId ? undefined : options?.cwd,
-          input: content,
+          ...(attachmentIds.length > 0
+            ? {
+                content: [
+                  ...(content
+                    ? ([{ type: "text", text: content }] as const)
+                    : []),
+                  ...attachmentIds.map((attachmentId) => ({
+                    type: "attachment" as const,
+                    attachment_id: attachmentId,
+                  })),
+                ],
+              }
+            : { input: content }),
           nodeId,
           onEnvelope: (envelope) =>
             handleConversationEnvelope(envelope, {
@@ -114,10 +154,23 @@ export function useConversationRun({
               },
               setError,
               appendEvents,
+              fallbackTurnId: activeTurnIdRef.current,
+              onTurnStarted: (turnId) => {
+                activeTurnIdRef.current = turnId;
+              },
+              onTurnDone: (turnId) => {
+                markTurnCompleted(turnId ?? streamId);
+              },
               setStatus,
               streamId,
               updateEvents,
             }),
+          primaryProjectId: promptSessionId
+            ? undefined
+            : options?.primaryProjectId,
+          projectTargetId: promptSessionId
+            ? undefined
+            : options?.projectTargetId,
           sessionId: promptSessionId,
           signal: abortController.signal,
           userId,
@@ -137,6 +190,11 @@ export function useConversationRun({
 
         const nextError =
           caught instanceof Error ? caught : new Error(String(caught));
+        if (isConversationObserverRecoverableError(nextError)) {
+          setError(nextError);
+          setTransportInterrupted(true);
+          return { sessionId: sessionIdRef.current };
+        }
         setError(nextError);
         setStatus("error");
         throw nextError;
@@ -152,6 +210,7 @@ export function useConversationRun({
       flushEvents,
       nodeId,
       onSession,
+      markTurnCompleted,
       updateEvents,
       userId,
     ],
@@ -176,6 +235,7 @@ export function useConversationRun({
       const streamId = `${currentSessionId}:resume:${approvalId}:${Date.now()}`;
 
       setError(null);
+      setTransportInterrupted(false);
       setStatus("streaming");
 
       try {
@@ -190,6 +250,13 @@ export function useConversationRun({
               },
               setError,
               appendEvents,
+              fallbackTurnId: activeTurnIdRef.current,
+              onTurnStarted: (turnId) => {
+                activeTurnIdRef.current = turnId;
+              },
+              onTurnDone: (turnId) => {
+                markTurnCompleted(turnId ?? streamId);
+              },
               setStatus,
               streamId,
               updateEvents,
@@ -214,6 +281,11 @@ export function useConversationRun({
 
         const nextError =
           caught instanceof Error ? caught : new Error(String(caught));
+        if (isConversationObserverRecoverableError(nextError)) {
+          setError(nextError);
+          setTransportInterrupted(true);
+          return { sessionId: sessionIdRef.current };
+        }
         setError(nextError);
         setStatus("error");
         throw nextError;
@@ -229,17 +301,41 @@ export function useConversationRun({
       flushEvents,
       nodeId,
       onSession,
+      markTurnCompleted,
       updateEvents,
       userId,
     ],
   );
 
+  const markCancelled = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setError(null);
+    setTransportInterrupted(false);
+    setStatus("cancelled");
+  }, []);
+
+  const markObserverConnected = useCallback(() => {
+    setError(null);
+  }, []);
+
+  const finishObservedTurn = useCallback(() => {
+    setError(null);
+    setTransportInterrupted(false);
+    setStatus((current) => (current === "cancelled" ? current : "done"));
+  }, []);
+
   return {
     error,
     events,
+    completedTurnVersion,
+    finishObservedTurn,
+    markCancelled,
+    markObserverConnected,
     resumePermission,
     sendMessage,
     status: agentId && nodeId ? status : "idle",
+    transportInterrupted,
   };
 }
 
@@ -249,6 +345,9 @@ export function handleConversationEnvelope(
     onSession,
     setError,
     appendEvents,
+    fallbackTurnId,
+    onTurnStarted,
+    onTurnDone,
     setEvents,
     setStatus,
     streamId,
@@ -257,6 +356,9 @@ export function handleConversationEnvelope(
     onSession: (sessionId: string) => void;
     setError: Dispatch<SetStateAction<Error | null>>;
     appendEvents?: (events: SessionEvent[]) => void;
+    fallbackTurnId?: string;
+    onTurnStarted?: (turnId: string) => void;
+    onTurnDone?: (turnId?: string) => void;
     setEvents?: Dispatch<SetStateAction<SessionEvent[]>>;
     setStatus: Dispatch<SetStateAction<ConversationRunStatus>>;
     streamId: string;
@@ -273,29 +375,62 @@ export function handleConversationEnvelope(
     return;
   }
 
-  if (envelope.type === "acp") {
-    const events = normalizeTunnelFrame(
-      withEnvelopeSession(envelope.frame, envelope.session_id),
+  adoptConversationTurn(
+    { setEvents, updateEvents },
+    fallbackTurnId,
+    envelope.turn_id,
+    onTurnStarted,
+  );
+
+  if (envelope.type === "turn_started") {
+    appendConversationEvents({ appendEvents, setEvents }, [
       {
-        streamId,
+        type: "run_status",
+        id: `${envelope.session_id}:turn:${envelope.turn_id}:started`,
+        sessionId: envelope.session_id,
+        turnId: envelope.turn_id,
+        status: "running",
+        createdAt: new Date().toISOString(),
       },
+    ]);
+    setStatus("streaming");
+    return;
+  }
+
+  if (envelope.type === "acp") {
+    const events = withConversationTurn(
+      normalizeTunnelFrame(
+        withEnvelopeSession(envelope.frame, envelope.session_id),
+        {
+          streamId,
+        },
+      ),
+      envelope.turn_id ?? fallbackTurnId,
     );
     if (events.length > 0) {
       appendConversationEvents({ appendEvents, setEvents }, events);
+    }
+    if (events.some((event) => event.type === "turn_done")) {
+      setStatus((current) =>
+        current === "error" || current === "cancelled" ? current : "done",
+      );
     }
     return;
   }
 
   if (envelope.type === "approval_required") {
-    const events = normalizeTunnelFrame(
-      withEnvelopeSession(envelope.frame, envelope.session_id),
-      {
-        streamId,
-      },
-    ).map((event) =>
-      event.type === "permission_request"
-        ? withApproval(event, envelope)
-        : event,
+    const events = withConversationTurn(
+      normalizeTunnelFrame(
+        withEnvelopeSession(envelope.frame, envelope.session_id),
+        {
+          streamId,
+        },
+      ).map((event) =>
+        event.type === "permission_request"
+          ? withApproval(event, envelope)
+          : event,
+      ),
+      envelope.turn_id ?? fallbackTurnId,
     );
     if (events.length > 0) {
       appendConversationEvents({ appendEvents, setEvents }, events);
@@ -313,16 +448,32 @@ export function handleConversationEnvelope(
     throw new Error(`Conversation interrupted: ${envelope.reason}`);
   }
 
-  if (envelope.type === "done") {
+  if (envelope.type === "turn_done") {
+    const turnId = envelope.turn_id;
     appendConversationEvents({ appendEvents, setEvents }, [
       {
         type: "turn_done",
-        id: `${envelope.session_id}:done`,
+        id: turnId
+          ? `${envelope.session_id}:turn:${turnId}:done`
+          : `${envelope.session_id}:done`,
         sessionId: envelope.session_id,
+        ...(turnId ? { turnId } : {}),
         createdAt: new Date().toISOString(),
       },
     ]);
+    onTurnDone?.(turnId);
     setStatus((current) => (current === "error" ? current : "done"));
+    return;
+  }
+
+  if (envelope.type === "done") {
+    setStatus((current) =>
+      current === "error" ||
+      current === "cancelled" ||
+      current === "waiting_approval"
+        ? current
+        : "done",
+    );
     return;
   }
 
@@ -330,14 +481,22 @@ export function handleConversationEnvelope(
     if (envelope.session_id) {
       onSession(envelope.session_id);
     }
-    const nextError = new Error(envelope.message);
-    nextError.name = "ConversationRunError";
+    const nextError =
+      typeof envelope.status_code === "number"
+        ? new ApiError(envelope.message, envelope.status_code, envelope)
+        : new Error(envelope.message);
+    if (!(nextError instanceof ApiError)) {
+      nextError.name = "ConversationRunError";
+    }
     setError(nextError);
     appendConversationEvents({ appendEvents, setEvents }, [
       {
         type: "run_status",
         id: `${envelope.session_id ?? "unknown-session"}:error:${Date.now()}`,
         sessionId: envelope.session_id ?? "unknown-session",
+        ...((envelope.turn_id ?? fallbackTurnId)
+          ? { turnId: envelope.turn_id ?? fallbackTurnId }
+          : {}),
         status: "error",
         createdAt: new Date().toISOString(),
       },
@@ -347,6 +506,36 @@ export function handleConversationEnvelope(
   }
 
   throw new Error("Unknown conversation stream event");
+}
+
+function withConversationTurn(events: SessionEvent[], turnId?: string) {
+  return turnId
+    ? events.map((event) => ({ ...event, turnId }) as SessionEvent)
+    : events;
+}
+
+function adoptConversationTurn(
+  target: {
+    setEvents?: Dispatch<SetStateAction<SessionEvent[]>>;
+    updateEvents?: (update: (events: SessionEvent[]) => SessionEvent[]) => void;
+  },
+  previousTurnId: string | undefined,
+  turnId: string | undefined,
+  onTurnStarted: ((turnId: string) => void) | undefined,
+) {
+  if (!turnId || turnId === previousTurnId) {
+    return;
+  }
+  if (previousTurnId?.startsWith("pending-turn:")) {
+    updateConversationEvents(target, (current) =>
+      current.map((event) =>
+        event.turnId === previousTurnId
+          ? ({ ...event, turnId } as SessionEvent)
+          : event,
+      ),
+    );
+  }
+  onTurnStarted?.(turnId);
 }
 
 function appendConversationEvents(

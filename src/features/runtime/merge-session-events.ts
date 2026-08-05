@@ -1,9 +1,6 @@
 import { SessionEvent } from "./session-events";
 import { CodePatch, coalesceCodePatches } from "./tool-patches";
-import {
-  mergeToolCallOutput,
-  textFromToolPayload,
-} from "./tool-call-output";
+import { mergeToolCallOutput, textFromToolPayload } from "./tool-call-output";
 
 export function mergeEvents(events: SessionEvent[]) {
   // REST history and tunnel notifications can overlap. Keep replacement-style
@@ -305,10 +302,7 @@ function settleImplicitAutoApprovals(
     Extract<SessionEvent, { type: "tool_call" }>["permissions"]
   >,
 ) {
-  if (
-    tool.sessionUpdate !== "tool_call_update" ||
-    tool.status === "error"
-  ) {
+  if (tool.sessionUpdate !== "tool_call_update" || tool.status === "error") {
     return permissions;
   }
 
@@ -331,6 +325,10 @@ function shouldAttachPermissionToTool(
   tool: Extract<SessionEvent, { type: "tool_call" }>,
   permission: Extract<SessionEvent, { type: "permission_request" }>,
 ) {
+  if (tool.turnId && permission.turnId && tool.turnId !== permission.turnId) {
+    return false;
+  }
+
   if (!tool.toolCallId || !permission.toolCallId) {
     return true;
   }
@@ -364,21 +362,16 @@ function mergePermissionLists(
     Extract<SessionEvent, { type: "permission_request" }>
   >();
   for (const permission of [...(existing ?? []), ...(incoming ?? [])]) {
+    const key = `${turnScope(permission)}:${permission.sessionId}:${permission.requestId}`;
+    const previous = byKey.get(key);
     byKey.set(
-      `${permission.sessionId}:${permission.requestId}`,
-      byKey.get(`${permission.sessionId}:${permission.requestId}`)
+      key,
+      previous
         ? {
-            ...byKey.get(`${permission.sessionId}:${permission.requestId}`)!,
+            ...previous,
             ...permission,
-            decision:
-              permission.decision ??
-              byKey.get(`${permission.sessionId}:${permission.requestId}`)!
-                .decision,
-            patches: mergeCodePatches(
-              byKey.get(`${permission.sessionId}:${permission.requestId}`)!
-                .patches,
-              permission.patches,
-            ),
+            decision: permission.decision ?? previous.decision,
+            patches: mergeCodePatches(previous.patches, permission.patches),
           }
         : permission,
     );
@@ -415,22 +408,26 @@ function lastVisibleEvent(events: SessionEvent[]) {
 
 function eventMergeKey(event: SessionEvent) {
   if (event.type === "tool_call" && event.toolCallId) {
-    return `tool:${event.toolCallId}`;
+    return `${turnScope(event)}:tool:${event.toolCallId}`;
   }
 
   if (event.type === "permission_request") {
-    return `permission:${event.sessionId}:${event.requestId}`;
+    return `${turnScope(event)}:permission:${event.sessionId}:${event.requestId}`;
   }
 
   if (event.type === "permission_decision") {
-    return `permission:${event.sessionId}:${event.requestId}`;
+    return `${turnScope(event)}:permission:${event.sessionId}:${event.requestId}`;
   }
 
   return event.id;
 }
 
 function chunkMergeKey(event: TextChunkEvent) {
-  return `${event.sessionUpdate ?? event.type}:${streamingEventBaseId(event.id)}`;
+  return `${turnScope(event)}:${event.sessionUpdate ?? event.type}:${streamingEventBaseId(event.id)}`;
+}
+
+function turnScope(event: SessionEvent) {
+  return event.turnId ? `turn:${event.turnId}` : "turn:legacy";
 }
 
 function streamingEventBaseId(id: string) {

@@ -15,11 +15,21 @@ import {
   ThumbsUp,
   X,
 } from "lucide-react";
+import {
+  artifactDocumentFromPublication,
+  artifactPreviewPageHref,
+} from "@/components/artifacts/artifact-document";
+import { ArtifactViewerShell } from "@/components/artifacts/artifact-viewer-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MarkdownMessage } from "@/components/ui/markdown-message";
 import { PaxLogo } from "@/components/ui/pax-logo";
 import { MonoId, TruncatedText } from "@/components/ui/text";
+import {
+  artifactPublicationContentDownloadHref,
+  getArtifactPublicationContent,
+  useArtifactPublication,
+} from "@/features/api/resources";
 import { AgentOwnerInfo } from "@/features/api/types";
 import {
   PermissionDecision,
@@ -75,6 +85,7 @@ type WorkstreamItemCardProps = {
   item: WorkstreamItem;
   onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
   permissionDecision: PermissionDecisionState;
+  userId?: string;
 };
 
 const permissionDecisionOptions: {
@@ -106,6 +117,7 @@ export const WorkstreamItemCard = memo(function WorkstreamItemCard({
   item,
   onSelectToolEvidence,
   permissionDecision,
+  userId,
 }: WorkstreamItemCardProps) {
   if (item.type === "work_group") {
     return (
@@ -133,6 +145,7 @@ export const WorkstreamItemCard = memo(function WorkstreamItemCard({
       event={item.event}
       onSelectToolEvidence={onSelectToolEvidence}
       permissionDecision={permissionDecision}
+      userId={userId}
     />
   );
 }, areWorkstreamItemCardPropsEqual);
@@ -145,6 +158,7 @@ function areWorkstreamItemCardPropsEqual(
     previous.agentOwnerInfos === next.agentOwnerInfos &&
     previous.onSelectToolEvidence === next.onSelectToolEvidence &&
     previous.permissionDecision === next.permissionDecision &&
+    previous.userId === next.userId &&
     areWorkstreamItemsEqual(previous.item, next.item)
   );
 }
@@ -255,11 +269,13 @@ function EventCard({
   event,
   onSelectToolEvidence,
   permissionDecision,
+  userId,
 }: {
   agentOwnerInfos?: Record<string, AgentOwnerInfo>;
   event: SessionEvent;
   onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
   permissionDecision: PermissionDecisionState;
+  userId?: string;
 }) {
   if (event.type === "file_change") {
     return <FileChangeCard event={event} />;
@@ -267,6 +283,10 @@ function EventCard({
 
   if (event.type === "progress") {
     return <ThoughtCard event={event} />;
+  }
+
+  if (event.type === "artifact_publication") {
+    return <ArtifactPublicationCard event={event} userId={userId} />;
   }
 
   if (event.type === "tool_call") {
@@ -415,6 +435,73 @@ function AgentMessageCard({
         streaming={event.streaming}
       />
     </article>
+  );
+}
+
+function ArtifactPublicationCard({
+  event,
+  userId,
+}: {
+  event: Extract<SessionEvent, { type: "artifact_publication" }>;
+  userId?: string;
+}) {
+  const publicationQuery = useArtifactPublication(userId, event.publicationId);
+  const artifact = artifactDocumentFromPublication({
+    contentRef: event.contentRef,
+    downloadHref: userId
+      ? artifactPublicationContentDownloadHref(
+          userId,
+          event.publicationId,
+          event.contentRef,
+        )
+      : undefined,
+    fallbackTitle: event.publicationId,
+    publicationId: event.publicationId,
+    state: publicationQuery.data,
+  });
+
+  const loadPreview = useCallback(async () => {
+    if (!userId) {
+      throw new Error("Sign in to preview this artifact.");
+    }
+
+    const data = await getArtifactPublicationContent(
+      userId,
+      event.publicationId,
+      event.contentRef,
+      { disposition: "inline" },
+    );
+    if (data.status !== "available" || !data.url) {
+      throw new Error(
+        data.status === "failed"
+          ? data.publication.error_message || "Artifact preview failed."
+          : "Artifact preview is not ready yet.",
+      );
+    }
+
+    return {
+      contentType: data.content?.content_type,
+      filename: data.content?.filename,
+      previewKind: data.preview_kind,
+      url: data.url,
+    };
+  }, [event.contentRef, event.publicationId, userId]);
+
+  return (
+    <ArtifactViewerShell
+      artifact={artifact}
+      error={
+        publicationQuery.error instanceof Error
+          ? publicationQuery.error
+          : undefined
+      }
+      loadPreview={userId ? loadPreview : undefined}
+      viewerHref={artifactPreviewPageHref(
+        "publication",
+        event.publicationId,
+        event.contentRef,
+      )}
+    />
   );
 }
 

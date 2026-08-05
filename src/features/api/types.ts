@@ -321,7 +321,7 @@ export type AgentSession = {
   node_id: string;
   agent_id: string;
   agent_type?: string;
-  project_id?: string;
+  primary_project_id?: string;
   name?: string;
   reported_name?: string;
   name_is_custom?: boolean;
@@ -330,6 +330,8 @@ export type AgentSession = {
   status?: string;
   run_id?: string;
   run_status?: string;
+  runtime_status?: "idle" | "running" | "waiting_approval";
+  runtime_turn_instance_id?: string;
   source?: string;
   model?: string;
   message_count?: number;
@@ -342,6 +344,54 @@ export type AgentSession = {
   last_active_at?: string;
   last_message_at?: string;
   last_user_message_at?: string;
+};
+
+export type Project = {
+  project_id: string;
+  owner_user_id: string;
+  display_name: string;
+  parent_project_id?: string;
+  archived_at?: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ProjectTarget = {
+  target_id: string;
+  project_id: string;
+  agent_id: string;
+  display_name: string;
+  cwd: string;
+  is_default: boolean;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CreateProjectInput = {
+  display_name: string;
+  parent_project_id?: string;
+};
+
+export type UpdateProjectInput = {
+  display_name?: string;
+  parent_project_id?: string;
+};
+
+export type CreateProjectTargetInput = {
+  agent_id: string;
+  display_name?: string;
+  cwd: string;
+  is_default?: boolean;
+  enabled?: boolean;
+};
+
+export type UpdateProjectTargetInput = {
+  agent_id?: string;
+  display_name?: string;
+  cwd?: string;
+  is_default?: boolean;
+  enabled?: boolean;
 };
 
 export type Pagination = {
@@ -430,6 +480,78 @@ export type ArtifactContentURL = {
   expires_at: string;
   artifact: SessionArtifact;
   content: ArtifactContent;
+};
+
+export type UserAttachment = {
+  attachment_id: string;
+  conversation_id?: string;
+  filename: string;
+  content_type?: string;
+  size_bytes?: number;
+  sha256?: string;
+  generation?: number;
+  upload_status: "pending" | "completed" | string;
+  upload_expires_at?: string;
+  completed_at?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type UserAttachmentUpload = {
+  protocol: string;
+  method: "POST" | string;
+  url: string;
+  headers?: Record<string, string>;
+  chunk_alignment?: number;
+  expires_at?: string;
+};
+
+export type UserAttachmentUploadTicket = {
+  attachment: UserAttachment;
+  upload: UserAttachmentUpload;
+  complete_url?: string;
+};
+
+export type ArtifactPublication = {
+  publication_id: string;
+  node_id?: string;
+  agent_id?: string;
+  session_id?: string;
+  filename?: string;
+  title?: string;
+  status: "queued" | "uploading" | "available" | "failed" | string;
+  artifact_id?: string;
+  error_code?: string;
+  error_message?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type ArtifactPublicationState = {
+  publication: ArtifactPublication;
+  artifact?: SessionArtifact;
+};
+
+export type ArtifactPreviewKind =
+  | "image"
+  | "pdf"
+  | "text"
+  | "markdown"
+  | "json"
+  | "download"
+  | string;
+
+export type ArtifactPublicationContentState = {
+  status: "available" | "not_available" | "failed" | string;
+  retryable: boolean;
+  publication: ArtifactPublication;
+  artifact?: Pick<SessionArtifact, "artifact_id">;
+  content?: ArtifactContent;
+  url?: string;
+  expires_at?: string;
+  preview_kind?: ArtifactPreviewKind;
+  disposition?: "inline" | "attachment" | string;
+  retry_after_seconds?: number;
 };
 
 export type SessionApprovalMode = "manual" | "auto_approve_all";

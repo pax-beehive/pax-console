@@ -36,6 +36,7 @@ export type SessionObserverEnvelope =
       node_id?: string;
       session_id: string;
       status?: string;
+      turn_id?: string;
     }
   | {
       type: "turn_done";
@@ -51,6 +52,7 @@ export type SessionObserverEnvelope =
       message: string;
       node_id?: string;
       session_id?: string;
+      turn_id?: string;
     };
 
 export type SessionObserverStatus =
@@ -63,6 +65,7 @@ export type SessionObserverStatus =
 type StreamSessionObserverOptions = {
   afterMessageId?: string;
   agentId: string;
+  onConnected?: () => void;
   onEnvelope: (envelope: SessionObserverEnvelope) => void;
   sessionId: string;
   signal?: AbortSignal;
@@ -75,6 +78,7 @@ type UseSessionObserverOptions = {
   enabled?: boolean;
   followQueuedTurn?: boolean;
   onBufferMiss?: () => void;
+  onConnected?: () => void;
   onNoRunningTurn?: () => void;
   onQueuedTurnStarted?: () => void;
   onQueuedTurnFinished?: () => void;
@@ -87,6 +91,7 @@ type UseSessionObserverOptions = {
 export async function streamSessionObserver({
   afterMessageId,
   agentId,
+  onConnected,
   onEnvelope,
   sessionId,
   signal,
@@ -127,6 +132,7 @@ export async function streamSessionObserver({
     throw await observerErrorFromResponse(response);
   }
 
+  onConnected?.();
   await streamSseResponse(response, parseSessionObserverSseBlock, onEnvelope);
 }
 
@@ -252,6 +258,7 @@ export function useSessionObserver({
   enabled = true,
   followQueuedTurn,
   onBufferMiss,
+  onConnected,
   onNoRunningTurn,
   onQueuedTurnStarted,
   onQueuedTurnFinished,
@@ -300,6 +307,7 @@ export function useSessionObserver({
       afterMessageId,
       agentId,
       followQueuedTurn,
+      onConnected,
       onEnvelope: (envelope) =>
         handleSessionObserverEnvelope(envelope, {
           onBufferMiss,
@@ -346,6 +354,7 @@ export function useSessionObserver({
     flushEvents,
     followQueuedTurn,
     onBufferMiss,
+    onConnected,
     onNoRunningTurn,
     onQueuedTurnStarted,
     onQueuedTurnFinished,
@@ -387,9 +396,12 @@ export function handleSessionObserverEnvelope(
 ) {
   if (envelope.type === "acp") {
     setStatus("observing");
-    const events = normalizeTunnelFrame(
-      withEnvelopeSession(envelope.frame, envelope.session_id),
-      { streamId },
+    const events = withObserverTurn(
+      normalizeTunnelFrame(
+        withEnvelopeSession(envelope.frame, envelope.session_id),
+        { streamId },
+      ),
+      envelope.turn_id,
     );
     if (events.length > 0) {
       appendObserverEvents({ appendEvents, setEvents }, events);
@@ -411,10 +423,10 @@ export function handleSessionObserverEnvelope(
   if (envelope.type === "turn_done") {
     appendObserverEvents({ appendEvents, setEvents }, [
       {
-        type: "run_status",
+        type: "turn_done",
         id: `${envelope.session_id}:observer:${envelope.turn_id ?? "turn"}:done`,
         sessionId: envelope.session_id,
-        status: "done",
+        ...(envelope.turn_id ? { turnId: envelope.turn_id } : {}),
         createdAt: new Date().toISOString(),
       },
     ]);
@@ -430,6 +442,12 @@ export function handleSessionObserverEnvelope(
     setStatus("error");
     return;
   }
+}
+
+function withObserverTurn(events: SessionEvent[], turnId?: string) {
+  return turnId
+    ? events.map((event) => ({ ...event, turnId }) as SessionEvent)
+    : events;
 }
 
 function waitForQueuedTurnRetry(delayMs: number) {

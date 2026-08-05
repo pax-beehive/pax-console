@@ -21,6 +21,8 @@ export const queryKeys = {
     ["users", userId, "sessions", sessionId, "artifacts"] as const,
   artifact: (userId: string, artifactId: string) =>
     ["users", userId, "artifacts", artifactId] as const,
+  artifactPublication: (userId: string, publicationId: string) =>
+    ["users", userId, "artifact-publications", publicationId] as const,
   teams: (userId: string) => ["users", userId, "teams"] as const,
   team: (userId: string, teamId: string) =>
     ["users", userId, "teams", teamId] as const,
@@ -31,6 +33,15 @@ export const queryKeys = {
   teamInvites: (userId: string) => ["users", userId, "team-invites"] as const,
   teamMembers: (userId: string, teamId: string) =>
     ["users", userId, "teams", teamId, "members"] as const,
+  projectsRoot: (userId: string) => ["users", userId, "projects"] as const,
+  projects: (userId: string, includeArchived = false) =>
+    ["users", userId, "projects", "list", { includeArchived }] as const,
+  project: (userId: string, projectId: string) =>
+    ["users", userId, "projects", projectId] as const,
+  projectTargets: (userId: string, projectId: string) =>
+    ["users", userId, "projects", projectId, "targets"] as const,
+  projectTarget: (userId: string, projectId: string, targetId: string) =>
+    ["users", userId, "projects", projectId, "targets", targetId] as const,
   approvals: (userId: string) => ["users", userId, "approvals"] as const,
   approvalGrants: (userId: string) =>
     ["users", userId, "approval-grants"] as const,
@@ -78,6 +89,7 @@ export const queryKeys = {
       agentIds?: string[];
       nodeIds?: string[];
       pageSize?: number;
+      primaryProjectId?: string;
     },
   ) =>
     [
@@ -88,6 +100,7 @@ export const queryKeys = {
         agentIds: [...(filters?.agentIds ?? [])].sort(),
         nodeIds: [...(filters?.nodeIds ?? [])].sort(),
         pageSize: filters?.pageSize ?? "default",
+        primaryProjectId: filters?.primaryProjectId ?? "all",
       },
     ] as const,
   userSessionsRoot: (userId: string) =>

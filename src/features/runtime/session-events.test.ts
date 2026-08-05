@@ -38,6 +38,14 @@ describe("isVisibleTimelineEvent", () => {
         createdAt: "2026-06-26T12:00:02Z",
       },
       {
+        type: "artifact_publication",
+        id: "artifact-1",
+        sessionId: "sess_1",
+        publicationId: "apub_1",
+        contentRef: "main",
+        createdAt: "2026-06-26T12:00:02.500Z",
+      },
+      {
         type: "agent_message",
         id: "agent-1",
         sessionId: "sess_1",
@@ -48,11 +56,36 @@ describe("isVisibleTimelineEvent", () => {
 
     expect(
       events.filter(isVisibleTimelineEvent).map((event) => event.type),
-    ).toEqual(["user_message", "agent_message"]);
+    ).toEqual(["user_message", "artifact_publication", "agent_message"]);
   });
 });
 
 describe("groupWorkstreamEvents", () => {
+  it("closes a Working group when the business turn changes", () => {
+    const progress = (id: string, turnId: string): SessionEvent => ({
+      type: "progress",
+      id,
+      sessionId: "sess_1",
+      turnId,
+      content: id,
+      streaming: true,
+      sessionUpdate: "agent_thought_chunk",
+      createdAt: "2026-07-04T10:00:00.000Z",
+    });
+
+    const grouped = groupWorkstreamEvents([
+      progress("turn_1:a", "turn_1"),
+      progress("turn_1:b", "turn_1"),
+      progress("turn_2:a", "turn_2"),
+      progress("turn_2:b", "turn_2"),
+    ]);
+
+    expect(grouped).toMatchObject([
+      { type: "work_group", complete: true },
+      { type: "work_group", complete: false },
+    ]);
+  });
+
   it.each([
     {
       event: {

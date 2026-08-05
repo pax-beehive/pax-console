@@ -10,10 +10,18 @@ export type ConversationRunEnvelope =
       session_id: string;
     }
   | {
+      type: "turn_started";
+      node_id: string;
+      agent_id: string;
+      session_id: string;
+      turn_id: string;
+    }
+  | {
       type: "acp";
       node_id: string;
       agent_id: string;
       session_id: string;
+      turn_id?: string;
       frame: unknown;
     }
   | {
@@ -21,6 +29,7 @@ export type ConversationRunEnvelope =
       node_id: string;
       agent_id: string;
       session_id: string;
+      turn_id?: string;
       approval_id: string;
       approval?: AgentApproval;
       frame: unknown;
@@ -30,6 +39,7 @@ export type ConversationRunEnvelope =
       node_id?: string;
       agent_id?: string;
       session_id?: string;
+      turn_id?: string;
       approval_id?: string;
       reason: string;
     }
@@ -38,22 +48,45 @@ export type ConversationRunEnvelope =
       node_id: string;
       agent_id: string;
       session_id: string;
+      turn_id?: string;
+    }
+  | {
+      type: "turn_done";
+      node_id: string;
+      agent_id: string;
+      session_id: string;
+      turn_id: string;
     }
   | {
       type: "error";
       node_id?: string;
       agent_id?: string;
       session_id?: string;
+      turn_id?: string;
+      status_code?: number;
       message: string;
+    };
+
+export type ConversationInputBlock =
+  | {
+      type: "text";
+      text: string;
+    }
+  | {
+      type: "attachment";
+      attachment_id: string;
     };
 
 export type StreamConversationRunOptions = {
   agentId: string;
   approvalMode?: SessionApprovalMode;
+  content?: ConversationInputBlock[];
   cwd?: string;
   input?: string;
   nodeId: string;
   onEnvelope: (envelope: ConversationRunEnvelope) => void;
+  primaryProjectId?: string;
+  projectTargetId?: string;
   resume?: {
     approvalId: string;
   };
@@ -65,15 +98,20 @@ export type StreamConversationRunOptions = {
 export async function streamConversationRun({
   agentId,
   approvalMode,
+  content,
   cwd,
   input,
   nodeId,
   onEnvelope,
+  primaryProjectId,
+  projectTargetId,
   resume,
   sessionId,
   signal,
   userId,
 }: StreamConversationRunOptions) {
+  const requestContent = content && content.length > 0 ? content : undefined;
+
   const response = await fetch(
     `${API_BASE_URL}${userPath(
       userId,
@@ -81,10 +119,17 @@ export async function streamConversationRun({
     )}`,
     {
       body: JSON.stringify({
-        ...(input ? { input } : {}),
+        ...(requestContent ? { content: requestContent } : {}),
+        ...(!requestContent && input ? { input } : {}),
         ...(sessionId ? { session_id: sessionId } : {}),
         ...(!sessionId && cwd ? { cwd } : {}),
         ...(!sessionId && approvalMode ? { approval_mode: approvalMode } : {}),
+        ...(!sessionId && primaryProjectId
+          ? { primary_project_id: primaryProjectId }
+          : {}),
+        ...(!sessionId && projectTargetId
+          ? { project_target_id: projectTargetId }
+          : {}),
         ...(resume ? { resume: { approval_id: resume.approvalId } } : {}),
       }),
       credentials: "include",
@@ -239,6 +284,11 @@ function messageFromBody(body: unknown) {
     return undefined;
   }
 
-  const message = (body as Record<string, unknown>).message;
-  return typeof message === "string" ? message : undefined;
+  const record = body as Record<string, unknown>;
+  const message = record.message;
+  if (typeof message === "string") {
+    return message;
+  }
+
+  return typeof record.error === "string" ? record.error : undefined;
 }

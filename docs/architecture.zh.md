@@ -136,22 +136,29 @@ src/components/collaboration/
   的 useTeamInvalidation / useFriendInvalidation。
 
 src/components/home/
-  Home 工作台。左侧提供 Sessions / Inbox 两个 tab；Sessions tab 聚合所有
-  可见 agent 的 sessions，支持分别按 agent 和 node 过滤；正常选择 session
-  会保持 Home 挂载并通过 `/?sessionId=...` 在右侧打开 embedded workbench，
-  独立 `/sessions/{session_id}` 继续作为外部客户端和分享链接的 canonical
-  deep link。Inbox tab 聚合 approvals、received envelopes、team invites
-  和 inquiry 草稿状态成一个可扫的 action queue；选中一项后显示上下文，
-  inquiry 可从空 session 生成 draft、从已有 conversation 总结 draft、
-  通过小三角带 note 总结，或对已有 draft 留 comment；右上角关闭 inquiry
-  context 后，composer 回到 clean session；archive inquiry 则把它从 queue
-  中移除，表示当前用户不处理。当前 fake inquiry 只对 admin 用户注入，避免普通
-  用户看到演示数据。admin 可在右上角用户菜单启用 `Preview as user`，临时隐藏所有
-  admin-only 实验入口，以检查公开版本。该模式属于 Zustand 客户端 UI 状态。
+  Home 工作台。左侧是统一的 Project / Session 树：Project 下嵌套其
+  primary sessions，未绑定 Project 的 session 放在 Recents；session 仍支持
+  分别按 agent 和 node 过滤。正常选择 session
+  会保持 Home 挂载并通过 `/?session_id=...` 在右侧打开 embedded workbench；
+  包括 Command/Ctrl 点击在内的 Home session 链接都使用同一 URL。Project 创建、改名、调整父级、归档以及 Target CRUD 都位于
+  Settings / Projects；Home 只负责选中 Project 和开始工作。Target 绑定 Agent
+  和 cwd intent，支持同一
+  Project/Agent 下多个不同 cwd、编辑、启用/禁用和唯一 enabled default。
+  Home composer 不直接暴露 Target，而是让用户选择可选 Project、Agent 并输入
+  Workspace 路径。若已有相同 Project/Agent/cwd 的 enabled Target，则复用并在
+  Conversation 请求中携带 `project_target_id`；否则请求只携带
+  `primary_project_id` 和 cwd，native session 分配成功后才自动创建 Target。
+  后端先创建 native ACP session，成功后才把 Agent、cwd 和
+  `primary_project_id` 固化到 PAX Session。
+  `primary_project_id` 只表达单一的主要
+  启动上下文；未来 secretary agent 给一个 Session 标多个 Project 应使用独立
+  多对多 label/association，不复用这个字段。admin 可在右上角用户菜单启用
+  `Preview as user`，临时隐藏所有 admin-only 实验入口，以检查公开版本。
+  该模式属于 Zustand 客户端 UI 状态。
   Collaboration 当前也属于 admin-only 工作区；普通用户和 `Preview as user` 模式
   的桌面、移动导航都不显示该入口。
   底部 composer 保持 clean session 默认入口，并提供 agent 选择、附件入口和
-  tool-call approval 偏好；重名 agent 在 target selector 中显示为
+  tool-call approval 偏好；重名 agent 在 agent selector 中显示为
   `agent @ node`。nodes / agents 的详细列表仍放在 Settings 组的子页里，
   sessions 不再是 sidebar 一级工作区。
   当用户还没有 node 或 agent 时，Home 会展示 node registration 和 Devices
@@ -161,12 +168,38 @@ src/components/home/
   排序不会停留在首次加载结果。列表使用独立的 `session-list` query namespace，不能
   用 session resource 的 `sessions` 前缀，避免误刷新 history cursor 并重启 `/events`
   observer。
+  手机端在全局 Topbar 下方提供独立的 Session tabs 行，与 Session tools header 和
+  composer 分层。点击 tab 直接切换，关闭 tab 提供 Undo，但不会 archive/delete
+  Session，也不会 stop/cancel 后台 agent。工作集按用户只在 localStorage 保存有序
+  session_id，标题和 run status 仍来自 TanStack Query；同一时间只挂载当前
+  SessionWorkbench。手机全局 Topbar 同时提供等价于浏览器刷新按钮的 hard reload。
+  Android 预览包使用 package id `net.paxtech.console` 的 Bubblewrap TWA；网页 manifest
+  位于 `public/manifest.webmanifest`，签名证书指纹位于
+  `public/.well-known/assetlinks.json`。两者随现有 `https://ws.paxtech.net` 的正常
+  Console 发布上线，不需要第二套部署。Cloudflare Access 必须允许匿名读取
+  `/.well-known/assetlinks.json`，Android 才能验证域名并隐藏 Custom Tab 地址栏。
+
+src/components/home/project-rail.tsx
+  Project 层级导航和 Project CRUD。服务端 hierarchy 是真相；前端仅构树、排序，
+  并在编辑父级时排除自身和 descendants。
 
 src/components/resources/
   Settings 组下的资源页。Devices 聚合 Nodes / Agents，Security 只管理 active
   approval grants（pending approvals 留在 Home Inbox），Developer 聚合 API Keys / Node Registration，
   Diagnostics 承载 Monitor。Inquiries 和 Conversations 属于 Home action/deep-link，
   不再伪装成系统设置。旧资源列表 URL 保留 redirect。
+
+src/components/artifacts/
+  timeline publication 与 Session Artifacts 侧栏共用的权限安全 document
+  viewer。Source adapter 先把 publication / session artifact 归一为
+  ArtifactDocument，builtin renderer registry 再按后端 preview_kind、
+  content_type、filename 后缀依次解析 image / pdf / html / markdown / text /
+  json / jsonl / csv / download。宿主 shell 统一负责 Preview、Download、
+  Open page、Open file、fullscreen 和状态；文本 renderer 有 byte / line /
+  record / table 预览预算，HTML 只在 sandbox iframe 中展示。侧栏和 timeline
+  保留紧凑预览，同时链接到受 AuthGate 保护的全宽独立页
+  /artifacts/publications/[publicationId] 与 /artifacts/files/[artifactId]；
+  独立页复用同一 renderer，并自动取得短效 preview URL。
 
 src/components/sessions/
   Session workbench。把 REST 历史消息和 WebSocket live events 合成时间线。
@@ -181,8 +214,10 @@ src/components/sessions/
   timeline buffer，采用最大 5 秒的指数退避；鉴权错误、非瞬时 API 错误、组件卸载
   或切换 session 时停止重试。
 
-  公开用户的 Session 右侧上下文面板只提供 Tool evidence。Artifacts、Knowledge、
-  未接通的语音输入等实验入口只对 admin 展示，并受 `Preview as user` 开关控制。
+  公开用户的 Session 右侧上下文面板提供 Tool evidence 和只读 Artifacts；
+  Artifacts 支持列表、刷新、signed URL 预览和下载，不提供旧的浏览器上传入口。
+  Knowledge、未接通的语音输入等实验入口只对 admin 展示，并受
+  `Preview as user` 开关控制。
 
   连续的 thought/progress 与 tool call 达到 2 个时，按原顺序聚合为一个默认折叠的
   work block；单独一个 thought 或 tool call 直接展示。子事件仍在运行时标题只显示
@@ -205,6 +240,12 @@ src/components/sessions/
   里新增的 `message_type = "pax:invocation"` / `pax:invocation_pending` frame
   也会归一成同一种 timeline event，并在 merge 阶段替换已经显示过的 parent
   或 pending event。
+
+  `pax:artifact` 是 Agent publish_artifact 成功接收后的展示替身消息。
+  timeline 以 durable history 为准恢复 publication 卡片；如果 live frame 也带着
+  同一条 `pax:artifact`，merge 会按同一个 message/part id 去重。卡片内部轮询
+  publication state，`queued/uploading` 显示 spinner，`available` 再请求
+  `/content/main` 获取 preview/download。
 
 src/components/shell/
   Console 外壳：sidebar、topbar、主布局。
@@ -238,6 +279,8 @@ status / count pill
 
 按钮和搜索框
   优先使用 src/components/ui 下的 Button 和 SearchBox，避免每个页面重新手写尺寸。
+  Button 使用 asChild 且同时带 icon 时，由 primitive 内部的 Radix Slottable
+  标记真正承接 props 的单个 React element；调用方仍需提供一个元素（例如 a）作为 child。
 
 整体界面风格
   走 Codex-like dark workbench，而不是通用 dashboard。
@@ -256,13 +299,13 @@ Sidebar 折叠
   ConsoleLayout 使用 flex；Sidebar 自己用 width: 248/76px 控制展开/收起，并带 overflow-hidden。
   Console shell 固定在动态视口内并持有页面级 overflow；内部 pane 必须用 flex
   可用高度，不要再用 100vh 或 min-h-screen 撑开根页面，滚动只留在对应 pane 内。
-  手机宽度隐藏 Sidebar，保留 Topbar；Home 默认显示 clean composer，并用左侧抽屉承载 Sessions / Inbox rail。
+  手机宽度隐藏 Sidebar，保留 Topbar；Home 默认显示 clean composer，并用左侧抽屉承载 Project / Session rail。
   Sidebar 自身使用安静的 surface 和 compact nav rows，不保留固定的 Current node 区块。
   Sidebar 一级入口保持粗粒度：顶部只有 Home 和 Collaboration；
   其余入口收进钉在侧栏底部的 Settings 展开组。
   Collaboration / Settings 是彼此独立的 disclosure，不是 accordion；多个组可以同时保持展开。
-  Settings 展开时在 Sidebar 二级导航承载 Nodes、Agents、Inquiries、Conversations、
-  Approvals、Monitor、API Keys、Node Registration。
+  Settings 展开时在 Sidebar 二级导航承载 Projects、Devices、Security、
+  Developer 和 Diagnostics。
   Collaboration 展开时在 Sidebar 二级导航承载 Teams、Friends、Envelopes、Knowledge。
   Team invites 属于 Teams 页面里的 team action queue，不作为 Collaboration 并列二级入口。
   不要把这些全局二级 tabs 放进具体页面 header 或页面组件内部。
@@ -302,7 +345,11 @@ drawer open/close
 composer drafts
 local filters
 临时 UI selection
+手机 open-session tabs 的有序 session_id（localStorage 持久化）
 ```
+
+Open-session tabs 只保存 UI selection id，不复制 Session resource。标题和状态继续
+从 TanStack Query 的 user session list 派生。
 
 不要把 nodes、agents、sessions、messages 复制进 Zustand。否则会出现两个 truth source。
 同理，teams、friends、envelopes、knowledge capsules/injections、session artifacts
@@ -330,11 +377,31 @@ Knowledge
   注入通过 /sessions/{session_id}/knowledge-injections 创建 system_handoff 消息，
   UI 仍然通过 REST history 和 runtime events 渲染时间线。
 
+Attachments
+  Session composer 通过 /attachments 创建用户附件，浏览器按返回的 GCS
+  resumable upload ticket 直传文件，再调用 /attachments/{attachment_id}/complete
+  把状态变成 completed。真正发 prompt 时，前端把 attachment_id 放进
+  /conversation 的 content block；附件本身不绑定 agent。
+
+Artifact publications
+  Session timeline 识别 `message_type = "pax:artifact"`，从
+  `parts[*].payload_json.publication_id` 或
+  `artifact-publication://{publication_id}/main` 里恢复 publication id，随后轮询
+  /artifact-publications/{publication_id}，并用
+  /artifact-publications/{publication_id}/content/main 获取安全预览或下载地址。
+  前端以 publication id 作为卡片 key，不按 artifact id 去重。publication 卡片
+  和旧 Session artifact 工具都进入 src/components/artifacts 下的共享
+  ArtifactViewerShell；两种 source 只负责取得各自的受控短效 URL。卡片和侧栏
+  的 Open page 分别进入 /artifacts/publications/{publication_id}?ref=... 与
+  /artifacts/files/{artifact_id}?ref=...，独立页不会产生公开 artifact URL。
+
 Artifacts
-  Session workbench 通过 /artifact-uploads 创建上传票据，浏览器拿 GCS signed
-  URL 直接 PUT 文件，再调用 complete 生成 session artifact。列表走
+  Session Artifacts 面板对所有 session 用户开放只读能力。列表走
   /sessions/{session_id}/artifacts，预览/下载走 artifact content endpoint 返回的
-  signed GET URL 或 redirect。文件内容不要经由 Next /api/pax proxy 中转上传。
+  signed GET URL 或 redirect。普通文件预览由共享 builtin document renderer
+  registry 解析；Markdown/text/JSON/JSONL/CSV 只拉取有预算的只读预览，
+  image/PDF/HTML 直接消费 signed URL，其中 HTML 必须 sandbox。Console 不再
+  展示旧的浏览器 artifact 上传入口。
 ```
 
 这些 API 仍然走浏览器同源 `/api/pax` proxy；不要从组件直连
@@ -354,7 +421,7 @@ AuthGate
   -> listUserSessions(user.user_id, page_size=20, page_num=1, optional comma-separated agent_id/node_id)
   -> scroll left rail to fetch the next session page
   -> support agent and node filtering, render embedded SessionWorkbench when selected
-  -> on mobile, default to the clean composer and open Sessions/Inbox as a left drawer
+  -> on mobile, default to the clean composer and open Project/Session rail as a left drawer
   -> useApprovals(user.user_id)
   -> useEnvelopes(user.user_id, direction=received, status=pending)
   -> useTeamInvites(user.user_id)
@@ -455,6 +522,8 @@ Sidebar 一级入口是粗粒度工作区（顶部 Home / Collaboration，底部
 /                              Home: Sessions + Inbox
 /sessions/new                  New session workbench
 /sessions/[sessionId]          Canonical session workbench
+/artifacts/publications/[id]       Full-width publication preview; ?ref=main
+/artifacts/files/[id]              Full-width session artifact preview; ?ref=main
 /inquiries                     Home deep-link / agent inquiry composer
 /conversations                 Home deep-link / conversation index
 /conversations/[id]            Conversation detail
@@ -554,7 +623,7 @@ embedded Session workbench：
 
 用户发送第一条 prompt 时，Session workbench 通过新的 conversation run
 入口创建真实 manager session，并在收到 `type=session` 后把 URL 保持在
-Home，只替换为 `/?sessionId={session_id}`。
+Home，只替换为 `/?session_id={session_id}`。
 
 ## Conversation run / agent tunnel 状态
 
@@ -566,30 +635,90 @@ Accept: text/event-stream
 Content-Type: application/json
 ```
 
-请求体第一版只暴露：
+SSE 开始前的失败使用统一 JSON API envelope，包含后端状态码和消息：
+
+```json
+{
+  "data": null,
+  "code": 409,
+  "message": "project is archived"
+}
+```
+
+SSE 开始后的失败通过 `type=error` envelope 返回 `status_code` 与
+`message`。前端保留这两个字段为 `ApiError`，并显示为
+`HTTP <status>: <message>`。
+
+默认纯文本请求仍可发送：
 
 ```json
 { "input": "hello" }
 ```
 
-续聊时附加：
+当 composer 带附件时，前端改为发送结构化 content block：
 
 ```json
-{ "input": "continue", "session_id": "sess_xxx" }
+{
+  "content": [
+    { "type": "text", "text": "请分析这个文件" },
+    { "type": "attachment", "attachment_id": "att_..." }
+  ]
+}
 ```
+
+续聊时附加 `session_id`。queued turn / steer 仍然只支持文本输入，不带附件。
 
 前端使用 fetch streaming 读取 response body，不能用原生 EventSource
 （这个接口是 POST + JSON body）。每条默认 SSE `data:` 是一个 PAX envelope：
 
 ```txt
-type=session  保存 session_id；新会话 replaceState 到 /?sessionId={session_id}
-type=acp      取 envelope.frame，继续走 normalizeTunnelFrame / timeline
-type=done     结束本次 streaming state
-type=error    展示错误并结束 streaming state
+type=session       保存 session_id；新会话 replaceState 到 /?session_id={session_id}
+type=turn_started  在可见输出前接管不透明的业务 turn_id
+type=acp           取 envelope.frame，保留 turn_id 并走 normalizeTunnelFrame
+type=turn_done     durable history 可查询后结束该业务 turn
+type=done          只结束本次请求流；不携带 turn_id
+type=error         展示错误并结束 streaming state
 ```
+
+`approval_required` 与 `interrupted` 保留当前业务 `turn_id`。
+`permission_required` 只暂停 turn，随后请求级 `done` 不得把它标为完成；permission
+resume 复用同一个 turn ID，queued follow-up 使用新的 ID。durable history 的同一
+turn 投影都带 `turn_id`，并以 `message_type=turn_done`、`status=complete` marker
+结束。timeline 必须把 history、当前窗口拥有的 conversation stream、observer replay
+作为三条独立有序流协调，不能按 `createdAt` 重排（observer 重放帧使用客户端接收时间）。
+本地 conversation 只接管该 turn 的 agent 输出，同时保留 durable user prompt，并把
+该 turn 留在原 history 位置；observer 只在现有 history/conversation 前缀后追加增量，
+过滤重放文本，不能删除整轮 history。只有 completion marker 出现在 history 后，
+durable history 才完整接管该 turn。
+durable history 可能把同一 turn 的全部 `agent_message_chunk` 聚合进第一条 chunk
+对应的记录；history normalization 必须把该聚合文本放在该 turn 的工作事件之后、
+durable turn boundary 之前。实时流仍按接收顺序展示。
 
 manager 负责代理 ACP initialize / session/new / session/prompt。续聊时必须传
 已有且属于当前用户、URL 中 node/agent 下的 `sess_*`，并且后端已有 native id 绑定。
+
+Session 的持久化运行状态只有一个权威来源：REST Session 对象中的
+`runtime_status`（`idle` / `running` / `waiting_approval`）。列表、详情、Home、
+移动端 activity dot 都只能读取该字段，不能回退到 `status`、`run_status`、ACP
+frame、observer 状态或 agent 在线状态。当前窗口明确提交 conversation turn 后，
+workbench badge 可以用该窗口拥有的本地状态乐观覆盖为 `running` 或
+`waiting_approval`。前端收到 ACP `end_turn`、conversation error 或 Stop ACK 时，
+分别立即原地覆盖为 `done`、`error` 或 `cancelled`，不等待旧的 running snapshot
+刷新。该本地状态同时负责当前窗口的 composer、stop、queue 和流式交互，但不会写成
+或冒充持久化状态。
+Session query 仅保留 30 秒低频轮询作为断连兜底。
+
+`/conversation` SSE 的可恢复 transport error 不等于 turn error：当前 workbench
+保持 `running` 展示，并立即启用 Session `/events` observer 接管，即使 running
+snapshot 尚未到达。observer 建连成功后清除连接提示；收到 `turn_done` 或
+`no_running_turn` 后把本地展示落为 `done`。只有 conversation 明确返回的业务
+error envelope 才是 terminal `error`。
+
+罕见的假活跃状态通过 workbench overflow 菜单执行 compare-and-reset：前端把只读的
+`runtime_turn_instance_id` POST 到
+`/api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/runtime/reset`。
+确认框必须说明该操作只修正展示状态，不会 cancel 或 terminate 底层任务；接受后失效
+Session detail、agent Session list 与全局 Session list query。
 
 `src/features/runtime/agent-tunnel-runtime.ts` 仍保留直接 ACP tunnel runtime，
 主要用于旧路径和调试。正常 Session workbench 发送 prompt 应使用
@@ -757,7 +886,7 @@ chunk 合并在 `src/features/runtime/merge-session-events.ts`，不是在 React
 
 ```txt
 PAX Manager session
-  conversation run 首次 prompt 创建，出现在 /?sessionId={session_id} URL 中，用来承载产品上下文和历史消息。
+  conversation run 首次 prompt 创建，出现在 /?session_id={session_id} URL 中，用来承载产品上下文和历史消息。
 
 ACP/native session
   manager 通过 session/new 创建并绑定到 sess_*，对前端隐藏，用来向 agent runtime 发送 session/prompt。
