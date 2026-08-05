@@ -279,8 +279,12 @@ turn or change its badge to `error`. The current workbench keeps the run
 displayed as `running` and immediately hands ownership to the session `/events`
 observer, even if the canonical running snapshot has not arrived yet. A
 successful observer connection clears the transport notice; observer
-`turn_done` or `no_running_turn` completes the local display. Only an explicit
-conversation business-error envelope is a terminal run error.
+`turn_done` or `no_running_turn` completes the local display and starts a
+bounded, exponentially backed-off history refetch. Refetch stops as soon as
+durable history contains that turn's `turn_done` marker; if the runtime turn id
+was unavailable, it waits for a completion marker newer than the pre-handoff
+history snapshot. Only an explicit conversation business-error envelope is a
+terminal run error.
 
 For a rare false-alive projection, the workbench overflow menu calls:
 
@@ -391,7 +395,8 @@ to the first available agent while that lookup is pending.
 
 The endpoint observes the current running turn for that session. If there is no
 running turn, it emits `type=no_running_turn` and closes; the UI should stop the
-observer and refetch session history. If a turn is running, it replays the
+observer and use bounded history refetch to close any conversation/observer
+handoff gap. If a turn is running, it replays the
 turn-scoped in-memory buffer and then streams live events. `after_message_id`
 is the global `HistoryMessage.message_id` from REST history, used only as a
 trim hint inside the current turn buffer. If it is not found in the buffer, the
@@ -585,7 +590,7 @@ ACP/native session id
   Created by session/new by PAX Manager and kept private behind the conversation endpoint.
 ```
 
-Known gaps are broader ACP event coverage beyond observed text chunks and REST history refetch after reconnect.
+Known gaps include broader ACP event coverage beyond observed text chunks.
 
 ## UI Composition Rules
 

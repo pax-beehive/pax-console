@@ -711,8 +711,10 @@ Session query 仅保留 30 秒低频轮询作为断连兜底。
 `/conversation` SSE 的可恢复 transport error 不等于 turn error：当前 workbench
 保持 `running` 展示，并立即启用 Session `/events` observer 接管，即使 running
 snapshot 尚未到达。observer 建连成功后清除连接提示；收到 `turn_done` 或
-`no_running_turn` 后把本地展示落为 `done`。只有 conversation 明确返回的业务
-error envelope 才是 terminal `error`。
+`no_running_turn` 后把本地展示落为 `done`，并对 history 启动有上限的指数退避
+refetch。history 出现对应 turn 的 durable `turn_done` 后立即停止；如果 runtime
+turn id 不可用，则等待相对交接前快照新增的 completion marker。只有 conversation
+明确返回的业务 error envelope 才是 terminal `error`。
 
 罕见的假活跃状态通过 workbench overflow 菜单执行 compare-and-reset：前端把只读的
 `runtime_turn_instance_id` POST 到
@@ -862,8 +864,9 @@ session，并以返回的 `node_id`、`agent_id` 作为 queue 和 observer 请�
 权威上下文；查询完成前不能回退到第一个 agent。
 
 这个 endpoint 的语义是观察该 session 当前正在 running 的 turn。如果没有
-running turn，后端发送 `type=no_running_turn` 后关闭；前端停止 observer 并
-refetch history。如果有 running turn，后端先 replay turn-scoped memory
+running turn，后端发送 `type=no_running_turn` 后关闭；前端停止 observer，并用
+有界 history refetch 补齐 conversation/observer 交接窗口。如果有 running turn，
+后端先 replay turn-scoped memory
 buffer，再接上 live stream。`after_message_id` 是 REST history 里的全局
 `HistoryMessage.message_id`，这里只作为当前 turn buffer 的 trim hint；如果
 buffer 里找不到，后端发送 `type=buffer_miss`，跳过 replay，但继续发送后续
@@ -896,7 +899,6 @@ ACP/native session
 
 ```txt
 更多 ACP session/update 类型覆盖
-重连后 REST history refetch 补洞
 ```
 
 ## Cloudflare 接入规则
