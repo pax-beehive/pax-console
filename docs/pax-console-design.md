@@ -406,6 +406,8 @@ GET  /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}
 
 Node daemon control
 GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/status
+POST   /api/v1/user/{user_id}/nodes/{node_id}/daemon/restart
+POST   /api/v1/user/{user_id}/nodes/{node_id}/daemon/upgrade
 GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/harnesses
 POST   /api/v1/user/{user_id}/nodes/{node_id}/daemon/harnesses/discover
 GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections
@@ -417,7 +419,7 @@ DELETE /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections/{connecti
 GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/commands/{command_id}
 
 Sessions
-GET  /api/v1/user/{user_id}/sessions?page_size=20&page_num=1&primary_project_id={project_id}
+GET  /api/v1/user/{user_id}/sessions?page_size=20&page_num=1&primary_project_id={project_id}&include_archived=true
 GET  /api/v1/user/{user_id}/sessions/{session_id}/history
 GET  /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions
 GET  /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}
@@ -427,9 +429,15 @@ POST /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_
 Current frontend note: Home reads the flat
 `GET /api/v1/user/{user_id}/sessions` list with `page_size=20` and increments
 `page_num` as the user scrolls the Sessions rail. Optional `node_id` and
-`agent_id` filters accept comma-separated ids. Selecting a row opens the
+`agent_id` filters accept comma-separated ids; `include_archived=true` adds
+archived sessions, which are excluded by default. Home presents these options
+in one session filter control with multi-select Agent and Node option lists;
+selected rows use a trailing checkmark, and long labels are constrained to the
+panel width and truncate visually. Selecting a row opens the
 embedded session workbench at `/?session_id={session_id}` so the Home rail stays
 mounted. Home-generated links use this URL for ordinary and modified clicks;
+legacy `/?sessionId={session_id}` direct links are accepted and normalized to
+the canonical snake_case parameter before session resolution;
 the workbench scans this paginated list by
 `session_id` before enabling agent-scoped queue/events calls, so the session's
 own `node_id` and `agent_id` remain authoritative.
@@ -445,7 +453,9 @@ PATCH /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session
 
 The session PATCH accepts `{ "name": "..." }` to set a user-owned display
 name and `{ "use_reported_name": true }` to restore the latest paxd-reported
-name. Session responses expose `name`, `reported_name`, and `name_is_custom`;
+name. It also accepts `{ "archived": true }` and `{ "archived": false }` to
+archive or restore a session. Session responses expose `name`, `reported_name`,
+`name_is_custom`, and optional `archived_at`;
 periodic reports update only the reported name.
 
 Session responses also expose canonical `runtime_status` and the read-only
@@ -515,6 +525,10 @@ Implemented
 - ACP frames from conversation envelopes are normalized through the existing tunnel-frame mapper.
 - Node detail through GET /nodes/{node_id}.
 - Node detail paxd control for harness discovery and create/edit/start/stop/restart/remove, desired slot count, and runtime reconciliation polling.
+- Settings node rows provide confirmed immediate paxd restart and stable-channel
+  upgrade actions; the upgrade dialog resolves and shows the newest stable
+  artifact for the node's OS/architecture instead of asking for a version, and
+  both actions expose the acknowledged command id for operational verification.
 - Agent detail through GET /nodes/{node_id}/agents/{agent_id}.
 - Node registration token creation.
 - Health status on Monitor through GET /health.

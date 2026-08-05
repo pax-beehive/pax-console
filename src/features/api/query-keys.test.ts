@@ -15,11 +15,13 @@ describe("queryKeys", () => {
   it("includes the primary project in a session-list cache identity", () => {
     expect(
       queryKeys.userSessions("user-1", {
+        includeArchived: true,
         pageSize: 20,
         primaryProjectId: "proj-1",
       }),
     ).toContainEqual({
       agentIds: [],
+      includeArchived: true,
       nodeIds: [],
       pageSize: 20,
       primaryProjectId: "proj-1",

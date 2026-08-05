@@ -36,6 +36,15 @@ export type Health = {
   status?: string;
 };
 
+export type PaxdRelease = {
+  platform: string;
+  product: string;
+  sha256: string;
+  size_bytes: number;
+  tags: string[];
+  version: string;
+};
+
 export type Agent = {
   agent_id: string;
   node_id?: string;
@@ -139,10 +148,12 @@ export type NodeDaemonCommandData = {
   command_ack?: ApiRecord;
   command_id: string;
   command_status?: string;
+  confirmation_status?: string;
   connection_id?: string;
   desired_generation?: number;
   dispatch_error?: string;
   dispatch_status?: string;
+  expected_version?: string;
   remote_id?: string;
 };
 
@@ -344,6 +355,7 @@ export type AgentSession = {
   last_active_at?: string;
   last_message_at?: string;
   last_user_message_at?: string;
+  archived_at?: string;
 };
 
 export type Project = {

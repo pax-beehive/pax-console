@@ -7,6 +7,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -30,6 +31,7 @@ const mocks = vi.hoisted(() => ({
   createUserAttachment: vi.fn(),
   listAgents: vi.fn(),
   listUserSessions: vi.fn(),
+  updateAgentSession: vi.fn(),
   routerPush: vi.fn(),
   uploadUserAttachmentFile: vi.fn(),
   useApprovals: vi.fn(),
@@ -125,6 +127,7 @@ vi.mock("@/features/api/resources", async (importOriginal) => {
     createUserAttachment: mocks.createUserAttachment,
     listAgents: mocks.listAgents,
     listUserSessions: mocks.listUserSessions,
+    updateAgentSession: mocks.updateAgentSession,
     uploadUserAttachmentFile: mocks.uploadUserAttachmentFile,
     useApprovals: mocks.useApprovals,
     useEnvelopes: mocks.useEnvelopes,
@@ -142,6 +145,13 @@ beforeEach(() => {
   mocks.createProjectTarget.mockReset();
   mocks.createUserAttachment.mockReset();
   mocks.routerPush.mockReset();
+  mocks.updateAgentSession.mockReset();
+  mocks.updateAgentSession.mockResolvedValue({
+    agent_id: "agent_1",
+    archived_at: "2026-08-04T12:00:00.000Z",
+    node_id: "node_1",
+    session_id: "sess_1",
+  });
   mocks.uploadUserAttachmentFile.mockReset();
   mocks.createUserAttachment.mockResolvedValue({
     attachment: {
@@ -260,6 +270,129 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("FleetOverview session rail", () => {
+  it("combines agent, node, and archived controls in one session filter", async () => {
+    const user = userEvent.setup();
+    mocks.listAgents.mockResolvedValue({
+      agents: [
+        {
+          agent_id: "agent_1",
+          name: "Pi agent with a deliberately long display name",
+          node_id: "node_1",
+          online: true,
+        },
+        {
+          agent_id: "agent_2",
+          name: "Second agent",
+          node_id: "node_2",
+          online: true,
+        },
+      ],
+    });
+    mocks.useNodes.mockReturnValue({
+      data: {
+        nodes: [
+          { name: "Development Mac", node_id: "node_1", online: true },
+          { name: "Remote Mac", node_id: "node_2", online: true },
+        ],
+      },
+      error: null,
+      isLoading: false,
+    });
+    renderOverview();
+
+    await user.click(screen.getByRole("button", { name: "Filter sessions" }));
+
+    expect(screen.getByText("Agent")).toBeVisible();
+    expect(screen.getByText("Node")).toBeVisible();
+    const agentFilterGroup = screen.getByRole("group", {
+      name: "Filter by agent",
+    });
+    expect(
+      within(agentFilterGroup).getByText(
+        "Pi agent with a deliberately long display name",
+      ),
+    ).toHaveClass("truncate");
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Agent Pi agent with a deliberately long display name",
+      }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Agent Second agent" }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Node Development Mac" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Node Remote Mac" }));
+    const includeArchived = screen.getByRole("button", {
+      name: "Include archived",
+    });
+    expect(includeArchived).toHaveAttribute("aria-pressed", "false");
+    await user.click(includeArchived);
+    expect(includeArchived).toHaveAttribute("aria-pressed", "true");
+
+    await waitFor(() =>
+      expect(mocks.listUserSessions).toHaveBeenLastCalledWith(
+        "user_1",
+        expect.objectContaining({
+          agentIds: ["agent_1", "agent_2"],
+          includeArchived: true,
+          nodeIds: ["node_1", "node_2"],
+        }),
+      ),
+    );
+  });
+
+  it("archives a session from its rail row", async () => {
+    const user = userEvent.setup();
+    renderOverview();
+
+    await user.click(
+      await screen.findByRole("button", { name: "Archive Session one" }),
+    );
+
+    await waitFor(() =>
+      expect(mocks.updateAgentSession).toHaveBeenCalledWith(
+        "user_1",
+        "node_1",
+        "agent_1",
+        "sess_1",
+        { archived: true },
+      ),
+    );
+  });
+
+  it("restores an archived session when archived sessions are included", async () => {
+    const user = userEvent.setup();
+    const archivedSession = sessionFixture(
+      "sess_archived",
+      "Archived session",
+      "project_1",
+    );
+    archivedSession.archived_at = "2026-08-04T12:00:00.000Z";
+    setProjectContents([projectFixture("project_1", "Pax")], [archivedSession]);
+    mocks.updateAgentSession.mockResolvedValue({
+      agent_id: "agent_1",
+      node_id: "node_1",
+      session_id: "sess_archived",
+    });
+    renderOverview();
+
+    await user.click(
+      await screen.findByRole("button", { name: "Restore Archived session" }),
+    );
+
+    await waitFor(() =>
+      expect(mocks.updateAgentSession).toHaveBeenCalledWith(
+        "user_1",
+        "node_1",
+        "agent_1",
+        "sess_archived",
+        { archived: false },
+      ),
+    );
+  });
+
   it("shows projects and recent sessions in one unified rail", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
@@ -477,6 +610,18 @@ describe("FleetOverview session rail", () => {
     expect(window.location.pathname).toBe("/");
     expect(window.location.search).toBe("?session_id=sess_1");
     await waitFor(() => expect(mocks.routerPush).not.toHaveBeenCalled());
+  });
+
+  it("loads a directly linked legacy sessionId and normalizes the URL", async () => {
+    window.history.replaceState(null, "", "/?sessionId=sess_1");
+
+    renderOverview();
+
+    const workbench = await screen.findByTestId("session-workbench");
+    expect(workbench).toHaveTextContent("sess_1");
+    expect(workbench).toHaveAttribute("data-node-id", "node_1");
+    expect(workbench).toHaveAttribute("data-agent-id", "agent_1");
+    expect(window.location.search).toBe("?session_id=sess_1");
   });
 
   it("leaves command-click navigation to the Home session link", async () => {

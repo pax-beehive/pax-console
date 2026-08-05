@@ -86,6 +86,63 @@ describe("groupWorkstreamEvents", () => {
     ]);
   });
 
+  it("places a turn footer only when that turn's done frame arrives", () => {
+    const events: SessionEvent[] = [
+      {
+        type: "agent_message",
+        id: "agent-1",
+        sessionId: "sess_1",
+        turnId: "turn_1",
+        content: "Partial answer before more work.",
+        createdAt: "2026-07-04T10:00:00.000Z",
+      },
+      {
+        type: "progress",
+        id: "turn-2-progress-a",
+        sessionId: "sess_1",
+        turnId: "turn_2",
+        content: "Continuing to work",
+        streaming: true,
+        createdAt: "2026-07-04T10:00:01.000Z",
+      },
+      {
+        type: "progress",
+        id: "turn-2-progress-b",
+        sessionId: "sess_1",
+        turnId: "turn_2",
+        content: "Checking the result",
+        streaming: true,
+        createdAt: "2026-07-04T10:00:02.000Z",
+      },
+    ];
+
+    expect(groupWorkstreamEvents(events).map((item) => item.type)).toEqual([
+      "event",
+      "work_group",
+    ]);
+
+    const groupedAfterDone = groupWorkstreamEvents([
+      ...events,
+      {
+        type: "turn_done",
+        id: "turn-1-done",
+        sessionId: "sess_1",
+        turnId: "turn_1",
+        createdAt: "2026-07-04T10:00:03.000Z",
+      },
+    ]);
+
+    expect(groupedAfterDone).toMatchObject([
+      { type: "event", id: "agent-1" },
+      { type: "work_group", complete: false },
+      {
+        type: "turn_footer",
+        id: "turn_footer:agent-1",
+        turnId: "turn_1",
+      },
+    ]);
+  });
+
   it.each([
     {
       event: {

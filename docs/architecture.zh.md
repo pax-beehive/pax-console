@@ -138,8 +138,13 @@ src/components/collaboration/
 src/components/home/
   Home 工作台。左侧是统一的 Project / Session 树：Project 下嵌套其
   primary sessions，未绑定 Project 的 session 放在 Recents；session 仍支持
-  分别按 agent 和 node 过滤。正常选择 session
+  在同一个 filter control 中多选 agent、node，并选择 Include archived；
+  长选项在弹层宽度内截断显示，完整内容通过 tooltip 保留。
+  默认列表不展示 archived session；Session 行可通过现有 PATCH 接口归档或恢复。
+  正常选择 session
   会保持 Home 挂载并通过 `/?session_id=...` 在右侧打开 embedded workbench；
+  地址栏直接进入时也兼容旧的 `/?sessionId=...`，初始化后会规范化为
+  `session_id`，再解析 session 对应的 node/agent 并加载 history；
   包括 Command/Ctrl 点击在内的 Home session 链接都使用同一 URL。Project 创建、改名、调整父级、归档以及 Target CRUD 都位于
   Settings / Projects；Home 只负责选中 Project 和开始工作。Target 绑定 Agent
   和 cwd intent，支持同一
@@ -564,6 +569,8 @@ GET /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}
 
 ```txt
 GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/status
+POST   /api/v1/user/{user_id}/nodes/{node_id}/daemon/restart
+POST   /api/v1/user/{user_id}/nodes/{node_id}/daemon/upgrade
 GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/harnesses
 POST   /api/v1/user/{user_id}/nodes/{node_id}/daemon/harnesses/discover
 GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections
@@ -574,6 +581,14 @@ POST   /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections/{connecti
 DELETE /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections/{connection_id}
 GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/commands/{command_id}
 ```
+
+Settings / Devices / Nodes 的每个在线 node 行提供受确认保护的 paxd
+maintenance 操作。Restart 固定发送 `mode: immediate`；打开 Upgrade 弹窗后，前端按
+node 上报的 `os/arch` 调用 `GET /api/v1/public/paxd/download` 解析该平台最新的
+stable artifact，展示并提交其精确版本；当前版本相同时禁止重复升级。Upgrade 固定
+使用 `tag: stable` 和 `mode: immediate`。前端为每次请求生成唯一 `command_id`，并在
+ACK 后显示 command id、dispatch status 以及 upgrade 的新 boot 确认状态，便于与
+paxd 日志和 heartbeat 对照。
 
 control tunnel 同一时刻只允许一组 query request/response，因此面板按
 status → harnesses → agent connections 串行加载。mutation 收到 ACK 后保存

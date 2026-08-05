@@ -20,9 +20,11 @@ import {
 import { motion } from "motion/react";
 import {
   Archive,
+  ArchiveRestore,
   AlertCircle,
   ArrowUp,
   Bot,
+  Check,
   ChevronDown,
   ChevronRight,
   Folder,
@@ -37,7 +39,6 @@ import {
   Plus,
   Radio,
   ShieldCheck,
-  Server,
   TerminalSquare,
   Users,
   X,
@@ -67,6 +68,7 @@ import {
   createUserAttachment,
   listAgents,
   listUserSessions,
+  updateAgentSession,
   decideApproval,
   uploadUserAttachmentFile,
   useApprovals,
@@ -119,6 +121,7 @@ type WorkItem = {
   actionHref?: string;
   actionLabel: string;
   agentId?: string;
+  archivedAt?: string;
   background?: string;
   context: string;
   createdAt?: string;
@@ -153,8 +156,6 @@ type EmbeddedSessionTarget = {
   sessionId: string;
 };
 
-const allSessionAgentsValue = "__all_session_agents__";
-const allSessionNodesValue = "__all_session_nodes__";
 const homeSessionPageSize = 20;
 const nextSessionPageScrollOffset = 240;
 
@@ -174,7 +175,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const searchParams = useSearchParams();
   const composerFileInputRef = useRef<HTMLInputElement>(null);
   const persistedTargetSessionIdsRef = useRef(new Set<string>());
-  const urlSessionId = searchParams.get("session_id") ?? "";
+  const canonicalUrlSessionId = searchParams.get("session_id") ?? "";
+  const legacyUrlSessionId = searchParams.get("sessionId") ?? "";
+  const urlSessionId = canonicalUrlSessionId || legacyUrlSessionId;
   const [composerMode, setComposerMode] = useState<ComposerMode>("clean");
   const [draft, setDraft] = useState("");
   const [generatedDrafts, setGeneratedDrafts] = useState<
@@ -212,13 +215,10 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     sessionIds: openSessionIds,
   } = useSessionDeck(user.user_id);
   const [contextClosed, setContextClosed] = useState(false);
-  const [sessionAgentFilter, setSessionAgentFilter] = useState(
-    allSessionAgentsValue,
-  );
-  const [sessionAgentMenuOpen, setSessionAgentMenuOpen] = useState(false);
-  const [sessionNodeFilter, setSessionNodeFilter] =
-    useState(allSessionNodesValue);
-  const [sessionNodeMenuOpen, setSessionNodeMenuOpen] = useState(false);
+  const [sessionAgentFilters, setSessionAgentFilters] = useState<string[]>([]);
+  const [sessionNodeFilters, setSessionNodeFilters] = useState<string[]>([]);
+  const [includeArchivedSessions, setIncludeArchivedSessions] = useState(false);
+  const [sessionFilterMenuOpen, setSessionFilterMenuOpen] = useState(false);
   const [embeddedSessionTarget, setEmbeddedSessionTarget] =
     useState<EmbeddedSessionTarget | null>(() =>
       urlSessionId
@@ -255,40 +255,32 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     () => buildSessionNodeFilterOptions(nodes),
     [nodes],
   );
-  const effectiveSessionAgentFilter = sessionAgentFilterOptions.some(
-    (option) => option.value === sessionAgentFilter,
-  )
-    ? sessionAgentFilter
-    : allSessionAgentsValue;
-  const sessionFilterAgentIds = useMemo(
+  const effectiveSessionAgentFilters = useMemo(
     () =>
-      effectiveSessionAgentFilter === allSessionAgentsValue
-        ? []
-        : [effectiveSessionAgentFilter],
-    [effectiveSessionAgentFilter],
+      sessionAgentFilters.filter((value) =>
+        sessionAgentFilterOptions.some((option) => option.value === value),
+      ),
+    [sessionAgentFilterOptions, sessionAgentFilters],
   );
-  const effectiveSessionNodeFilter = sessionNodeFilterOptions.some(
-    (option) => option.value === sessionNodeFilter,
-  )
-    ? sessionNodeFilter
-    : allSessionNodesValue;
-  const sessionFilterNodeIds = useMemo(
+  const effectiveSessionNodeFilters = useMemo(
     () =>
-      effectiveSessionNodeFilter === allSessionNodesValue
-        ? []
-        : [effectiveSessionNodeFilter],
-    [effectiveSessionNodeFilter],
+      sessionNodeFilters.filter((value) =>
+        sessionNodeFilterOptions.some((option) => option.value === value),
+      ),
+    [sessionNodeFilterOptions, sessionNodeFilters],
   );
   const sessionsQuery = useInfiniteQuery({
     queryKey: queryKeys.userSessions(user.user_id, {
-      agentIds: sessionFilterAgentIds,
-      nodeIds: sessionFilterNodeIds,
+      agentIds: effectiveSessionAgentFilters,
+      includeArchived: includeArchivedSessions,
+      nodeIds: effectiveSessionNodeFilters,
       pageSize: homeSessionPageSize,
     }),
     queryFn: ({ pageParam }) =>
       listUserSessions(user.user_id, {
-        agentIds: sessionFilterAgentIds,
-        nodeIds: sessionFilterNodeIds,
+        agentIds: effectiveSessionAgentFilters,
+        includeArchived: includeArchivedSessions,
+        nodeIds: effectiveSessionNodeFilters,
         pageNum: pageParam,
         pageSize: homeSessionPageSize,
       }),
@@ -408,19 +400,27 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     () =>
       filterSessionWorkItems(
         activeWorkItems,
-        effectiveSessionAgentFilter,
-        effectiveSessionNodeFilter,
+        effectiveSessionAgentFilters,
+        effectiveSessionNodeFilters,
       ),
-    [activeWorkItems, effectiveSessionAgentFilter, effectiveSessionNodeFilter],
+    [
+      activeWorkItems,
+      effectiveSessionAgentFilters,
+      effectiveSessionNodeFilters,
+    ],
   );
-  const sessionAgentFilterLabel =
-    sessionAgentFilterOptions.find(
-      (option) => option.value === effectiveSessionAgentFilter,
-    )?.label ?? "All agents";
-  const sessionNodeFilterLabel =
-    sessionNodeFilterOptions.find(
-      (option) => option.value === effectiveSessionNodeFilter,
-    )?.label ?? "All nodes";
+  const sessionAgentFilterLabel = filterSelectionLabel(
+    sessionAgentFilterOptions,
+    effectiveSessionAgentFilters,
+    "All agents",
+    "agents",
+  );
+  const sessionNodeFilterLabel = filterSelectionLabel(
+    sessionNodeFilterOptions,
+    effectiveSessionNodeFilters,
+    "All nodes",
+    "nodes",
+  );
   const selectedWorkItem = selectedWorkItemId
     ? activeWorkItems.find((item) => item.id === selectedWorkItemId)
     : undefined;
@@ -466,7 +466,45 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       }),
     [openSessionIds, workItems],
   );
-  const railSubtitle = `${sessionAgentFilterLabel} · ${sessionNodeFilterLabel}`;
+  const railSubtitle = [
+    sessionAgentFilterLabel,
+    sessionNodeFilterLabel,
+    includeArchivedSessions ? "Archived included" : undefined,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const updateSessionArchived = useMutation({
+    mutationFn: async (item: WorkItem) => {
+      if (!item.nodeId || !item.agentId || !item.sessionId) {
+        throw new Error("Session archive target is incomplete.");
+      }
+      const archived = !item.archivedAt;
+      const session = await updateAgentSession(
+        user.user_id,
+        item.nodeId,
+        item.agentId,
+        item.sessionId,
+        { archived },
+      );
+      return { archived, item, session };
+    },
+    onSuccess: ({ archived, item }) => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.userSessionsRoot(user.user_id),
+      });
+      if (item.nodeId && item.agentId) {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.sessions(user.user_id, item.nodeId, item.agentId),
+        });
+      }
+      if (archived && item.sessionId) {
+        dismissDeckSession(item.sessionId);
+        if (activeSessionTarget?.sessionId === item.sessionId) {
+          showCleanComposer();
+        }
+      }
+    },
+  });
   const apiError =
     nodesQuery.error ??
     agentsQuery.error ??
@@ -474,6 +512,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     projectTargetsQuery.error ??
     projectTargetSaveError ??
     sessionsQuery.error ??
+    updateSessionArchived.error ??
     approvalsQuery.error ??
     envelopesQuery.error ??
     invitesQuery.error ??
@@ -491,6 +530,12 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       : selectedProjectId
         ? "Project"
         : "Composer";
+
+  useEffect(() => {
+    if (!canonicalUrlSessionId && legacyUrlSessionId) {
+      replaceHomeSessionUrl(legacyUrlSessionId);
+    }
+  }, [canonicalUrlSessionId, legacyUrlSessionId]);
 
   useEffect(() => {
     if (
@@ -570,8 +615,8 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       return;
     }
 
-    setSessionAgentFilter(allSessionAgentsValue);
-    setSessionNodeFilter(allSessionNodesValue);
+    setSessionAgentFilters([]);
+    setSessionNodeFilters([]);
     setEmbeddedSessionTarget({
       key: `tab:${sessionId}`,
       sessionId,
@@ -720,9 +765,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   function showCleanComposer() {
     const targetAgentId =
       activeSessionTarget?.agentId ??
-      (effectiveSessionAgentFilter === allSessionAgentsValue
-        ? undefined
-        : effectiveSessionAgentFilter);
+      (effectiveSessionAgentFilters.length === 1
+        ? effectiveSessionAgentFilters[0]
+        : undefined);
 
     if (targetAgentId) {
       setSelectedAgentId(targetAgentId);
@@ -801,35 +846,27 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                   </TruncatedText>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
-                  <InboxMenu
-                    icon={<ListFilter className="h-4 w-4" />}
-                    label="Filter by agent"
-                    onOpenChange={(open) => {
-                      setSessionAgentMenuOpen(open);
-                      if (open) setSessionNodeMenuOpen(false);
-                    }}
-                    open={sessionAgentMenuOpen}
-                    options={sessionAgentFilterOptions}
-                    selectedValue={effectiveSessionAgentFilter}
-                    onSelect={(value) => {
-                      setSessionAgentFilter(value);
-                      setSessionAgentMenuOpen(false);
-                    }}
-                  />
-                  <InboxMenu
-                    icon={<Server className="h-4 w-4" />}
-                    label="Filter by node"
-                    onOpenChange={(open) => {
-                      setSessionNodeMenuOpen(open);
-                      if (open) setSessionAgentMenuOpen(false);
-                    }}
-                    open={sessionNodeMenuOpen}
-                    options={sessionNodeFilterOptions}
-                    selectedValue={effectiveSessionNodeFilter}
-                    onSelect={(value) => {
-                      setSessionNodeFilter(value);
-                      setSessionNodeMenuOpen(false);
-                    }}
+                  <SessionFilterMenu
+                    agentOptions={sessionAgentFilterOptions}
+                    includeArchived={includeArchivedSessions}
+                    nodeOptions={sessionNodeFilterOptions}
+                    onAgentToggle={(value) =>
+                      setSessionAgentFilters((current) =>
+                        toggleFilterValue(current, value),
+                      )
+                    }
+                    onClearAgents={() => setSessionAgentFilters([])}
+                    onClearNodes={() => setSessionNodeFilters([])}
+                    onIncludeArchivedChange={setIncludeArchivedSessions}
+                    onNodeToggle={(value) =>
+                      setSessionNodeFilters((current) =>
+                        toggleFilterValue(current, value),
+                      )
+                    }
+                    onOpenChange={setSessionFilterMenuOpen}
+                    open={sessionFilterMenuOpen}
+                    selectedAgents={effectiveSessionAgentFilters}
+                    selectedNodes={effectiveSessionNodeFilters}
                   />
                 </div>
               </div>
@@ -876,6 +913,8 @@ export function FleetOverview({ user }: FleetOverviewProps) {
               onSelectSession={(item) => {
                 openSessionItem(item);
               }}
+              onSetArchived={(item) => updateSessionArchived.mutate(item)}
+              archivePendingId={updateSessionArchived.variables?.id}
               projects={projects}
               selectedProjectId={selectedProjectId}
               sessions={visibleWorkItems}
@@ -1400,17 +1439,21 @@ type HomeProjectTreeNode = {
 
 function ProjectSessionRail({
   activeSessionId,
+  archivePendingId,
   loading,
   onSelectProject,
   onSelectSession,
+  onSetArchived,
   projects,
   selectedProjectId,
   sessions,
 }: {
   activeSessionId?: string;
+  archivePendingId?: string;
   loading: boolean;
   onSelectProject: (projectId: string) => void;
   onSelectSession: (session: WorkItem) => void;
+  onSetArchived: (session: WorkItem) => void;
   projects: Project[];
   selectedProjectId: string;
   sessions: WorkItem[];
@@ -1453,12 +1496,14 @@ function ProjectSessionRail({
       {tree.map((node) => (
         <HomeProjectTreeRow
           activeSessionId={activeSessionId}
+          archivePendingId={archivePendingId}
           collapsedProjectIds={collapsedProjectIds}
           depth={0}
           key={node.project.project_id}
           node={node}
           onSelectProject={onSelectProject}
           onSelectSession={onSelectSession}
+          onSetArchived={onSetArchived}
           onToggleProject={toggleProject}
           selectedProjectId={selectedProjectId}
           sessions={sessions}
@@ -1479,6 +1524,8 @@ function ProjectSessionRail({
           depth={0}
           key={session.id}
           onSelect={() => onSelectSession(session)}
+          onSetArchived={() => onSetArchived(session)}
+          archivePending={archivePendingId === session.id}
           session={session}
         />
       ))}
@@ -1496,21 +1543,25 @@ function ProjectSessionRail({
 
 function HomeProjectTreeRow({
   activeSessionId,
+  archivePendingId,
   collapsedProjectIds,
   depth,
   node,
   onSelectProject,
   onSelectSession,
+  onSetArchived,
   onToggleProject,
   selectedProjectId,
   sessions,
 }: {
   activeSessionId?: string;
+  archivePendingId?: string;
   collapsedProjectIds: Set<string>;
   depth: number;
   node: HomeProjectTreeNode;
   onSelectProject: (projectId: string) => void;
   onSelectSession: (session: WorkItem) => void;
+  onSetArchived: (session: WorkItem) => void;
   onToggleProject: (projectId: string) => void;
   selectedProjectId: string;
   sessions: WorkItem[];
@@ -1558,12 +1609,14 @@ function HomeProjectTreeRow({
           {node.children.map((child) => (
             <HomeProjectTreeRow
               activeSessionId={activeSessionId}
+              archivePendingId={archivePendingId}
               collapsedProjectIds={collapsedProjectIds}
               depth={depth + 1}
               key={child.project.project_id}
               node={child}
               onSelectProject={onSelectProject}
               onSelectSession={onSelectSession}
+              onSetArchived={onSetArchived}
               onToggleProject={onToggleProject}
               selectedProjectId={selectedProjectId}
               sessions={sessions}
@@ -1575,6 +1628,8 @@ function HomeProjectTreeRow({
               depth={depth + 1}
               key={session.id}
               onSelect={() => onSelectSession(session)}
+              onSetArchived={() => onSetArchived(session)}
+              archivePending={archivePendingId === session.id}
               session={session}
             />
           ))}
@@ -1586,101 +1641,217 @@ function HomeProjectTreeRow({
 
 function HomeSessionRow({
   active,
+  archivePending,
   depth,
   onSelect,
+  onSetArchived,
   session,
 }: {
   active: boolean;
+  archivePending: boolean;
   depth: number;
   onSelect: () => void;
+  onSetArchived: () => void;
   session: WorkItem;
 }) {
   return (
-    <Link
+    <div
       className={cn(
-        "grid min-w-0 gap-0.5 py-2 pr-3 text-left transition hover:bg-surface-2",
+        "group flex min-w-0 items-center pr-1 transition hover:bg-surface-2",
         active
           ? "bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)]"
           : "text-ink-muted",
       )}
-      href={session.href}
-      onClick={(event) => {
-        if (
-          event.button !== 0 ||
-          event.metaKey ||
-          event.ctrlKey ||
-          event.shiftKey ||
-          event.altKey
-        ) {
-          return;
-        }
-        event.preventDefault();
-        onSelect();
-      }}
       style={{ paddingLeft: `${40 + depth * 16}px` }}
     >
-      <span className="truncate text-sm text-ink">{session.title}</span>
-      <span className="truncate text-xs text-ink-tertiary">
-        {session.context} · {relativeTime(session.createdAt)}
-      </span>
-    </Link>
+      <Link
+        className="grid min-w-0 flex-1 gap-0.5 py-2 text-left"
+        href={session.href}
+        onClick={(event) => {
+          if (
+            event.button !== 0 ||
+            event.metaKey ||
+            event.ctrlKey ||
+            event.shiftKey ||
+            event.altKey
+          ) {
+            return;
+          }
+          event.preventDefault();
+          onSelect();
+        }}
+      >
+        <span className="truncate text-sm text-ink">{session.title}</span>
+        <span className="truncate text-xs text-ink-tertiary">
+          {session.context} · {relativeTime(session.createdAt)}
+          {session.archivedAt ? " · Archived" : ""}
+        </span>
+      </Link>
+      <Button
+        aria-label={`${session.archivedAt ? "Restore" : "Archive"} ${session.title}`}
+        className="opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
+        disabled={archivePending}
+        icon={
+          archivePending ? (
+            <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+          ) : session.archivedAt ? (
+            <ArchiveRestore className="h-3.5 w-3.5" />
+          ) : (
+            <Archive className="h-3.5 w-3.5" />
+          )
+        }
+        onClick={onSetArchived}
+        size="icon"
+        tooltip={session.archivedAt ? "Restore session" : "Archive session"}
+        type="button"
+        variant="ghost"
+      />
+    </div>
   );
 }
 
-function InboxMenu({
-  icon,
-  label,
+function SessionFilterMenu({
+  agentOptions,
+  includeArchived,
+  nodeOptions,
+  onAgentToggle,
+  onClearAgents,
+  onClearNodes,
+  onIncludeArchivedChange,
+  onNodeToggle,
   onOpenChange,
-  onSelect,
   open,
-  options,
-  selectedValue,
+  selectedAgents,
+  selectedNodes,
 }: {
-  icon: React.ReactNode;
-  label: string;
+  agentOptions: Array<{ label: string; value: string }>;
+  includeArchived: boolean;
+  nodeOptions: Array<{ label: string; value: string }>;
+  onAgentToggle: (value: string) => void;
+  onClearAgents: () => void;
+  onClearNodes: () => void;
+  onIncludeArchivedChange: (value: boolean) => void;
+  onNodeToggle: (value: string) => void;
   onOpenChange: (open: boolean) => void;
-  onSelect: (value: string) => void;
   open: boolean;
-  options: Array<{ label: string; value: string }>;
-  selectedValue: string;
+  selectedAgents: string[];
+  selectedNodes: string[];
 }) {
-  const selected = options.find((option) => option.value === selectedValue);
-
   return (
     <div className="relative">
       <Button
-        icon={icon}
+        aria-expanded={open}
+        aria-label="Filter sessions"
+        icon={<ListFilter className="h-4 w-4" />}
         onClick={() => onOpenChange(!open)}
         size="icon"
-        tooltip={`${label}: ${selected?.label ?? selectedValue}`}
+        tooltip="Filter sessions"
         type="button"
         variant="ghost"
       />
       {open && (
-        <div className="absolute right-0 top-10 z-20 grid w-44 overflow-hidden rounded-lg border border-hairline bg-surface-1 shadow-xl shadow-black/30">
-          <div className="border-b border-hairline px-3 py-2 text-xs text-ink-tertiary">
-            {label}
-          </div>
-          {options.map((option) => (
+        <div className="absolute right-0 top-10 z-20 grid w-72 max-w-[calc(100vw-2rem)] gap-3 overflow-hidden rounded-lg border border-hairline bg-surface-1 p-3 shadow-xl shadow-black/30">
+          <SessionFilterOptionGroup
+            label="Agent"
+            onClear={onClearAgents}
+            onToggle={onAgentToggle}
+            options={agentOptions}
+            selectedValues={selectedAgents}
+          />
+          <SessionFilterOptionGroup
+            label="Node"
+            onClear={onClearNodes}
+            onToggle={onNodeToggle}
+            options={nodeOptions}
+            selectedValues={selectedNodes}
+          />
+          <div className="border-t border-hairline pt-2">
             <button
+              aria-pressed={includeArchived}
               className={cn(
-                "flex min-h-9 items-center justify-between gap-3 px-3 text-left text-sm transition hover:bg-surface-2 hover:text-ink",
-                option.value === selectedValue ? "text-ink" : "text-ink-muted",
+                "flex min-h-8 w-full min-w-0 items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition",
+                includeArchived
+                  ? "bg-accent/10 text-ink hover:bg-accent/15"
+                  : "text-ink-muted hover:bg-surface-3",
               )}
-              key={option.value}
-              onClick={() => onSelect(option.value)}
+              onClick={() => onIncludeArchivedChange(!includeArchived)}
               type="button"
             >
-              <TruncatedText className="min-w-0 flex-1" tooltip={option.label}>
-                {option.label}
-              </TruncatedText>
-              {option.value === selectedValue && (
-                <span className="h-1.5 w-1.5 rounded-full bg-accent-bright" />
+              <span className="min-w-0 flex-1 truncate">Include archived</span>
+              {includeArchived && (
+                <Check className="h-4 w-4 shrink-0 text-accent-bright" />
               )}
             </button>
-          ))}
+          </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function SessionFilterOptionGroup({
+  label,
+  onClear,
+  onToggle,
+  options,
+  selectedValues,
+}: {
+  label: "Agent" | "Node";
+  onClear: () => void;
+  onToggle: (value: string) => void;
+  options: Array<{ label: string; value: string }>;
+  selectedValues: string[];
+}) {
+  return (
+    <div
+      aria-label={`Filter by ${label.toLowerCase()}`}
+      className="min-w-0"
+      role="group"
+    >
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <div className="text-xs text-ink-tertiary">{label}</div>
+        {selectedValues.length > 0 && (
+          <button
+            className="shrink-0 text-xs text-accent hover:underline"
+            onClick={onClear}
+            type="button"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+      <div className="max-h-36 min-w-0 overflow-y-auto rounded-md border border-hairline bg-surface-2 p-1">
+        {options.length === 0 ? (
+          <div className="px-2 py-1.5 text-xs text-ink-tertiary">
+            No {label.toLowerCase()}s available
+          </div>
+        ) : (
+          options.map((option) => {
+            const selected = selectedValues.includes(option.value);
+            return (
+              <button
+                aria-label={`${label} ${option.label}`}
+                aria-pressed={selected}
+                className={cn(
+                  "flex w-full min-w-0 items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition",
+                  selected
+                    ? "bg-accent/10 text-ink hover:bg-accent/15"
+                    : "text-ink-muted hover:bg-surface-3",
+                )}
+                key={option.value}
+                onClick={() => onToggle(option.value)}
+                title={option.label}
+                type="button"
+              >
+                <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                {selected && (
+                  <Check className="h-4 w-4 shrink-0 text-accent-bright" />
+                )}
+              </button>
+            );
+          })
+        )}
+      </div>
     </div>
   );
 }
@@ -2245,6 +2416,7 @@ function buildWorkItems({
           actionHref: sessionHref,
           actionLabel: "Continue",
           agentId: session.agent_id,
+          archivedAt: session.archived_at,
           context: [
             agent?.name ?? agent?.agent_type ?? session.agent_id,
             node?.name ?? node?.hostname ?? session.node_id,
@@ -2458,7 +2630,6 @@ function buildSessionAgentFilterOptions(agents: Agent[], nodes: Node[]) {
   );
 
   return [
-    { label: "All agents", value: allSessionAgentsValue },
     ...[...sessionAgentOptions.entries()]
       .sort((left, right) => left[1].localeCompare(right[1]))
       .map(([value, label]) => ({ label, value })),
@@ -2469,7 +2640,6 @@ function buildSessionNodeFilterOptions(nodes: Node[]) {
   const nodeDisplayLabels = buildNodeDisplayLabels(nodes);
 
   return [
-    { label: "All nodes", value: allSessionNodesValue },
     ...nodes
       .map((node) => ({
         label: nodeDisplayLabels.get(node.node_id) ?? compactId(node.node_id),
@@ -2526,20 +2696,44 @@ function buildNodeDisplayLabels(nodes: Node[]) {
 
 function filterSessionWorkItems(
   items: WorkItem[],
-  sessionAgentFilter: string,
-  sessionNodeFilter: string,
+  sessionAgentFilters: string[],
+  sessionNodeFilters: string[],
 ) {
   return byRecent(
     items.filter(
       (item) =>
         item.kind === "session" &&
-        (sessionAgentFilter === allSessionAgentsValue ||
-          item.agentId === sessionAgentFilter) &&
-        (sessionNodeFilter === allSessionNodesValue ||
-          item.nodeId === sessionNodeFilter),
+        (sessionAgentFilters.length === 0 ||
+          (item.agentId && sessionAgentFilters.includes(item.agentId))) &&
+        (sessionNodeFilters.length === 0 ||
+          (item.nodeId && sessionNodeFilters.includes(item.nodeId))),
     ),
     (item) => item.createdAt,
   );
+}
+
+function filterSelectionLabel(
+  options: Array<{ label: string; value: string }>,
+  selectedValues: string[],
+  emptyLabel: string,
+  pluralLabel: string,
+) {
+  if (selectedValues.length === 0) {
+    return emptyLabel;
+  }
+  if (selectedValues.length === 1) {
+    return (
+      options.find((option) => option.value === selectedValues[0])?.label ??
+      emptyLabel
+    );
+  }
+  return `${selectedValues.length} ${pluralLabel}`;
+}
+
+function toggleFilterValue(current: string[], value: string) {
+  return current.includes(value)
+    ? current.filter((candidate) => candidate !== value)
+    : [...current, value];
 }
 
 function removeArchivedWorkItems(items: WorkItem[], archivedIds: string[]) {

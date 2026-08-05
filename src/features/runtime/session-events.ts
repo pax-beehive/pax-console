@@ -189,6 +189,7 @@ export type WorkstreamItem =
       id: string;
       sessionId: string;
       createdAt: string;
+      turnId?: string;
       actionsContent?: string;
       turnPatches?: CodePatch[];
     };
@@ -207,14 +208,30 @@ export function groupWorkstreamEvents(
 ): WorkstreamItem[] {
   const items: WorkstreamItem[] = [];
   let workGroup: Extract<WorkstreamItem, { type: "work_group" }> | undefined;
-  let lastAgentMessage:
-    | Extract<SessionEvent, { type: "agent_message" }>
-    | undefined;
-  let turnPatches: CodePatch[] = [];
-  let turnProposedPatches: CodePatch[] = [];
+  let workGroupTurnKey: string | undefined;
   let activeTurnId: string | undefined;
-  let turnSessionId = "";
-  let turnCreatedAt = "";
+  const legacyTurnKey = "__legacy_turn__";
+  type TurnAccumulator = {
+    lastAgentMessage?: Extract<SessionEvent, { type: "agent_message" }>;
+    proposedPatches: CodePatch[];
+    turnId?: string;
+    turnPatches: CodePatch[];
+  };
+  const turnAccumulators = new Map<string, TurnAccumulator>();
+
+  const accumulatorFor = (turnKey: string): TurnAccumulator => {
+    const existing = turnAccumulators.get(turnKey);
+    if (existing) {
+      return existing;
+    }
+    const accumulator = {
+      proposedPatches: [],
+      ...(turnKey !== legacyTurnKey ? { turnId: turnKey } : {}),
+      turnPatches: [],
+    };
+    turnAccumulators.set(turnKey, accumulator);
+    return accumulator;
+  };
 
   const exposeSingleWorkActivity = () => {
     if (!workGroup || workGroup.events.length !== 1) {
@@ -229,6 +246,7 @@ export function groupWorkstreamEvents(
       event,
     };
     workGroup = undefined;
+    workGroupTurnKey = undefined;
     return true;
   };
 
@@ -243,43 +261,45 @@ export function groupWorkstreamEvents(
 
     workGroup.complete = true;
     workGroup = undefined;
+    workGroupTurnKey = undefined;
   };
 
-  const markAgentTurnEnded = () => {
+  const markAgentTurnEnded = (
+    turnKey: string,
+    doneEvent: Extract<SessionEvent, { type: "turn_done" }>,
+  ) => {
+    const accumulator = turnAccumulators.get(turnKey);
+    if (!accumulator) {
+      return;
+    }
     const patches =
-      turnPatches.length > 0
-        ? turnPatches
-        : coalesceCodePatches(turnProposedPatches);
-    if (lastAgentMessage || patches.length > 0) {
+      accumulator.turnPatches.length > 0
+        ? accumulator.turnPatches
+        : coalesceCodePatches(accumulator.proposedPatches);
+    if (accumulator.lastAgentMessage || patches.length > 0) {
       items.push({
         type: "turn_footer",
-        id: `turn_footer:${lastAgentMessage?.id ?? patches[0]?.path ?? items.length}`,
-        sessionId: lastAgentMessage?.sessionId ?? turnSessionId,
-        createdAt: lastAgentMessage?.createdAt ?? turnCreatedAt,
-        actionsContent: lastAgentMessage?.content,
+        id: `turn_footer:${accumulator.lastAgentMessage?.id ?? patches[0]?.path ?? items.length}`,
+        sessionId: doneEvent.sessionId,
+        createdAt: doneEvent.createdAt,
+        ...(accumulator.turnId ? { turnId: accumulator.turnId } : {}),
+        actionsContent: accumulator.lastAgentMessage?.content,
         ...(patches.length > 0 ? { turnPatches: patches } : {}),
       });
     }
-    lastAgentMessage = undefined;
-    turnPatches = [];
-    turnProposedPatches = [];
-    turnSessionId = "";
-    turnCreatedAt = "";
+    turnAccumulators.delete(turnKey);
   };
 
   for (const event of events) {
-    if (event.turnId && activeTurnId && event.turnId !== activeTurnId) {
-      endWorkGroup();
-      markAgentTurnEnded();
-    }
-    if (event.turnId) {
-      activeTurnId = event.turnId;
-    }
-
     if (event.type === "turn_done") {
-      endWorkGroup();
-      markAgentTurnEnded();
-      activeTurnId = undefined;
+      const turnKey = event.turnId ?? activeTurnId ?? legacyTurnKey;
+      if (workGroupTurnKey === turnKey) {
+        endWorkGroup();
+      }
+      markAgentTurnEnded(turnKey, event);
+      if (!event.turnId || activeTurnId === event.turnId) {
+        activeTurnId = undefined;
+      }
       continue;
     }
 
@@ -287,19 +307,25 @@ export function groupWorkstreamEvents(
       continue;
     }
 
-    turnSessionId ||= event.sessionId;
-    turnCreatedAt ||= event.createdAt;
+    const turnKey = event.turnId ?? activeTurnId ?? legacyTurnKey;
+    if (event.turnId) {
+      activeTurnId = event.turnId;
+    }
+    if (workGroup && workGroupTurnKey !== turnKey) {
+      endWorkGroup();
+    }
+    const accumulator = accumulatorFor(turnKey);
 
     if (event.type === "tool_call") {
       const appliedPatches = toolCallAppliedPatches(event);
       if (appliedPatches.length > 0) {
-        turnPatches.push(...appliedPatches);
-        turnProposedPatches = [];
+        accumulator.turnPatches.push(...appliedPatches);
+        accumulator.proposedPatches = [];
       } else if (toolCallConfirmsApply(event)) {
-        turnPatches.push(...turnProposedPatches);
-        turnProposedPatches = [];
+        accumulator.turnPatches.push(...accumulator.proposedPatches);
+        accumulator.proposedPatches = [];
       } else {
-        turnProposedPatches.push(...toolCallProposedPatches(event));
+        accumulator.proposedPatches.push(...toolCallProposedPatches(event));
       }
     }
 
@@ -314,6 +340,7 @@ export function groupWorkstreamEvents(
           events: [],
         };
         items.push(workGroup);
+        workGroupTurnKey = turnKey;
       }
 
       workGroup.events.push(event);
@@ -321,7 +348,7 @@ export function groupWorkstreamEvents(
     }
 
     if (event.type === "permission_request") {
-      turnProposedPatches.push(...permissionRequestCodePatches(event));
+      accumulator.proposedPatches.push(...permissionRequestCodePatches(event));
     }
 
     endWorkGroup();
@@ -333,7 +360,7 @@ export function groupWorkstreamEvents(
     items.push(item);
 
     if (event.type === "agent_message") {
-      lastAgentMessage = event;
+      accumulator.lastAgentMessage = event;
     }
   }
 
