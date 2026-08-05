@@ -174,7 +174,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const searchParams = useSearchParams();
   const composerFileInputRef = useRef<HTMLInputElement>(null);
   const persistedTargetSessionIdsRef = useRef(new Set<string>());
-  const urlSessionId = searchParams.get("sessionId") ?? "";
+  const urlSessionId = searchParams.get("session_id") ?? "";
   const [composerMode, setComposerMode] = useState<ComposerMode>("clean");
   const [draft, setDraft] = useState("");
   const [generatedDrafts, setGeneratedDrafts] = useState<
@@ -2191,7 +2191,7 @@ function buildWorkItems({
             approval.operation ??
             "A tool call is waiting for human approval.",
           href: approval.request_session_id
-            ? `/sessions/${encodeURIComponent(approval.request_session_id)}`
+            ? `/?session_id=${encodeURIComponent(approval.request_session_id)}`
             : "/",
           id: `approval:${approval.approval_id}`,
           kind: "approval",
@@ -2296,7 +2296,7 @@ function approvalOptionLabel(optionId: string) {
 }
 
 function homeSessionHref(session: AgentSession) {
-  return `/sessions/${encodeURIComponent(session.session_id)}`;
+  return `/?session_id=${encodeURIComponent(session.session_id)}`;
 }
 
 function fakeInquiryWorkItems(agents: Agent[], nodes: Node[]): WorkItem[] {
@@ -2413,7 +2413,7 @@ function replaceHomeSessionUrl(sessionId: string) {
     return;
   }
 
-  const params = new URLSearchParams({ sessionId });
+  const params = new URLSearchParams({ session_id: sessionId });
   window.history.replaceState(window.history.state, "", `/?${params}`);
 }
 

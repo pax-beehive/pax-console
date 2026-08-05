@@ -721,9 +721,9 @@ The unified Home rail exposes separate agent and node filters, nests sessions
 under their primary Project, and keeps projectless sessions in Recents. In the
 new-session agent selector, duplicate agent names are qualified as
 `agent @ node`. Clicking a session keeps Home mounted and opens the embedded
-workbench at `/?sessionId={session_id}`, preserving the Project / Session rail.
-Standalone `/sessions/{session_id}` remains the canonical direct deep link for
-external clients and shared URLs. Starting from either the global or
+workbench at `/?session_id={session_id}`, preserving the Project / Session rail.
+Home-generated links, including modified clicks that open a new tab, use this
+same query-string URL. Starting from either the global or
 Project-scoped Home composer opens the embedded new workbench. A Project-scoped
 first prompt uses the normal Conversation endpoint with `primary_project_id`
 and, when an enabled Project/Agent/cwd match exists, `project_target_id`.
