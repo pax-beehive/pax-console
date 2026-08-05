@@ -107,6 +107,7 @@ import {
 import { useConversationRun } from "@/features/runtime/use-conversation-run";
 import { useSessionObserver } from "@/features/runtime/session-observer";
 import { sessionDisplayStatus } from "@/features/runtime/session-display-status";
+import { retrySessionHistoryHandoff } from "@/features/runtime/session-history-handoff";
 import { isSupportedSessionWorkspace } from "@/features/runtime/workspace-path";
 import { compactId } from "@/lib/format";
 import { useDocumentTitle } from "@/lib/use-document-title";
@@ -363,6 +364,7 @@ export function SessionWorkbench({
     fetchNextPage: fetchNextHistoryPage,
     hasNextPage: hasNextHistoryPage,
     isFetchingNextPage: isFetchingNextHistoryPage,
+    refetch: refetchSessionHistory,
   } = historyQuery;
   const capsulesQuery = useKnowledgeCapsules(
     showAdminFeatures ? user.user_id : undefined,
@@ -604,24 +606,65 @@ export function SessionWorkbench({
   const markConversationObserverConnected =
     conversationRun.markObserverConnected;
   const conversationTransportInterrupted = conversationRun.transportInterrupted;
+  const historyHandoffKeysRef = useRef(new Set<string>());
+  const retryTerminalHistoryHandoff = useCallback(
+    (targetTurnId?: string) => {
+      if (!currentSessionId) {
+        return;
+      }
+
+      const handoffKey = `${currentSessionId}:${targetTurnId ?? "unknown-turn"}`;
+      if (historyHandoffKeysRef.current.has(handoffKey)) {
+        return;
+      }
+      historyHandoffKeysRef.current.add(handoffKey);
+
+      const baselineCompletionMessageIds = historyMessages
+        .filter((message) => message.message_type === "turn_done")
+        .map((message) => message.message_id);
+      void retrySessionHistoryHandoff({
+        baselineCompletionMessageIds,
+        refetch: async () => {
+          const result = await refetchSessionHistory();
+          return flattenSessionHistoryPages(result.data?.pages);
+        },
+        targetTurnId,
+      }).finally(() => {
+        historyHandoffKeysRef.current.delete(handoffKey);
+      });
+    },
+    [currentSessionId, historyMessages, refetchSessionHistory],
+  );
   const handleNoRunningTurn = useCallback(() => {
+    const interruptedTurnId = latestRuntimeTurnId(conversationRun.events);
     finishConversationRunFromObserver();
     setObserverSuppressedSessionId(currentSessionId ?? null);
     refreshActiveSessionRuntime();
+    retryTerminalHistoryHandoff(interruptedTurnId);
   }, [
+    conversationRun.events,
     currentSessionId,
     finishConversationRunFromObserver,
     refreshActiveSessionRuntime,
+    retryTerminalHistoryHandoff,
   ]);
   const handleObserverConnected = useCallback(() => {
     if (conversationTransportInterrupted) {
       markConversationObserverConnected();
     }
   }, [conversationTransportInterrupted, markConversationObserverConnected]);
-  const handleObservedTurnDone = useCallback(() => {
-    finishConversationRunFromObserver();
-    refreshActiveSessionRuntime();
-  }, [finishConversationRunFromObserver, refreshActiveSessionRuntime]);
+  const handleObservedTurnDone = useCallback(
+    (turnId?: string) => {
+      finishConversationRunFromObserver();
+      refreshActiveSessionRuntime();
+      retryTerminalHistoryHandoff(turnId);
+    },
+    [
+      finishConversationRunFromObserver,
+      refreshActiveSessionRuntime,
+      retryTerminalHistoryHandoff,
+    ],
+  );
   const sessionObserver = useSessionObserver({
     afterMessageId: shouldFollowQueuedTurn ? undefined : lastHistoryMessageID,
     agentId: activeAgentId,

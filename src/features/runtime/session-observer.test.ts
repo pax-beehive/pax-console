@@ -14,7 +14,9 @@ describe("handleSessionObserverEnvelope", () => {
   it("preserves the business turn on ACP events and emits turn_done", () => {
     let status: SessionObserverStatus = "observing";
     let events: SessionEvent[] = [];
+    const onTurnDone = vi.fn();
     const options = {
+      onTurnDone,
       setError: () => undefined,
       setEvents: (
         nextEvents:
@@ -68,6 +70,7 @@ describe("handleSessionObserverEnvelope", () => {
       { type: "progress", turnId: "turn_1" },
       { type: "turn_done", turnId: "turn_1" },
     ]);
+    expect(onTurnDone).toHaveBeenCalledWith("turn_1");
   });
 });
 

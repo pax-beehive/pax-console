@@ -465,8 +465,11 @@ A recoverable `/conversation` SSE transport failure keeps the owned run
 displayed as `running` and enables the session `/events` observer immediately,
 without waiting for the canonical running snapshot. Observer connection clears
 the transport notice, while observer `turn_done` or `no_running_turn` completes
-the local display. Only explicit conversation business-error envelopes are
-terminal run errors.
+the local display and starts a bounded history refetch with capped exponential
+backoff. The handoff stops when durable history contains that turn's
+`turn_done`, or a completion marker newer than the pre-handoff snapshot when no
+runtime turn id is available. Only explicit conversation business-error
+envelopes are terminal run errors.
 
 Projects
 POST  /api/v1/user/{user_id}/projects

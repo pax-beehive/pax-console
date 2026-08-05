@@ -83,7 +83,7 @@ type UseSessionObserverOptions = {
   onQueuedTurnStarted?: () => void;
   onQueuedTurnFinished?: () => void;
   onQueuedTurnUnavailable?: () => void;
-  onTurnDone?: () => void;
+  onTurnDone?: (turnId?: string) => void;
   sessionId?: string;
   userId: string;
 };
@@ -386,7 +386,7 @@ export function handleSessionObserverEnvelope(
   }: {
     onBufferMiss?: () => void;
     onNoRunningTurn?: () => void;
-    onTurnDone?: () => void;
+    onTurnDone?: (turnId?: string) => void;
     setError: Dispatch<SetStateAction<Error | null>>;
     appendEvents?: (events: SessionEvent[]) => void;
     setEvents?: Dispatch<SetStateAction<SessionEvent[]>>;
@@ -431,7 +431,7 @@ export function handleSessionObserverEnvelope(
       },
     ]);
     setStatus("done");
-    onTurnDone?.();
+    onTurnDone?.(envelope.turn_id);
     return;
   }
 
