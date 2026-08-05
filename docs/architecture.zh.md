@@ -139,9 +139,8 @@ src/components/home/
   Home 工作台。左侧是统一的 Project / Session 树：Project 下嵌套其
   primary sessions，未绑定 Project 的 session 放在 Recents；session 仍支持
   分别按 agent 和 node 过滤。正常选择 session
-  会保持 Home 挂载并通过 `/?sessionId=...` 在右侧打开 embedded workbench，
-  独立 `/sessions/{session_id}` 继续作为外部客户端和分享链接的 canonical
-  deep link。Project 创建、改名、调整父级、归档以及 Target CRUD 都位于
+  会保持 Home 挂载并通过 `/?session_id=...` 在右侧打开 embedded workbench；
+  包括 Command/Ctrl 点击在内的 Home session 链接都使用同一 URL。Project 创建、改名、调整父级、归档以及 Target CRUD 都位于
   Settings / Projects；Home 只负责选中 Project 和开始工作。Target 绑定 Agent
   和 cwd intent，支持同一
   Project/Agent 下多个不同 cwd、编辑、启用/禁用和唯一 enabled default。
@@ -624,7 +623,7 @@ embedded Session workbench：
 
 用户发送第一条 prompt 时，Session workbench 通过新的 conversation run
 入口创建真实 manager session，并在收到 `type=session` 后把 URL 保持在
-Home，只替换为 `/?sessionId={session_id}`。
+Home，只替换为 `/?session_id={session_id}`。
 
 ## Conversation run / agent tunnel 状态
 
@@ -673,7 +672,7 @@ SSE 开始后的失败通过 `type=error` envelope 返回 `status_code` 与
 （这个接口是 POST + JSON body）。每条默认 SSE `data:` 是一个 PAX envelope：
 
 ```txt
-type=session       保存 session_id；新会话 replaceState 到 /?sessionId={session_id}
+type=session       保存 session_id；新会话 replaceState 到 /?session_id={session_id}
 type=turn_started  在可见输出前接管不透明的业务 turn_id
 type=acp           取 envelope.frame，保留 turn_id 并走 normalizeTunnelFrame
 type=turn_done     durable history 可查询后结束该业务 turn
@@ -890,7 +889,7 @@ chunk 合并在 `src/features/runtime/merge-session-events.ts`，不是在 React
 
 ```txt
 PAX Manager session
-  conversation run 首次 prompt 创建，出现在 /?sessionId={session_id} URL 中，用来承载产品上下文和历史消息。
+  conversation run 首次 prompt 创建，出现在 /?session_id={session_id} URL 中，用来承载产品上下文和历史消息。
 
 ACP/native session
   manager 通过 session/new 创建并绑定到 sess_*，对前端隐藏，用来向 agent runtime 发送 session/prompt。

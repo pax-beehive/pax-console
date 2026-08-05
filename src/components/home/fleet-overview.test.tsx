@@ -475,11 +475,11 @@ describe("FleetOverview session rail", () => {
     expect(workbench).toHaveAttribute("data-agent-id", "agent_1");
     expect(screen.getByText("Recents")).toBeVisible();
     expect(window.location.pathname).toBe("/");
-    expect(window.location.search).toBe("?sessionId=sess_1");
+    expect(window.location.search).toBe("?session_id=sess_1");
     await waitFor(() => expect(mocks.routerPush).not.toHaveBeenCalled());
   });
 
-  it("leaves command-click navigation to the canonical session link", async () => {
+  it("leaves command-click navigation to the Home session link", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
@@ -496,7 +496,7 @@ describe("FleetOverview session rail", () => {
       name: /Session one/,
     });
 
-    expect(sessionLink).toHaveAttribute("href", "/sessions/sess_1");
+    expect(sessionLink).toHaveAttribute("href", "/?session_id=sess_1");
     let componentPreventedNavigation = true;
     const preventJsdomNavigation = (event: MouseEvent) => {
       componentPreventedNavigation = event.defaultPrevented;

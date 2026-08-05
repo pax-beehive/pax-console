@@ -428,9 +428,9 @@ Current frontend note: Home reads the flat
 `GET /api/v1/user/{user_id}/sessions` list with `page_size=20` and increments
 `page_num` as the user scrolls the Sessions rail. Optional `node_id` and
 `agent_id` filters accept comma-separated ids. Selecting a row opens the
-embedded session workbench at `/?sessionId={session_id}` so the Home rail stays
-mounted. The standalone `/sessions/{session_id}` route remains available for
-external clients and shared deep links; it scans this paginated list by
+embedded session workbench at `/?session_id={session_id}` so the Home rail stays
+mounted. Home-generated links use this URL for ordinary and modified clicks;
+the workbench scans this paginated list by
 `session_id` before enabling agent-scoped queue/events calls, so the session's
 own `node_id` and `agent_id` remain authoritative.
 Session rows sort by `last_user_message_at`; assistant output and tool activity
@@ -666,7 +666,7 @@ the timeline.
 The stream uses default SSE data messages. Each data payload is a PAX envelope:
 
 ```txt
-session       Save `session_id`; for new sessions replace the URL to /?sessionId={session_id}.
+session       Save `session_id`; for new sessions replace the URL to /?session_id={session_id}.
 turn_started  Adopt the opaque business `turn_id` before visible output.
 acp           Normalize `frame`, preserve `turn_id`, and merge into the timeline.
 turn_done     Complete the business turn after durable history is query-visible.
@@ -918,7 +918,7 @@ Recommended layout:
 ### Session Load Flow
 
 ```txt
-1. User opens /?sessionId={sessionId}.
+1. User opens /?session_id={sessionId}.
 2. Home resolves node/agent from the flattened sessions list, then queries session detail from REST.
 3. Query historical session messages from REST.
 4. Normalize mailbox messages into session events.
