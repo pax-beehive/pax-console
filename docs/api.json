@@ -9,6 +9,9 @@
           "agent_type": {
             "type": "string"
           },
+          "archived_at": {
+            "type": "string"
+          },
           "capabilities": {
             "type": "object"
           },
@@ -162,6 +165,9 @@
         "properties": {
           "agent_id": {
             "type": "string"
+          },
+          "include_archived": {
+            "type": "boolean"
           },
           "approval_id": {
             "type": "string"
@@ -3007,6 +3013,9 @@
         "properties": {
           "agent_id": {
             "type": "string"
+          },
+          "archived": {
+            "type": "boolean"
           },
           "name": {
             "type": "string"
@@ -10252,6 +10261,15 @@
             "description": "Optional primary logical project identifier filter.",
             "in": "query",
             "name": "primary_project_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Whether archived sessions should be included. Defaults to false.",
+            "in": "query",
+            "name": "include_archived",
             "required": false,
             "schema": {
               "type": "string"

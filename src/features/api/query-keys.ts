@@ -48,6 +48,8 @@ export const queryKeys = {
   nodes: (userId: string) => ["users", userId, "nodes"] as const,
   node: (userId: string, nodeId: string) =>
     ["users", userId, "nodes", nodeId] as const,
+  latestPaxdRelease: (platform: string, tag: string) =>
+    ["paxd-releases", "latest", platform, tag] as const,
   nodeDaemonStatus: (userId: string, nodeId: string) =>
     ["users", userId, "nodes", nodeId, "daemon", "status"] as const,
   nodeDaemonHarnesses: (userId: string, nodeId: string) =>
@@ -87,6 +89,7 @@ export const queryKeys = {
     userId: string,
     filters?: {
       agentIds?: string[];
+      includeArchived?: boolean;
       nodeIds?: string[];
       pageSize?: number;
       primaryProjectId?: string;
@@ -98,6 +101,7 @@ export const queryKeys = {
       "session-list",
       {
         agentIds: [...(filters?.agentIds ?? [])].sort(),
+        includeArchived: filters?.includeArchived ?? false,
         nodeIds: [...(filters?.nodeIds ?? [])].sort(),
         pageSize: filters?.pageSize ?? "default",
         primaryProjectId: filters?.primaryProjectId ?? "all",

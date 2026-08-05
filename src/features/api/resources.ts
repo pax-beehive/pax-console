@@ -35,6 +35,7 @@ import {
   NodeDaemonQueryResult,
   NodeRegistrationPreview,
   Pagination,
+  PaxdRelease,
   PaxdConnectPreview,
   RepresentativeAgent,
   Project,
@@ -72,6 +73,7 @@ type SessionListData = {
 
 type ListUserSessionsOptions = {
   agentIds?: string[];
+  includeArchived?: boolean;
   nodeIds?: string[];
   pageNum?: number;
   pageSize?: number;
@@ -95,6 +97,7 @@ type ProjectTargetData = {
 };
 
 type UpdateAgentSessionInput = {
+  archived?: boolean;
   name?: string;
   use_reported_name?: boolean;
   pax_config?: {
@@ -320,6 +323,13 @@ export function listNodes(userId: string) {
   return apiFetch<NodeListData>(userPath(userId, "/nodes"));
 }
 
+export function getLatestPaxdRelease(os: string, arch: string) {
+  const platform = `${os.trim()}/${arch.trim()}`.toLowerCase();
+  return apiFetch<PaxdRelease>(
+    `/api/v1/public/paxd/download?platform=${encodeURIComponent(platform)}&tags=stable`,
+  );
+}
+
 export function getNode(userId: string, nodeId: string) {
   return apiFetch<Node>(userPath(userId, `/nodes/${nodeId}`));
 }
@@ -356,6 +366,38 @@ export function listNodeDaemonAgentConnections(userId: string, nodeId: string) {
       userId,
       `/nodes/${nodeId}/daemon/agent-connections?include_disabled=true`,
     ),
+  );
+}
+
+export function restartNodeDaemon(userId: string, nodeId: string) {
+  return apiFetch<NodeDaemonCommandData>(
+    userPath(userId, `/nodes/${nodeId}/daemon/restart`),
+    {
+      body: JSON.stringify({
+        command_id: createIdempotencyKey(),
+        mode: "immediate",
+      }),
+      method: "POST",
+    },
+  );
+}
+
+export function upgradeNodeDaemon(
+  userId: string,
+  nodeId: string,
+  input: { version: string },
+) {
+  return apiFetch<NodeDaemonCommandData>(
+    userPath(userId, `/nodes/${nodeId}/daemon/upgrade`),
+    {
+      body: JSON.stringify({
+        command_id: createIdempotencyKey(),
+        version: input.version.trim(),
+        tag: "stable",
+        mode: "immediate",
+      }),
+      method: "POST",
+    },
   );
 }
 
@@ -521,6 +563,9 @@ export function listUserSessions(
   if (options.primaryProjectId?.trim()) {
     params.set("primary_project_id", options.primaryProjectId.trim());
   }
+  if (options.includeArchived) {
+    params.set("include_archived", "true");
+  }
 
   const query = params.toString();
   return apiFetch<SessionListData>(
@@ -533,7 +578,11 @@ export async function getUserSession(userId: string, sessionId: string) {
   let pageNum = 1;
 
   while (true) {
-    const page = await listUserSessions(userId, { pageNum, pageSize });
+    const page = await listUserSessions(userId, {
+      includeArchived: true,
+      pageNum,
+      pageSize,
+    });
     const session = page.sessions.find((item) => item.session_id === sessionId);
     if (session) {
       return session;
@@ -1629,6 +1678,20 @@ export function useNodes(userId?: string) {
     queryKey: queryKeys.nodes(userId ?? "pending"),
     queryFn: () => listNodes(userId as string),
     enabled: Boolean(userId),
+  });
+}
+
+export function useLatestPaxdRelease(
+  os?: string,
+  arch?: string,
+  enabled = true,
+) {
+  const platform = `${os ?? "pending"}/${arch ?? "pending"}`.toLowerCase();
+  return useQuery({
+    queryKey: queryKeys.latestPaxdRelease(platform, "stable"),
+    queryFn: () => getLatestPaxdRelease(os as string, arch as string),
+    enabled: Boolean(os && arch && enabled),
+    staleTime: 60_000,
   });
 }
 

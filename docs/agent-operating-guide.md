@@ -716,17 +716,26 @@ owns the user-facing Sessions tab; do not re-promote Sessions as a sidebar item.
 
 PAX Manager exposes Home sessions through
 `GET /api/v1/user/{user_id}/sessions?page_size=20&page_num=...`, with optional
-comma-separated `node_id` and `agent_id` filters. Home uses this flat paginated
-list instead of scanning every node/agent session collection. The initial page
-loads 20 sessions and the left rail fetches the next page as the user scrolls.
+comma-separated `node_id` and `agent_id` filters plus `include_archived=true`.
+Archived sessions are excluded by default. Home uses this flat paginated list
+instead of scanning every node/agent session collection. The initial page loads
+20 sessions and the left rail fetches the next page as the user scrolls.
 Session ordering uses `last_user_message_at`, the latest accepted user prompt.
 Assistant streaming, thoughts, and tool activity must not reorder rows; legacy
 records fall back to `last_message_at`, then `updated_at`.
-The unified Home rail exposes separate agent and node filters, nests sessions
-under their primary Project, and keeps projectless sessions in Recents. In the
+The unified Home rail exposes one filter control containing multi-select Agent
+and Node option lists plus Include archived. Selected rows use a subtle
+background and trailing checkmark instead of leading checkboxes. Long option
+labels stay within the filter panel and truncate visually while preserving
+their full tooltip.
+Sessions are nested under their primary Project, and projectless sessions stay
+in Recents. Each session row can archive or restore the
+session through the existing session PATCH endpoint. In the
 new-session agent selector, duplicate agent names are qualified as
 `agent @ node`. Clicking a session keeps Home mounted and opens the embedded
 workbench at `/?session_id={session_id}`, preserving the Project / Session rail.
+Legacy direct links using `/?sessionId={session_id}` remain supported and are
+normalized to the canonical snake_case query parameter during initialization.
 Home-generated links, including modified clicks that open a new tab, use this
 same query-string URL. Starting from either the global or
 Project-scoped Home composer opens the embedded new workbench. A Project-scoped
@@ -781,6 +790,8 @@ Node and agent details
 
 Node daemon control
   GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/status
+  POST   /api/v1/user/{user_id}/nodes/{node_id}/daemon/restart
+  POST   /api/v1/user/{user_id}/nodes/{node_id}/daemon/upgrade
   GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/harnesses
   POST   /api/v1/user/{user_id}/nodes/{node_id}/daemon/harnesses/discover
   GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections
@@ -817,6 +828,14 @@ Inquiries route
 ```
 
 Do not regress these routes into placeholders.
+
+Settings / Devices / Nodes exposes guarded row actions for immediate paxd
+restart and upgrade. Restart requires confirmation. When the upgrade dialog
+opens, it resolves the newest stable artifact for the node's reported OS and
+architecture through `GET /api/v1/public/paxd/download`, shows that exact
+version, and disables redundant upgrades when the node already runs it. Both
+actions generate a client command id and display the acknowledged command so
+operators can correlate it with daemon logs and the new boot heartbeat.
 
 ## Documentation Maintenance Requirement
 

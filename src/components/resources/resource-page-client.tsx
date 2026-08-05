@@ -65,6 +65,7 @@ import {
   sessionUpdatedAt,
   SessionRow,
 } from "./resource-models";
+import { NodeMaintenanceActions } from "./node-maintenance-actions";
 
 type ResourceKind =
   | "nodes"
@@ -432,7 +433,7 @@ function NodeGrid({
         <div className="grid min-w-0 overflow-hidden rounded-lg border border-hairline">
           {nodes.map((node) => (
             <article
-              className="grid min-w-0 gap-3 border-b border-hairline bg-surface-1 px-3 py-2.5 transition last:border-b-0 hover:bg-surface-2 sm:grid-cols-[minmax(0,1fr)_180px_120px_40px]"
+              className="grid min-w-0 gap-3 border-b border-hairline bg-surface-1 px-3 py-2.5 transition last:border-b-0 hover:bg-surface-2 sm:grid-cols-[minmax(0,1fr)_180px_120px_132px]"
               key={node.node_id}
             >
               <Link className="contents" href={`/nodes/${node.node_id}`}>
@@ -460,7 +461,16 @@ function NodeGrid({
                   </Badge>
                 </div>
               </Link>
-              <div className="flex items-start justify-end">
+              <div className="flex items-start justify-end gap-1">
+                <NodeMaintenanceActions
+                  currentVersion={node.paxd_version}
+                  disabled={!node.online || removeNode.isPending}
+                  nodeArch={node.arch}
+                  nodeId={node.node_id}
+                  nodeLabel={node.name ?? node.hostname ?? node.node_id}
+                  nodeOS={node.os}
+                  userId={userId}
+                />
                 <ConfirmDialog
                   confirmLabel={
                     removeNode.isPending ? "Deleting..." : "Delete node"
@@ -611,8 +621,8 @@ function AgentGrid({
                           agentToDelete?.agent_type ??
                           agentToDelete?.agent_id}
                       </span>{" "}
-                      from the agents list. Other agents on the same node are not
-                      affected.
+                      from the agents list. Other agents on the same node are
+                      not affected.
                     </>
                   }
                   disabled={removeAgent.isPending}

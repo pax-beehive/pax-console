@@ -28,6 +28,7 @@ const {
   getProject,
   getProjectTarget,
   getNodeDaemonCommand,
+  getLatestPaxdRelease,
   getNodeDaemonStatus,
   getQueuedSessionTurn,
   getUserSession,
@@ -49,6 +50,7 @@ const {
   queueSessionTurn,
   removeNodeDaemonAgentConnection,
   resetSessionRuntime,
+  restartNodeDaemon,
   restartNodeDaemonAgentConnection,
   startNodeDaemonAgentConnection,
   steerSessionTurn,
@@ -63,6 +65,7 @@ const {
   updateProject,
   updateProjectTarget,
   updateTeamMemberRole,
+  upgradeNodeDaemon,
 } = await import("./resources");
 
 afterEach(() => {
@@ -103,6 +106,27 @@ describe("toPaxdConnectPreview", () => {
       paxdVersion: "0.1.2",
       requestedAt: "2026-06-22T04:00:00Z",
     });
+  });
+});
+
+describe("getLatestPaxdRelease", () => {
+  it("resolves the latest stable paxd artifact for a node platform", async () => {
+    apiFetch.mockResolvedValueOnce({
+      platform: "darwin/arm64",
+      size_bytes: 1234,
+      tags: ["stable"],
+      version: "1.2.3",
+    });
+
+    await expect(getLatestPaxdRelease("darwin", "arm64")).resolves.toEqual({
+      platform: "darwin/arm64",
+      size_bytes: 1234,
+      tags: ["stable"],
+      version: "1.2.3",
+    });
+    expect(apiFetch).toHaveBeenCalledWith(
+      "/api/v1/public/paxd/download?platform=darwin%2Farm64&tags=stable",
+    );
   });
 });
 
@@ -412,6 +436,35 @@ describe("node daemon control resources", () => {
       { body: expect.stringContaining('"command_id"'), method: "DELETE" },
     );
   });
+
+  it("requests immediate paxd restart and upgrade with command ids", async () => {
+    apiFetch.mockResolvedValue({
+      command_id: "cmd_1",
+      dispatch_status: "acknowledged",
+    });
+
+    await restartNodeDaemon("u1", "n1");
+    await upgradeNodeDaemon("u1", "n1", { version: "1.2.3" });
+
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/user/u1/nodes/n1/daemon/restart",
+      {
+        body: expect.stringMatching(/"command_id":"[^"]+","mode":"immediate"/),
+        method: "POST",
+      },
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/user/u1/nodes/n1/daemon/upgrade",
+      {
+        body: expect.stringMatching(
+          /"command_id":"[^"]+","version":"1\.2\.3","tag":"stable","mode":"immediate"/,
+        ),
+        method: "POST",
+      },
+    );
+  });
 });
 
 describe("listUserSessions", () => {
@@ -428,6 +481,7 @@ describe("listUserSessions", () => {
         pageNum: 2,
         pageSize: 20,
         primaryProjectId: " proj_1 ",
+        includeArchived: true,
       }),
     ).resolves.toEqual({
       pagination: { page_num: 2, page_size: 20, total: 21, total_pages: 2 },
@@ -435,7 +489,7 @@ describe("listUserSessions", () => {
     });
 
     expect(apiFetch).toHaveBeenCalledWith(
-      "/api/v1/user/u1/sessions?node_id=n1%2Cn2&agent_id=a1%2Ca2&page_size=20&page_num=2&primary_project_id=proj_1",
+      "/api/v1/user/u1/sessions?node_id=n1%2Cn2&agent_id=a1%2Ca2&page_size=20&page_num=2&primary_project_id=proj_1&include_archived=true",
     );
   });
 
@@ -459,11 +513,11 @@ describe("listUserSessions", () => {
     });
     expect(apiFetch).toHaveBeenNthCalledWith(
       1,
-      "/api/v1/user/u1/sessions?page_size=200&page_num=1",
+      "/api/v1/user/u1/sessions?page_size=200&page_num=1&include_archived=true",
     );
     expect(apiFetch).toHaveBeenNthCalledWith(
       2,
-      "/api/v1/user/u1/sessions?page_size=200&page_num=2",
+      "/api/v1/user/u1/sessions?page_size=200&page_num=2&include_archived=true",
     );
   });
 });
