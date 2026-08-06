@@ -67,8 +67,7 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
   const [editing, setEditing] = useState<NodeDaemonAgentConnection>();
   const [removeTarget, setRemoveTarget] = useState<NodeDaemonAgentConnection>();
   const [lastCommand, setLastCommand] = useState<LastDaemonCommand>();
-  const [discoverFeedback, setDiscoverFeedback] =
-    useState<DiscoverFeedback>();
+  const [discoverFeedback, setDiscoverFeedback] = useState<DiscoverFeedback>();
   const runtimeTarget = lastCommand?.runtime;
 
   // paxd intentionally permits only one query request/response at a time, so
@@ -173,11 +172,13 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
       desired_slots: number;
       harness: string;
       name: string;
+      report_local_sessions: boolean;
       working_dir?: string;
     }) =>
       updateNodeDaemonAgentConnection(userId, nodeId, input.connectionId, {
         harness: input.harness,
         name: input.name,
+        report_local_sessions: input.report_local_sessions,
         working_dir: input.working_dir,
         desired_slots: input.desired_slots,
       }),
@@ -322,7 +323,9 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
             {availableHarnesses.length}/{harnesses.length} harnesses available
           </span>
           <span>{connections.length} current connections</span>
-          <span>New agents inherit their agent type from the selected harness.</span>
+          <span>
+            New agents inherit their agent type from the selected harness.
+          </span>
         </div>
       </div>
 
@@ -478,7 +481,9 @@ function HarnessInventory({
                   <TruncatedText className="font-medium text-ink">
                     {harness.display_name ?? harness.harness}
                   </TruncatedText>
-                  <Badge tone={harnessTone(harness.state)}>{harness.state}</Badge>
+                  <Badge tone={harnessTone(harness.state)}>
+                    {harness.state}
+                  </Badge>
                 </div>
                 <div className="min-w-0">
                   <TruncatedText className="font-mono text-xs text-ink-muted">
@@ -553,8 +558,9 @@ function ConnectionRow({
         <div className="text-xs text-ink-muted">
           {connection.agent_type && connection.agent_type !== connection.harness
             ? `${connection.agent_type} via ${connection.harness}`
-            : connection.harness} · generation {connection.generation} ·{" "}
-          {connection.desired_acp_slots} desired slots
+            : connection.harness}{" "}
+          · generation {connection.generation} · {connection.desired_acp_slots}{" "}
+          desired slots
         </div>
         <MonoId className="mt-1" tooltip={connection.id}>
           {compactId(connection.id)}
@@ -771,6 +777,7 @@ function EditConnectionForm({
     desired_slots: number;
     harness: string;
     name: string;
+    report_local_sessions: boolean;
     working_dir?: string;
   }) => void;
 }) {
@@ -779,6 +786,9 @@ function EditConnectionForm({
   const [workingDir, setWorkingDir] = useState(connection.working_dir ?? "");
   const [desiredSlots, setDesiredSlots] = useState(
     connection.desired_acp_slots,
+  );
+  const [reportLocalSessions, setReportLocalSessions] = useState(
+    connection.report_local_sessions ?? false,
   );
   const desiredSlotsValid = validDesiredSlots(desiredSlots);
   return (
@@ -809,6 +819,23 @@ function EditConnectionForm({
           value={desiredSlots}
         />
       </div>
+      <label className="flex items-start gap-3 rounded-md border border-hairline bg-surface-1 px-3 py-2 text-sm text-ink">
+        <input
+          checked={reportLocalSessions}
+          className="mt-1 h-4 w-4 accent-[var(--color-accent)]"
+          onChange={(event) => setReportLocalSessions(event.target.checked)}
+          type="checkbox"
+        />
+        <span className="grid gap-0.5">
+          <span>Sync local sessions to the cloud</span>
+          <span className="text-xs leading-5 text-ink-muted">
+            Turn this off to keep sessions created outside PAX local. Sessions
+            created from this web console still sync so their names and history
+            remain available. If multiple accounts on this machine use the same
+            cloud URL, paxd enforces this private mode automatically.
+          </span>
+        </span>
+      </label>
       <div className="flex justify-end gap-2">
         <Button
           icon={<X className="h-4 w-4" />}
@@ -826,6 +853,7 @@ function EditConnectionForm({
               desired_slots: desiredSlots,
               harness,
               name: name.trim(),
+              report_local_sessions: reportLocalSessions,
               working_dir: workingDir.trim() || undefined,
             })
           }
@@ -905,10 +933,14 @@ function ReadonlyField({
     <div className="grid min-w-0 gap-1 text-xs text-ink-tertiary">
       <div className="flex min-w-0 items-center justify-between gap-2">
         <span>{label}</span>
-        {helper && <span className="text-[11px] text-ink-tertiary">{helper}</span>}
+        {helper && (
+          <span className="text-[11px] text-ink-tertiary">{helper}</span>
+        )}
       </div>
       <div className="flex min-h-9 min-w-0 items-center rounded-lg border border-hairline bg-surface-1 px-3 text-sm text-ink">
-        <TruncatedText className="font-mono text-sm text-ink">{value}</TruncatedText>
+        <TruncatedText className="font-mono text-sm text-ink">
+          {value}
+        </TruncatedText>
       </div>
     </div>
   );
@@ -935,7 +967,9 @@ function SelectHarness({
         onChange={(event) => onChange(event.target.value)}
         value={value}
       >
-        {harnesses.length === 0 && <option value="">No harnesses available</option>}
+        {harnesses.length === 0 && (
+          <option value="">No harnesses available</option>
+        )}
         {harnesses.map((item) => (
           <option
             disabled={item.state !== "available"}

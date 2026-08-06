@@ -117,6 +117,7 @@ export type NodeDaemonAgentConnection = {
   name: string;
   remote_id: string;
   restart_nonce: number;
+  report_local_sessions?: boolean;
   status?: NodeDaemonAgentConnectionStatus;
   working_dir?: string;
 };

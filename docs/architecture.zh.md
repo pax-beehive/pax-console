@@ -214,6 +214,15 @@ src/components/sessions/
   用户选择恢复时发送 `{ "use_reported_name": true }`。成功后同时更新 session
   metadata，并失效 agent session collection 与 user-scoped `session-list`。
 
+  daemon agent connection 的 `report_local_sessions` 默认关闭，可在连接编辑表单中
+  明确开启。关闭时 paxd 不上报仅从本地日志扫描出的 session，但仍会上报存在于本机
+  ACP route 表中的 manager/Console 创建 session，保证这些 session 的发现和名称同步
+  不受影响。
+
+  当同一台 paxd 上有多个 remote identity 指向同一个规范化 Cloud API URL 时，paxd
+  会强制采用上述仅 ACP route 上报模式，即使连接配置中的开关仍为开启。原因是共享
+  paxl 数据不包含云端账号归属，不能安全地把扫描结果分配给任一账号。
+
   Session observer 的 `/events` SSE 在浏览器网络错误、无 terminal event 的提前
   断流、以及 408/429/502/503/504 时自动重连。重连保留 history cursor 和当前
   timeline buffer，采用最大 5 秒的指数退避；鉴权错误、非瞬时 API 错误、组件卸载
