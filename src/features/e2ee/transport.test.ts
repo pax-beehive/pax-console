@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { encryptEnvelope } from "./envelope";
 import {
+  loadEncryptedSessionHistory,
   postEncryptedCommand,
   prepareEncryptedCommand,
   sendEncryptedCommand,
@@ -133,5 +134,161 @@ describe("E2EE HTTP and SSE transport", () => {
     ).resolves.toBe(8);
     expect(frames).toEqual([{ first: true }, { second: true }]);
     expect(cursors).toEqual([8]);
+  });
+
+  it("loads opaque canonical history and decrypts it into existing message types", async () => {
+    const messageEnvelope = await encryptEnvelope(
+      rootKey,
+      "event",
+      {
+        record_id: "history_message_1",
+        agent_id: "agent_1",
+        session_id: "session_1",
+        kind: "e2ee_message",
+        key_epoch: 1,
+      },
+      new TextEncoder().encode(
+        JSON.stringify({
+          message_id: "message_1",
+          revision: 2,
+          agent_id: "agent_1",
+          session_id: "session_1",
+          role: "assistant",
+          message_type: "agent_message_chunk",
+          created_at: "2026-08-08T01:00:00Z",
+        }),
+      ),
+    );
+    const partEnvelope = await encryptEnvelope(
+      rootKey,
+      "event",
+      {
+        record_id: "history_part_1",
+        agent_id: "agent_1",
+        session_id: "session_1",
+        kind: "e2ee_message_part",
+        key_epoch: 1,
+      },
+      new TextEncoder().encode(
+        JSON.stringify({
+          message_id: "message_1",
+          part_index: 0,
+          revision: 2,
+          part_type: "text",
+          text: "private answer",
+        }),
+      ),
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              code: 200,
+              data: {
+                messages: [
+                  {
+                    id: 11,
+                    message_id: "message_1",
+                    revision: 2,
+                    envelope: messageEnvelope,
+                    parts: [
+                      {
+                        id: 12,
+                        part_index: 0,
+                        revision: 2,
+                        envelope: partEnvelope,
+                        created_at: "2026-08-08T01:00:00Z",
+                        updated_at: "2026-08-08T01:00:01Z",
+                      },
+                    ],
+                    created_at: "2026-08-08T01:00:00Z",
+                    updated_at: "2026-08-08T01:00:01Z",
+                  },
+                ],
+                pagination: { has_more: false, next_before_id: 0 },
+              },
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+      ),
+    );
+
+    await expect(
+      loadEncryptedSessionHistory({
+        userId: "self",
+        agentId: "agent_1",
+        sessionId: "session_1",
+        keyEpoch: 1,
+        rootKey,
+      }),
+    ).resolves.toMatchObject({
+      messages: [
+        {
+          id: 11,
+          message_id: "message_1",
+          parts: [{ id: 12, part_index: 0, text: "private answer" }],
+        },
+      ],
+      pagination: { has_more: false },
+    });
+  });
+
+  it("rejects a stored revision that does not match authenticated plaintext", async () => {
+    const envelope = await encryptEnvelope(
+      rootKey,
+      "event",
+      {
+        record_id: "history_message_1",
+        agent_id: "agent_1",
+        session_id: "session_1",
+        kind: "e2ee_message",
+        key_epoch: 1,
+      },
+      new TextEncoder().encode(
+        JSON.stringify({
+          message_id: "message_1",
+          revision: 1,
+          agent_id: "agent_1",
+          session_id: "session_1",
+        }),
+      ),
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              code: 200,
+              data: {
+                messages: [
+                  {
+                    id: 1,
+                    message_id: "message_1",
+                    revision: 2,
+                    envelope,
+                    parts: [],
+                    created_at: "2026-08-08T01:00:00Z",
+                    updated_at: "2026-08-08T01:00:00Z",
+                  },
+                ],
+              },
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+      ),
+    );
+
+    await expect(
+      loadEncryptedSessionHistory({
+        userId: "self",
+        agentId: "agent_1",
+        sessionId: "session_1",
+        keyEpoch: 1,
+        rootKey,
+      }),
+    ).rejects.toThrow("message metadata mismatch");
   });
 });

@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { ArrowLeft, LockKeyhole, Plus, Radio, Send } from "lucide-react";
+import { WorkstreamItemCard } from "@/components/sessions/session-event-cards";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,18 +15,23 @@ import {
   useAgentSessions,
   useAgents,
 } from "@/features/api/resources";
-import type { User } from "@/features/api/types";
+import type { HistoryMessage, User } from "@/features/api/types";
 import { loadRootKey } from "@/features/e2ee/root-key-store";
 import {
   buildE2EEPromptFrame,
   buildE2EESessionNewFrame,
-  extractE2EEFrameText,
   parseE2EERPCResponse,
 } from "@/features/e2ee/session-lab";
 import {
+  loadEncryptedSessionHistory,
   observeEncryptedEvents,
   sendEncryptedCommand,
 } from "@/features/e2ee/transport";
+import { mergeEvents } from "@/features/runtime/merge-session-events";
+import { normalizeHistoryMessages } from "@/features/runtime/normalize-history-message";
+import { normalizeTunnelFrame } from "@/features/runtime/normalize-tunnel-frame";
+import { reconcileSessionTimeline } from "@/features/runtime/reconcile-session-timeline";
+import { groupWorkstreamEvents } from "@/features/runtime/session-events";
 import { compactId } from "@/lib/format";
 
 type ReceivedFrame = {
@@ -86,7 +92,9 @@ function E2EESessionLab({ user }: { user: User }) {
   const cursorRef = useRef(0);
   const [frames, setFrames] = useState<ReceivedFrame[]>([]);
   const nextFrameId = useRef(1);
-  const [liveText, setLiveText] = useState("");
+  const [historyMessages, setHistoryMessages] = useState<HistoryMessage[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
   const [prompt, setPrompt] = useState("");
   const [sending, setSending] = useState(false);
   const [commandStatus, setCommandStatus] = useState("");
@@ -132,6 +140,54 @@ function E2EESessionLab({ user }: { user: User }) {
       return;
     }
 
+    let active = true;
+    let loading = false;
+    const load = async (initial: boolean) => {
+      if (loading) {
+        return;
+      }
+      loading = true;
+      if (initial) {
+        setHistoryLoading(true);
+      }
+      try {
+        const page = await loadEncryptedSessionHistory({
+          agentId: activeAgentId,
+          keyEpoch,
+          limit: 500,
+          rootKey,
+          sessionId: activeSessionId,
+          userId: user.user_id,
+        });
+        if (active) {
+          setHistoryMessages(page.messages);
+          setHistoryError("");
+        }
+      } catch (error) {
+        if (active) {
+          setHistoryError(errorMessage(error));
+        }
+      } finally {
+        loading = false;
+        if (active && initial) {
+          setHistoryLoading(false);
+        }
+      }
+    };
+
+    void load(true);
+    const poll = window.setInterval(() => void load(false), 1_500);
+    return () => {
+      active = false;
+      window.clearInterval(poll);
+    };
+  }, [activeAgentId, activeSessionId, keyEpoch, rootKey, user.user_id]);
+
+  useEffect(() => {
+    if (!activeAgentId || !activeSessionId || !rootKey) {
+      return;
+    }
+
     const controller = new AbortController();
     void observeEncryptedEvents({
       agentId: activeAgentId,
@@ -161,10 +217,6 @@ function E2EESessionLab({ user }: { user: User }) {
             );
           }
         }
-        const text = extractE2EEFrameText(frame);
-        if (text) {
-          setLiveText((current) => current + text);
-        }
         setFrames((current) => [
           ...current.slice(-199),
           {
@@ -183,7 +235,40 @@ function E2EESessionLab({ user }: { user: User }) {
     return () => controller.abort();
   }, [activeAgentId, activeSessionId, keyEpoch, rootKey, user.user_id]);
 
-  const displayError = streamError || keyError || "";
+  const historyEvents = useMemo(
+    () => mergeEvents(normalizeHistoryMessages(historyMessages)),
+    [historyMessages],
+  );
+  const liveEvents = useMemo(
+    () =>
+      mergeEvents(
+        frames.flatMap((frame) =>
+          normalizeTunnelFrame(frame.value, {
+            createdAt: frame.receivedAt,
+            streamId: `e2ee:${activeSessionId}`,
+          }),
+        ),
+      ),
+    [activeSessionId, frames],
+  );
+  const workstreamItems = useMemo(
+    () =>
+      groupWorkstreamEvents(
+        reconcileSessionTimeline(historyEvents, [], liveEvents).timeline,
+      ),
+    [historyEvents, liveEvents],
+  );
+  const permissionDecision = useMemo(
+    () => ({
+      decisions: {},
+      error: null,
+      onDecision: () => undefined,
+      pending: false,
+    }),
+    [],
+  );
+
+  const displayError = streamError || historyError || keyError || "";
   const streamStatus: StreamStatus = !rootKey
     ? "locked"
     : !activeAgentId || !activeSessionId
@@ -287,7 +372,8 @@ function E2EESessionLab({ user }: { user: User }) {
 
   function resetLab() {
     setFrames([]);
-    setLiveText("");
+    setHistoryMessages([]);
+    setHistoryError("");
     setCommandStatus("");
     setStreamError("");
     setCursor(0);
@@ -318,8 +404,8 @@ function E2EESessionLab({ user }: { user: User }) {
               </div>
               <h1 className="mt-2 text-2xl font-semibold">E2EE Session Lab</h1>
               <p className="mt-1 max-w-3xl text-sm text-ink-muted">
-                Sends an encrypted ACP prompt and renders decrypted streaming
-                frames without changing the existing session workbench.
+                Sends encrypted ACP commands, decrypts durable message history
+                in this browser, and renders the standard session timeline.
               </p>
             </div>
             <Button asChild icon={<ArrowLeft className="h-4 w-4" />}>
@@ -470,14 +556,35 @@ function E2EESessionLab({ user }: { user: User }) {
           <section className="grid gap-3 rounded-lg border border-hairline bg-surface-1 p-4">
             <div className="flex items-center justify-between gap-3">
               <h2 className="flex items-center gap-2 text-sm font-medium">
-                <Radio className="h-4 w-4" /> Decrypted stream
+                <Radio className="h-4 w-4" /> Encrypted session history
               </h2>
               <span className="text-xs text-ink-tertiary">
-                {frames.length} frames
+                {historyMessages.length} messages · {frames.length} live frames
               </span>
             </div>
-            <div className="min-h-32 whitespace-pre-wrap rounded-md border border-hairline bg-canvas p-3 text-sm leading-6 text-ink">
-              {liveText || "Waiting for encrypted agent output…"}
+            <div className="min-h-32 rounded-md border border-hairline bg-canvas p-3">
+              <div className="mx-auto grid w-full max-w-4xl gap-2">
+                {workstreamItems.map((item) => (
+                  <div className="min-w-0 max-w-full" key={item.id}>
+                    <WorkstreamItemCard
+                      item={item}
+                      permissionDecision={permissionDecision}
+                      userId={user.user_id}
+                    />
+                  </div>
+                ))}
+                {historyLoading && (
+                  <div className="p-4 text-sm text-ink-tertiary" role="status">
+                    Decrypting session history…
+                  </div>
+                )}
+                {!historyLoading && workstreamItems.length === 0 && (
+                  <div className="p-4 text-sm text-ink-tertiary">
+                    No encrypted messages yet. Live tunnel events will appear
+                    here while durable history is stored.
+                  </div>
+                )}
+              </div>
             </div>
             <details>
               <summary className="cursor-pointer text-xs text-ink-tertiary">

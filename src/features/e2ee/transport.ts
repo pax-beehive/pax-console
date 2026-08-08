@@ -1,5 +1,6 @@
 import { API_BASE_URL, userPath } from "../api/client";
 import { ApiError, AuthError } from "../api/errors";
+import type { HistoryMessage, MessagePart } from "../api/types";
 import {
   decryptEnvelope,
   encryptEnvelope,
@@ -34,6 +35,43 @@ export type StreamEncryptedEventsOptions = {
   sessionId: string;
   signal?: AbortSignal;
   userId: string;
+};
+
+export type LoadEncryptedHistoryOptions = {
+  agentId: string;
+  beforeId?: number;
+  keyEpoch?: number;
+  limit?: number;
+  rootKey: Uint8Array;
+  sessionId: string;
+  userId: string;
+};
+
+export type EncryptedHistoryPage = {
+  messages: HistoryMessage[];
+  pagination: {
+    has_more: boolean;
+    next_before_id: number;
+  };
+};
+
+type StoredEncryptedHistoryPart = {
+  id: number;
+  part_index: number;
+  revision: number;
+  envelope: EncryptedEnvelope;
+  created_at: string;
+  updated_at: string;
+};
+
+type StoredEncryptedHistoryMessage = {
+  id: number;
+  message_id: string;
+  revision: number;
+  envelope: EncryptedEnvelope;
+  parts: StoredEncryptedHistoryPart[];
+  created_at: string;
+  updated_at: string;
 };
 
 export async function sendEncryptedCommand({
@@ -123,6 +161,109 @@ export async function postEncryptedCommand({
     throw new ApiError("Encrypted command response ID mismatch", 502, body);
   }
   return body;
+}
+
+export async function loadEncryptedSessionHistory({
+  agentId,
+  beforeId = 0,
+  keyEpoch,
+  limit = 500,
+  rootKey,
+  sessionId,
+  userId,
+}: LoadEncryptedHistoryOptions): Promise<EncryptedHistoryPage> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (beforeId > 0) {
+    params.set("before_id", String(beforeId));
+  }
+  const body = await checkedJSONResponse<{
+    messages: StoredEncryptedHistoryMessage[] | null;
+    pagination?: {
+      has_more?: boolean;
+      next_before_id?: number;
+    };
+  }>(
+    await fetch(
+      `${API_BASE_URL}${encryptedSessionPath(
+        userId,
+        agentId,
+        sessionId,
+        "encrypted-history",
+      )}?${params}`,
+      {
+        credentials: "include",
+        method: "GET",
+        redirect: "manual",
+      },
+    ),
+  );
+
+  const messages = await Promise.all(
+    (body.messages ?? []).map(async (stored) => {
+      validateStoredHistoryEnvelope(
+        stored.envelope,
+        "e2ee_message",
+        agentId,
+        sessionId,
+        keyEpoch,
+      );
+      const message = decodeJSON<HistoryMessage & { revision: number }>(
+        await decryptEnvelope(rootKey, "event", stored.envelope),
+      );
+      if (
+        message.message_id !== stored.message_id ||
+        message.revision !== stored.revision ||
+        message.agent_id !== agentId ||
+        message.session_id !== sessionId
+      ) {
+        throw new Error("Encrypted history message metadata mismatch");
+      }
+      const parts = await Promise.all(
+        [...stored.parts]
+          .sort((left, right) => left.part_index - right.part_index)
+          .map(async (storedPart) => {
+            validateStoredHistoryEnvelope(
+              storedPart.envelope,
+              "e2ee_message_part",
+              agentId,
+              sessionId,
+              keyEpoch,
+            );
+            const part = decodeJSON<MessagePart & { revision: number }>(
+              await decryptEnvelope(rootKey, "event", storedPart.envelope),
+            );
+            if (
+              part.message_id !== stored.message_id ||
+              part.part_index !== storedPart.part_index ||
+              part.revision !== storedPart.revision
+            ) {
+              throw new Error("Encrypted history part metadata mismatch");
+            }
+            return {
+              ...part,
+              id: storedPart.id,
+              created_at: part.created_at ?? storedPart.created_at,
+              updated_at: part.updated_at ?? storedPart.updated_at,
+            };
+          }),
+      );
+      return {
+        ...message,
+        id: stored.id,
+        created_at: message.created_at ?? stored.created_at,
+        updated_at: message.updated_at ?? stored.updated_at,
+        parts,
+      };
+    }),
+  );
+
+  return {
+    messages,
+    pagination: {
+      has_more: body.pagination?.has_more ?? false,
+      next_before_id: body.pagination?.next_before_id ?? 0,
+    },
+  };
 }
 
 export async function streamEncryptedEvents({
@@ -280,12 +421,33 @@ function encryptedSessionPath(
   userId: string,
   agentId: string,
   sessionId: string,
-  suffix: "encrypted-commands" | "encrypted-events",
+  suffix: "encrypted-commands" | "encrypted-events" | "encrypted-history",
 ) {
   return userPath(
     userId,
     `/agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(sessionId)}/${suffix}`,
   );
+}
+
+function validateStoredHistoryEnvelope(
+  envelope: EncryptedEnvelope,
+  kind: "e2ee_message" | "e2ee_message_part",
+  agentId: string,
+  sessionId: string,
+  keyEpoch?: number,
+) {
+  if (
+    envelope.kind !== kind ||
+    envelope.agent_id !== agentId ||
+    envelope.session_id !== sessionId ||
+    (keyEpoch !== undefined && envelope.key_epoch !== keyEpoch)
+  ) {
+    throw new Error("Encrypted history route metadata mismatch");
+  }
+}
+
+function decodeJSON<T>(plaintext: Uint8Array) {
+  return JSON.parse(new TextDecoder().decode(plaintext)) as T;
 }
 
 async function checkedJSONResponse<T>(response: Response) {
