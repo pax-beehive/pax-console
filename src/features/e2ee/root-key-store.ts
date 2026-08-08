@@ -1,8 +1,9 @@
 import { decodeRootKey, encodeRootKey } from "./envelope";
-
-const DATABASE_NAME = "pax-console-e2ee";
-const STORE_NAME = "root-keys";
-const DATABASE_VERSION = 1;
+import {
+  e2eeRequestResult,
+  openE2EEDatabase,
+  ROOT_KEY_STORE,
+} from "./indexed-db";
 
 type StoredRootKey = {
   agentId: string;
@@ -13,11 +14,11 @@ type StoredRootKey = {
 export async function saveRootKey(agentId: string, encodedKey: string) {
   const normalizedAgentId = requireAgentId(agentId);
   const normalizedKey = encodeRootKey(decodeRootKey(encodedKey));
-  const database = await openDatabase();
-  await requestResult(
+  const database = await openE2EEDatabase();
+  await e2eeRequestResult(
     database
-      .transaction(STORE_NAME, "readwrite")
-      .objectStore(STORE_NAME)
+      .transaction(ROOT_KEY_STORE, "readwrite")
+      .objectStore(ROOT_KEY_STORE)
       .put({
         agentId: normalizedAgentId,
         encodedKey: normalizedKey,
@@ -28,11 +29,11 @@ export async function saveRootKey(agentId: string, encodedKey: string) {
 }
 
 export async function loadRootKey(agentId: string) {
-  const database = await openDatabase();
-  const stored = await requestResult<StoredRootKey | undefined>(
+  const database = await openE2EEDatabase();
+  const stored = await e2eeRequestResult<StoredRootKey | undefined>(
     database
-      .transaction(STORE_NAME, "readonly")
-      .objectStore(STORE_NAME)
+      .transaction(ROOT_KEY_STORE, "readonly")
+      .objectStore(ROOT_KEY_STORE)
       .get(requireAgentId(agentId)),
   );
   database.close();
@@ -40,39 +41,14 @@ export async function loadRootKey(agentId: string) {
 }
 
 export async function deleteRootKey(agentId: string) {
-  const database = await openDatabase();
-  await requestResult(
+  const database = await openE2EEDatabase();
+  await e2eeRequestResult(
     database
-      .transaction(STORE_NAME, "readwrite")
-      .objectStore(STORE_NAME)
+      .transaction(ROOT_KEY_STORE, "readwrite")
+      .objectStore(ROOT_KEY_STORE)
       .delete(requireAgentId(agentId)),
   );
   database.close();
-}
-
-function openDatabase() {
-  if (!globalThis.indexedDB) {
-    return Promise.reject(new Error("IndexedDB is unavailable"));
-  }
-  return new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
-    request.onupgradeneeded = () => {
-      if (!request.result.objectStoreNames.contains(STORE_NAME)) {
-        request.result.createObjectStore(STORE_NAME, { keyPath: "agentId" });
-      }
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () =>
-      reject(request.error ?? new Error("Open E2EE key store failed"));
-  });
-}
-
-function requestResult<T = IDBValidKey>(request: IDBRequest<T>) {
-  return new Promise<T>((resolve, reject) => {
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () =>
-      reject(request.error ?? new Error("E2EE key store request failed"));
-  });
 }
 
 function requireAgentId(agentId: string) {

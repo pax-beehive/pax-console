@@ -1018,6 +1018,17 @@ function E2EEKeysPanel({ agents }: { agents: Agent[] }) {
               Open E2EE Lab
             </Link>
           </Button>
+          <Button asChild size="sm">
+            <Link
+              href={
+                selectedAgentId
+                  ? `/e2ee/pairing?agentId=${encodeURIComponent(selectedAgentId)}`
+                  : "/e2ee/pairing"
+              }
+            >
+              Pair browser
+            </Link>
+          </Button>
         </div>
       </div>
       {agents.length > 0 ? (
