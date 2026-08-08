@@ -15,6 +15,51 @@ Zustand 管纯前端 UI 状态。
 WebSocket runtime 管 live agent tunnel。
 ```
 
+## E2EE durable transport（分阶段接入）
+
+新的 encrypted transport 保留 paxd 到 Manager 的可靠 WebSocket，把 PostgreSQL
+作为跨实例路由和恢复的 durable truth。Manager 只读取经过 AES-GCM AAD 认证的
+最小路由 metadata，不解密 ACP payload：
+
+```txt
+Browser --encrypted command/HTTP--> 任意 Manager
+        <--encrypted event/SSE---- 任意 Manager
+                                      |
+                         PostgreSQL command/event + LISTEN/NOTIFY
+                                      |
+                         持有 agent tunnel 的 Manager
+                                      |
+                              reliable WebSocket
+                                      |
+                                    paxd
+```
+
+协议实现集中在 `src/features/e2ee/`：
+
+- `envelope.ts` 定义 v1 AES-256-GCM envelope。Root key 为 32 字节，command 和
+  event 使用 HKDF-SHA-256 分方向派生；`protocol_version`、`cipher_version`、
+  `key_epoch`、`record_id`、`agent_id`、`session_id`、`kind` 作为 AAD。
+- `transport.ts` 只发送 opaque command，并用 `Last-Event-ID` 恢复 encrypted
+  event SSE；cursor 只在一个 batch 的 frame 全部解密并交给调用方后推进。
+  HTTP 结果不确定时必须重发 `prepareEncryptedCommand` 产生的同一个 envelope，
+  不能用相同业务 ID 重新加密出不同 nonce/ciphertext。
+- `root-key-store.ts` 在浏览器 IndexedDB 中按 agent 保存开发阶段手工共享的
+  root key。Settings / Security 提供保存和删除入口，key 不经过 Manager API。
+
+浏览器端接口为：
+
+```txt
+POST /api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/encrypted-commands
+GET  /api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/encrypted-events
+```
+
+当前这是 staged transport foundation；现有 Session workbench 仍使用
+`POST .../conversation`，因为历史聚合、permission projection、native session
+映射仍由 Manager 明文 runtime 负责。不要仅因浏览器已保存 key 就自动切换既有
+会话。正式切换需要先把这些 session orchestration 职责迁移到 paxd，并让 workbench
+通过 `transport.ts` 发送和消费 ACP frame。这样旧路径在迁移期间保持可用，也不会
+出现一半 E2EE、一半依赖 Manager 明文状态的会话。
+
 ## 当前本地开发链路
 
 本地浏览器不要直接访问 `app.paxtech.net` 的业务 API。这样容易遇到 CORS、Access cookie、WebSocket Origin 等问题。

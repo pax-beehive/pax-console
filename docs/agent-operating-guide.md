@@ -2,6 +2,36 @@
 
 This file is for coding agents working on PAX Console. Keep it short, factual, and current. When architecture or integration behavior changes, update this file together with `docs/architecture.zh.md`.
 
+## Encrypted transport boundary
+
+The staged Browser-to-paxd E2EE implementation lives in `src/features/e2ee`.
+Keep envelope construction, HKDF/AES-GCM, SSE parsing, and IndexedDB key access
+out of React components. The Manager must receive only the serialized encrypted
+envelope; never add a root key, plaintext ACP method/params, prompt, tool output,
+or native request ID to an HTTP request or log.
+
+The v1 envelope compatibility contract is covered by
+`src/features/e2ee/envelope.test.ts` and the matching paxd Go test vector.
+Changing the HKDF info, AAD order, JSON normalization, nonce encoding, or
+envelope field names requires changing both implementations and their shared
+vector in the same rollout.
+
+`src/features/e2ee/transport.ts` owns the encrypted command POST and encrypted
+event SSE. Preserve `Last-Event-ID`; advance the cursor only after every frame in
+the decrypted batch has been accepted by the caller. For an ambiguous command
+POST failure, retain the value returned by `prepareEncryptedCommand` and call
+`postEncryptedCommand` again with that exact envelope; re-encrypting the same
+business command would change its nonce/ciphertext and correctly conflict at the
+Manager. `root-key-store.ts` stores
+one development root key per agent in IndexedDB, surfaced under Settings /
+Security. Root keys must not be put in TanStack Query, localStorage, server
+components, URL state, or the Manager API.
+
+This transport is not yet the default Session workbench runtime. The existing
+`/conversation` path remains authoritative until native-session creation,
+history, approvals, and runtime projection no longer require Manager plaintext.
+Do not switch a workbench merely because a local root key exists.
+
 ## Non-Negotiable Project Facts
 
 - Project root: `/Users/jiahangzhang/code-base/project/pax-console`

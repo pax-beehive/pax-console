@@ -11,6 +11,13 @@ The core product idea:
 ```txt
 REST provides truth.
 WebSocket provides liveness.
+
+The staged E2EE transport uses HTTP for encrypted command creation, SSE with a
+durable cursor for encrypted event delivery, PostgreSQL for cross-instance
+truth, and the existing reliable paxd WebSocket for the live hop. Browser root
+keys stay in IndexedDB and are never sent to the Manager. This is currently an
+opt-in transport foundation; the Manager-owned `/conversation` runtime remains
+the workbench default until session orchestration and projections move to paxd.
 The UI renders normalized agent events.
 Cloudflare Access owns identity.
 PAX Manager owns permissions and resources.
