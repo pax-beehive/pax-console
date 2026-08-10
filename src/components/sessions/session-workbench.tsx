@@ -17,6 +17,7 @@ import {
   Check,
   FileText,
   LoaderCircle,
+  LockKeyhole,
   Menu,
   PanelRight,
   Pencil,
@@ -45,6 +46,7 @@ import {
   WorkstreamItemCard,
 } from "@/components/sessions/session-event-cards";
 import { SessionComposer } from "@/components/sessions/session-composer";
+import { SecureModeActivation } from "@/components/sessions/secure-mode-activation";
 import { SessionRuntimeActions } from "@/components/sessions/session-runtime-actions";
 import {
   canSeeSessionSidePanel,
@@ -54,6 +56,7 @@ import { RunBadge } from "@/components/sessions/run-badge";
 import {
   artifactContentDownloadHref,
   completeUserAttachment,
+  createAgentSession,
   createKnowledgeCapsule,
   createUserAttachment,
   decideApproval,
@@ -113,6 +116,7 @@ import { compactId } from "@/lib/format";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { cn } from "@/lib/utils";
 import { canSeeAdminFeatures } from "@/features/auth/admin-view";
+import { useE2EESessionRuntime } from "@/features/e2ee/use-e2ee-session-runtime";
 import { useConsoleStore } from "@/stores/console-store";
 
 type SessionWorkbenchProps = {
@@ -128,6 +132,7 @@ type SessionWorkbenchProps = {
   initialPrompt?: string;
   initialPromptKey?: string;
   initialProjectTargetId?: string;
+  initialTransport?: "manager" | "e2ee";
   mobileBackLabel?: string;
   mobileMenuLabel?: string;
   onSessionAssigned?: (sessionId: string) => void;
@@ -141,6 +146,12 @@ type SessionSidePanel = {
   description: string;
   icon: ReactNode;
   content: ReactNode;
+};
+
+type PendingEncryptedBootstrap = {
+  cwd: string;
+  prompt: string;
+  sessionId: string;
 };
 
 export type ComposerAttachment = {
@@ -177,6 +188,7 @@ export function SessionWorkbench({
   initialPrompt,
   initialPromptKey,
   initialProjectTargetId,
+  initialTransport = "manager",
   mobileBackLabel,
   mobileMenuLabel,
   onSessionAssigned,
@@ -226,6 +238,9 @@ export function SessionWorkbench({
   );
   const initialPromptSentRef = useRef(false);
   const [sendError, setSendError] = useState<Error | null>(null);
+  const [pendingEncryptedBootstrap, setPendingEncryptedBootstrap] =
+    useState<PendingEncryptedBootstrap | null>(null);
+  const encryptedBootstrapStartedRef = useRef("");
   const [composerAttachments, setComposerAttachments] = useState<
     ComposerAttachment[]
   >(() => [...(initialAttachments ?? [])]);
@@ -262,10 +277,13 @@ export function SessionWorkbench({
       ),
     [currentSessionId, sessionMetadata, sessionsQuery.data?.sessions],
   );
+  const usesEncryptedTransport =
+    initialTransport === "e2ee" || activeSession?.transport === "e2ee";
   const activeSessionReportedRunning = isActiveSessionRunStatus(
     activeSession?.runtime_status,
   );
   const isExternallyCreatedSession = Boolean(
+    !usesEncryptedTransport &&
     currentSessionId &&
     activeSession?.source &&
     activeSession.source !== "acp_tunnel",
@@ -317,7 +335,7 @@ export function SessionWorkbench({
       ? `${activeSession.name} (${currentSessionId})`
       : (currentSessionId ?? "New session");
   const handleSessionAssigned = useCallback(
-    (nextSessionId: string) => {
+    (nextSessionId: string, notifyParent = true) => {
       setCurrentSessionId(nextSessionId);
       if (activeNodeId && activeAgentId) {
         void queryClient.invalidateQueries({
@@ -331,6 +349,9 @@ export function SessionWorkbench({
       void queryClient.invalidateQueries({
         queryKey: queryKeys.userSessionsRoot(user.user_id),
       });
+      if (!notifyParent) {
+        return;
+      }
       const params = new URLSearchParams();
       if (activeNodeId) {
         params.set("nodeId", activeNodeId);
@@ -354,7 +375,142 @@ export function SessionWorkbench({
     },
     [activeAgentId, activeNodeId, onSessionAssigned, queryClient, user.user_id],
   );
-  const historyQuery = useSessionHistory(user.user_id, currentSessionId);
+  const plainHistoryQuery = useSessionHistory(
+    user.user_id,
+    activeSession && !usesEncryptedTransport ? currentSessionId : undefined,
+  );
+  const encryptedRuntime = useE2EESessionRuntime({
+    agentId: activeAgentId,
+    enabled: usesEncryptedTransport,
+    sessionId: currentSessionId,
+    userId: user.user_id,
+  });
+  const sendEncryptedMessage = encryptedRuntime.sendMessage;
+  const startEncryptedNativeSession = encryptedRuntime.startSession;
+  const beginEncryptedSession = useCallback(
+    async (prompt: string) => {
+      if (!activeAgentId || !activeNodeId) {
+        throw new Error("Select a node and agent before starting a session");
+      }
+      if (composerAttachments.length > 0) {
+        throw new Error(
+          "Encrypted session attachments are not supported yet. Remove the files before starting.",
+        );
+      }
+      if (encryptedRuntime.keyLoading) {
+        throw new Error("The browser is still loading this agent's encryption key");
+      }
+      if (!encryptedRuntime.rootKeyAvailable) {
+        throw new Error(
+          "This browser does not have this agent's encryption key. Pair it from Settings / Security before starting an encrypted session.",
+        );
+      }
+
+      const session = await createAgentSession(
+        user.user_id,
+        activeNodeId,
+        activeAgentId,
+        "Encrypted session",
+        { primaryProjectId: initialPrimaryProjectId },
+      );
+      setPendingSessionPaxConfig({
+        cwd: normalizedNewSessionCwd || undefined,
+        approval_mode: newSessionApprovalMode,
+      });
+      setPendingEncryptedBootstrap({
+        cwd: normalizedNewSessionCwd || "/tmp",
+        prompt,
+        sessionId: session.session_id,
+      });
+      handleSessionAssigned(session.session_id, false);
+    },
+    [
+      activeAgentId,
+      activeNodeId,
+      composerAttachments.length,
+      encryptedRuntime.keyLoading,
+      encryptedRuntime.rootKeyAvailable,
+      handleSessionAssigned,
+      initialPrimaryProjectId,
+      newSessionApprovalMode,
+      normalizedNewSessionCwd,
+      user.user_id,
+    ],
+  );
+  const historyQuery = usesEncryptedTransport
+    ? encryptedRuntime.historyQuery
+    : plainHistoryQuery;
+  const encryptedKeyError =
+    usesEncryptedTransport &&
+    !encryptedRuntime.keyLoading &&
+    !encryptedRuntime.rootKeyAvailable
+      ? new Error(
+          "This browser does not have this agent's encryption key. Pair it from Settings / Security to decrypt the session.",
+        )
+      : null;
+
+  useEffect(() => {
+    const pending = pendingEncryptedBootstrap;
+    if (
+      !pending ||
+      pending.sessionId !== currentSessionId ||
+      encryptedRuntime.keyLoading ||
+      !encryptedRuntime.rootKeyAvailable ||
+      encryptedBootstrapStartedRef.current === pending.sessionId
+    ) {
+      return;
+    }
+
+    encryptedBootstrapStartedRef.current = pending.sessionId;
+    void startEncryptedNativeSession(pending.cwd)
+      .then(() => {
+        handleSessionAssigned(pending.sessionId);
+        return pending.prompt
+          ? sendEncryptedMessage(pending.prompt)
+          : undefined;
+      })
+      .then(() => {
+        setPendingEncryptedBootstrap(null);
+        setComposerAttachments([]);
+        setComposerAttachmentError(null);
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.userSessionsRoot(user.user_id),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.sessionMetadata(
+            user.user_id,
+            pending.sessionId,
+          ),
+        });
+        if (activeNodeId && activeAgentId) {
+          void queryClient.invalidateQueries({
+            queryKey: queryKeys.sessions(
+              user.user_id,
+              activeNodeId,
+              activeAgentId,
+            ),
+          });
+        }
+      })
+      .catch((caught) => {
+        setPendingEncryptedBootstrap(null);
+        setSendError(
+          caught instanceof Error ? caught : new Error(String(caught)),
+        );
+      });
+  }, [
+    activeAgentId,
+    activeNodeId,
+    currentSessionId,
+    encryptedRuntime.keyLoading,
+    encryptedRuntime.rootKeyAvailable,
+    handleSessionAssigned,
+    pendingEncryptedBootstrap,
+    queryClient,
+    sendEncryptedMessage,
+    startEncryptedNativeSession,
+    user.user_id,
+  ]);
   const historyMessages = useMemo(
     () => flattenSessionHistoryPages(historyQuery.data?.pages),
     [historyQuery.data?.pages],
@@ -539,6 +695,7 @@ export function SessionWorkbench({
   }, [completedConversationTurnVersion, refreshActiveSessionRuntime]);
   const lastHistoryMessageID = lastMessageID(historyMessages);
   const shouldObserveSessionTurn =
+    !usesEncryptedTransport &&
     Boolean(activeAgentId && currentSessionId) &&
     observerSuppressedSessionId !== currentSessionId &&
     (conversationRun.transportInterrupted ||
@@ -558,7 +715,9 @@ export function SessionWorkbench({
         activeAgentId as string,
         currentSessionId as string,
       ),
-    enabled: Boolean(activeAgentId && currentSessionId),
+    enabled: Boolean(
+      !usesEncryptedTransport && activeAgentId && currentSessionId,
+    ),
     refetchInterval: (query) =>
       query.state.data
         ? false
@@ -671,7 +830,9 @@ export function SessionWorkbench({
     // The local conversation run owns its turn. Observing it at the same time
     // replays the same ACP frames under a different stream id, which renders
     // every timeline row twice. Only observe turns the run does not own.
-    enabled: shouldObserveSessionTurn || shouldFollowQueuedTurn,
+    enabled:
+      !usesEncryptedTransport &&
+      (shouldObserveSessionTurn || shouldFollowQueuedTurn),
     followQueuedTurn: shouldFollowQueuedTurn,
     onBufferMiss: refreshActiveSessionRuntime,
     onConnected: handleObserverConnected,
@@ -683,17 +844,19 @@ export function SessionWorkbench({
     sessionId: currentSessionId,
     userId: user.user_id,
   });
-  const displayedRunStatus = sessionDisplayStatus(
-    activeSession?.runtime_status,
-    {
-      ownedConversationStatus: conversationRun.status,
-    },
-  );
-  const isTurnRunning =
-    conversationRun.status === "streaming" ||
-    conversationRun.status === "waiting_approval" ||
-    shouldObserveSessionTurn ||
-    shouldFollowQueuedTurn;
+  const displayedRunStatus = usesEncryptedTransport
+    ? encryptedRuntime.status === "locked"
+      ? "idle"
+      : encryptedRuntime.status
+    : sessionDisplayStatus(activeSession?.runtime_status, {
+        ownedConversationStatus: conversationRun.status,
+      });
+  const isTurnRunning = usesEncryptedTransport
+    ? encryptedRuntime.status === "streaming"
+    : conversationRun.status === "streaming" ||
+      conversationRun.status === "waiting_approval" ||
+      shouldObserveSessionTurn ||
+      shouldFollowQueuedTurn;
   const updateSessionApprovalMode = useMutation({
     mutationFn: async (approvalMode: SessionApprovalMode) => {
       if (!activeNodeId || !activeAgentId || !currentSessionId) {
@@ -1036,17 +1199,33 @@ export function SessionWorkbench({
   );
 
   const mergedRuntimeEvents = useMemo(
-    () => mergeEvents([...conversationRun.events, ...sessionObserver.events]),
-    [conversationRun.events, sessionObserver.events],
+    () =>
+      mergeEvents(
+        usesEncryptedTransport
+          ? encryptedRuntime.events
+          : [...conversationRun.events, ...sessionObserver.events],
+      ),
+    [
+      conversationRun.events,
+      encryptedRuntime.events,
+      usesEncryptedTransport,
+      sessionObserver.events,
+    ],
   );
   const reconciledTimeline = useMemo(
     () =>
       reconcileSessionTimeline(
         historyEvents,
-        conversationRun.events,
-        sessionObserver.events,
+        usesEncryptedTransport ? encryptedRuntime.events : conversationRun.events,
+        usesEncryptedTransport ? [] : sessionObserver.events,
       ),
-    [conversationRun.events, historyEvents, sessionObserver.events],
+    [
+      conversationRun.events,
+      encryptedRuntime.events,
+      historyEvents,
+      usesEncryptedTransport,
+      sessionObserver.events,
+    ],
   );
   const { timeline } = reconciledTimeline;
   const invocationOwnerLookups = useMemo(
@@ -1068,9 +1247,12 @@ export function SessionWorkbench({
       AGENT_OUTPUT_EVENT_TYPES.has(event.type),
   );
   const isAgentResponsePending =
-    (conversationRun.status === "streaming" ||
-      conversationRun.status === "waiting_approval" ||
-      (shouldObserveSessionTurn && sessionObserver.status === "observing")) &&
+    ((usesEncryptedTransport && encryptedRuntime.status === "streaming") ||
+      (!usesEncryptedTransport &&
+        (conversationRun.status === "streaming" ||
+          conversationRun.status === "waiting_approval" ||
+          (shouldObserveSessionTurn &&
+            sessionObserver.status === "observing")))) &&
     !currentTurnHasAgentOutput;
   const mutateSessionApprovalMode = updateSessionApprovalMode.mutate;
   const toggleApprovalMode = useCallback(() => {
@@ -1148,6 +1330,33 @@ export function SessionWorkbench({
 
       setSendError(null);
       try {
+        if (usesEncryptedTransport) {
+          if (isNewSession) {
+            await beginEncryptedSession(content);
+            setComposerAttachmentError(null);
+            return true;
+          }
+          if (attachmentIds.length > 0) {
+            setComposerAttachmentError(
+              new Error(
+                "Encrypted session attachments are not supported yet. Remove the files before sending.",
+              ),
+            );
+            return false;
+          }
+          if (isTurnRunning) {
+            setSendError(
+              new Error(
+                "Wait for the encrypted turn to finish before sending another prompt.",
+              ),
+            );
+            return false;
+          }
+          await sendEncryptedMessage(content);
+          setComposerAttachmentError(null);
+          return true;
+        }
+
         if (isTurnRunning) {
           if (attachmentIds.length > 0) {
             setComposerAttachmentError(
@@ -1194,7 +1403,9 @@ export function SessionWorkbench({
     [
       activeAgentId,
       activeNodeId,
+      beginEncryptedSession,
       composerAttachments,
+      usesEncryptedTransport,
       isNewSession,
       isTurnRunning,
       initialPrimaryProjectId,
@@ -1203,6 +1414,7 @@ export function SessionWorkbench({
       newSessionCwdInvalid,
       normalizedNewSessionCwd,
       queueDraft,
+      sendEncryptedMessage,
       sendConversationMessage,
     ],
   );
@@ -1231,8 +1443,18 @@ export function SessionWorkbench({
     [steerDraft],
   );
   const handleStopTurn = useCallback(
-    () => stopCurrentTurn(),
-    [stopCurrentTurn],
+    () => {
+      if (usesEncryptedTransport) {
+        void encryptedRuntime.stop().catch((caught) => {
+          setSendError(
+            caught instanceof Error ? caught : new Error(String(caught)),
+          );
+        });
+        return;
+      }
+      stopCurrentTurn();
+    },
+    [encryptedRuntime, usesEncryptedTransport, stopCurrentTurn],
   );
   const handleUpdateQueuedTurn = useCallback(
     async (content: string) => {
@@ -1281,7 +1503,9 @@ export function SessionWorkbench({
       !activeAgentId ||
       !activeNodeId ||
       newSessionCwdInvalid ||
-      conversationRun.status !== "idle"
+      (usesEncryptedTransport
+        ? encryptedRuntime.keyLoading
+        : conversationRun.status !== "idle")
     ) {
       return;
     }
@@ -1292,32 +1516,13 @@ export function SessionWorkbench({
       }
 
       initialPromptSentRef.current = true;
-      setSendError(null);
-      setPendingSessionPaxConfig({
-        cwd: normalizedNewSessionCwd || undefined,
-        approval_mode: newSessionApprovalMode,
-      });
-      const attachmentIds = composerAttachments.map(
-        (attachment) => attachment.attachmentId,
-      );
-      void sendConversationMessage(content, {
-        approvalMode: newSessionApprovalMode,
-        cwd: normalizedNewSessionCwd || undefined,
-        primaryProjectId: initialPrimaryProjectId,
-        projectTargetId: initialProjectTargetId,
-        ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
-      })
-        .then(() => {
-          setComposerAttachments([]);
-          setComposerAttachmentError(null);
+      void submitDraft(content).then((accepted) => {
+        if (accepted) {
           removeStoredInitialPrompt(initialPromptKey);
-        })
-        .catch((caught) => {
-          setPendingSessionPaxConfig(null);
-          setSendError(
-            caught instanceof Error ? caught : new Error(String(caught)),
-          );
-        });
+          return;
+        }
+        useConsoleStore.getState().setComposerDraft(composerDraftKey, content);
+      });
     }, 0);
 
     return () => {
@@ -1326,16 +1531,14 @@ export function SessionWorkbench({
   }, [
     activeAgentId,
     activeNodeId,
-    composerAttachments,
     conversationRun.status,
-    initialPrimaryProjectId,
+    composerDraftKey,
+    encryptedRuntime.keyLoading,
     initialPromptKey,
-    initialProjectTargetId,
     newSessionCwdInvalid,
     sessionId,
-    newSessionApprovalMode,
-    normalizedNewSessionCwd,
-    sendConversationMessage,
+    submitDraft,
+    usesEncryptedTransport,
   ]);
 
   useEffect(() => {
@@ -1473,13 +1676,25 @@ export function SessionWorkbench({
 
   const workbench = (
     <div
+      data-secure-mode={usesEncryptedTransport}
       className={cn(
-        "relative flex min-h-0 min-w-0 overflow-hidden bg-canvas",
+        "relative isolate flex min-h-0 min-w-0 overflow-hidden transition-[background,box-shadow] duration-500",
         embedded ? "h-full" : "flex-1",
+        usesEncryptedTransport
+          ? "bg-[radial-gradient(circle_at_50%_105%,rgba(16,185,129,0.075),transparent_48%),linear-gradient(180deg,rgba(16,185,129,0.025),transparent_36%)] shadow-[inset_0_-1px_0_rgba(52,211,153,0.08)]"
+          : "bg-canvas",
       )}
     >
-      <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-canvas">
-        <div className="flex items-center justify-between gap-2 border-b border-hairline bg-surface-1 px-3 py-2 sm:gap-4 sm:px-4 sm:py-3">
+      {usesEncryptedTransport && <SecureModeActivation showStatus={false} />}
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
+        <div
+          className={cn(
+            "flex items-center justify-between gap-2 border-b px-3 py-2 transition-[background-color,border-color] duration-500 sm:gap-4 sm:px-4 sm:py-3",
+            usesEncryptedTransport
+              ? "border-emerald-400/20 bg-emerald-500/[0.03] backdrop-blur-xl"
+              : "border-hairline bg-surface-1",
+          )}
+        >
           <div className="flex min-w-0 items-center gap-2">
             {(onMobileMenu || onMobileBack) && (
               <Button
@@ -1613,12 +1828,25 @@ export function SessionWorkbench({
                     )}
                   </>
                 )}
+                {usesEncryptedTransport && (
+                  <Badge
+                    className="border-emerald-400/25 bg-emerald-400/10 text-emerald-400"
+                    tooltip="Browser-to-paxd encrypted session"
+                  >
+                    <LockKeyhole className="h-3 w-3" />
+                    Secured
+                  </Badge>
+                )}
               </div>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <RunBadge
-              error={conversationRun.error}
+              error={
+                usesEncryptedTransport
+                  ? encryptedRuntime.error
+                  : conversationRun.error
+              }
               status={displayedRunStatus}
             />
             <SessionRuntimeActions
@@ -1647,7 +1875,12 @@ export function SessionWorkbench({
         </div>
 
         <div
-          className="min-h-0 flex-1 overflow-auto bg-canvas p-3 sm:p-4"
+          className={cn(
+            "min-h-0 flex-1 overflow-auto p-3 transition-colors duration-500 sm:p-4",
+            usesEncryptedTransport
+              ? "bg-emerald-500/[0.012]"
+              : "bg-canvas",
+          )}
           onScroll={handleTimelineScroll}
           ref={timelineScrollRef}
         >
@@ -1664,7 +1897,11 @@ export function SessionWorkbench({
               messagesError={historyQuery.error}
               missingRouteState={!activeNodeId || !activeAgentId}
               sendError={
-                sendError ?? queuedTurnQuery.error ?? conversationRun.error
+                encryptedKeyError ??
+                sendError ??
+                (usesEncryptedTransport
+                  ? encryptedRuntime.error
+                  : queuedTurnQuery.error ?? conversationRun.error)
               }
             />
             {workstreamItems.map((item) => (
@@ -1738,8 +1975,10 @@ export function SessionWorkbench({
           readOnlyWorkspace={
             shouldShowReadOnlyWorkspace ? displayedWorkspace : undefined
           }
+          secure={usesEncryptedTransport}
           steerTurnPending={steerTurn.isPending}
           stopTurnPending={stopTurn.isPending}
+          supportsQueuedTurns={!usesEncryptedTransport}
           updateQueuedTurnPending={updateQueuedTurn.isPending}
         />
       </section>

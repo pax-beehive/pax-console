@@ -43,6 +43,60 @@ afterEach(() => {
 });
 
 describe("SessionComposer", () => {
+  it("renders the secured composer treatment for encrypted sessions", () => {
+    render(
+      <TooltipProvider>
+        <SessionComposer
+          activeAgentId="agent_1"
+          activeNodeId="node_1"
+          approvalMode="manual"
+          approvalModePending={false}
+          attachmentError={null}
+          attachmentUploadPending={false}
+          attachments={[]}
+          currentSessionId="sess_e2ee"
+          deleteQueuedTurnPending={false}
+          draftKey="sess_e2ee"
+          isNewSession={false}
+          isTurnRunning={false}
+          newSessionCwd=""
+          newSessionCwdInvalid={false}
+          newSessionWorkspaceOpen={false}
+          onAddAttachments={async () => undefined}
+          onDeleteQueuedTurn={vi.fn()}
+          onOpenArtifacts={vi.fn()}
+          onRemoveAttachment={vi.fn()}
+          onSetNewSessionCwd={vi.fn()}
+          onSetNewSessionWorkspaceOpen={vi.fn()}
+          onSteer={async () => true}
+          onStop={vi.fn()}
+          onSubmitDraft={async () => true}
+          onToggleApprovalMode={vi.fn()}
+          onUpdateQueuedTurn={async () => true}
+          queueTurnPending={false}
+          queuedTurn={null}
+          secure
+          showAdminFeatures={false}
+          steerTurnPending={false}
+          stopTurnPending={false}
+          supportsQueuedTurns={false}
+          updateQueuedTurnPending={false}
+        />
+      </TooltipProvider>,
+    );
+
+    expect(
+      screen.getByRole("form", { name: "Encrypted session composer" }),
+    ).toHaveAttribute("data-secure-mode", "true");
+    expect(screen.getByText("End-to-end encrypted")).toBeVisible();
+    expect(
+      screen.getByPlaceholderText("Send an end-to-end encrypted message"),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Add files or context" }),
+    ).toBeDisabled();
+  });
+
   it("updates its draft without rerendering sibling timeline content", async () => {
     let timelineRenderCount = 0;
     const onSubmitDraft = vi.fn(async () => true);

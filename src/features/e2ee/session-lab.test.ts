@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildE2EECancelFrame,
   buildE2EEPromptFrame,
   buildE2EESessionNewFrame,
   extractE2EEFrameText,
@@ -7,6 +8,14 @@ import {
 } from "./session-lab";
 
 describe("E2EE session lab", () => {
+  it("builds a cancel notification for the encrypted session", () => {
+    expect(buildE2EECancelFrame("manager_1")).toEqual({
+      jsonrpc: "2.0",
+      method: "session/cancel",
+      params: { sessionId: "manager_1" },
+    });
+  });
+
   it("builds a prompt for the encrypted native ACP session", () => {
     expect(buildE2EEPromptFrame("request_1", "manager_1", "hello")).toEqual({
       jsonrpc: "2.0",

@@ -14,6 +14,7 @@ import { extractToolCallOutputUpdate } from "./tool-call-output";
 
 type TunnelFrame = {
   id?: string | number;
+  messageId?: string;
   message_id?: string;
   type?: string;
   message_type?: string;
@@ -649,6 +650,7 @@ function getEventId(
 ) {
   const explicitId =
     frame.id ??
+    frame.messageId ??
     frame.message_id ??
     stringFromValue(frame.params, "id") ??
     stringFromValue(frame.params, "messageId") ??

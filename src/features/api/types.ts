@@ -344,6 +344,7 @@ export type AgentSession = {
   runtime_status?: "idle" | "running" | "waiting_approval";
   runtime_turn_instance_id?: string;
   source?: string;
+  transport?: "manager" | "e2ee";
   model?: string;
   message_count?: number;
   workspace_roots?: string[];

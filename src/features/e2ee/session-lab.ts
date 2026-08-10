@@ -18,6 +18,12 @@ export type E2EESessionNewFrame = {
   };
 };
 
+export type E2EECancelFrame = {
+  jsonrpc: "2.0";
+  method: "session/cancel";
+  params: { sessionId: string };
+};
+
 export type E2EERPCResponse = {
   error?: string;
   requestId: string;
@@ -55,6 +61,14 @@ export function buildE2EEPromptFrame(
       sessionId: normalizedSessionId,
       prompt: [{ type: "text", text: normalizedPrompt }],
     },
+  };
+}
+
+export function buildE2EECancelFrame(sessionId: string): E2EECancelFrame {
+  return {
+    jsonrpc: "2.0",
+    method: "session/cancel",
+    params: { sessionId: requireValue(sessionId, "Session ID") },
   };
 }
 

@@ -4,7 +4,7 @@ This file is for coding agents working on PAX Console. Keep it short, factual, a
 
 ## Encrypted transport boundary
 
-The staged Browser-to-paxd E2EE implementation lives in `src/features/e2ee`.
+The Browser-to-paxd E2EE implementation lives in `src/features/e2ee`.
 Keep envelope construction, HKDF/AES-GCM, SSE parsing, and IndexedDB key access
 out of React components. The Manager must receive only the serialized encrypted
 envelope; never add a root key, plaintext ACP method/params, prompt, tool output,
@@ -27,10 +27,28 @@ one development root key per agent in IndexedDB, surfaced under Settings /
 Security. Root keys must not be put in TanStack Query, localStorage, server
 components, URL state, or the Manager API.
 
-This transport is not yet the default Session workbench runtime. The existing
-`/conversation` path remains authoritative until native-session creation,
-history, approvals, and runtime projection no longer require Manager plaintext.
-Do not switch a workbench merely because a local root key exists.
+Manager session resources expose `transport: "manager" | "e2ee"`. The first
+encrypted command durably marks that session as `e2ee`; Manager startup also
+backfills the marker from existing encrypted commands, events, or canonical
+history. Home shows encrypted sessions in the normal session rail with an
+`Encrypted` badge. The shared Session workbench selects encrypted history,
+event SSE, prompt, and cancel transport only from this server-owned marker.
+Never switch a workbench merely because a local root key exists: one agent can
+own both plaintext and encrypted sessions. Missing browser key material leaves
+an E2EE session visibly locked and must not fall back to `/conversation`.
+
+Home's new-session composer exposes an `Encrypted` toggle. The selection is
+passed to the shared workbench as creation intent, not inferred from key
+presence. Encrypted creation must check the browser key before creating a
+Manager session, create that session, send encrypted `session/new`, wait for its
+ACP response, and only then publish the assigned session to Home and send the
+initial encrypted prompt. Do not save a Project Target before `session/new`
+succeeds. The normal toggle-off path must remain on `/conversation`.
+
+The E2EE workbench currently supports durable history, live frames, prompt, and
+cancel. Queue, steer, attachments, and Manager-projected permission decisions
+remain disabled on encrypted turns until their payloads have encrypted ACP
+equivalents. `/e2ee` remains a diagnostic lab rather than the product entry.
 
 ## Non-Negotiable Project Facts
 

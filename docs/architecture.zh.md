@@ -15,7 +15,7 @@ Zustand 管纯前端 UI 状态。
 WebSocket runtime 管 live agent tunnel。
 ```
 
-## E2EE durable transport（分阶段接入）
+## E2EE durable transport
 
 新的 encrypted transport 保留 paxd 到 Manager 的可靠 WebSocket，把 PostgreSQL
 作为跨实例路由和恢复的 durable truth。Manager 只读取经过 AES-GCM AAD 认证的
@@ -53,12 +53,35 @@ POST /api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/encrypted-co
 GET  /api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/encrypted-events
 ```
 
-当前这是 staged transport foundation；现有 Session workbench 仍使用
-`POST .../conversation`，因为历史聚合、permission projection、native session
-映射仍由 Manager 明文 runtime 负责。不要仅因浏览器已保存 key 就自动切换既有
-会话。正式切换需要先把这些 session orchestration 职责迁移到 paxd，并让 workbench
-通过 `transport.ts` 发送和消费 ACP frame。这样旧路径在迁移期间保持可用，也不会
-出现一半 E2EE、一半依赖 Manager 明文状态的会话。
+`agent_sessions.transport` 是 workbench 选择链路的 durable truth，值为
+`manager` 或 `e2ee`。第一条 encrypted command 会在同一事务中把对应 session 标成
+`e2ee`；Manager 启动时也会根据已有 command、event、canonical encrypted history
+回填旧数据。Home 的普通 session rail 同时展示两类会话，E2EE 会话带锁和
+`Encrypted` label，点击后仍打开同一个 embedded Session workbench。
+
+Workbench 只能按服务端 session marker 切换，不能因为浏览器恰好保存了某 agent 的
+root key 就切换，因为同一个 agent 可以同时拥有普通和 E2EE session。E2EE session
+使用 `encrypted-history`、encrypted event SSE 和 encrypted command；浏览器缺 key
+时显示 locked notice，绝不能静默回退到 Manager 明文 `/conversation`。当前已支持
+history、live frame、prompt 和 cancel；queue、steer、attachment 及 Manager 明文
+permission projection 在有对应的 encrypted ACP 语义前保持禁用。`/e2ee` 页面继续
+作为诊断入口，不再是访问加密 session 的唯一入口。
+
+Home 新建 composer 提供 `Encrypted` toggle。该值是明确的 session creation
+intent，并通过 embedded workbench props 传递，不能靠“浏览器有 key”推断。开启后
+按以下顺序执行：
+
+```txt
+检查当前 agent root key
+  -> 创建 Manager session
+  -> encrypted command: session/new
+  -> 等待 paxd 的加密 ACP response
+  -> Home 接受 session assignment / 保存 Project Target
+  -> encrypted command: session/prompt
+```
+
+任何 `session/new` 失败都不能提前把 Project Target 当作已成功 native assignment。
+关闭 toggle 时仍完整使用原 `/conversation` 创建链路。
 
 ## 当前本地开发链路
 
