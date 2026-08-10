@@ -304,6 +304,7 @@ export type CreateNodeDaemonAgentConnectionInput = {
   instance_id?: string;
   name: string;
   working_dir?: string;
+  report_local_sessions?: boolean;
 };
 
 export type UpdateNodeDaemonAgentConnectionInput = {
@@ -313,6 +314,7 @@ export type UpdateNodeDaemonAgentConnectionInput = {
   harness?: string;
   name?: string;
   working_dir?: string;
+  report_local_sessions?: boolean;
 };
 
 export function getHealth() {

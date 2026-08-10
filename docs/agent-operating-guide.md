@@ -508,6 +508,18 @@ periodic paxd session reports until the user explicitly restores the reported
 name. After a successful update, refresh both session metadata and the
 user-scoped `session-list` query namespace.
 
+Each daemon agent connection exposes `report_local_sessions`. It defaults to
+`false` and can be changed from the connection edit form. When disabled, paxd
+must omit sessions discovered only from local agent logs, while continuing to
+report native sessions present in its manager-created ACP route table. This
+exception keeps Console-created session discovery and reported-name updates
+working without uploading unrelated local sessions.
+
+Paxd also forces this route-only behavior whenever more than one configured
+remote identity shares the same normalized Cloud API URL. Local paxl results
+have no account ownership metadata and must never be fanned out across those
+accounts, even if a connection has explicitly set `report_local_sessions=true`.
+
 `AgentTunnelRuntime` is retained for direct ACP tunnel experiments and legacy
 coverage, but React session components should use `useConversationRun` for
 normal composer sends. Components must not build or parse raw ACP frames.

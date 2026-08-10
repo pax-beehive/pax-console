@@ -546,6 +546,12 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   }, [canonicalUrlSessionId, legacyUrlSessionId]);
 
   useEffect(() => {
+    if (!canonicalUrlSessionId && legacyUrlSessionId) {
+      replaceHomeSessionUrl(legacyUrlSessionId);
+    }
+  }, [canonicalUrlSessionId, legacyUrlSessionId]);
+
+  useEffect(() => {
     if (
       !urlSessionId ||
       !activeSessionTargetPending ||
