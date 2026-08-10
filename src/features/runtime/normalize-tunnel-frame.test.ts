@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { filterLiveEventsAlreadyInHistory } from "./filter-live-history-events";
 import { mergeEvents } from "./merge-session-events";
 import { normalizeTunnelFrame } from "./normalize-tunnel-frame";
+import { SessionEvent } from "./session-events";
 
 describe("normalizeTunnelFrame", () => {
   it("normalizes ACP streaming thought and message chunks from session/update", () => {
@@ -169,6 +171,47 @@ describe("normalizeTunnelFrame", () => {
       id: "77921871-8997-4d7c-b3a7-9bdf3dd7c492:agent_message_chunk",
       content: "你好",
     });
+  });
+
+  it("keeps replayed ACP message IDs separate so durable history replaces both turns", () => {
+    const liveEvents = mergeEvents([
+      ...normalizeTunnelFrame(
+        sessionUpdate("agent_message_chunk", "First ", "msg_1"),
+      ),
+      ...normalizeTunnelFrame(
+        sessionUpdate("agent_message_chunk", "answer.", "msg_1"),
+      ),
+      ...normalizeTunnelFrame(
+        sessionUpdate("agent_message_chunk", "Second ", "msg_2"),
+      ),
+      ...normalizeTunnelFrame(
+        sessionUpdate("agent_message_chunk", "answer.", "msg_2"),
+      ),
+    ]);
+    const historyEvents: SessionEvent[] = [
+      {
+        type: "agent_message",
+        id: "history_1",
+        sessionId: "77921871-8997-4d7c-b3a7-9bdf3dd7c492",
+        content: "First answer.",
+        createdAt: "2026-08-08T12:00:00.000Z",
+      },
+      {
+        type: "agent_message",
+        id: "history_2",
+        sessionId: "77921871-8997-4d7c-b3a7-9bdf3dd7c492",
+        content: "Second answer.",
+        createdAt: "2026-08-08T12:01:00.000Z",
+      },
+    ];
+
+    expect(liveEvents).toMatchObject([
+      { id: "msg_1", content: "First answer." },
+      { id: "msg_2", content: "Second answer." },
+    ]);
+    expect(
+      filterLiveEventsAlreadyInHistory(liveEvents, historyEvents),
+    ).toEqual([]);
   });
 
   it("normalizes conversation run usage updates and final prompt results", () => {
@@ -1117,7 +1160,11 @@ describe("normalizeTunnelFrame", () => {
   });
 });
 
-function sessionUpdate(sessionUpdate: string, text: string) {
+function sessionUpdate(
+  sessionUpdate: string,
+  text: string,
+  messageId?: string,
+) {
   return {
     jsonrpc: "2.0",
     method: "session/update",
@@ -1128,6 +1175,7 @@ function sessionUpdate(sessionUpdate: string, text: string) {
           text,
           type: "text",
         },
+        ...(messageId ? { messageId } : {}),
         sessionUpdate,
       },
     },

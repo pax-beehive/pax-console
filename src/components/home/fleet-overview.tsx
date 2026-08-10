@@ -32,6 +32,7 @@ import {
   FolderPlus,
   Inbox,
   ListFilter,
+  LockKeyhole,
   LoaderCircle,
   Menu,
   MessageSquare,
@@ -53,6 +54,7 @@ import {
   type ComposerAttachment,
   SessionWorkbench,
 } from "@/components/sessions/session-workbench";
+import { SecureModeActivation } from "@/components/sessions/secure-mode-activation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -62,6 +64,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { TruncatedText } from "@/components/ui/text";
+import { Tooltip } from "@/components/ui/tooltip";
 import {
   completeUserAttachment,
   createProjectTarget,
@@ -141,6 +144,7 @@ type WorkItem = {
   sessionId?: string;
   source: string;
   title: string;
+  transport?: AgentSession["transport"];
 };
 
 type EmbeddedSessionTarget = {
@@ -149,6 +153,7 @@ type EmbeddedSessionTarget = {
   initialAttachments?: ComposerAttachment[];
   initialCwd?: string;
   initialPrompt?: string;
+  initialTransport?: AgentSession["transport"];
   key: string;
   nodeId?: string;
   primaryProjectId?: string;
@@ -187,6 +192,8 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const [newSessionWorkspaceOpen, setNewSessionWorkspaceOpen] = useState(false);
   const [newSessionApprovalMode, setNewSessionApprovalMode] =
     useState<SessionApprovalMode>("manual");
+  const [newSessionTransport, setNewSessionTransport] =
+    useState<NonNullable<AgentSession["transport"]>>("manager");
   const [attachmentName, setAttachmentName] = useState("");
   const [composerAttachments, setComposerAttachments] = useState<
     ComposerAttachment[]
@@ -530,6 +537,13 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       : selectedProjectId
         ? "Project"
         : "Composer";
+  const secureComposerActive = newSessionTransport === "e2ee";
+
+  useEffect(() => {
+    if (!canonicalUrlSessionId && legacyUrlSessionId) {
+      replaceHomeSessionUrl(legacyUrlSessionId);
+    }
+  }, [canonicalUrlSessionId, legacyUrlSessionId]);
 
   useEffect(() => {
     if (!canonicalUrlSessionId && legacyUrlSessionId) {
@@ -706,6 +720,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       initialAttachments: composerAttachments,
       initialCwd: normalizedNewSessionCwd || undefined,
       initialPrompt: initialPrompt || undefined,
+      initialTransport: newSessionTransport,
       key: `new:${nonce}`,
       nodeId: activeAgent.node_id,
       primaryProjectId: selectedProjectId || undefined,
@@ -719,6 +734,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     setContextClosed(false);
     setComposerMode("clean");
     setDraft("");
+    setNewSessionTransport("manager");
     setComposerAttachments([]);
     setComposerAttachmentError(null);
   }
@@ -782,6 +798,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     setContextClosed(false);
     setComposerMode("clean");
     setDraft("");
+    setNewSessionTransport("manager");
   }
 
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -927,11 +944,17 @@ export function FleetOverview({ user }: FleetOverviewProps) {
           </section>
 
           <section
+            data-secure-mode={secureComposerActive}
+            data-testid="home-composer-pane"
             className={cn(
-              "min-h-0 min-w-0 flex-col overflow-hidden",
+              "relative isolate min-h-0 min-w-0 flex-col overflow-hidden transition-[background,box-shadow] duration-500 ease-out",
               mobilePaneOpen ? "flex" : "hidden lg:flex",
+              secureComposerActive
+                ? "bg-[radial-gradient(circle_at_50%_105%,rgba(16,185,129,0.075),transparent_48%),linear-gradient(180deg,rgba(16,185,129,0.025),transparent_36%)] shadow-[inset_0_-1px_0_rgba(52,211,153,0.08)]"
+                : "bg-canvas",
             )}
           >
+            {secureComposerActive && <SecureModeActivation />}
             {activeSessionTargetPending ? (
               <section className="flex min-h-0 flex-1 items-center justify-center p-5 text-sm text-ink-tertiary">
                 Loading session...
@@ -946,6 +969,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 initialPrimaryProjectId={activeSessionTarget.primaryProjectId}
                 initialPrompt={activeSessionTarget.initialPrompt}
                 initialProjectTargetId={activeSessionTarget.projectTargetId}
+                initialTransport={activeSessionTarget.initialTransport}
                 key={activeSessionTarget.key}
                 mobileMenuLabel="Chat sidebar"
                 nodeId={activeSessionTarget.nodeId}
@@ -1004,7 +1028,14 @@ export function FleetOverview({ user }: FleetOverviewProps) {
               </div>
             ) : (
               <>
-                <div className="flex min-w-0 items-center gap-2 border-b border-hairline bg-surface-1 px-3 py-2 lg:hidden">
+                <div
+                  className={cn(
+                    "flex min-w-0 items-center gap-2 border-b px-3 py-2 transition-colors duration-500 lg:hidden",
+                    secureComposerActive
+                      ? "border-emerald-400/15 bg-emerald-500/[0.025] backdrop-blur-xl"
+                      : "border-hairline bg-surface-1",
+                  )}
+                >
                   <Button
                     aria-label="Open Home sidebar"
                     icon={<Menu className="h-4 w-4" />}
@@ -1135,11 +1166,24 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 </div>
 
                 <form
-                  className="mobile-safe-bottom border-t border-hairline bg-surface-1 p-3"
+                  className={cn(
+                    "mobile-safe-bottom border-t p-3 transition-[background-color,border-color] duration-500",
+                    secureComposerActive
+                      ? "border-emerald-400/20 bg-emerald-500/[0.035] backdrop-blur-xl"
+                      : "border-hairline bg-surface-1",
+                  )}
                   onSubmit={submit}
                 >
-                  <div className="mx-auto w-full max-w-4xl rounded-xl border border-hairline bg-surface-2 px-3 py-2 transition focus-within:border-accent/60 focus-within:shadow-[0_0_0_3px_rgb(94_106_210/14%),0_0_28px_rgb(94_106_210/10%)]">
+                  <div
+                    className={cn(
+                      "mx-auto w-full max-w-4xl rounded-xl border px-3 py-2 transition-[background-color,border-color,box-shadow] duration-500",
+                      secureComposerActive
+                        ? "border-emerald-400/45 bg-surface-2/95 shadow-[0_0_0_1px_rgba(52,211,153,0.04),0_10px_36px_rgba(16,185,129,0.07)] focus-within:border-emerald-400/70 focus-within:shadow-[0_0_0_3px_rgba(52,211,153,0.08),0_14px_44px_rgba(16,185,129,0.10)]"
+                        : "border-hairline bg-surface-2 focus-within:border-accent/60 focus-within:shadow-[0_0_0_3px_rgb(94_106_210/14%),0_0_28px_rgb(94_106_210/10%)]",
+                    )}
+                  >
                     <ComposerModeHint
+                      secure={secureComposerActive}
                       mode={composerMode}
                       onClear={() => {
                         setComposerMode("clean");
@@ -1201,7 +1245,11 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                       className="max-h-40 min-h-12 w-full resize-none overflow-y-auto bg-transparent px-1 py-1 text-sm leading-5 text-ink outline-none [field-sizing:content] placeholder:text-ink-tertiary"
                       onKeyDown={handleComposerKeyDown}
                       onChange={(event) => setDraft(event.target.value)}
-                      placeholder={composerPlaceholder(composerMode)}
+                      placeholder={
+                        secureComposerActive
+                          ? "Send an end-to-end encrypted message"
+                          : composerPlaceholder(composerMode)
+                      }
                       rows={2}
                       value={draft}
                     />
@@ -1210,7 +1258,10 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                         <DropdownMenuTrigger asChild>
                           <Button
                             aria-label="Add files or context"
-                            disabled={composerAttachmentUploadPending}
+                            disabled={
+                              composerAttachmentUploadPending ||
+                              newSessionTransport === "e2ee"
+                            }
                             icon={
                               composerAttachmentUploadPending ? (
                                 <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -1219,7 +1270,11 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                               )
                             }
                             size="icon"
-                            tooltip="Add files or context"
+                            tooltip={
+                              newSessionTransport === "e2ee"
+                                ? "Attachments are not supported in encrypted sessions yet"
+                                : "Add files or context"
+                            }
                             type="button"
                             variant="ghost"
                           />
@@ -1362,6 +1417,33 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                           </div>
                         )}
                       <button
+                        aria-label="Use end-to-end encryption"
+                        aria-pressed={newSessionTransport === "e2ee"}
+                        className={cn(
+                          "inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg border px-2.5 text-sm transition-all duration-300",
+                          newSessionTransport === "e2ee"
+                            ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
+                            : "border-transparent text-ink-subtle hover:bg-surface-3 hover:text-ink",
+                        )}
+                        disabled={composerAttachments.length > 0}
+                        onClick={() =>
+                          setNewSessionTransport((transport) =>
+                            transport === "e2ee" ? "manager" : "e2ee",
+                          )
+                        }
+                        title={
+                          composerAttachments.length > 0
+                            ? "Remove attachments before enabling encryption"
+                            : "Encrypt payloads between this browser and paxd"
+                        }
+                        type="button"
+                      >
+                        <LockKeyhole className="h-4 w-4" />
+                        <span className="whitespace-nowrap text-xs sm:text-sm">
+                          {secureComposerActive ? "Secure mode" : "Encrypted"}
+                        </span>
+                      </button>
+                      <button
                         aria-label={
                           newSessionApprovalMode === "auto_approve_all"
                             ? "Auto approve tools without asking"
@@ -1406,6 +1488,10 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                         />
                         <Button
                           aria-label="Start session"
+                          className={cn(
+                            secureComposerActive &&
+                              "border-emerald-400/60 bg-emerald-400 text-emerald-950 shadow-[0_0_18px_rgba(52,211,153,0.16)] hover:bg-emerald-300",
+                          )}
                           disabled={
                             !activeAgent?.agent_id ||
                             (Boolean(selectedProjectId) &&
@@ -1657,10 +1743,14 @@ function HomeSessionRow({
   return (
     <div
       className={cn(
-        "group flex min-w-0 items-center pr-1 transition hover:bg-surface-2",
-        active
-          ? "bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)]"
-          : "text-ink-muted",
+        "group flex min-w-0 items-center pr-1 transition-colors duration-200",
+        session.transport === "e2ee"
+          ? active
+            ? "bg-emerald-400/[0.07] shadow-[inset_2px_0_0_rgba(52,211,153,0.9)]"
+            : "text-ink-muted hover:bg-emerald-400/[0.04]"
+          : active
+            ? "bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)]"
+            : "text-ink-muted hover:bg-surface-2",
       )}
       style={{ paddingLeft: `${40 + depth * 16}px` }}
     >
@@ -1681,10 +1771,29 @@ function HomeSessionRow({
           onSelect();
         }}
       >
-        <span className="truncate text-sm text-ink">{session.title}</span>
-        <span className="truncate text-xs text-ink-tertiary">
-          {session.context} · {relativeTime(session.createdAt)}
-          {session.archivedAt ? " · Archived" : ""}
+        <span className="flex min-w-0 items-center gap-1.5 text-sm text-ink">
+          <span className="truncate">{session.title}</span>
+          {session.transport === "e2ee" && (
+            <Tooltip content="End-to-end encrypted">
+              <span
+                aria-label="End-to-end encrypted"
+                className="grid h-4 w-4 shrink-0 place-items-center rounded-full border border-emerald-400/25 bg-emerald-400/10 text-emerald-400 shadow-[0_0_0_rgba(52,211,153,0)] transition-all duration-200 group-hover:border-emerald-300/40 group-hover:bg-emerald-400/15 group-hover:shadow-[0_0_12px_rgba(52,211,153,0.16)]"
+                role="img"
+              >
+                <LockKeyhole className="h-2.5 w-2.5" />
+              </span>
+            </Tooltip>
+          )}
+        </span>
+        <span className="flex min-w-0 items-center gap-1 text-xs text-ink-tertiary">
+          <span className="truncate">{session.context}</span>
+          <span aria-hidden="true" className="shrink-0 text-ink-tertiary/50">
+            ·
+          </span>
+          <span className="shrink-0">{relativeTime(session.createdAt)}</span>
+          {session.archivedAt && (
+            <span className="shrink-0 text-warning">· Archived</span>
+          )}
         </span>
       </Link>
       <Button
@@ -1859,11 +1968,22 @@ function SessionFilterOptionGroup({
 function ComposerModeHint({
   mode,
   onClear,
+  secure = false,
 }: {
   mode: ComposerMode;
   onClear: () => void;
+  secure?: boolean;
 }) {
   if (mode === "clean") {
+    if (secure) {
+      return (
+        <div className="mb-1 flex items-center gap-2 px-1 text-[11px] text-emerald-400/80">
+          <ShieldCheck className="h-3.5 w-3.5" />
+          End-to-end encrypted
+        </div>
+      );
+    }
+
     return (
       <div className="mb-1 px-1 text-xs text-ink-tertiary">Clean session</div>
     );
@@ -2437,6 +2557,7 @@ function buildWorkItems({
           sessionId: session.session_id,
           source: "Recent session",
           title: session.name ?? session.current_task ?? session.session_id,
+          transport: session.transport,
         };
       }),
     ],

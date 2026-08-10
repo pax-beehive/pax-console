@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ReactNode, useMemo, useState } from "react";
+import { ReactNode, useEffect, useMemo, useState } from "react";
 import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
@@ -50,6 +50,12 @@ import {
   User,
 } from "@/features/api/types";
 import { compactId } from "@/lib/format";
+import {
+  deleteRootKey,
+  loadRootKey,
+  saveRootKey,
+} from "@/features/e2ee/root-key-store";
+import { generateEncodedRootKey } from "@/features/e2ee/envelope";
 import {
   AgentRow,
   agentLabel,
@@ -137,10 +143,13 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
   const [sessionPage, setSessionPage] = useState(1);
   const nodesQuery = useNodes(user.user_id);
   const shouldLoadAgents =
-    kind === "agents" || kind === "sessions" || kind === "monitor";
+    kind === "agents" ||
+    kind === "sessions" ||
+    kind === "monitor" ||
+    kind === "security";
   const agentsQuery = useAgents(
     shouldLoadAgents ? user.user_id : undefined,
-    kind === "agents" ? "owned" : "accessible",
+    kind === "agents" || kind === "security" ? "owned" : "accessible",
   );
   const allNodes = nodesQuery.data?.nodes ?? emptyNodes;
   const sortedNodes = useMemo(
@@ -307,15 +316,18 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
             />
           )}
           {(kind === "approvals" || kind === "security") && (
-            <ApprovalsPanel
-              approvals={approvalsQuery.data?.approvals ?? []}
-              grants={approvalGrantsQuery.data?.grants ?? []}
-              isLoading={
-                approvalsQuery.isLoading || approvalGrantsQuery.isLoading
-              }
-              showPending={kind === "approvals"}
-              userId={user.user_id}
-            />
+            <div className="grid gap-4">
+              {kind === "security" && <E2EEKeysPanel agents={sortedAgents} />}
+              <ApprovalsPanel
+                approvals={approvalsQuery.data?.approvals ?? []}
+                grants={approvalGrantsQuery.data?.grants ?? []}
+                isLoading={
+                  approvalsQuery.isLoading || approvalGrantsQuery.isLoading
+                }
+                showPending={kind === "approvals"}
+                userId={user.user_id}
+              />
+            </div>
           )}
           {kind === "monitor" && (
             <MonitorPanel
@@ -899,6 +911,196 @@ function NodeRegistrationPanel({ userId }: { userId: string }) {
         </section>
       )}
     </div>
+  );
+}
+
+function E2EEKeysPanel({ agents }: { agents: Agent[] }) {
+  const [agentId, setAgentId] = useState("");
+  const [encodedKey, setEncodedKey] = useState("");
+  const [configured, setConfigured] = useState(false);
+  const [status, setStatus] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const selectedAgentId = agents.some((agent) => agent.agent_id === agentId)
+    ? agentId
+    : (agents[0]?.agent_id ?? "");
+
+  useEffect(() => {
+    let active = true;
+    if (!selectedAgentId) {
+      return;
+    }
+    void loadRootKey(selectedAgentId)
+      .then((key) => {
+        if (active) {
+          setConfigured(Boolean(key));
+          setStatus("");
+        }
+      })
+      .catch((error) => {
+        if (active) {
+          setStatus(error instanceof Error ? error.message : String(error));
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [selectedAgentId]);
+
+  async function handleSave() {
+    setBusy(true);
+    setStatus("");
+    try {
+      await saveRootKey(selectedAgentId, encodedKey);
+      setEncodedKey("");
+      setConfigured(true);
+      setStatus("Root key saved in this browser.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDelete() {
+    setBusy(true);
+    setStatus("");
+    try {
+      await deleteRootKey(selectedAgentId);
+      setConfigured(false);
+      setEncodedKey("");
+      setStatus("Root key removed from this browser.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function handleGenerate() {
+    setEncodedKey(generateEncodedRootKey());
+    setStatus(
+      "Generated locally. Copy this key into paxd, then save it for the selected agent.",
+    );
+  }
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(encodedKey);
+      setStatus("Root key copied. It has not been sent to PAX Manager.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  return (
+    <section className="grid gap-4 rounded-lg border border-hairline bg-surface-1 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-medium">End-to-end encryption keys</h2>
+          <p className="mt-1 text-xs text-ink-tertiary">
+            Development pairing stores one 32-byte base64 root key per agent in
+            this browser&apos;s IndexedDB. The key is never sent to PAX Manager.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Badge tone={selectedAgentId && configured ? "success" : "neutral"}>
+            {selectedAgentId && configured ? "configured" : "not configured"}
+          </Badge>
+          <Button asChild size="sm" variant="primary">
+            <Link
+              href={
+                selectedAgentId
+                  ? `/e2ee?agentId=${encodeURIComponent(selectedAgentId)}`
+                  : "/e2ee"
+              }
+            >
+              Open E2EE Lab
+            </Link>
+          </Button>
+          <Button asChild size="sm">
+            <Link
+              href={
+                selectedAgentId
+                  ? `/e2ee/pairing?agentId=${encodeURIComponent(selectedAgentId)}`
+                  : "/e2ee/pairing"
+              }
+            >
+              Pair browser
+            </Link>
+          </Button>
+        </div>
+      </div>
+      {agents.length > 0 ? (
+        <div className="grid gap-3 sm:grid-cols-[minmax(180px,0.7fr)_minmax(280px,1.3fr)_auto]">
+          <label className="grid gap-1 text-xs text-ink-tertiary">
+            Agent
+            <select
+              className="h-9 rounded-md border border-hairline bg-canvas px-3 text-sm text-ink outline-none focus:border-accent"
+              onChange={(event) => setAgentId(event.target.value)}
+              value={selectedAgentId}
+            >
+              {agents.map((agent) => (
+                <option key={agent.agent_id} value={agent.agent_id}>
+                  {agentLabel(agent)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1 text-xs text-ink-tertiary">
+            Base64 root key
+            <input
+              autoComplete="off"
+              className="h-9 rounded-md border border-hairline bg-canvas px-3 font-mono text-sm text-ink outline-none focus:border-accent"
+              onChange={(event) => setEncodedKey(event.target.value)}
+              placeholder="32-byte base64 value"
+              type="password"
+              value={encodedKey}
+            />
+          </label>
+          <div className="flex items-end gap-2">
+            <Button
+              disabled={busy || !selectedAgentId}
+              onClick={handleGenerate}
+              type="button"
+            >
+              Generate
+            </Button>
+            {encodedKey && (
+              <Button
+                icon={<Copy className="h-4 w-4" />}
+                onClick={() => void handleCopy()}
+                type="button"
+              >
+                Copy
+              </Button>
+            )}
+            <Button
+              disabled={busy || !selectedAgentId || !encodedKey.trim()}
+              onClick={() => void handleSave()}
+              type="button"
+            >
+              Save key
+            </Button>
+            {configured && (
+              <Button
+                disabled={busy}
+                onClick={() => void handleDelete()}
+                variant="danger"
+                type="button"
+              >
+                Remove
+              </Button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm text-ink-tertiary">
+          Create an agent before configuring an E2EE root key.
+        </p>
+      )}
+      {status && <p className="text-xs text-ink-tertiary">{status}</p>}
+    </section>
   );
 }
 

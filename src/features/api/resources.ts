@@ -1282,6 +1282,7 @@ export function createAgentSession(
   nodeId: string,
   agentId: string,
   name = "Console session",
+  options: { primaryProjectId?: string } = {},
 ) {
   return apiFetch<AgentSession>(
     userPath(userId, `/nodes/${nodeId}/agents/${agentId}/sessions`),
@@ -1290,6 +1291,9 @@ export function createAgentSession(
         agent_id: agentId,
         name,
         node_id: nodeId,
+        ...(options.primaryProjectId
+          ? { primary_project_id: options.primaryProjectId }
+          : {}),
         source: "console",
         user_id: userId,
       }),

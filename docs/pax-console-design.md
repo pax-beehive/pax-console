@@ -11,6 +11,18 @@ The core product idea:
 ```txt
 REST provides truth.
 WebSocket provides liveness.
+
+The E2EE transport uses HTTP for encrypted command creation, SSE with a
+durable cursor for encrypted event delivery, PostgreSQL for cross-instance
+truth, and the existing reliable paxd WebSocket for the live hop. Browser root
+keys stay in IndexedDB and are never sent to the Manager. A durable per-session
+`transport` marker selects either this path or the Manager-owned `/conversation`
+runtime. Home lists both together; encrypted rows and workbench headers carry a
+compact lock label while retaining the same navigation and timeline UI.
+The Home new-session composer also has an explicit `Encrypted` toggle. It is
+off by default. When enabled, the workbench verifies local key availability,
+waits for encrypted `session/new` confirmation, and then sends the first prompt;
+it never silently falls back to the plaintext runtime.
 The UI renders normalized agent events.
 Cloudflare Access owns identity.
 PAX Manager owns permissions and resources.

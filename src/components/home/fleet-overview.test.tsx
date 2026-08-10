@@ -76,6 +76,7 @@ vi.mock("@/components/sessions/session-workbench", () => ({
     initialPrimaryProjectId,
     initialPrompt,
     initialProjectTargetId,
+    initialTransport,
     nodeId,
     onSessionAssigned,
     sessionId,
@@ -87,6 +88,7 @@ vi.mock("@/components/sessions/session-workbench", () => ({
     initialPrimaryProjectId?: string;
     initialPrompt?: string;
     initialProjectTargetId?: string;
+    initialTransport?: "manager" | "e2ee";
     nodeId?: string;
     onSessionAssigned?: (sessionId: string) => void;
     sessionId: string;
@@ -100,6 +102,7 @@ vi.mock("@/components/sessions/session-workbench", () => ({
       data-initial-cwd={initialCwd}
       data-primary-project-id={initialPrimaryProjectId}
       data-initial-prompt={initialPrompt}
+      data-initial-transport={initialTransport}
       data-project-target-id={initialProjectTargetId}
       data-node-id={nodeId}
       data-testid="session-workbench"
@@ -421,6 +424,41 @@ describe("FleetOverview session rail", () => {
     ).toBeVisible();
   });
 
+  it("marks encrypted sessions without crowding the session title", async () => {
+    mocks.listUserSessions.mockResolvedValue({
+      pagination: { page_num: 1, page_size: 20, total: 1, total_pages: 1 },
+      sessions: [
+        {
+          agent_id: "agent_1",
+          name: "Private session",
+          node_id: "node_1",
+          session_id: "sess_encrypted",
+          transport: "e2ee",
+          updated_at: "2026-08-08T12:00:00.000Z",
+        },
+      ],
+    });
+    renderOverview();
+
+    const sessionLink = await screen.findByRole("link", {
+      name: /Private session/,
+    });
+    expect(
+      within(sessionLink).getByRole("img", {
+        name: "End-to-end encrypted",
+      }),
+    ).toBeVisible();
+    expect(
+      within(sessionLink).queryByText("Encrypted"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(sessionLink);
+    expect(await screen.findByTestId("session-workbench")).toHaveTextContent(
+      "sess_encrypted",
+    );
+    expect(window.location.search).toBe("?session_id=sess_encrypted");
+  });
+
   it("shows subprojects before sessions at every project nesting level", async () => {
     const rootProject = projectFixture("project_root", "Root project");
     const childProject = projectFixture(
@@ -531,6 +569,42 @@ describe("FleetOverview session rail", () => {
     expect(workbench).toHaveAttribute("data-project-target-id", "target_1");
     expect(workbench).toHaveAttribute("data-initial-cwd", "~/pax");
     expect(window.location.search).toBe("");
+  });
+
+  it("starts an encrypted session from the normal Home composer", async () => {
+    renderOverview();
+    await userEvent.click(screen.getByRole("link", { name: "New session" }));
+
+    const composerPane = screen.getByTestId("home-composer-pane");
+    const encryptedToggle = screen.getByRole("button", {
+      name: "Use end-to-end encryption",
+    });
+    expect(composerPane).toHaveAttribute("data-secure-mode", "false");
+    expect(encryptedToggle).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(encryptedToggle);
+    expect(composerPane).toHaveAttribute("data-secure-mode", "true");
+    expect(encryptedToggle).toHaveAttribute("aria-pressed", "true");
+    expect(
+      screen.getByRole("status", { name: "Session secured" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("secure-activation-animation"),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("End-to-end encrypted")).toHaveLength(2);
+
+    const composer = screen.getByPlaceholderText(
+      "Send an end-to-end encrypted message",
+    );
+    await userEvent.type(composer, "Keep this private");
+    fireEvent.submit(composer.closest("form")!);
+
+    const workbench = await screen.findByTestId("session-workbench");
+    expect(workbench).toHaveTextContent("new");
+    expect(workbench).toHaveAttribute("data-initial-transport", "e2ee");
+    expect(workbench).toHaveAttribute(
+      "data-initial-prompt",
+      "Keep this private",
+    );
   });
 
   it("creates a target for a new project workspace only after native session assignment", async () => {

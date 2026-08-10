@@ -146,6 +146,22 @@ export const queryKeys = {
     ] as const,
   sessionHistory: (userId: string, sessionId: string) =>
     ["users", userId, "sessions", sessionId, "history"] as const,
+  encryptedSessionHistory: (
+    userId: string,
+    agentId: string,
+    sessionId: string,
+    keyEpoch: number,
+  ) =>
+    [
+      "users",
+      userId,
+      "agents",
+      agentId,
+      "sessions",
+      sessionId,
+      "encrypted-history",
+      keyEpoch,
+    ] as const,
   sessionMetadata: (userId: string, sessionId: string) =>
     ["users", userId, "sessions", sessionId, "metadata"] as const,
   queuedSessionTurn: (userId: string, agentId: string, sessionId: string) =>

@@ -75,9 +75,11 @@ type SessionComposerProps = {
   queueTurnPending: boolean;
   queuedTurn: QueuedSessionTurnData | null | undefined;
   readOnlyWorkspace?: string;
+  secure?: boolean;
   showAdminFeatures: boolean;
   steerTurnPending: boolean;
   stopTurnPending: boolean;
+  supportsQueuedTurns?: boolean;
   updateQueuedTurnPending: boolean;
 };
 
@@ -111,9 +113,11 @@ export const SessionComposer = memo(function SessionComposer({
   queueTurnPending,
   queuedTurn,
   readOnlyWorkspace,
+  secure = false,
   showAdminFeatures,
   steerTurnPending,
   stopTurnPending,
+  supportsQueuedTurns = true,
   updateQueuedTurnPending,
 }: SessionComposerProps) {
   const draft = useConsoleStore(
@@ -135,6 +139,7 @@ export const SessionComposer = memo(function SessionComposer({
     content.length > 0;
   const canQueueTurn =
     isTurnRunning &&
+    supportsQueuedTurns &&
     Boolean(activeAgentId && currentSessionId) &&
     content.length > 0 &&
     !hasAttachments &&
@@ -142,6 +147,7 @@ export const SessionComposer = memo(function SessionComposer({
     !queueTurnPending;
   const canSteerTurn =
     isTurnRunning &&
+    supportsQueuedTurns &&
     Boolean(activeAgentId && currentSessionId) &&
     content.length > 0 &&
     !hasAttachments &&
@@ -211,11 +217,19 @@ export const SessionComposer = memo(function SessionComposer({
 
   return (
     <form
-      className="mobile-safe-bottom relative z-10 border-t border-hairline bg-surface-1 p-3"
+      aria-label={secure ? "Encrypted session composer" : undefined}
+      className={cn(
+        "mobile-safe-bottom relative z-10 border-t p-3 transition-[background-color,border-color] duration-500",
+        secure
+          ? "border-emerald-400/20 bg-emerald-500/[0.035] backdrop-blur-xl"
+          : "border-hairline bg-surface-1",
+      )}
+      data-secure-mode={secure}
       onSubmit={submit}
     >
       <input
         className="sr-only"
+        disabled={secure}
         multiple
         onChange={(event) => {
           const files = [...(event.currentTarget.files ?? [])];
@@ -227,7 +241,20 @@ export const SessionComposer = memo(function SessionComposer({
         ref={fileInputRef}
         type="file"
       />
-      <div className="mx-auto w-full max-w-4xl rounded-[22px] border border-hairline bg-surface-2 px-3 py-2 shadow-lg shadow-black/20">
+      <div
+        className={cn(
+          "mx-auto w-full max-w-4xl rounded-[22px] border px-3 py-2 transition-[background-color,border-color,box-shadow] duration-500",
+          secure
+            ? "border-emerald-400/45 bg-surface-2/95 shadow-[0_0_0_1px_rgba(52,211,153,0.04),0_10px_36px_rgba(16,185,129,0.07)] focus-within:border-emerald-400/70 focus-within:shadow-[0_0_0_3px_rgba(52,211,153,0.08),0_14px_44px_rgba(16,185,129,0.10)]"
+            : "border-hairline bg-surface-2 shadow-lg shadow-black/20",
+        )}
+      >
+        {secure && (
+          <div className="mb-1 flex items-center gap-2 px-1 text-[11px] text-emerald-400/80">
+            <ShieldCheck className="h-3.5 w-3.5" />
+            End-to-end encrypted
+          </div>
+        )}
         {queuedTurn && (
           <div className="mb-2 grid gap-2 rounded-xl border border-primary/25 bg-primary/5 p-2.5">
             <div className="flex min-w-0 items-center gap-2">
@@ -358,7 +385,9 @@ export const SessionComposer = memo(function SessionComposer({
           onChange={(event) => setComposerDraft(draftKey, event.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={
-            activeAgentId
+            secure
+              ? "Send an end-to-end encrypted message"
+              : activeAgentId
               ? "Send a prompt to this agent"
               : "Select an agent before sending a prompt"
           }
@@ -370,7 +399,7 @@ export const SessionComposer = memo(function SessionComposer({
             <DropdownMenuTrigger asChild>
               <Button
                 aria-label="Add files or context"
-                disabled={attachmentUploadPending}
+                disabled={attachmentUploadPending || secure}
                 icon={
                   attachmentUploadPending ? (
                     <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -379,7 +408,11 @@ export const SessionComposer = memo(function SessionComposer({
                   )
                 }
                 size="icon"
-                tooltip="Add files or context"
+                tooltip={
+                  secure
+                    ? "Attachments are not supported in encrypted sessions yet"
+                    : "Add files or context"
+                }
                 type="button"
                 variant="ghost"
               />
@@ -556,6 +589,10 @@ export const SessionComposer = memo(function SessionComposer({
             </>
           ) : (
             <Button
+              className={cn(
+                secure &&
+                  "border-emerald-400/60 bg-emerald-400 text-emerald-950 shadow-[0_0_18px_rgba(52,211,153,0.16)] hover:bg-emerald-300",
+              )}
               disabled={!canSend}
               icon={<Send className="h-4 w-4" />}
               size="icon"
