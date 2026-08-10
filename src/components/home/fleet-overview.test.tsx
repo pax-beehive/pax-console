@@ -424,7 +424,7 @@ describe("FleetOverview session rail", () => {
     ).toBeVisible();
   });
 
-  it("labels encrypted sessions without changing the Home entry", async () => {
+  it("marks encrypted sessions without crowding the session title", async () => {
     mocks.listUserSessions.mockResolvedValue({
       pagination: { page_num: 1, page_size: 20, total: 1, total_pages: 1 },
       sessions: [
@@ -443,7 +443,14 @@ describe("FleetOverview session rail", () => {
     const sessionLink = await screen.findByRole("link", {
       name: /Private session/,
     });
-    expect(within(sessionLink).getByText("Encrypted")).toBeVisible();
+    expect(
+      within(sessionLink).getByRole("img", {
+        name: "End-to-end encrypted",
+      }),
+    ).toBeVisible();
+    expect(
+      within(sessionLink).queryByText("Encrypted"),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(sessionLink);
     expect(await screen.findByTestId("session-workbench")).toHaveTextContent(

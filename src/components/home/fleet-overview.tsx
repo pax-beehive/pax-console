@@ -64,6 +64,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { TruncatedText } from "@/components/ui/text";
+import { Tooltip } from "@/components/ui/tooltip";
 import {
   completeUserAttachment,
   createProjectTarget,
@@ -191,9 +192,8 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const [newSessionWorkspaceOpen, setNewSessionWorkspaceOpen] = useState(false);
   const [newSessionApprovalMode, setNewSessionApprovalMode] =
     useState<SessionApprovalMode>("manual");
-  const [newSessionTransport, setNewSessionTransport] = useState<
-    NonNullable<AgentSession["transport"]>
-  >("manager");
+  const [newSessionTransport, setNewSessionTransport] =
+    useState<NonNullable<AgentSession["transport"]>>("manager");
   const [attachmentName, setAttachmentName] = useState("");
   const [composerAttachments, setComposerAttachments] = useState<
     ComposerAttachment[]
@@ -1737,10 +1737,14 @@ function HomeSessionRow({
   return (
     <div
       className={cn(
-        "group flex min-w-0 items-center pr-1 transition hover:bg-surface-2",
-        active
-          ? "bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)]"
-          : "text-ink-muted",
+        "group flex min-w-0 items-center pr-1 transition-colors duration-200",
+        session.transport === "e2ee"
+          ? active
+            ? "bg-emerald-400/[0.07] shadow-[inset_2px_0_0_rgba(52,211,153,0.9)]"
+            : "text-ink-muted hover:bg-emerald-400/[0.04]"
+          : active
+            ? "bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)]"
+            : "text-ink-muted hover:bg-surface-2",
       )}
       style={{ paddingLeft: `${40 + depth * 16}px` }}
     >
@@ -1764,15 +1768,26 @@ function HomeSessionRow({
         <span className="flex min-w-0 items-center gap-1.5 text-sm text-ink">
           <span className="truncate">{session.title}</span>
           {session.transport === "e2ee" && (
-            <Badge className="h-5" tone="accent">
-              <LockKeyhole className="h-3 w-3" />
-              Encrypted
-            </Badge>
+            <Tooltip content="End-to-end encrypted">
+              <span
+                aria-label="End-to-end encrypted"
+                className="grid h-4 w-4 shrink-0 place-items-center rounded-full border border-emerald-400/25 bg-emerald-400/10 text-emerald-400 shadow-[0_0_0_rgba(52,211,153,0)] transition-all duration-200 group-hover:border-emerald-300/40 group-hover:bg-emerald-400/15 group-hover:shadow-[0_0_12px_rgba(52,211,153,0.16)]"
+                role="img"
+              >
+                <LockKeyhole className="h-2.5 w-2.5" />
+              </span>
+            </Tooltip>
           )}
         </span>
-        <span className="truncate text-xs text-ink-tertiary">
-          {session.context} · {relativeTime(session.createdAt)}
-          {session.archivedAt ? " · Archived" : ""}
+        <span className="flex min-w-0 items-center gap-1 text-xs text-ink-tertiary">
+          <span className="truncate">{session.context}</span>
+          <span aria-hidden="true" className="shrink-0 text-ink-tertiary/50">
+            ·
+          </span>
+          <span className="shrink-0">{relativeTime(session.createdAt)}</span>
+          {session.archivedAt && (
+            <span className="shrink-0 text-warning">· Archived</span>
+          )}
         </span>
       </Link>
       <Button

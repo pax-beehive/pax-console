@@ -17,12 +17,12 @@ import {
   Check,
   FileText,
   LoaderCircle,
-  LockKeyhole,
   Menu,
   PanelRight,
   Pencil,
   RefreshCw,
   RotateCcw,
+  ShieldCheck,
   Wrench,
   X,
 } from "lucide-react";
@@ -36,6 +36,7 @@ import { ConsoleLayout } from "@/components/shell/console-layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MonoId, TruncatedText } from "@/components/ui/text";
+import { Tooltip } from "@/components/ui/tooltip";
 import {
   AgentPendingIndicator,
   PermissionDecisionOption,
@@ -1829,13 +1830,15 @@ export function SessionWorkbench({
                   </>
                 )}
                 {usesEncryptedTransport && (
-                  <Badge
-                    className="border-emerald-400/25 bg-emerald-400/10 text-emerald-400"
-                    tooltip="Browser-to-paxd encrypted session"
-                  >
-                    <LockKeyhole className="h-3 w-3" />
-                    Secured
-                  </Badge>
+                  <Tooltip content="End-to-end encrypted between this browser and paxd">
+                    <span
+                      aria-label="End-to-end encrypted session"
+                      className="inline-flex h-6 shrink-0 items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-400/[0.07] px-2 text-[10px] font-semibold tracking-[0.14em] text-emerald-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_0_18px_rgba(52,211,153,0.06)]"
+                    >
+                      <ShieldCheck className="h-3 w-3" />
+                      E2EE
+                    </span>
+                  </Tooltip>
                 )}
               </div>
             </div>
