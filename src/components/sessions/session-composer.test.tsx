@@ -88,13 +88,59 @@ describe("SessionComposer", () => {
     expect(
       screen.getByRole("form", { name: "Encrypted session composer" }),
     ).toHaveAttribute("data-secure-mode", "true");
-    expect(screen.getByText("End-to-end encrypted")).toBeVisible();
+    expect(screen.queryByText("End-to-end encrypted")).not.toBeInTheDocument();
     expect(
       screen.getByPlaceholderText("Send an end-to-end encrypted message"),
     ).toBeVisible();
     expect(
       screen.getByRole("button", { name: "Add files or context" }),
     ).toBeDisabled();
+  });
+
+  it("keeps the new-session workspace input usable on desktop", () => {
+    render(
+      <TooltipProvider>
+        <SessionComposer
+          activeAgentId="agent_1"
+          activeNodeId="node_1"
+          approvalMode="manual"
+          approvalModePending={false}
+          attachmentError={null}
+          attachmentUploadPending={false}
+          attachments={[]}
+          deleteQueuedTurnPending={false}
+          draftKey="new"
+          isNewSession
+          isTurnRunning={false}
+          newSessionCwd=""
+          newSessionCwdInvalid={false}
+          newSessionWorkspaceOpen
+          onAddAttachments={async () => undefined}
+          onDeleteQueuedTurn={vi.fn()}
+          onOpenArtifacts={vi.fn()}
+          onRemoveAttachment={vi.fn()}
+          onSetNewSessionCwd={vi.fn()}
+          onSetNewSessionWorkspaceOpen={vi.fn()}
+          onSteer={async () => true}
+          onStop={vi.fn()}
+          onSubmitDraft={async () => true}
+          onToggleApprovalMode={vi.fn()}
+          onUpdateQueuedTurn={async () => true}
+          queueTurnPending={false}
+          queuedTurn={null}
+          showAdminFeatures={false}
+          steerTurnPending={false}
+          stopTurnPending={false}
+          updateQueuedTurnPending={false}
+        />
+      </TooltipProvider>,
+    );
+
+    expect(screen.getByLabelText("Workspace").closest("label")).toHaveClass(
+      "basis-full",
+      "sm:min-w-64",
+      "sm:max-w-96",
+    );
   });
 
   it("updates its draft without rerendering sibling timeline content", async () => {

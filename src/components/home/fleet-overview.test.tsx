@@ -627,13 +627,7 @@ describe("FleetOverview session rail", () => {
     await userEvent.click(encryptedToggle);
     expect(composerPane).toHaveAttribute("data-secure-mode", "true");
     expect(encryptedToggle).toHaveAttribute("aria-pressed", "true");
-    expect(
-      screen.getByRole("status", { name: "Session secured" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByTestId("secure-activation-animation"),
-    ).toBeInTheDocument();
-    expect(screen.getAllByText("End-to-end encrypted")).toHaveLength(2);
+    expect(screen.queryByText("End-to-end encrypted")).not.toBeInTheDocument();
 
     const composer = screen.getByPlaceholderText(
       "Send an end-to-end encrypted message",

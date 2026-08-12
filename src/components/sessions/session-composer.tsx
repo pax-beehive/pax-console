@@ -249,12 +249,6 @@ export const SessionComposer = memo(function SessionComposer({
             : "border-hairline bg-surface-2 shadow-lg shadow-black/20",
         )}
       >
-        {secure && (
-          <div className="mb-1 flex items-center gap-2 px-1 text-[11px] text-emerald-400/80">
-            <ShieldCheck className="h-3.5 w-3.5" />
-            End-to-end encrypted
-          </div>
-        )}
         {queuedTurn && (
           <div className="mb-2 grid gap-2 rounded-xl border border-primary/25 bg-primary/5 p-2.5">
             <div className="flex min-w-0 items-center gap-2">
@@ -388,8 +382,8 @@ export const SessionComposer = memo(function SessionComposer({
             secure
               ? "Send an end-to-end encrypted message"
               : activeAgentId
-              ? "Send a prompt to this agent"
-              : "Select an agent before sending a prompt"
+                ? "Send a prompt to this agent"
+                : "Select an agent before sending a prompt"
           }
           rows={2}
           value={draft}
@@ -435,7 +429,7 @@ export const SessionComposer = memo(function SessionComposer({
             newSessionWorkspaceOpen ? (
               <label
                 className={cn(
-                  "order-first inline-flex min-h-9 min-w-0 basis-full items-center gap-2 rounded-lg border bg-canvas px-2.5 text-sm transition sm:order-none sm:max-w-80 sm:basis-auto sm:flex-1",
+                  "order-first inline-flex min-h-9 min-w-0 basis-full items-center gap-2 rounded-lg border bg-canvas px-2.5 text-sm transition sm:order-none sm:min-w-64 sm:max-w-96 sm:basis-auto sm:flex-1",
                   newSessionCwdInvalid
                     ? "border-warning text-warning"
                     : "border-hairline text-ink-muted focus-within:border-primary-focus focus-within:ring-2 focus-within:ring-primary-focus/20",
