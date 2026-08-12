@@ -273,6 +273,49 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("FleetOverview session rail", () => {
+  it("collapses equal combined session names but preserves meaningful pairs", async () => {
+    mocks.listUserSessions.mockResolvedValue({
+      pagination: { page_num: 1, page_size: 20, total: 3, total_pages: 1 },
+      sessions: [
+        {
+          agent_id: "agent_1",
+          name: "pax_workspace (pax_workspace)",
+          node_id: "node_1",
+          session_id: "sess_equal",
+          updated_at: "2026-07-20T14:00:00.000Z",
+        },
+        {
+          agent_id: "agent_1",
+          name: "Custom label (runtime label)",
+          name_is_custom: true,
+          node_id: "node_1",
+          session_id: "sess_distinct",
+          updated_at: "2026-07-20T13:00:00.000Z",
+        },
+        {
+          agent_id: "agent_1",
+          current_task: "Fallback task",
+          node_id: "node_1",
+          session_id: "sess_fallback",
+          updated_at: "2026-07-20T12:00:00.000Z",
+        },
+      ],
+    });
+
+    renderOverview();
+
+    expect(
+      await screen.findByRole("link", { name: /pax_workspace/ }),
+    ).toBeVisible();
+    expect(
+      screen.queryByText("pax_workspace (pax_workspace)"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Custom label \(runtime label\)/ }),
+    ).toBeVisible();
+    expect(screen.getByRole("link", { name: /Fallback task/ })).toBeVisible();
+  });
+
   it("combines agent, node, and archived controls in one session filter", async () => {
     const user = userEvent.setup();
     mocks.listAgents.mockResolvedValue({
@@ -605,6 +648,75 @@ describe("FleetOverview session rail", () => {
       "data-initial-prompt",
       "Keep this private",
     );
+  });
+
+  it("clears encrypted draft UI when switching to an existing session", async () => {
+    renderOverview();
+    await userEvent.click(screen.getByRole("link", { name: "New session" }));
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Use end-to-end encryption" }),
+    );
+    expect(screen.getByTestId("home-composer-pane")).toHaveAttribute(
+      "data-secure-mode",
+      "true",
+    );
+
+    await userEvent.click(
+      await screen.findByRole("link", { name: /Session one/ }),
+    );
+
+    expect(screen.getByTestId("home-composer-pane")).toHaveAttribute(
+      "data-secure-mode",
+      "false",
+    );
+    expect(
+      screen.queryByRole("status", { name: "Session secured" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-workbench")).toHaveTextContent("sess_1");
+  });
+
+  it("abandons encrypted intent when returning to a clean composer", async () => {
+    renderOverview();
+    await userEvent.click(screen.getByRole("link", { name: "New session" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Use end-to-end encryption" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("link", { name: /Session one/ }),
+    );
+    await userEvent.click(screen.getByRole("link", { name: "New session" }));
+
+    expect(
+      screen.getByRole("button", { name: "Use end-to-end encryption" }),
+    ).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("home-composer-pane")).toHaveAttribute(
+      "data-secure-mode",
+      "false",
+    );
+  });
+
+  it("keeps every new-session control usable in responsive composer rows", async () => {
+    renderOverview();
+    await userEvent.click(screen.getByRole("link", { name: "New session" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Set workspace" }),
+    );
+
+    const project = screen.getByRole("combobox", { name: "Project" });
+    const workspace = screen.getByRole("textbox", { name: "Workspace" });
+    expect(project.closest("label")).toHaveClass("basis-full", "sm:min-w-48");
+    expect(workspace.closest("label")).toHaveClass("basis-full", "sm:min-w-64");
+    expect(
+      screen.getByRole("button", { name: "Add files or context" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Use end-to-end encryption" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Ask before running tools" }),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Start session" })).toBeVisible();
   });
 
   it("creates a target for a new project workspace only after native session assignment", async () => {

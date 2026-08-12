@@ -118,6 +118,7 @@ import { useDocumentTitle } from "@/lib/use-document-title";
 import { cn } from "@/lib/utils";
 import { canSeeAdminFeatures } from "@/features/auth/admin-view";
 import { useE2EESessionRuntime } from "@/features/e2ee/use-e2ee-session-runtime";
+import { flattenEncryptedHistoryPages } from "@/features/e2ee/transport";
 import { useConsoleStore } from "@/stores/console-store";
 
 type SessionWorkbenchProps = {
@@ -513,8 +514,17 @@ export function SessionWorkbench({
     user.user_id,
   ]);
   const historyMessages = useMemo(
-    () => flattenSessionHistoryPages(historyQuery.data?.pages),
-    [historyQuery.data?.pages],
+    () =>
+      usesEncryptedTransport
+        ? flattenEncryptedHistoryPages(
+            encryptedRuntime.historyQuery.data?.pages,
+          )
+        : flattenSessionHistoryPages(plainHistoryQuery.data?.pages),
+    [
+      encryptedRuntime.historyQuery.data?.pages,
+      plainHistoryQuery.data?.pages,
+      usesEncryptedTransport,
+    ],
   );
   const historyPageCount = historyQuery.data?.pages.length ?? 0;
   const {

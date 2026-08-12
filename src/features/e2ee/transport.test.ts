@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { encryptEnvelope } from "./envelope";
 import {
+  flattenEncryptedHistoryPages,
   loadEncryptedSessionHistory,
   postEncryptedCommand,
   prepareEncryptedCommand,
@@ -12,6 +13,66 @@ const rootKey = Uint8Array.from({ length: 32 }, (_, index) => index);
 
 describe("E2EE HTTP and SSE transport", () => {
   afterEach(() => vi.unstubAllGlobals());
+
+  it("canonicalizes overlapping history pages by revision and durable order", () => {
+    expect(
+      flattenEncryptedHistoryPages([
+        {
+          messages: [
+            {
+              id: 20,
+              message_id: "message_2",
+              revision: 1,
+              parts: [
+                {
+                  part_index: 1,
+                  part_type: "text",
+                  revision: 1,
+                  text: "tail",
+                },
+                {
+                  part_index: 0,
+                  part_type: "text",
+                  revision: 1,
+                  text: "stale",
+                },
+              ],
+            },
+          ],
+          pagination: { has_more: true, next_before_id: 20 },
+        },
+        {
+          messages: [
+            { id: 10, message_id: "message_1", revision: 1, parts: [] },
+            {
+              id: 20,
+              message_id: "message_2",
+              revision: 2,
+              parts: [
+                {
+                  part_index: 0,
+                  part_type: "text",
+                  revision: 2,
+                  text: "fresh",
+                },
+              ],
+            },
+          ],
+          pagination: { has_more: false, next_before_id: 0 },
+        },
+      ]),
+    ).toMatchObject([
+      { message_id: "message_1" },
+      {
+        message_id: "message_2",
+        revision: 2,
+        parts: [
+          { part_index: 0, revision: 2, text: "fresh" },
+          { part_index: 1, revision: 1, text: "tail" },
+        ],
+      },
+    ]);
+  });
 
   it("posts only an opaque encrypted command", async () => {
     const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
@@ -106,7 +167,8 @@ describe("E2EE HTTP and SSE transport", () => {
         JSON.stringify({ frames: [{ first: true }, { second: true }] }),
       ),
     );
-    const body = `: heartbeat\n\nid: 8\ndata: ${JSON.stringify(envelope)}\n\n`;
+    const event = `id: 8\ndata: ${JSON.stringify(envelope)}\n\n`;
+    const body = `: heartbeat\n\n${event}${event}`;
     const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
       expect(new Headers(init?.headers).get("Last-Event-ID")).toBe("7");
       return new Response(body, {

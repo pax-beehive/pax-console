@@ -45,15 +45,16 @@ export function useE2EESessionRuntime({
     key?: Uint8Array;
   }>({ agentId: "" });
   const [error, setError] = useState<Error | null>(null);
-  const [events, setEvents] = useState<SessionEvent[]>([]);
+  const [eventState, setEventState] = useState<{
+    events: SessionEvent[];
+    sessionId?: string;
+  }>({ events: [], sessionId });
+  const events = eventState.sessionId === sessionId ? eventState.events : [];
   const [status, setStatus] = useState<E2EESessionRuntimeStatus>("idle");
   const cursorRef = useRef(0);
   const pendingRequestIdsRef = useRef(new Set<string>());
   const pendingLifecycleRequestsRef = useRef(
-    new Map<
-      string,
-      { reject: (error: Error) => void; resolve: () => void }
-    >(),
+    new Map<string, { reject: (error: Error) => void; resolve: () => void }>(),
   );
   const rootKey =
     rootKeyState.agentId === agentId ? rootKeyState.key : undefined;
@@ -63,9 +64,6 @@ export function useE2EESessionRuntime({
 
   useEffect(() => {
     let active = true;
-    cursorRef.current = 0;
-    pendingRequestIdsRef.current.clear();
-    pendingLifecycleRequestsRef.current.clear();
     if (!enabled || !agentId) {
       return;
     }
@@ -77,7 +75,7 @@ export function useE2EESessionRuntime({
         }
         setRootKeyState({ agentId, key });
         setError(null);
-        setEvents([]);
+        setEventState({ events: [] });
         setStatus(key ? "idle" : "locked");
       })
       .catch((caught) => {
@@ -94,6 +92,12 @@ export function useE2EESessionRuntime({
       active = false;
     };
   }, [agentId, enabled]);
+
+  useEffect(() => {
+    cursorRef.current = 0;
+    pendingRequestIdsRef.current.clear();
+    pendingLifecycleRequestsRef.current.clear();
+  }, [sessionId]);
 
   const historyQuery = useInfiniteQuery({
     queryKey: queryKeys.encryptedSessionHistory(
@@ -146,7 +150,13 @@ export function useE2EESessionRuntime({
           streamId: `e2ee:${sessionId}`,
         });
         if (normalized.length > 0) {
-          setEvents((current) => [...current, ...normalized].slice(-500));
+          setEventState((current) => ({
+            events: [
+              ...(current.sessionId === sessionId ? current.events : []),
+              ...normalized,
+            ].slice(-500),
+            sessionId,
+          }));
         }
 
         const response = parseE2EERPCResponse(frame);
@@ -186,15 +196,7 @@ export function useE2EESessionRuntime({
       }
     });
     return () => controller.abort();
-  }, [
-    agentId,
-    enabled,
-    keyEpoch,
-    refetchHistory,
-    rootKey,
-    sessionId,
-    userId,
-  ]);
+  }, [agentId, enabled, keyEpoch, refetchHistory, rootKey, sessionId, userId]);
 
   const sendMessage = useCallback(
     async (content: string) => {
@@ -214,17 +216,20 @@ export function useE2EESessionRuntime({
       pendingRequestIdsRef.current.add(requestId);
       setError(null);
       setStatus("streaming");
-      setEvents((current) => [
-        ...current,
-        {
-          type: "user_message",
-          id: `${sessionId}:user:${requestId}`,
-          sessionId,
-          turnId: `pending-turn:${requestId}`,
-          content: normalized,
-          createdAt: new Date().toISOString(),
-        },
-      ]);
+      setEventState((current) => ({
+        events: [
+          ...(current.sessionId === sessionId ? current.events : []),
+          {
+            type: "user_message",
+            id: `${sessionId}:user:${requestId}`,
+            sessionId,
+            turnId: `pending-turn:${requestId}`,
+            content: normalized,
+            createdAt: new Date().toISOString(),
+          },
+        ],
+        sessionId,
+      }));
       try {
         return await sendEncryptedCommand({
           agentId,

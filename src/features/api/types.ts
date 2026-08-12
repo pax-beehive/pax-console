@@ -293,6 +293,7 @@ export type FileChange = {
 
 export type MessagePart = {
   id?: number;
+  revision?: number;
   message_id?: string;
   part_index: number;
   part_type: string;
@@ -305,6 +306,7 @@ export type MessagePart = {
 
 export type HistoryMessage = {
   id?: number;
+  revision?: number;
   message_id: string;
   conversation_id?: string;
   owner_user_id?: string;
