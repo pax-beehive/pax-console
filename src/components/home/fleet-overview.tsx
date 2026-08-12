@@ -1979,12 +1979,7 @@ function ComposerModeHint({
 }) {
   if (mode === "clean") {
     if (secure) {
-      return (
-        <div className="mb-1 flex items-center gap-2 px-1 text-[11px] text-emerald-400/80">
-          <ShieldCheck className="h-3.5 w-3.5" />
-          End-to-end encrypted
-        </div>
-      );
+      return null;
     }
 
     return (
