@@ -278,6 +278,22 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
           </div>
         </header>
 
+        {kind !== "approvals" && kind !== "sessions" && kind !== "monitor" && (
+          <nav
+            aria-label="Settings sections"
+            className="flex gap-2 overflow-x-auto border-b border-hairline px-5 py-2 lg:hidden"
+          >
+            <SettingsSectionLink href="/settings/projects" label="Projects" />
+            <SettingsSectionLink href="/settings/devices" label="Devices" />
+            <SettingsSectionLink href="/settings/security" label="Security" />
+            <SettingsSectionLink href="/settings/developer" label="Developer" />
+            <SettingsSectionLink
+              href="/settings/diagnostics"
+              label="Diagnostics"
+            />
+          </nav>
+        )}
+
         {apiError && (
           <div className="px-5 pt-4">
             <ApiNotice error={apiError} />
@@ -995,12 +1011,12 @@ function E2EEKeysPanel({ agents }: { agents: Agent[] }) {
 
   return (
     <section className="grid gap-4 rounded-lg border border-hairline bg-surface-1 p-4">
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-medium">End-to-end encryption keys</h2>
+          <h2 className="text-sm font-medium">Encrypted session access</h2>
           <p className="mt-1 text-xs text-ink-tertiary">
-            Development pairing stores one 32-byte base64 root key per agent in
-            this browser&apos;s IndexedDB. The key is never sent to PAX Manager.
+            Pair this device to open end-to-end encrypted sessions. Encryption
+            keys remain in this browser and are never sent to PAX Manager.
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
@@ -1011,28 +1027,17 @@ function E2EEKeysPanel({ agents }: { agents: Agent[] }) {
             <Link
               href={
                 selectedAgentId
-                  ? `/e2ee?agentId=${encodeURIComponent(selectedAgentId)}`
-                  : "/e2ee"
-              }
-            >
-              Open E2EE Lab
-            </Link>
-          </Button>
-          <Button asChild size="sm">
-            <Link
-              href={
-                selectedAgentId
                   ? `/e2ee/pairing?agentId=${encodeURIComponent(selectedAgentId)}`
                   : "/e2ee/pairing"
               }
             >
-              Pair browser
+              {configured ? "Manage paired devices" : "Pair this device"}
             </Link>
           </Button>
         </div>
       </div>
       {agents.length > 0 ? (
-        <div className="grid gap-3 sm:grid-cols-[minmax(180px,0.7fr)_minmax(280px,1.3fr)_auto]">
+        <div className="grid gap-3 sm:max-w-md">
           <label className="grid gap-1 text-xs text-ink-tertiary">
             Agent
             <select
@@ -1047,52 +1052,61 @@ function E2EEKeysPanel({ agents }: { agents: Agent[] }) {
               ))}
             </select>
           </label>
-          <label className="grid gap-1 text-xs text-ink-tertiary">
-            Base64 root key
-            <input
-              autoComplete="off"
-              className="h-9 rounded-md border border-hairline bg-canvas px-3 font-mono text-sm text-ink outline-none focus:border-accent"
-              onChange={(event) => setEncodedKey(event.target.value)}
-              placeholder="32-byte base64 value"
-              type="password"
-              value={encodedKey}
-            />
-          </label>
-          <div className="flex items-end gap-2">
-            <Button
-              disabled={busy || !selectedAgentId}
-              onClick={handleGenerate}
-              type="button"
-            >
-              Generate
-            </Button>
-            {encodedKey && (
+          <details className="rounded-lg border border-hairline bg-canvas p-3">
+            <summary className="cursor-pointer text-sm font-medium text-ink-muted">
+              Advanced: manually manage root key
+            </summary>
+            <p className="mt-2 text-xs leading-5 text-warning">
+              Development use only. Generating a different key from paxd will
+              make encrypted sessions unreadable on this device.
+            </p>
+            <label className="mt-3 grid gap-1 text-xs text-ink-tertiary">
+              Base64 root key
+              <input
+                autoComplete="off"
+                className="h-9 rounded-md border border-hairline bg-surface-1 px-3 font-mono text-sm text-ink outline-none focus:border-accent"
+                onChange={(event) => setEncodedKey(event.target.value)}
+                placeholder="32-byte base64 value"
+                type="password"
+                value={encodedKey}
+              />
+            </label>
+            <div className="mt-3 flex flex-wrap gap-2">
               <Button
-                icon={<Copy className="h-4 w-4" />}
-                onClick={() => void handleCopy()}
+                disabled={busy || !selectedAgentId}
+                onClick={handleGenerate}
                 type="button"
               >
-                Copy
+                Generate development key
               </Button>
-            )}
-            <Button
-              disabled={busy || !selectedAgentId || !encodedKey.trim()}
-              onClick={() => void handleSave()}
-              type="button"
-            >
-              Save key
-            </Button>
-            {configured && (
+              {encodedKey && (
+                <Button
+                  icon={<Copy className="h-4 w-4" />}
+                  onClick={() => void handleCopy()}
+                  type="button"
+                >
+                  Copy
+                </Button>
+              )}
               <Button
-                disabled={busy}
-                onClick={() => void handleDelete()}
-                variant="danger"
+                disabled={busy || !selectedAgentId || !encodedKey.trim()}
+                onClick={() => void handleSave()}
                 type="button"
               >
-                Remove
+                Save imported key
               </Button>
-            )}
-          </div>
+              {configured && (
+                <Button
+                  disabled={busy}
+                  onClick={() => void handleDelete()}
+                  variant="danger"
+                  type="button"
+                >
+                  Remove key from this device
+                </Button>
+              )}
+            </div>
+          </details>
         </div>
       ) : (
         <p className="text-sm text-ink-tertiary">
@@ -1101,6 +1115,17 @@ function E2EEKeysPanel({ agents }: { agents: Agent[] }) {
       )}
       {status && <p className="text-xs text-ink-tertiary">{status}</p>}
     </section>
+  );
+}
+
+function SettingsSectionLink({ href, label }: { href: string; label: string }) {
+  return (
+    <Link
+      className="shrink-0 rounded-md border border-hairline bg-surface-1 px-3 py-1.5 text-xs text-ink-muted"
+      href={href}
+    >
+      {label}
+    </Link>
   );
 }
 
