@@ -537,7 +537,8 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       : selectedProjectId
         ? "Project"
         : "Composer";
-  const secureComposerActive = newSessionTransport === "e2ee";
+  const secureComposerActive =
+    !activeSessionTarget && newSessionTransport === "e2ee";
 
   useEffect(() => {
     if (!canonicalUrlSessionId && legacyUrlSessionId) {
@@ -617,6 +618,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     setMobileRailOpen(false);
     setContextClosed(false);
     setComposerMode("clean");
+    setNewSessionTransport("manager");
   }
 
   function openTabSession(sessionId: string) {
@@ -642,6 +644,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     setMobileRailOpen(false);
     setContextClosed(false);
     setComposerMode("clean");
+    setNewSessionTransport("manager");
   }
 
   function closeSessionTab(sessionId: string) {
@@ -1308,7 +1311,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                           )}
                         </DropdownMenuContent>
                       </DropdownMenu>
-                      <label className="inline-flex min-h-9 min-w-0 max-w-64 items-center gap-2 rounded-lg border border-hairline bg-canvas px-2.5 text-sm text-ink-muted focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/25">
+                      <label className="order-first inline-flex min-h-9 min-w-0 basis-full items-center gap-2 rounded-lg border border-hairline bg-canvas px-2.5 text-sm text-ink-muted focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/25 sm:order-none sm:min-w-48 sm:max-w-64 sm:basis-auto">
                         <Folder className="h-4 w-4 shrink-0" />
                         <span className="shrink-0 text-xs font-medium text-ink-tertiary">
                           Project
@@ -1342,7 +1345,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                       {selectedProjectId || newSessionWorkspaceOpen ? (
                         <label
                           className={cn(
-                            "order-first inline-flex min-h-9 min-w-0 basis-full items-center gap-2 rounded-lg border bg-canvas px-2.5 text-sm transition sm:order-none sm:max-w-80 sm:basis-auto sm:flex-1",
+                            "order-first inline-flex min-h-9 min-w-0 basis-full items-center gap-2 rounded-lg border bg-canvas px-2.5 text-sm transition sm:order-none sm:min-w-64 sm:max-w-80 sm:basis-auto sm:flex-1",
                             newSessionCwdInvalid
                               ? "border-warning text-warning"
                               : "border-hairline text-ink-muted focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/25",
@@ -2556,7 +2559,7 @@ function buildWorkItems({
           runStatus: session.runtime_status,
           sessionId: session.session_id,
           source: "Recent session",
-          title: session.name ?? session.current_task ?? session.session_id,
+          title: sessionTitle(session),
           transport: session.transport,
         };
       }),
@@ -2989,6 +2992,19 @@ function agentLabel(agent: Agent) {
 
 function nodeLabel(node: Node) {
   return node.name ?? node.hostname ?? node.node_id;
+}
+
+function sessionTitle(session: AgentSession) {
+  const name = session.name?.trim();
+  if (name) {
+    const combinedName = name.match(/^(.*?)\s+\((.*)\)$/);
+    if (combinedName && combinedName[1].trim() === combinedName[2].trim()) {
+      return combinedName[1].trim();
+    }
+    return name;
+  }
+
+  return session.current_task?.trim() || session.session_id;
 }
 
 function sessionTimestamp(session: AgentSession) {

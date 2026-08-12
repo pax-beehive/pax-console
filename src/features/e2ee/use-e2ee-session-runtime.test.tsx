@@ -140,6 +140,47 @@ describe("useE2EESessionRuntime", () => {
     ]);
   });
 
+  it("clears live events when switching encrypted sessions on the same agent", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    const { rerender, result } = renderHook(
+      ({ sessionId }: { sessionId: string }) =>
+        useE2EESessionRuntime({
+          agentId: "agent_1",
+          enabled: true,
+          sessionId,
+          userId: "user_1",
+        }),
+      { initialProps: { sessionId: "session_1" }, wrapper },
+    );
+    await waitFor(() => expect(observerOptions).toBeDefined());
+
+    const frame = {
+      jsonrpc: "2.0",
+      method: "session/update",
+      params: {
+        sessionId: "session_1",
+        update: {
+          sessionUpdate: "agent_message_chunk",
+          content: { type: "text", text: "one private answer" },
+        },
+      },
+    };
+    await act(async () => {
+      await observerOptions?.onFrame(frame);
+    });
+    expect(result.current.events).toHaveLength(1);
+
+    rerender({ sessionId: "session_2" });
+
+    await waitFor(() => expect(result.current.events).toEqual([]));
+    expect(mocks.loadRootKey).toHaveBeenCalledTimes(1);
+  });
+
   it("stays locked when this browser has no root key", async () => {
     mocks.loadRootKey.mockResolvedValue(undefined);
     const queryClient = new QueryClient({

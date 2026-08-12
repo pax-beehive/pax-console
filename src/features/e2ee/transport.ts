@@ -55,6 +55,58 @@ export type EncryptedHistoryPage = {
   };
 };
 
+export function flattenEncryptedHistoryPages(
+  pages?: EncryptedHistoryPage[],
+): HistoryMessage[] {
+  const messagesById = new Map<string, HistoryMessage>();
+  for (const message of (pages ?? []).flatMap((page) => page.messages)) {
+    const current = messagesById.get(message.message_id);
+    const canonical =
+      !current || encryptedRevision(message) >= encryptedRevision(current)
+        ? message
+        : current;
+    messagesById.set(message.message_id, {
+      ...canonical,
+      parts: canonicalEncryptedParts([
+        ...(current?.parts ?? []),
+        ...(message.parts ?? []),
+      ]),
+    });
+  }
+
+  return [...messagesById.values()].sort(compareEncryptedHistoryMessages);
+}
+
+function canonicalEncryptedParts(parts: MessagePart[]) {
+  const partsByIndex = new Map<number, MessagePart>();
+  for (const part of parts) {
+    const current = partsByIndex.get(part.part_index);
+    if (!current || encryptedRevision(part) >= encryptedRevision(current)) {
+      partsByIndex.set(part.part_index, part);
+    }
+  }
+  return [...partsByIndex.values()].sort(
+    (left, right) => left.part_index - right.part_index,
+  );
+}
+
+function compareEncryptedHistoryMessages(
+  left: HistoryMessage,
+  right: HistoryMessage,
+) {
+  if (left.id !== undefined && right.id !== undefined && left.id !== right.id) {
+    return left.id - right.id;
+  }
+  const createdOrder = (left.created_at ?? "").localeCompare(
+    right.created_at ?? "",
+  );
+  return createdOrder || left.message_id.localeCompare(right.message_id);
+}
+
+function encryptedRevision(value: { revision?: number }) {
+  return value.revision ?? 0;
+}
+
 type StoredEncryptedHistoryPart = {
   id: number;
   part_index: number;
