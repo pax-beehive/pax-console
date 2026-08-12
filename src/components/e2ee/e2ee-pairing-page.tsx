@@ -88,7 +88,7 @@ function E2EEPairingPage({ user }: { user: User }) {
         localCommand: result.localCommand,
       });
       setStatus(
-        "Pairing request created. Run the local command, then check the package.",
+        "Access requested. Approve this device from an already paired device, or use the first-device instructions.",
       );
     } catch (error) {
       setStatus(errorMessage(error));
@@ -109,7 +109,9 @@ function E2EEPairingPage({ user }: { user: User }) {
       );
       setConfigured(true);
       setInstructions(undefined);
-      setStatus("Agent root key unwrapped and saved in this browser.");
+      setStatus(
+        "Pairing complete. This device can now open encrypted sessions.",
+      );
     } catch (error) {
       setStatus(errorMessage(error));
     } finally {
@@ -121,7 +123,7 @@ function E2EEPairingPage({ user }: { user: User }) {
     setBusy(true);
     try {
       setRequests(await listE2EEPairingRequests(user.user_id, selectedAgentId));
-      setStatus("Pending device requests refreshed.");
+      setStatus("Device requests refreshed.");
     } catch (error) {
       setStatus(errorMessage(error));
     } finally {
@@ -141,7 +143,9 @@ function E2EEPairingPage({ user }: { user: User }) {
       setRequests((current) =>
         current.filter((item) => item.pairing_id !== request.pairing_id),
       );
-      setStatus(`Approved ${request.device_name || request.device_id}.`);
+      setStatus(
+        `Approved ${request.device_name || request.device_id}. The new device can now finish pairing.`,
+      );
     } catch (error) {
       setStatus(errorMessage(error));
     } finally {
@@ -158,10 +162,12 @@ function E2EEPairingPage({ user }: { user: User }) {
               <div className="flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-ink-tertiary">
                 <KeyRound className="h-4 w-4" /> Browser key distribution
               </div>
-              <h1 className="mt-2 text-2xl font-semibold">Pair E2EE device</h1>
+              <h1 className="mt-2 text-2xl font-semibold">
+                Encrypted session access
+              </h1>
               <p className="mt-1 max-w-3xl text-sm text-ink-muted">
-                The Manager stores only public requests and wrapped key
-                packages. The agent root key is unwrapped only in this browser.
+                Request access for this device, or approve a request from a new
+                device if this one is already paired.
               </p>
             </div>
             <Button asChild icon={<ArrowLeft className="h-4 w-4" />}>
@@ -189,9 +195,9 @@ function E2EEPairingPage({ user }: { user: User }) {
                   ))}
                 </select>
               </label>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Badge tone={configured ? "success" : "neutral"}>
-                  {configured ? "key available" : "not paired"}
+                  {configured ? "this device is paired" : "access required"}
                 </Badge>
                 <Button
                   disabled={
@@ -203,7 +209,9 @@ function E2EEPairingPage({ user }: { user: User }) {
                   onClick={() => void startPairing()}
                   variant="primary"
                 >
-                  {configured ? "Browser paired" : "Pair this browser"}
+                  {configured
+                    ? "This device is ready"
+                    : "Request access for this device"}
                 </Button>
               </div>
             </div>
@@ -211,16 +219,33 @@ function E2EEPairingPage({ user }: { user: User }) {
             {instructions && (
               <div className="grid gap-3 rounded-lg border border-accent/40 bg-canvas p-4">
                 <p className="text-sm font-medium">
-                  Confirm on the paxd machine
+                  Complete this request on a device that already has access
+                </p>
+                <p className="text-xs leading-5 text-ink-tertiary">
+                  Open Security on an already paired device, find this device,
+                  paste the one-time code below, and choose “Approve this
+                  device.” If this is the first paired device, run the local
+                  command on the computer running paxd instead.
                 </p>
                 <SecretRow
-                  label="One-time pairing secret"
+                  label="One-time approval code"
                   value={instructions.pairingSecret}
                 />
-                <SecretRow
-                  label="Local command"
-                  value={instructions.localCommand}
-                />
+                <details className="rounded-lg border border-hairline bg-surface-1 p-3">
+                  <summary className="cursor-pointer text-sm font-medium">
+                    First device? Pair from the paxd computer
+                  </summary>
+                  <p className="mt-2 text-xs leading-5 text-ink-tertiary">
+                    Run this command only on the computer where paxd manages the
+                    selected agent.
+                  </p>
+                  <div className="mt-3">
+                    <SecretRow
+                      label="Command to run on the paxd computer"
+                      value={instructions.localCommand}
+                    />
+                  </div>
+                </details>
                 <div>
                   <Button
                     disabled={busy}
@@ -228,7 +253,7 @@ function E2EEPairingPage({ user }: { user: User }) {
                     onClick={() => void checkPackage()}
                     variant="primary"
                   >
-                    Check wrapped package
+                    I approved it — finish pairing
                   </Button>
                 </div>
               </div>
@@ -238,22 +263,32 @@ function E2EEPairingPage({ user }: { user: User }) {
           <section className="grid gap-3 rounded-lg border border-hairline bg-surface-1 p-4">
             <div className="flex items-center justify-between gap-2">
               <div>
-                <h2 className="text-sm font-medium">Approve another browser</h2>
+                <h2 className="text-sm font-medium">
+                  Requests from new devices
+                </h2>
                 <p className="mt-1 text-xs text-ink-tertiary">
-                  Enter the one-time secret shown by the new browser. paxd is
-                  not needed after one browser already holds this agent key.
+                  This device can approve requests only when it is already
+                  paired. Enter the one-time approval code shown on the new
+                  device before sharing encrypted-session access.
                 </p>
               </div>
               <Button
-                disabled={busy || !selectedAgentId}
+                disabled={busy || !selectedAgentId || !configured}
                 icon={<RefreshCw className="h-4 w-4" />}
                 onClick={() => void refreshRequests()}
               >
                 Refresh
               </Button>
             </div>
-            {requests.length === 0 ? (
-              <p className="text-sm text-ink-tertiary">No pending requests.</p>
+            {!configured ? (
+              <p className="rounded-md border border-hairline bg-canvas p-3 text-sm text-ink-tertiary">
+                Pair this device first before using it to approve another
+                device.
+              </p>
+            ) : requests.length === 0 ? (
+              <p className="text-sm text-ink-tertiary">
+                No devices are waiting for approval.
+              </p>
             ) : (
               requests.map((request) => (
                 <div
@@ -270,7 +305,7 @@ function E2EEPairingPage({ user }: { user: User }) {
                     </div>
                   </div>
                   <label className="grid gap-1 text-xs text-ink-tertiary">
-                    Secret from new browser
+                    One-time code from new device
                     <input
                       autoComplete="off"
                       className="h-9 rounded-md border border-hairline bg-surface-1 px-3 font-mono text-sm text-ink"
@@ -292,7 +327,7 @@ function E2EEPairingPage({ user }: { user: User }) {
                     onClick={() => void approve(request)}
                     variant="primary"
                   >
-                    Approve
+                    Approve this device
                   </Button>
                 </div>
               ))
