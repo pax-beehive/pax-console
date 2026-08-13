@@ -1,8 +1,8 @@
 import type { HistoryMessage } from "@/features/api/types";
 
-const DEFAULT_MAX_ATTEMPTS = 6;
-const DEFAULT_RETRY_DELAY_MS = 250;
-const DEFAULT_MAX_RETRY_DELAY_MS = 1_500;
+const DEFAULT_MAX_ATTEMPTS = 4;
+const DEFAULT_RETRY_DELAY_MS = 1_000;
+const DEFAULT_MAX_RETRY_DELAY_MS = 5_000;
 
 type RetrySessionHistoryHandoffOptions = {
   baselineCompletionMessageIds?: string[];

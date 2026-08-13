@@ -138,11 +138,11 @@ export async function streamSessionObserver({
 
 export async function streamSessionObserverWithQueuedReplay({
   followQueuedTurn = false,
-  maxQueuedTurnAttempts = 20,
+  maxQueuedTurnAttempts = 8,
   onQueuedTurnStarted,
   onQueuedTurnFinished,
   onQueuedTurnUnavailable,
-  retryDelayMs = 150,
+  retryDelayMs = 1_000,
   ...options
 }: StreamSessionObserverOptions & {
   followQueuedTurn?: boolean;
@@ -209,8 +209,8 @@ export async function streamSessionObserverWithQueuedReplay({
 export async function streamSessionObserverWithReconnect({
   maxReconnectAttempts = Number.POSITIVE_INFINITY,
   onReconnect,
-  reconnectDelayMs = 500,
-  reconnectMaxDelayMs = 5_000,
+  reconnectDelayMs = 2_000,
+  reconnectMaxDelayMs = 30_000,
   ...options
 }: Parameters<typeof streamSessionObserverWithQueuedReplay>[0] & {
   maxReconnectAttempts?: number;

@@ -122,8 +122,8 @@ export function useE2EESessionRuntime({
         ? lastPage.pagination.next_before_id
         : undefined,
     initialPageParam: 0,
-    refetchInterval: 1_500,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
   const refetchHistory = historyQuery.refetch;
 
