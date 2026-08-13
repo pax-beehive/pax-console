@@ -333,7 +333,9 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
           )}
           {(kind === "approvals" || kind === "security") && (
             <div className="grid gap-4">
-              {kind === "security" && <E2EEKeysPanel agents={sortedAgents} />}
+              {kind === "security" && (
+                <E2EEKeysPanel agents={sortedAgents} nodes={sortedNodes} />
+              )}
               <ApprovalsPanel
                 approvals={approvalsQuery.data?.approvals ?? []}
                 grants={approvalGrantsQuery.data?.grants ?? []}
@@ -930,7 +932,7 @@ function NodeRegistrationPanel({ userId }: { userId: string }) {
   );
 }
 
-function E2EEKeysPanel({ agents }: { agents: Agent[] }) {
+function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
   const [agentId, setAgentId] = useState("");
   const [encodedKey, setEncodedKey] = useState("");
   const [configured, setConfigured] = useState(false);
@@ -1047,7 +1049,7 @@ function E2EEKeysPanel({ agents }: { agents: Agent[] }) {
             >
               {agents.map((agent) => (
                 <option key={agent.agent_id} value={agent.agent_id}>
-                  {agentLabel(agent)}
+                  {agentLabel(agent)} · {agentNodeLabel(agent, nodes)}
                 </option>
               ))}
             </select>
@@ -1116,6 +1118,11 @@ function E2EEKeysPanel({ agents }: { agents: Agent[] }) {
       {status && <p className="text-xs text-ink-tertiary">{status}</p>}
     </section>
   );
+}
+
+function agentNodeLabel(agent: Agent, nodes: Node[]) {
+  const node = nodes.find((item) => item.node_id === agent.node_id);
+  return node ? nodeLabel(node) : agent.node_id || "Unknown node";
 }
 
 function SettingsSectionLink({ href, label }: { href: string; label: string }) {
