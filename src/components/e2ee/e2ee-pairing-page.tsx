@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Check, Copy, KeyRound, RefreshCw } from "lucide-react";
+import { ArrowLeft, Copy, KeyRound, RefreshCw } from "lucide-react";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useAgents } from "@/features/api/resources";
-import type { Agent, User } from "@/features/api/types";
+import { useAgents, useNodes } from "@/features/api/resources";
+import type { Agent, Node, User } from "@/features/api/types";
 import { AuthGate } from "@/features/auth/auth-gate";
 import {
   approveBrowserPairing,
@@ -27,11 +27,15 @@ export function E2EEPairingRoute() {
   return <AuthGate>{(user) => <E2EEPairingPage user={user} />}</AuthGate>;
 }
 
+type AccessMethod = "paxd" | "device";
+
 function E2EEPairingPage({ user }: { user: User }) {
   const searchParams = useSearchParams();
   const requestedAgentId = searchParams.get("agentId") ?? "";
   const agentsQuery = useAgents(user.user_id, "owned");
+  const nodesQuery = useNodes(user.user_id);
   const agents = agentsQuery.data?.agents ?? [];
+  const nodes = nodesQuery.data?.nodes ?? [];
   const [agentId, setAgentId] = useState(requestedAgentId);
   const selectedAgentId = agents.some((agent) => agent.agent_id === agentId)
     ? agentId
@@ -39,6 +43,7 @@ function E2EEPairingPage({ user }: { user: User }) {
   const [configured, setConfigured] = useState(false);
   const [instructions, setInstructions] =
     useState<BrowserPairingInstructions>();
+  const [accessMethod, setAccessMethod] = useState<AccessMethod>();
   const [requests, setRequests] = useState<E2EEPairingRequest[]>([]);
   const [approvalSecrets, setApprovalSecrets] = useState<
     Record<string, string>
@@ -65,6 +70,7 @@ function E2EEPairingPage({ user }: { user: User }) {
               ? browserPairingInstructions(localPending[0])
               : undefined,
           );
+          setAccessMethod(undefined);
         }
       })
       .catch((error) => active && setStatus(errorMessage(error)));
@@ -88,7 +94,7 @@ function E2EEPairingPage({ user }: { user: User }) {
         localCommand: result.localCommand,
       });
       setStatus(
-        "Access requested. Approve this device from an already paired device, or use the first-device instructions.",
+        "Encryption access requested. Choose how to grant access to this browser.",
       );
     } catch (error) {
       setStatus(errorMessage(error));
@@ -97,27 +103,43 @@ function E2EEPairingPage({ user }: { user: User }) {
     }
   }
 
-  async function checkPackage() {
-    if (!instructions) return;
-    setBusy(true);
-    setStatus("");
-    try {
-      await finishBrowserPairing(
-        user.user_id,
-        selectedAgentId,
-        instructions.pairingId,
-      );
-      setConfigured(true);
-      setInstructions(undefined);
-      setStatus(
-        "Pairing complete. This device can now open encrypted sessions.",
-      );
-    } catch (error) {
-      setStatus(errorMessage(error));
-    } finally {
-      setBusy(false);
+  useEffect(() => {
+    if (!accessMethod || !instructions || configured) {
+      return;
     }
-  }
+    let active = true;
+    let checking = false;
+    const poll = async () => {
+      if (checking) return;
+      checking = true;
+      try {
+        await finishBrowserPairing(
+          user.user_id,
+          selectedAgentId,
+          instructions.pairingId,
+        );
+        if (active) {
+          setConfigured(true);
+          setInstructions(undefined);
+          setAccessMethod(undefined);
+          setStatus(
+            "Encryption access granted. This browser can now open encrypted sessions.",
+          );
+        }
+      } catch {
+        // The key package is expected to be unavailable until either approval
+        // method completes. Keep waiting without turning that state into an error.
+      } finally {
+        checking = false;
+      }
+    };
+    void poll();
+    const interval = window.setInterval(() => void poll(), 2500);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [accessMethod, configured, instructions, selectedAgentId, user.user_id]);
 
   async function refreshRequests() {
     setBusy(true);
@@ -144,7 +166,7 @@ function E2EEPairingPage({ user }: { user: User }) {
         current.filter((item) => item.pairing_id !== request.pairing_id),
       );
       setStatus(
-        `Approved ${request.device_name || request.device_id}. The new device can now finish pairing.`,
+        `Encryption access granted to ${request.device_name || request.device_id}.`,
       );
     } catch (error) {
       setStatus(errorMessage(error));
@@ -160,14 +182,13 @@ function E2EEPairingPage({ user }: { user: User }) {
           <header className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <div className="flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-ink-tertiary">
-                <KeyRound className="h-4 w-4" /> Browser key distribution
+                <KeyRound className="h-4 w-4" /> Encryption access
               </div>
               <h1 className="mt-2 text-2xl font-semibold">
-                Encrypted session access
+                Get encryption access
               </h1>
               <p className="mt-1 max-w-3xl text-sm text-ink-muted">
-                Request access for this device, or approve a request from a new
-                device if this one is already paired.
+                Add this browser, or grant encryption access to another device.
               </p>
             </div>
             <Button asChild icon={<ArrowLeft className="h-4 w-4" />}>
@@ -184,20 +205,21 @@ function E2EEPairingPage({ user }: { user: User }) {
                   onChange={(event) => {
                     setAgentId(event.target.value);
                     setInstructions(undefined);
+                    setAccessMethod(undefined);
                     setStatus("");
                   }}
                   value={selectedAgentId}
                 >
                   {agents.map((agent) => (
                     <option key={agent.agent_id} value={agent.agent_id}>
-                      {agentLabel(agent)}
+                      {agentLabel(agent, nodes)}
                     </option>
                   ))}
                 </select>
               </label>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge tone={configured ? "success" : "neutral"}>
-                  {configured ? "this device is paired" : "access required"}
+                  {configured ? "encryption access" : "access required"}
                 </Badge>
                 <Button
                   disabled={
@@ -209,9 +231,7 @@ function E2EEPairingPage({ user }: { user: User }) {
                   onClick={() => void startPairing()}
                   variant="primary"
                 >
-                  {configured
-                    ? "This device is ready"
-                    : "Request access for this device"}
+                  {configured ? "This browser is ready" : "Add this browser"}
                 </Button>
               </div>
             </div>
@@ -219,43 +239,114 @@ function E2EEPairingPage({ user }: { user: User }) {
             {instructions && (
               <div className="grid gap-3 rounded-lg border border-accent/40 bg-canvas p-4">
                 <p className="text-sm font-medium">
-                  Complete this request on a device that already has access
+                  This browser doesn&apos;t have the encryption key
                 </p>
                 <p className="text-xs leading-5 text-ink-tertiary">
-                  Open Security on an already paired device, find this device,
-                  paste the one-time code below, and choose “Approve this
-                  device.” If this is the first paired device, run the local
-                  command on the computer running paxd instead.
+                  Choose either method below. Both grant access to the same
+                  encrypted sessions and do not create, replace, or rotate the
+                  encryption key.
                 </p>
-                <SecretRow
-                  label="One-time approval code"
-                  value={instructions.pairingSecret}
-                />
-                <details className="rounded-lg border border-hairline bg-surface-1 p-3">
-                  <summary className="cursor-pointer text-sm font-medium">
-                    First device? Pair from the paxd computer
-                  </summary>
-                  <p className="mt-2 text-xs leading-5 text-ink-tertiary">
-                    Run this command only on the computer where paxd manages the
-                    selected agent.
-                  </p>
-                  <div className="mt-3">
-                    <SecretRow
-                      label="Command to run on the paxd computer"
-                      value={instructions.localCommand}
-                    />
+                {!accessMethod ? (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <button
+                      className="rounded-lg border border-accent/40 bg-surface-1 p-4 text-left transition-colors hover:bg-surface-2"
+                      onClick={() => {
+                        setAccessMethod("paxd");
+                        setStatus("");
+                      }}
+                      type="button"
+                    >
+                      <span className="text-sm font-medium">
+                        Get access from the paxd computer
+                      </span>
+                      <span className="mt-2 block text-xs leading-5 text-ink-tertiary">
+                        Recommended. This also works when no other browser still
+                        has encryption access.
+                      </span>
+                    </button>
+                    <button
+                      className="rounded-lg border border-hairline bg-surface-1 p-4 text-left transition-colors hover:bg-surface-2"
+                      onClick={() => {
+                        setAccessMethod("device");
+                        setStatus("");
+                      }}
+                      type="button"
+                    >
+                      <span className="text-sm font-medium">
+                        Get access from another device
+                      </span>
+                      <span className="mt-2 block text-xs leading-5 text-ink-tertiary">
+                        Use a browser or device that can already open encrypted
+                        sessions for this agent.
+                      </span>
+                    </button>
                   </div>
-                </details>
-                <div>
-                  <Button
-                    disabled={busy}
-                    icon={<Check className="h-4 w-4" />}
-                    onClick={() => void checkPackage()}
-                    variant="primary"
-                  >
-                    I approved it — finish pairing
-                  </Button>
-                </div>
+                ) : accessMethod === "paxd" ? (
+                  <div className="rounded-lg border border-accent/40 bg-surface-1 p-4">
+                    <h2 className="text-sm font-medium">
+                      Get access from the paxd computer
+                    </h2>
+                    <p className="mt-2 text-xs leading-5 text-ink-tertiary">
+                      Run this command on the computer where paxd manages the
+                      selected agent. paxd uses its existing encryption seed;
+                      existing encrypted sessions remain accessible.
+                    </p>
+                    <div className="mt-3">
+                      <SecretRow
+                        label="Command to run on the paxd computer"
+                        displayValue={maskPairingSecret(
+                          instructions.localCommand,
+                          instructions.pairingSecret,
+                        )}
+                        value={instructions.localCommand}
+                      />
+                    </div>
+                    <p className="mt-3 text-xs text-ink-tertiary">
+                      The secret is masked on screen. Copy places the complete,
+                      runnable command on your clipboard.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-accent/40 bg-surface-1 p-4">
+                    <h2 className="text-sm font-medium">
+                      Get access from another device
+                    </h2>
+                    <p className="mt-2 text-xs leading-5 text-ink-tertiary">
+                      On a device that can already open encrypted sessions, go
+                      to Settings → Security, select this agent, find this
+                      browser&apos;s request, enter the one-time code, and grant
+                      encryption access.
+                    </p>
+                    <div className="mt-3">
+                      <SecretRow
+                        label="One-time code"
+                        value={instructions.pairingSecret}
+                      />
+                    </div>
+                    <p className="mt-3 text-xs text-ink-tertiary">
+                      This code authorizes only this request. It is not the
+                      encryption key and expires with the request.
+                    </p>
+                  </div>
+                )}
+                {accessMethod && (
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-hairline bg-surface-1 p-3">
+                    <div>
+                      <p className="text-sm font-medium">
+                        Waiting for encryption access…
+                      </p>
+                      <p className="mt-1 text-xs text-ink-tertiary">
+                        This page will finish automatically after access is
+                        granted.
+                      </p>
+                    </div>
+                    <div>
+                      <Button onClick={() => setAccessMethod(undefined)}>
+                        Choose another method
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </section>
@@ -264,12 +355,12 @@ function E2EEPairingPage({ user }: { user: User }) {
             <div className="flex items-center justify-between gap-2">
               <div>
                 <h2 className="text-sm font-medium">
-                  Requests from new devices
+                  Encryption access requests
                 </h2>
                 <p className="mt-1 text-xs text-ink-tertiary">
-                  This device can approve requests only when it is already
-                  paired. Enter the one-time approval code shown on the new
-                  device before sharing encrypted-session access.
+                  This browser can grant access only when it already has the
+                  encryption key. Enter the one-time code shown on the new
+                  device before granting access.
                 </p>
               </div>
               <Button
@@ -282,8 +373,8 @@ function E2EEPairingPage({ user }: { user: User }) {
             </div>
             {!configured ? (
               <p className="rounded-md border border-hairline bg-canvas p-3 text-sm text-ink-tertiary">
-                Pair this device first before using it to approve another
-                device.
+                Add this browser first before using it to grant encryption
+                access to another device.
               </p>
             ) : requests.length === 0 ? (
               <p className="text-sm text-ink-tertiary">
@@ -327,7 +418,7 @@ function E2EEPairingPage({ user }: { user: User }) {
                     onClick={() => void approve(request)}
                     variant="primary"
                   >
-                    Approve this device
+                    Grant encryption access
                   </Button>
                 </div>
               ))
@@ -345,7 +436,15 @@ function E2EEPairingPage({ user }: { user: User }) {
   );
 }
 
-function SecretRow({ label, value }: { label: string; value: string }) {
+function SecretRow({
+  displayValue,
+  label,
+  value,
+}: {
+  displayValue?: string;
+  label: string;
+  value: string;
+}) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="grid gap-1">
@@ -364,7 +463,7 @@ function SecretRow({ label, value }: { label: string; value: string }) {
         </Button>
       </div>
       <pre className="max-w-full overflow-x-auto whitespace-pre-wrap break-all rounded-md border border-hairline bg-surface-1 p-3 text-xs leading-5">
-        {value}
+        {displayValue ?? value}
       </pre>
     </div>
   );
@@ -377,8 +476,15 @@ function browserDeviceName() {
   return `${navigator.userAgent.includes("Chrome") ? "Chrome" : "Browser"} on ${platform || "device"}`;
 }
 
-function agentLabel(agent: Agent) {
-  return `${agent.name || agent.agent_type || "Agent"} · ${compactId(agent.agent_id, 8, 5)}`;
+function agentLabel(agent: Agent, nodes: Node[]) {
+  const node = nodes.find((item) => item.node_id === agent.node_id);
+  const nodeName =
+    node?.name || node?.hostname || agent.node_id || "Unknown node";
+  return `${agent.name || agent.agent_type || "Agent"} · ${nodeName} · ${compactId(agent.agent_id, 8, 5)}`;
+}
+
+function maskPairingSecret(command: string, pairingSecret: string) {
+  return command.replace(pairingSecret, "***");
 }
 
 function errorMessage(error: unknown) {
