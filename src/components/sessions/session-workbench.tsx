@@ -285,6 +285,8 @@ export function SessionWorkbench({
   const activeSessionReportedRunning = isActiveSessionRunStatus(
     activeSession?.runtime_status,
   );
+  const activeSessionRuntimeBlocksPrompt =
+    activeSessionReportedRunning || activeSession?.runtime_status === "unknown";
   const isExternallyCreatedSession = Boolean(
     !usesEncryptedTransport &&
     currentSessionId &&
@@ -401,7 +403,9 @@ export function SessionWorkbench({
         );
       }
       if (encryptedRuntime.keyLoading) {
-        throw new Error("The browser is still loading this agent's encryption key");
+        throw new Error(
+          "The browser is still loading this agent's encryption key",
+        );
       }
       if (!encryptedRuntime.rootKeyAvailable) {
         throw new Error(
@@ -480,10 +484,7 @@ export function SessionWorkbench({
           queryKey: queryKeys.userSessionsRoot(user.user_id),
         });
         void queryClient.invalidateQueries({
-          queryKey: queryKeys.sessionMetadata(
-            user.user_id,
-            pending.sessionId,
-          ),
+          queryKey: queryKeys.sessionMetadata(user.user_id, pending.sessionId),
         });
         if (activeNodeId && activeAgentId) {
           void queryClient.invalidateQueries({
@@ -856,19 +857,24 @@ export function SessionWorkbench({
     sessionId: currentSessionId,
     userId: user.user_id,
   });
-  const displayedRunStatus = usesEncryptedTransport
-    ? encryptedRuntime.status === "locked"
-      ? "idle"
-      : encryptedRuntime.status
-    : sessionDisplayStatus(activeSession?.runtime_status, {
-        ownedConversationStatus: conversationRun.status,
-      });
+  const displayedRunStatus = sessionDisplayStatus(
+    activeSession?.runtime_status,
+    {
+      ownedConversationStatus: usesEncryptedTransport
+        ? encryptedRuntime.status === "locked"
+          ? undefined
+          : encryptedRuntime.status
+        : conversationRun.status,
+    },
+  );
   const isTurnRunning = usesEncryptedTransport
-    ? encryptedRuntime.status === "streaming"
+    ? activeSessionRuntimeBlocksPrompt ||
+      encryptedRuntime.status === "streaming"
     : conversationRun.status === "streaming" ||
       conversationRun.status === "waiting_approval" ||
       shouldObserveSessionTurn ||
-      shouldFollowQueuedTurn;
+      shouldFollowQueuedTurn ||
+      activeSession?.runtime_status === "unknown";
   const updateSessionApprovalMode = useMutation({
     mutationFn: async (approvalMode: SessionApprovalMode) => {
       if (!activeNodeId || !activeAgentId || !currentSessionId) {
@@ -1228,7 +1234,9 @@ export function SessionWorkbench({
     () =>
       reconcileSessionTimeline(
         historyEvents,
-        usesEncryptedTransport ? encryptedRuntime.events : conversationRun.events,
+        usesEncryptedTransport
+          ? encryptedRuntime.events
+          : conversationRun.events,
         usesEncryptedTransport ? [] : sessionObserver.events,
       ),
     [
@@ -1450,20 +1458,17 @@ export function SessionWorkbench({
     },
     [steerDraft],
   );
-  const handleStopTurn = useCallback(
-    () => {
-      if (usesEncryptedTransport) {
-        void encryptedRuntime.stop().catch((caught) => {
-          setSendError(
-            caught instanceof Error ? caught : new Error(String(caught)),
-          );
-        });
-        return;
-      }
-      stopCurrentTurn();
-    },
-    [encryptedRuntime, usesEncryptedTransport, stopCurrentTurn],
-  );
+  const handleStopTurn = useCallback(() => {
+    if (usesEncryptedTransport) {
+      void encryptedRuntime.stop().catch((caught) => {
+        setSendError(
+          caught instanceof Error ? caught : new Error(String(caught)),
+        );
+      });
+      return;
+    }
+    stopCurrentTurn();
+  }, [encryptedRuntime, usesEncryptedTransport, stopCurrentTurn]);
   const handleUpdateQueuedTurn = useCallback(
     async (content: string) => {
       try {
@@ -1914,9 +1919,7 @@ export function SessionWorkbench({
         <div
           className={cn(
             "min-h-0 flex-1 overflow-auto p-3 transition-colors duration-500 sm:p-4",
-            usesEncryptedTransport
-              ? "bg-emerald-500/[0.012]"
-              : "bg-canvas",
+            usesEncryptedTransport ? "bg-emerald-500/[0.012]" : "bg-canvas",
           )}
           onScroll={handleTimelineScroll}
           ref={timelineScrollRef}
@@ -1938,7 +1941,7 @@ export function SessionWorkbench({
                 sendError ??
                 (usesEncryptedTransport
                   ? encryptedRuntime.error
-                  : queuedTurnQuery.error ?? conversationRun.error)
+                  : (queuedTurnQuery.error ?? conversationRun.error))
               }
             />
             {workstreamItems.map((item) => (

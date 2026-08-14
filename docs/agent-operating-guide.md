@@ -321,7 +321,7 @@ Collaboration and knowledge resources are normal user-scoped REST resources:
 ## Conversation Runtime Rules
 
 Session runtime display state has one durable authority: the session API's
-`runtime_status` field (`idle`, `running`, or `waiting_approval`). Lists,
+`runtime_status` field (`idle`, `running`, `waiting_approval`, or `unknown`). Lists,
 details, Home work items, and mobile activity dots must not fall back to
 `status`, `run_status`, ACP frames, observer state, or agent connectivity. The
 current workbench may optimistically overlay `running` or `waiting_approval`
@@ -331,6 +331,12 @@ while that window owns an explicitly submitted conversation turn. A local ACP
 still active. This overlay also controls the current window's composer, stop,
 queue, and stream behavior, but is never persisted as session status.
 Session queries use 30-second polling only as a disconnected-client fallback.
+`unknown` means the node-control connection did not recover within its runtime
+report grace period. It preserves the last turn identity and must keep the
+composer blocked until a reconnect snapshot or an explicit compare-and-reset
+restores an authoritative state. E2EE workbenches follow the same canonical
+status rule; their local decrypted stream may optimistically overlay an owned
+turn but must never replace a server-reported active or unknown state with idle.
 
 A recoverable `/conversation` SSE transport failure does not terminate the
 turn or change its badge to `error`. The current workbench keeps the run
