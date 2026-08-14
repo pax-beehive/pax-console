@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
 import {
@@ -259,29 +260,31 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
   return (
     <ConsoleLayout user={user}>
       <div className="flex min-h-0 flex-1 flex-col">
-        <header className="flex min-w-0 items-center justify-between border-b border-hairline px-5 py-4">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 text-xs text-ink-tertiary">
-              {meta.icon}
-              {meta.eyebrow}
+        <header className="border-b border-hairline px-4 py-4 sm:px-5">
+          <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-xs text-ink-tertiary">
+                {meta.icon}
+                {meta.eyebrow}
+              </div>
+              <h1 className="mt-2 text-2xl font-semibold">{meta.title}</h1>
             </div>
-            <h1 className="mt-2 text-2xl font-semibold">{meta.title}</h1>
-          </div>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <ResourceSectionTabs kind={kind} />
-            {supportsActiveFilter(kind) && (
-              <ActiveFilterToggle
-                checked={showAllResources}
-                onChange={handleShowAllResourcesChange}
-              />
-            )}
+            <div className="flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+              <ResourceSectionTabs kind={kind} />
+              {supportsActiveFilter(kind) && (
+                <ActiveFilterToggle
+                  checked={showAllResources}
+                  onChange={handleShowAllResourcesChange}
+                />
+              )}
+            </div>
           </div>
         </header>
 
         {kind !== "approvals" && kind !== "sessions" && kind !== "monitor" && (
           <nav
             aria-label="Settings sections"
-            className="flex gap-2 overflow-x-auto border-b border-hairline px-5 py-2 lg:hidden"
+            className="flex gap-2 overflow-x-auto border-b border-hairline px-4 py-2 sm:px-5 lg:hidden"
           >
             <SettingsSectionLink href="/settings/projects" label="Projects" />
             <SettingsSectionLink href="/settings/devices" label="Devices" />
@@ -300,7 +303,7 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
           </div>
         )}
 
-        <div className="min-h-0 flex-1 overflow-auto p-5">
+        <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-5">
           {kind === "nodes" && (
             <NodeGrid
               isLoading={nodesQuery.isLoading}
@@ -407,11 +410,11 @@ function ResourceSectionTabs({ kind }: { kind: ResourceKind }) {
   }
 
   return (
-    <div className="flex rounded-md border border-hairline bg-surface-1 p-0.5">
+    <div className="grid grid-cols-2 rounded-md border border-hairline bg-surface-1 p-0.5 sm:flex">
       {tabs.map((tab) => (
         <Link
           aria-current={kind === tab.value ? "page" : undefined}
-          className={`rounded px-3 py-1.5 text-xs transition ${
+          className={`flex min-h-10 items-center justify-center rounded px-3 py-1.5 text-sm transition sm:text-xs ${
             kind === tab.value
               ? "bg-accent/15 text-ink"
               : "text-ink-tertiary hover:bg-surface-2 hover:text-ink"
@@ -864,19 +867,39 @@ function NodeRegistrationPanel({ userId }: { userId: string }) {
     <div className="grid gap-4">
       <section className="rounded-lg border border-hairline bg-surface-1 p-3">
         <div className="flex min-w-0 flex-wrap items-end gap-3">
-          <label className="grid w-56 max-w-full gap-2 text-sm text-ink-muted">
+          <label className="grid w-full gap-2 text-sm text-ink-muted sm:w-56">
             TTL seconds
             <input
-              className="min-h-9 rounded-lg border border-hairline bg-canvas px-3 font-mono text-sm text-ink"
+              className="min-h-9 rounded-lg border border-hairline bg-canvas px-3 font-mono text-base text-ink sm:text-sm"
+              inputMode="numeric"
               min={300}
               onChange={(event) => setTtl(Number(event.target.value))}
               step={300}
               type="number"
               value={ttl}
             />
+            <div className="flex flex-wrap gap-2">
+              {[
+                { label: "1h", value: 3600 },
+                { label: "24h", value: 86400 },
+                { label: "7d", value: 604800 },
+              ].map((preset) => (
+                <Button
+                  aria-pressed={ttl === preset.value}
+                  className="min-w-14"
+                  key={preset.value}
+                  onClick={() => setTtl(preset.value)}
+                  size="sm"
+                  type="button"
+                  variant={ttl === preset.value ? "secondary" : "ghost"}
+                >
+                  {preset.label}
+                </Button>
+              ))}
+            </div>
           </label>
           <Button
-            className="max-w-40"
+            className="w-full sm:max-w-40"
             disabled={createToken.isPending || ttl <= 0}
             icon={<Plus className="h-4 w-4" />}
             onClick={() => createToken.mutate()}
@@ -1043,7 +1066,7 @@ function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
           <label className="grid gap-1 text-xs text-ink-tertiary">
             Agent
             <select
-              className="h-9 rounded-md border border-hairline bg-canvas px-3 text-sm text-ink outline-none focus:border-accent"
+              className="h-9 rounded-md border border-hairline bg-canvas px-3 text-base text-ink outline-none focus:border-accent sm:text-sm"
               onChange={(event) => setAgentId(event.target.value)}
               value={selectedAgentId}
             >
@@ -1066,7 +1089,7 @@ function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
               Base64 root key
               <input
                 autoComplete="off"
-                className="h-9 rounded-md border border-hairline bg-surface-1 px-3 font-mono text-sm text-ink outline-none focus:border-accent"
+                className="h-9 rounded-md border border-hairline bg-surface-1 px-3 font-mono text-base text-ink outline-none focus:border-accent sm:text-sm"
                 onChange={(event) => setEncodedKey(event.target.value)}
                 placeholder="32-byte base64 value"
                 type="password"
@@ -1126,9 +1149,17 @@ function agentNodeLabel(agent: Agent, nodes: Node[]) {
 }
 
 function SettingsSectionLink({ href, label }: { href: string; label: string }) {
+  const pathname = usePathname();
+  const active = pathname === href || pathname.startsWith(`${href}/`);
+
   return (
     <Link
-      className="shrink-0 rounded-md border border-hairline bg-surface-1 px-3 py-1.5 text-xs text-ink-muted"
+      aria-current={active ? "page" : undefined}
+      className={`shrink-0 rounded-md border px-3 py-2 text-sm transition ${
+        active
+          ? "border-accent/40 bg-accent/10 text-ink"
+          : "border-hairline bg-surface-1 text-ink-muted hover:bg-surface-2 hover:text-ink"
+      }`}
       href={href}
     >
       {label}
@@ -1329,11 +1360,13 @@ function ApiKeysPanel({
   userId: string;
 }) {
   const [name, setName] = useState("Console key");
+  const [copiedSecret, setCopiedSecret] = useState(false);
   const [createdSecret, setCreatedSecret] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const createKey = useMutation({
     mutationFn: () => createApiKey(userId, name.trim() || "Console key"),
     onSuccess: (data) => {
+      setCopiedSecret(false);
       setCreatedSecret(data.key);
       void queryClient.invalidateQueries({
         queryKey: queryKeys.apiKeys(userId),
@@ -1349,6 +1382,14 @@ function ApiKeysPanel({
     },
   });
 
+  async function copySecret() {
+    if (!createdSecret || !navigator.clipboard) {
+      return;
+    }
+    await navigator.clipboard.writeText(createdSecret);
+    setCopiedSecret(true);
+  }
+
   if (isLoading) {
     return <EmptyState label="Loading API keys" />;
   }
@@ -1360,13 +1401,13 @@ function ApiKeysPanel({
           <label className="grid flex-1 gap-2 text-sm text-ink-muted">
             Key name
             <input
-              className="min-h-9 rounded-lg border border-hairline bg-canvas px-3 text-sm text-ink"
+              className="min-h-9 rounded-lg border border-hairline bg-canvas px-3 text-base text-ink sm:text-sm"
               onChange={(event) => setName(event.target.value)}
               value={name}
             />
           </label>
           <Button
-            className="min-w-36"
+            className="w-full min-w-36 sm:w-auto"
             disabled={createKey.isPending}
             icon={<Plus className="h-4 w-4" />}
             onClick={() => createKey.mutate()}
@@ -1379,8 +1420,32 @@ function ApiKeysPanel({
         </div>
         {createdSecret && (
           <div className="mt-4 rounded-lg border border-warning bg-canvas p-3">
-            <div className="text-sm font-medium text-ink">
-              Copy this key now. It will not be shown again.
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-ink">
+                  Copy this key now. It will not be shown again.
+                </div>
+                <div className="mt-1 text-xs text-ink-tertiary">
+                  The secret stays only in this browser tab until you leave the
+                  page.
+                </div>
+              </div>
+              <Button
+                icon={
+                  copiedSecret ? (
+                    <Check className="h-4 w-4" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )
+                }
+                onClick={() => void copySecret()}
+                size="sm"
+                tooltip={copiedSecret ? "Copied key" : "Copy key"}
+                type="button"
+                variant="ghost"
+              >
+                {copiedSecret ? "Copied" : "Copy"}
+              </Button>
             </div>
             <div className="mt-2 max-h-32 overflow-auto break-all rounded-md border border-hairline bg-surface-1 p-2 font-mono text-xs text-ink-muted">
               {createdSecret}
@@ -1440,7 +1505,7 @@ function ActiveFilterToggle({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="flex shrink-0 items-center gap-2 text-xs text-ink-muted">
+    <label className="flex shrink-0 items-center gap-2 text-sm text-ink-muted">
       <span>Show all</span>
       <button
         aria-checked={checked}

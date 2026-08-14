@@ -718,9 +718,7 @@ describe("FleetOverview session rail", () => {
     const workspace = screen.getByRole("textbox", { name: "Workspace" });
     expect(project.closest("label")).toHaveClass("basis-full", "sm:min-w-48");
     expect(workspace.closest("label")).toHaveClass("basis-full", "sm:min-w-64");
-    expect(
-      screen.getByRole("button", { name: "Add files or context" }),
-    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Upload files" })).toBeVisible();
     expect(
       screen.getByRole("button", { name: "Use end-to-end encryption" }),
     ).toBeVisible();

@@ -197,6 +197,58 @@ describe("useE2EESessionRuntime", () => {
     ]);
   });
 
+  it("keeps long encrypted streaming answers intact instead of dropping early chunks", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(
+      () =>
+        useE2EESessionRuntime({
+          agentId: "agent_1",
+          enabled: true,
+          sessionId: "session_1",
+          userId: "user_1",
+        }),
+      { wrapper },
+    );
+    await waitFor(() => expect(observerOptions).toBeDefined());
+
+    await act(async () => {
+      for (let index = 0; index < 520; index += 1) {
+        await observerOptions?.onFrame(
+          {
+            jsonrpc: "2.0",
+            method: "session/update",
+            params: {
+              sessionId: "session_1",
+              update: {
+                sessionUpdate: "agent_message_chunk",
+                content: { type: "text", text: "你" },
+              },
+            },
+          },
+          { turnId: "turn_1" },
+        );
+      }
+    });
+
+    expect(result.current.events).toEqual([
+      {
+        type: "agent_message",
+        id: "session_1:agent_message_chunk:e2ee:session_1:turn_1",
+        sessionId: "session_1",
+        turnId: "turn_1",
+        content: "你".repeat(520),
+        streaming: true,
+        sessionUpdate: "agent_message_chunk",
+        createdAt: expect.any(String),
+      },
+    ]);
+  });
+
   it("clears live events when switching encrypted sessions on the same agent", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },

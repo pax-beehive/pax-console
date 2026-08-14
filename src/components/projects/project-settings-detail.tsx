@@ -335,7 +335,7 @@ function TargetEditor({
         Name
         <input
           aria-label="Target name"
-          className="min-h-9 rounded-md border border-hairline bg-surface-1 px-2.5 text-sm text-ink outline-none focus:border-primary-focus"
+          className="min-h-9 rounded-md border border-hairline bg-surface-1 px-2.5 text-base text-ink outline-none focus:border-primary-focus sm:text-sm"
           onChange={(event) => setName(event.target.value)}
           placeholder="Local workspace"
           value={name}
@@ -345,7 +345,7 @@ function TargetEditor({
         Agent
         <select
           aria-label="Target agent"
-          className="min-h-9 rounded-md border border-hairline bg-surface-1 px-2.5 text-sm text-ink outline-none focus:border-primary-focus"
+          className="min-h-9 rounded-md border border-hairline bg-surface-1 px-2.5 text-base text-ink outline-none focus:border-primary-focus sm:text-sm"
           onChange={(event) => setAgentId(event.target.value)}
           value={agentId}
         >
@@ -361,7 +361,7 @@ function TargetEditor({
         Workspace
         <input
           aria-label="Target workspace"
-          className="min-h-9 rounded-md border border-hairline bg-surface-1 px-2.5 font-mono text-sm text-ink outline-none focus:border-primary-focus"
+          className="min-h-9 rounded-md border border-hairline bg-surface-1 px-2.5 font-mono text-base text-ink outline-none focus:border-primary-focus sm:text-sm"
           onChange={(event) => setCwd(event.target.value)}
           placeholder="~/project"
           spellCheck={false}

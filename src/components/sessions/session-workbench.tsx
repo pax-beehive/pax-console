@@ -1995,6 +1995,7 @@ export function SessionWorkbench({
           draftKey={composerDraftKey}
           isNewSession={isNewSession}
           isTurnRunning={isTurnRunning}
+          mobileScrollRootRef={timelineScrollRef}
           showAdminFeatures={showAdminFeatures}
           newSessionCwd={newSessionCwd}
           newSessionCwdInvalid={newSessionCwdInvalid}

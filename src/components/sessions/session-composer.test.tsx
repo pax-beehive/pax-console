@@ -22,6 +22,15 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useConsoleStore } from "@/stores/console-store";
 import { SessionComposer } from "./session-composer";
 
+class MockVisualViewport extends EventTarget {
+  height = 900;
+  offsetTop = 0;
+}
+
+const mockVisualViewport = new MockVisualViewport();
+const scrollIntoViewMock = vi.fn();
+const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+
 beforeAll(() => {
   vi.stubGlobal(
     "ResizeObserver",
@@ -31,14 +40,39 @@ beforeAll(() => {
       unobserve() {}
     },
   );
+  vi.stubGlobal("visualViewport", mockVisualViewport);
+  Object.defineProperty(window, "innerHeight", {
+    configurable: true,
+    value: 900,
+  });
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    value: 390,
+  });
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+    configurable: true,
+    value: scrollIntoViewMock,
+  });
 });
 
 afterAll(() => {
+  if (originalScrollIntoView) {
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: originalScrollIntoView,
+    });
+  } else {
+    // @ts-expect-error jsdom may not define scrollIntoView by default.
+    delete HTMLElement.prototype.scrollIntoView;
+  }
   vi.unstubAllGlobals();
 });
 
 afterEach(() => {
   cleanup();
+  mockVisualViewport.height = 900;
+  mockVisualViewport.offsetTop = 0;
+  scrollIntoViewMock.mockReset();
   useConsoleStore.setState({ composerDrafts: {} });
 });
 
@@ -136,6 +170,72 @@ describe("SessionComposer", () => {
       "basis-full",
       "sm:min-w-64",
       "sm:max-w-96",
+    );
+  });
+
+  it("uses touch-friendly composer sizing and lifts itself above the mobile keyboard", async () => {
+    render(
+      <TooltipProvider>
+        <SessionComposer
+          activeAgentId="agent_1"
+          activeNodeId="node_1"
+          approvalMode="manual"
+          approvalModePending={false}
+          attachmentError={null}
+          attachmentUploadPending={false}
+          attachments={[]}
+          currentSessionId="sess_1"
+          deleteQueuedTurnPending={false}
+          draftKey="sess_1"
+          isNewSession={false}
+          isTurnRunning={false}
+          newSessionCwd=""
+          newSessionCwdInvalid={false}
+          newSessionWorkspaceOpen={false}
+          onAddAttachments={async () => undefined}
+          onDeleteQueuedTurn={vi.fn()}
+          onRemoveAttachment={vi.fn()}
+          onSetNewSessionCwd={vi.fn()}
+          onSetNewSessionWorkspaceOpen={vi.fn()}
+          onSteer={async () => true}
+          onStop={vi.fn()}
+          onSubmitDraft={async () => true}
+          onToggleApprovalMode={vi.fn()}
+          onUpdateQueuedTurn={async () => true}
+          queueTurnPending={false}
+          queuedTurn={null}
+          showAdminFeatures={false}
+          steerTurnPending={false}
+          stopTurnPending={false}
+          updateQueuedTurnPending={false}
+        />
+      </TooltipProvider>,
+    );
+
+    const textarea = screen.getByPlaceholderText("Send a prompt to this agent");
+    const form = textarea.closest("form") as HTMLFormElement;
+    expect(textarea).toHaveClass("text-base", "sm:text-sm");
+    expect(textarea).toHaveAttribute("enterkeyhint", "send");
+    expect(form).toHaveStyle({
+      paddingBottom: "calc(max(0.75rem, env(safe-area-inset-bottom)) + 0px)",
+    });
+
+    fireEvent.focus(textarea);
+    mockVisualViewport.height = 620;
+    mockVisualViewport.dispatchEvent(new Event("resize"));
+
+    await waitFor(() =>
+      expect(form).toHaveStyle({
+        paddingBottom:
+          "calc(max(0.75rem, env(safe-area-inset-bottom)) + 280px)",
+      }),
+    );
+    fireEvent.blur(textarea);
+
+    await waitFor(() =>
+      expect(form).toHaveStyle({
+        paddingBottom: "calc(max(0.75rem, env(safe-area-inset-bottom)) + 0px)",
+      }),
     );
   });
 
