@@ -25,6 +25,18 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import type { AgentSession, Project, User } from "@/features/api/types";
 import { FleetOverview } from "./fleet-overview";
 
+const localStorageValues = new Map<string, string>();
+const localStorageMock: Storage = {
+  clear: () => localStorageValues.clear(),
+  getItem: (key) => localStorageValues.get(key) ?? null,
+  key: (index) => [...localStorageValues.keys()][index] ?? null,
+  get length() {
+    return localStorageValues.size;
+  },
+  removeItem: (key) => localStorageValues.delete(key),
+  setItem: (key, value) => localStorageValues.set(key, value),
+};
+
 const mocks = vi.hoisted(() => ({
   completeUserAttachment: vi.fn(),
   createProjectTarget: vi.fn(),
@@ -34,6 +46,7 @@ const mocks = vi.hoisted(() => ({
   updateAgentSession: vi.fn(),
   routerPush: vi.fn(),
   uploadUserAttachmentFile: vi.fn(),
+  useAgentPermissionCatalog: vi.fn(),
   useApprovals: vi.fn(),
   useEnvelopes: vi.fn(),
   useNodes: vi.fn(),
@@ -44,6 +57,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 beforeAll(() => {
+  vi.stubGlobal("localStorage", localStorageMock);
   vi.stubGlobal(
     "ResizeObserver",
     class ResizeObserver {
@@ -72,7 +86,9 @@ vi.mock("@/components/sessions/session-workbench", () => ({
     agentId,
     embedded,
     initialAttachments,
+    initialApprovalMode,
     initialCwd,
+    initialPermissionChoiceId,
     initialPrimaryProjectId,
     initialPrompt,
     initialProjectTargetId,
@@ -84,7 +100,9 @@ vi.mock("@/components/sessions/session-workbench", () => ({
     agentId?: string;
     embedded?: boolean;
     initialAttachments?: Array<{ attachmentId: string }>;
+    initialApprovalMode?: string;
     initialCwd?: string;
+    initialPermissionChoiceId?: string;
     initialPrimaryProjectId?: string;
     initialPrompt?: string;
     initialProjectTargetId?: string;
@@ -99,7 +117,9 @@ vi.mock("@/components/sessions/session-workbench", () => ({
       data-initial-attachments={initialAttachments
         ?.map((attachment) => attachment.attachmentId)
         .join(",")}
+      data-initial-approval-mode={initialApprovalMode}
       data-initial-cwd={initialCwd}
+      data-initial-permission-choice-id={initialPermissionChoiceId}
       data-primary-project-id={initialPrimaryProjectId}
       data-initial-prompt={initialPrompt}
       data-initial-transport={initialTransport}
@@ -132,6 +152,7 @@ vi.mock("@/features/api/resources", async (importOriginal) => {
     listUserSessions: mocks.listUserSessions,
     updateAgentSession: mocks.updateAgentSession,
     uploadUserAttachmentFile: mocks.uploadUserAttachmentFile,
+    useAgentPermissionCatalog: mocks.useAgentPermissionCatalog,
     useApprovals: mocks.useApprovals,
     useEnvelopes: mocks.useEnvelopes,
     useNodes: mocks.useNodes,
@@ -143,6 +164,7 @@ vi.mock("@/features/api/resources", async (importOriginal) => {
 });
 
 beforeEach(() => {
+  localStorageValues.clear();
   window.history.replaceState(null, "", "/");
   mocks.completeUserAttachment.mockReset();
   mocks.createProjectTarget.mockReset();
@@ -156,6 +178,7 @@ beforeEach(() => {
     session_id: "sess_1",
   });
   mocks.uploadUserAttachmentFile.mockReset();
+  mocks.useAgentPermissionCatalog.mockReset();
   mocks.createUserAttachment.mockResolvedValue({
     attachment: {
       attachment_id: "att_1",
@@ -266,6 +289,11 @@ beforeEach(() => {
     isLoading: false,
   });
   mocks.useApprovals.mockReturnValue(emptyQueryData("approvals"));
+  mocks.useAgentPermissionCatalog.mockReturnValue({
+    data: undefined,
+    isError: false,
+    isPending: false,
+  });
   mocks.useEnvelopes.mockReturnValue(emptyQueryData("envelopes"));
   mocks.useTeamInvites.mockReturnValue(emptyQueryData("invites"));
 });
@@ -314,6 +342,174 @@ describe("FleetOverview session rail", () => {
       screen.getByRole("link", { name: /Custom label \(runtime label\)/ }),
     ).toBeVisible();
     expect(screen.getByRole("link", { name: /Fallback task/ })).toBeVisible();
+  });
+
+  it("uses the permission catalog in the Home new-session composer", async () => {
+    mocks.useAgentPermissionCatalog.mockReturnValue({
+      data: {
+        catalog_revision: 4,
+        choices: [
+          {
+            choice_id: "agent:workspace",
+            kind: "agent",
+            label: "Workspace access",
+          },
+          {
+            choice_id: "agent:full-access",
+            kind: "agent",
+            label: "Full access",
+          },
+        ],
+        default_choice_id: "agent:workspace",
+        source: "profile",
+        stale: false,
+      },
+      isError: false,
+      isPending: false,
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <FleetOverview user={{ user_id: "user_1" } as User} />
+        </TooltipProvider>
+      </QueryClientProvider>,
+    );
+
+    const permissionSelector = await screen.findByRole("button", {
+      name: "Session permissions: Workspace access",
+    });
+    await userEvent.click(permissionSelector);
+
+    expect(
+      screen.getByRole("menuitemradio", { name: "Full access" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("menuitemradio", { name: /Auto approve \(PAX\)/ }),
+    ).toBeVisible();
+  });
+
+  it("isolates permission choices by agent and commits a pending manual fallback", async () => {
+    mocks.listAgents.mockResolvedValue({
+      agents: [
+        {
+          agent_id: "agent_1",
+          name: "Pi agent",
+          node_id: "node_1",
+          online: true,
+        },
+        {
+          agent_id: "agent_2",
+          name: "Second agent",
+          node_id: "node_1",
+          online: true,
+        },
+      ],
+    });
+    let secondAgentPending = true;
+    const catalog = {
+      catalog_revision: 4,
+      choices: [
+        {
+          choice_id: "agent:workspace",
+          kind: "agent" as const,
+          label: "Workspace access",
+        },
+        {
+          choice_id: "agent:full-access",
+          kind: "agent" as const,
+          label: "Full access",
+          requires_confirmation: true,
+        },
+      ],
+      default_choice_id: "agent:workspace",
+      source: "profile" as const,
+      stale: false,
+    };
+    mocks.useAgentPermissionCatalog.mockImplementation(
+      (_userId: string, agentId?: string) =>
+        agentId === "agent_2" && secondAgentPending
+          ? { data: undefined, isError: false, isPending: true }
+          : { data: catalog, isError: false, isPending: false },
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const fleetView = () => (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <FleetOverview user={{ user_id: "user_1" } as User} />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+    const { rerender } = render(fleetView());
+
+    await userEvent.click(
+      await screen.findByRole("button", {
+        name: "Session permissions: Workspace access",
+      }),
+    );
+    await userEvent.click(
+      screen.getByRole("menuitemradio", { name: /Full access/ }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Use this permission" }),
+    );
+    expect(
+      screen.getByRole("button", {
+        name: "Session permissions: Full access",
+      }),
+    ).toBeVisible();
+
+    await userEvent.click(screen.getByRole("button", { name: "Pi agent" }));
+    await userEvent.click(screen.getByRole("button", { name: "Second agent" }));
+    expect(
+      screen.getByRole("button", {
+        name: "Session permissions: Ask before tools",
+      }),
+    ).toBeVisible();
+
+    secondAgentPending = false;
+    rerender(fleetView());
+    expect(
+      screen.getByRole("button", {
+        name: "Session permissions: Workspace access",
+      }),
+    ).toBeVisible();
+
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: "Session permissions: Workspace access",
+      }),
+    );
+    await userEvent.click(
+      screen.getByRole("menuitemradio", { name: /Full access/ }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Use this permission" }),
+    );
+
+    secondAgentPending = true;
+    rerender(fleetView());
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: "Session permissions: Ask before tools",
+      }),
+    );
+    await userEvent.click(
+      screen.getByRole("menuitemradio", { name: /Ask before tools/ }),
+    );
+    secondAgentPending = false;
+    rerender(fleetView());
+
+    expect(
+      screen.getByRole("button", {
+        name: "Session permissions: Ask before tools",
+      }),
+    ).toBeVisible();
   });
 
   it("combines agent, node, and archived controls in one session filter", async () => {
@@ -611,6 +807,10 @@ describe("FleetOverview session rail", () => {
     expect(workbench).toHaveAttribute("data-primary-project-id", "project_1");
     expect(workbench).toHaveAttribute("data-project-target-id", "target_1");
     expect(workbench).toHaveAttribute("data-initial-cwd", "~/pax");
+    expect(workbench).toHaveAttribute(
+      "data-initial-permission-choice-id",
+      "pax:manual",
+    );
     expect(window.location.search).toBe("");
   });
 
@@ -708,7 +908,9 @@ describe("FleetOverview session rail", () => {
       screen.getByRole("button", { name: "Use end-to-end encryption" }),
     ).toBeVisible();
     expect(
-      screen.getByRole("button", { name: "Ask before running tools" }),
+      screen.getByRole("button", {
+        name: "Session permissions: Ask before tools",
+      }),
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "Start session" })).toBeVisible();
   });

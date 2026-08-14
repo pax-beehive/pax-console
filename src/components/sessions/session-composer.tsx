@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SessionPermissionSelector } from "@/components/sessions/session-permission-selector";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,7 +34,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { QueuedSessionTurnData } from "@/features/api/resources";
-import type { SessionApprovalMode } from "@/features/api/types";
+import type {
+  AgentPermissionCatalog,
+  AgentPermissionChoice,
+  SessionApprovalMode,
+} from "@/features/api/types";
 import { compactId } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useConsoleStore } from "@/stores/console-store";
@@ -70,10 +75,16 @@ type SessionComposerProps = {
   onSteer: (content: string) => Promise<boolean>;
   onStop: () => void;
   onSubmitDraft: (content: string) => Promise<boolean>;
+  onSelectPermissionChoice?: (choiceId: string) => void;
   onToggleApprovalMode: () => void;
   onUpdateQueuedTurn: (content: string) => Promise<boolean>;
   queueTurnPending: boolean;
   queuedTurn: QueuedSessionTurnData | null | undefined;
+  permissionCatalog?: AgentPermissionCatalog;
+  permissionCatalogError?: boolean;
+  permissionCatalogLoading?: boolean;
+  permissionChoiceId?: string;
+  permissionChoices?: AgentPermissionChoice[];
   readOnlyWorkspace?: string;
   secure?: boolean;
   showAdminFeatures: boolean;
@@ -108,10 +119,16 @@ export const SessionComposer = memo(function SessionComposer({
   onSteer,
   onStop,
   onSubmitDraft,
+  onSelectPermissionChoice,
   onToggleApprovalMode,
   onUpdateQueuedTurn,
   queueTurnPending,
   queuedTurn,
+  permissionCatalog,
+  permissionCatalogError,
+  permissionCatalogLoading,
+  permissionChoiceId,
+  permissionChoices,
   readOnlyWorkspace,
   secure = false,
   showAdminFeatures,
@@ -482,30 +499,45 @@ export const SessionComposer = memo(function SessionComposer({
               </span>
             </div>
           ) : null}
-          <button
-            aria-label={
-              approvalMode === "auto_approve_all"
-                ? "Auto approve tools without asking"
-                : "Ask before running tools"
-            }
-            aria-pressed={approvalMode === "auto_approve_all"}
-            className={cn(
-              "inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg px-2.5 text-sm transition disabled:cursor-not-allowed disabled:opacity-60",
-              approvalMode === "auto_approve_all"
-                ? "bg-success/10 text-success"
-                : "text-primary-hover hover:bg-surface-3",
-            )}
-            disabled={approvalModePending}
-            onClick={onToggleApprovalMode}
-            type="button"
-          >
-            <ShieldCheck className="h-4 w-4" />
-            <span className="whitespace-nowrap text-xs sm:text-sm">
-              {approvalMode === "auto_approve_all"
-                ? "Auto approve tools"
-                : "Ask before tools"}
-            </span>
-          </button>
+          {isNewSession &&
+          permissionChoices?.length &&
+          permissionChoiceId &&
+          onSelectPermissionChoice ? (
+            <SessionPermissionSelector
+              catalog={permissionCatalog}
+              choices={permissionChoices}
+              disabled={approvalModePending}
+              error={permissionCatalogError}
+              loading={permissionCatalogLoading}
+              onChange={onSelectPermissionChoice}
+              value={permissionChoiceId}
+            />
+          ) : (
+            <button
+              aria-label={
+                approvalMode === "auto_approve_all"
+                  ? "Auto approve tools without asking"
+                  : "Ask before running tools"
+              }
+              aria-pressed={approvalMode === "auto_approve_all"}
+              className={cn(
+                "inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg px-2.5 text-sm transition disabled:cursor-not-allowed disabled:opacity-60",
+                approvalMode === "auto_approve_all"
+                  ? "bg-success/10 text-success"
+                  : "text-primary-hover hover:bg-surface-3",
+              )}
+              disabled={approvalModePending}
+              onClick={onToggleApprovalMode}
+              type="button"
+            >
+              <ShieldCheck className="h-4 w-4" />
+              <span className="whitespace-nowrap text-xs sm:text-sm">
+                {approvalMode === "auto_approve_all"
+                  ? "Auto approve tools"
+                  : "Ask before tools"}
+              </span>
+            </button>
+          )}
           <div className="min-w-0 flex-1" />
           {isTurnRunning && hasAttachments && (
             <span className="text-xs text-warning">

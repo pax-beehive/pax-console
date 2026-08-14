@@ -85,6 +85,7 @@ export type StreamConversationRunOptions = {
   input?: string;
   nodeId: string;
   onEnvelope: (envelope: ConversationRunEnvelope) => void;
+  permissionChoiceId?: string;
   primaryProjectId?: string;
   projectTargetId?: string;
   resume?: {
@@ -103,6 +104,7 @@ export async function streamConversationRun({
   input,
   nodeId,
   onEnvelope,
+  permissionChoiceId,
   primaryProjectId,
   projectTargetId,
   resume,
@@ -124,6 +126,9 @@ export async function streamConversationRun({
         ...(sessionId ? { session_id: sessionId } : {}),
         ...(!sessionId && cwd ? { cwd } : {}),
         ...(!sessionId && approvalMode ? { approval_mode: approvalMode } : {}),
+        ...(!sessionId && permissionChoiceId
+          ? { permission_choice_id: permissionChoiceId }
+          : {}),
         ...(!sessionId && primaryProjectId
           ? { primary_project_id: primaryProjectId }
           : {}),

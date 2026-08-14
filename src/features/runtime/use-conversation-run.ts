@@ -42,6 +42,7 @@ type SendMessageOptions = {
   approvalMode?: SessionApprovalMode;
   attachmentIds?: string[];
   cwd?: string;
+  permissionChoiceId?: string;
   primaryProjectId?: string;
   projectTargetId?: string;
 };
@@ -132,6 +133,9 @@ export function useConversationRun({
           agentId,
           approvalMode: promptSessionId ? undefined : options?.approvalMode,
           cwd: promptSessionId ? undefined : options?.cwd,
+          permissionChoiceId: promptSessionId
+            ? undefined
+            : options?.permissionChoiceId,
           ...(attachmentIds.length > 0
             ? {
                 content: [
@@ -146,8 +150,8 @@ export function useConversationRun({
               }
             : { input: content }),
           nodeId,
-          onEnvelope: (envelope) =>
-            handleConversationEnvelope(envelope, {
+          onEnvelope: (envelope) => {
+            const envelopeError = handleConversationEnvelope(envelope, {
               onSession: (nextSessionId) => {
                 sessionIdRef.current = nextSessionId;
                 onSession?.(nextSessionId);
@@ -164,7 +168,11 @@ export function useConversationRun({
               setStatus,
               streamId,
               updateEvents,
-            }),
+            });
+            if (envelopeError) {
+              throw envelopeError;
+            }
+          },
           primaryProjectId: promptSessionId
             ? undefined
             : options?.primaryProjectId,
@@ -242,8 +250,8 @@ export function useConversationRun({
         await streamConversationRun({
           agentId,
           nodeId,
-          onEnvelope: (envelope) =>
-            handleConversationEnvelope(envelope, {
+          onEnvelope: (envelope) => {
+            const envelopeError = handleConversationEnvelope(envelope, {
               onSession: (nextSessionId) => {
                 sessionIdRef.current = nextSessionId;
                 onSession?.(nextSessionId);
@@ -260,7 +268,11 @@ export function useConversationRun({
               setStatus,
               streamId,
               updateEvents,
-            }),
+            });
+            if (envelopeError) {
+              throw envelopeError;
+            }
+          },
           resume: { approvalId },
           sessionId: currentSessionId,
           signal: abortController.signal,
@@ -502,7 +514,7 @@ export function handleConversationEnvelope(
       },
     ]);
     setStatus("error");
-    return;
+    return nextError;
   }
 
   throw new Error("Unknown conversation stream event");

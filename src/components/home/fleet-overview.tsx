@@ -55,6 +55,7 @@ import {
   SessionWorkbench,
 } from "@/components/sessions/session-workbench";
 import { SecureModeActivation } from "@/components/sessions/secure-mode-activation";
+import { SessionPermissionSelector } from "@/components/sessions/session-permission-selector";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -74,6 +75,7 @@ import {
   updateAgentSession,
   decideApproval,
   uploadUserAttachmentFile,
+  useAgentPermissionCatalog,
   useApprovals,
   useEnvelopes,
   useNodes,
@@ -97,6 +99,12 @@ import { compactId } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { canSeeAdminFeatures } from "@/features/auth/admin-view";
 import { isSupportedSessionWorkspace } from "@/features/runtime/workspace-path";
+import {
+  PAX_MANUAL_CHOICE_ID,
+  approvalModeForPermissionChoice,
+  defaultPermissionChoiceId,
+  permissionChoicesFromCatalog,
+} from "@/features/permissions/permission-catalog";
 import { useSessionDeck } from "@/features/session-deck/use-session-deck";
 import { useConsoleStore } from "@/stores/console-store";
 
@@ -150,6 +158,7 @@ type WorkItem = {
 type EmbeddedSessionTarget = {
   agentId?: string;
   initialApprovalMode?: SessionApprovalMode;
+  initialPermissionChoiceId?: string;
   initialAttachments?: ComposerAttachment[];
   initialCwd?: string;
   initialPrompt?: string;
@@ -190,10 +199,12 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   >({});
   const [newSessionCwd, setNewSessionCwd] = useState("");
   const [newSessionWorkspaceOpen, setNewSessionWorkspaceOpen] = useState(false);
-  const [newSessionApprovalMode, setNewSessionApprovalMode] =
-    useState<SessionApprovalMode>("manual");
   const [newSessionTransport, setNewSessionTransport] =
     useState<NonNullable<AgentSession["transport"]>>("manager");
+  const [
+    newSessionPermissionChoiceByAgent,
+    setNewSessionPermissionChoiceByAgent,
+  ] = useState<Record<string, string>>({});
   const [attachmentName, setAttachmentName] = useState("");
   const [composerAttachments, setComposerAttachments] = useState<
     ComposerAttachment[]
@@ -349,6 +360,31 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   );
   const activeAgent =
     agents.find((agent) => agent.agent_id === selectedAgentId) ?? agents[0];
+  const permissionCatalogQuery = useAgentPermissionCatalog(
+    user.user_id,
+    activeAgent?.agent_id,
+  );
+  const newSessionPermissionChoices = useMemo(
+    () => permissionChoicesFromCatalog(permissionCatalogQuery.data),
+    [permissionCatalogQuery.data],
+  );
+  const newSessionPermissionChoiceId = activeAgent?.agent_id
+    ? newSessionPermissionChoiceByAgent[activeAgent.agent_id]
+    : undefined;
+  const effectiveNewSessionPermissionChoiceId =
+    newSessionPermissionChoiceId === PAX_MANUAL_CHOICE_ID ||
+    newSessionPermissionChoices.some(
+      (choice) => choice.choice_id === newSessionPermissionChoiceId,
+    )
+      ? (newSessionPermissionChoiceId as string)
+      : defaultPermissionChoiceId(
+          newSessionPermissionChoices,
+          "manual",
+          permissionCatalogQuery.data?.default_choice_id,
+        );
+  const effectiveNewSessionApprovalMode = approvalModeForPermissionChoice(
+    effectiveNewSessionPermissionChoiceId,
+  );
   const normalizedNewSessionCwd = newSessionCwd.trim();
   const newSessionCwdInvalid =
     normalizedNewSessionCwd.length > 0 &&
@@ -719,7 +755,8 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     setProjectTargetSaveError(null);
     setEmbeddedSessionTarget({
       agentId: activeAgent.agent_id,
-      initialApprovalMode: newSessionApprovalMode,
+      initialApprovalMode: effectiveNewSessionApprovalMode,
+      initialPermissionChoiceId: effectiveNewSessionPermissionChoiceId,
       initialAttachments: composerAttachments,
       initialCwd: normalizedNewSessionCwd || undefined,
       initialPrompt: initialPrompt || undefined,
@@ -957,7 +994,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 : "bg-canvas",
             )}
           >
-            {secureComposerActive && <SecureModeActivation />}
+            {secureComposerActive && (
+              <SecureModeActivation showStatus={false} />
+            )}
             {activeSessionTargetPending ? (
               <section className="flex min-h-0 flex-1 items-center justify-center p-5 text-sm text-ink-tertiary">
                 Loading session...
@@ -967,6 +1006,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 agentId={activeSessionTarget.agentId}
                 embedded
                 initialApprovalMode={activeSessionTarget.initialApprovalMode}
+                initialPermissionChoiceId={
+                  activeSessionTarget.initialPermissionChoiceId
+                }
                 initialAttachments={activeSessionTarget.initialAttachments}
                 initialCwd={activeSessionTarget.initialCwd}
                 initialPrimaryProjectId={activeSessionTarget.primaryProjectId}
@@ -1402,6 +1444,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                         </label>
                       ) : (
                         <Button
+                          aria-label="Set workspace"
                           icon={<FolderPlus className="h-4 w-4" />}
                           onClick={() => setNewSessionWorkspaceOpen(true)}
                           size="icon"
@@ -1446,37 +1489,22 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                           {secureComposerActive ? "Secure mode" : "Encrypted"}
                         </span>
                       </button>
-                      <button
-                        aria-label={
-                          newSessionApprovalMode === "auto_approve_all"
-                            ? "Auto approve tools without asking"
-                            : "Ask before running tools"
-                        }
-                        aria-pressed={
-                          newSessionApprovalMode === "auto_approve_all"
-                        }
-                        className={cn(
-                          "inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg px-2.5 text-sm transition",
-                          newSessionApprovalMode === "auto_approve_all"
-                            ? "bg-success/10 text-success"
-                            : "text-ink-subtle hover:bg-surface-3 hover:text-ink",
-                        )}
-                        onClick={() =>
-                          setNewSessionApprovalMode((mode) =>
-                            mode === "auto_approve_all"
-                              ? "manual"
-                              : "auto_approve_all",
-                          )
-                        }
-                        type="button"
-                      >
-                        <ShieldCheck className="h-4 w-4" />
-                        <span className="whitespace-nowrap text-xs sm:text-sm">
-                          {newSessionApprovalMode === "auto_approve_all"
-                            ? "Auto approve tools"
-                            : "Ask before tools"}
-                        </span>
-                      </button>
+                      <SessionPermissionSelector
+                        catalog={permissionCatalogQuery.data}
+                        choices={newSessionPermissionChoices}
+                        error={permissionCatalogQuery.isError}
+                        loading={permissionCatalogQuery.isPending}
+                        onChange={(choiceId) => {
+                          if (!activeAgent?.agent_id) {
+                            return;
+                          }
+                          setNewSessionPermissionChoiceByAgent((current) => ({
+                            ...current,
+                            [activeAgent.agent_id]: choiceId,
+                          }));
+                        }}
+                        value={effectiveNewSessionPermissionChoiceId}
+                      />
                       {attachmentName && (
                         <Badge className="max-w-40" tooltip={attachmentName}>
                           {attachmentName}

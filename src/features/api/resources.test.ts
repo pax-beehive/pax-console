@@ -25,6 +25,7 @@ const {
   discoverNodeDaemonHarnesses,
   flattenSessionHistoryPages,
   getAgent,
+  getAgentPermissionCatalog,
   getProject,
   getProjectTarget,
   getNodeDaemonCommand,
@@ -332,6 +333,23 @@ describe("listAgentSessions", () => {
         },
         method: "DELETE",
       },
+    );
+  });
+});
+
+describe("getAgentPermissionCatalog", () => {
+  it("reads the owner-scoped agent permission catalog", async () => {
+    apiFetch.mockResolvedValueOnce({
+      catalog_revision: 3,
+      choices: [],
+      source: "profile",
+      stale: false,
+    });
+
+    await getAgentPermissionCatalog("u1", "a1");
+
+    expect(apiFetch).toHaveBeenCalledWith(
+      "/api/v1/user/u1/agents/a1/permission-catalog",
     );
   });
 });

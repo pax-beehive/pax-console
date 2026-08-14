@@ -278,4 +278,87 @@ describe("SessionComposer", () => {
       screen.queryByRole("menuitem", { name: "Open artifacts" }),
     ).not.toBeInTheDocument();
   });
+
+  it("shows the unified permission catalog for new sessions", async () => {
+    const onSelectPermissionChoice = vi.fn();
+
+    render(
+      <TooltipProvider>
+        <SessionComposer
+          activeAgentId="agent_1"
+          activeNodeId="node_1"
+          approvalMode="manual"
+          approvalModePending={false}
+          attachmentError={null}
+          attachmentUploadPending={false}
+          attachments={[]}
+          deleteQueuedTurnPending={false}
+          draftKey="new:node_1:agent_1"
+          isNewSession
+          isTurnRunning={false}
+          newSessionCwd=""
+          newSessionCwdInvalid={false}
+          newSessionWorkspaceOpen={false}
+          onAddAttachments={async () => undefined}
+          onDeleteQueuedTurn={vi.fn()}
+          onOpenArtifacts={vi.fn()}
+          onRemoveAttachment={vi.fn()}
+          onSelectPermissionChoice={onSelectPermissionChoice}
+          onSetNewSessionCwd={vi.fn()}
+          onSetNewSessionWorkspaceOpen={vi.fn()}
+          onSteer={async () => true}
+          onStop={vi.fn()}
+          onSubmitDraft={async () => true}
+          onToggleApprovalMode={vi.fn()}
+          onUpdateQueuedTurn={async () => true}
+          permissionCatalog={{
+            catalog_revision: 2,
+            choices: [],
+            source: "profile",
+            stale: false,
+          }}
+          permissionChoiceId="agent:workspace"
+          permissionChoices={[
+            {
+              choice_id: "pax:auto_approve",
+              kind: "pax",
+              label: "Auto approve (PAX)",
+            },
+            {
+              choice_id: "agent:workspace",
+              description: "Allow edits inside the workspace.",
+              kind: "agent",
+              label: "Workspace access",
+            },
+            {
+              choice_id: "agent:full-access",
+              kind: "agent",
+              label: "Full access",
+            },
+          ]}
+          queueTurnPending={false}
+          queuedTurn={null}
+          showAdminFeatures={false}
+          steerTurnPending={false}
+          stopTurnPending={false}
+          updateQueuedTurnPending={false}
+        />
+      </TooltipProvider>,
+    );
+
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: "Session permissions: Workspace access",
+      }),
+    );
+    expect(screen.getByText("Agent permissions")).toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole("menuitemradio", { name: "Full access" }),
+    );
+
+    expect(onSelectPermissionChoice).toHaveBeenCalledWith("agent:full-access");
+    expect(
+      screen.queryByRole("button", { name: "Ask before running tools" }),
+    ).not.toBeInTheDocument();
+  });
 });

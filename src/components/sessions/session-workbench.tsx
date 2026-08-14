@@ -48,6 +48,7 @@ import {
 } from "@/components/sessions/session-event-cards";
 import { SessionComposer } from "@/components/sessions/session-composer";
 import { SecureModeActivation } from "@/components/sessions/secure-mode-activation";
+import { mergeRecoveredInitialPromptDraft } from "@/components/sessions/session-initial-prompt";
 import { SessionRuntimeActions } from "@/components/sessions/session-runtime-actions";
 import {
   canSeeSessionSidePanel,
@@ -74,6 +75,7 @@ import {
   updateQueuedSessionTurn,
   uploadUserAttachmentFile,
   useAgentOwnerInfos,
+  useAgentPermissionCatalog,
   useKnowledgeCapsules,
   useKnowledgeInjections,
   useAgentSessions,
@@ -84,7 +86,7 @@ import {
   useSessionArtifacts,
 } from "@/features/api/resources";
 import { queryKeys } from "@/features/api/query-keys";
-import { formatErrorDetail } from "@/features/api/errors";
+import { ApiError, formatErrorDetail } from "@/features/api/errors";
 import {
   KnowledgeCapsule,
   SessionKnowledgeInjection,
@@ -113,6 +115,15 @@ import { useSessionObserver } from "@/features/runtime/session-observer";
 import { sessionDisplayStatus } from "@/features/runtime/session-display-status";
 import { retrySessionHistoryHandoff } from "@/features/runtime/session-history-handoff";
 import { isSupportedSessionWorkspace } from "@/features/runtime/workspace-path";
+import {
+  PAX_AUTO_APPROVE_CHOICE_ID,
+  PAX_MANUAL_CHOICE_ID,
+  approvalModeForPermissionChoice,
+  permissionChoicesFromCatalog,
+  resolvePermissionChoiceId,
+  shouldRecoverPermissionCatalogAfterCreateFailure,
+  shouldWaitForInitialPermissionCatalog,
+} from "@/features/permissions/permission-catalog";
 import { compactId } from "@/lib/format";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { cn } from "@/lib/utils";
@@ -128,6 +139,7 @@ type SessionWorkbenchProps = {
   agentId?: string;
   embedded?: boolean;
   initialApprovalMode?: SessionApprovalMode;
+  initialPermissionChoiceId?: string;
   initialAttachments?: ComposerAttachment[];
   initialCwd?: string;
   initialPrimaryProjectId?: string;
@@ -184,6 +196,7 @@ export function SessionWorkbench({
   agentId,
   embedded = false,
   initialApprovalMode,
+  initialPermissionChoiceId,
   initialAttachments,
   initialCwd,
   initialPrimaryProjectId,
@@ -219,6 +232,15 @@ export function SessionWorkbench({
     ? (sessionMetadata?.agent_id ?? agentId)
     : (agentId ?? agents[0]?.agent_id);
   const activeAgent = agents.find((agent) => agent.agent_id === activeAgentId);
+  const permissionCatalogQuery = useAgentPermissionCatalog(
+    user.user_id,
+    activeAgentId,
+    isNewSession,
+  );
+  const permissionChoices = useMemo(
+    () => permissionChoicesFromCatalog(permissionCatalogQuery.data),
+    [permissionCatalogQuery.data],
+  );
   const sessionsQuery = useAgentSessions(
     user.user_id,
     activeNodeId,
@@ -233,12 +255,23 @@ export function SessionWorkbench({
   );
   const [newSessionApprovalMode, setNewSessionApprovalMode] =
     useState<SessionApprovalMode>(initialApprovalMode ?? "manual");
+  const [newSessionPermissionChoiceId, setNewSessionPermissionChoiceId] =
+    useState<string | undefined>(
+      initialPermissionChoiceId ??
+        (initialApprovalMode === "auto_approve_all"
+          ? PAX_AUTO_APPROVE_CHOICE_ID
+          : undefined),
+    );
   const [pendingSessionPaxConfig, setPendingSessionPaxConfig] =
     useState<SessionPaxConfig | null>(null);
   const pendingInitialPromptRef = useRef(
     readInitialPrompt(initialPrompt, initialPromptKey),
   );
   const initialPromptSentRef = useRef(false);
+  const initialPromptPermissionRef = useRef<{
+    approvalMode: SessionApprovalMode;
+    choiceId: string;
+  } | null>(null);
   const [sendError, setSendError] = useState<Error | null>(null);
   const [pendingEncryptedBootstrap, setPendingEncryptedBootstrap] =
     useState<PendingEncryptedBootstrap | null>(null);
@@ -314,8 +347,18 @@ export function SessionWorkbench({
   ]);
   const activePaxConfig =
     activeSession?.pax_config ?? pendingSessionPaxConfig ?? undefined;
+  const effectiveNewSessionPermissionChoiceId = resolvePermissionChoiceId(
+    permissionChoices,
+    newSessionApprovalMode,
+    newSessionPermissionChoiceId,
+    permissionCatalogQuery.data?.default_choice_id,
+    permissionCatalogQuery.isPending,
+  );
+  const effectiveNewSessionApprovalMode = approvalModeForPermissionChoice(
+    effectiveNewSessionPermissionChoiceId,
+  );
   const displayedApprovalMode =
-    activePaxConfig?.approval_mode ?? newSessionApprovalMode;
+    activePaxConfig?.approval_mode ?? effectiveNewSessionApprovalMode;
   const displayedWorkspace =
     currentSessionId && activePaxConfig?.cwd
       ? activePaxConfig.cwd
@@ -400,7 +443,9 @@ export function SessionWorkbench({
         );
       }
       if (encryptedRuntime.keyLoading) {
-        throw new Error("The browser is still loading this agent's encryption key");
+        throw new Error(
+          "The browser is still loading this agent's encryption key",
+        );
       }
       if (!encryptedRuntime.rootKeyAvailable) {
         throw new Error(
@@ -479,10 +524,7 @@ export function SessionWorkbench({
           queryKey: queryKeys.userSessionsRoot(user.user_id),
         });
         void queryClient.invalidateQueries({
-          queryKey: queryKeys.sessionMetadata(
-            user.user_id,
-            pending.sessionId,
-          ),
+          queryKey: queryKeys.sessionMetadata(user.user_id, pending.sessionId),
         });
         if (activeNodeId && activeAgentId) {
           void queryClient.invalidateQueries({
@@ -1227,7 +1269,9 @@ export function SessionWorkbench({
     () =>
       reconcileSessionTimeline(
         historyEvents,
-        usesEncryptedTransport ? encryptedRuntime.events : conversationRun.events,
+        usesEncryptedTransport
+          ? encryptedRuntime.events
+          : conversationRun.events,
         usesEncryptedTransport ? [] : sessionObserver.events,
       ),
     [
@@ -1266,6 +1310,35 @@ export function SessionWorkbench({
             sessionObserver.status === "observing")))) &&
     !currentTurnHasAgentOutput;
   const mutateSessionApprovalMode = updateSessionApprovalMode.mutate;
+  const selectPermissionChoice = useCallback((choiceId: string) => {
+    setNewSessionPermissionChoiceId(choiceId);
+    setNewSessionApprovalMode(approvalModeForPermissionChoice(choiceId));
+  }, []);
+  const recoverPermissionCatalogAfterCreateFailure = useCallback(
+    (caught: unknown, attemptedChoiceId: string) => {
+      const status = caught instanceof ApiError ? caught.status : undefined;
+      if (
+        !shouldRecoverPermissionCatalogAfterCreateFailure(
+          attemptedChoiceId,
+          status,
+        )
+      ) {
+        return false;
+      }
+      setNewSessionPermissionChoiceId(PAX_MANUAL_CHOICE_ID);
+      setNewSessionApprovalMode("manual");
+      if (activeAgentId) {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.agentPermissionCatalog(
+            user.user_id,
+            activeAgentId,
+          ),
+        });
+      }
+      return true;
+    },
+    [activeAgentId, queryClient, user.user_id],
+  );
   const toggleApprovalMode = useCallback(() => {
     const nextMode =
       displayedApprovalMode === "auto_approve_all"
@@ -1384,14 +1457,18 @@ export function SessionWorkbench({
         if (isNewSession) {
           setPendingSessionPaxConfig({
             cwd: normalizedNewSessionCwd || undefined,
-            approval_mode: newSessionApprovalMode,
+            approval_mode: effectiveNewSessionApprovalMode,
           });
         }
         await sendConversationMessage(content, {
           ...(isNewSession
             ? {
-                approvalMode: newSessionApprovalMode,
+                approvalMode: effectiveNewSessionApprovalMode,
                 cwd: normalizedNewSessionCwd || undefined,
+                permissionChoiceId:
+                  effectiveNewSessionPermissionChoiceId === PAX_MANUAL_CHOICE_ID
+                    ? undefined
+                    : effectiveNewSessionPermissionChoiceId,
                 primaryProjectId: initialPrimaryProjectId,
                 projectTargetId: initialProjectTargetId,
               }
@@ -1404,6 +1481,10 @@ export function SessionWorkbench({
       } catch (caught) {
         if (isNewSession) {
           setPendingSessionPaxConfig(null);
+          recoverPermissionCatalogAfterCreateFailure(
+            caught,
+            effectiveNewSessionPermissionChoiceId,
+          );
         }
         setSendError(
           caught instanceof Error ? caught : new Error(String(caught)),
@@ -1421,10 +1502,12 @@ export function SessionWorkbench({
       isTurnRunning,
       initialPrimaryProjectId,
       initialProjectTargetId,
-      newSessionApprovalMode,
+      effectiveNewSessionApprovalMode,
+      effectiveNewSessionPermissionChoiceId,
       newSessionCwdInvalid,
       normalizedNewSessionCwd,
       queueDraft,
+      recoverPermissionCatalogAfterCreateFailure,
       sendEncryptedMessage,
       sendConversationMessage,
     ],
@@ -1453,20 +1536,17 @@ export function SessionWorkbench({
     },
     [steerDraft],
   );
-  const handleStopTurn = useCallback(
-    () => {
-      if (usesEncryptedTransport) {
-        void encryptedRuntime.stop().catch((caught) => {
-          setSendError(
-            caught instanceof Error ? caught : new Error(String(caught)),
-          );
-        });
-        return;
-      }
-      stopCurrentTurn();
-    },
-    [encryptedRuntime, usesEncryptedTransport, stopCurrentTurn],
-  );
+  const handleStopTurn = useCallback(() => {
+    if (usesEncryptedTransport) {
+      void encryptedRuntime.stop().catch((caught) => {
+        setSendError(
+          caught instanceof Error ? caught : new Error(String(caught)),
+        );
+      });
+      return;
+    }
+    stopCurrentTurn();
+  }, [encryptedRuntime, usesEncryptedTransport, stopCurrentTurn]);
   const handleUpdateQueuedTurn = useCallback(
     async (content: string) => {
       try {
@@ -1520,6 +1600,22 @@ export function SessionWorkbench({
     ) {
       return;
     }
+    if (
+      shouldWaitForInitialPermissionCatalog(
+        initialPermissionChoiceId,
+        permissionCatalogQuery.isPending,
+      )
+    ) {
+      return;
+    }
+
+    if (!initialPromptPermissionRef.current) {
+      initialPromptPermissionRef.current = {
+        approvalMode: effectiveNewSessionApprovalMode,
+        choiceId: effectiveNewSessionPermissionChoiceId,
+      };
+    }
+    const initialPromptPermission = initialPromptPermissionRef.current;
 
     const timeoutId = window.setTimeout(() => {
       if (initialPromptSentRef.current) {
@@ -1527,13 +1623,69 @@ export function SessionWorkbench({
       }
 
       initialPromptSentRef.current = true;
-      void submitDraft(content).then((accepted) => {
-        if (accepted) {
-          removeStoredInitialPrompt(initialPromptKey);
-          return;
-        }
-        useConsoleStore.getState().setComposerDraft(composerDraftKey, content);
+      if (usesEncryptedTransport) {
+        void submitDraft(content).then((accepted) => {
+          if (accepted) {
+            removeStoredInitialPrompt(initialPromptKey);
+            return;
+          }
+          useConsoleStore
+            .getState()
+            .setComposerDraft(composerDraftKey, content);
+        });
+        return;
+      }
+
+      setSendError(null);
+      setPendingSessionPaxConfig({
+        cwd: normalizedNewSessionCwd || undefined,
+        approval_mode: initialPromptPermission.approvalMode,
       });
+      const attachmentIds = composerAttachments.map(
+        (attachment) => attachment.attachmentId,
+      );
+      void sendConversationMessage(content, {
+        approvalMode: initialPromptPermission.approvalMode,
+        cwd: normalizedNewSessionCwd || undefined,
+        permissionChoiceId:
+          initialPromptPermission.choiceId === PAX_MANUAL_CHOICE_ID
+            ? undefined
+            : initialPromptPermission.choiceId,
+        primaryProjectId: initialPrimaryProjectId,
+        projectTargetId: initialProjectTargetId,
+        ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
+      })
+        .then(() => {
+          setComposerAttachments([]);
+          setComposerAttachmentError(null);
+          removeStoredInitialPrompt(initialPromptKey);
+        })
+        .catch((caught) => {
+          setPendingSessionPaxConfig(null);
+          const recovered = recoverPermissionCatalogAfterCreateFailure(
+            caught,
+            initialPromptPermission.choiceId,
+          );
+          if (recovered) {
+            const consoleStore = useConsoleStore.getState();
+            consoleStore.setComposerDraft(
+              composerDraftKey,
+              mergeRecoveredInitialPromptDraft(
+                content,
+                consoleStore.composerDrafts[composerDraftKey] ?? "",
+              ),
+            );
+            pendingInitialPromptRef.current = "";
+            initialPromptPermissionRef.current = null;
+            // Keep automatic delivery latched off. The recovered draft is sent
+            // only after the user explicitly retries with PAX manual.
+            initialPromptSentRef.current = true;
+            removeStoredInitialPrompt(initialPromptKey);
+          }
+          setSendError(
+            caught instanceof Error ? caught : new Error(String(caught)),
+          );
+        });
     }, 0);
 
     return () => {
@@ -1542,12 +1694,22 @@ export function SessionWorkbench({
   }, [
     activeAgentId,
     activeNodeId,
+    composerAttachments,
     conversationRun.status,
     composerDraftKey,
     encryptedRuntime.keyLoading,
     initialPromptKey,
+    initialPermissionChoiceId,
+    initialPrimaryProjectId,
+    initialProjectTargetId,
     newSessionCwdInvalid,
     sessionId,
+    effectiveNewSessionApprovalMode,
+    effectiveNewSessionPermissionChoiceId,
+    normalizedNewSessionCwd,
+    permissionCatalogQuery.isPending,
+    recoverPermissionCatalogAfterCreateFailure,
+    sendConversationMessage,
     submitDraft,
     usesEncryptedTransport,
   ]);
@@ -1890,9 +2052,7 @@ export function SessionWorkbench({
         <div
           className={cn(
             "min-h-0 flex-1 overflow-auto p-3 transition-colors duration-500 sm:p-4",
-            usesEncryptedTransport
-              ? "bg-emerald-500/[0.012]"
-              : "bg-canvas",
+            usesEncryptedTransport ? "bg-emerald-500/[0.012]" : "bg-canvas",
           )}
           onScroll={handleTimelineScroll}
           ref={timelineScrollRef}
@@ -1914,7 +2074,7 @@ export function SessionWorkbench({
                 sendError ??
                 (usesEncryptedTransport
                   ? encryptedRuntime.error
-                  : queuedTurnQuery.error ?? conversationRun.error)
+                  : (queuedTurnQuery.error ?? conversationRun.error))
               }
             />
             {workstreamItems.map((item) => (
@@ -1981,10 +2141,16 @@ export function SessionWorkbench({
           onSteer={handleSteerTurn}
           onStop={handleStopTurn}
           onSubmitDraft={submitDraft}
+          onSelectPermissionChoice={selectPermissionChoice}
           onToggleApprovalMode={toggleApprovalMode}
           onUpdateQueuedTurn={handleUpdateQueuedTurn}
           queueTurnPending={queueTurn.isPending}
           queuedTurn={queuedTurnQuery.data}
+          permissionCatalog={permissionCatalogQuery.data}
+          permissionCatalogError={permissionCatalogQuery.isError}
+          permissionCatalogLoading={permissionCatalogQuery.isPending}
+          permissionChoiceId={effectiveNewSessionPermissionChoiceId}
+          permissionChoices={permissionChoices}
           readOnlyWorkspace={
             shouldShowReadOnlyWorkspace ? displayedWorkspace : undefined
           }
@@ -2107,7 +2273,7 @@ function removeStoredInitialPrompt(initialPromptKey?: string) {
   try {
     window.sessionStorage.removeItem(initialPromptKey);
   } catch {
-    // Ignore storage cleanup failures; the prompt has already been sent.
+    // Ignore storage cleanup failures; the in-memory handoff is already done.
   }
 }
 
