@@ -47,6 +47,7 @@ import {
   WorkstreamItemCard,
 } from "@/components/sessions/session-event-cards";
 import { SessionComposer } from "@/components/sessions/session-composer";
+import { MobileCollapsibleSessionHeader } from "@/components/sessions/mobile-collapsible-session-header";
 import { SecureModeActivation } from "@/components/sessions/secure-mode-activation";
 import { SessionRuntimeActions } from "@/components/sessions/session-runtime-actions";
 import {
@@ -1428,10 +1429,6 @@ export function SessionWorkbench({
     () => deleteQueuedDraft(),
     [deleteQueuedDraft],
   );
-  const handleOpenArtifacts = useCallback(
-    () => setActiveSidePanelId("artifacts"),
-    [setActiveSidePanelId],
-  );
   const handleSteerTurn = useCallback(
     async (content: string) => {
       try {
@@ -1688,15 +1685,39 @@ export function SessionWorkbench({
     >
       {usesEncryptedTransport && <SecureModeActivation showStatus={false} />}
       <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
-        <div
-          className={cn(
-            "flex items-center justify-between gap-2 border-b px-3 py-2 transition-[background-color,border-color] duration-500 sm:gap-4 sm:px-4 sm:py-3",
+        <MobileCollapsibleSessionHeader
+          key={currentSessionId ?? "new"}
+          summary={
+            <div className="flex min-w-0 items-center gap-2">
+              <TruncatedText
+                className="text-sm font-medium"
+                tooltip={sessionTitleTooltip}
+              >
+                {sessionDisplayName}
+              </TruncatedText>
+              {usesEncryptedTransport && (
+                <ShieldCheck
+                  aria-label="End-to-end encrypted session"
+                  className="h-3.5 w-3.5 shrink-0 text-emerald-400"
+                />
+              )}
+              <RunBadge
+                error={
+                  usesEncryptedTransport
+                    ? encryptedRuntime.error
+                    : conversationRun.error
+                }
+                status={displayedRunStatus}
+              />
+            </div>
+          }
+          surfaceClassName={
             usesEncryptedTransport
               ? "border-emerald-400/20 bg-emerald-500/[0.03] backdrop-blur-xl"
-              : "border-hairline bg-surface-1",
-          )}
+              : "border-hairline bg-surface-1"
+          }
         >
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
             {(onMobileMenu || onMobileBack) && (
               <Button
                 aria-label={
@@ -1861,6 +1882,9 @@ export function SessionWorkbench({
               onReset={() => resetStaleSessionStatus.mutateAsync()}
             />
             <Button
+              aria-label={
+                activeSidePanel ? "Hide context panel" : "Show context panel"
+              }
               icon={<PanelRight className="h-4 w-4" />}
               onClick={() =>
                 setActiveSidePanelId((current) =>
@@ -1875,7 +1899,7 @@ export function SessionWorkbench({
               variant={activeSidePanel ? "secondary" : "ghost"}
             />
           </div>
-        </div>
+        </MobileCollapsibleSessionHeader>
 
         <div
           className={cn(
@@ -1964,7 +1988,6 @@ export function SessionWorkbench({
           newSessionWorkspaceOpen={newSessionWorkspaceOpen}
           onAddAttachments={handleAddComposerAttachments}
           onDeleteQueuedTurn={handleDeleteQueuedTurn}
-          onOpenArtifacts={handleOpenArtifacts}
           onRemoveAttachment={handleRemoveComposerAttachment}
           onSetNewSessionCwd={setNewSessionCwd}
           onSetNewSessionWorkspaceOpen={setNewSessionWorkspaceOpen}
@@ -1999,6 +2022,7 @@ export function SessionWorkbench({
               </div>
             </div>
             <Button
+              aria-label={`Hide ${activeSidePanel.label}`}
               icon={<X className="h-4 w-4" />}
               onClick={() => setActiveSidePanelId(null)}
               size="icon"

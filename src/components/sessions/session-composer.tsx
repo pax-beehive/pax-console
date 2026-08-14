@@ -9,7 +9,6 @@ import {
   useState,
 } from "react";
 import {
-  FileText,
   FolderOpen,
   FolderPlus,
   LoaderCircle,
@@ -63,7 +62,6 @@ type SessionComposerProps = {
   newSessionWorkspaceOpen: boolean;
   onAddAttachments: (files: File[]) => Promise<void>;
   onDeleteQueuedTurn: () => void;
-  onOpenArtifacts: () => void;
   onRemoveAttachment: (attachmentId: string) => void;
   onSetNewSessionCwd: (value: string) => void;
   onSetNewSessionWorkspaceOpen: (open: boolean) => void;
@@ -101,7 +99,6 @@ export const SessionComposer = memo(function SessionComposer({
   newSessionWorkspaceOpen,
   onAddAttachments,
   onDeleteQueuedTurn,
-  onOpenArtifacts,
   onRemoveAttachment,
   onSetNewSessionCwd,
   onSetNewSessionWorkspaceOpen,
@@ -388,8 +385,8 @@ export const SessionComposer = memo(function SessionComposer({
             secure
               ? "Send an end-to-end encrypted message"
               : activeAgentId
-              ? "Send a prompt to this agent"
-              : "Select an agent before sending a prompt"
+                ? "Send a prompt to this agent"
+                : "Select an agent before sending a prompt"
           }
           rows={2}
           value={draft}
@@ -398,7 +395,7 @@ export const SessionComposer = memo(function SessionComposer({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
-                aria-label="Add files or context"
+                aria-label="Upload files"
                 disabled={attachmentUploadPending || secure}
                 icon={
                   attachmentUploadPending ? (
@@ -411,23 +408,16 @@ export const SessionComposer = memo(function SessionComposer({
                 tooltip={
                   secure
                     ? "Attachments are not supported in encrypted sessions yet"
-                    : "Add files or context"
+                    : "Upload files"
                 }
                 type="button"
                 variant="ghost"
               />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-52" side="top">
+            <DropdownMenuContent align="start" className="w-36" side="top">
               <DropdownMenuItem onSelect={() => fileInputRef.current?.click()}>
                 <Paperclip className="h-4 w-4" />
-                Attach files
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                aria-label="Open artifacts"
-                onSelect={onOpenArtifacts}
-              >
-                <FileText className="h-4 w-4" />
-                Open artifacts
+                Upload
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -469,6 +459,7 @@ export const SessionComposer = memo(function SessionComposer({
               </label>
             ) : (
               <Button
+                aria-label="Set workspace"
                 icon={<FolderPlus className="h-4 w-4" />}
                 onClick={() => onSetNewSessionWorkspaceOpen(true)}
                 size="icon"
@@ -478,7 +469,7 @@ export const SessionComposer = memo(function SessionComposer({
               />
             )
           ) : readOnlyWorkspace ? (
-            <div className="inline-flex min-h-9 min-w-0 max-w-64 items-center gap-2 rounded-lg border border-hairline bg-canvas px-2.5 text-sm text-ink-muted">
+            <div className="order-first inline-flex min-h-9 min-w-0 basis-full items-center gap-2 rounded-lg border border-hairline bg-canvas px-2.5 text-sm text-ink-muted sm:order-none sm:max-w-64 sm:basis-auto">
               <FolderOpen className="h-4 w-4 shrink-0" />
               <span className="shrink-0 text-xs font-medium text-ink-tertiary">
                 Workspace
@@ -488,7 +479,7 @@ export const SessionComposer = memo(function SessionComposer({
               </span>
             </div>
           ) : null}
-          <button
+          <Button
             aria-label={
               approvalMode === "auto_approve_all"
                 ? "Auto approve tools without asking"
@@ -496,22 +487,23 @@ export const SessionComposer = memo(function SessionComposer({
             }
             aria-pressed={approvalMode === "auto_approve_all"}
             className={cn(
-              "inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg px-2.5 text-sm transition disabled:cursor-not-allowed disabled:opacity-60",
               approvalMode === "auto_approve_all"
-                ? "bg-success/10 text-success"
-                : "text-primary-hover hover:bg-surface-3",
+                ? "border-success/25 bg-success/10 text-success hover:bg-success/15 hover:text-success"
+                : "text-primary-hover",
             )}
             disabled={approvalModePending}
+            icon={<ShieldCheck className="h-4 w-4" />}
             onClick={onToggleApprovalMode}
+            size="icon"
+            tooltip={
+              approvalMode === "auto_approve_all"
+                ? "Auto approve tools without asking · tap to require approval"
+                : "Ask before running tools · tap to auto approve"
+            }
+            tooltipOnClick
             type="button"
-          >
-            <ShieldCheck className="h-4 w-4" />
-            <span className="whitespace-nowrap text-xs sm:text-sm">
-              {approvalMode === "auto_approve_all"
-                ? "Auto approve tools"
-                : "Ask before tools"}
-            </span>
-          </button>
+            variant="ghost"
+          />
           <div className="min-w-0 flex-1" />
           {isTurnRunning && hasAttachments && (
             <span className="text-xs text-warning">
@@ -520,6 +512,7 @@ export const SessionComposer = memo(function SessionComposer({
           )}
           {showAdminFeatures && (
             <Button
+              aria-label="Voice input is not available yet"
               disabled
               icon={<Mic className="h-4 w-4" />}
               size="icon"
@@ -531,6 +524,11 @@ export const SessionComposer = memo(function SessionComposer({
           {isTurnRunning ? (
             <>
               <Button
+                aria-label={
+                  currentSessionId
+                    ? "Queue after current turn"
+                    : "Waiting for session id"
+                }
                 disabled={!canQueueTurn}
                 icon={
                   queueTurnPending ? (
@@ -549,6 +547,11 @@ export const SessionComposer = memo(function SessionComposer({
                 variant="primary"
               />
               <Button
+                aria-label={
+                  currentSessionId
+                    ? "Steer with this prompt"
+                    : "Waiting for session id"
+                }
                 disabled={!canSteerTurn}
                 icon={
                   steerTurnPending ? (
@@ -568,6 +571,11 @@ export const SessionComposer = memo(function SessionComposer({
                 variant="ghost"
               />
               <Button
+                aria-label={
+                  currentSessionId
+                    ? "Stop current turn"
+                    : "Waiting for session id"
+                }
                 disabled={!canStopTurn}
                 icon={
                   stopTurnPending ? (
@@ -589,6 +597,7 @@ export const SessionComposer = memo(function SessionComposer({
             </>
           ) : (
             <Button
+              aria-label="Send prompt"
               className={cn(
                 secure &&
                   "border-emerald-400/60 bg-emerald-400 text-emerald-950 shadow-[0_0_18px_rgba(52,211,153,0.16)] hover:bg-emerald-300",

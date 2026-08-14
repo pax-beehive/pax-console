@@ -10,6 +10,7 @@ type ButtonProps = ComponentPropsWithoutRef<"button"> & {
   icon?: ReactNode;
   size?: "sm" | "md" | "icon";
   tooltip?: ReactNode;
+  tooltipOnClick?: boolean;
   variant?: "primary" | "secondary" | "ghost" | "danger";
 };
 
@@ -37,6 +38,7 @@ export function Button({
   icon,
   size = "md",
   tooltip,
+  tooltipOnClick,
   variant = "secondary",
   ...props
 }: ButtonProps) {
@@ -61,5 +63,9 @@ export function Button({
     </Comp>
   );
 
-  return <Tooltip content={tooltip}>{button}</Tooltip>;
+  return (
+    <Tooltip content={tooltip} openOnClick={tooltipOnClick}>
+      {button}
+    </Tooltip>
+  );
 }
