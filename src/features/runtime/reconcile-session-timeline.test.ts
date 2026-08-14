@@ -144,6 +144,38 @@ describe("reconcileSessionTimeline", () => {
     expect(result.liveEvents).toEqual([]);
     expect(result.timeline.map((item) => item.id)).toEqual(["history"]);
   });
+
+  it("keeps an older pending user prompt ahead of a later adopted turn", () => {
+    const live: SessionEvent[] = [
+      userAt(
+        "pending-user",
+        "pending-turn:1",
+        "First prompt",
+        "2026-08-04T00:00:00.000Z",
+      ),
+      userAt(
+        "turn-2-user",
+        "turn_2",
+        "Second prompt",
+        "2026-08-04T00:00:10.000Z",
+      ),
+      eventAt(
+        "agent_message",
+        "turn-2-answer",
+        "turn_2",
+        "Second answer",
+        "2026-08-04T00:00:11.000Z",
+      ),
+    ];
+
+    const result = reconcileSessionTimeline([], live, []);
+
+    expect(result.timeline.map((item) => item.id)).toEqual([
+      "pending-user",
+      "turn-2-user",
+      "turn-2-answer",
+    ]);
+  });
 });
 
 function event(
@@ -152,13 +184,23 @@ function event(
   turnId: string | undefined,
   content: string,
 ): SessionEvent {
+  return eventAt(type, id, turnId, content, createdAt);
+}
+
+function eventAt(
+  type: "agent_message",
+  id: string,
+  turnId: string | undefined,
+  content: string,
+  eventCreatedAt: string,
+): SessionEvent {
   return {
     type,
     id,
     sessionId: "sess_1",
     ...(turnId ? { turnId } : {}),
     content,
-    createdAt,
+    createdAt: eventCreatedAt,
   };
 }
 
@@ -173,13 +215,22 @@ function done(id: string, turnId: string): SessionEvent {
 }
 
 function user(id: string, turnId: string, content: string): SessionEvent {
+  return userAt(id, turnId, content, createdAt);
+}
+
+function userAt(
+  id: string,
+  turnId: string,
+  content: string,
+  eventCreatedAt: string,
+): SessionEvent {
   return {
     type: "user_message",
     id,
     sessionId: "sess_1",
     turnId,
     content,
-    createdAt,
+    createdAt: eventCreatedAt,
   };
 }
 
