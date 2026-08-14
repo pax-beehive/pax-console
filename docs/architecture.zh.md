@@ -46,6 +46,12 @@ Browser --encrypted command/HTTP--> 任意 Manager
 - `root-key-store.ts` 在浏览器 IndexedDB 中按 agent 保存开发阶段手工共享的
   root key。Settings / Security 提供保存和删除入口，key 不经过 Manager API。
 
+paxd 在解密并接受 `session/prompt` 时按 prompt request 建立稳定 `turn_id`，并在
+encrypted event plaintext 中以 `{ turn_id, frames }` 返回；canonical encrypted
+history 使用同一个 ID。Console 解密后把该 ID 注入所有 live `SessionEvent`，并将
+本地 optimistic `pending-turn:*` 重绑定到真实 turn，使实时内容在运行期间接管该轮
+agent projection，durable `turn_done` 到达后再由 history 接管，避免两份重复渲染。
+
 浏览器端接口为：
 
 ```txt

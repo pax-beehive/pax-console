@@ -27,6 +27,12 @@ one development root key per agent in IndexedDB, surfaced under Settings /
 Security. Root keys must not be put in TanStack Query, localStorage, server
 components, URL state, or the Manager API.
 
+Encrypted ACP event plaintext carries the paxd-projected `turn_id` beside its
+`frames`. The Console must attach that ID to every normalized live event and
+replace the locally optimistic `pending-turn:*` ID with it. Canonical encrypted
+history uses the same turn ID, allowing the shared timeline reconciler to hand
+an active turn from live events to durable history without rendering both.
+
 Manager session resources expose `transport: "manager" | "e2ee"`. The first
 encrypted command durably marks that session as `e2ee`; Manager startup also
 backfills the marker from existing encrypted commands, events, or canonical

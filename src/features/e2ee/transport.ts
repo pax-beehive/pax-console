@@ -8,7 +8,12 @@ import {
 } from "./envelope";
 
 export type EncryptedEventBatch = {
+  turn_id?: string;
   frames: unknown[];
+};
+
+export type EncryptedEventContext = {
+  turnId?: string;
 };
 
 export type SendEncryptedCommandOptions = {
@@ -30,7 +35,10 @@ export type StreamEncryptedEventsOptions = {
   afterCursor?: number;
   keyEpoch?: number;
   onCursor?: (cursor: number) => void;
-  onFrame: (frame: unknown) => void | Promise<void>;
+  onFrame: (
+    frame: unknown,
+    context: EncryptedEventContext,
+  ) => void | Promise<void>;
   rootKey: Uint8Array;
   sessionId: string;
   signal?: AbortSignal;
@@ -378,8 +386,14 @@ export async function streamEncryptedEvents({
     if (!Array.isArray(batch.frames)) {
       throw new Error("Encrypted event payload must contain frames");
     }
+    const context = {
+      turnId:
+        typeof batch.turn_id === "string" && batch.turn_id.trim()
+          ? batch.turn_id
+          : undefined,
+    } satisfies EncryptedEventContext;
     for (const frame of batch.frames) {
-      await onFrame(frame);
+      await onFrame(frame, context);
     }
     cursor = nextCursor;
     onCursor?.(cursor);

@@ -23,6 +23,10 @@ The Home new-session composer also has an explicit `Encrypted` toggle. It is
 off by default. When enabled, the workbench verifies local key availability,
 waits for encrypted `session/new` confirmation, and then sends the first prompt;
 it never silently falls back to the plaintext runtime.
+Encrypted event plaintext includes the paxd-projected `turn_id` alongside its
+ACP frame batch. Live normalized events and canonical encrypted history share
+that ID so the normal turn reconciliation path suppresses overlapping history
+snapshots while a turn is streaming.
 The UI renders normalized agent events.
 Cloudflare Access owns identity.
 PAX Manager owns permissions and resources.
