@@ -6,6 +6,7 @@ describe("sessionDisplayStatus", () => {
     ["idle", "idle"],
     ["running", "streaming"],
     ["waiting_approval", "waiting_approval"],
+    ["unknown", "unknown"],
   ] as const)("maps canonical runtime status %s to %s", (runtime, display) => {
     expect(sessionDisplayStatus(runtime)).toBe(display);
   });

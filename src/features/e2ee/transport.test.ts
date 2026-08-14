@@ -164,7 +164,10 @@ describe("E2EE HTTP and SSE transport", () => {
         key_epoch: 1,
       },
       new TextEncoder().encode(
-        JSON.stringify({ frames: [{ first: true }, { second: true }] }),
+        JSON.stringify({
+          turn_id: "turn_1",
+          frames: [{ first: true }, { second: true }],
+        }),
       ),
     );
     const event = `id: 8\ndata: ${JSON.stringify(envelope)}\n\n`;
@@ -178,6 +181,7 @@ describe("E2EE HTTP and SSE transport", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     const frames: unknown[] = [];
+    const turnIds: Array<string | undefined> = [];
     const cursors: number[] = [];
 
     await expect(
@@ -188,13 +192,15 @@ describe("E2EE HTTP and SSE transport", () => {
         rootKey,
         keyEpoch: 1,
         afterCursor: 7,
-        onFrame: (frame) => {
+        onFrame: (frame, context) => {
           frames.push(frame);
+          turnIds.push(context.turnId);
         },
         onCursor: (cursor) => cursors.push(cursor),
       }),
     ).resolves.toBe(8);
     expect(frames).toEqual([{ first: true }, { second: true }]);
+    expect(turnIds).toEqual(["turn_1", "turn_1"]);
     expect(cursors).toEqual([8]);
   });
 

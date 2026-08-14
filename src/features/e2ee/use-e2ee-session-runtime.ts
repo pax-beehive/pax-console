@@ -52,6 +52,7 @@ export function useE2EESessionRuntime({
   const events = eventState.sessionId === sessionId ? eventState.events : [];
   const [status, setStatus] = useState<E2EESessionRuntimeStatus>("idle");
   const cursorRef = useRef(0);
+  const pendingTurnIdRef = useRef<string | undefined>(undefined);
   const pendingRequestIdsRef = useRef(new Set<string>());
   const pendingLifecycleRequestsRef = useRef(
     new Map<string, { reject: (error: Error) => void; resolve: () => void }>(),
@@ -95,6 +96,7 @@ export function useE2EESessionRuntime({
 
   useEffect(() => {
     cursorRef.current = 0;
+    pendingTurnIdRef.current = undefined;
     pendingRequestIdsRef.current.clear();
     pendingLifecycleRequestsRef.current.clear();
   }, [sessionId]);
@@ -143,16 +145,26 @@ export function useE2EESessionRuntime({
       onCursor(cursor) {
         cursorRef.current = cursor;
       },
-      onFrame(frame) {
+      onFrame(frame, context) {
         const receivedAt = new Date().toISOString();
         const normalized = normalizeTunnelFrame(frame, {
           createdAt: receivedAt,
-          streamId: `e2ee:${sessionId}`,
-        });
+          streamId: `e2ee:${sessionId}:${context.turnId ?? "legacy"}`,
+        }).map((event) =>
+          context.turnId
+            ? ({ ...event, turnId: context.turnId } as SessionEvent)
+            : event,
+        );
         if (normalized.length > 0) {
           setEventState((current) => ({
             events: [
-              ...(current.sessionId === sessionId ? current.events : []),
+              ...(current.sessionId === sessionId
+                ? current.events.map((event) =>
+                    context.turnId && event.turnId === pendingTurnIdRef.current
+                      ? ({ ...event, turnId: context.turnId } as SessionEvent)
+                      : event,
+                  )
+                : []),
               ...normalized,
             ].slice(-500),
             sessionId,
@@ -180,6 +192,7 @@ export function useE2EESessionRuntime({
           response &&
           pendingRequestIdsRef.current.delete(response.requestId)
         ) {
+          pendingTurnIdRef.current = undefined;
           if (response.error) {
             setError(new Error(response.error));
             setStatus("error");
@@ -213,7 +226,9 @@ export function useE2EESessionRuntime({
       }
 
       const requestId = `e2ee_prompt_${crypto.randomUUID()}`;
+      const pendingTurnId = `pending-turn:${requestId}`;
       pendingRequestIdsRef.current.add(requestId);
+      pendingTurnIdRef.current = pendingTurnId;
       setError(null);
       setStatus("streaming");
       setEventState((current) => ({
@@ -223,7 +238,7 @@ export function useE2EESessionRuntime({
             type: "user_message",
             id: `${sessionId}:user:${requestId}`,
             sessionId,
-            turnId: `pending-turn:${requestId}`,
+            turnId: pendingTurnId,
             content: normalized,
             createdAt: new Date().toISOString(),
           },
@@ -241,6 +256,7 @@ export function useE2EESessionRuntime({
         });
       } catch (caught) {
         pendingRequestIdsRef.current.delete(requestId);
+        pendingTurnIdRef.current = undefined;
         const nextError = asError(caught);
         setError(nextError);
         setStatus("error");

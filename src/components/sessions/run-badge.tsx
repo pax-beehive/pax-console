@@ -10,7 +10,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { formatErrorDetail } from "@/features/api/errors";
 import { isConversationIdleTimeout } from "@/features/runtime/session-display-status";
-import type { ConversationRunStatus } from "@/features/runtime/use-conversation-run";
+import type { SessionDisplayStatus } from "@/features/runtime/session-display-status";
 import { cn } from "@/lib/utils";
 
 export function RunBadge({
@@ -18,7 +18,7 @@ export function RunBadge({
   status,
 }: {
   error?: Error | null;
-  status: ConversationRunStatus;
+  status: SessionDisplayStatus;
 }) {
   const errorDetail =
     status === "error" && error ? formatErrorDetail(error) : null;
@@ -41,6 +41,12 @@ export function RunBadge({
       label: "approval",
       tone: "warning" as const,
       tooltip: "Waiting for approval",
+    },
+    unknown: {
+      icon: <AlertCircle className="h-3.5 w-3.5" />,
+      label: "status unknown",
+      tone: "warning" as const,
+      tooltip: "The runtime connection did not recover within the grace period",
     },
     done: {
       icon: <CheckCircle2 className="h-3.5 w-3.5" />,
