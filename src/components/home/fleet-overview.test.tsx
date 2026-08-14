@@ -623,11 +623,28 @@ describe("FleetOverview session rail", () => {
       name: "Use end-to-end encryption",
     });
     expect(composerPane).toHaveAttribute("data-secure-mode", "false");
+    expect(screen.getByLabelText("Project").parentElement).toHaveClass(
+      "w-24",
+      "sm:w-48",
+    );
     expect(encryptedToggle).toHaveAttribute("aria-pressed", "false");
+    expect(encryptedToggle).not.toHaveTextContent("Encrypted");
+    expect(
+      screen.getByRole("button", { name: "Ask before running tools" }),
+    ).not.toHaveTextContent("Ask before tools");
     await userEvent.click(encryptedToggle);
     expect(composerPane).toHaveAttribute("data-secure-mode", "true");
     expect(encryptedToggle).toHaveAttribute("aria-pressed", "true");
-    expect(screen.queryByText("End-to-end encrypted")).not.toBeInTheDocument();
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "End-to-end encryption on",
+    );
+    expect(
+      screen.getByRole("status", { name: "Session secured" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("secure-activation-animation"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("End-to-end encrypted")).toBeInTheDocument();
 
     const composer = screen.getByPlaceholderText(
       "Send an end-to-end encrypted message",
@@ -943,15 +960,16 @@ describe("FleetOverview session rail", () => {
     );
 
     const addButton = await screen.findByRole("button", {
-      name: "Add files or context",
+      name: "Upload files",
     });
     expect(
-      screen.queryByRole("menuitem", { name: "Attach files" }),
+      screen.queryByRole("menuitem", { name: "Upload" }),
     ).not.toBeInTheDocument();
     await userEvent.click(addButton);
     expect(
-      screen.getByRole("menuitem", { name: "Attach files" }),
+      screen.getByRole("menuitem", { name: "Upload" }),
     ).toBeInTheDocument();
+    expect(screen.queryByText("Open artifacts")).not.toBeInTheDocument();
     const fileInput = container.querySelector<HTMLInputElement>(
       'input[type="file"][multiple]',
     );

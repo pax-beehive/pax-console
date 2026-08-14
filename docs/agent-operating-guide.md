@@ -181,6 +181,10 @@ forward it through the same-origin `/api/pax` proxy.
 
 ## State Ownership
 
+Icon-only toggles use the shared `Button` tooltip. Enable `tooltipOnClick` when
+the explanation must also appear after a touch/click; keep the toggle's state
+available through `aria-pressed` and its action through `aria-label`.
+
 TanStack Query owns server data:
 
 ```txt
@@ -815,6 +819,12 @@ Session tools header and the composer. The global mobile Topbar includes a hard
 reload action equivalent to the browser refresh button. Long-pressing a tab
 starts horizontal drag reordering; normal horizontal movement continues to
 scroll the strip, and tab labels must not become browser text selections.
+On mobile, the shared Session tools header starts as a compact disclosure row
+showing the session name and ambient security/run state. Tapping it reveals the
+existing node, agent, rename, runtime, and side-panel controls; the upward
+chevron collapses it again. Desktop keeps the complete header visible. Because
+this behavior lives in `SessionWorkbench`, it must stay consistent for both the
+embedded Home workbench and standalone Session routes.
 
 Android preview packages use a Bubblewrap-generated Trusted Web Activity with
 package id `net.paxtech.console`. Keep `public/manifest.webmanifest` linked from

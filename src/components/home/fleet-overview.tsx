@@ -1256,11 +1256,11 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                       rows={2}
                       value={draft}
                     />
-                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <div className="flex min-w-0 flex-wrap items-center gap-1 sm:gap-2">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button
-                            aria-label="Add files or context"
+                            aria-label="Upload files"
                             disabled={
                               composerAttachmentUploadPending ||
                               newSessionTransport === "e2ee"
@@ -1276,7 +1276,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                             tooltip={
                               newSessionTransport === "e2ee"
                                 ? "Attachments are not supported in encrypted sessions yet"
-                                : "Add files or context"
+                                : "Upload files"
                             }
                             type="button"
                             variant="ghost"
@@ -1284,7 +1284,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent
                           align="start"
-                          className="w-52"
+                          className="w-36"
                           side="top"
                         >
                           <DropdownMenuItem
@@ -1293,27 +1293,13 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                             }
                           >
                             <Paperclip className="h-4 w-4" />
-                            Attach files
+                            Upload
                           </DropdownMenuItem>
-                          {showAdminFeatures && (
-                            <DropdownMenuItem
-                              disabled={!selectedInquiry}
-                              onSelect={() => {
-                                if (selectedInquiry) {
-                                  setComposerMode("summarize-note");
-                                  setAttachmentName("summarize note");
-                                }
-                              }}
-                            >
-                              <Paperclip className="h-4 w-4" />
-                              Summarize with note
-                            </DropdownMenuItem>
-                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
-                      <label className="order-first inline-flex min-h-9 min-w-0 basis-full items-center gap-2 rounded-lg border border-hairline bg-canvas px-2.5 text-sm text-ink-muted focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/25 sm:order-none sm:min-w-48 sm:max-w-64 sm:basis-auto">
+                      <label className="inline-flex min-h-9 w-24 max-w-[45vw] min-w-0 items-center gap-2 rounded-lg border border-hairline bg-canvas px-2.5 text-sm text-ink-muted focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/25 sm:w-48">
                         <Folder className="h-4 w-4 shrink-0" />
-                        <span className="shrink-0 text-xs font-medium text-ink-tertiary">
+                        <span className="hidden shrink-0 text-xs font-medium text-ink-tertiary sm:inline">
                           Project
                         </span>
                         <select
@@ -1419,34 +1405,35 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                               : `New workspace · will be saved to ${selectedProject.display_name}`}
                           </div>
                         )}
-                      <button
+                      <Button
                         aria-label="Use end-to-end encryption"
                         aria-pressed={newSessionTransport === "e2ee"}
                         className={cn(
-                          "inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg border px-2.5 text-sm transition-all duration-300",
+                          "transition-all duration-300",
                           newSessionTransport === "e2ee"
                             ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
-                            : "border-transparent text-ink-subtle hover:bg-surface-3 hover:text-ink",
+                            : "text-ink-subtle",
                         )}
                         disabled={composerAttachments.length > 0}
+                        icon={<LockKeyhole className="h-4 w-4" />}
                         onClick={() =>
                           setNewSessionTransport((transport) =>
                             transport === "e2ee" ? "manager" : "e2ee",
                           )
                         }
-                        title={
+                        size="icon"
+                        tooltip={
                           composerAttachments.length > 0
                             ? "Remove attachments before enabling encryption"
-                            : "Encrypt payloads between this browser and paxd"
+                            : newSessionTransport === "e2ee"
+                              ? "End-to-end encryption on · tap to turn off"
+                              : "Encrypt between this browser and paxd · tap to turn on"
                         }
+                        tooltipOnClick
                         type="button"
-                      >
-                        <LockKeyhole className="h-4 w-4" />
-                        <span className="whitespace-nowrap text-xs sm:text-sm">
-                          {secureComposerActive ? "Secure mode" : "Encrypted"}
-                        </span>
-                      </button>
-                      <button
+                        variant="ghost"
+                      />
+                      <Button
                         aria-label={
                           newSessionApprovalMode === "auto_approve_all"
                             ? "Auto approve tools without asking"
@@ -1456,11 +1443,11 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                           newSessionApprovalMode === "auto_approve_all"
                         }
                         className={cn(
-                          "inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg px-2.5 text-sm transition",
                           newSessionApprovalMode === "auto_approve_all"
-                            ? "bg-success/10 text-success"
-                            : "text-ink-subtle hover:bg-surface-3 hover:text-ink",
+                            ? "border-success/25 bg-success/10 text-success hover:bg-success/15 hover:text-success"
+                            : "text-ink-subtle",
                         )}
+                        icon={<ShieldCheck className="h-4 w-4" />}
                         onClick={() =>
                           setNewSessionApprovalMode((mode) =>
                             mode === "auto_approve_all"
@@ -1468,15 +1455,16 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                               : "auto_approve_all",
                           )
                         }
+                        size="icon"
+                        tooltip={
+                          newSessionApprovalMode === "auto_approve_all"
+                            ? "Auto approve tools without asking · tap to require approval"
+                            : "Ask before running tools · tap to auto approve"
+                        }
+                        tooltipOnClick
                         type="button"
-                      >
-                        <ShieldCheck className="h-4 w-4" />
-                        <span className="whitespace-nowrap text-xs sm:text-sm">
-                          {newSessionApprovalMode === "auto_approve_all"
-                            ? "Auto approve tools"
-                            : "Ask before tools"}
-                        </span>
-                      </button>
+                        variant="ghost"
+                      />
                       {attachmentName && (
                         <Badge className="max-w-40" tooltip={attachmentName}>
                           {attachmentName}
