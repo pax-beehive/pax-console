@@ -923,6 +923,11 @@ stable while background agents update. Long press starts drag reordering
 without allowing browser text selection; a normal horizontal gesture still
 scrolls the strip. Only the selected tab mounts the full workbench.
 
+The mobile Session tools header is a disclosure: it starts as a compact row
+with the Session name plus security/run state, expands in place to the existing
+Node, Agent, rename, runtime, and side-panel controls, and collapses again from
+the upward chevron. Desktop keeps the complete header visible.
+
 Recommended layout:
 
 ```txt

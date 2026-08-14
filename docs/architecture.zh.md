@@ -245,7 +245,11 @@ src/components/home/
   composer 分层。点击 tab 直接切换，关闭 tab 提供 Undo，但不会 archive/delete
   Session，也不会 stop/cancel 后台 agent。工作集按用户只在 localStorage 保存有序
   session_id，标题和 run status 仍来自 TanStack Query；同一时间只挂载当前
-  SessionWorkbench。手机全局 Topbar 同时提供等价于浏览器刷新按钮的 hard reload。
+  SessionWorkbench。Session tools header 在手机端默认折叠为只显示 Session 名称、
+  加密状态和运行状态的紧凑行；点击后展开原有 Node / Agent、重命名、runtime actions
+  和 side panel 入口，再点击向上箭头收回。该行为由共用 SessionWorkbench 承载，
+  因而 Home 内嵌和独立 Session 路由保持一致，桌面端仍始终显示完整 header。
+  手机全局 Topbar 同时提供等价于浏览器刷新按钮的 hard reload。
   Android 预览包使用 package id `net.paxtech.console` 的 Bubblewrap TWA；网页 manifest
   位于 `public/manifest.webmanifest`，签名证书指纹位于
   `public/.well-known/assetlinks.json`。两者随现有 `https://ws.paxtech.net` 的正常
@@ -361,6 +365,8 @@ status / count pill
 
 按钮和搜索框
   优先使用 src/components/ui 下的 Button 和 SearchBox，避免每个页面重新手写尺寸。
+  图标 toggle 需要在手机点按后也显示说明时，使用 Button 的 tooltipOnClick；
+  同时保留 aria-label 描述动作、aria-pressed 描述状态。
   Button 使用 asChild 且同时带 icon 时，由 primitive 内部的 Radix Slottable
   标记真正承接 props 的单个 React element；调用方仍需提供一个元素（例如 a）作为 child。
 
