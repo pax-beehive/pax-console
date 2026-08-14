@@ -3,6 +3,7 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { queryKeys } from "@/features/api/query-keys";
+import { mergeEvents } from "@/features/runtime/merge-session-events";
 import { normalizeTunnelFrame } from "@/features/runtime/normalize-tunnel-frame";
 import type { SessionEvent } from "@/features/runtime/session-events";
 import { loadRootKey } from "./root-key-store";
@@ -156,19 +157,24 @@ export function useE2EESessionRuntime({
             : event,
         );
         if (normalized.length > 0) {
-          setEventState((current) => ({
-            events: [
-              ...(current.sessionId === sessionId
+          setEventState((current) => {
+            const remappedCurrentEvents =
+              current.sessionId === sessionId
                 ? current.events.map((event) =>
                     context.turnId && event.turnId === pendingTurnIdRef.current
                       ? ({ ...event, turnId: context.turnId } as SessionEvent)
                       : event,
                   )
-                : []),
-              ...normalized,
-            ].slice(-500),
-            sessionId,
-          }));
+                : [];
+
+            return {
+              events: mergeEvents([
+                ...remappedCurrentEvents,
+                ...normalized,
+              ]).slice(-500),
+              sessionId,
+            };
+          });
         }
 
         const response = parseE2EERPCResponse(frame);

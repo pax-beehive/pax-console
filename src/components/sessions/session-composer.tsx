@@ -4,6 +4,7 @@ import {
   FormEvent,
   KeyboardEvent,
   memo,
+  type RefObject,
   useCallback,
   useRef,
   useState,
@@ -34,6 +35,7 @@ import {
 import type { QueuedSessionTurnData } from "@/features/api/resources";
 import type { SessionApprovalMode } from "@/features/api/types";
 import { compactId } from "@/lib/format";
+import { useMobileComposerKeyboardInset } from "@/lib/use-mobile-composer-keyboard-inset";
 import { cn } from "@/lib/utils";
 import { useConsoleStore } from "@/stores/console-store";
 
@@ -57,6 +59,7 @@ type SessionComposerProps = {
   draftKey: string;
   isNewSession: boolean;
   isTurnRunning: boolean;
+  mobileScrollRootRef?: RefObject<HTMLElement | null>;
   newSessionCwd: string;
   newSessionCwdInvalid: boolean;
   newSessionWorkspaceOpen: boolean;
@@ -94,6 +97,7 @@ export const SessionComposer = memo(function SessionComposer({
   draftKey,
   isNewSession,
   isTurnRunning,
+  mobileScrollRootRef,
   newSessionCwd,
   newSessionCwdInvalid,
   newSessionWorkspaceOpen,
@@ -126,6 +130,11 @@ export const SessionComposer = memo(function SessionComposer({
   );
   const [queuedTurnDraft, setQueuedTurnDraft] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const composerFormRef = useRef<HTMLFormElement | null>(null);
+  const { composerPaddingStyle, handleBlurCapture, handleFocusCapture } =
+    useMobileComposerKeyboardInset(composerFormRef, {
+      scrollRootRef: mobileScrollRootRef,
+    });
   const content = draft.trim();
   const hasAttachments = attachments.length > 0;
   const canSend =
@@ -222,7 +231,11 @@ export const SessionComposer = memo(function SessionComposer({
           : "border-hairline bg-surface-1",
       )}
       data-secure-mode={secure}
+      onBlurCapture={handleBlurCapture}
+      onFocusCapture={handleFocusCapture}
       onSubmit={submit}
+      ref={composerFormRef}
+      style={composerPaddingStyle}
     >
       <input
         className="sr-only"
@@ -290,7 +303,7 @@ export const SessionComposer = memo(function SessionComposer({
                 <textarea
                   aria-label="Queued message"
                   autoFocus
-                  className="max-h-32 min-h-16 w-full resize-y rounded-lg border border-hairline bg-canvas px-2.5 py-2 text-sm leading-5 text-ink outline-none focus:border-primary-focus focus:ring-2 focus:ring-primary-focus/20"
+                  className="max-h-32 min-h-16 w-full resize-y rounded-lg border border-hairline bg-canvas px-2.5 py-2 text-base leading-6 text-ink outline-none focus:border-primary-focus focus:ring-2 focus:ring-primary-focus/20 sm:text-sm sm:leading-5"
                   onChange={(event) => setQueuedTurnDraft(event.target.value)}
                   value={queuedTurnDraft}
                 />
@@ -371,8 +384,9 @@ export const SessionComposer = memo(function SessionComposer({
           </div>
         )}
         <textarea
-          className="max-h-40 min-h-12 w-full resize-none overflow-y-auto bg-transparent px-1 py-1 text-sm leading-5 text-ink outline-none [field-sizing:content] placeholder:text-ink-tertiary"
+          className="max-h-40 min-h-12 w-full resize-none overflow-y-auto bg-transparent px-1 py-1 text-base leading-6 text-ink outline-none [field-sizing:content] placeholder:text-ink-tertiary sm:text-sm sm:leading-5"
           disabled={!activeAgentId}
+          enterKeyHint="send"
           onChange={(event) => setComposerDraft(draftKey, event.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={
@@ -444,7 +458,7 @@ export const SessionComposer = memo(function SessionComposer({
                   aria-invalid={newSessionCwdInvalid}
                   aria-label="Workspace"
                   autoFocus
-                  className="min-w-0 flex-1 bg-transparent font-mono text-xs text-ink outline-none placeholder:text-ink-tertiary"
+                  className="min-w-0 flex-1 bg-transparent font-mono text-base text-ink outline-none placeholder:text-ink-tertiary sm:text-xs"
                   onChange={(event) => onSetNewSessionCwd(event.target.value)}
                   placeholder="~/project"
                   spellCheck={false}
