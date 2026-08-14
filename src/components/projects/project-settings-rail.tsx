@@ -222,7 +222,7 @@ function ProjectEditor({
       <input
         aria-label="Project name"
         autoFocus
-        className="min-h-9 rounded-md border border-hairline bg-surface-1 px-2.5 text-sm text-ink outline-none focus:border-primary-focus"
+        className="min-h-9 rounded-md border border-hairline bg-surface-1 px-2.5 text-base text-ink outline-none focus:border-primary-focus sm:text-sm"
         maxLength={100}
         onChange={(event) => setName(event.target.value)}
         placeholder="Project name"
@@ -232,7 +232,7 @@ function ProjectEditor({
         Parent
         <select
           aria-label="Parent project"
-          className="min-h-9 rounded-md border border-hairline bg-surface-1 px-2.5 text-sm text-ink outline-none focus:border-primary-focus"
+          className="min-h-9 rounded-md border border-hairline bg-surface-1 px-2.5 text-base text-ink outline-none focus:border-primary-focus sm:text-sm"
           onChange={(event) => setParentProjectId(event.target.value)}
           value={parentProjectId}
         >
@@ -313,7 +313,7 @@ function ProjectTreeRow({
           <DropdownMenuTrigger asChild>
             <Button
               aria-label={`Actions for ${node.project.display_name}`}
-              className="opacity-70 group-hover:opacity-100"
+              className="opacity-100 lg:opacity-70 lg:group-hover:opacity-100"
               icon={<MoreHorizontal className="h-4 w-4" />}
               size="icon"
               tooltip="Project actions"
