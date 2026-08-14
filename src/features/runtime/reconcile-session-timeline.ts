@@ -95,31 +95,34 @@ export function reconcileSessionTimeline(
     activeObserver.filter((event) => !isBusinessTurnId(event.turnId)),
     mergeEvents([...visibleHistory, ...visibleLegacyConversation]),
   );
-  const timeline = placeTurnsAtHistoryAnchors(
-    mergedHistory,
-    replacementByTurn,
-    runtimeTurnIds,
-  );
-  const visibleRuntime = mergeEvents([
-    ...visibleLegacyConversation,
-    ...visibleLegacyObserver,
-    ...runtimeTurnIds.flatMap((turnId) =>
+  const timeline = placeTurnsAtHistoryAnchors(mergedHistory, replacementByTurn);
+  const runtimeTurnEvents = new Map(
+    runtimeTurnIds.map((turnId) => [
+      turnId,
       composeTurn(
         [],
         conversationByTurn.get(turnId) ?? [],
         observerByTurn.get(turnId) ?? [],
       ),
-    ),
-  ]);
+    ]),
+  );
+  const runtimeTail = orderedRuntimeEvents(
+    runtimeTurnIds.filter((turnId) => !historyByTurn.has(turnId)),
+    replacementByTurn,
+    visibleLegacyConversation,
+    visibleLegacyObserver,
+  );
+  const visibleRuntime = orderedRuntimeEvents(
+    runtimeTurnIds,
+    runtimeTurnEvents,
+    visibleLegacyConversation,
+    visibleLegacyObserver,
+  );
 
   return {
     historyEvents: visibleHistory,
     liveEvents: visibleRuntime,
-    timeline: mergeEvents([
-      ...timeline,
-      ...visibleLegacyConversation,
-      ...visibleLegacyObserver,
-    ]),
+    timeline: mergeEvents([...timeline, ...runtimeTail]),
   };
 }
 
@@ -170,7 +173,6 @@ function orderedRuntimeTurnIds(
 function placeTurnsAtHistoryAnchors(
   historyEvents: SessionEvent[],
   replacementByTurn: Map<string, SessionEvent[]>,
-  runtimeTurnIds: string[],
 ) {
   const timeline: SessionEvent[] = [];
   const placedTurnIds = new Set<string>();
@@ -192,15 +194,37 @@ function placeTurnsAtHistoryAnchors(
     }
   }
 
+  return timeline;
+}
+
+function orderedRuntimeEvents(
+  runtimeTurnIds: string[],
+  runtimeTurnEvents: Map<string, SessionEvent[]>,
+  legacyConversationEvents: SessionEvent[],
+  legacyObserverEvents: SessionEvent[],
+) {
+  const ordered: Array<{ event: SessionEvent; order: number }> = [];
+  let order = 0;
+
   for (const turnId of runtimeTurnIds) {
-    if (placedTurnIds.has(turnId)) {
-      continue;
+    for (const event of runtimeTurnEvents.get(turnId) ?? []) {
+      ordered.push({ event, order });
+      order += 1;
     }
-    timeline.push(...(replacementByTurn.get(turnId) ?? []));
-    placedTurnIds.add(turnId);
   }
 
-  return timeline;
+  for (const event of [...legacyConversationEvents, ...legacyObserverEvents]) {
+    ordered.push({ event, order });
+    order += 1;
+  }
+
+  ordered.sort(
+    (left, right) =>
+      left.event.createdAt.localeCompare(right.event.createdAt) ||
+      left.order - right.order,
+  );
+
+  return mergeEvents(ordered.map((item) => item.event));
 }
 
 export function latestRuntimeTurnId(events: SessionEvent[]) {

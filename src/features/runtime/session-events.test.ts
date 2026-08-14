@@ -270,6 +270,50 @@ describe("groupWorkstreamEvents", () => {
     ]);
   });
 
+  it("keeps a legacy thought chunk inside the active turn's work block", () => {
+    const events: SessionEvent[] = [
+      {
+        type: "tool_call",
+        id: "tool-1",
+        sessionId: "sess_1",
+        turnId: "turn_1",
+        name: "Read",
+        status: "running",
+        createdAt: "2026-06-26T12:00:01Z",
+      },
+      {
+        type: "progress",
+        id: "thought-legacy",
+        sessionId: "sess_1",
+        content: "Checking the result.",
+        streaming: true,
+        sessionUpdate: "agent_thought_chunk",
+        createdAt: "2026-06-26T12:00:02Z",
+      },
+      {
+        type: "tool_call",
+        id: "tool-2",
+        sessionId: "sess_1",
+        turnId: "turn_1",
+        name: "Edit",
+        status: "queued",
+        createdAt: "2026-06-26T12:00:03Z",
+      },
+    ];
+
+    expect(groupWorkstreamEvents(events)).toMatchObject([
+      {
+        type: "work_group",
+        id: "work_group:tool-1",
+        events: [
+          { id: "tool-1", turnId: "turn_1" },
+          { id: "thought-legacy", type: "progress" },
+          { id: "tool-2", turnId: "turn_1" },
+        ],
+      },
+    ]);
+  });
+
   it("does not render a turn footer while the current turn is still running", () => {
     const events: SessionEvent[] = [
       {
