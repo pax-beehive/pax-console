@@ -22,6 +22,15 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useConsoleStore } from "@/stores/console-store";
 import { SessionComposer } from "./session-composer";
 
+class MockVisualViewport extends EventTarget {
+  height = 900;
+  offsetTop = 0;
+}
+
+const mockVisualViewport = new MockVisualViewport();
+const scrollIntoViewMock = vi.fn();
+const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+
 beforeAll(() => {
   vi.stubGlobal(
     "ResizeObserver",
@@ -31,14 +40,39 @@ beforeAll(() => {
       unobserve() {}
     },
   );
+  vi.stubGlobal("visualViewport", mockVisualViewport);
+  Object.defineProperty(window, "innerHeight", {
+    configurable: true,
+    value: 900,
+  });
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    value: 390,
+  });
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+    configurable: true,
+    value: scrollIntoViewMock,
+  });
 });
 
 afterAll(() => {
+  if (originalScrollIntoView) {
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: originalScrollIntoView,
+    });
+  } else {
+    // @ts-expect-error jsdom may not define scrollIntoView by default.
+    delete HTMLElement.prototype.scrollIntoView;
+  }
   vi.unstubAllGlobals();
 });
 
 afterEach(() => {
   cleanup();
+  mockVisualViewport.height = 900;
+  mockVisualViewport.offsetTop = 0;
+  scrollIntoViewMock.mockReset();
   useConsoleStore.setState({ composerDrafts: {} });
 });
 
@@ -64,7 +98,6 @@ describe("SessionComposer", () => {
           newSessionWorkspaceOpen={false}
           onAddAttachments={async () => undefined}
           onDeleteQueuedTurn={vi.fn()}
-          onOpenArtifacts={vi.fn()}
           onRemoveAttachment={vi.fn()}
           onSetNewSessionCwd={vi.fn()}
           onSetNewSessionWorkspaceOpen={vi.fn()}
@@ -92,9 +125,7 @@ describe("SessionComposer", () => {
     expect(
       screen.getByPlaceholderText("Send an end-to-end encrypted message"),
     ).toBeVisible();
-    expect(
-      screen.getByRole("button", { name: "Add files or context" }),
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Upload files" })).toBeDisabled();
   });
 
   it("keeps the new-session workspace input usable on desktop", () => {
@@ -117,7 +148,6 @@ describe("SessionComposer", () => {
           newSessionWorkspaceOpen
           onAddAttachments={async () => undefined}
           onDeleteQueuedTurn={vi.fn()}
-          onOpenArtifacts={vi.fn()}
           onRemoveAttachment={vi.fn()}
           onSetNewSessionCwd={vi.fn()}
           onSetNewSessionWorkspaceOpen={vi.fn()}
@@ -140,6 +170,72 @@ describe("SessionComposer", () => {
       "basis-full",
       "sm:min-w-64",
       "sm:max-w-96",
+    );
+  });
+
+  it("uses touch-friendly composer sizing and lifts itself above the mobile keyboard", async () => {
+    render(
+      <TooltipProvider>
+        <SessionComposer
+          activeAgentId="agent_1"
+          activeNodeId="node_1"
+          approvalMode="manual"
+          approvalModePending={false}
+          attachmentError={null}
+          attachmentUploadPending={false}
+          attachments={[]}
+          currentSessionId="sess_1"
+          deleteQueuedTurnPending={false}
+          draftKey="sess_1"
+          isNewSession={false}
+          isTurnRunning={false}
+          newSessionCwd=""
+          newSessionCwdInvalid={false}
+          newSessionWorkspaceOpen={false}
+          onAddAttachments={async () => undefined}
+          onDeleteQueuedTurn={vi.fn()}
+          onRemoveAttachment={vi.fn()}
+          onSetNewSessionCwd={vi.fn()}
+          onSetNewSessionWorkspaceOpen={vi.fn()}
+          onSteer={async () => true}
+          onStop={vi.fn()}
+          onSubmitDraft={async () => true}
+          onToggleApprovalMode={vi.fn()}
+          onUpdateQueuedTurn={async () => true}
+          queueTurnPending={false}
+          queuedTurn={null}
+          showAdminFeatures={false}
+          steerTurnPending={false}
+          stopTurnPending={false}
+          updateQueuedTurnPending={false}
+        />
+      </TooltipProvider>,
+    );
+
+    const textarea = screen.getByPlaceholderText("Send a prompt to this agent");
+    const form = textarea.closest("form") as HTMLFormElement;
+    expect(textarea).toHaveClass("text-base", "sm:text-sm");
+    expect(textarea).toHaveAttribute("enterkeyhint", "send");
+    expect(form).toHaveStyle({
+      paddingBottom: "calc(max(0.75rem, env(safe-area-inset-bottom)) + 0px)",
+    });
+
+    fireEvent.focus(textarea);
+    mockVisualViewport.height = 620;
+    mockVisualViewport.dispatchEvent(new Event("resize"));
+
+    await waitFor(() =>
+      expect(form).toHaveStyle({
+        paddingBottom:
+          "calc(max(0.75rem, env(safe-area-inset-bottom)) + 280px)",
+      }),
+    );
+    fireEvent.blur(textarea);
+
+    await waitFor(() =>
+      expect(form).toHaveStyle({
+        paddingBottom: "calc(max(0.75rem, env(safe-area-inset-bottom)) + 0px)",
+      }),
     );
   });
 
@@ -173,7 +269,6 @@ describe("SessionComposer", () => {
           newSessionWorkspaceOpen={false}
           onAddAttachments={async () => undefined}
           onDeleteQueuedTurn={vi.fn()}
-          onOpenArtifacts={vi.fn()}
           onRemoveAttachment={vi.fn()}
           onSetNewSessionCwd={vi.fn()}
           onSetNewSessionWorkspaceOpen={vi.fn()}
@@ -194,19 +289,15 @@ describe("SessionComposer", () => {
 
     const textarea = screen.getByPlaceholderText("Send a prompt to this agent");
     expect(screen.queryByLabelText("Open artifacts")).not.toBeInTheDocument();
-    const addButton = screen.getByRole("button", {
-      name: "Add files or context",
-    });
+    const addButton = screen.getByRole("button", { name: "Upload files" });
     expect(
-      screen.queryByRole("menuitem", { name: "Attach files" }),
+      screen.queryByRole("menuitem", { name: "Upload" }),
     ).not.toBeInTheDocument();
     await userEvent.click(addButton);
     expect(
-      screen.getByRole("menuitem", { name: "Attach files" }),
+      screen.getByRole("menuitem", { name: "Upload" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("menuitem", { name: "Open artifacts" }),
-    ).toBeInTheDocument();
+    expect(screen.queryByText("Open artifacts")).not.toBeInTheDocument();
     expect(
       screen.queryByLabelText("Voice input is not available yet"),
     ).not.toBeInTheDocument();
@@ -221,9 +312,7 @@ describe("SessionComposer", () => {
     expect(timelineRenderCount).toBe(1);
   });
 
-  it("opens artifacts from the shared add menu", async () => {
-    const onOpenArtifacts = vi.fn();
-
+  it("renders auto approve as an icon toggle with an explanation", async () => {
     render(
       <TooltipProvider>
         <SessionComposer
@@ -244,7 +333,6 @@ describe("SessionComposer", () => {
           newSessionWorkspaceOpen={false}
           onAddAttachments={async () => undefined}
           onDeleteQueuedTurn={vi.fn()}
-          onOpenArtifacts={onOpenArtifacts}
           onRemoveAttachment={vi.fn()}
           onSetNewSessionCwd={vi.fn()}
           onSetNewSessionWorkspaceOpen={vi.fn()}
@@ -263,19 +351,75 @@ describe("SessionComposer", () => {
       </TooltipProvider>,
     );
 
-    await userEvent.click(
-      screen.getByRole("button", { name: "Add files or context" }),
+    const approvalToggle = screen.getByRole("button", {
+      name: "Ask before running tools",
+    });
+    expect(approvalToggle).toHaveAttribute("aria-pressed", "false");
+    expect(approvalToggle).not.toHaveTextContent("Ask before tools");
+    await userEvent.click(approvalToggle);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "Ask before running tools",
     );
-    expect(
-      screen.getByRole("menuitem", { name: "Attach files" }),
-    ).toBeInTheDocument();
-    await userEvent.click(
-      screen.getByRole("menuitem", { name: "Open artifacts" }),
+  });
+
+  it("keeps running-turn actions as labelled icon controls", () => {
+    render(
+      <TooltipProvider>
+        <SessionComposer
+          activeAgentId="agent_1"
+          activeNodeId="node_1"
+          approvalMode="manual"
+          approvalModePending={false}
+          attachmentError={null}
+          attachmentUploadPending={false}
+          attachments={[]}
+          currentSessionId="sess_1"
+          deleteQueuedTurnPending={false}
+          draftKey="sess_1"
+          isNewSession={false}
+          isTurnRunning
+          newSessionCwd=""
+          newSessionCwdInvalid={false}
+          newSessionWorkspaceOpen={false}
+          onAddAttachments={async () => undefined}
+          onDeleteQueuedTurn={vi.fn()}
+          onRemoveAttachment={vi.fn()}
+          onSetNewSessionCwd={vi.fn()}
+          onSetNewSessionWorkspaceOpen={vi.fn()}
+          onSteer={async () => true}
+          onStop={vi.fn()}
+          onSubmitDraft={async () => true}
+          onToggleApprovalMode={vi.fn()}
+          onUpdateQueuedTurn={async () => true}
+          queueTurnPending={false}
+          queuedTurn={null}
+          readOnlyWorkspace="~/pax"
+          showAdminFeatures={false}
+          steerTurnPending={false}
+          stopTurnPending={false}
+          updateQueuedTurnPending={false}
+        />
+      </TooltipProvider>,
     );
 
-    expect(onOpenArtifacts).toHaveBeenCalledOnce();
     expect(
-      screen.queryByRole("menuitem", { name: "Open artifacts" }),
+      screen.getByRole("button", { name: "Ask before running tools" }),
+    ).not.toHaveTextContent("Ask before tools");
+    expect(screen.getByText("~/pax").parentElement).toHaveClass(
+      "basis-full",
+      "sm:basis-auto",
+    );
+    expect(
+      screen.getByRole("button", { name: "Queue after current turn" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Steer with this prompt" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Stop current turn" }),
+    ).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: "Send prompt" }),
     ).not.toBeInTheDocument();
   });
 
@@ -301,7 +445,6 @@ describe("SessionComposer", () => {
           newSessionWorkspaceOpen={false}
           onAddAttachments={async () => undefined}
           onDeleteQueuedTurn={vi.fn()}
-          onOpenArtifacts={vi.fn()}
           onRemoveAttachment={vi.fn()}
           onSelectPermissionChoice={onSelectPermissionChoice}
           onSetNewSessionCwd={vi.fn()}

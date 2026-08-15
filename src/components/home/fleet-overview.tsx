@@ -66,6 +66,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { TruncatedText } from "@/components/ui/text";
 import { Tooltip } from "@/components/ui/tooltip";
+import { useMobileComposerKeyboardInset } from "@/lib/use-mobile-composer-keyboard-inset";
 import {
   completeUserAttachment,
   createProjectTarget,
@@ -188,6 +189,8 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const showAdminFeatures = canSeeAdminFeatures(user, previewAsUser);
   const searchParams = useSearchParams();
   const composerFileInputRef = useRef<HTMLInputElement>(null);
+  const composerFormRef = useRef<HTMLFormElement>(null);
+  const composerContentScrollRef = useRef<HTMLDivElement>(null);
   const persistedTargetSessionIdsRef = useRef(new Set<string>());
   const canonicalUrlSessionId = searchParams.get("session_id") ?? "";
   const legacyUrlSessionId = searchParams.get("sessionId") ?? "";
@@ -219,6 +222,10 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [mobileComposerOpen, setMobileComposerOpen] = useState(true);
   const [mobileRailOpen, setMobileRailOpen] = useState(false);
+  const { composerPaddingStyle, handleBlurCapture, handleFocusCapture } =
+    useMobileComposerKeyboardInset(composerFormRef, {
+      scrollRootRef: composerContentScrollRef,
+    });
   const [dismissedDeckSession, setDismissedDeckSession] = useState<{
     index: number;
     sessionId: string;
@@ -994,9 +1001,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 : "bg-canvas",
             )}
           >
-            {secureComposerActive && (
-              <SecureModeActivation showStatus={false} />
-            )}
+            {secureComposerActive && <SecureModeActivation />}
             {activeSessionTargetPending ? (
               <section className="flex min-h-0 flex-1 items-center justify-center p-5 text-sm text-ink-tertiary">
                 Loading session...
@@ -1099,7 +1104,10 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                     </div>
                   </div>
                 </div>
-                <div className="min-h-0 flex-1 overflow-auto p-5">
+                <div
+                  className="min-h-0 flex-1 overflow-auto p-5"
+                  ref={composerContentScrollRef}
+                >
                   <div className="mx-auto grid w-full max-w-4xl gap-4">
                     {selectedProject && (
                       <section className="rounded-xl border border-accent/25 bg-accent/10 p-5">
@@ -1217,7 +1225,11 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                       ? "border-emerald-400/20 bg-emerald-500/[0.035] backdrop-blur-xl"
                       : "border-hairline bg-surface-1",
                   )}
+                  onBlurCapture={handleBlurCapture}
+                  onFocusCapture={handleFocusCapture}
                   onSubmit={submit}
+                  ref={composerFormRef}
+                  style={composerPaddingStyle}
                 >
                   <div
                     className={cn(
@@ -1287,7 +1299,8 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                       </div>
                     )}
                     <textarea
-                      className="max-h-40 min-h-12 w-full resize-none overflow-y-auto bg-transparent px-1 py-1 text-sm leading-5 text-ink outline-none [field-sizing:content] placeholder:text-ink-tertiary"
+                      className="max-h-40 min-h-12 w-full resize-none overflow-y-auto bg-transparent px-1 py-1 text-base leading-6 text-ink outline-none [field-sizing:content] placeholder:text-ink-tertiary sm:text-sm sm:leading-5"
+                      enterKeyHint="send"
                       onKeyDown={handleComposerKeyDown}
                       onChange={(event) => setDraft(event.target.value)}
                       placeholder={
@@ -1298,11 +1311,11 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                       rows={2}
                       value={draft}
                     />
-                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <div className="flex min-w-0 flex-wrap items-center gap-1 sm:gap-2">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button
-                            aria-label="Add files or context"
+                            aria-label="Upload files"
                             disabled={
                               composerAttachmentUploadPending ||
                               newSessionTransport === "e2ee"
@@ -1318,7 +1331,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                             tooltip={
                               newSessionTransport === "e2ee"
                                 ? "Attachments are not supported in encrypted sessions yet"
-                                : "Add files or context"
+                                : "Upload files"
                             }
                             type="button"
                             variant="ghost"
@@ -1326,7 +1339,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent
                           align="start"
-                          className="w-52"
+                          className="w-36"
                           side="top"
                         >
                           <DropdownMenuItem
@@ -1335,32 +1348,25 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                             }
                           >
                             <Paperclip className="h-4 w-4" />
-                            Attach files
+                            Upload
                           </DropdownMenuItem>
-                          {showAdminFeatures && (
-                            <DropdownMenuItem
-                              disabled={!selectedInquiry}
-                              onSelect={() => {
-                                if (selectedInquiry) {
-                                  setComposerMode("summarize-note");
-                                  setAttachmentName("summarize note");
-                                }
-                              }}
-                            >
-                              <Paperclip className="h-4 w-4" />
-                              Summarize with note
-                            </DropdownMenuItem>
-                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
-                      <label className="order-first inline-flex min-h-9 min-w-0 basis-full items-center gap-2 rounded-lg border border-hairline bg-canvas px-2.5 text-sm text-ink-muted focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/25 sm:order-none sm:min-w-48 sm:max-w-64 sm:basis-auto">
+                      <label
+                        className={cn(
+                          "inline-flex min-h-9 min-w-0 items-center gap-2 rounded-lg border border-hairline bg-canvas px-2.5 text-sm text-ink-muted focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/25 sm:w-48",
+                          selectedProjectId || newSessionWorkspaceOpen
+                            ? "basis-full sm:min-w-48 sm:basis-auto"
+                            : "w-24 max-w-[45vw]",
+                        )}
+                      >
                         <Folder className="h-4 w-4 shrink-0" />
-                        <span className="shrink-0 text-xs font-medium text-ink-tertiary">
+                        <span className="hidden shrink-0 text-xs font-medium text-ink-tertiary sm:inline">
                           Project
                         </span>
                         <select
                           aria-label="Project"
-                          className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none"
+                          className="min-w-0 flex-1 bg-transparent text-base text-ink outline-none sm:text-sm"
                           onChange={(event) => {
                             const projectId = event.target.value;
                             setSelectedProjectId(projectId);
@@ -1416,7 +1422,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                             aria-invalid={newSessionCwdInvalid}
                             aria-label="Workspace"
                             autoFocus
-                            className="min-w-0 flex-1 bg-transparent font-mono text-xs text-ink outline-none placeholder:text-ink-tertiary"
+                            className="min-w-0 flex-1 bg-transparent font-mono text-base text-ink outline-none placeholder:text-ink-tertiary sm:text-xs"
                             list={
                               suggestedProjectTargets.length > 0
                                 ? "project-workspace-targets"
@@ -1462,33 +1468,34 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                               : `New workspace · will be saved to ${selectedProject.display_name}`}
                           </div>
                         )}
-                      <button
+                      <Button
                         aria-label="Use end-to-end encryption"
                         aria-pressed={newSessionTransport === "e2ee"}
                         className={cn(
-                          "inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg border px-2.5 text-sm transition-all duration-300",
+                          "transition-all duration-300",
                           newSessionTransport === "e2ee"
                             ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
-                            : "border-transparent text-ink-subtle hover:bg-surface-3 hover:text-ink",
+                            : "text-ink-subtle",
                         )}
                         disabled={composerAttachments.length > 0}
+                        icon={<LockKeyhole className="h-4 w-4" />}
                         onClick={() =>
                           setNewSessionTransport((transport) =>
                             transport === "e2ee" ? "manager" : "e2ee",
                           )
                         }
-                        title={
+                        size="icon"
+                        tooltip={
                           composerAttachments.length > 0
                             ? "Remove attachments before enabling encryption"
-                            : "Encrypt payloads between this browser and paxd"
+                            : newSessionTransport === "e2ee"
+                              ? "End-to-end encryption on · tap to turn off"
+                              : "Encrypt between this browser and paxd · tap to turn on"
                         }
+                        tooltipOnClick
                         type="button"
-                      >
-                        <LockKeyhole className="h-4 w-4" />
-                        <span className="whitespace-nowrap text-xs sm:text-sm">
-                          {secureComposerActive ? "Secure mode" : "Encrypted"}
-                        </span>
-                      </button>
+                        variant="ghost"
+                      />
                       <SessionPermissionSelector
                         catalog={permissionCatalogQuery.data}
                         choices={newSessionPermissionChoices}

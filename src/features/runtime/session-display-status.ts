@@ -1,6 +1,6 @@
 import type { ConversationRunStatus } from "./use-conversation-run";
 
-export type SessionDisplayStatus = ConversationRunStatus;
+export type SessionDisplayStatus = ConversationRunStatus | "unknown";
 
 export function sessionDisplayStatus(
   runtimeStatus?: string,
@@ -26,6 +26,9 @@ export function sessionDisplayStatus(
   }
   if (runtimeStatus === "running") {
     return "streaming";
+  }
+  if (runtimeStatus === "unknown") {
+    return "unknown";
   }
   return "idle";
 }

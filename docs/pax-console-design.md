@@ -23,6 +23,10 @@ The Home new-session composer also has an explicit `Encrypted` toggle. It is
 off by default. When enabled, the workbench verifies local key availability,
 waits for encrypted `session/new` confirmation, and then sends the first prompt;
 it never silently falls back to the plaintext runtime.
+Encrypted event plaintext includes the paxd-projected `turn_id` alongside its
+ACP frame batch. Live normalized events and canonical encrypted history share
+that ID so the normal turn reconciliation path suppresses overlapping history
+snapshots while a turn is streaming.
 The UI renders normalized agent events.
 Cloudflare Access owns identity.
 PAX Manager owns permissions and resources.
@@ -482,6 +486,12 @@ snapshot to reconcile. The overflow action **Reset stale status** posts the
 current turn instance ID to the runtime reset endpoint after a non-cancellation
 warning, then invalidates detail and list queries. A 30-second query interval
 is only a disconnected client fallback.
+The canonical status set also includes `unknown`. Manager enters it only after
+the node-control reconnect grace expires, preserving the turn instance ID.
+Unknown is not idle: the workbench keeps prompt submission blocked until a
+reconnect snapshot or explicit reset restores authority. Encrypted workbenches
+use the same server status and treat their local decrypted stream only as an
+owned-turn overlay.
 
 A recoverable `/conversation` SSE transport failure keeps the owned run
 displayed as `running` and enables the session `/events` observer immediately,
@@ -922,6 +932,11 @@ navigation section, and tab order stays
 stable while background agents update. Long press starts drag reordering
 without allowing browser text selection; a normal horizontal gesture still
 scrolls the strip. Only the selected tab mounts the full workbench.
+
+The mobile Session tools header is a disclosure: it starts as a compact row
+with the Session name plus security/run state, expands in place to the existing
+Node, Agent, rename, runtime, and side-panel controls, and collapses again from
+the upward chevron. Desktop keeps the complete header visible.
 
 Recommended layout:
 

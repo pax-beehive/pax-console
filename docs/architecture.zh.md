@@ -46,6 +46,12 @@ Browser --encrypted command/HTTP--> 任意 Manager
 - `root-key-store.ts` 在浏览器 IndexedDB 中按 agent 保存开发阶段手工共享的
   root key。Settings / Security 提供保存和删除入口，key 不经过 Manager API。
 
+paxd 在解密并接受 `session/prompt` 时按 prompt request 建立稳定 `turn_id`，并在
+encrypted event plaintext 中以 `{ turn_id, frames }` 返回；canonical encrypted
+history 使用同一个 ID。Console 解密后把该 ID 注入所有 live `SessionEvent`，并将
+本地 optimistic `pending-turn:*` 重绑定到真实 turn，使实时内容在运行期间接管该轮
+agent projection，durable `turn_done` 到达后再由 history 接管，避免两份重复渲染。
+
 浏览器端接口为：
 
 ```txt
@@ -245,7 +251,11 @@ src/components/home/
   composer 分层。点击 tab 直接切换，关闭 tab 提供 Undo，但不会 archive/delete
   Session，也不会 stop/cancel 后台 agent。工作集按用户只在 localStorage 保存有序
   session_id，标题和 run status 仍来自 TanStack Query；同一时间只挂载当前
-  SessionWorkbench。手机全局 Topbar 同时提供等价于浏览器刷新按钮的 hard reload。
+  SessionWorkbench。Session tools header 在手机端默认折叠为只显示 Session 名称、
+  加密状态和运行状态的紧凑行；点击后展开原有 Node / Agent、重命名、runtime actions
+  和 side panel 入口，再点击向上箭头收回。该行为由共用 SessionWorkbench 承载，
+  因而 Home 内嵌和独立 Session 路由保持一致，桌面端仍始终显示完整 header。
+  手机全局 Topbar 同时提供等价于浏览器刷新按钮的 hard reload。
   Android 预览包使用 package id `net.paxtech.console` 的 Bubblewrap TWA；网页 manifest
   位于 `public/manifest.webmanifest`，签名证书指纹位于
   `public/.well-known/assetlinks.json`。两者随现有 `https://ws.paxtech.net` 的正常
@@ -361,6 +371,8 @@ status / count pill
 
 按钮和搜索框
   优先使用 src/components/ui 下的 Button 和 SearchBox，避免每个页面重新手写尺寸。
+  图标 toggle 需要在手机点按后也显示说明时，使用 Button 的 tooltipOnClick；
+  同时保留 aria-label 描述动作、aria-pressed 描述状态。
   Button 使用 asChild 且同时带 icon 时，由 primitive 内部的 Radix Slottable
   标记真正承接 props 的单个 React element；调用方仍需提供一个元素（例如 a）作为 child。
 
@@ -790,7 +802,7 @@ manager 负责代理 ACP initialize / session/new / session/prompt。续聊时�
 已有且属于当前用户、URL 中 node/agent 下的 `sess_*`，并且后端已有 native id 绑定。
 
 Session 的持久化运行状态只有一个权威来源：REST Session 对象中的
-`runtime_status`（`idle` / `running` / `waiting_approval`）。列表、详情、Home、
+`runtime_status`（`idle` / `running` / `waiting_approval` / `unknown`）。列表、详情、Home、
 移动端 activity dot 都只能读取该字段，不能回退到 `status`、`run_status`、ACP
 frame、observer 状态或 agent 在线状态。当前窗口明确提交 conversation turn 后，
 workbench badge 可以用该窗口拥有的本地状态乐观覆盖为 `running` 或
@@ -799,6 +811,11 @@ workbench badge 可以用该窗口拥有的本地状态乐观覆盖为 `running`
 刷新。该本地状态同时负责当前窗口的 composer、stop、queue 和流式交互，但不会写成
 或冒充持久化状态。
 Session query 仅保留 30 秒低频轮询作为断连兜底。
+node-control 断开后的 60 秒 grace 内保留最后一次运行状态；如果仍未重连，Manager
+把活跃状态改为 `unknown`，但保留 turn instance id。`unknown` 不能等同于 idle，
+workbench 必须继续锁住 composer，直到重连后的全量 snapshot 或显式 reset 完成校准。
+E2EE workbench 同样以该服务端状态为准，本地解密流只能覆盖自己拥有的 turn，刷新后
+不能用本地初始化的 idle 覆盖服务端 running 或 unknown。
 
 `/conversation` SSE 的可恢复 transport error 不等于 turn error：当前 workbench
 保持 `running` 展示，并立即启用 Session `/events` observer 接管，即使 running

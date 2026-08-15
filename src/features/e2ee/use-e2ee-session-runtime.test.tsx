@@ -4,6 +4,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { EncryptedEventContext } from "./transport";
 import { useE2EESessionRuntime } from "./use-e2ee-session-runtime";
 
 const mocks = vi.hoisted(() => ({
@@ -23,13 +24,17 @@ vi.mock("./transport", () => ({
 describe("useE2EESessionRuntime", () => {
   let observerOptions:
     | {
-        onFrame: (frame: unknown) => void | Promise<void>;
+        onFrame: (
+          frame: unknown,
+          context: EncryptedEventContext,
+        ) => void | Promise<void>;
         signal?: AbortSignal;
       }
     | undefined;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    observerOptions = undefined;
     mocks.loadRootKey.mockResolvedValue(new Uint8Array(32).fill(7));
     mocks.loadEncryptedSessionHistory.mockResolvedValue({
       messages: [],
@@ -37,7 +42,10 @@ describe("useE2EESessionRuntime", () => {
     });
     mocks.observeEncryptedEvents.mockImplementation(
       (options: {
-        onFrame: (frame: unknown) => void | Promise<void>;
+        onFrame: (
+          frame: unknown,
+          context: EncryptedEventContext,
+        ) => void | Promise<void>;
         signal?: AbortSignal;
       }) =>
         new Promise<number>((resolve) => {
@@ -88,11 +96,14 @@ describe("useE2EESessionRuntime", () => {
     );
 
     await act(async () => {
-      await observerOptions?.onFrame({
-        id: frame.id,
-        jsonrpc: "2.0",
-        result: { sessionId: "session_1" },
-      });
+      await observerOptions?.onFrame(
+        {
+          id: frame.id,
+          jsonrpc: "2.0",
+          result: { sessionId: "session_1" },
+        },
+        {},
+      );
       await bootstrap;
     });
     expect(result.current.status).toBe("done");
@@ -140,6 +151,104 @@ describe("useE2EESessionRuntime", () => {
     ]);
   });
 
+  it("adopts the encrypted live turn for optimistic and streamed events", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(
+      () =>
+        useE2EESessionRuntime({
+          agentId: "agent_1",
+          enabled: true,
+          sessionId: "session_1",
+          userId: "user_1",
+        }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.rootKeyAvailable).toBe(true));
+    await waitFor(() => expect(observerOptions).toBeDefined());
+    await act(async () => {
+      await result.current.sendMessage("private prompt");
+    });
+
+    await act(async () => {
+      await observerOptions?.onFrame(
+        {
+          jsonrpc: "2.0",
+          method: "session/update",
+          params: {
+            sessionId: "native_1",
+            update: {
+              sessionUpdate: "agent_thought_chunk",
+              content: { type: "text", text: "private thought" },
+            },
+          },
+        },
+        { turnId: "turn_1" },
+      );
+    });
+
+    expect(result.current.events).toMatchObject([
+      { type: "user_message", turnId: "turn_1" },
+      { type: "progress", turnId: "turn_1", content: "private thought" },
+    ]);
+  });
+
+  it("keeps long encrypted streaming answers intact instead of dropping early chunks", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(
+      () =>
+        useE2EESessionRuntime({
+          agentId: "agent_1",
+          enabled: true,
+          sessionId: "session_1",
+          userId: "user_1",
+        }),
+      { wrapper },
+    );
+    await waitFor(() => expect(observerOptions).toBeDefined());
+
+    await act(async () => {
+      for (let index = 0; index < 520; index += 1) {
+        await observerOptions?.onFrame(
+          {
+            jsonrpc: "2.0",
+            method: "session/update",
+            params: {
+              sessionId: "session_1",
+              update: {
+                sessionUpdate: "agent_message_chunk",
+                content: { type: "text", text: "你" },
+              },
+            },
+          },
+          { turnId: "turn_1" },
+        );
+      }
+    });
+
+    expect(result.current.events).toEqual([
+      {
+        type: "agent_message",
+        id: "session_1:agent_message_chunk:e2ee:session_1:turn_1",
+        sessionId: "session_1",
+        turnId: "turn_1",
+        content: "你".repeat(520),
+        streaming: true,
+        sessionUpdate: "agent_message_chunk",
+        createdAt: expect.any(String),
+      },
+    ]);
+  });
+
   it("clears live events when switching encrypted sessions on the same agent", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
@@ -171,7 +280,7 @@ describe("useE2EESessionRuntime", () => {
       },
     };
     await act(async () => {
-      await observerOptions?.onFrame(frame);
+      await observerOptions?.onFrame(frame, {});
     });
     expect(result.current.events).toHaveLength(1);
 

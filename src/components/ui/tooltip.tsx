@@ -1,7 +1,7 @@
 "use client";
 
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 export function TooltipProvider({ children }: { children: ReactNode }) {
@@ -15,17 +15,66 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
 export function Tooltip({
   children,
   content,
+  openOnClick = false,
 }: {
   children: ReactNode;
   content?: ReactNode;
+  openOnClick?: boolean;
 }) {
   if (!content) {
     return children;
   }
 
   return (
-    <TooltipPrimitive.Root>
-      <TooltipPrimitive.Trigger asChild>{children}</TooltipPrimitive.Trigger>
+    <TooltipWithContent content={content} openOnClick={openOnClick}>
+      {children}
+    </TooltipWithContent>
+  );
+}
+
+function TooltipWithContent({
+  children,
+  content,
+  openOnClick,
+}: {
+  children: ReactNode;
+  content: ReactNode;
+  openOnClick: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  function showClickTooltip() {
+    if (!openOnClick) {
+      return;
+    }
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+    }
+    setOpen(true);
+    closeTimerRef.current = setTimeout(() => setOpen(false), 1800);
+  }
+
+  return (
+    <TooltipPrimitive.Root
+      onOpenChange={openOnClick ? setOpen : undefined}
+      open={openOnClick ? open : undefined}
+    >
+      <TooltipPrimitive.Trigger
+        asChild
+        onClick={openOnClick ? showClickTooltip : undefined}
+      >
+        {children}
+      </TooltipPrimitive.Trigger>
       <TooltipPrimitive.Portal>
         <TooltipPrimitive.Content
           className={cn(
