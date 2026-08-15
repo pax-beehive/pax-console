@@ -8,6 +8,7 @@ import {
   ApiRecord,
   Agent,
   AgentOwnerInfo,
+  AgentPermissionCatalog,
   AgentInquiryResult,
   AgentApproval,
   AgentProfile,
@@ -603,6 +604,12 @@ export async function getUserSession(userId: string, sessionId: string) {
 
 export function getAgent(userId: string, agentId: string) {
   return apiFetch<Agent>(userPath(userId, `/agents/${agentId}`));
+}
+
+export function getAgentPermissionCatalog(userId: string, agentId: string) {
+  return apiFetch<AgentPermissionCatalog>(
+    userPath(userId, `/agents/${agentId}/permission-catalog`),
+  );
 }
 
 export function deleteAgent(userId: string, agentId: string) {
@@ -1814,6 +1821,23 @@ export function useAgent(userId?: string, agentId?: string) {
     queryKey: queryKeys.userAgent(userId ?? "pending", agentId ?? "pending"),
     queryFn: () => getAgent(userId as string, agentId as string),
     enabled: Boolean(userId && agentId),
+  });
+}
+
+export function useAgentPermissionCatalog(
+  userId?: string,
+  agentId?: string,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: queryKeys.agentPermissionCatalog(
+      userId ?? "pending",
+      agentId ?? "pending",
+    ),
+    queryFn: () =>
+      getAgentPermissionCatalog(userId as string, agentId as string),
+    enabled: Boolean(userId && agentId && enabled),
+    retry: false,
   });
 }
 

@@ -14,7 +14,7 @@ describe("handleConversationEnvelope", () => {
     let status: ConversationRunStatus = "streaming";
     let events: SessionEvent[] = [];
 
-    handleConversationEnvelope(
+    const envelopeError = handleConversationEnvelope(
       {
         type: "error",
         node_id: "node_1",
@@ -51,6 +51,7 @@ describe("handleConversationEnvelope", () => {
       message: "ACP request idle timed out: session/prompt",
     });
     expect(status).toBe("error");
+    expect(envelopeError).toBe(error);
     expect(events).toMatchObject([
       {
         type: "run_status",

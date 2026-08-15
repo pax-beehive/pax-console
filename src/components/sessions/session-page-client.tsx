@@ -24,6 +24,8 @@ export function SessionPageClient({
   const initialPromptKey = searchParams.get("promptKey") ?? undefined;
   const initialSessionCwd = searchParams.get("cwd") ?? undefined;
   const approvalMode = searchParams.get("approvalMode");
+  const initialPermissionChoiceId =
+    searchParams.get("permissionChoiceId") ?? undefined;
   const initialApprovalMode: SessionApprovalMode | undefined =
     approvalMode === "manual" || approvalMode === "auto_approve_all"
       ? approvalMode
@@ -34,11 +36,12 @@ export function SessionPageClient({
       {(user) => (
         <SessionWorkbench
           agentId={resolvedAgentId}
-          key={`${sessionId}:${resolvedNodeId ?? ""}:${resolvedAgentId ?? ""}:${newSessionNonce}:${initialPromptKey ?? ""}:${initialSessionCwd ?? ""}:${initialApprovalMode ?? ""}`}
+          key={`${sessionId}:${resolvedNodeId ?? ""}:${resolvedAgentId ?? ""}:${newSessionNonce}:${initialPromptKey ?? ""}:${initialSessionCwd ?? ""}:${initialApprovalMode ?? ""}:${initialPermissionChoiceId ?? ""}`}
           initialApprovalMode={initialApprovalMode}
           initialCwd={initialSessionCwd}
           initialPrompt={initialPrompt}
           initialPromptKey={initialPromptKey}
+          initialPermissionChoiceId={initialPermissionChoiceId}
           nodeId={resolvedNodeId}
           sessionId={sessionId}
           user={user}

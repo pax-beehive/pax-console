@@ -572,9 +572,27 @@ export type ArtifactPublicationContentState = {
 
 export type SessionApprovalMode = "manual" | "auto_approve_all";
 
+export type AgentPermissionChoice = {
+  choice_id: string;
+  label: string;
+  description?: string;
+  kind: "pax" | "agent";
+  risk?: string;
+  requires_confirmation?: boolean;
+};
+
+export type AgentPermissionCatalog = {
+  catalog_revision: number | string;
+  default_choice_id?: string;
+  source: "live" | "observed" | "profile" | "pax_only";
+  stale: boolean;
+  choices: AgentPermissionChoice[];
+};
+
 export type SessionPaxConfig = {
   cwd?: string;
   approval_mode?: SessionApprovalMode;
+  permission_choice_id?: string;
 };
 
 export type AgentProfile = {
