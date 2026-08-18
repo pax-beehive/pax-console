@@ -10,6 +10,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ARTIFACT_PREVIEW_BUDGET } from "./artifact-preview-data";
 import { ArtifactViewerShell } from "./artifact-viewer-shell";
 
 const artifact = {
@@ -25,6 +26,7 @@ const artifact = {
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
@@ -58,7 +60,11 @@ describe("ArtifactViewerShell", () => {
     });
     expect(fetchMock).toHaveBeenCalledWith(
       "https://signed.example/result.json",
-      { credentials: "omit" },
+      {
+        credentials: "omit",
+        redirect: "error",
+        referrerPolicy: "no-referrer",
+      },
     );
     expect(screen.getByRole("link", { name: "Open file" })).toHaveAttribute(
       "href",
@@ -160,5 +166,179 @@ describe("ArtifactViewerShell", () => {
 
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("loads URL previews into a blob URL and revokes each object URL", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([1, 2, 3]), {
+          headers: { "content-type": "image/png" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([4, 5, 6]), {
+          headers: { "content-type": "image/png" },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const createObjectURL = vi
+      .spyOn(URL, "createObjectURL")
+      .mockReturnValueOnce("blob:pax-preview-1")
+      .mockReturnValueOnce("blob:pax-preview-2");
+    const revokeObjectURL = vi
+      .spyOn(URL, "revokeObjectURL")
+      .mockImplementation(() => undefined);
+    const loadPreview = vi.fn(async () => ({
+      contentType: "image/png",
+      previewKind: "image" as const,
+      url: "https://signed.example/image?X-Amz-Signature=top-secret",
+    }));
+
+    const { unmount } = render(
+      <TooltipProvider>
+        <ArtifactViewerShell
+          artifact={{
+            ...artifact,
+            contentType: "image/png",
+            filename: "result.png",
+            sizeBytes: 3,
+          }}
+          loadPreview={loadPreview}
+        />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+
+    expect(await screen.findByRole("img", { name: "Result" })).toHaveAttribute(
+      "src",
+      "blob:pax-preview-1",
+    );
+    expect(screen.getByRole("link", { name: "Open file" })).toHaveAttribute(
+      "href",
+      "blob:pax-preview-1",
+    );
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "https://signed.example/image?X-Amz-Signature=top-secret",
+      {
+        credentials: "omit",
+        redirect: "error",
+        referrerPolicy: "no-referrer",
+      },
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    await waitFor(() => {
+      expect(createObjectURL).toHaveBeenCalledTimes(2);
+    });
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:pax-preview-1");
+
+    unmount();
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:pax-preview-2");
+  });
+
+  it.each([
+    ["application/pdf", "pdf", "result.pdf"],
+    ["text/html", "html", "result.html"],
+  ] as const)(
+    "keeps the signed %s URL out of the preview frame",
+    async (contentType, previewKind, filename) => {
+      const signedUrl =
+        "https://signed.example/file?X-Amz-Signature=top-secret";
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          new Response(new Uint8Array([1]), {
+            headers: { "content-type": contentType },
+          }),
+        ),
+      );
+      vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:pax-frame");
+      vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+      const { container } = render(
+        <TooltipProvider>
+          <ArtifactViewerShell
+            artifact={{ ...artifact, contentType, filename, sizeBytes: 1 }}
+            loadPreview={async () => ({
+              contentType,
+              previewKind,
+              url: signedUrl,
+            })}
+          />
+        </TooltipProvider>,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+
+      await waitFor(() => {
+        expect(container.querySelector("iframe")).toHaveAttribute(
+          "src",
+          "blob:pax-frame",
+        );
+      });
+      expect(container.innerHTML).not.toContain(signedUrl);
+      expect(container.innerHTML).not.toContain("top-secret");
+    },
+  );
+
+  it("shows a stable error when the binary preview transport fails", async () => {
+    const signedUrl = "https://signed.example/image?X-Amz-Signature=top-secret";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new TypeError(`Failed to fetch ${signedUrl}`)),
+    );
+
+    const { container } = render(
+      <TooltipProvider>
+        <ArtifactViewerShell
+          artifact={{
+            ...artifact,
+            contentType: "image/png",
+            filename: "result.png",
+          }}
+          loadPreview={async () => ({
+            contentType: "image/png",
+            previewKind: "image",
+            url: signedUrl,
+          })}
+        />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+
+    expect(
+      await screen.findByText("Error: Preview request failed"),
+    ).toBeInTheDocument();
+    expect(container.innerHTML).not.toContain(signedUrl);
+    expect(container.innerHTML).not.toContain("top-secret");
+  });
+
+  it("rejects a known oversized URL preview before requesting a descriptor", async () => {
+    const loadPreview = vi.fn();
+
+    render(
+      <TooltipProvider>
+        <ArtifactViewerShell
+          artifact={{
+            ...artifact,
+            contentType: "application/pdf",
+            filename: "large.pdf",
+            sizeBytes: ARTIFACT_PREVIEW_BUDGET.maxBlobBytes + 1,
+          }}
+          loadPreview={loadPreview}
+        />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+
+    expect(
+      await screen.findByText(
+        /too large to preview safely.*download it instead/i,
+      ),
+    ).toBeInTheDocument();
+    expect(loadPreview).not.toHaveBeenCalled();
   });
 });

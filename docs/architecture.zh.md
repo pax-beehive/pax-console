@@ -472,10 +472,13 @@ Knowledge
   UI 仍然通过 REST history 和 runtime events 渲染时间线。
 
 Attachments
-  Session composer 通过 /attachments 创建用户附件，浏览器按返回的 GCS
-  resumable upload ticket 直传文件，再调用 /attachments/{attachment_id}/complete
-  把状态变成 completed。真正发 prompt 时，前端把 attachment_id 放进
-  /conversation 的 content block；附件本身不绑定 agent。
+  Session composer 通过 /attachments 创建用户附件，浏览器按返回的
+  upload.protocol 分派上传：s3_presigned_put 对 ticket URL 直接 PUT 文件并原样
+  携带 ticket headers；write-once PUT 返回 412 时视为可能已落盘并继续 complete，
+  由 manager 的 HEAD 校验决定最终是否接受，其他非 2xx 仍失败；gcs_resumable 保留
+  旧的 initialize + session URL PUT 流程；未知协议在发请求前报错。成功后再调用
+  /attachments/{attachment_id}/complete 把状态变成 completed。真正发 prompt 时，
+  前端把 attachment_id 放进 /conversation 的 content block；附件本身不绑定 agent。
 
 Artifact publications
   Session timeline 识别 `message_type = "pax:artifact"`，从

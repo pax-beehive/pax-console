@@ -299,10 +299,14 @@ Collaboration and knowledge resources are normal user-scoped REST resources:
 
 /attachments
   User prompt attachments are input-only. Browser code creates an attachment,
-  starts the returned GCS resumable upload session directly from the browser,
-  uploads the file to GCS, completes it through the manager, and only then
-  references the returned `attachment_id` inside `/conversation` content
-  blocks. Attachments are not agent-bound.
+  dispatches the returned upload ticket by `upload.protocol`, completes it
+  through the manager, and only then references the returned `attachment_id`
+  inside `/conversation` content blocks. `s3_presigned_put` sends one direct
+  PUT with the exact ticket headers. A 412 from that write-once PUT is an
+  ambiguous stored success, so the browser continues to manager completion;
+  the manager's HEAD validation remains authoritative. Other non-2xx responses
+  fail. `gcs_resumable` retains the legacy initialize-then-PUT handshake.
+  Unknown protocols must fail before uploading. Attachments are not agent-bound.
 
 /artifact-publications/{publication_id} and
 /artifact-publications/{publication_id}/content/main

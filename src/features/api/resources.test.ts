@@ -66,11 +66,265 @@ const {
   updateProject,
   updateProjectTarget,
   updateTeamMemberRole,
+  uploadUserAttachmentFile,
   upgradeNodeDaemon,
 } = await import("./resources");
 
 afterEach(() => {
   apiFetch.mockReset();
+  vi.unstubAllGlobals();
+});
+
+describe("uploadUserAttachmentFile", () => {
+  it("uploads an S3 presigned ticket with the ticket headers", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(null, {
+        status: 204,
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const file = new File(["image"], "image.png", { type: "image/png" });
+    const ticketHeaders = {
+      "Content-Type": "image/png",
+      "x-amz-meta-sha256": "abc123",
+    };
+
+    await uploadUserAttachmentFile(
+      {
+        attachment: {
+          attachment_id: "att_1",
+          content_type: "image/png",
+          filename: "image.png",
+          upload_status: "pending",
+        },
+        upload: {
+          headers: ticketHeaders,
+          method: "PUT",
+          protocol: "s3_presigned_put",
+          url: "https://objects.example.test/presigned",
+        },
+      },
+      file,
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://objects.example.test/presigned");
+    expect(init).toMatchObject({
+      body: file,
+      credentials: "omit",
+      method: "PUT",
+      redirect: "error",
+      referrerPolicy: "no-referrer",
+    });
+    expect(init.headers).toBe(ticketHeaders);
+  });
+
+  it("redacts the signed URL when an S3 upload request fails", async () => {
+    const signedUrl =
+      "https://objects.example.test/private?X-Amz-Credential=client&X-Amz-Signature=top-secret";
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValue(new TypeError(`Failed to fetch ${signedUrl}`));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const upload = uploadUserAttachmentFile(
+      {
+        attachment: {
+          attachment_id: "att_private",
+          content_type: "image/png",
+          filename: "private.png",
+          upload_status: "pending",
+        },
+        upload: {
+          method: "PUT",
+          protocol: "s3_presigned_put",
+          url: signedUrl,
+        },
+      },
+      new File(["image"], "private.png", { type: "image/png" }),
+    );
+
+    await expect(upload).rejects.toThrow("Attachment upload request failed");
+    await expect(upload).rejects.not.toThrow(signedUrl);
+    await expect(upload).rejects.not.toThrow("top-secret");
+  });
+
+  it("treats S3 412 as an ambiguous stored success", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(null, {
+        status: 412,
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      uploadUserAttachmentFile(
+        {
+          attachment: {
+            attachment_id: "att_retry",
+            content_type: "image/png",
+            filename: "image.png",
+            upload_status: "pending",
+          },
+          upload: {
+            headers: { "Content-Type": "image/png" },
+            method: "PUT",
+            protocol: "s3_presigned_put",
+            url: "https://objects.example.test/presigned",
+          },
+        },
+        new File(["image"], "image.png", { type: "image/png" }),
+      ),
+    ).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects other non-2xx S3 upload responses", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(null, {
+        status: 409,
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      uploadUserAttachmentFile(
+        {
+          attachment: {
+            attachment_id: "att_conflict",
+            content_type: "image/png",
+            filename: "image.png",
+            upload_status: "pending",
+          },
+          upload: {
+            method: "PUT",
+            protocol: "s3_presigned_put",
+            url: "https://objects.example.test/presigned",
+          },
+        },
+        new File(["image"], "image.png", { type: "image/png" }),
+      ),
+    ).rejects.toThrow("Attachment upload failed with 409");
+  });
+
+  it("keeps the GCS resumable upload handshake compatible", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(null, {
+          headers: { Location: "https://storage.example.test/session" },
+          status: 201,
+        }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const file = new File(["text"], "notes.txt", { type: "text/plain" });
+
+    await uploadUserAttachmentFile(
+      {
+        attachment: {
+          attachment_id: "att_2",
+          content_type: "text/plain",
+          filename: "notes.txt",
+          upload_status: "pending",
+        },
+        upload: {
+          headers: { "x-goog-resumable": "start" },
+          method: "POST",
+          protocol: "gcs_resumable",
+          url: "https://storage.example.test/start",
+        },
+      },
+      file,
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://storage.example.test/start",
+      expect.objectContaining({
+        body: null,
+        credentials: "omit",
+        method: "POST",
+        redirect: "error",
+        referrerPolicy: "no-referrer",
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://storage.example.test/session",
+      expect.objectContaining({
+        body: file,
+        credentials: "omit",
+        method: "PUT",
+        redirect: "error",
+        referrerPolicy: "no-referrer",
+      }),
+    );
+  });
+
+  it("redacts a GCS resumable session URL when the storage request fails", async () => {
+    const sessionUrl =
+      "https://storage.example.test/session?upload_id=top-secret";
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(null, {
+          headers: { Location: sessionUrl },
+          status: 201,
+        }),
+      )
+      .mockRejectedValueOnce(new TypeError(`Failed to fetch ${sessionUrl}`));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const upload = uploadUserAttachmentFile(
+      {
+        attachment: {
+          attachment_id: "att_gcs_private",
+          content_type: "text/plain",
+          filename: "private.txt",
+          upload_status: "pending",
+        },
+        upload: {
+          method: "POST",
+          protocol: "gcs_resumable",
+          url: "https://storage.example.test/start?signature=start-secret",
+        },
+      },
+      new File(["text"], "private.txt", { type: "text/plain" }),
+    );
+
+    await expect(upload).rejects.toThrow("Attachment upload request failed");
+    await expect(upload).rejects.not.toThrow(sessionUrl);
+    await expect(upload).rejects.not.toThrow("top-secret");
+  });
+
+  it("rejects an unknown attachment upload protocol before making a request", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      uploadUserAttachmentFile(
+        {
+          attachment: {
+            attachment_id: "att_3",
+            filename: "unknown.bin",
+            upload_status: "pending",
+          },
+          upload: {
+            method: "PUT",
+            protocol: "unknown_protocol",
+            url: "https://objects.example.test/unknown",
+          },
+        },
+        new File(["data"], "unknown.bin"),
+      ),
+    ).rejects.toThrow(
+      'Unsupported attachment upload protocol "unknown_protocol".',
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("toPaxdConnectPreview", () => {

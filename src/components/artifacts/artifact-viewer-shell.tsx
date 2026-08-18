@@ -37,9 +37,11 @@ import {
 } from "./artifact-document";
 import {
   ARTIFACT_PREVIEW_BUDGET,
+  ArtifactPreviewTooLargeError,
   ArtifactPreviewText,
   parseCsvPreview,
   parseJsonlPreview,
+  readArtifactPreviewBlob,
   readArtifactPreviewText,
 } from "./artifact-preview-data";
 
@@ -70,7 +72,35 @@ export function ArtifactViewerShell({
   const [previewPending, setPreviewPending] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const autoLoadedArtifactRef = useRef<string | undefined>(undefined);
+  const previewObjectUrlRef = useRef<string | undefined>(undefined);
+  const previewRequestRef = useRef(0);
   const renderer = resolveArtifactRenderer(artifact, preview);
+
+  const revokePreviewObjectUrl = useCallback((url?: string) => {
+    if (!url) {
+      return;
+    }
+    try {
+      URL.revokeObjectURL(url);
+    } catch {
+      // Revocation is best-effort during refresh and component cleanup.
+    }
+  }, []);
+
+  const clearPreviewObjectUrl = useCallback(() => {
+    const current = previewObjectUrlRef.current;
+    previewObjectUrlRef.current = undefined;
+    revokePreviewObjectUrl(current);
+  }, [revokePreviewObjectUrl]);
+
+  useEffect(() => {
+    previewRequestRef.current += 1;
+    clearPreviewObjectUrl();
+    return () => {
+      previewRequestRef.current += 1;
+      clearPreviewObjectUrl();
+    };
+  }, [artifact.id, clearPreviewObjectUrl]);
 
   useEffect(() => {
     if (!fullscreen) {
@@ -97,25 +127,68 @@ export function ArtifactViewerShell({
       return;
     }
 
+    const requestId = ++previewRequestRef.current;
     setPreviewPending(true);
     setPreviewError(null);
     try {
+      assertUrlPreviewWithinBudget(artifact, resolveArtifactRenderer(artifact));
       const descriptor = await loadPreview();
       const resolved = resolveArtifactRenderer(artifact, descriptor);
+      assertUrlPreviewWithinBudget(artifact, resolved);
       if (resolved.dataSource === "text" && descriptor.url) {
         const text = await readArtifactPreviewText(descriptor.url);
+        if (requestId !== previewRequestRef.current) {
+          return;
+        }
+        clearPreviewObjectUrl();
         setPreview({ ...descriptor, ...text });
+      } else if (resolved.dataSource === "url" && descriptor.url) {
+        const blob = await readArtifactPreviewBlob(
+          descriptor.url,
+          ARTIFACT_PREVIEW_BUDGET.maxBlobBytes,
+          descriptor.contentType ?? artifact.contentType,
+        );
+        if (requestId !== previewRequestRef.current) {
+          return;
+        }
+
+        let objectUrl: string;
+        try {
+          objectUrl = URL.createObjectURL(blob);
+        } catch {
+          throw new Error("Preview response could not be prepared");
+        }
+        if (requestId !== previewRequestRef.current) {
+          revokePreviewObjectUrl(objectUrl);
+          return;
+        }
+
+        const previousObjectUrl = previewObjectUrlRef.current;
+        previewObjectUrlRef.current = objectUrl;
+        setPreview({ ...descriptor, url: objectUrl });
+        revokePreviewObjectUrl(previousObjectUrl);
       } else {
+        if (requestId !== previewRequestRef.current) {
+          return;
+        }
+        clearPreviewObjectUrl();
         setPreview(descriptor);
       }
     } catch (caught) {
+      if (requestId !== previewRequestRef.current) {
+        return;
+      }
+      clearPreviewObjectUrl();
+      setPreview(undefined);
       setPreviewError(
         caught instanceof Error ? caught : new Error(String(caught)),
       );
     } finally {
-      setPreviewPending(false);
+      if (requestId === previewRequestRef.current) {
+        setPreviewPending(false);
+      }
     }
-  }, [artifact, loadPreview]);
+  }, [artifact, clearPreviewObjectUrl, loadPreview, revokePreviewObjectUrl]);
 
   useEffect(() => {
     if (
@@ -359,6 +432,7 @@ function DocumentRenderer({
           alt={artifact.title}
           className="object-contain p-3"
           fill
+          referrerPolicy="no-referrer"
           sizes="(max-width: 1024px) 100vw, 960px"
           src={preview.url}
           unoptimized
@@ -373,6 +447,7 @@ function DocumentRenderer({
           "h-[38rem] w-full bg-white",
           standalone && "h-full min-h-[calc(100dvh-13rem)]",
         )}
+        referrerPolicy="no-referrer"
         src={preview.url}
         title={artifact.title}
       />
@@ -385,6 +460,7 @@ function DocumentRenderer({
           "h-[38rem] w-full bg-white",
           standalone && "h-full min-h-[calc(100dvh-13rem)]",
         )}
+        referrerPolicy="no-referrer"
         sandbox=""
         src={preview.url}
         title={artifact.title}
@@ -783,6 +859,21 @@ function artifactStatusTone(status: string) {
 
 function isArtifactAvailable(status: string) {
   return status === "available";
+}
+
+function assertUrlPreviewWithinBudget(
+  artifact: Pick<ArtifactDocument, "sizeBytes">,
+  renderer: Pick<ReturnType<typeof resolveArtifactRenderer>, "dataSource">,
+) {
+  if (
+    renderer.dataSource === "url" &&
+    artifact.sizeBytes !== undefined &&
+    artifact.sizeBytes > ARTIFACT_PREVIEW_BUDGET.maxBlobBytes
+  ) {
+    throw new ArtifactPreviewTooLargeError(
+      ARTIFACT_PREVIEW_BUDGET.maxBlobBytes,
+    );
+  }
 }
 
 function formatArtifactBytes(value: number) {

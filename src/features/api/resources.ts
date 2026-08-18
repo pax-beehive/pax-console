@@ -950,17 +950,63 @@ export function completeUserAttachment(userId: string, attachmentId: string) {
   );
 }
 
+async function fetchObjectStorage(
+  url: string,
+  init: RequestInit,
+  failureMessage: string,
+) {
+  try {
+    return await fetch(url, {
+      ...init,
+      credentials: "omit",
+      redirect: "error",
+      referrerPolicy: "no-referrer",
+    });
+  } catch {
+    throw new Error(failureMessage);
+  }
+}
+
 export async function uploadUserAttachmentFile(
   ticket: UserAttachmentUploadTicket,
   file: File,
 ) {
+  if (ticket.upload.protocol === "s3_presigned_put") {
+    const uploadResponse = await fetchObjectStorage(
+      ticket.upload.url,
+      {
+        body: file,
+        headers: ticket.upload.headers,
+        method: "PUT",
+      },
+      "Attachment upload request failed",
+    );
+
+    // With write-once presigned PUTs, 412 can mean an earlier attempt stored
+    // the object but its response was lost. The manager's complete endpoint
+    // performs the authoritative HEAD validation before accepting it.
+    if (!uploadResponse.ok && uploadResponse.status !== 412) {
+      throw new Error(`Attachment upload failed with ${uploadResponse.status}`);
+    }
+    return;
+  }
+
+  if (ticket.upload.protocol !== "gcs_resumable") {
+    throw new Error(
+      `Unsupported attachment upload protocol "${ticket.upload.protocol}".`,
+    );
+  }
+
   const initHeaders = new Headers(ticket.upload.headers);
-  const initResponse = await fetch(ticket.upload.url, {
-    body: null,
-    credentials: "omit",
-    headers: initHeaders,
-    method: ticket.upload.method,
-  });
+  const initResponse = await fetchObjectStorage(
+    ticket.upload.url,
+    {
+      body: null,
+      headers: initHeaders,
+      method: ticket.upload.method,
+    },
+    "Attachment upload initialization request failed",
+  );
 
   if (!initResponse.ok) {
     throw new Error(
@@ -981,12 +1027,15 @@ export async function uploadUserAttachmentFile(
     uploadHeaders.set("Content-Type", contentType);
   }
 
-  const uploadResponse = await fetch(sessionUrl, {
-    body: file,
-    credentials: "omit",
-    headers: uploadHeaders,
-    method: "PUT",
-  });
+  const uploadResponse = await fetchObjectStorage(
+    sessionUrl,
+    {
+      body: file,
+      headers: uploadHeaders,
+      method: "PUT",
+    },
+    "Attachment upload request failed",
+  );
 
   if (!uploadResponse.ok) {
     throw new Error(`Attachment upload failed with ${uploadResponse.status}`);
