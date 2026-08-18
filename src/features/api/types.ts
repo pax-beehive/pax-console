@@ -475,6 +475,7 @@ export type ArtifactUpload = {
 
 export type ArtifactUploadTicket = {
   upload_id: string;
+  protocol: string;
   method: "PUT" | string;
   url: string;
   bucket: string;
