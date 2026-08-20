@@ -91,13 +91,13 @@ intent，并通过 embedded workbench props 传递，不能靠“浏览器有 ke
 
 ## 当前本地开发链路
 
-本地浏览器不要直接访问 `app.paxtech.net` 的业务 API。这样容易遇到 CORS、Access cookie、WebSocket Origin 等问题。
+本地浏览器不要直接访问 `api.lakeward.net` 的业务 REST API。这样容易遇到 CORS、Access cookie 等问题。
 
 当前推荐链路是：
 
 ```txt
 Browser
-  -> https://console.paxtech.net
+  -> https://ws.lakeward.net
   -> Cloudflare Tunnel
   -> http://localhost:3000
   -> Next.js app
@@ -107,12 +107,12 @@ REST 请求走同源 proxy：
 
 ```txt
 Browser
-  -> https://console.paxtech.net/api/pax/api/v1/user/self/me
+  -> https://ws.lakeward.net/api/pax/api/v1/user/self/me
   -> src/app/api/pax/[...path]/route.ts
-  -> https://app.paxtech.net/api/v1/user/self/me
+  -> https://api.lakeward.net/api/v1/user/self/me
 ```
 
-这样浏览器只面对 `console.paxtech.net`，复杂的 Cloudflare Access cookie 转发集中在 Next route handler 里。
+这样浏览器 REST 只面对 `ws.lakeward.net`，复杂的 Cloudflare Access identity 转发集中在 Next route handler 里。直接 agent tunnel 则使用 `wss://api.lakeward.net`。
 
 ## 关键环境变量
 
@@ -121,7 +121,7 @@ Browser
 ```txt
 NEXT_PUBLIC_PAX_API_BASE_URL=/api/pax
 NEXT_PUBLIC_PAX_USER_SCOPE=self
-PAX_MANAGER_URL=https://app.paxtech.net
+PAX_MANAGER_URL=https://api.lakeward.net
 PAX_CF_AUTHORIZATION=<pnpm auth:local 自动写入>
 ```
 
@@ -129,18 +129,26 @@ PAX_CF_AUTHORIZATION=<pnpm auth:local 自动写入>
 
 ```txt
 NEXT_PUBLIC_PAX_API_BASE_URL
-  浏览器调用的 API base。默认应该是 /api/pax，不要让浏览器跨域直打 app.paxtech.net。
+  浏览器调用的 API base。默认应该是 /api/pax，不要让浏览器跨域直打 api.lakeward.net。
 
 NEXT_PUBLIC_PAX_USER_SCOPE
   当前用 self，让后端按 Cloudflare Access 身份解析当前用户。
 
 NEXT_PUBLIC_PAX_LOGOUT_URL
   顶栏「Sign out」跳转的地址，默认 /cdn-cgi/access/logout（Cloudflare Access
-  的同源登出端点，结束 console.paxtech.net 的 Access 会话）。仅当 console 由
+  的同源登出端点，结束 ws.lakeward.net 的 Access 会话）。仅当 console 由
   其它入口托管时才需要覆盖。
 
 PAX_MANAGER_URL
   Next server-side proxy 的上游 PAX Manager 地址。
+
+NEXT_PUBLIC_PAX_WS_BASE_URL
+  可选的浏览器 agent tunnel origin 覆盖；托管默认值为 wss://api.lakeward.net。
+
+PAX_ACCESS_APP_URL
+  可选的本地 Cloudflare Access 登录目标。auth:local 依次使用该值、
+  PAX_MANAGER_URL、https://api.lakeward.net，并把最终计算值作为
+  PAX_MANAGER_URL 写回 .env.local，不会硬编码覆盖显式的本地/替代地址。
 ```
 
 登出链路：顶栏右上角的用户邮箱是一个下拉触发器（`src/components/shell/topbar.tsx`
@@ -156,7 +164,8 @@ PAX_CF_AUTHORIZATION=<local-only CF_Authorization value>
 
 运行 `pnpm dev` 时会先通过 `cloudflared access` 获取本地 Access token
 并写入 `.env.local`，再启动 Next.js。也可以单独运行 `pnpm auth:local`
-刷新 token。注意不要提交真实 token。
+刷新 token。该脚本针对计算出的 API application URL 登录，并把同一个 URL 写入
+`PAX_MANAGER_URL`。注意不要提交真实 token。
 
 ### 连接本地 pax-manager
 
@@ -177,7 +186,7 @@ PAX_SKIP_AUTH_LOCAL=1 pnpm dev
 ```
 
 `PAX_SKIP_AUTH_LOCAL=1` 只是不运行 Cloudflare token 自动刷新，避免脚本把
-`.env.local` 改回远端 `https://app.paxtech.net`；它本身不会提供身份。
+`.env.local` 改回远端 `https://api.lakeward.net`；它本身不会提供身份。
 `src/app/api/pax/[...path]/route.ts` 仍会检查 `Cf-Access-Jwt-Assertion`、
 浏览器 cookie 或 `PAX_CF_AUTHORIZATION`，所以本地模式也要保留一个
 `PAX_CF_AUTHORIZATION`。如果本地 manager 仍校验 Cloudflare JWT，就填真实
@@ -258,7 +267,7 @@ src/components/home/
   手机全局 Topbar 同时提供等价于浏览器刷新按钮的 hard reload。
   Android 预览包使用 package id `net.paxtech.console` 的 Bubblewrap TWA；网页 manifest
   位于 `public/manifest.webmanifest`，签名证书指纹位于
-  `public/.well-known/assetlinks.json`。两者随现有 `https://ws.paxtech.net` 的正常
+  `public/.well-known/assetlinks.json`。两者随现有 `https://ws.lakeward.net` 的正常
   Console 发布上线，不需要第二套部署。Cloudflare Access 必须允许匿名读取
   `/.well-known/assetlinks.json`，Android 才能验证域名并隐藏 Custom Tab 地址栏。
 
@@ -502,7 +511,7 @@ Artifacts
 ```
 
 这些 API 仍然走浏览器同源 `/api/pax` proxy；不要从组件直连
-`https://app.paxtech.net`。
+`https://api.lakeward.net`。
 
 ## 当前 REST 数据流
 
@@ -576,7 +585,7 @@ Topbar
   使用 Button / SearchBox / TruncatedText，避免按钮和搜索框过宽。
 ```
 
-本地通过 `console.paxtech.net` 走 Cloudflare tunnel 时，浏览器或 Cloudflare 可能缓存 `/_next/static/chunks/*`。`next.config.ts` 对 `/_next/:path*` 设置了：
+本地通过 `ws.lakeward.net` 走 Cloudflare tunnel 时，浏览器或 Cloudflare 可能缓存 `/_next/static/chunks/*`。`next.config.ts` 对 `/_next/:path*` 设置了：
 
 ```txt
 Cache-Control: no-store, max-age=0
@@ -587,7 +596,7 @@ Cache-Control: no-store, max-age=0
 ## Cloud Run 部署
 
 生产部署推荐使用 Cloud Run 承载 Dockerized Next.js 服务，Cloudflare 继续负责
-`console.paxtech.net` 的 DNS、HTTPS、Access 和入口防护。
+`ws.lakeward.net` 的 DNS、HTTPS、Access 和入口防护。
 
 当前根目录 `Dockerfile` 使用 Next.js standalone output：
 
@@ -603,12 +612,15 @@ Cloud Run 环境变量应保持：
 ```txt
 NEXT_PUBLIC_PAX_API_BASE_URL=/api/pax
 NEXT_PUBLIC_PAX_USER_SCOPE=self
-PAX_MANAGER_URL=https://app.paxtech.net
+PAX_MANAGER_URL=https://api.lakeward.net
 ```
 
 生产环境不要固定设置 `PAX_CF_AUTHORIZATION`。浏览器应先经过 Cloudflare
-Access 访问 `console.paxtech.net`，Next route handler 再读取请求中的
+Access 访问 `ws.lakeward.net`，Next route handler 再读取请求中的
 `CF_Authorization` cookie 并转发给 PAX Manager。
+直接 agent tunnel 使用 `wss://api.lakeward.net`，依赖浏览器对 API hostname
+有效的 Cloudflare Access session；如需替代 origin，使用
+`NEXT_PUBLIC_PAX_WS_BASE_URL` 显式覆盖。
 
 ## 当前可交互路由
 
@@ -861,7 +873,7 @@ tunnel.sendUserMessage(paxSessionId, content)
 组件不要直接知道 ACP JSON-RPC 细节。runtime 内部会：
 
 ```txt
-1. 连接 wss://app.paxtech.net/api/v1/user/self/agents/{agent_id}/tunnel
+1. 连接 wss://api.lakeward.net/api/v1/user/self/agents/{agent_id}/tunnel
 2. initialize
 3. 如果后端返回 authMethods，则 authenticate
 4. 第一次发送前 session/new，得到 ACP/native session id
@@ -1018,21 +1030,21 @@ ACP/native session
 日常本地开发推荐：
 
 ```txt
-http://localhost:3000 -> Next.js app -> /api/pax proxy -> app.paxtech.net
+http://localhost:3000 -> Next.js app -> /api/pax proxy -> api.lakeward.net
 ```
 
 需要验证真实 Cloudflare Access 入口、cookie forwarding 或浏览器 WebSocket
 行为时，再使用 tunnel：
 
 ```txt
-https://console.paxtech.net -> Cloudflare Tunnel -> http://localhost:3000
+https://ws.lakeward.net -> Cloudflare Tunnel -> http://localhost:3000
 ```
 
 Next dev server 需要允许这个 origin：
 
 ```ts
 // next.config.ts
-allowedDevOrigins: ["console.paxtech.net", "*.console-dev.paxtech.net"];
+allowedDevOrigins: ["ws.lakeward.net", "*.console-dev.lakeward.net"];
 ```
 
 如果从另一台机器通过局域网访问 dev server，启动时通过逗号分隔的

@@ -6,7 +6,11 @@ const additionalDevOrigins = (process.env.PAX_ALLOWED_DEV_ORIGINS ?? "")
   .filter(Boolean);
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ["*.paxtech.net", ...additionalDevOrigins],
+  allowedDevOrigins: [
+    "ws.lakeward.net",
+    "*.console-dev.lakeward.net",
+    ...additionalDevOrigins,
+  ],
   output: "standalone",
   async rewrites() {
     return [
