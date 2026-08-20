@@ -115,7 +115,7 @@ function PaxdConnectShell({
           />
         </section>
 
-        <aside className="border border-hairline bg-surface-1">
+        <aside className="min-w-0 max-w-full border border-hairline bg-surface-1">
           <div className="border-b border-hairline px-5 py-4">
             <div className="flex items-center justify-between gap-3">
               <div className="text-[15px] font-medium">Approve pairing</div>
@@ -125,15 +125,15 @@ function PaxdConnectShell({
             </div>
           </div>
 
-          <form className="grid gap-5 p-5" onSubmit={onSubmit}>
-            <div className="grid gap-2.5">
-              <label className="grid gap-2.5 text-xs font-medium text-ink-subtle">
+          <form className="grid min-w-0 gap-5 p-5" onSubmit={onSubmit}>
+            <div className="grid min-w-0 gap-2.5">
+              <label className="grid min-w-0 gap-2.5 text-xs font-medium text-ink-subtle">
                 Pair code
                 <input
                   autoCapitalize="characters"
                   autoComplete="one-time-code"
                   autoFocus
-                  className="h-14 rounded-md border border-hairline bg-surface-2 px-4 text-center font-mono text-2xl font-medium tracking-[0.24em] text-ink outline-none transition placeholder:text-ink-tertiary focus:border-primary"
+                  className="h-14 w-full min-w-0 max-w-full rounded-md border border-hairline bg-surface-2 px-4 text-center font-mono text-2xl font-medium tracking-[0.24em] text-ink outline-none transition placeholder:text-ink-tertiary focus:border-primary"
                   inputMode="text"
                   maxLength={6}
                   onChange={(event) => {
@@ -150,18 +150,18 @@ function PaxdConnectShell({
             </div>
 
             {approve.error && (
-              <div className="border border-warning/30 bg-warning/10 p-3 text-xs leading-5 text-ink-muted">
+              <div className="min-w-0 border border-warning/30 bg-warning/10 p-3 text-xs leading-5 text-ink-muted [overflow-wrap:anywhere]">
                 {approve.error.message}
               </div>
             )}
 
             {approve.isSuccess && (
-              <div className="border border-success/30 bg-success/10 p-3 text-xs leading-5 text-success">
+              <div className="min-w-0 border border-success/30 bg-success/10 p-3 text-xs leading-5 text-success">
                 <div className="flex items-center gap-2 font-medium">
                   <CheckCircle2 className="h-4 w-4" />
                   paxd approved
                 </div>
-                <div className="mt-1 font-mono text-[11px] text-ink-muted">
+                <div className="mt-1 min-w-0 break-all font-mono text-[11px] text-ink-muted">
                   registration: {approve.data.registration_id}
                 </div>
               </div>
