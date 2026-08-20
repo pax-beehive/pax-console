@@ -25,6 +25,13 @@ import { PaxdConnectPreview, User } from "@/features/api/types";
 import { Button } from "@/components/ui/button";
 
 const pairCodePattern = /^[A-Z0-9]{6}$/;
+const defaultPaxApiEndpoint = "https://api.lakeward.net";
+
+export function resolvePaxdConnectApiEndpoint(
+  preview?: Pick<PaxdConnectPreview, "apiEndpoint">,
+) {
+  return preview?.apiEndpoint ?? defaultPaxApiEndpoint;
+}
 
 export function PaxdConnectPageClient() {
   const searchParams = useSearchParams();
@@ -245,7 +252,7 @@ function NodePreviewPanel({
         <DetailRow
           icon={<Globe2 className="h-4 w-4" />}
           label="Cloud API"
-          value={preview?.apiEndpoint ?? "https://api.paxtech.net"}
+          value={resolvePaxdConnectApiEndpoint(preview)}
         />
         <DetailRow
           icon={<Clock3 className="h-4 w-4" />}

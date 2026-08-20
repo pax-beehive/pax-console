@@ -1,7 +1,9 @@
 <!-- BEGIN:nextjs-agent-rules -->
+
 # This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
+
 <!-- END:nextjs-agent-rules -->
 
 # PAX Console Agent Memory
@@ -18,8 +20,9 @@ Project facts:
 
 ```txt
 Project root              /Users/jiahangzhang/code-base/project/pax-console
-Local browser hostname    https://console.paxtech.net
-PAX Manager upstream      https://app.paxtech.net
+Local browser hostname    https://ws.lakeward.net
+PAX Manager upstream      https://api.lakeward.net
+Browser WebSocket         wss://api.lakeward.net
 Browser API base          /api/pax
 REST proxy                src/app/api/pax/[...path]/route.ts
 Human architecture doc    docs/architecture.zh.md
@@ -28,7 +31,7 @@ Agent operating guide     docs/agent-operating-guide.md
 
 Hard rules:
 
-- Do not make browser REST calls directly to `https://app.paxtech.net` for normal app behavior. Use same-origin `/api/pax`.
+- Do not make browser REST calls directly to `https://api.lakeward.net` for normal app behavior. Use same-origin `/api/pax`.
 - Keep Cloudflare Access and cookie forwarding inside the Next server route handler.
 - Keep server data in TanStack Query and client-only UI state in Zustand.
 - Keep ACP JSON-RPC isolated in `src/features/runtime/agent-tunnel-runtime.ts`; React components should call runtime methods, not build raw WebSocket frames.

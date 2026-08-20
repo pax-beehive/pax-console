@@ -53,7 +53,7 @@ cookie forwarding, or browser WebSocket behavior:
 
 ```txt
 Browser
-  -> https://console.paxtech.net
+  -> https://ws.lakeward.net
   -> Cloudflare Tunnel
   -> http://localhost:3000
 ```
@@ -69,10 +69,18 @@ Copy `.env.example` to `.env.local` if you need to override defaults.
 ```txt
 NEXT_PUBLIC_PAX_API_BASE_URL=/api/pax
 NEXT_PUBLIC_PAX_USER_SCOPE=self
-PAX_MANAGER_URL=https://app.paxtech.net
+PAX_MANAGER_URL=https://api.lakeward.net
 ```
 
-Cloudflare Access owns browser authentication. The frontend should not store or manually pass `CF_Authorization`; browser REST requests use `credentials: "include"`, and browser WebSocket handshakes rely on same-domain cookies.
+The hosted Console is `https://ws.lakeward.net`. Browser REST stays on its
+same-origin `/api/pax` proxy, whose upstream defaults to
+`https://api.lakeward.net`; direct agent tunnels default to
+`wss://api.lakeward.net`. Set `NEXT_PUBLIC_PAX_WS_BASE_URL` only when a local or
+alternate manager needs a different tunnel origin.
+
+Cloudflare Access owns browser authentication. The frontend must not store or
+manually pass `CF_Authorization`. Browser WebSocket handshakes rely on the
+Access session valid for the API hostname.
 
 When opening the dev server from another machine, set
 `PAX_ALLOWED_DEV_ORIGINS` to the comma-separated LAN hostnames or IPs that may
@@ -83,13 +91,18 @@ For local REST development against the protected backend, use the server-side de
 ```txt
 NEXT_PUBLIC_PAX_API_BASE_URL=/api/pax
 NEXT_PUBLIC_PAX_USER_SCOPE=self
-PAX_MANAGER_URL=https://app.paxtech.net
+PAX_MANAGER_URL=https://api.lakeward.net
 PAX_CF_AUTHORIZATION=<local-only Cloudflare Access cookie value>
 ```
 
 Run `pnpm auth:local` to refresh `PAX_CF_AUTHORIZATION` manually. Do not commit
 `.env.local`. The proxy keeps the Cloudflare token on the Next.js server side
 and returns a clear 401 when it is missing.
+
+`auth:local` resolves its Access application URL from `PAX_ACCESS_APP_URL`, then
+`PAX_MANAGER_URL`, then `https://api.lakeward.net`. It writes that computed URL
+back as `PAX_MANAGER_URL`; an explicit local or alternate upstream is not
+replaced with the hosted default.
 
 ### Local PAX Manager Mode
 

@@ -1,13 +1,24 @@
 import { NextRequest } from "next/server";
-import { Mock, afterEach, describe, expect, it, vi } from "vitest";
-import { GET } from "./route";
+import { Mock, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const originalManagerUrl = process.env.PAX_MANAGER_URL;
 
 describe("PAX API proxy route", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
+  beforeEach(() => {
+    vi.resetModules();
+    delete process.env.PAX_MANAGER_URL;
   });
 
-  it("defaults to api.paxtech.net as the manager upstream", async () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    if (originalManagerUrl === undefined) {
+      delete process.env.PAX_MANAGER_URL;
+    } else {
+      process.env.PAX_MANAGER_URL = originalManagerUrl;
+    }
+  });
+
+  it("defaults to api.lakeward.net as the manager upstream", async () => {
     const fetchMock = vi.fn(async () => {
       return new Response(JSON.stringify({ code: 200, data: { ok: true } }), {
         headers: { "content-type": "application/json" },
@@ -15,9 +26,10 @@ describe("PAX API proxy route", () => {
       });
     });
     vi.stubGlobal("fetch", fetchMock);
+    const { GET } = await import("./route");
 
     const request = new NextRequest(
-      "https://console.paxtech.net/api/pax/api/v1/user/self/me?fresh=1",
+      "https://ws.lakeward.net/api/pax/api/v1/user/self/me?fresh=1",
       { headers: { "Cf-Access-Jwt-Assertion": "jwt" } },
     );
     const response = await GET(request, {
@@ -31,10 +43,27 @@ describe("PAX API proxy route", () => {
       RequestInit,
     ];
     expect(String(url)).toBe(
-      "https://api.paxtech.net/api/v1/user/self/me?fresh=1",
+      "https://api.lakeward.net/api/v1/user/self/me?fresh=1",
     );
     expect((init.headers as Headers).get("Cf-Access-Jwt-Assertion")).toBe(
       "jwt",
     );
+  });
+
+  it("preserves an explicit manager upstream override", async () => {
+    process.env.PAX_MANAGER_URL = "http://localhost:19879";
+    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { GET } = await import("./route");
+
+    await GET(
+      new NextRequest("https://ws.lakeward.net/api/pax/api/v1/health", {
+        headers: { "Cf-Access-Jwt-Assertion": "jwt" },
+      }),
+      { params: Promise.resolve({ path: ["api", "v1", "health"] }) },
+    );
+
+    const [url] = (fetchMock as Mock).mock.calls[0] as [URL | string];
+    expect(String(url)).toBe("http://localhost:19879/api/v1/health");
   });
 });
