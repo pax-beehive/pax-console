@@ -902,16 +902,30 @@ describe("listSessionHistory", () => {
     );
   });
 
-  it("requests the next history page with the previous page cursor", async () => {
+  it("requests the next history page with the seq cursor", async () => {
     apiFetch.mockResolvedValueOnce({
       messages: [],
-      pagination: { has_more: false },
+      pagination: { has_older: false },
     });
 
-    await listSessionHistory("u1", "sess_1", 500, 73834);
+    await listSessionHistory("u1", "sess_1", 500, { beforeSeq: 42 });
 
     expect(apiFetch).toHaveBeenCalledWith(
-      "/api/v1/user/u1/sessions/sess_1/history?limit=500&before_id=73834",
+      "/api/v1/user/u1/sessions/sess_1/history?limit=500&before_seq=42",
+    );
+  });
+
+  it("supports forward catch-up and legacy before_id cursors", async () => {
+    apiFetch.mockResolvedValue({ messages: [], pagination: {} });
+
+    await listSessionHistory("u1", "sess_1", 500, { afterSeq: 7 });
+    expect(apiFetch).toHaveBeenCalledWith(
+      "/api/v1/user/u1/sessions/sess_1/history?limit=500&after_seq=7",
+    );
+
+    await listSessionHistory("u1", "sess_1", 500, { beforeId: 99 });
+    expect(apiFetch).toHaveBeenCalledWith(
+      "/api/v1/user/u1/sessions/sess_1/history?limit=500&before_id=99",
     );
   });
 

@@ -324,6 +324,10 @@ export type HistoryMessage = {
   logical_key?: string;
   raw_json?: ApiRecord;
   parts?: MessagePart[];
+  // Transcript ordering key (seq refactor): session-scoped monotonic order,
+  // the single key used to order and dedup live + durable items.
+  session_seq?: number;
+  conversation_seq?: number;
   created_at?: string;
   updated_at?: string;
 };
