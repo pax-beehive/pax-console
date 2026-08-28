@@ -1,8 +1,10 @@
 "use client";
 
 import { Dispatch, SetStateAction, useEffect, useRef, useState } from "react";
+import { HistoryMessage } from "@/features/api/types";
 import { API_BASE_URL, userPath } from "../api/client";
 import { ApiError, AuthError } from "../api/errors";
+import { normalizeHistoryMessage } from "./normalize-history-message";
 import { normalizeTunnelFrame } from "./normalize-tunnel-frame";
 import { SessionEvent } from "./session-events";
 import { parseSseDataBlock, streamSseResponse } from "./conversation-run";
@@ -53,6 +55,26 @@ export type SessionObserverEnvelope =
       node_id?: string;
       session_id?: string;
       turn_id?: string;
+    }
+  // seq refactor: durable catch-up item replayed on (re)connect.
+  | {
+      type: "history_item";
+      agent_id?: string;
+      node_id?: string;
+      session_id: string;
+      turn_id?: string;
+      message_id?: string;
+      seq?: number;
+      item?: HistoryMessage;
+    }
+  // seq refactor: current head watermark / resync-after-overflow signal.
+  | {
+      type: "head" | "resync";
+      agent_id?: string;
+      node_id?: string;
+      session_id?: string;
+      head_seq?: number;
+      message?: string;
     };
 
 export type SessionObserverStatus =
@@ -432,6 +454,24 @@ export function handleSessionObserverEnvelope(
     ]);
     setStatus("done");
     onTurnDone?.(envelope.turn_id);
+    return;
+  }
+
+  if (envelope.type === "history_item") {
+    // Durable catch-up replayed on (re)connect: normalize like history and let
+    // the seq-keyed merge dedup it against anything already rendered.
+    if (envelope.item) {
+      const events = normalizeHistoryMessage(envelope.item);
+      if (events.length > 0) {
+        appendObserverEvents({ appendEvents, setEvents }, events);
+      }
+    }
+    return;
+  }
+
+  if (envelope.type === "head" || envelope.type === "resync") {
+    // Watermark / overflow signal. The outer onEnvelope consumer pulls
+    // history?after_seq to reconcile; nothing to render here.
     return;
   }
 
