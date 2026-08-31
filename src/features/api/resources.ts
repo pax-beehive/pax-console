@@ -1,6 +1,10 @@
 "use client";
 
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import {
+  type QueryClient,
+  useInfiniteQuery,
+  useQuery,
+} from "@tanstack/react-query";
 import { API_BASE_URL, apiFetch, userPath } from "./client";
 import { ApiError, AuthError } from "./errors";
 import { queryKeys } from "./query-keys";
@@ -616,6 +620,20 @@ export function getAgentPermissionCatalog(userId: string, agentId: string) {
   return apiFetch<AgentPermissionCatalog>(
     userPath(userId, `/agents/${agentId}/permission-catalog`),
   );
+}
+
+export function refreshAgentPermissionCatalog(
+  queryClient: QueryClient,
+  userId: string,
+  agentId: string,
+) {
+  return queryClient.fetchQuery({
+    queryKey: queryKeys.agentPermissionCatalog(userId, agentId),
+    queryFn: () => getAgentPermissionCatalog(userId, agentId),
+    // A fresh pax_only response can predate session/new. Force a network read
+    // because the workbench disables its catalog observer after assignment.
+    staleTime: 0,
+  });
 }
 
 export function deleteAgent(userId: string, agentId: string) {
@@ -2212,7 +2230,9 @@ export function useSessionHistory(userId?: string, sessionId?: string) {
     // cursor is given and advertises has_older / next_before_seq.
     getNextPageParam: (lastPage) => {
       const nextBeforeSeq = lastPage.pagination?.next_before_seq;
-      return lastPage.pagination?.has_older && nextBeforeSeq && nextBeforeSeq > 0
+      return lastPage.pagination?.has_older &&
+        nextBeforeSeq &&
+        nextBeforeSeq > 0
         ? nextBeforeSeq
         : undefined;
     },

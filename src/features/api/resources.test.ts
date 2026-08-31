@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { QueryClient } from "@tanstack/react-query";
 import { ApiError } from "./errors";
 
 const apiFetch = vi.fn();
@@ -49,6 +50,7 @@ const {
   listTeams,
   listUserSessions,
   queueSessionTurn,
+  refreshAgentPermissionCatalog,
   removeNodeDaemonAgentConnection,
   resetSessionRuntime,
   restartNodeDaemon,
@@ -605,6 +607,50 @@ describe("getAgentPermissionCatalog", () => {
     expect(apiFetch).toHaveBeenCalledWith(
       "/api/v1/user/u1/agents/a1/permission-catalog",
     );
+  });
+
+  it("replaces a fresh pax_only cache after successful session creation", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { staleTime: 15_000 } },
+    });
+    const agentOneKey = [
+      "users",
+      "u1",
+      "agents",
+      "a1",
+      "permission-catalog",
+    ] as const;
+    const agentTwoKey = [
+      "users",
+      "u1",
+      "agents",
+      "a2",
+      "permission-catalog",
+    ] as const;
+    const paxOnly = {
+      catalog_revision: 1,
+      choices: [],
+      source: "pax_only",
+      stale: true,
+    };
+    const observed = {
+      catalog_revision: 2,
+      choices: [{ choice_id: "agent:legacy-mode:default" }],
+      source: "observed",
+      stale: false,
+    };
+    queryClient.setQueryData(agentOneKey, paxOnly);
+    queryClient.setQueryData(agentTwoKey, paxOnly);
+    apiFetch.mockResolvedValueOnce(observed);
+
+    await refreshAgentPermissionCatalog(queryClient, "u1", "a1");
+
+    expect(apiFetch).toHaveBeenCalledTimes(1);
+    expect(apiFetch).toHaveBeenCalledWith(
+      "/api/v1/user/u1/agents/a1/permission-catalog",
+    );
+    expect(queryClient.getQueryData(agentOneKey)).toEqual(observed);
+    expect(queryClient.getQueryData(agentTwoKey)).toEqual(paxOnly);
   });
 });
 
