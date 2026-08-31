@@ -115,6 +115,12 @@ type HistoryListData = {
   pagination?: {
     has_more?: boolean;
     next_before_id?: number;
+    // seq refactor cursors
+    head_seq?: number;
+    has_older?: boolean;
+    has_newer?: boolean;
+    next_before_seq?: number;
+    next_after_seq?: number;
   };
 };
 
@@ -719,11 +725,15 @@ export function listSessionHistory(
   userId: string,
   sessionId: string,
   limit = 500,
-  beforeId = 0,
+  cursor: { beforeSeq?: number; afterSeq?: number; beforeId?: number } = {},
 ) {
   const params = new URLSearchParams({ limit: String(limit) });
-  if (beforeId > 0) {
-    params.set("before_id", String(beforeId));
+  if (cursor.afterSeq && cursor.afterSeq > 0) {
+    params.set("after_seq", String(cursor.afterSeq));
+  } else if (cursor.beforeSeq && cursor.beforeSeq > 0) {
+    params.set("before_seq", String(cursor.beforeSeq));
+  } else if (cursor.beforeId && cursor.beforeId > 0) {
+    params.set("before_id", String(cursor.beforeId));
   }
   return apiFetch<HistoryListData>(
     `${userPath(userId, `/sessions/${sessionId}/history`)}?${params}`,
@@ -2194,12 +2204,16 @@ export function useSessionHistory(userId?: string, sessionId?: string) {
       sessionId ?? "pending",
     ),
     queryFn: ({ pageParam }) =>
-      listSessionHistory(userId as string, sessionId as string, 500, pageParam),
+      listSessionHistory(userId as string, sessionId as string, 500, {
+        beforeSeq: pageParam,
+      }),
     enabled: Boolean(userId && sessionId),
+    // Scroll back by the seq cursor; the server returns the latest page when no
+    // cursor is given and advertises has_older / next_before_seq.
     getNextPageParam: (lastPage) => {
-      const nextBeforeId = lastPage.pagination?.next_before_id;
-      return lastPage.pagination?.has_more && nextBeforeId && nextBeforeId > 0
-        ? nextBeforeId
+      const nextBeforeSeq = lastPage.pagination?.next_before_seq;
+      return lastPage.pagination?.has_older && nextBeforeSeq && nextBeforeSeq > 0
+        ? nextBeforeSeq
         : undefined;
     },
     initialPageParam: 0,
