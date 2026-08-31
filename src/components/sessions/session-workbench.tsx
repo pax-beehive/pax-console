@@ -69,6 +69,7 @@ import {
   getQueuedSessionTurn,
   injectKnowledgeCapsule,
   queueSessionTurn,
+  refreshAgentPermissionCatalog,
   resetSessionRuntime,
   steerSessionTurn,
   stopSessionTurn,
@@ -384,6 +385,15 @@ export function SessionWorkbench({
       : (currentSessionId ?? "New session");
   const handleSessionAssigned = useCallback(
     (nextSessionId: string, notifyParent = true) => {
+      if (activeAgentId) {
+        // Start an imperative refresh before isNewSession disables the query.
+        // QueryClient keeps this request alive and updates the agent-scoped key.
+        void refreshAgentPermissionCatalog(
+          queryClient,
+          user.user_id,
+          activeAgentId,
+        ).catch(() => undefined);
+      }
       setCurrentSessionId(nextSessionId);
       if (activeNodeId && activeAgentId) {
         void queryClient.invalidateQueries({
