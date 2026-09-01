@@ -725,6 +725,25 @@ export function updateAgentSession(
   );
 }
 
+export function setAgentSessionPermission(
+  userId: string,
+  nodeId: string,
+  agentId: string,
+  sessionId: string,
+  permissionChoiceId: string,
+) {
+  return apiFetch<AgentSession>(
+    userPath(
+      userId,
+      `/nodes/${nodeId}/agents/${agentId}/sessions/${sessionId}/permission`,
+    ),
+    {
+      body: JSON.stringify({ permission_choice_id: permissionChoiceId }),
+      method: "POST",
+    },
+  );
+}
+
 export function listSessionMessages(
   userId: string,
   nodeId: string,

@@ -53,6 +53,7 @@ const {
   refreshAgentPermissionCatalog,
   removeNodeDaemonAgentConnection,
   resetSessionRuntime,
+  setAgentSessionPermission,
   restartNodeDaemon,
   restartNodeDaemonAgentConnection,
   startNodeDaemonAgentConnection,
@@ -429,6 +430,29 @@ describe("listAgentSessions", () => {
           pax_config: { approval_mode: "auto_approve_all" },
         }),
         method: "PATCH",
+      },
+    );
+  });
+
+  it("updates a live session native permission choice", async () => {
+    apiFetch.mockResolvedValueOnce({
+      session_id: "sess_1",
+      pax_config: { permission_choice_id: "agent:full-access" },
+    });
+
+    await setAgentSessionPermission(
+      "u1",
+      "n1",
+      "a1",
+      "sess_1",
+      "agent:full-access",
+    );
+
+    expect(apiFetch).toHaveBeenCalledWith(
+      "/api/v1/user/u1/nodes/n1/agents/a1/sessions/sess_1/permission",
+      {
+        body: JSON.stringify({ permission_choice_id: "agent:full-access" }),
+        method: "POST",
       },
     );
   });

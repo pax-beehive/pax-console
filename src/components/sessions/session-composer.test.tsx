@@ -478,7 +478,7 @@ describe("SessionComposer", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows the unified permission catalog for new sessions", async () => {
+  it("shows the unified permission catalog for existing sessions", async () => {
     const onSelectPermissionChoice = vi.fn();
 
     render(
@@ -492,8 +492,9 @@ describe("SessionComposer", () => {
           attachmentUploadPending={false}
           attachments={[]}
           deleteQueuedTurnPending={false}
-          draftKey="new:node_1:agent_1"
-          isNewSession
+          currentSessionId="sess_1"
+          draftKey="sess_1"
+          isNewSession={false}
           isTurnRunning={false}
           newSessionCwd=""
           newSessionCwdInvalid={false}
