@@ -82,6 +82,7 @@ export type StreamConversationRunOptions = {
   approvalMode?: SessionApprovalMode;
   content?: ConversationInputBlock[];
   cwd?: string;
+  initializeOnly?: boolean;
   input?: string;
   nodeId: string;
   onEnvelope: (envelope: ConversationRunEnvelope) => void;
@@ -101,6 +102,7 @@ export async function streamConversationRun({
   approvalMode,
   content,
   cwd,
+  initializeOnly,
   input,
   nodeId,
   onEnvelope,
@@ -121,6 +123,7 @@ export async function streamConversationRun({
     )}`,
     {
       body: JSON.stringify({
+        ...(initializeOnly ? { initialize_only: true } : {}),
         ...(requestContent ? { content: requestContent } : {}),
         ...(!requestContent && input ? { input } : {}),
         ...(sessionId ? { session_id: sessionId } : {}),

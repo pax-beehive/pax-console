@@ -1420,6 +1420,60 @@ export function SessionWorkbench({
 
   const queueDraft = queueTurn.mutateAsync;
   const sendConversationMessage = conversationRun.sendMessage;
+  const initializeConversationSession = conversationRun.initializeSession;
+  const createEmptySession = useCallback(async () => {
+    if (!activeAgentId || !activeNodeId || newSessionCwdInvalid) {
+      return false;
+    }
+    const sourceDraftKey = composerDraftKey;
+    setSendError(null);
+    setPendingSessionPaxConfig({
+      cwd: normalizedNewSessionCwd || undefined,
+      approval_mode: effectiveNewSessionApprovalMode,
+    });
+    try {
+      const result = await initializeConversationSession({
+        approvalMode: effectiveNewSessionApprovalMode,
+        cwd: normalizedNewSessionCwd || undefined,
+        permissionChoiceId:
+          effectiveNewSessionPermissionChoiceId === PAX_MANUAL_CHOICE_ID
+            ? undefined
+            : effectiveNewSessionPermissionChoiceId,
+        primaryProjectId: initialPrimaryProjectId,
+        projectTargetId: initialProjectTargetId,
+      });
+      if (result.sessionId) {
+        const consoleStore = useConsoleStore.getState();
+        consoleStore.setComposerDraft(
+          result.sessionId,
+          consoleStore.composerDrafts[sourceDraftKey] ?? "",
+        );
+      }
+      return Boolean(result.sessionId);
+    } catch (caught) {
+      setPendingSessionPaxConfig(null);
+      recoverPermissionCatalogAfterCreateFailure(
+        caught,
+        effectiveNewSessionPermissionChoiceId,
+      );
+      setSendError(
+        caught instanceof Error ? caught : new Error(String(caught)),
+      );
+      return false;
+    }
+  }, [
+    activeAgentId,
+    activeNodeId,
+    composerDraftKey,
+    effectiveNewSessionApprovalMode,
+    effectiveNewSessionPermissionChoiceId,
+    initialPrimaryProjectId,
+    initialProjectTargetId,
+    initializeConversationSession,
+    newSessionCwdInvalid,
+    normalizedNewSessionCwd,
+    recoverPermissionCatalogAfterCreateFailure,
+  ]);
   const submitDraft = useCallback(
     async (content: string) => {
       if (!content || !activeAgentId || !activeNodeId || newSessionCwdInvalid) {
@@ -2165,6 +2219,9 @@ export function SessionWorkbench({
           attachmentUploadPending={composerAttachmentUploadPending}
           attachments={composerAttachments}
           currentSessionId={currentSessionId}
+          createEmptySessionPending={
+            isNewSession && conversationRun.status === "streaming"
+          }
           deleteQueuedTurnPending={deleteQueuedTurn.isPending}
           draftKey={composerDraftKey}
           isNewSession={isNewSession}
@@ -2175,6 +2232,11 @@ export function SessionWorkbench({
           newSessionCwdInvalid={newSessionCwdInvalid}
           newSessionWorkspaceOpen={newSessionWorkspaceOpen}
           onAddAttachments={handleAddComposerAttachments}
+          onCreateEmptySession={
+            isNewSession && !usesEncryptedTransport
+              ? createEmptySession
+              : undefined
+          }
           onDeleteQueuedTurn={handleDeleteQueuedTurn}
           onRemoveAttachment={handleRemoveComposerAttachment}
           onSetNewSessionCwd={setNewSessionCwd}

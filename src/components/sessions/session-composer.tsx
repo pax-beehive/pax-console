@@ -13,6 +13,7 @@ import {
   FolderOpen,
   FolderPlus,
   LoaderCircle,
+  Ellipsis,
   Mic,
   Paperclip,
   Pencil,
@@ -60,6 +61,7 @@ type SessionComposerProps = {
   attachmentUploadPending: boolean;
   attachments: ComposerAttachment[];
   currentSessionId?: string;
+  createEmptySessionPending?: boolean;
   deleteQueuedTurnPending: boolean;
   draftKey: string;
   isNewSession: boolean;
@@ -69,6 +71,7 @@ type SessionComposerProps = {
   newSessionCwdInvalid: boolean;
   newSessionWorkspaceOpen: boolean;
   onAddAttachments: (files: File[]) => Promise<void>;
+  onCreateEmptySession?: () => Promise<boolean>;
   onDeleteQueuedTurn: () => void;
   onRemoveAttachment: (attachmentId: string) => void;
   onSetNewSessionCwd: (value: string) => void;
@@ -104,6 +107,7 @@ export const SessionComposer = memo(function SessionComposer({
   attachmentUploadPending,
   attachments,
   currentSessionId,
+  createEmptySessionPending = false,
   deleteQueuedTurnPending,
   draftKey,
   isNewSession,
@@ -113,6 +117,7 @@ export const SessionComposer = memo(function SessionComposer({
   newSessionCwdInvalid,
   newSessionWorkspaceOpen,
   onAddAttachments,
+  onCreateEmptySession,
   onDeleteQueuedTurn,
   onRemoveAttachment,
   onSetNewSessionCwd,
@@ -180,6 +185,15 @@ export const SessionComposer = memo(function SessionComposer({
     isTurnRunning &&
     Boolean(activeAgentId && currentSessionId) &&
     !stopTurnPending;
+  const canCreateEmptySession =
+    isNewSession &&
+    !secure &&
+    Boolean(activeAgentId && activeNodeId && onCreateEmptySession) &&
+    !isTurnRunning &&
+    !newSessionCwdInvalid &&
+    !attachmentUploadPending &&
+    !hasAttachments &&
+    !createEmptySessionPending;
 
   const clearDraft = useCallback(() => {
     setComposerDraft(draftKey, "");
@@ -636,19 +650,61 @@ export const SessionComposer = memo(function SessionComposer({
               />
             </>
           ) : (
-            <Button
-              aria-label="Send prompt"
-              className={cn(
-                secure &&
-                  "border-emerald-400/60 bg-emerald-400 text-emerald-950 shadow-[0_0_18px_rgba(52,211,153,0.16)] hover:bg-emerald-300",
+            <>
+              <Button
+                aria-label="Send prompt"
+                className={cn(
+                  secure &&
+                    "border-emerald-400/60 bg-emerald-400 text-emerald-950 shadow-[0_0_18px_rgba(52,211,153,0.16)] hover:bg-emerald-300",
+                )}
+                disabled={!canSend}
+                icon={<Send className="h-4 w-4" />}
+                size="icon"
+                tooltip="Send prompt"
+                type="submit"
+                variant="primary"
+              />
+              {isNewSession && !secure && onCreateEmptySession && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      aria-label="Advanced session actions"
+                      disabled={createEmptySessionPending}
+                      icon={
+                        createEmptySessionPending ? (
+                          <LoaderCircle className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Ellipsis className="h-4 w-4" />
+                        )
+                      }
+                      size="icon"
+                      tooltip="Advanced session actions"
+                      type="button"
+                      variant="ghost"
+                    />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-72">
+                    <div className="px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-ink-tertiary">
+                      Advanced
+                    </div>
+                    <DropdownMenuItem
+                      className="items-start py-2"
+                      disabled={!canCreateEmptySession}
+                      onSelect={() => void onCreateEmptySession()}
+                    >
+                      <span className="min-w-0">
+                        <span className="block text-ink">
+                          Create empty session
+                        </span>
+                        <span className="mt-0.5 block text-xs leading-4 text-ink-tertiary">
+                          Initialize the agent without sending a prompt.
+                        </span>
+                      </span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
-              disabled={!canSend}
-              icon={<Send className="h-4 w-4" />}
-              size="icon"
-              tooltip="Send prompt"
-              type="submit"
-              variant="primary"
-            />
+            </>
           )}
         </div>
       </div>

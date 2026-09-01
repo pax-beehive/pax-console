@@ -65,4 +65,44 @@ describe("useConversationRun lifecycle", () => {
     expect(result.current.status).toBe("done");
     expect(result.current.transportInterrupted).toBe(false);
   });
+
+  it("initializes an empty session without creating optimistic turn events", async () => {
+    mocks.streamConversationRun.mockImplementationOnce(async (options) => {
+      options.onEnvelope({
+        type: "session",
+        node_id: "node_1",
+        agent_id: "agent_1",
+        session_id: "sess_empty",
+      });
+      options.onEnvelope({
+        type: "done",
+        node_id: "node_1",
+        agent_id: "agent_1",
+        session_id: "sess_empty",
+      });
+    });
+    const onSession = vi.fn();
+    const { result } = renderHook(() =>
+      useConversationRun({
+        agentId: "agent_1",
+        nodeId: "node_1",
+        onSession,
+        userId: "user_1",
+      }),
+    );
+
+    await act(async () => {
+      await result.current.initializeSession({ cwd: "~/project" });
+    });
+
+    expect(mocks.streamConversationRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        initializeOnly: true,
+        cwd: "~/project",
+      }),
+    );
+    expect(onSession).toHaveBeenCalledWith("sess_empty");
+    expect(result.current.events).toEqual([]);
+    expect(result.current.status).toBe("done");
+  });
 });

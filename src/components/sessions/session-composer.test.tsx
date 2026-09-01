@@ -77,6 +77,61 @@ afterEach(() => {
 });
 
 describe("SessionComposer", () => {
+  it("offers empty-session creation as an advanced action and preserves the draft", async () => {
+    const user = userEvent.setup();
+    const onCreateEmptySession = vi.fn().mockResolvedValue(true);
+    useConsoleStore.getState().setComposerDraft("new", "unsent draft");
+
+    render(
+      <TooltipProvider>
+        <SessionComposer
+          activeAgentId="agent_1"
+          activeNodeId="node_1"
+          approvalMode="manual"
+          approvalModePending={false}
+          attachmentError={null}
+          attachmentUploadPending={false}
+          attachments={[]}
+          createEmptySessionPending={false}
+          deleteQueuedTurnPending={false}
+          draftKey="new"
+          isNewSession
+          isTurnRunning={false}
+          newSessionCwd=""
+          newSessionCwdInvalid={false}
+          newSessionWorkspaceOpen={false}
+          onAddAttachments={async () => undefined}
+          onCreateEmptySession={onCreateEmptySession}
+          onDeleteQueuedTurn={vi.fn()}
+          onRemoveAttachment={vi.fn()}
+          onSetNewSessionCwd={vi.fn()}
+          onSetNewSessionWorkspaceOpen={vi.fn()}
+          onSteer={async () => true}
+          onStop={vi.fn()}
+          onSubmitDraft={async () => true}
+          onToggleApprovalMode={vi.fn()}
+          onUpdateQueuedTurn={async () => true}
+          queueTurnPending={false}
+          queuedTurn={null}
+          showAdminFeatures={false}
+          steerTurnPending={false}
+          stopTurnPending={false}
+          updateQueuedTurnPending={false}
+        />
+      </TooltipProvider>,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Advanced session actions" }),
+    );
+    await user.click(
+      screen.getByRole("menuitem", { name: /Create empty session/ }),
+    );
+
+    expect(onCreateEmptySession).toHaveBeenCalledOnce();
+    expect(useConsoleStore.getState().composerDrafts.new).toBe("unsent draft");
+  });
+
   it("renders the secured composer treatment for encrypted sessions", () => {
     render(
       <TooltipProvider>
