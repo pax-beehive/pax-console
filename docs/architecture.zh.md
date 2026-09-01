@@ -782,6 +782,9 @@ choice。Manager 只执行 `session/new`、live permission 校验/设置与 dura
 turn 或空 user message。成功后 workbench 进入普通 session，并把未发送 draft 从
 New-session key 迁移到新 session key。该 action 不适用于 E2EE session，也不是可持久化
 的 session mode。
+Home 的 `New chat` 第一阶段 composer 也提供相同入口。它通过一次性的
+`initialInitializeOnly` 意图挂载 Session Workbench，由 Workbench 复用同一条
+initialize-only、permission refresh 和错误恢复链路，避免复制请求或重复创建 session。
 
 当 composer 带附件时，前端改为发送结构化 content block：
 

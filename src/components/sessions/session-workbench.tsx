@@ -144,6 +144,7 @@ type SessionWorkbenchProps = {
   initialPermissionChoiceId?: string;
   initialAttachments?: ComposerAttachment[];
   initialCwd?: string;
+  initialInitializeOnly?: boolean;
   initialPrimaryProjectId?: string;
   initialPrompt?: string;
   initialPromptKey?: string;
@@ -201,6 +202,7 @@ export function SessionWorkbench({
   initialPermissionChoiceId,
   initialAttachments,
   initialCwd,
+  initialInitializeOnly = false,
   initialPrimaryProjectId,
   initialPrompt,
   initialPromptKey,
@@ -1473,6 +1475,24 @@ export function SessionWorkbench({
     newSessionCwdInvalid,
     normalizedNewSessionCwd,
     recoverPermissionCatalogAfterCreateFailure,
+  ]);
+  const initialEmptySessionStartedRef = useRef(false);
+  useEffect(() => {
+    if (
+      !initialInitializeOnly ||
+      !isNewSession ||
+      usesEncryptedTransport ||
+      initialEmptySessionStartedRef.current
+    ) {
+      return;
+    }
+    initialEmptySessionStartedRef.current = true;
+    void createEmptySession();
+  }, [
+    createEmptySession,
+    initialInitializeOnly,
+    isNewSession,
+    usesEncryptedTransport,
   ]);
   const submitDraft = useCallback(
     async (content: string) => {
