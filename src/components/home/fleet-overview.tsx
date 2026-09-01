@@ -27,6 +27,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  Ellipsis,
   Folder,
   FolderOpen,
   FolderPlus,
@@ -162,6 +163,7 @@ type EmbeddedSessionTarget = {
   initialPermissionChoiceId?: string;
   initialAttachments?: ComposerAttachment[];
   initialCwd?: string;
+  initialInitializeOnly?: boolean;
   initialPrompt?: string;
   initialTransport?: AgentSession["transport"];
   key: string;
@@ -786,6 +788,41 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     setComposerAttachmentError(null);
   }
 
+  function initializeEmptySession() {
+    if (
+      !activeAgent?.agent_id ||
+      !activeAgent.node_id ||
+      newSessionTransport === "e2ee" ||
+      (selectedProjectId && !normalizedNewSessionCwd) ||
+      newSessionCwdInvalid ||
+      composerAttachmentUploadPending ||
+      composerAttachments.length > 0
+    ) {
+      return;
+    }
+
+    setProjectTargetSaveError(null);
+    setEmbeddedSessionTarget({
+      agentId: activeAgent.agent_id,
+      initialApprovalMode: effectiveNewSessionApprovalMode,
+      initialInitializeOnly: true,
+      initialPermissionChoiceId: effectiveNewSessionPermissionChoiceId,
+      initialCwd: normalizedNewSessionCwd || undefined,
+      initialTransport: "manager",
+      key: `new:${Date.now()}`,
+      nodeId: activeAgent.node_id,
+      primaryProjectId: selectedProjectId || undefined,
+      projectTargetId: matchingProjectTarget?.target_id,
+      sessionId: "new",
+    });
+    clearHomeSessionUrl();
+    setMobileComposerOpen(false);
+    setMobileRailOpen(false);
+    setSelectedWorkItemId("");
+    setContextClosed(false);
+    setComposerMode("clean");
+  }
+
   async function addComposerAttachments(files: File[]) {
     if (files.length === 0) {
       return;
@@ -1016,6 +1053,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 }
                 initialAttachments={activeSessionTarget.initialAttachments}
                 initialCwd={activeSessionTarget.initialCwd}
+                initialInitializeOnly={
+                  activeSessionTarget.initialInitializeOnly
+                }
                 initialPrimaryProjectId={activeSessionTarget.primaryProjectId}
                 initialPrompt={activeSessionTarget.initialPrompt}
                 initialProjectTargetId={activeSessionTarget.projectTargetId}
@@ -1543,6 +1583,48 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                           type="submit"
                           variant="primary"
                         />
+                        {newSessionTransport === "manager" && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                aria-label="Advanced session actions"
+                                icon={<Ellipsis className="h-4 w-4" />}
+                                size="icon"
+                                tooltip="Advanced session actions"
+                                type="button"
+                                variant="ghost"
+                              />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-72">
+                              <div className="px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-ink-tertiary">
+                                Advanced
+                              </div>
+                              <DropdownMenuItem
+                                className="items-start py-2"
+                                disabled={
+                                  !activeAgent?.agent_id ||
+                                  !activeAgent.node_id ||
+                                  (Boolean(selectedProjectId) &&
+                                    !normalizedNewSessionCwd) ||
+                                  newSessionCwdInvalid ||
+                                  composerAttachmentUploadPending ||
+                                  composerAttachments.length > 0
+                                }
+                                onSelect={initializeEmptySession}
+                              >
+                                <span className="min-w-0">
+                                  <span className="block text-ink">
+                                    Create empty session
+                                  </span>
+                                  <span className="mt-0.5 block text-xs leading-4 text-ink-tertiary">
+                                    Initialize the agent without sending a
+                                    prompt.
+                                  </span>
+                                </span>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
                       </div>
                     </div>
                   </div>

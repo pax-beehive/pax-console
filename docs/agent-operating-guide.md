@@ -408,6 +408,9 @@ permission fields. It must not manufacture prompt content, an optimistic turn,
 or an empty user message. A successful stream emits `session` followed by
 `done`; preserve the unsent draft by moving it from the New-session draft key
 to the assigned session key. This action is unavailable for E2EE sessions.
+The Home `New chat` composer exposes the same Advanced action. It mounts the
+normal Session Workbench with a one-shot initialize-only intent, so both entry
+surfaces share the same ACP request, permission refresh, and error recovery.
 
 Failures before the SSE stream starts use the standard JSON API envelope:
 

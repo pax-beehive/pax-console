@@ -88,6 +88,7 @@ vi.mock("@/components/sessions/session-workbench", () => ({
     initialAttachments,
     initialApprovalMode,
     initialCwd,
+    initialInitializeOnly,
     initialPermissionChoiceId,
     initialPrimaryProjectId,
     initialPrompt,
@@ -102,6 +103,7 @@ vi.mock("@/components/sessions/session-workbench", () => ({
     initialAttachments?: Array<{ attachmentId: string }>;
     initialApprovalMode?: string;
     initialCwd?: string;
+    initialInitializeOnly?: boolean;
     initialPermissionChoiceId?: string;
     initialPrimaryProjectId?: string;
     initialPrompt?: string;
@@ -119,6 +121,7 @@ vi.mock("@/components/sessions/session-workbench", () => ({
         .join(",")}
       data-initial-approval-mode={initialApprovalMode}
       data-initial-cwd={initialCwd}
+      data-initial-initialize-only={String(Boolean(initialInitializeOnly))}
       data-initial-permission-choice-id={initialPermissionChoiceId}
       data-primary-project-id={initialPrimaryProjectId}
       data-initial-prompt={initialPrompt}
@@ -930,6 +933,23 @@ describe("FleetOverview session rail", () => {
       }),
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "Start session" })).toBeVisible();
+  });
+
+  it("starts empty session initialization from the Home advanced menu", async () => {
+    renderOverview();
+    await userEvent.click(screen.getByRole("link", { name: "New session" }));
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Advanced session actions" }),
+    );
+    await userEvent.click(
+      screen.getByRole("menuitem", { name: /Create empty session/ }),
+    );
+
+    expect(await screen.findByTestId("session-workbench")).toHaveAttribute(
+      "data-initial-initialize-only",
+      "true",
+    );
   });
 
   it("creates a target for a new project workspace only after native session assignment", async () => {
