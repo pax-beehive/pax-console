@@ -47,6 +47,8 @@ type SendMessageOptions = {
   projectTargetId?: string;
 };
 
+type InitializeSessionOptions = Omit<SendMessageOptions, "attachmentIds">;
+
 export function useConversationRun({
   agentId,
   nodeId,
@@ -224,6 +226,82 @@ export function useConversationRun({
     ],
   );
 
+  const initializeSession = useCallback(
+    async (options?: InitializeSessionOptions) => {
+      if (!agentId || !nodeId) {
+        throw new Error("Select a node and agent before creating a session");
+      }
+      if (sessionIdRef.current) {
+        throw new Error("The session is already initialized");
+      }
+
+      abortRef.current?.abort();
+      const abortController = new AbortController();
+      abortRef.current = abortController;
+      const streamId = `pending-session:initialize:${Date.now()}`;
+
+      setError(null);
+      setTransportInterrupted(false);
+      setStatus("streaming");
+
+      try {
+        await streamConversationRun({
+          agentId,
+          approvalMode: options?.approvalMode,
+          cwd: options?.cwd,
+          initializeOnly: true,
+          nodeId,
+          onEnvelope: (envelope) => {
+            const envelopeError = handleConversationEnvelope(envelope, {
+              onSession: (nextSessionId) => {
+                sessionIdRef.current = nextSessionId;
+                onSession?.(nextSessionId);
+              },
+              setError,
+              appendEvents,
+              setStatus,
+              streamId,
+              updateEvents,
+            });
+            if (envelopeError) {
+              throw envelopeError;
+            }
+          },
+          permissionChoiceId: options?.permissionChoiceId,
+          primaryProjectId: options?.primaryProjectId,
+          projectTargetId: options?.projectTargetId,
+          signal: abortController.signal,
+          userId,
+        });
+        flushEvents();
+        setStatus((current) => (current === "error" ? current : "done"));
+        return { sessionId: sessionIdRef.current };
+      } catch (caught) {
+        if (abortController.signal.aborted) {
+          return { sessionId: sessionIdRef.current };
+        }
+        const nextError =
+          caught instanceof Error ? caught : new Error(String(caught));
+        setError(nextError);
+        setStatus("error");
+        throw nextError;
+      } finally {
+        if (abortRef.current === abortController) {
+          abortRef.current = null;
+        }
+      }
+    },
+    [
+      agentId,
+      appendEvents,
+      flushEvents,
+      nodeId,
+      onSession,
+      updateEvents,
+      userId,
+    ],
+  );
+
   const resumePermission = useCallback(
     async (approvalId: string) => {
       if (!agentId || !nodeId) {
@@ -342,6 +420,7 @@ export function useConversationRun({
     events,
     completedTurnVersion,
     finishObservedTurn,
+    initializeSession,
     markCancelled,
     markObserverConnected,
     resumePermission,

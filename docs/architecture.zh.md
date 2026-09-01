@@ -774,6 +774,15 @@ SSE 开始后的失败通过 `type=error` envelope 返回 `status_code` 与
 { "input": "hello" }
 ```
 
+New session composer 的主 Send 行为不变，仍要求 prompt。Send 旁的次级
+Advanced 菜单提供一次性的 `Create empty session`：它向同一个 endpoint 发送
+`{"initialize_only":true}`，可同时携带创建期 cwd、Project context 和 permission
+choice。Manager 只执行 `session/new`、live permission 校验/设置与 durable session
+绑定，然后依次返回 `type=session`、`type=done`；不发送 `session/prompt`，不创建
+turn 或空 user message。成功后 workbench 进入普通 session，并把未发送 draft 从
+New-session key 迁移到新 session key。该 action 不适用于 E2EE session，也不是可持久化
+的 session mode。
+
 当 composer 带附件时，前端改为发送结构化 content block：
 
 ```json

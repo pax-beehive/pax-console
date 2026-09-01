@@ -401,6 +401,14 @@ Accept: text/event-stream
 Content-Type: application/json
 ```
 
+The New session composer keeps empty initialization behind its secondary
+Advanced menu. `Create empty session` sends `{ "initialize_only": true }`
+through the same endpoint, together with creation-only workspace, Project, and
+permission fields. It must not manufacture prompt content, an optimistic turn,
+or an empty user message. A successful stream emits `session` followed by
+`done`; preserve the unsent draft by moving it from the New-session draft key
+to the assigned session key. This action is unavailable for E2EE sessions.
+
 Failures before the SSE stream starts use the standard JSON API envelope:
 
 ```json

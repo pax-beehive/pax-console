@@ -104,6 +104,41 @@ describe("streamConversationRun", () => {
     ]);
   });
 
+  it("posts initialize_only without manufacturing prompt content", async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          streamFromChunks([
+            'data: {"type":"session","node_id":"node_1","agent_id":"agent_1","session_id":"sess_empty"}\n\n',
+            'data: {"type":"done","node_id":"node_1","agent_id":"agent_1","session_id":"sess_empty"}\n\n',
+          ]),
+          { headers: { "content-type": "text/event-stream" }, status: 200 },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await streamConversationRun({
+      agentId: "agent_1",
+      approvalMode: "manual",
+      cwd: "~/project",
+      initializeOnly: true,
+      nodeId: "node_1",
+      onEnvelope: vi.fn(),
+      permissionChoiceId: "agent:legacy-mode:default",
+      userId: "self",
+    });
+
+    const [, init] = (fetchMock as Mock).mock.calls[0] as [string, RequestInit];
+    expect(init.body).toBe(
+      JSON.stringify({
+        initialize_only: true,
+        cwd: "~/project",
+        approval_mode: "manual",
+        permission_choice_id: "agent:legacy-mode:default",
+      }),
+    );
+  });
+
   it("posts project context, cwd, and approval mode only for new sessions", async () => {
     const fetchMock = vi.fn(async () => {
       return new Response(
