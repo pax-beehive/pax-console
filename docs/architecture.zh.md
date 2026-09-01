@@ -785,6 +785,9 @@ New-session key 迁移到新 session key。该 action 不适用于 E2EE session�
 Home 的 `New chat` 第一阶段 composer 也提供相同入口。它通过一次性的
 `initialInitializeOnly` 意图挂载 Session Workbench，由 Workbench 复用同一条
 initialize-only、permission refresh 和错误恢复链路，避免复制请求或重复创建 session。
+明文 session 创建后继续显示相同的 permission selector。修改 choice 时前端调用
+session-scoped permission endpoint；Manager 成功执行 live ACP `set_mode` 或
+`set_config_option` 并返回有效 session config 后，前端才确认新的选择。
 
 当 composer 带附件时，前端改为发送结构化 content block：
 

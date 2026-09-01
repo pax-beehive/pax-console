@@ -411,6 +411,10 @@ to the assigned session key. This action is unavailable for E2EE sessions.
 The Home `New chat` composer exposes the same Advanced action. It mounts the
 normal Session Workbench with a one-shot initialize-only intent, so both entry
 surfaces share the same ACP request, permission refresh, and error recovery.
+After a plaintext session is assigned, the same permission selector remains
+available. Selecting a choice posts to the session-scoped permission endpoint;
+the UI only accepts the returned effective session config after Manager has
+successfully applied the corresponding live ACP mode or config option.
 
 Failures before the SSE stream starts use the standard JSON API envelope:
 

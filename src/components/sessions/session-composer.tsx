@@ -518,8 +518,7 @@ export const SessionComposer = memo(function SessionComposer({
               </span>
             </div>
           ) : null}
-          {isNewSession &&
-          permissionChoices?.length &&
+          {permissionChoices?.length &&
           permissionChoiceId &&
           onSelectPermissionChoice ? (
             <SessionPermissionSelector

@@ -74,6 +74,7 @@ import {
   steerSessionTurn,
   stopSessionTurn,
   updateAgentSession,
+  setAgentSessionPermission,
   updateQueuedSessionTurn,
   uploadUserAttachmentFile,
   useAgentOwnerInfos,
@@ -239,7 +240,7 @@ export function SessionWorkbench({
   const permissionCatalogQuery = useAgentPermissionCatalog(
     user.user_id,
     activeAgentId,
-    isNewSession,
+    Boolean(activeAgentId),
   );
   const permissionChoices = useMemo(
     () => permissionChoicesFromCatalog(permissionCatalogQuery.data),
@@ -365,6 +366,9 @@ export function SessionWorkbench({
   );
   const displayedApprovalMode =
     activePaxConfig?.approval_mode ?? effectiveNewSessionApprovalMode;
+  const displayedPermissionChoiceId =
+    activePaxConfig?.permission_choice_id ??
+    effectiveNewSessionPermissionChoiceId;
   const displayedWorkspace =
     currentSessionId && activePaxConfig?.cwd
       ? activePaxConfig.cwd
@@ -973,6 +977,50 @@ export function SessionWorkbench({
       );
     },
   });
+  const updateSessionPermission = useMutation({
+    mutationFn: async (permissionChoiceId: string) => {
+      if (!activeNodeId || !activeAgentId || !currentSessionId) {
+        throw new Error("Start the session before changing permissions.");
+      }
+      return setAgentSessionPermission(
+        user.user_id,
+        activeNodeId,
+        activeAgentId,
+        currentSessionId,
+        permissionChoiceId,
+      );
+    },
+    onMutate: (permissionChoiceId) => {
+      setPendingSessionPaxConfig((current) => ({
+        ...current,
+        cwd: activePaxConfig?.cwd ?? current?.cwd,
+        approval_mode: approvalModeForPermissionChoice(permissionChoiceId),
+        permission_choice_id: permissionChoiceId,
+      }));
+    },
+    onSuccess: (session) => {
+      setPendingSessionPaxConfig(session.pax_config ?? null);
+      queryClient.setQueryData(
+        queryKeys.sessionMetadata(user.user_id, session.session_id),
+        session,
+      );
+      if (activeNodeId && activeAgentId) {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.sessions(
+            user.user_id,
+            activeNodeId,
+            activeAgentId,
+          ),
+        });
+      }
+    },
+    onError: (caught) => {
+      setPendingSessionPaxConfig(null);
+      setSendError(
+        caught instanceof Error ? caught : new Error(String(caught)),
+      );
+    },
+  });
   const updateSessionName = useMutation({
     mutationFn: async (
       input: { name: string } | { use_reported_name: true },
@@ -1330,10 +1378,18 @@ export function SessionWorkbench({
             sessionObserver.status === "observing")))) &&
     !currentTurnHasAgentOutput;
   const mutateSessionApprovalMode = updateSessionApprovalMode.mutate;
-  const selectPermissionChoice = useCallback((choiceId: string) => {
-    setNewSessionPermissionChoiceId(choiceId);
-    setNewSessionApprovalMode(approvalModeForPermissionChoice(choiceId));
-  }, []);
+  const mutateSessionPermission = updateSessionPermission.mutate;
+  const selectPermissionChoice = useCallback(
+    (choiceId: string) => {
+      if (currentSessionId) {
+        mutateSessionPermission(choiceId);
+        return;
+      }
+      setNewSessionPermissionChoiceId(choiceId);
+      setNewSessionApprovalMode(approvalModeForPermissionChoice(choiceId));
+    },
+    [currentSessionId, mutateSessionPermission],
+  );
   const recoverPermissionCatalogAfterCreateFailure = useCallback(
     (caught: unknown, attemptedChoiceId: string) => {
       const status = caught instanceof ApiError ? caught.status : undefined;
@@ -2234,7 +2290,10 @@ export function SessionWorkbench({
           activeAgentId={activeAgentId}
           activeNodeId={activeNodeId}
           approvalMode={displayedApprovalMode}
-          approvalModePending={updateSessionApprovalMode.isPending}
+          approvalModePending={
+            updateSessionApprovalMode.isPending ||
+            updateSessionPermission.isPending
+          }
           attachmentError={composerAttachmentError}
           attachmentUploadPending={composerAttachmentUploadPending}
           attachments={composerAttachments}
@@ -2272,7 +2331,7 @@ export function SessionWorkbench({
           permissionCatalog={permissionCatalogQuery.data}
           permissionCatalogError={permissionCatalogQuery.isError}
           permissionCatalogLoading={permissionCatalogQuery.isPending}
-          permissionChoiceId={effectiveNewSessionPermissionChoiceId}
+          permissionChoiceId={displayedPermissionChoiceId}
           permissionChoices={permissionChoices}
           readOnlyWorkspace={
             shouldShowReadOnlyWorkspace ? displayedWorkspace : undefined
