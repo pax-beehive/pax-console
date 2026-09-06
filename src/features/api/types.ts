@@ -594,6 +594,43 @@ export type AgentPermissionCatalog = {
   choices: AgentPermissionChoice[];
 };
 
+export type SessionConfigValue = {
+  value: string;
+  name: string;
+  description?: string;
+  group?: string;
+};
+
+export type SessionConfigOption = {
+  id: string;
+  name: string;
+  description?: string;
+  category?: string;
+  type: "select" | "boolean" | string;
+  current_value: string | boolean;
+  options?: SessionConfigValue[];
+};
+
+export type SessionLegacyModel = {
+  id: string;
+  name: string;
+  description?: string;
+};
+
+export type SessionConfiguration = {
+  session_id: string;
+  options: SessionConfigOption[];
+  legacy_models?: {
+    current_model_id?: string;
+    available?: SessionLegacyModel[];
+  };
+  source?: string;
+  observed_at?: string;
+  can_set: boolean;
+  can_force_refresh: boolean;
+  refresh_semantics?: "reapply_current_value" | string;
+};
+
 export type SessionPaxConfig = {
   cwd?: string;
   approval_mode?: SessionApprovalMode;

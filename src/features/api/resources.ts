@@ -46,6 +46,7 @@ import {
   Project,
   ProjectTarget,
   SessionApprovalMode,
+  SessionConfiguration,
   SessionArtifact,
   UserAttachment,
   UserAttachmentUploadTicket,
@@ -741,6 +742,58 @@ export function setAgentSessionPermission(
       body: JSON.stringify({ permission_choice_id: permissionChoiceId }),
       method: "POST",
     },
+  );
+}
+
+function sessionConfigurationPath(
+  userId: string,
+  nodeId: string,
+  agentId: string,
+  sessionId: string,
+) {
+  return userPath(
+    userId,
+    `/nodes/${nodeId}/agents/${agentId}/sessions/${sessionId}/configuration`,
+  );
+}
+
+export function getSessionConfiguration(
+  userId: string,
+  nodeId: string,
+  agentId: string,
+  sessionId: string,
+) {
+  return apiFetch<SessionConfiguration>(
+    sessionConfigurationPath(userId, nodeId, agentId, sessionId),
+  );
+}
+
+export function setSessionConfigOption(
+  userId: string,
+  nodeId: string,
+  agentId: string,
+  sessionId: string,
+  configId: string,
+  value: string | boolean,
+) {
+  return apiFetch<SessionConfiguration>(
+    `${sessionConfigurationPath(userId, nodeId, agentId, sessionId)}/options/${encodeURIComponent(configId)}`,
+    {
+      body: JSON.stringify({ value }),
+      method: "PATCH",
+    },
+  );
+}
+
+export function forceRefreshSessionConfiguration(
+  userId: string,
+  nodeId: string,
+  agentId: string,
+  sessionId: string,
+) {
+  return apiFetch<SessionConfiguration>(
+    `${sessionConfigurationPath(userId, nodeId, agentId, sessionId)}/refresh`,
+    { method: "POST" },
   );
 }
 
@@ -1933,6 +1986,33 @@ export function useAgentPermissionCatalog(
     queryFn: () =>
       getAgentPermissionCatalog(userId as string, agentId as string),
     enabled: Boolean(userId && agentId && enabled),
+    retry: false,
+  });
+}
+
+export function useSessionConfiguration(
+  userId?: string,
+  nodeId?: string,
+  agentId?: string,
+  sessionId?: string,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: queryKeys.sessionConfiguration(
+      userId ?? "pending",
+      nodeId ?? "pending",
+      agentId ?? "pending",
+      sessionId ?? "pending",
+    ),
+    queryFn: () =>
+      getSessionConfiguration(
+        userId as string,
+        nodeId as string,
+        agentId as string,
+        sessionId as string,
+      ),
+    enabled: Boolean(userId && nodeId && agentId && sessionId && enabled),
+    refetchInterval: 10_000,
     retry: false,
   });
 }

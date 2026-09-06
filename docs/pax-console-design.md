@@ -729,8 +729,18 @@ after the turn's work events and immediately before the durable turn boundary;
 live streams remain in receipt order.
 
 PAX Manager owns ACP initialize, optional authenticate, session/new,
-native-session binding, and session/prompt. The frontend should not expose
-model/options/auto_approve in the first version.
+native-session binding, session/prompt, and the durable session configuration
+snapshot. Plaintext workbenches expose normalized non-permission
+`configOptions` for model, reasoning, and boolean controls; permission mode
+remains in its dedicated selector. Agent-pushed `config_option_update`
+notifications and complete `session/set_config_option` responses replace the
+snapshot. The frontend polls Manager rather than parsing raw control frames.
+
+There is no standard ACP model-list query. Manual refresh deliberately
+re-applies the current standard model config value so the response returns the
+complete current `configOptions`; it is allowed during an active turn.
+Never-stabilized legacy `models` payloads are display-only, and encrypted
+sessions do not expose Manager-side configuration controls.
 
 ## WebSocket Design
 

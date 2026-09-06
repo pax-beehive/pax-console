@@ -416,6 +416,35 @@ available. Selecting a choice posts to the session-scoped permission endpoint;
 the UI only accepts the returned effective session config after Manager has
 successfully applied the corresponding live ACP mode or config option.
 
+For plaintext sessions, the workbench also reads the agent's durable session
+configuration snapshot:
+
+```txt
+GET   /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}/configuration
+PATCH /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}/configuration/options/{config_id}
+POST  /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}/configuration/refresh
+```
+
+Manager updates this snapshot from `session/new`,
+`session/set_config_option` responses, and
+`session/update:update.sessionUpdate=config_option_update`. The Console polls
+the snapshot every 10 seconds, so model, reasoning, and boolean fast-mode
+changes reported during an active turn become visible without recreating the
+session. Select changes are restricted to values in the latest advertised
+catalog. Permission-category `mode` remains owned by the permission selector.
+
+ACP has no standard read-only model-list query. The refresh endpoint re-applies
+the current model config value (or the first non-permission config when no
+model option exists) through `session/set_config_option`; that method's
+response is the fresh complete `configOptions` snapshot. This request may run
+alongside an active prompt, but other config controls for the session are
+serialized. Treat refresh as a deliberate no-op write, not a read-only RPC.
+Legacy `models.currentModelId/availableModels` is displayed read-only because
+`session/set_model` never became standard. E2EE sessions do not expose this
+Manager-owned snapshot. Both paxd and any direct tunnel client must advertise
+`clientCapabilities.session.configOptions.boolean={}` during initialize so
+agents can include boolean options such as fast mode.
+
 Failures before the SSE stream starts use the standard JSON API envelope:
 
 ```json

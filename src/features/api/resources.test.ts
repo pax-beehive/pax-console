@@ -25,8 +25,10 @@ const {
   deleteNodeAgent,
   discoverNodeDaemonHarnesses,
   flattenSessionHistoryPages,
+  forceRefreshSessionConfiguration,
   getAgent,
   getAgentPermissionCatalog,
+  getSessionConfiguration,
   getProject,
   getProjectTarget,
   getNodeDaemonCommand,
@@ -54,6 +56,7 @@ const {
   removeNodeDaemonAgentConnection,
   resetSessionRuntime,
   setAgentSessionPermission,
+  setSessionConfigOption,
   restartNodeDaemon,
   restartNodeDaemonAgentConnection,
   startNodeDaemonAgentConnection,
@@ -675,6 +678,43 @@ describe("getAgentPermissionCatalog", () => {
     );
     expect(queryClient.getQueryData(agentOneKey)).toEqual(observed);
     expect(queryClient.getQueryData(agentTwoKey)).toEqual(paxOnly);
+  });
+});
+
+describe("session configuration resources", () => {
+  it("reads, changes, and force refreshes a session configuration", async () => {
+    apiFetch.mockResolvedValue({
+      can_force_refresh: true,
+      can_set: true,
+      options: [],
+      session_id: "sess_1",
+    });
+
+    await getSessionConfiguration("u1", "n1", "a1", "sess_1");
+    await setSessionConfigOption(
+      "u1",
+      "n1",
+      "a1",
+      "sess_1",
+      "reasoning/effort",
+      "high",
+    );
+    await forceRefreshSessionConfiguration("u1", "n1", "a1", "sess_1");
+
+    const base =
+      "/api/v1/user/u1/nodes/n1/agents/a1/sessions/sess_1/configuration";
+    expect(apiFetch).toHaveBeenNthCalledWith(1, base);
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      2,
+      `${base}/options/reasoning%2Feffort`,
+      {
+        body: JSON.stringify({ value: "high" }),
+        method: "PATCH",
+      },
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(3, `${base}/refresh`, {
+      method: "POST",
+    });
   });
 });
 

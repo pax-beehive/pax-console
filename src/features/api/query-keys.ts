@@ -87,6 +87,23 @@ export const queryKeys = {
     ["users", userId, "agents", agentId] as const,
   agentPermissionCatalog: (userId: string, agentId: string) =>
     ["users", userId, "agents", agentId, "permission-catalog"] as const,
+  sessionConfiguration: (
+    userId: string,
+    nodeId: string,
+    agentId: string,
+    sessionId: string,
+  ) =>
+    [
+      "users",
+      userId,
+      "nodes",
+      nodeId,
+      "agents",
+      agentId,
+      "sessions",
+      sessionId,
+      "configuration",
+    ] as const,
   userSessions: (
     userId: string,
     filters?: {
