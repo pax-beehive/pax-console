@@ -789,6 +789,35 @@ initialize-only、permission refresh 和错误恢复链路，避免复制请求�
 session-scoped permission endpoint；Manager 成功执行 live ACP `set_mode` 或
 `set_config_option` 并返回有效 session config 后，前端才确认新的选择。
 
+明文 session 的工具栏同时显示 Agent 最近一次上报的 session configuration。Manager
+从 `session/new`、`session/set_config_option` response，以及
+`session/update` 的 `config_option_update` 中归一化并持久化完整
+`configOptions`；legacy `models` 只读保存。Console 每 10 秒读取一次以下 durable
+snapshot，因此 agent 在 turn 运行中发出的 model、reasoning 或 boolean fast-mode
+更新不依赖重新创建 session：
+
+```txt
+GET   /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}/configuration
+PATCH /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}/configuration/options/{config_id}
+POST  /api/v1/user/{user_id}/nodes/{node_id}/agents/{agent_id}/sessions/{session_id}/configuration/refresh
+```
+
+PATCH body 是 `{"value":"..."}` 或 `{"value":true}`。Manager 只接受 Agent 当前
+catalog 已广告的 select value，并保留 permission `mode` 给既有 permission
+endpoint。标准 ACP 没有独立的 `list_models` / `get_config_options` 方法；手动
+refresh 会重新提交当前 model config value（没有 model 时使用第一个非 permission
+config），利用 `session/set_config_option` 必须返回完整 `configOptions` 的协议
+语义取得一次 fresh snapshot。这不是严格只读操作，界面 tooltip 必须明确说明。
+session-control request 使用独立 admission key，可与同一 session 的 active prompt
+并行，但多个 config request 彼此串行。
+
+Hermes 等旧实现只返回 `models.currentModelId/availableModels` 时，Console 可以展示
+当前 model 和 model list，但不提供切换或强制刷新，因为旧 `session/set_model`
+从未标准化。E2EE session 的 payload 对 Manager 不可见，所以该 selector 和这些 REST
+操作保持禁用。ACP client initialize 必须声明
+`clientCapabilities.session.configOptions.boolean={}`，否则 Agent 可以合法地省略
+boolean fast-mode 配置。
+
 当 composer 带附件时，前端改为发送结构化 content block：
 
 ```json

@@ -47,6 +47,7 @@ import {
   WorkstreamItemCard,
 } from "@/components/sessions/session-event-cards";
 import { SessionComposer } from "@/components/sessions/session-composer";
+import { SessionConfigSelector } from "@/components/sessions/session-config-selector";
 import { MobileCollapsibleSessionHeader } from "@/components/sessions/mobile-collapsible-session-header";
 import { SecureModeActivation } from "@/components/sessions/secure-mode-activation";
 import { mergeRecoveredInitialPromptDraft } from "@/components/sessions/session-initial-prompt";
@@ -65,12 +66,14 @@ import {
   decideApproval,
   deleteQueuedSessionTurn,
   flattenSessionHistoryPages,
+  forceRefreshSessionConfiguration,
   getArtifactContentURL,
   getQueuedSessionTurn,
   injectKnowledgeCapsule,
   queueSessionTurn,
   refreshAgentPermissionCatalog,
   resetSessionRuntime,
+  setSessionConfigOption,
   steerSessionTurn,
   stopSessionTurn,
   updateAgentSession,
@@ -87,6 +90,7 @@ import {
   useUserSession,
   useSessionHistory,
   useSessionArtifacts,
+  useSessionConfiguration,
 } from "@/features/api/resources";
 import { queryKeys } from "@/features/api/query-keys";
 import { ApiError, formatErrorDetail } from "@/features/api/errors";
@@ -319,6 +323,13 @@ export function SessionWorkbench({
   );
   const usesEncryptedTransport =
     initialTransport === "e2ee" || activeSession?.transport === "e2ee";
+  const sessionConfigurationQuery = useSessionConfiguration(
+    user.user_id,
+    activeNodeId,
+    activeAgentId,
+    currentSessionId,
+    !usesEncryptedTransport,
+  );
   const activeSessionReportedRunning = isActiveSessionRunStatus(
     activeSession?.runtime_status,
   );
@@ -934,6 +945,86 @@ export function SessionWorkbench({
       shouldObserveSessionTurn ||
       shouldFollowQueuedTurn ||
       activeSession?.runtime_status === "unknown";
+  const [pendingSessionConfigOptionId, setPendingSessionConfigOptionId] =
+    useState<string>();
+  const updateSessionConfiguration = useMutation({
+    mutationFn: async ({
+      configId,
+      value,
+    }: {
+      configId: string;
+      value: string | boolean;
+    }) => {
+      if (!activeNodeId || !activeAgentId || !currentSessionId) {
+        throw new Error("Start the session before changing its configuration.");
+      }
+      return setSessionConfigOption(
+        user.user_id,
+        activeNodeId,
+        activeAgentId,
+        currentSessionId,
+        configId,
+        value,
+      );
+    },
+    onMutate: ({ configId }) => {
+      setPendingSessionConfigOptionId(configId);
+      setSendError(null);
+    },
+    onSuccess: (configuration) => {
+      if (activeNodeId && activeAgentId && currentSessionId) {
+        queryClient.setQueryData(
+          queryKeys.sessionConfiguration(
+            user.user_id,
+            activeNodeId,
+            activeAgentId,
+            currentSessionId,
+          ),
+          configuration,
+        );
+      }
+    },
+    onError: (caught) => {
+      setSendError(
+        caught instanceof Error ? caught : new Error(String(caught)),
+      );
+    },
+    onSettled: () => setPendingSessionConfigOptionId(undefined),
+  });
+  const refreshSessionConfiguration = useMutation({
+    mutationFn: async () => {
+      if (!activeNodeId || !activeAgentId || !currentSessionId) {
+        throw new Error(
+          "Start the session before refreshing its configuration.",
+        );
+      }
+      return forceRefreshSessionConfiguration(
+        user.user_id,
+        activeNodeId,
+        activeAgentId,
+        currentSessionId,
+      );
+    },
+    onSuccess: (configuration) => {
+      if (activeNodeId && activeAgentId && currentSessionId) {
+        queryClient.setQueryData(
+          queryKeys.sessionConfiguration(
+            user.user_id,
+            activeNodeId,
+            activeAgentId,
+            currentSessionId,
+          ),
+          configuration,
+        );
+      }
+      setSendError(null);
+    },
+    onError: (caught) => {
+      setSendError(
+        caught instanceof Error ? caught : new Error(String(caught)),
+      );
+    },
+  });
   const updateSessionApprovalMode = useMutation({
     mutationFn: async (approvalMode: SessionApprovalMode) => {
       if (!activeNodeId || !activeAgentId || !currentSessionId) {
@@ -2184,6 +2275,23 @@ export function SessionWorkbench({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            {currentSessionId && !usesEncryptedTransport && (
+              <SessionConfigSelector
+                configuration={sessionConfigurationQuery.data}
+                errorMessage={
+                  sessionConfigurationQuery.error instanceof Error
+                    ? formatErrorDetail(sessionConfigurationQuery.error)
+                    : undefined
+                }
+                loading={sessionConfigurationQuery.isPending}
+                onChange={(configId, value) =>
+                  updateSessionConfiguration.mutate({ configId, value })
+                }
+                onRefresh={() => refreshSessionConfiguration.mutate()}
+                pendingOptionId={pendingSessionConfigOptionId}
+                refreshing={refreshSessionConfiguration.isPending}
+              />
+            )}
             <RunBadge
               error={
                 usesEncryptedTransport

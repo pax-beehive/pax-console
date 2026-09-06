@@ -82,10 +82,12 @@ export class AgentTunnelRuntime {
 
       this.socket.onopen = () => {
         this.reconnectAttempts = 0;
-        this.bootstrapAcp().then(resolve).catch((error) => {
-          this.setStatus("error");
-          reject(error instanceof Error ? error : new Error(String(error)));
-        });
+        this.bootstrapAcp()
+          .then(resolve)
+          .catch((error) => {
+            this.setStatus("error");
+            reject(error instanceof Error ? error : new Error(String(error)));
+          });
       };
 
       this.socket.onerror = () => {
@@ -174,7 +176,13 @@ export class AgentTunnelRuntime {
     this.setStatus("initializing");
     const initializeResult = (await this.request("initialize", {
       protocolVersion: 1,
-      clientCapabilities: {},
+      clientCapabilities: {
+        session: {
+          configOptions: {
+            boolean: {},
+          },
+        },
+      },
       clientInfo: {
         name: "pax-console",
         version: "0.1.0",
@@ -231,8 +239,8 @@ export class AgentTunnelRuntime {
     const stopReason = result?.stopReason ?? result?.stop_reason;
     return Boolean(
       this.managerSessionId &&
-        acpSessionId === this.managerSessionId &&
-        stopReason === "refusal",
+      acpSessionId === this.managerSessionId &&
+      stopReason === "refusal",
     );
   }
 
@@ -349,13 +357,16 @@ export class AgentTunnelRuntime {
     const delay = Math.min(1_000 * 2 ** this.reconnectAttempts, 20_000);
     this.reconnectAttempts += 1;
 
-    window.setTimeout(() => {
-      if (this.shouldReconnect && this.agentId) {
-        void this.connect(this.agentId, this.managerSessionId).catch(() => {
-          // Connection state is already reflected through status listeners.
-        });
-      }
-    }, delay + Math.floor(Math.random() * 250));
+    window.setTimeout(
+      () => {
+        if (this.shouldReconnect && this.agentId) {
+          void this.connect(this.agentId, this.managerSessionId).catch(() => {
+            // Connection state is already reflected through status listeners.
+          });
+        }
+      },
+      delay + Math.floor(Math.random() * 250),
+    );
   }
 
   private setStatus(status: TunnelStatus) {
