@@ -2395,6 +2395,9 @@ export function SessionWorkbench({
         )}
 
         <SessionComposer
+          availableCommands={
+            sessionConfigurationQuery.data?.commands?.available_commands
+          }
           activeAgentId={activeAgentId}
           activeNodeId={activeNodeId}
           approvalMode={displayedApprovalMode}

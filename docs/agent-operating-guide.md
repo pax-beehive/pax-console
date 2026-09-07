@@ -1018,3 +1018,40 @@ https://ws.lakeward.net
 ```
 
 Use the Browser plugin for visible app verification when available.
+
+## Session command completion
+
+For Manager-transport sessions, the existing session `/configuration` response
+also includes an optional `commands` snapshot with `available_commands` and
+`observed_at`. Manager persists newly received `available_commands_update`
+notifications in session metadata. No legacy journal/history backfill is
+performed. An absent snapshot means no advertisement has been observed; an
+empty list clears previous suggestions. ACP command objects retain `input`,
+`_meta`, and other extension fields.
+
+`SessionWorkbench` passes this server data from the existing TanStack Query
+configuration hook to `SessionComposer`. The existing 10-second configuration
+poll refreshes command suggestions, including during a running turn. Browser
+refreshes read the durable snapshot without querying the agent or loading old
+conversation pages. Configuration force-refresh does not request commands.
+
+`session-command-input.tsx` offers completion only for a leading slash token.
+Arrow keys navigate, Enter/Tab or a click inserts the command, and Escape
+closes the list. Selection never submits or executes `_meta.commandAction`;
+sending still uses the existing prompt/queue path. Parameter hints come from
+the advertised `input.hint`. Unknown commands remain sendable as plain text.
+E2EE sessions do not use Manager command snapshots.
+
+The main prompt and queued-message editor share this completion component.
+Existing sessions on Home and the standalone Session page both mount the same
+workbench. Home's new-session draft also uses the shared input, but has no
+session catalog until initialization; do not borrow another session's commands.
+Inquiry/envelope forms and the E2EE diagnostic lab are separate surfaces.
+
+After an automatic cold resume, paxd sends a `_pax/session_resumed`
+notification with the native session ID and complete agent resume result.
+Manager maps the ID and persists model/config options from that result; the
+configuration query then refreshes the selectors. The notification is internal
+state and must not render a chat message or complete a turn. Explicit resume
+requests retain the original response result. Commands still arrive through
+independent `available_commands_update` notifications.

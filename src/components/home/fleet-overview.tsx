@@ -1,5 +1,6 @@
 "use client";
 
+import { SessionCommandInput } from "@/components/sessions/session-command-input";
 import Link from "next/link";
 import {
   FormEvent,
@@ -1338,11 +1339,11 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                         {composerAttachmentError.message}
                       </div>
                     )}
-                    <textarea
+                    <SessionCommandInput
                       className="max-h-40 min-h-12 w-full resize-none overflow-y-auto bg-transparent px-1 py-1 text-base leading-6 text-ink outline-none [field-sizing:content] placeholder:text-ink-tertiary sm:text-sm sm:leading-5"
                       enterKeyHint="send"
                       onKeyDown={handleComposerKeyDown}
-                      onChange={(event) => setDraft(event.target.value)}
+                      onValueChange={setDraft}
                       placeholder={
                         secureComposerActive
                           ? "Send an end-to-end encrypted message"

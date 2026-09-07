@@ -209,9 +209,9 @@ describe("normalizeTunnelFrame", () => {
       { id: "msg_1", content: "First answer." },
       { id: "msg_2", content: "Second answer." },
     ]);
-    expect(
-      filterLiveEventsAlreadyInHistory(liveEvents, historyEvents),
-    ).toEqual([]);
+    expect(filterLiveEventsAlreadyInHistory(liveEvents, historyEvents)).toEqual(
+      [],
+    );
   });
 
   it("normalizes conversation run usage updates and final prompt results", () => {
@@ -1155,8 +1155,27 @@ describe("normalizeTunnelFrame", () => {
       },
     });
 
+    const resumedConfiguration = normalizeTunnelFrame({
+      jsonrpc: "2.0",
+      method: "_pax/session_resumed",
+      params: {
+        sessionId: "sess_1",
+        result: {
+          configOptions: [
+            {
+              id: "model",
+              name: "Model",
+              currentValue: "restored",
+              options: [],
+            },
+          ],
+          models: { currentModelId: "restored", availableModels: [] },
+        },
+      },
+    });
     expect(rawUpdate).toStrictEqual([]);
     expect(unknownOutputUpdate).toStrictEqual([]);
+    expect(resumedConfiguration).toStrictEqual([]);
   });
 });
 
