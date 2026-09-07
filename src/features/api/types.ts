@@ -617,7 +617,18 @@ export type SessionLegacyModel = {
   description?: string;
 };
 
+export type SessionAvailableCommand = {
+  name: string;
+  description: string;
+  input?: { hint?: string; type?: string; [key: string]: unknown } | null;
+  _meta?: Record<string, unknown>;
+};
+
 export type SessionConfiguration = {
+  commands?: {
+    available_commands: SessionAvailableCommand[];
+    observed_at: string;
+  };
   session_id: string;
   options: SessionConfigOption[];
   legacy_models?: {

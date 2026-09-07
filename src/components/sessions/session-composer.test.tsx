@@ -560,4 +560,76 @@ describe("SessionComposer", () => {
       screen.queryByRole("button", { name: "Ask before running tools" }),
     ).not.toBeInTheDocument();
   });
+  it("completes commands in the queued-message editor without sending the main draft", async () => {
+    const onSubmitDraft = vi.fn().mockResolvedValue(true);
+    const onUpdateQueuedTurn = vi.fn().mockResolvedValue(true);
+    render(
+      <TooltipProvider>
+        <SessionComposer
+          activeAgentId="agent_1"
+          activeNodeId="node_1"
+          approvalMode="manual"
+          approvalModePending={false}
+          attachmentError={null}
+          attachmentUploadPending={false}
+          attachments={[]}
+          deleteQueuedTurnPending={false}
+          currentSessionId="sess_1"
+          draftKey="sess_1"
+          isNewSession={false}
+          isTurnRunning
+          newSessionCwd=""
+          newSessionCwdInvalid={false}
+          newSessionWorkspaceOpen={false}
+          onAddAttachments={async () => undefined}
+          onDeleteQueuedTurn={vi.fn()}
+          onRemoveAttachment={vi.fn()}
+          onSelectPermissionChoice={vi.fn()}
+          onSetNewSessionCwd={vi.fn()}
+          onSetNewSessionWorkspaceOpen={vi.fn()}
+          onSteer={async () => true}
+          onStop={vi.fn()}
+          onSubmitDraft={onSubmitDraft}
+          onToggleApprovalMode={vi.fn()}
+          onUpdateQueuedTurn={onUpdateQueuedTurn}
+          queueTurnPending={false}
+          availableCommands={[
+            {
+              name: "review-branch",
+              description: "Review branch",
+              input: { hint: "branch name" },
+            },
+          ]}
+          queuedTurn={{
+            agent_id: "agent_1",
+            command_id: "cmd_1",
+            created_at: "2026-09-07T00:00:00Z",
+            updated_at: "2026-09-07T00:00:00Z",
+            input: "/re",
+            queued_turn_id: "queued_1",
+            session_id: "sess_1",
+          }}
+          showAdminFeatures={false}
+          steerTurnPending={false}
+          stopTurnPending={false}
+          updateQueuedTurnPending={false}
+        />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Edit queued message" }),
+    );
+    const input = screen.getByRole("textbox", { name: "Queued message" });
+    fireEvent.focus(input);
+    fireEvent.keyDown(input, { key: "Tab" });
+    expect(input).toHaveValue("/review-branch ");
+    expect(onUpdateQueuedTurn).not.toHaveBeenCalled();
+    expect(onSubmitDraft).not.toHaveBeenCalled();
+    fireEvent.change(input, { target: { value: "/review-branch main" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(onUpdateQueuedTurn).toHaveBeenCalledWith("/review-branch main"),
+    );
+  });
 });

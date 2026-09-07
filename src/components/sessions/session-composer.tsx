@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SessionCommandInput } from "@/components/sessions/session-command-input";
 import { SessionPermissionSelector } from "@/components/sessions/session-permission-selector";
 import {
   DropdownMenu,
@@ -39,6 +40,7 @@ import type {
   AgentPermissionCatalog,
   AgentPermissionChoice,
   SessionApprovalMode,
+  SessionAvailableCommand,
 } from "@/features/api/types";
 import { compactId } from "@/lib/format";
 import { useMobileComposerKeyboardInset } from "@/lib/use-mobile-composer-keyboard-inset";
@@ -53,6 +55,7 @@ type ComposerAttachment = {
 };
 
 type SessionComposerProps = {
+  availableCommands?: SessionAvailableCommand[];
   activeAgentId?: string;
   activeNodeId?: string;
   approvalMode: SessionApprovalMode;
@@ -99,6 +102,7 @@ type SessionComposerProps = {
 };
 
 export const SessionComposer = memo(function SessionComposer({
+  availableCommands,
   activeAgentId,
   activeNodeId,
   approvalMode,
@@ -301,6 +305,7 @@ export const SessionComposer = memo(function SessionComposer({
               </span>
               {queuedTurnEditingId !== queuedTurn.queued_turn_id && (
                 <Button
+                  aria-label="Edit queued message"
                   disabled={deleteQueuedTurnPending}
                   icon={<Pencil className="h-3.5 w-3.5" />}
                   onClick={() => {
@@ -314,6 +319,7 @@ export const SessionComposer = memo(function SessionComposer({
                 />
               )}
               <Button
+                aria-label="Delete queued message"
                 disabled={deleteQueuedTurnPending}
                 icon={
                   deleteQueuedTurnPending ? (
@@ -331,11 +337,12 @@ export const SessionComposer = memo(function SessionComposer({
             </div>
             {queuedTurnEditingId === queuedTurn.queued_turn_id ? (
               <div className="grid gap-2">
-                <textarea
+                <SessionCommandInput
+                  commands={secure ? undefined : availableCommands}
                   aria-label="Queued message"
                   autoFocus
                   className="max-h-32 min-h-16 w-full resize-y rounded-lg border border-hairline bg-canvas px-2.5 py-2 text-base leading-6 text-ink outline-none focus:border-primary-focus focus:ring-2 focus:ring-primary-focus/20 sm:text-sm sm:leading-5"
-                  onChange={(event) => setQueuedTurnDraft(event.target.value)}
+                  onValueChange={setQueuedTurnDraft}
                   value={queuedTurnDraft}
                 />
                 <div className="flex justify-end gap-2">
@@ -414,11 +421,13 @@ export const SessionComposer = memo(function SessionComposer({
             {attachmentError.name}: {attachmentError.message}
           </div>
         )}
-        <textarea
+        <SessionCommandInput
+          key={draftKey}
+          commands={secure ? undefined : availableCommands}
           className="max-h-40 min-h-12 w-full resize-none overflow-y-auto bg-transparent px-1 py-1 text-base leading-6 text-ink outline-none [field-sizing:content] placeholder:text-ink-tertiary sm:text-sm sm:leading-5"
           disabled={!activeAgentId}
           enterKeyHint="send"
-          onChange={(event) => setComposerDraft(draftKey, event.target.value)}
+          onValueChange={(value) => setComposerDraft(draftKey, value)}
           onKeyDown={handleKeyDown}
           placeholder={
             secure
