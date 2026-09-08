@@ -137,6 +137,16 @@ button {
   cursor: pointer;
 }
 
+/* Keep focus from triggering iOS input zoom, without restricting pinch zoom.
+   This must follow the unlayered font: inherit reset above. */
+@media (any-pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: max(16px, 1rem);
+  }
+}
+
 .console-shell {
   position: fixed;
   inset: 0;

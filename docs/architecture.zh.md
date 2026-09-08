@@ -327,7 +327,10 @@ src/components/sessions/
   event 会结束当前 work block。时间线 block 使用 8px
   间距；agent 与 user 正文使用 14px 字号、20px 行高，Markdown H1/H2/H3
   分别使用 18px/16px/15px 字号，引用使用 13px 字号；Session 与 Home composer
-  输入框和正文一致，使用 14px 字号、20px 行高。Markdown 段落间距为 6px。
+  桌面输入框和正文一致，使用 14px 字号、20px 行高。触屏设备的表单控件使用
+  至少 16px 字号，避免 iOS 聚焦自动放大，同时保留用户手动缩放。
+  Command 建议列表只允许纵向滚动，长名称、描述和提示在 composer 宽度内换行。
+  Markdown 段落间距为 6px。
   agent message 和 work group 不再额外增加纵向 padding，因此文字紧接工作过程时
   仍保持 8px block 间距。
 

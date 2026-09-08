@@ -44,7 +44,10 @@ export function SessionCommandInput({
 
   useEffect(() => {
     if (activeId)
-      document.getElementById(activeId)?.scrollIntoView?.({ block: "nearest" });
+      document.getElementById(activeId)?.scrollIntoView?.({
+        block: "nearest",
+        inline: "nearest",
+      });
   }, [activeId]);
 
   function select(command: SessionAvailableCommand) {
@@ -55,7 +58,7 @@ export function SessionCommandInput({
 
   return (
     <div
-      className="relative"
+      className="relative min-w-0 max-w-full"
       onFocus={() => setFocused(true)}
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget))
@@ -65,7 +68,7 @@ export function SessionCommandInput({
       {open && (
         <div
           aria-label="Available commands"
-          className="absolute inset-x-0 bottom-full z-20 mb-2 max-h-64 overflow-y-auto rounded-lg border border-hairline bg-surface-1 p-1 shadow-lg"
+          className="absolute inset-x-0 bottom-full z-20 mb-2 max-h-64 overflow-x-hidden overflow-y-auto rounded-lg border border-hairline bg-surface-1 p-1 shadow-lg"
           id={listId}
           role="listbox"
         >
@@ -74,7 +77,7 @@ export function SessionCommandInput({
               asChild
               aria-selected={candidateIndex === index}
               className={cn(
-                "h-auto w-full flex-col items-start gap-0.5 whitespace-normal px-3 py-2 text-left",
+                "h-auto w-full min-w-0 max-w-full flex-col items-stretch gap-0.5 whitespace-normal px-3 py-2 text-left [overflow-wrap:anywhere]",
                 candidateIndex === index && "bg-surface-2",
               )}
               id={`${listId}-${candidateIndex}`}
@@ -153,7 +156,7 @@ export function SessionCommandInput({
       />
       {hint && (
         <div
-          className="mb-2 px-1 text-xs text-ink-tertiary"
+          className="mb-2 px-1 text-xs text-ink-tertiary [overflow-wrap:anywhere]"
           id={`${listId}-hint`}
         >
           {hint}
