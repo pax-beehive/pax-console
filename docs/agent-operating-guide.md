@@ -666,7 +666,10 @@ rows and adjacent tool groups. Normal messages and actionable standalone events
 end the work block. The timeline uses an 8px row gap; agent and user copy uses
 14px type with a 20px line height, while Markdown H1/H2/H3 use 18px/16px/15px
 type and blockquotes use 13px type. Session and Home composer input uses the
-same 14px/20px typography as body copy. Markdown blocks keep 6px paragraph
+same 14px/20px typography as body copy on desktop. Touch-device form controls
+use at least 16px to avoid iOS focus zoom; never disable user pinch zoom.
+Command suggestions scroll vertically only and wrap long names, descriptions,
+and hints within the composer width. Markdown blocks keep 6px paragraph
 spacing. Agent-message and work-group items add no extra vertical padding, so
 adjacent text-to-work spacing stays at that 8px gap.
 
