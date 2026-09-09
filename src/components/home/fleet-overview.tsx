@@ -31,7 +31,6 @@ import {
   Ellipsis,
   Folder,
   FolderOpen,
-  FolderPlus,
   Inbox,
   ListFilter,
   LockKeyhole,
@@ -203,8 +202,13 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const [generatedDrafts, setGeneratedDrafts] = useState<
     Record<string, string>
   >({});
-  const [newSessionCwd, setNewSessionCwd] = useState("");
-  const [newSessionWorkspaceOpen, setNewSessionWorkspaceOpen] = useState(false);
+  const [workspaceDraft, setWorkspaceDraft] = useState<{
+    key: string;
+    cwd: string;
+  } | null>(null);
+  const [workspaceEditingKey, setWorkspaceEditingKey] = useState<string | null>(
+    null,
+  );
   const [newSessionTransport, setNewSessionTransport] =
     useState<NonNullable<AgentSession["transport"]>>("manager");
   const [
@@ -347,16 +351,6 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     () => projectsQuery.data?.projects ?? [],
     [projectsQuery.data?.projects],
   );
-  const selectedProject = projects.find(
-    (project) => project.project_id === selectedProjectId,
-  );
-  const selectedProjectPath = useMemo(
-    () =>
-      selectedProject
-        ? projectPath(selectedProject, projects)
-        : ([] as Project[]),
-    [projects, selectedProject],
-  );
   const projectTargetsQuery = useProjectTargets(
     user.user_id,
     selectedProjectId,
@@ -395,22 +389,49 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const effectiveNewSessionApprovalMode = approvalModeForPermissionChoice(
     effectiveNewSessionPermissionChoiceId,
   );
+  const workspaceKey = JSON.stringify([
+    selectedProjectId,
+    activeAgent?.agent_id ?? "",
+  ]);
+  const suggestedProjectTargets = useMemo(
+    () =>
+      selectedProjectId
+        ? enabledProjectTargets.filter(
+            (target) => target.agent_id === activeAgent?.agent_id,
+          )
+        : [],
+    [selectedProjectId, enabledProjectTargets, activeAgent?.agent_id],
+  );
+  const defaultWorkspace =
+    suggestedProjectTargets.find((target) => target.is_default) ??
+    (suggestedProjectTargets.length === 1
+      ? suggestedProjectTargets[0]
+      : undefined);
+  const workspaceLoading = Boolean(
+    selectedProjectId && projectTargetsQuery.isPending,
+  );
+  const newSessionCwd =
+    workspaceDraft?.key === workspaceKey
+      ? workspaceDraft.cwd
+      : (defaultWorkspace?.cwd ?? "");
   const normalizedNewSessionCwd = newSessionCwd.trim();
   const newSessionCwdInvalid =
     normalizedNewSessionCwd.length > 0 &&
     !isSupportedSessionWorkspace(normalizedNewSessionCwd);
-  const matchingProjectTarget = selectedProjectId
-    ? enabledProjectTargets.find(
-        (target) =>
-          target.agent_id === activeAgent?.agent_id &&
-          target.cwd === normalizedNewSessionCwd,
-      )
-    : undefined;
-  const suggestedProjectTargets = selectedProjectId
-    ? enabledProjectTargets.filter(
-        (target) => target.agent_id === activeAgent?.agent_id,
-      )
-    : [];
+  const newSessionWorkspaceOpen =
+    workspaceEditingKey === workspaceKey ||
+    newSessionCwdInvalid ||
+    Boolean(selectedProjectId && !normalizedNewSessionCwd && !workspaceLoading);
+  const matchingProjectTarget = suggestedProjectTargets.find(
+    (target) => target.cwd === normalizedNewSessionCwd,
+  );
+  const availableProjectTargets = useMemo(
+    () =>
+      enabledProjectTargets.filter((target) =>
+        agents.some((agent) => agent.agent_id === target.agent_id),
+      ),
+    [enabledProjectTargets, agents],
+  );
 
   const sessions = useMemo(
     () => byRecent(queriedSessions, sessionTimestamp),
@@ -754,6 +775,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       !activeAgent?.agent_id ||
       !activeAgent.node_id ||
       (selectedProjectId && !normalizedNewSessionCwd) ||
+      workspaceLoading ||
       newSessionCwdInvalid ||
       composerAttachmentUploadPending
     ) {
@@ -795,6 +817,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       !activeAgent.node_id ||
       newSessionTransport === "e2ee" ||
       (selectedProjectId && !normalizedNewSessionCwd) ||
+      workspaceLoading ||
       newSessionCwdInvalid ||
       composerAttachmentUploadPending ||
       composerAttachments.length > 0
@@ -1003,7 +1026,6 @@ export function FleetOverview({ user }: FleetOverviewProps) {
               loading={projectsQuery.isLoading || sessionsQuery.isLoading}
               onSelectProject={(projectId) => {
                 setSelectedProjectId(projectId);
-                setNewSessionWorkspaceOpen(true);
                 setEmbeddedSessionTarget(null);
                 clearHomeSessionUrl();
                 setSelectedWorkItemId("");
@@ -1112,7 +1134,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 user={user}
               />
             ) : fleetSetupGuideKind ? (
-              <div className="min-h-0 flex-1 overflow-auto p-5">
+              <div className="min-h-0 flex-1 overflow-auto p-3 sm:p-5">
                 <div className="mx-auto w-full max-w-4xl">
                   <PaxdGettingStartedGuide kind={fleetSetupGuideKind} />
                 </div>
@@ -1146,40 +1168,10 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                   </div>
                 </div>
                 <div
-                  className="min-h-0 flex-1 overflow-auto p-5"
+                  className="min-h-0 flex-1 overflow-auto p-3 sm:p-5"
                   ref={composerContentScrollRef}
                 >
                   <div className="mx-auto grid w-full max-w-4xl gap-4">
-                    {selectedProject && (
-                      <section className="rounded-xl border border-accent/25 bg-accent/10 p-5">
-                        <div className="flex flex-wrap items-start justify-between gap-4">
-                          <div className="min-w-0">
-                            <div className="text-xs font-medium uppercase tracking-[0.16em] text-accent-bright">
-                              Project
-                            </div>
-                            <h1 className="mt-2 text-2xl font-semibold text-ink">
-                              {selectedProject.display_name}
-                            </h1>
-                            <div className="mt-2 text-sm text-ink-tertiary">
-                              {selectedProjectPath
-                                .map((project) => project.display_name)
-                                .join(" / ")}
-                            </div>
-                          </div>
-                          <Link
-                            className="text-sm text-accent-bright transition hover:text-ink"
-                            href={`/settings/projects?project=${encodeURIComponent(selectedProject.project_id)}`}
-                          >
-                            Configure targets
-                          </Link>
-                        </div>
-                        <p className="mt-4 max-w-2xl text-sm leading-6 text-ink-muted">
-                          Choose an agent and workspace below. Existing
-                          workspaces are reused; new ones are saved after the
-                          session starts.
-                        </p>
-                      </section>
-                    )}
                     {needsOnboarding && (
                       <section className="rounded-xl border border-accent/30 bg-accent/10 p-4 text-sm">
                         <div className="font-medium text-ink">
@@ -1277,9 +1269,187 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                       "mx-auto w-full max-w-4xl rounded-xl border px-3 py-2 transition-[background-color,border-color,box-shadow] duration-500",
                       secureComposerActive
                         ? "border-emerald-400/45 bg-surface-2/95 shadow-[0_0_0_1px_rgba(52,211,153,0.04),0_10px_36px_rgba(16,185,129,0.07)] focus-within:border-emerald-400/70 focus-within:shadow-[0_0_0_3px_rgba(52,211,153,0.08),0_14px_44px_rgba(16,185,129,0.10)]"
-                        : "border-hairline bg-surface-2 focus-within:border-accent/60 focus-within:shadow-[0_0_0_3px_rgb(94_106_210/14%),0_0_28px_rgb(94_106_210/10%)]",
+                        : "border-hairline bg-surface-2 focus-within:border-accent/60 focus-within:ring-1 focus-within:ring-accent/20",
                     )}
                   >
+                    <div className="mb-2 grid min-w-0 gap-1 border-b border-hairline pb-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <label className="inline-flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-lg px-1 text-sm text-ink-muted focus-within:ring-1 focus-within:ring-accent/25">
+                          <Folder className="h-4 w-4 shrink-0" />
+                          <span className="hidden shrink-0 text-xs font-medium text-ink-tertiary sm:inline">
+                            Project
+                          </span>
+                          <select
+                            aria-label="Project"
+                            className="min-w-0 flex-1 bg-transparent text-base text-ink outline-none sm:text-sm"
+                            onChange={(event) => {
+                              const projectId = event.target.value;
+                              setSelectedProjectId(projectId);
+                              setProjectTargetSaveError(null);
+                            }}
+                            value={selectedProjectId}
+                          >
+                            <option value="">No project</option>
+                            {projects.map((project) => (
+                              <option
+                                key={project.project_id}
+                                value={project.project_id}
+                              >
+                                {projectPath(project, projects)
+                                  .map((item) => item.display_name)
+                                  .join(" / ")}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <AgentSelector
+                          agents={agents}
+                          nodes={nodes}
+                          selectedAgentId={activeAgent?.agent_id}
+                          onChange={setSelectedAgentId}
+                        />
+                      </div>
+                      {workspaceLoading ? (
+                        <div
+                          role="status"
+                          className="px-1 py-1 text-xs text-ink-tertiary"
+                        >
+                          Loading workspaces…
+                        </div>
+                      ) : newSessionWorkspaceOpen ? (
+                        <div className="grid min-w-0 gap-1">
+                          <label
+                            className={cn(
+                              "flex min-h-9 min-w-0 items-center gap-2 rounded-lg border bg-canvas px-2.5 focus-within:border-accent",
+                              newSessionCwdInvalid
+                                ? "border-warning text-warning"
+                                : "border-hairline text-ink-muted",
+                            )}
+                          >
+                            <FolderOpen className="h-4 w-4 shrink-0" />
+                            <input
+                              aria-label="Workspace"
+                              aria-invalid={newSessionCwdInvalid}
+                              disabled={!activeAgent}
+                              className="min-w-0 flex-1 bg-transparent font-mono text-base text-ink outline-none placeholder:text-ink-tertiary sm:text-sm"
+                              onChange={(event) => {
+                                setWorkspaceDraft({
+                                  key: workspaceKey,
+                                  cwd: event.target.value,
+                                });
+                                setWorkspaceEditingKey(workspaceKey);
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+                                  if (
+                                    normalizedNewSessionCwd &&
+                                    !newSessionCwdInvalid
+                                  )
+                                    setWorkspaceEditingKey(null);
+                                }
+                              }}
+                              placeholder="Set working directory, e.g. ~/project"
+                              spellCheck={false}
+                              value={newSessionCwd}
+                            />
+                            <Button
+                              aria-label="Use workspace"
+                              disabled={
+                                !normalizedNewSessionCwd || newSessionCwdInvalid
+                              }
+                              icon={<Check className="h-4 w-4" />}
+                              onClick={() => setWorkspaceEditingKey(null)}
+                              size="icon"
+                              tooltip="Use workspace"
+                              type="button"
+                              variant="ghost"
+                            />
+                          </label>
+                          <span className="px-1 text-xs text-ink-tertiary">
+                            {newSessionCwdInvalid
+                              ? "Use an absolute path, ~, or a path starting with ~/"
+                              : "Choose a directory on the selected agent’s device."}
+                          </span>
+                        </div>
+                      ) : (
+                        <Button
+                          aria-label={
+                            normalizedNewSessionCwd
+                              ? "Change workspace"
+                              : "Set workspace"
+                          }
+                          className="w-full min-w-0 justify-start px-1 text-ink-tertiary"
+                          icon={<FolderOpen className="h-3.5 w-3.5 shrink-0" />}
+                          onClick={() => setWorkspaceEditingKey(workspaceKey)}
+                          size="sm"
+                          tooltip={
+                            normalizedNewSessionCwd ||
+                            "Use the agent’s default directory or set a workspace"
+                          }
+                          type="button"
+                          variant="ghost"
+                        >
+                          {normalizedNewSessionCwd || "Agent default directory"}
+                        </Button>
+                      )}
+                      {selectedProjectId &&
+                        availableProjectTargets.length > 0 &&
+                        (newSessionWorkspaceOpen ||
+                          availableProjectTargets.length > 1) && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                className="justify-self-start"
+                                size="sm"
+                                type="button"
+                                variant="ghost"
+                                icon={<ChevronDown className="h-3.5 w-3.5" />}
+                              >
+                                {suggestedProjectTargets.length
+                                  ? "Saved workspaces"
+                                  : "Use a configured agent"}
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                              align="start"
+                              className="max-h-64 max-w-[calc(100vw-32px)] overflow-y-auto"
+                            >
+                              {availableProjectTargets.map((target) => (
+                                <DropdownMenuItem
+                                  key={target.target_id}
+                                  onSelect={() => {
+                                    setSelectedAgentId(target.agent_id);
+                                    setWorkspaceDraft({
+                                      key: JSON.stringify([
+                                        selectedProjectId,
+                                        target.agent_id,
+                                      ]),
+                                      cwd: target.cwd,
+                                    });
+                                    setWorkspaceEditingKey(null);
+                                  }}
+                                >
+                                  <div className="min-w-0">
+                                    <div className="truncate">
+                                      {agentLabel(
+                                        agents.find(
+                                          (agent) =>
+                                            agent.agent_id === target.agent_id,
+                                        )!,
+                                      )}
+                                      {target.is_default ? " · Default" : ""}
+                                    </div>
+                                    <div className="break-all font-mono text-xs text-ink-tertiary">
+                                      {target.cwd}
+                                    </div>
+                                  </div>
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                    </div>
                     <ComposerModeHint
                       secure={secureComposerActive}
                       mode={composerMode}
@@ -1393,122 +1563,6 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
-                      <label
-                        className={cn(
-                          "inline-flex min-h-9 min-w-0 items-center gap-2 rounded-lg border border-hairline bg-canvas px-2.5 text-sm text-ink-muted focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/25 sm:w-48",
-                          selectedProjectId || newSessionWorkspaceOpen
-                            ? "basis-full sm:min-w-48 sm:basis-auto"
-                            : "w-24 max-w-[45vw]",
-                        )}
-                      >
-                        <Folder className="h-4 w-4 shrink-0" />
-                        <span className="hidden shrink-0 text-xs font-medium text-ink-tertiary sm:inline">
-                          Project
-                        </span>
-                        <select
-                          aria-label="Project"
-                          className="min-w-0 flex-1 bg-transparent text-base text-ink outline-none sm:text-sm"
-                          onChange={(event) => {
-                            const projectId = event.target.value;
-                            setSelectedProjectId(projectId);
-                            setNewSessionWorkspaceOpen(
-                              Boolean(projectId || newSessionCwd.trim()),
-                            );
-                            setProjectTargetSaveError(null);
-                          }}
-                          value={selectedProjectId}
-                        >
-                          <option value="">No project</option>
-                          {projects.map((project) => (
-                            <option
-                              key={project.project_id}
-                              value={project.project_id}
-                            >
-                              {projectPath(project, projects)
-                                .map((item) => item.display_name)
-                                .join(" / ")}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      {selectedProjectId || newSessionWorkspaceOpen ? (
-                        <label
-                          className={cn(
-                            "order-first inline-flex min-h-9 min-w-0 basis-full items-center gap-2 rounded-lg border bg-canvas px-2.5 text-sm transition sm:order-none sm:min-w-64 sm:max-w-80 sm:basis-auto sm:flex-1",
-                            newSessionCwdInvalid
-                              ? "border-warning text-warning"
-                              : "border-hairline text-ink-muted focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/25",
-                          )}
-                          onBlur={(event) => {
-                            if (selectedProjectId) {
-                              return;
-                            }
-                            const nextTarget = event.relatedTarget;
-                            if (
-                              (nextTarget instanceof globalThis.Node &&
-                                event.currentTarget.contains(nextTarget)) ||
-                              newSessionCwd.trim()
-                            ) {
-                              return;
-                            }
-
-                            setNewSessionWorkspaceOpen(false);
-                          }}
-                        >
-                          <FolderOpen className="h-4 w-4 shrink-0" />
-                          <span className="shrink-0 text-xs font-medium text-ink-tertiary">
-                            Workspace
-                          </span>
-                          <input
-                            aria-invalid={newSessionCwdInvalid}
-                            aria-label="Workspace"
-                            autoFocus
-                            className="min-w-0 flex-1 bg-transparent font-mono text-base text-ink outline-none placeholder:text-ink-tertiary sm:text-xs"
-                            list={
-                              suggestedProjectTargets.length > 0
-                                ? "project-workspace-targets"
-                                : undefined
-                            }
-                            onChange={(event) =>
-                              setNewSessionCwd(event.target.value)
-                            }
-                            placeholder="~/project"
-                            spellCheck={false}
-                            value={newSessionCwd}
-                          />
-                          {suggestedProjectTargets.length > 0 && (
-                            <datalist id="project-workspace-targets">
-                              {suggestedProjectTargets.map((target) => (
-                                <option
-                                  key={target.target_id}
-                                  value={target.cwd}
-                                >
-                                  {target.display_name}
-                                </option>
-                              ))}
-                            </datalist>
-                          )}
-                        </label>
-                      ) : (
-                        <Button
-                          aria-label="Set workspace"
-                          icon={<FolderPlus className="h-4 w-4" />}
-                          onClick={() => setNewSessionWorkspaceOpen(true)}
-                          size="icon"
-                          tooltip="Set workspace"
-                          type="button"
-                          variant="ghost"
-                        />
-                      )}
-                      {selectedProject &&
-                        normalizedNewSessionCwd &&
-                        !newSessionCwdInvalid && (
-                          <div className="order-last basis-full pl-1 text-xs text-ink-tertiary">
-                            {matchingProjectTarget
-                              ? `Using saved target ${matchingProjectTarget.display_name}`
-                              : `New workspace · will be saved to ${selectedProject.display_name}`}
-                          </div>
-                        )}
                       <Button
                         aria-label="Use end-to-end encryption"
                         aria-pressed={newSessionTransport === "e2ee"}
@@ -1559,12 +1613,6 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                         </Badge>
                       )}
                       <div className="ml-auto flex shrink-0 items-center gap-2">
-                        <AgentSelector
-                          agents={agents}
-                          nodes={nodes}
-                          selectedAgentId={activeAgent?.agent_id}
-                          onChange={setSelectedAgentId}
-                        />
                         <Button
                           aria-label="Start session"
                           className={cn(
@@ -1575,6 +1623,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                             !activeAgent?.agent_id ||
                             (Boolean(selectedProjectId) &&
                               !normalizedNewSessionCwd) ||
+                            workspaceLoading ||
                             newSessionCwdInvalid ||
                             composerAttachmentUploadPending
                           }
@@ -1607,6 +1656,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                                   !activeAgent.node_id ||
                                   (Boolean(selectedProjectId) &&
                                     !normalizedNewSessionCwd) ||
+                                  workspaceLoading ||
                                   newSessionCwdInvalid ||
                                   composerAttachmentUploadPending ||
                                   composerAttachments.length > 0
@@ -2100,9 +2150,7 @@ function ComposerModeHint({
       return null;
     }
 
-    return (
-      <div className="mb-1 px-1 text-xs text-ink-tertiary">Clean session</div>
-    );
+    return null;
   }
 
   return (
@@ -2167,14 +2215,17 @@ function SelectedContext({
 
   if (!item) {
     return (
-      <section className="flex min-h-[160px] items-center justify-center px-4 py-10 text-center">
+      <section className="flex min-h-24 items-center justify-center px-4 py-5 text-center sm:min-h-[160px] sm:py-10">
         <div className="grid gap-1.5">
           <div className="text-sm text-ink-muted">
             What should we work on today?
           </div>
           <div className="text-xs text-ink-tertiary">
-            Type below to start a session · Enter to send, Shift+Enter for a new
-            line
+            <span className="sm:hidden">Type below to start a session</span>
+            <span className="hidden sm:inline">
+              Type below to start a session · Enter to send, Shift+Enter for a
+              new line
+            </span>
           </div>
         </div>
       </section>

@@ -126,20 +126,22 @@ body {
   color: var(--ink);
 }
 
-button,
-input,
-textarea,
-select {
-  font: inherit;
+@layer base {
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
 }
 
 button {
   cursor: pointer;
 }
 
-/* Keep focus from triggering iOS input zoom, without restricting pinch zoom.
-   This must follow the unlayered font: inherit reset above. */
-@media (any-pointer: coarse) {
+/* Phone form controls match chat copy and avoid focus zoom.
+   Do not enlarge desktop controls just because a touchscreen is attached. */
+@media (width < 640px) {
   input,
   textarea,
   select {

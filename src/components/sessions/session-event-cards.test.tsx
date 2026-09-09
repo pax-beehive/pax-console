@@ -148,7 +148,7 @@ describe("session event cards", () => {
 
     expect(
       screen.getByText("Finished the requested work.").parentElement,
-    ).toHaveClass("text-sm", "leading-5");
+    ).toHaveClass("text-base", "leading-6", "sm:text-sm", "sm:leading-5");
     expect(screen.getByRole("heading", { name: "Summary" })).toHaveClass(
       "text-base",
     );

@@ -92,7 +92,16 @@ Do not spread Cloudflare cookie handling into React components.
 Home has two resource rails: Sessions and Projects. Projects are logical,
 owner-scoped, nestable work groups. A reusable Project Target binds an Agent to
 a working-directory intent. The Home composer exposes Project, Agent, and
-Workspace instead of asking users to manage Targets. An enabled Target with the
+Workspace instead of asking users to manage Targets. Project and Agent remain
+independent. Resolve a workspace only among enabled targets for the selected
+Project and Agent: use the default, or the sole match; multiple matches without
+a default require selection. Scope typed directories and editor state to that
+Project/Agent pair, so changing either never carries a different pair’s path.
+Show resolved paths as an editable summary; missing bindings open an inline
+input, and saved-workspace choices can explicitly switch to another configured
+Agent. Do not switch agents implicitly. Wait for target loading before starting
+project sessions. Keep project/location controls above the prompt, omit the
+redundant project hero card and clean-session label. An enabled Target with the
 same Project, Agent, and cwd is reused; otherwise the Console saves one only
 after native session assignment succeeds. The Session's optional
 `primary_project_id` is immutable. Do not overload that singular field for
@@ -666,8 +675,9 @@ rows and adjacent tool groups. Normal messages and actionable standalone events
 end the work block. The timeline uses an 8px row gap; agent and user copy uses
 14px type with a 20px line height, while Markdown H1/H2/H3 use 18px/16px/15px
 type and blockquotes use 13px type. Session and Home composer input uses the
-same 14px/20px typography as body copy on desktop. Touch-device form controls
-use at least 16px to avoid iOS focus zoom; never disable user pinch zoom.
+same 14px/20px typography as body copy on desktop. Below 640px, composer input, agent/user messages, and form controls use
+16px type; message and composer line height is 24px. Larger layouts retain
+their component sizes even with a touchscreen. Never disable user pinch zoom.
 Command suggestions scroll vertically only and wrap long names, descriptions,
 and hints within the composer width. Markdown blocks keep 6px paragraph
 spacing. Agent-message and work-group items add no extra vertical padding, so
