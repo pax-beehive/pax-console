@@ -159,12 +159,18 @@ export function normalizeTunnelFrame(
       asRecord(valueFrom(frame.params, "update")) ??
       asRecord(frame) ??
       asRecord(frame.params);
+    const usedTokens = numberFromRecord(usage, "used");
+    const windowTokens = numberFromRecord(usage, "size");
+    if (usedTokens === undefined) {
+      return [];
+    }
     return [
       {
-        type: "token_usage",
+        type: "context_usage",
         id,
         sessionId,
-        totalTokens: numberFromRecord(usage, "used"),
+        usedTokens,
+        ...(windowTokens !== undefined ? { windowTokens } : {}),
         createdAt,
       },
     ];
@@ -270,6 +276,10 @@ function normalizeToolCall(
     status,
     ...(frame.sessionUpdate ? { sessionUpdate: frame.sessionUpdate } : {}),
     ...(toolCallId ? { toolCallId } : {}),
+    ...(valueFrom(frame._meta, "contextCompaction") === true ||
+    valueFrom(frame._meta, "context_compaction") === true
+      ? { contextCompaction: true }
+      : {}),
     createdAt,
   };
 
@@ -588,12 +598,29 @@ function normalizeJsonRpcResult(
       type: "token_usage",
       id: `${id}:usage`,
       sessionId,
-      inputTokens: numberFromRecord(usage, "inputTokens"),
-      outputTokens: numberFromRecord(usage, "outputTokens"),
+      inputTokens:
+        numberFromRecord(usage, "inputTokens") ??
+        numberFromRecord(usage, "input_tokens"),
+      cacheReadTokens:
+        numberFromRecord(usage, "cachedReadTokens") ??
+        numberFromRecord(usage, "cacheReadTokens") ??
+        numberFromRecord(usage, "cache_read_tokens"),
+      cacheWriteTokens:
+        numberFromRecord(usage, "cacheWriteTokens") ??
+        numberFromRecord(usage, "cache_write_tokens"),
+      cacheCreationTokens:
+        numberFromRecord(usage, "cacheCreationTokens") ??
+        numberFromRecord(usage, "cache_creation_tokens"),
+      outputTokens:
+        numberFromRecord(usage, "outputTokens") ??
+        numberFromRecord(usage, "output_tokens"),
       reasoningTokens:
         numberFromRecord(usage, "reasoningTokens") ??
-        numberFromRecord(usage, "thoughtTokens"),
-      totalTokens: numberFromRecord(usage, "totalTokens"),
+        numberFromRecord(usage, "thoughtTokens") ??
+        numberFromRecord(usage, "reasoning_tokens"),
+      totalTokens:
+        numberFromRecord(usage, "totalTokens") ??
+        numberFromRecord(usage, "total_tokens"),
       createdAt,
     });
   }

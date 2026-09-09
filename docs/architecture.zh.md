@@ -958,12 +958,21 @@ tunnel.sendUserMessage(paxSessionId, content)
 对应规则：
 
 ```txt
-agent_message_chunk -> agent_message, streaming: true
-agent_thought_chunk -> progress, streaming: true
-usage_update        -> token_usage
-session_info_update -> run_status
+agent_message_chunk             -> agent_message, streaming: true
+agent_thought_chunk             -> progress, streaming: true
+usage_update { used, size }     -> context_usage
+final result.usage              -> token_usage
+session_info_update             -> run_status
 未知或控制类 update -> 忽略，不渲染为 timeline 正文
 ```
+
+`context_usage` 和 `token_usage` 都是隐藏的 turn metadata，不单独渲染成
+timeline 卡片。turn aggregator 保存结束前最后一个 context snapshot 和 final
+result 中的本轮 token usage，并在现有 Done / copy / feedback footer 中显示一个
+仪表盘图标；hover/focus tooltip 展示 context、compact 前后值和
+input/cache/output/reasoning breakdown。带 `_meta.contextCompaction=true` 的 tool update 表示 context
+compaction，前一个 context snapshot 与其后的第一个 snapshot 作为 best-effort
+before/after 信息。旧记录缺少任一数据时静默省略对应项。
 
 ACP permission prompt 不是 `session/update`，而是 agent 发给 client 的
 JSON-RPC request：

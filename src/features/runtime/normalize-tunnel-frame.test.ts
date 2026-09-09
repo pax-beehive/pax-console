@@ -264,9 +264,10 @@ describe("normalizeTunnelFrame", () => {
     ]);
     expect(usageUpdate).toMatchObject([
       {
-        type: "token_usage",
+        type: "context_usage",
         sessionId: "sess_f859",
-        totalTokens: 14_863,
+        usedTokens: 14_863,
+        windowTokens: 1_000_000,
       },
     ]);
     expect(finalResult).toMatchObject([
@@ -274,6 +275,7 @@ describe("normalizeTunnelFrame", () => {
         type: "token_usage",
         sessionId: "sess_f859",
         inputTokens: 13_984,
+        cacheReadTokens: 2_048,
         outputTokens: 77,
         reasoningTokens: 0,
         totalTokens: 14_061,
@@ -281,6 +283,33 @@ describe("normalizeTunnelFrame", () => {
       {
         type: "turn_done",
         sessionId: "sess_f859",
+      },
+    ]);
+  });
+
+  it("marks context compaction tool updates for turn-level aggregation", () => {
+    const events = normalizeTunnelFrame({
+      jsonrpc: "2.0",
+      method: "session/update",
+      params: {
+        sessionId: "sess_compact",
+        update: {
+          _meta: { contextCompaction: true },
+          kind: "other",
+          sessionUpdate: "tool_call",
+          status: "in_progress",
+          title: "Context compacting",
+          toolCallId: "compact_1",
+        },
+      },
+    });
+
+    expect(events).toMatchObject([
+      {
+        type: "tool_call",
+        contextCompaction: true,
+        name: "Context compacting",
+        toolCallId: "compact_1",
       },
     ]);
   });

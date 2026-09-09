@@ -6,6 +6,28 @@ import {
   toolCallMayEditFiles,
 } from "./tool-patches";
 
+export type TurnTokenUsage = {
+  inputTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  cacheCreationTokens?: number;
+  outputTokens?: number;
+  reasoningTokens?: number;
+  totalTokens?: number;
+  costUsd?: number;
+};
+
+export type ContextUsage = {
+  usedTokens: number;
+  windowTokens?: number;
+};
+
+export type ContextCompaction = {
+  beforeTokens?: number;
+  afterTokens?: number;
+  windowTokens?: number;
+};
+
 export type PermissionDecision = {
   decisionOption: string;
   source?: "auto" | "user";
@@ -113,6 +135,7 @@ export type SessionEvent = (
       outputMode?: "append" | "replace";
       patches?: CodePatch[];
       durationMs?: number;
+      contextCompaction?: boolean;
       createdAt: string;
     }
   | {
@@ -152,10 +175,21 @@ export type SessionEvent = (
       id: string;
       sessionId: string;
       inputTokens?: number;
+      cacheReadTokens?: number;
+      cacheWriteTokens?: number;
+      cacheCreationTokens?: number;
       outputTokens?: number;
       reasoningTokens?: number;
       totalTokens?: number;
       costUsd?: number;
+      createdAt: string;
+    }
+  | {
+      type: "context_usage";
+      id: string;
+      sessionId: string;
+      usedTokens: number;
+      windowTokens?: number;
       createdAt: string;
     }
 ) & {
@@ -192,6 +226,9 @@ export type WorkstreamItem =
       turnId?: string;
       actionsContent?: string;
       turnPatches?: CodePatch[];
+      tokenUsage?: TurnTokenUsage;
+      contextUsage?: ContextUsage;
+      contextCompaction?: ContextCompaction;
     };
 
 export function isVisibleTimelineEvent(event: SessionEvent) {
@@ -199,6 +236,7 @@ export function isVisibleTimelineEvent(event: SessionEvent) {
     event.type !== "run_status" &&
     event.type !== "turn_done" &&
     event.type !== "token_usage" &&
+    event.type !== "context_usage" &&
     event.type !== "permission_decision"
   );
 }
@@ -213,6 +251,11 @@ export function groupWorkstreamEvents(
   const legacyTurnKey = "__legacy_turn__";
   type TurnAccumulator = {
     lastAgentMessage?: Extract<SessionEvent, { type: "agent_message" }>;
+    tokenUsage?: TurnTokenUsage;
+    contextUsage?: ContextUsage;
+    contextCompaction?: ContextCompaction;
+    contextCompactionKey?: string;
+    awaitingCompactionUsage?: boolean;
     proposedPatches: CodePatch[];
     turnId?: string;
     turnPatches: CodePatch[];
@@ -276,7 +319,13 @@ export function groupWorkstreamEvents(
       accumulator.turnPatches.length > 0
         ? accumulator.turnPatches
         : coalesceCodePatches(accumulator.proposedPatches);
-    if (accumulator.lastAgentMessage || patches.length > 0) {
+    if (
+      accumulator.lastAgentMessage ||
+      patches.length > 0 ||
+      accumulator.tokenUsage ||
+      accumulator.contextUsage ||
+      accumulator.contextCompaction
+    ) {
       items.push({
         type: "turn_footer",
         id: `turn_footer:${accumulator.lastAgentMessage?.id ?? patches[0]?.path ?? items.length}`,
@@ -285,6 +334,15 @@ export function groupWorkstreamEvents(
         ...(accumulator.turnId ? { turnId: accumulator.turnId } : {}),
         actionsContent: accumulator.lastAgentMessage?.content,
         ...(patches.length > 0 ? { turnPatches: patches } : {}),
+        ...(accumulator.tokenUsage
+          ? { tokenUsage: accumulator.tokenUsage }
+          : {}),
+        ...(accumulator.contextUsage
+          ? { contextUsage: accumulator.contextUsage }
+          : {}),
+        ...(accumulator.contextCompaction
+          ? { contextCompaction: accumulator.contextCompaction }
+          : {}),
       });
     }
     turnAccumulators.delete(turnKey);
@@ -303,20 +361,67 @@ export function groupWorkstreamEvents(
       continue;
     }
 
-    if (!isVisibleTimelineEvent(event)) {
-      continue;
-    }
-
     const turnKey = event.turnId ?? activeTurnId ?? legacyTurnKey;
     if (event.turnId) {
       activeTurnId = event.turnId;
     }
+
+    if (event.type === "token_usage") {
+      accumulatorFor(turnKey).tokenUsage = {
+        inputTokens: event.inputTokens,
+        cacheReadTokens: event.cacheReadTokens,
+        cacheWriteTokens: event.cacheWriteTokens,
+        cacheCreationTokens: event.cacheCreationTokens,
+        outputTokens: event.outputTokens,
+        reasoningTokens: event.reasoningTokens,
+        totalTokens: event.totalTokens,
+        costUsd: event.costUsd,
+      };
+      continue;
+    }
+
+    if (event.type === "context_usage") {
+      const accumulator = accumulatorFor(turnKey);
+      accumulator.contextUsage = {
+        usedTokens: event.usedTokens,
+        windowTokens: event.windowTokens,
+      };
+      if (
+        accumulator.contextCompaction &&
+        accumulator.awaitingCompactionUsage
+      ) {
+        accumulator.contextCompaction = {
+          ...accumulator.contextCompaction,
+          afterTokens: event.usedTokens,
+          windowTokens:
+            event.windowTokens ?? accumulator.contextCompaction.windowTokens,
+        };
+        accumulator.awaitingCompactionUsage = false;
+      }
+      continue;
+    }
+
+    if (!isVisibleTimelineEvent(event)) {
+      continue;
+    }
+
     if (workGroup && workGroupTurnKey !== turnKey) {
       endWorkGroup();
     }
     const accumulator = accumulatorFor(turnKey);
 
     if (event.type === "tool_call") {
+      if (event.contextCompaction) {
+        const compactionKey = event.toolCallId ?? event.id;
+        if (accumulator.contextCompactionKey !== compactionKey) {
+          accumulator.contextCompactionKey = compactionKey;
+          accumulator.contextCompaction = {
+            beforeTokens: accumulator.contextUsage?.usedTokens,
+            windowTokens: accumulator.contextUsage?.windowTokens,
+          };
+          accumulator.awaitingCompactionUsage = true;
+        }
+      }
       const appliedPatches = toolCallAppliedPatches(event);
       if (appliedPatches.length > 0) {
         accumulator.turnPatches.push(...appliedPatches);

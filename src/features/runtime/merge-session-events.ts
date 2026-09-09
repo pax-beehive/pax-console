@@ -397,7 +397,8 @@ function lastVisibleEvent(events: SessionEvent[]) {
     if (
       event.type !== "run_status" &&
       event.type !== "turn_done" &&
-      event.type !== "token_usage"
+      event.type !== "token_usage" &&
+      event.type !== "context_usage"
     ) {
       return event;
     }

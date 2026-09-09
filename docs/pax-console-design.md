@@ -870,10 +870,21 @@ export type SessionEvent =
       id: string;
       sessionId: string;
       inputTokens?: number;
+      cacheReadTokens?: number;
+      cacheWriteTokens?: number;
+      cacheCreationTokens?: number;
       outputTokens?: number;
       reasoningTokens?: number;
       totalTokens?: number;
       costUsd?: number;
+      createdAt: string;
+    }
+  | {
+      type: "context_usage";
+      id: string;
+      sessionId: string;
+      usedTokens: number;
+      windowTokens?: number;
       createdAt: string;
     };
 ```
@@ -927,13 +938,22 @@ Observed ACP streaming frames use this shape:
 Current mapping:
 
 ```txt
-params.update.sessionUpdate = agent_message_chunk -> agent_message, streaming
-params.update.sessionUpdate = agent_thought_chunk -> progress, streaming
-params.update.sessionUpdate = usage_update        -> token_usage
-params.update.sessionUpdate = session_info_update -> run_status
+params.update.sessionUpdate = agent_message_chunk     -> agent_message, streaming
+params.update.sessionUpdate = agent_thought_chunk     -> progress, streaming
+params.update.sessionUpdate = usage_update{used,size} -> context_usage
+terminal result.usage                                -> token_usage
+params.update.sessionUpdate = session_info_update     -> run_status
 ```
 
 The runtime assigns a turn-scoped stream id at `sendUserMessage` time. Chunks for the same turn share an id and `mergeEvents` appends their text. This prevents the workstream from rendering one card per token and prevents future prompts in the same PAX session from appending to the previous turn.
+
+Token and context events remain hidden timeline metadata. The turn aggregator
+adds a dashboard icon to the existing Done footer; its hover/focus tooltip shows
+final per-turn token usage, latest context occupancy, and detailed counts. Context compaction is recognized
+from `_meta.contextCompaction=true`; its nearest preceding context snapshot and
+first following snapshot are shown as best-effort before/after details. This is
+derived from already durable raw ACP frames and does not add browser or backend
+persistence.
 
 ## Session Experience
 

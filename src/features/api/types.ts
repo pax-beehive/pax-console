@@ -276,6 +276,9 @@ export type AgentApproval = {
 
 export type TokenUsage = {
   input_tokens?: number;
+  cache_read_tokens?: number;
+  cache_write_tokens?: number;
+  cache_creation_tokens?: number;
   output_tokens?: number;
   reasoning_tokens?: number;
   total_tokens?: number;
