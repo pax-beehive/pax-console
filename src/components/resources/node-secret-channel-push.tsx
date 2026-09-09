@@ -42,9 +42,12 @@ export function NodeSecretChannelPush({
   const [value, setValue] = useState("");
   const [outcome, setOutcome] = useState<PushOutcome>();
 
+  // mutationFn intentionally takes no arguments and closes over `value`
+  // instead: useMutation keeps whatever is passed to mutate() around as
+  // `variables` for the lifetime of the mutation (and visible in devtools),
+  // which is not somewhere a plaintext secret should linger even briefly.
   const push = useMutation({
-    mutationFn: (secretValue: string) =>
-      deliverSecret(userId, nodeId, secretValue),
+    mutationFn: () => deliverSecret(userId, nodeId, value),
     onSuccess: (result) => setOutcome(result),
     onError: (error: Error) =>
       setOutcome({ kind: "error", message: error.message }),
@@ -72,7 +75,7 @@ export function NodeSecretChannelPush({
         />
         <Button
           disabled={!value || push.isPending}
-          onClick={() => push.mutate(value)}
+          onClick={() => push.mutate()}
           size="md"
           type="button"
           variant="primary"
@@ -114,13 +117,23 @@ async function sealAndPush(
   secretValue: string,
 ): Promise<SecretChannelAck> {
   const channel = await openChannel(userId, nodeId);
+  // command_id is bound into the AES-GCM additional data (see crypto.ts), so
+  // it must be the exact same value sent in the push request body — paxd
+  // reconstructs the AAD from the command_id it actually received, not from
+  // whatever the browser used while sealing.
+  const commandId = crypto.randomUUID();
   const sealed = await sealSecretForChannel(channel.public_key, secretValue, {
-    nodeId,
+    // channel.node_id is whatever paxd bound into this channel's AAD; it is
+    // not necessarily the same as the page's own nodeId (paxd may use an
+    // internal identifier, e.g. its boot ID). Always echo the value the
+    // open response carried — never substitute the page's nodeId here.
+    nodeId: channel.node_id,
     channelId: channel.channel_id,
-    commandId: crypto.randomUUID(),
+    commandId,
     expiresAtUnix: expiresAtToUnixSeconds(channel.expires_at),
   });
   const response = await pushNodeDaemonSecretChannel(userId, nodeId, {
+    command_id: commandId,
     channel_id: channel.channel_id,
     sender_public_key: sealed.sender_public_key,
     nonce: sealed.nonce,

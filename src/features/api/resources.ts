@@ -514,6 +514,11 @@ export function pushNodeDaemonSecretChannel(
   userId: string,
   nodeId: string,
   input: {
+    // Unlike other daemon commands, command_id here is not just an
+    // idempotency key: the caller must have already used this exact value
+    // while sealing the payload (it is bound into the AES-GCM additional
+    // data), so it cannot be generated here.
+    command_id: string;
     channel_id: string;
     sender_public_key: string;
     nonce: string;
@@ -523,7 +528,7 @@ export function pushNodeDaemonSecretChannel(
   return apiFetch<NodeDaemonCommandData>(
     userPath(userId, `/nodes/${nodeId}/daemon/secret-channel/push`),
     {
-      body: JSON.stringify({ command_id: createIdempotencyKey(), ...input }),
+      body: JSON.stringify(input),
       method: "POST",
     },
   );
