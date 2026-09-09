@@ -414,7 +414,7 @@ function UserMessageCard({
     <article className="flex min-w-0 justify-end py-1">
       <div className="w-fit max-w-[min(72%,640px)] min-w-0 rounded-lg bg-surface-2 px-3 py-2">
         <MarkdownMessage
-          className="overflow-hidden text-sm leading-5 text-ink"
+          className="overflow-hidden text-base leading-6 text-ink sm:text-sm sm:leading-5"
           content={event.content}
         />
       </div>
@@ -430,7 +430,7 @@ function AgentMessageCard({
   return (
     <article className="min-w-0 justify-self-stretch py-0">
       <MarkdownMessage
-        className="text-sm leading-5 text-ink"
+        className="text-base leading-6 text-ink sm:text-sm sm:leading-5"
         content={event.content}
         streaming={event.streaming}
       />

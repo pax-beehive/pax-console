@@ -327,8 +327,8 @@ src/components/sessions/
   event 会结束当前 work block。时间线 block 使用 8px
   间距；agent 与 user 正文使用 14px 字号、20px 行高，Markdown H1/H2/H3
   分别使用 18px/16px/15px 字号，引用使用 13px 字号；Session 与 Home composer
-  桌面输入框和正文一致，使用 14px 字号、20px 行高。触屏设备的表单控件使用
-  至少 16px 字号，避免 iOS 聚焦自动放大，同时保留用户手动缩放。
+  桌面输入框和正文一致，使用 14px 字号、20px 行高。小于 640px 的手机布局中，输入和 agent/user 正文统一使用 16px/24px，
+  表单控件至少 16px，避免聚焦放大并保留手动缩放；较宽布局不再因带触屏而统一放大。
   Command 建议列表只允许纵向滚动，长名称、描述和提示在 composer 宽度内换行。
   Markdown 段落间距为 6px。
   agent message 和 work group 不再额外增加纵向 padding，因此文字紧接工作过程时
@@ -566,6 +566,16 @@ storage 查询。前端不能用当前选中的 agent 推断 history owner；旧
 history 路由只用于后端兼容。
 
 现在 active node / active agent 暂时取第一个可用项。等 UI 有 selector 后，再把 selection 接到 Zustand。
+
+## Home 新会话工作位置
+
+Project 与 Agent 独立选择。Workspace 只从当前项目、当前 Agent 的启用绑定中
+解析：优先默认项，其次唯一项；多个且无默认时由用户选择。已解析目录折叠为
+可编辑的一行，缺少绑定时在输入区展开目录输入；可以从已保存位置菜单显式
+切到其他已配置的 Agent，不自动切换执行端。目录草稿及编辑状态按 Project/Agent
+组合隔离，切换后不沿用另一组合的路径。绑定加载期间禁止启动项目会话。
+首次配置仍在 native session 分配成功后保存，匹配已有绑定时不重复创建。
+项目、Agent、目录统一放在 prompt 上方，移除重复的项目大卡及 Clean session 标签。
 
 ## 当前 Shell / UI 状态
 

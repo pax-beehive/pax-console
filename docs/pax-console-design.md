@@ -205,8 +205,9 @@ Normal messages and standalone actionable events end the group. The session
 timeline uses an 8px row gap; agent and user copy uses 14px type with a 20px
 line height, Markdown H1/H2/H3 use 18px/16px/15px type, and blockquotes use
 13px type. Session and Home composer input uses the same 14px/20px typography
-as body copy on desktop. Touch-device form controls use at least 16px to prevent
-iOS focus zoom while preserving user pinch zoom. Command suggestions scroll
+as body copy on desktop. Below 640px, composer input and agent/user messages use 16px/24px, and
+form controls use at least 16px to prevent focus zoom. Larger layouts retain
+component sizes even with a touchscreen. Preserve user pinch zoom. Command suggestions scroll
 vertically only; long names, descriptions, and hints wrap within the composer.
 Markdown paragraphs use 6px spacing. Agent-message and work-group
 items add no vertical padding beyond the 8px timeline gap.
@@ -245,7 +246,7 @@ Typography uses the platform UI stack for coherent Latin/CJK rendering instead
 of pairing a Latin-only web font with an incidental CJK fallback. Use regular
 400 for body copy, medium 500 for controls and row titles, and semibold 600 only
 for headings or strong hierarchy. The global 14px/1.5 baseline keeps compact UI
-copy readable; long session content retains its explicit 14px/20px treatment.
+copy readable; session content uses 16px/24px below 640px and 14px/20px above.
 
 The accent stays sparse: selected-state left indicator bars, focus rings and
 glows, hover emphasis, a subtle body radial gradient, and `::selection`.
@@ -985,6 +986,16 @@ Recommended layout:
 ```
 
 ### Composer Behavior
+
+The new-session composer places Project and Agent in a compact row above the
+prompt, followed by a quiet workspace summary. Both selectors are independent.
+Within the selected pair, use an enabled default workspace or the only enabled
+workspace. Multiple matches without a default need an explicit choice. Missing
+bindings reveal a directory input in place, with saved locations offering an
+explicit switch to another configured agent. Typed paths belong to the selected
+Project/Agent pair. Remove the duplicate project hero and Clean session label;
+keep operational controls below the prompt. Save a newly used location only
+after native session assignment succeeds.
 
 The composer sends user instructions into the active session.
 

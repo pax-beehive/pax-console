@@ -794,9 +794,12 @@ describe("FleetOverview session rail", () => {
     );
 
     await userEvent.click(screen.getByRole("button", { name: "Pax" }));
-    expect(screen.getByRole("heading", { name: "Pax" })).toBeVisible();
-    await userEvent.type(screen.getByLabelText("Workspace"), "~/pax");
-    expect(screen.getByText("Using saved target Local Pax")).toBeVisible();
+    expect(screen.getByRole("combobox", { name: "Project" })).toHaveValue(
+      "project_1",
+    );
+    expect(
+      screen.getByRole("button", { name: "Change workspace" }),
+    ).toHaveTextContent("~/pax");
     const composer = screen.getByPlaceholderText(
       "Ask an agent to do something",
     );
@@ -826,10 +829,7 @@ describe("FleetOverview session rail", () => {
       name: "Use end-to-end encryption",
     });
     expect(composerPane).toHaveAttribute("data-secure-mode", "false");
-    expect(screen.getByLabelText("Project").parentElement).toHaveClass(
-      "w-24",
-      "sm:w-48",
-    );
+    expect(screen.getByLabelText("Project")).toBeVisible();
     expect(encryptedToggle).toHaveAttribute("aria-pressed", "false");
     expect(encryptedToggle).not.toHaveTextContent("Encrypted");
     expect(
@@ -921,8 +921,8 @@ describe("FleetOverview session rail", () => {
 
     const project = screen.getByRole("combobox", { name: "Project" });
     const workspace = screen.getByRole("textbox", { name: "Workspace" });
-    expect(project.closest("label")).toHaveClass("basis-full", "sm:min-w-48");
-    expect(workspace.closest("label")).toHaveClass("basis-full", "sm:min-w-64");
+    expect(project).toBeVisible();
+    expect(workspace).toBeVisible();
     expect(screen.getByRole("button", { name: "Upload files" })).toBeVisible();
     expect(
       screen.getByRole("button", { name: "Use end-to-end encryption" }),
@@ -952,6 +952,306 @@ describe("FleetOverview session rail", () => {
     );
   });
 
+  it.skipIf(!process.env.PAX_BROWSER_TESTS)(
+    "fits resolved and missing workspace controls on phone and desktop",
+    async () => {
+      const { createRequire } = await import("node:module");
+      const { readFile } = await import("node:fs/promises");
+      const { chromium } = await import("playwright");
+      const { default: tailwind } = await import("@tailwindcss/postcss");
+      const require = createRequire(import.meta.url);
+      const postcss = createRequire(require.resolve("@tailwindcss/postcss"))(
+        "postcss",
+      );
+      const cssPath = `${process.cwd()}/src/app/globals.css`;
+      const css = await postcss([tailwind()]).process(
+        await readFile(cssPath, "utf8"),
+        { from: cssPath },
+      );
+      renderOverview();
+      await userEvent.selectOptions(
+        await screen.findByRole("combobox", { name: "Project" }),
+        "project_1",
+      );
+      const form = () =>
+        screen
+          .getByPlaceholderText("Ask an agent to do something")
+          .closest("form")!.outerHTML;
+      const resolved = form();
+      await userEvent.click(
+        screen.getByRole("button", { name: "Change workspace" }),
+      );
+      await userEvent.clear(screen.getByRole("textbox", { name: "Workspace" }));
+      const missing = form();
+      const browser = await chromium.launch({
+        executablePath: process.env.PAX_TEST_CHROMIUM_PATH || undefined,
+      });
+      try {
+        for (const width of [320, 390, 768, 1280]) {
+          const page = await browser.newPage({
+            viewport: { width, height: 844 },
+            hasTouch: width < 640,
+          });
+          for (const [state, html] of [
+            ["resolved", resolved],
+            ["missing", missing],
+          ]) {
+            await page.setContent(
+              `<meta name="viewport" content="width=device-width, initial-scale=1"><style>${css.css}</style>${html}`,
+            );
+            await page
+              .getByRole("combobox", { name: "Project" })
+              .selectOption("project_1");
+            expect(
+              await page.evaluate(
+                () => document.documentElement.scrollWidth <= innerWidth,
+              ),
+            ).toBe(true);
+            for (const control of await page
+              .locator(
+                'form button, form select, form textarea, form input:not([type="file"])',
+              )
+              .all()) {
+              const bounds = await control.boundingBox();
+              if (bounds) {
+                expect(bounds.x).toBeGreaterThanOrEqual(0);
+                expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+              }
+            }
+            if (width === 390 && process.env.PAX_LAYOUT_SCREENSHOT_DIR) {
+              await page.locator("form").screenshot({
+                path: `${process.env.PAX_LAYOUT_SCREENSHOT_DIR}/home-${state}.png`,
+              });
+            }
+          }
+          await page.close();
+        }
+      } finally {
+        await browser.close();
+      }
+    },
+    60_000,
+  );
+
+  it("uses the matching default workspace without requiring input or saving a duplicate", async () => {
+    renderOverview();
+    await userEvent.selectOptions(
+      await screen.findByRole("combobox", { name: "Project" }),
+      "project_1",
+    );
+    expect(
+      screen.queryByRole("textbox", { name: "Workspace" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Change workspace" }),
+    ).toHaveTextContent("~/pax");
+    await userEvent.type(
+      screen.getByPlaceholderText("Ask an agent to do something"),
+      "Continue project",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Start session" }),
+    );
+    expect(await screen.findByTestId("session-workbench")).toHaveAttribute(
+      "data-project-target-id",
+      "target_1",
+    );
+    expect(screen.getByTestId("session-workbench")).toHaveAttribute(
+      "data-initial-cwd",
+      "~/pax",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Assign native session" }),
+    );
+    expect(mocks.createProjectTarget).not.toHaveBeenCalled();
+  });
+
+  it("does not carry an unbound directory into a selected project", async () => {
+    mocks.useProjectTargets.mockReturnValue({
+      data: { targets: [] },
+      isPending: false,
+    });
+    renderOverview();
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Set workspace" }),
+    );
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Workspace" }),
+      "~/temporary",
+    );
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: "Project" }),
+      "project_1",
+    );
+    expect(screen.getByRole("textbox", { name: "Workspace" })).toHaveValue("");
+    expect(
+      screen.getByRole("button", { name: "Start session" }),
+    ).toBeDisabled();
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Workspace" }),
+      "~/new-project",
+    );
+    await userEvent.type(
+      screen.getByPlaceholderText("Ask an agent to do something"),
+      "Start here",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Start session" }),
+    );
+    expect(await screen.findByTestId("session-workbench")).toHaveAttribute(
+      "data-initial-cwd",
+      "~/new-project",
+    );
+  });
+
+  it("clears the workspace for an unbound agent and offers the configured agent", async () => {
+    mocks.listAgents.mockResolvedValue({
+      agents: [
+        {
+          agent_id: "agent_1",
+          name: "Pi agent",
+          node_id: "node_1",
+          online: true,
+        },
+        {
+          agent_id: "agent_2",
+          name: "Second agent",
+          node_id: "node_2",
+          online: true,
+        },
+      ],
+    });
+    renderOverview();
+    await userEvent.selectOptions(
+      await screen.findByRole("combobox", { name: "Project" }),
+      "project_1",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Pi agent" }));
+    await userEvent.click(screen.getByRole("button", { name: "Second agent" }));
+    expect(screen.getByRole("textbox", { name: "Workspace" })).toHaveValue("");
+    expect(
+      screen.getByRole("button", { name: "Start session" }),
+    ).toBeDisabled();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Use a configured agent" }),
+    );
+    await userEvent.click(
+      screen.getByRole("menuitem", { name: /Pi agent.*pax/ }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Change workspace" }),
+    ).toHaveTextContent("~/pax");
+    await userEvent.type(
+      screen.getByPlaceholderText("Ask an agent to do something"),
+      "Use saved location",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Start session" }),
+    );
+    expect(await screen.findByTestId("session-workbench")).toHaveAttribute(
+      "data-agent-id",
+      "agent_1",
+    );
+    expect(screen.getByTestId("session-workbench")).toHaveAttribute(
+      "data-project-target-id",
+      "target_1",
+    );
+  });
+
+  it("asks for a workspace when several match the agent without a default", async () => {
+    mocks.useProjectTargets.mockReturnValue({
+      data: {
+        targets: [
+          {
+            target_id: "one",
+            project_id: "project_1",
+            agent_id: "agent_1",
+            cwd: "~/one",
+            enabled: true,
+            is_default: false,
+          },
+          {
+            target_id: "two",
+            project_id: "project_1",
+            agent_id: "agent_1",
+            cwd: "~/two",
+            enabled: true,
+            is_default: false,
+          },
+          {
+            target_id: "disabled",
+            project_id: "project_1",
+            agent_id: "agent_1",
+            cwd: "~/disabled",
+            enabled: false,
+            is_default: true,
+          },
+        ],
+      },
+      isPending: false,
+    });
+    renderOverview();
+    await userEvent.selectOptions(
+      await screen.findByRole("combobox", { name: "Project" }),
+      "project_1",
+    );
+    expect(screen.getByRole("textbox", { name: "Workspace" })).toHaveValue("");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Saved workspaces" }),
+    );
+    expect(
+      screen.queryByRole("menuitem", { name: /disabled/ }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("menuitem", { name: /two/ }));
+    expect(
+      screen.getByRole("button", { name: "Change workspace" }),
+    ).toHaveTextContent("~/two");
+  });
+
+  it("allows choosing a saved location while editing a nonempty directory", async () => {
+    renderOverview();
+    await userEvent.selectOptions(
+      await screen.findByRole("combobox", { name: "Project" }),
+      "project_1",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Change workspace" }),
+    );
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Workspace" }),
+      "-other",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Saved workspaces" }),
+    );
+    await userEvent.click(screen.getByRole("menuitem", { name: /pax/ }));
+    expect(
+      screen.getByRole("button", { name: "Change workspace" }),
+    ).toHaveTextContent("~/pax");
+    expect(
+      screen.queryByRole("textbox", { name: "Workspace" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("waits for project bindings before allowing a session to start", async () => {
+    mocks.useProjectTargets.mockReturnValue({
+      data: undefined,
+      isPending: true,
+    });
+    renderOverview();
+    await userEvent.selectOptions(
+      await screen.findByRole("combobox", { name: "Project" }),
+      "project_1",
+    );
+    expect(screen.getByText("Loading workspaces…")).toBeVisible();
+    expect(
+      screen.queryByRole("textbox", { name: "Workspace" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Start session" }),
+    ).toBeDisabled();
+  });
+
   it("creates a target for a new project workspace only after native session assignment", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
@@ -968,13 +1268,14 @@ describe("FleetOverview session rail", () => {
       await screen.findByRole("combobox", { name: "Project" }),
       "project_1",
     );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Change workspace" }),
+    );
+    await userEvent.clear(screen.getByLabelText("Workspace"));
     await userEvent.type(
       screen.getByLabelText("Workspace"),
       "~/worktrees/kev-8",
     );
-    expect(
-      screen.getByText("New workspace · will be saved to Pax"),
-    ).toBeVisible();
     const composer = screen.getByPlaceholderText(
       "Ask an agent to do something",
     );
