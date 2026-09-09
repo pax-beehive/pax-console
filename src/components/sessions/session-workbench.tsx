@@ -184,7 +184,7 @@ export type ComposerAttachment = {
 };
 
 // Event types that count as visible agent output in the timeline. Meta events
-// (run_status, token_usage, turn_done, ...) must not dismiss the pending
+// (run_status, token_usage, context_usage, turn_done, ...) must not dismiss the pending
 // indicator, and the optimistic user_message must not either.
 const AGENT_OUTPUT_EVENT_TYPES: ReadonlySet<SessionEvent["type"]> = new Set([
   "agent_message",

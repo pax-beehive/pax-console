@@ -2,7 +2,7 @@
 
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { WorkstreamItemCard } from "./session-event-cards";
 import type {
@@ -16,6 +16,19 @@ const permissionDecision = {
   onDecision: vi.fn(),
   pending: false,
 };
+
+beforeAll(() => {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class ResizeObserver {
+      disconnect() {}
+      observe() {}
+      unobserve() {}
+    },
+  );
+});
+
+afterAll(() => vi.unstubAllGlobals());
 
 function renderItem(item: WorkstreamItem) {
   return render(
@@ -182,5 +195,49 @@ describe("session event cards", () => {
       "overscroll-contain",
     );
     expect(drawer).toHaveTextContent("src/example.ts");
+  });
+
+  it("shows turn usage details from a dashboard icon beside Done", () => {
+    renderItem({
+      type: "turn_footer",
+      id: "turn-footer-usage",
+      sessionId: "sess-1",
+      createdAt: "2026-09-08T04:26:36Z",
+      actionsContent: "Finished the requested work.",
+      tokenUsage: {
+        inputTokens: 5_056,
+        cacheReadTokens: 11_264,
+        outputTokens: 52,
+        reasoningTokens: 0,
+        totalTokens: 16_372,
+      },
+      contextUsage: {
+        usedTokens: 16_372,
+        windowTokens: 258_400,
+      },
+      contextCompaction: {
+        beforeTokens: 221_801,
+        afterTokens: 10_307,
+        windowTokens: 258_400,
+      },
+    });
+
+    expect(screen.getByText("Done")).toBeInTheDocument();
+    expect(screen.queryByText("16.4k turn tokens")).not.toBeInTheDocument();
+    expect(screen.queryByText("6.3% context")).not.toBeInTheDocument();
+    expect(screen.queryByText("Compacted")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Turn usage details" }));
+
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Turn tokens16,372");
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
+      "Context16,372 / 258,400 (6.3%)",
+    );
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
+      "Compacted221,801 → 10,307",
+    );
+    expect(
+      screen.getByRole("button", { name: "Copy response" }),
+    ).toBeInTheDocument();
   });
 });

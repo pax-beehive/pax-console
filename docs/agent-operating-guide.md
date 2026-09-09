@@ -639,6 +639,18 @@ Actual ACP streaming frames observed from the backend look like:
 `normalizeTunnelFrame` extracts `params.sessionId`, `params.update.sessionUpdate`, and `params.update.content.text`. `AgentTunnelRuntime` assigns a turn-scoped stream id when `sendUserMessage` starts. `merge-session-events.ts` appends chunks with the same stream id so the UI renders one growing message instead of one card per token.
 Unknown or control-only `session/update` values, such as generic `update` frames and unsupported `*_update` frames, are ignored by `normalizeTunnelFrame` so raw ACP protocol payloads do not render in the user-facing timeline.
 
+Codex-style `usage_update` notifications carry current context occupancy as
+`used` and `size`; normalize them to hidden `context_usage` events. The
+terminal prompt response may carry per-turn token details in `result.usage`;
+normalize those separately to `token_usage`. Turn grouping retains the latest
+context snapshot and final token usage and shows a dashboard icon beside the
+existing Done/copy/feedback controls. Its hover/focus tooltip contains context,
+compaction, cache, and exact token-count details. A tool update with
+`_meta.contextCompaction=true` marks compaction;
+the latest context snapshot before it and the first snapshot after it provide
+best-effort before/after values. Missing usage or compaction-adjacent snapshots
+must not prevent the turn footer from rendering.
+
 PAX invocation display messages use `message_type = "pax:invocation"`.
 Intermediate invocation cards use `message_type = "pax:invocation_pending"`;
 they render immediately and are replaced when the final `pax:invocation`

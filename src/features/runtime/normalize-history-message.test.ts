@@ -40,6 +40,64 @@ describe("normalizeHistoryMessage", () => {
     ]);
   });
 
+  it("restores context and final turn usage from durable ACP frames", () => {
+    const events = normalizeHistoryMessages([
+      {
+        message_id: "msg_context",
+        message_type: "usage_update",
+        session_id: "sess_1",
+        turn_id: "turn_1",
+        raw_json: {
+          jsonrpc: "2.0",
+          method: "session/update",
+          params: {
+            sessionId: "sess_1",
+            update: {
+              sessionUpdate: "usage_update",
+              size: 258_400,
+              used: 16_372,
+            },
+          },
+        },
+      },
+      {
+        message_id: "msg_end_turn",
+        message_type: "end_turn",
+        session_id: "sess_1",
+        turn_id: "turn_1",
+        raw_json: {
+          id: 7,
+          jsonrpc: "2.0",
+          result: {
+            stopReason: "end_turn",
+            usage: {
+              cachedReadTokens: 11_264,
+              inputTokens: 5_056,
+              outputTokens: 52,
+              totalTokens: 16_372,
+            },
+          },
+        },
+      },
+    ]);
+
+    expect(events).toMatchObject([
+      {
+        type: "context_usage",
+        turnId: "turn_1",
+        usedTokens: 16_372,
+        windowTokens: 258_400,
+      },
+      {
+        type: "token_usage",
+        turnId: "turn_1",
+        cacheReadTokens: 11_264,
+        totalTokens: 16_372,
+      },
+      { type: "turn_done", turnId: "turn_1" },
+    ]);
+  });
+
   it("restores aggregated text from ordered message parts", () => {
     const events = normalizeHistoryMessage({
       message_id: "msg_1",

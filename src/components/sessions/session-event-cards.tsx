@@ -9,6 +9,7 @@ import {
   ChevronDown,
   Copy,
   FileCode,
+  Gauge,
   LoaderCircle,
   ShieldCheck,
   ThumbsDown,
@@ -134,6 +135,9 @@ export const WorkstreamItemCard = memo(function WorkstreamItemCard({
     return (
       <TurnFooterCard
         actionsContent={item.actionsContent}
+        contextCompaction={item.contextCompaction}
+        contextUsage={item.contextUsage}
+        tokenUsage={item.tokenUsage}
         turnPatches={item.turnPatches}
       />
     );
@@ -186,10 +190,56 @@ function areWorkstreamItemsEqual(
   if (previous.type === "turn_footer" && next.type === "turn_footer") {
     return (
       previous.actionsContent === next.actionsContent &&
-      previous.turnPatches === next.turnPatches
+      previous.turnPatches === next.turnPatches &&
+      areTurnTokenUsagesEqual(previous.tokenUsage, next.tokenUsage) &&
+      areContextUsagesEqual(previous.contextUsage, next.contextUsage) &&
+      areContextCompactionsEqual(
+        previous.contextCompaction,
+        next.contextCompaction,
+      )
     );
   }
   return false;
+}
+
+function areTurnTokenUsagesEqual(
+  previous: Extract<WorkstreamItem, { type: "turn_footer" }>["tokenUsage"],
+  next: Extract<WorkstreamItem, { type: "turn_footer" }>["tokenUsage"],
+) {
+  return (
+    previous?.inputTokens === next?.inputTokens &&
+    previous?.cacheReadTokens === next?.cacheReadTokens &&
+    previous?.cacheWriteTokens === next?.cacheWriteTokens &&
+    previous?.cacheCreationTokens === next?.cacheCreationTokens &&
+    previous?.outputTokens === next?.outputTokens &&
+    previous?.reasoningTokens === next?.reasoningTokens &&
+    previous?.totalTokens === next?.totalTokens &&
+    previous?.costUsd === next?.costUsd
+  );
+}
+
+function areContextUsagesEqual(
+  previous: Extract<WorkstreamItem, { type: "turn_footer" }>["contextUsage"],
+  next: Extract<WorkstreamItem, { type: "turn_footer" }>["contextUsage"],
+) {
+  return (
+    previous?.usedTokens === next?.usedTokens &&
+    previous?.windowTokens === next?.windowTokens
+  );
+}
+
+function areContextCompactionsEqual(
+  previous: Extract<
+    WorkstreamItem,
+    { type: "turn_footer" }
+  >["contextCompaction"],
+  next: Extract<WorkstreamItem, { type: "turn_footer" }>["contextCompaction"],
+) {
+  return (
+    previous?.beforeTokens === next?.beforeTokens &&
+    previous?.afterTokens === next?.afterTokens &&
+    previous?.windowTokens === next?.windowTokens
+  );
 }
 
 export function ToolEvidencePanel({
@@ -507,15 +557,30 @@ function ArtifactPublicationCard({
 
 function TurnFooterCard({
   actionsContent,
+  contextCompaction,
+  contextUsage,
+  tokenUsage,
   turnPatches,
 }: {
   actionsContent?: string;
+  contextCompaction?: Extract<
+    WorkstreamItem,
+    { type: "turn_footer" }
+  >["contextCompaction"];
+  contextUsage?: Extract<
+    WorkstreamItem,
+    { type: "turn_footer" }
+  >["contextUsage"];
+  tokenUsage?: Extract<WorkstreamItem, { type: "turn_footer" }>["tokenUsage"];
   turnPatches?: CodePatch[];
 }) {
   const shouldShowTurnPatches = (turnPatches?.length ?? 0) > 0;
   const shouldShowActions = Boolean(actionsContent?.trim());
+  const shouldShowUsage = Boolean(
+    tokenUsage || contextUsage || contextCompaction,
+  );
 
-  if (!shouldShowTurnPatches && !shouldShowActions) {
+  if (!shouldShowTurnPatches && !shouldShowActions && !shouldShowUsage) {
     return null;
   }
 
@@ -526,18 +591,39 @@ function TurnFooterCard({
           <ToolPatchSection patches={turnPatches ?? []} />
         </div>
       )}
-      {shouldShowActions && (
-        <AgentMessageActions content={actionsContent ?? ""} />
+      {(shouldShowActions || shouldShowUsage) && (
+        <AgentMessageActions
+          content={actionsContent}
+          contextCompaction={contextCompaction}
+          contextUsage={contextUsage}
+          tokenUsage={tokenUsage}
+        />
       )}
     </article>
   );
 }
 
-function AgentMessageActions({ content }: { content: string }) {
+function AgentMessageActions({
+  content,
+  contextCompaction,
+  contextUsage,
+  tokenUsage,
+}: {
+  content?: string;
+  contextCompaction?: Extract<
+    WorkstreamItem,
+    { type: "turn_footer" }
+  >["contextCompaction"];
+  contextUsage?: Extract<
+    WorkstreamItem,
+    { type: "turn_footer" }
+  >["contextUsage"];
+  tokenUsage?: Extract<WorkstreamItem, { type: "turn_footer" }>["tokenUsage"];
+}) {
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
   const copyContent = useCallback(async () => {
-    if (typeof navigator === "undefined") {
+    if (typeof navigator === "undefined" || !content?.trim()) {
       return;
     }
 
@@ -551,41 +637,191 @@ function AgentMessageActions({ content }: { content: string }) {
   }, [content]);
 
   return (
-    <div className="mt-2 flex items-center gap-1 text-ink-tertiary">
+    <div className="mt-2 flex flex-wrap items-center gap-1 text-ink-tertiary">
       <span className="inline-flex items-center gap-1.5 pr-1 text-xs text-success">
         <CheckCircle2 className="h-3.5 w-3.5" />
         Done
       </span>
-      <Button
-        icon={
-          copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />
-        }
-        onClick={copyContent}
-        size="icon"
-        tooltip={copied ? "Copied response" : "Copy response"}
-        type="button"
-        variant="ghost"
+      <TurnUsageSummary
+        contextCompaction={contextCompaction}
+        contextUsage={contextUsage}
+        tokenUsage={tokenUsage}
       />
-      <Button
-        className={feedback === "up" ? "bg-success/10 text-success" : ""}
-        icon={<ThumbsUp className="h-4 w-4" />}
-        onClick={() => setFeedback("up")}
-        size="icon"
-        tooltip="Good response"
-        type="button"
-        variant="ghost"
-      />
-      <Button
-        className={feedback === "down" ? "bg-warning/10 text-warning" : ""}
-        icon={<ThumbsDown className="h-4 w-4" />}
-        onClick={() => setFeedback("down")}
-        size="icon"
-        tooltip="Bad response"
-        type="button"
-        variant="ghost"
-      />
+      {content?.trim() && (
+        <>
+          <Button
+            aria-label={copied ? "Copied response" : "Copy response"}
+            icon={
+              copied ? (
+                <Check className="h-4 w-4" />
+              ) : (
+                <Copy className="h-4 w-4" />
+              )
+            }
+            onClick={copyContent}
+            size="icon"
+            tooltip={copied ? "Copied response" : "Copy response"}
+            type="button"
+            variant="ghost"
+          />
+          <Button
+            aria-label="Good response"
+            className={feedback === "up" ? "bg-success/10 text-success" : ""}
+            icon={<ThumbsUp className="h-4 w-4" />}
+            onClick={() => setFeedback("up")}
+            size="icon"
+            tooltip="Good response"
+            type="button"
+            variant="ghost"
+          />
+          <Button
+            aria-label="Bad response"
+            className={feedback === "down" ? "bg-warning/10 text-warning" : ""}
+            icon={<ThumbsDown className="h-4 w-4" />}
+            onClick={() => setFeedback("down")}
+            size="icon"
+            tooltip="Bad response"
+            type="button"
+            variant="ghost"
+          />
+        </>
+      )}
     </div>
   );
+}
+
+function TurnUsageSummary({
+  contextCompaction,
+  contextUsage,
+  tokenUsage,
+}: {
+  contextCompaction?: Extract<
+    WorkstreamItem,
+    { type: "turn_footer" }
+  >["contextCompaction"];
+  contextUsage?: Extract<
+    WorkstreamItem,
+    { type: "turn_footer" }
+  >["contextUsage"];
+  tokenUsage?: Extract<WorkstreamItem, { type: "turn_footer" }>["tokenUsage"];
+}) {
+  if (!tokenUsage && !contextUsage && !contextCompaction) {
+    return null;
+  }
+
+  return (
+    <Button
+      aria-label="Turn usage details"
+      icon={<Gauge className="h-4 w-4" />}
+      size="icon"
+      tooltip={
+        <TurnUsageDetails
+          contextCompaction={contextCompaction}
+          contextUsage={contextUsage}
+          tokenUsage={tokenUsage}
+        />
+      }
+      tooltipOnClick
+      type="button"
+      variant="ghost"
+    />
+  );
+}
+
+function TurnUsageDetails({
+  contextCompaction,
+  contextUsage,
+  tokenUsage,
+}: {
+  contextCompaction?: Extract<
+    WorkstreamItem,
+    { type: "turn_footer" }
+  >["contextCompaction"];
+  contextUsage?: Extract<
+    WorkstreamItem,
+    { type: "turn_footer" }
+  >["contextUsage"];
+  tokenUsage?: Extract<WorkstreamItem, { type: "turn_footer" }>["tokenUsage"];
+}) {
+  const details = [
+    ["Turn tokens", formatOptionalTokenCount(tokenUsage?.totalTokens)],
+    ["Input", formatOptionalTokenCount(tokenUsage?.inputTokens)],
+    ["Cached", formatOptionalTokenCount(tokenUsage?.cacheReadTokens)],
+    ["Cache write", formatOptionalTokenCount(tokenUsage?.cacheWriteTokens)],
+    [
+      "Cache creation",
+      formatOptionalTokenCount(tokenUsage?.cacheCreationTokens),
+    ],
+    ["Output", formatOptionalTokenCount(tokenUsage?.outputTokens)],
+    ["Reasoning", formatOptionalTokenCount(tokenUsage?.reasoningTokens)],
+    ["Context", formatContextUsage(contextUsage)],
+    ["Compacted", formatContextCompaction(contextCompaction)],
+  ].filter((entry): entry is [string, string] => entry[1] !== undefined);
+
+  return (
+    <div className="min-w-52">
+      <div className="mb-1 font-medium text-ink">Turn usage</div>
+      <div className="grid grid-cols-[auto_auto] gap-x-4">
+        {details.map(([label, value]) => (
+          <div className="contents" key={label}>
+            <span>{label}</span>
+            <span className="text-right font-mono text-ink">{value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function formatOptionalTokenCount(value?: number) {
+  return value === undefined ? undefined : formatExactTokenCount(value);
+}
+
+function formatContextUsage(
+  value?: Extract<WorkstreamItem, { type: "turn_footer" }>["contextUsage"],
+) {
+  if (!value) {
+    return undefined;
+  }
+
+  const used = formatExactTokenCount(value.usedTokens);
+  if (value.windowTokens === undefined) {
+    return used;
+  }
+  const percent = formatContextPercent(value.usedTokens, value.windowTokens);
+  return `${used} / ${formatExactTokenCount(value.windowTokens)}${
+    percent ? ` (${percent})` : ""
+  }`;
+}
+
+function formatContextCompaction(
+  value?: Extract<WorkstreamItem, { type: "turn_footer" }>["contextCompaction"],
+) {
+  if (!value) {
+    return undefined;
+  }
+  if (value.beforeTokens === undefined || value.afterTokens === undefined) {
+    return "Occurred";
+  }
+  return `${formatExactTokenCount(value.beforeTokens)} → ${formatExactTokenCount(
+    value.afterTokens,
+  )}`;
+}
+
+function formatExactTokenCount(value: number) {
+  return new Intl.NumberFormat("en-US").format(value);
+}
+
+function formatContextPercent(usedTokens: number, windowTokens: number) {
+  if (windowTokens <= 0) {
+    return undefined;
+  }
+  const percent = (usedTokens / windowTokens) * 100;
+  if (percent > 0 && percent < 0.1) {
+    return "<0.1%";
+  }
+  const digits = percent < 10 && !Number.isInteger(percent) ? 1 : 0;
+  return `${percent.toFixed(digits).replace(/\.0$/, "")}%`;
 }
 
 function InvocationCard({

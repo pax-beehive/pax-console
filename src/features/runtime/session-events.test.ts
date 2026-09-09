@@ -8,7 +8,7 @@ import {
 } from "./session-events";
 
 describe("isVisibleTimelineEvent", () => {
-  it("hides completion, run status, and token usage control events", () => {
+  it("hides completion, run status, token usage, and context usage control events", () => {
     const events: SessionEvent[] = [
       {
         type: "user_message",
@@ -29,6 +29,14 @@ describe("isVisibleTimelineEvent", () => {
         id: "usage-1",
         sessionId: "sess_1",
         totalTokens: 12,
+        createdAt: "2026-06-26T12:00:02Z",
+      },
+      {
+        type: "context_usage",
+        id: "context-1",
+        sessionId: "sess_1",
+        usedTokens: 12,
+        windowTokens: 100,
         createdAt: "2026-06-26T12:00:02Z",
       },
       {
@@ -141,6 +149,88 @@ describe("groupWorkstreamEvents", () => {
         turnId: "turn_1",
       },
     ]);
+  });
+
+  it("attaches final usage and compact context metadata to the turn footer", () => {
+    const turn = { sessionId: "sess_1", turnId: "turn_1" };
+    const events: SessionEvent[] = [
+      {
+        type: "agent_message",
+        id: "agent-1",
+        ...turn,
+        content: "Finished.",
+        createdAt: "2026-09-08T04:26:00.000Z",
+      },
+      {
+        type: "context_usage",
+        id: "context-before",
+        ...turn,
+        usedTokens: 221_801,
+        windowTokens: 258_400,
+        createdAt: "2026-09-08T04:26:16.838Z",
+      },
+      {
+        type: "tool_call",
+        id: "compact-1",
+        ...turn,
+        name: "Context compacted",
+        status: "done",
+        contextCompaction: true,
+        createdAt: "2026-09-08T04:26:16.850Z",
+      },
+      {
+        type: "context_usage",
+        id: "context-after",
+        ...turn,
+        usedTokens: 10_307,
+        windowTokens: 258_400,
+        createdAt: "2026-09-08T04:26:30.868Z",
+      },
+      {
+        type: "context_usage",
+        id: "context-final",
+        ...turn,
+        usedTokens: 16_372,
+        windowTokens: 258_400,
+        createdAt: "2026-09-08T04:26:36.787Z",
+      },
+      {
+        type: "token_usage",
+        id: "tokens-final",
+        ...turn,
+        inputTokens: 5_056,
+        cacheReadTokens: 11_264,
+        outputTokens: 52,
+        reasoningTokens: 0,
+        totalTokens: 16_372,
+        createdAt: "2026-09-08T04:26:36.789Z",
+      },
+      {
+        type: "turn_done",
+        id: "done-1",
+        ...turn,
+        createdAt: "2026-09-08T04:26:36.790Z",
+      },
+    ];
+
+    expect(groupWorkstreamEvents(events).at(-1)).toMatchObject({
+      type: "turn_footer",
+      tokenUsage: {
+        inputTokens: 5_056,
+        cacheReadTokens: 11_264,
+        outputTokens: 52,
+        totalTokens: 16_372,
+      },
+      contextUsage: {
+        usedTokens: 16_372,
+        windowTokens: 258_400,
+      },
+      contextCompaction: {
+        beforeTokens: 221_801,
+        afterTokens: 10_307,
+        windowTokens: 258_400,
+      },
+    });
   });
 
   it.each([
