@@ -956,6 +956,18 @@ Node daemon control
   POST   /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections/{connection_id}/restart
   DELETE /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections/{connection_id}
   GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/commands/{command_id}
+  GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/secret-channel/open
+  POST   /api/v1/user/{user_id}/nodes/{node_id}/daemon/secret-channel/push
+
+Secret channel push (`src/features/secret-push`, `NodeSecretChannelPush`) is
+a one-shot, single-use envelope for handing paxd a credential without
+pax-manager ever holding a decryption key. It is not part of the E2EE
+pairing stack (`src/features/e2ee`): no session, no device registry, no key
+epoch. Do not merge the two — `secret-push` seals exactly once per send
+against a fresh public key paxd hands out per `secret-channel/open` call,
+matching `paxd/internal/secretchannel/crypto.go` byte-for-byte (ECDH P-256 +
+HKDF-SHA256 zero-salt + AES-256-GCM); changing the AAD/HKDF label encoding
+on either side without the other breaks decryption silently.
 
 Monitor route
   GET /api/v1/health

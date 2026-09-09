@@ -504,6 +504,31 @@ export function removeNodeDaemonAgentConnection(
   );
 }
 
+export function openNodeDaemonSecretChannel(userId: string, nodeId: string) {
+  return apiFetch<NodeDaemonQueryResult>(
+    userPath(userId, `/nodes/${nodeId}/daemon/secret-channel/open`),
+  );
+}
+
+export function pushNodeDaemonSecretChannel(
+  userId: string,
+  nodeId: string,
+  input: {
+    channel_id: string;
+    sender_public_key: string;
+    nonce: string;
+    ciphertext: string;
+  },
+) {
+  return apiFetch<NodeDaemonCommandData>(
+    userPath(userId, `/nodes/${nodeId}/daemon/secret-channel/push`),
+    {
+      body: JSON.stringify({ command_id: createIdempotencyKey(), ...input }),
+      method: "POST",
+    },
+  );
+}
+
 export function getNodeDaemonCommand(
   userId: string,
   nodeId: string,

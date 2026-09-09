@@ -136,12 +136,19 @@ export type NodeDaemonCommand = {
   updated_at?: string;
 };
 
+export type NodeDaemonSecretChannel = {
+  channel_id: string;
+  public_key: string;
+  expires_at: string;
+};
+
 export type NodeDaemonQueryResult = {
   agent_connections?: { items: NodeDaemonAgentConnection[] };
   command?: NodeDaemonCommand;
   error?: NodeDaemonControlError;
   harnesses?: { items: NodeDaemonHarness[] };
   status?: NodeDaemonStatus;
+  secret_channel_open?: NodeDaemonSecretChannel;
   type: string;
 };
 

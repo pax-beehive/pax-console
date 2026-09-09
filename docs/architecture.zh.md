@@ -697,7 +697,18 @@ POST   /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections/{connecti
 POST   /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections/{connection_id}/restart
 DELETE /api/v1/user/{user_id}/nodes/{node_id}/daemon/agent-connections/{connection_id}
 GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/commands/{command_id}
+GET    /api/v1/user/{user_id}/nodes/{node_id}/daemon/secret-channel/open
+POST   /api/v1/user/{user_id}/nodes/{node_id}/daemon/secret-channel/push
 ```
+
+`/nodes/[id]` 还提供一个独立的"发送密码/密钥到这个节点"面板
+（`NodeSecretChannelPush`，不依赖 `features/e2ee` 的 pairing/session
+状态）：浏览器调用 `secret-channel/open` 换取 paxd 现场生成的一次性公钥，用
+`features/secret-push/crypto.ts` 里的 WebCrypto（ECDH P-256 + HKDF-SHA256 +
+AES-256-GCM，与 `paxd/internal/secretchannel/crypto.go` 字节级兼容）在本地加密一
+次，再把密文通过 `secret-channel/push` 转发给 paxd；pax-manager 全程只转发不透
+明字节，不解密、不落库。channel 过期时前端会静默重开一次并重试同一次加密结
+果，明文只保留在这一次 mutation 调用期间。
 
 Settings / Devices / Nodes 的每个在线 node 行提供受确认保护的 paxd
 maintenance 操作。Restart 固定发送 `mode: immediate`；打开 Upgrade 弹窗后，前端按
