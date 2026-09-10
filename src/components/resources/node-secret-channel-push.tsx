@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { InlineError } from "@/components/ui/inline-error";
 import {
@@ -33,26 +32,38 @@ type SecretChannelAck = {
 
 // This panel is independent from the E2EE pairing UI (features/e2ee): there
 // is no session, no device pairing, no key epoch. Every send opens a fresh,
-// single-use channel with paxd, encrypts once in this browser, and never
-// keeps the plaintext around longer than the single mutation call below.
+// single-use channel with paxd and encrypts once in this browser.
+//
+// Deliberately does NOT use useMutation/TanStack Query for the send action,
+// unlike its sibling panels: TanStack retains a completed mutation (and the
+// mutationFn closure that produced it, including anything that closure
+// captured) in its MutationCache for the mutation's gcTime, not just for the
+// duration of the call. A closure capturing the plaintext secret would keep
+// it reachable well after the input was cleared. Plain useState plus a
+// directly-invoked async handler means the only reference to the plaintext
+// is a local variable inside handleSend, eligible for GC once that async
+// function returns.
 export function NodeSecretChannelPush({
   nodeId,
   userId,
 }: NodeSecretChannelPushProps) {
   const [value, setValue] = useState("");
+  const [isSending, setIsSending] = useState(false);
   const [outcome, setOutcome] = useState<PushOutcome>();
 
-  // mutationFn intentionally takes no arguments and closes over `value`
-  // instead: useMutation keeps whatever is passed to mutate() around as
-  // `variables` for the lifetime of the mutation (and visible in devtools),
-  // which is not somewhere a plaintext secret should linger even briefly.
-  const push = useMutation({
-    mutationFn: () => deliverSecret(userId, nodeId, value),
-    onSuccess: (result) => setOutcome(result),
-    onError: (error: Error) =>
-      setOutcome({ kind: "error", message: error.message }),
-    onSettled: () => setValue(""),
-  });
+  async function handleSend() {
+    const secretValue = value;
+    setValue("");
+    setOutcome(undefined);
+    setIsSending(true);
+    try {
+      setOutcome(await deliverSecret(userId, nodeId, secretValue));
+    } catch (error) {
+      setOutcome({ kind: "error", message: (error as Error).message });
+    } finally {
+      setIsSending(false);
+    }
+  }
 
   return (
     <section className="grid min-w-0 gap-3 rounded-lg border border-hairline bg-surface-1 p-3">
@@ -67,20 +78,20 @@ export function NodeSecretChannelPush({
         <input
           autoComplete="off"
           className="min-h-9 min-w-0 flex-1 rounded-lg border border-hairline bg-surface-1 px-3 text-sm text-ink outline-none placeholder:text-ink-tertiary focus:border-hairline-strong"
-          disabled={push.isPending}
+          disabled={isSending}
           onChange={(event) => setValue(event.target.value)}
           placeholder="Secret value"
           type="password"
           value={value}
         />
         <Button
-          disabled={!value || push.isPending}
-          onClick={() => push.mutate()}
+          disabled={!value || isSending}
+          onClick={() => void handleSend()}
           size="md"
           type="button"
           variant="primary"
         >
-          {push.isPending ? "Sending..." : "Send"}
+          {isSending ? "Sending..." : "Send"}
         </Button>
       </div>
       {outcome?.kind === "delivered" && (

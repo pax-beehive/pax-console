@@ -181,17 +181,18 @@ function renderPanel() {
   const queryClient = new QueryClient({
     defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
   });
-  return render(
+  const view = render(
     <QueryClientProvider client={queryClient}>
       <NodeSecretChannelPush nodeId={PAGE_NODE_ID} userId="user_1" />
     </QueryClientProvider>,
   );
+  return { ...view, queryClient };
 }
 
 describe("NodeSecretChannelPush", () => {
   it("delivers a secret end-to-end against a fake paxd with a different internal node_id", async () => {
     await setUpFakePaxd();
-    renderPanel();
+    const { queryClient } = renderPanel();
 
     await userEvent.type(
       screen.getByPlaceholderText("Secret value"),
@@ -208,8 +209,15 @@ describe("NodeSecretChannelPush", () => {
     const [, , pushedInput] = mocks.pushNodeDaemonSecretChannel.mock.calls[0];
     expect(pushedInput.command_id).toBeTruthy();
 
-    // The input field must be cleared, and the plaintext must not survive
-    // as the mutation's cached variables.
+    // No TanStack Mutation should ever have been created for this action:
+    // useMutation retains a completed mutation (and the mutationFn closure
+    // that produced it, including anything it captured) in the
+    // MutationCache for its gcTime, not just for the duration of the call.
+    // A closure capturing the plaintext would keep it reachable long after
+    // the input was cleared.
+    expect(queryClient.getMutationCache().getAll()).toHaveLength(0);
+
+    // The input field must be cleared.
     expect(
       screen.getByPlaceholderText("Secret value"),
     ).toHaveValue("");
