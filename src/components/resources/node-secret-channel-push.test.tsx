@@ -69,13 +69,9 @@ async function fakePaxdOpenSecret(
     recipientPrivateKey,
     256,
   );
-  const hkdfKey = await crypto.subtle.importKey(
-    "raw",
-    shared,
-    "HKDF",
-    false,
-    ["deriveKey"],
-  );
+  const hkdfKey = await crypto.subtle.importKey("raw", shared, "HKDF", false, [
+    "deriveKey",
+  ]);
   const aesKey = await crypto.subtle.deriveKey(
     {
       name: "HKDF",
@@ -177,32 +173,61 @@ beforeEach(() => {
 
 afterEach(() => cleanup());
 
-function renderPanel() {
+function renderPanel(
+  onDelivered?: (receipt: { fileRef: string; expiresAt: string }) => void,
+) {
   const queryClient = new QueryClient({
     defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
   });
   const view = render(
     <QueryClientProvider client={queryClient}>
-      <NodeSecretChannelPush nodeId={PAGE_NODE_ID} userId="user_1" />
+      <NodeSecretChannelPush
+        nodeId={PAGE_NODE_ID}
+        userId="user_1"
+        onDelivered={onDelivered}
+      />
     </QueryClientProvider>,
   );
   return { ...view, queryClient };
 }
 
 describe("NodeSecretChannelPush", () => {
+  it("returns only the file receipt to the conversation, never the secret", async () => {
+    await setUpFakePaxd();
+    const onDelivered = vi.fn();
+    renderPanel(onDelivered);
+    await userEvent.type(
+      screen.getByLabelText("Secret value"),
+      "synthetic-password",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(onDelivered).toHaveBeenCalledTimes(1));
+    const receipt = onDelivered.mock.calls[0][0];
+    expect(receipt.fileRef).toMatch(/^file:/);
+    expect(JSON.stringify(receipt)).not.toContain("synthetic-password");
+    expect(screen.getByLabelText("Secret value")).toHaveValue("");
+  });
   it("does not reopen or resend an expired channel and requires manual retry", async () => {
     await setUpFakePaxd();
     mocks.pushNodeDaemonSecretChannel.mockResolvedValue({
       command_ack: {
         ok: false,
-        error: { code: "expired", message: "secret channel expired or unknown" },
+        error: {
+          code: "expired",
+          message: "secret channel expired or unknown",
+        },
       },
     });
     const { queryClient } = renderPanel();
-    await userEvent.type(screen.getByPlaceholderText("Secret value"), "synthetic-secret");
+    await userEvent.type(
+      screen.getByPlaceholderText("Secret value"),
+      "synthetic-secret",
+    );
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
 
-    expect(await screen.findByText(/Check the node before manually retrying/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Check the node before manually retrying/),
+    ).toBeInTheDocument();
     expect(mocks.openNodeDaemonSecretChannel).toHaveBeenCalledTimes(1);
     expect(mocks.pushNodeDaemonSecretChannel).toHaveBeenCalledTimes(1);
     expect(screen.getByPlaceholderText("Secret value")).toHaveValue("");
@@ -238,9 +263,7 @@ describe("NodeSecretChannelPush", () => {
     expect(queryClient.getMutationCache().getAll()).toHaveLength(0);
 
     // The input field must be cleared.
-    expect(
-      screen.getByPlaceholderText("Secret value"),
-    ).toHaveValue("");
+    expect(screen.getByPlaceholderText("Secret value")).toHaveValue("");
   });
 
   it("shows an error if paxd rejects the payload (e.g. a real node_id mismatch)", async () => {
@@ -251,7 +274,10 @@ describe("NodeSecretChannelPush", () => {
       command_id: "cmd_x",
       command_ack: {
         ok: false,
-        error: { code: "invalid_argument", message: "unable to decrypt payload" },
+        error: {
+          code: "invalid_argument",
+          message: "unable to decrypt payload",
+        },
       },
     });
     renderPanel();

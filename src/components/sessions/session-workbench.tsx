@@ -2402,6 +2402,7 @@ export function SessionWorkbench({
         )}
 
         <SessionComposer
+          userId={user.user_id}
           availableCommands={
             sessionConfigurationQuery.data?.commands?.available_commands
           }
