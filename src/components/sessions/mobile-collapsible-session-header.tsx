@@ -24,7 +24,7 @@ export function MobileCollapsibleSessionHeader({
       aria-controls={panelId}
       aria-expanded={mobileExpanded}
       aria-label="Collapse session details"
-      className="lg:hidden"
+      className="col-start-2 row-start-1 lg:hidden"
       icon={<ChevronUp className="h-4 w-4" />}
       onClick={() => setMobileExpanded(false)}
       size="icon"
@@ -58,8 +58,8 @@ export function MobileCollapsibleSessionHeader({
 
       <div
         className={cn(
-          "items-center justify-between gap-2 border-b px-3 py-2 transition-[background-color,border-color] duration-500 sm:gap-4 sm:px-4 sm:py-3 lg:flex",
-          mobileExpanded ? "flex" : "hidden",
+          "grid-cols-[minmax(0,1fr)_auto] items-center justify-between gap-2 border-b px-3 py-2 transition-[background-color,border-color] duration-500 sm:gap-4 sm:px-4 sm:py-3 lg:flex",
+          mobileExpanded ? "grid" : "hidden",
           surfaceClassName,
         )}
         data-mobile-expanded={mobileExpanded ? "true" : "false"}

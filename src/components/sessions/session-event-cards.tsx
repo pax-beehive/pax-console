@@ -1,4 +1,5 @@
 import { memo, type MouseEvent, useCallback, useState } from "react";
+import { ContextUsageGauge } from "./context-usage-gauge";
 import { createPortal } from "react-dom";
 import { motion } from "motion/react";
 import {
@@ -9,7 +10,6 @@ import {
   ChevronDown,
   Copy,
   FileCode,
-  Gauge,
   LoaderCircle,
   ShieldCheck,
   ThumbsDown,
@@ -712,7 +712,12 @@ function TurnUsageSummary({
   return (
     <Button
       aria-label="Turn usage details"
-      icon={<Gauge className="h-4 w-4" />}
+      icon={
+        <ContextUsageGauge
+          usedTokens={contextUsage?.usedTokens}
+          windowTokens={contextUsage?.windowTokens}
+        />
+      }
       size="icon"
       tooltip={
         <TurnUsageDetails
