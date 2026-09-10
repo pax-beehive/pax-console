@@ -97,7 +97,7 @@ export function SessionConfigSelector({
       <DropdownMenuTrigger asChild>
         <Button
           aria-label={`Session configuration${model ? `, model ${model}` : ""}`}
-          className="max-w-56 gap-1.5 px-2"
+          className="min-w-0 max-w-56 shrink gap-1.5 px-2"
           disabled={disabled}
           icon={<SlidersHorizontal className="h-3.5 w-3.5" />}
           size="sm"

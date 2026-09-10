@@ -4,6 +4,14 @@ This file is for coding agents working on PAX Console. Keep it short, factual, a
 
 ## Mobile layout
 
+Expanded session headers use a two-row mobile grid: identity/name and collapse
+control first, model/status/actions second. Keep context-panel toggling in the
+mobile actions menu and retain the desktop shortcut. Model text may shrink;
+it must not compete with the session name for the same mobile row.
+The turn-footer gauge represents context used/window (not per-turn tokens).
+Its needle and colored arc share a clamped continuous ratio and green-to-red
+hue; absent/invalid capacity is neutral and does not imply zero usage.
+
 Mobile layout: keep Queue/Stop directly accessible; Steer is available in the
 mobile turn overflow menu and as a desktop shortcut. Bound the permission
 trigger width without shortening its accessible name or menu labels. Do not

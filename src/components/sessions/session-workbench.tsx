@@ -2154,7 +2154,7 @@ export function SessionWorkbench({
                 variant="ghost"
               />
             )}
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="flex min-w-0 gap-1 text-xs text-ink-tertiary sm:max-w-[52vw] sm:text-sm">
                 <TruncatedText>
                   {activeNode?.name ?? activeNode?.hostname ?? "Unknown node"}
@@ -2167,13 +2167,13 @@ export function SessionWorkbench({
               <div className="mt-1 flex min-w-0 items-center gap-1">
                 {sessionNameEditing ? (
                   <form
-                    className="flex min-w-0 items-center gap-1"
+                    className="flex min-w-0 flex-1 items-center gap-1"
                     onSubmit={submitSessionName}
                   >
                     <input
                       aria-label="Session name"
                       autoFocus
-                      className="h-8 min-w-0 max-w-80 rounded-md border border-hairline-strong bg-surface-2 px-2 text-sm font-medium text-ink outline-none focus:border-primary"
+                      className="h-8 min-w-0 max-w-80 flex-1 rounded-md border border-hairline-strong bg-surface-2 px-2 text-base font-medium text-ink outline-none focus:border-primary sm:text-sm"
                       maxLength={120}
                       onChange={(event) =>
                         setSessionNameDraft(event.target.value)
@@ -2274,7 +2274,7 @@ export function SessionWorkbench({
               </div>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="col-span-2 row-start-2 flex min-w-0 items-center gap-2 border-t border-hairline pt-2 lg:shrink-0 lg:border-0 lg:pt-0">
             {currentSessionId && !usesEncryptedTransport && (
               <SessionConfigSelector
                 configuration={sessionConfigurationQuery.data}
@@ -2307,8 +2307,15 @@ export function SessionWorkbench({
               )}
               isPending={resetStaleSessionStatus.isPending}
               onReset={() => resetStaleSessionStatus.mutateAsync()}
+              contextPanelOpen={Boolean(activeSidePanel)}
+              onToggleContextPanel={() =>
+                setActiveSidePanelId((current) =>
+                  current ? null : (sidePanels[0]?.id ?? null),
+                )
+              }
             />
             <Button
+              className="hidden lg:inline-flex"
               aria-label={
                 activeSidePanel ? "Hide context panel" : "Show context panel"
               }

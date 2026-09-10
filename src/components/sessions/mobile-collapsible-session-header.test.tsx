@@ -30,6 +30,14 @@ describe("MobileCollapsibleSessionHeader", () => {
     await user.click(expandButton);
 
     expect(panel).toHaveAttribute("data-mobile-expanded", "true");
+    expect(panel).toHaveClass(
+      "grid",
+      "grid-cols-[minmax(0,1fr)_auto]",
+      "lg:flex",
+    );
+    expect(
+      screen.getByRole("button", { name: "Collapse session details" }),
+    ).toHaveClass("col-start-2", "row-start-1");
 
     await user.click(
       screen.getByRole("button", { name: "Collapse session details" }),
