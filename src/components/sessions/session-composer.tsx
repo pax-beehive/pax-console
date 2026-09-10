@@ -30,6 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SessionCommandInput } from "@/components/sessions/session-command-input";
 import { SessionPermissionSelector } from "@/components/sessions/session-permission-selector";
+import { SessionSecretDialog } from "./session-secret-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -56,6 +57,7 @@ type ComposerAttachment = {
 };
 
 type SessionComposerProps = {
+  userId?: string;
   availableCommands?: SessionAvailableCommand[];
   activeAgentId?: string;
   activeNodeId?: string;
@@ -103,6 +105,7 @@ type SessionComposerProps = {
 };
 
 export const SessionComposer = memo(function SessionComposer({
+  userId,
   availableCommands,
   activeAgentId,
   activeNodeId,
@@ -152,6 +155,7 @@ export const SessionComposer = memo(function SessionComposer({
     (state) => state.composerDrafts[draftKey] ?? "",
   );
   const setComposerDraft = useConsoleStore((state) => state.setComposerDraft);
+  const [secretDialogOpen, setSecretDialogOpen] = useState(false);
   const [queuedTurnEditingId, setQueuedTurnEditingId] = useState<string | null>(
     null,
   );
@@ -444,8 +448,15 @@ export const SessionComposer = memo(function SessionComposer({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
-                aria-label="Upload files"
-                disabled={attachmentUploadPending || secure}
+                aria-label={
+                  userId && activeNodeId && currentSessionId
+                    ? "Add to conversation"
+                    : "Upload files"
+                }
+                disabled={
+                  (attachmentUploadPending || secure) &&
+                  !(userId && activeNodeId && currentSessionId)
+                }
                 icon={
                   attachmentUploadPending ? (
                     <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -455,19 +466,30 @@ export const SessionComposer = memo(function SessionComposer({
                 }
                 size="icon"
                 tooltip={
-                  secure
-                    ? "Attachments are not supported in encrypted sessions yet"
-                    : "Upload files"
+                  userId && activeNodeId && currentSessionId
+                    ? "Add files or securely send a secret"
+                    : secure
+                      ? "Attachments are not supported in encrypted sessions yet"
+                      : "Upload files"
                 }
                 type="button"
                 variant="ghost"
               />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-36" side="top">
-              <DropdownMenuItem onSelect={() => fileInputRef.current?.click()}>
+            <DropdownMenuContent align="start" className="w-64" side="top">
+              <DropdownMenuItem
+                disabled={attachmentUploadPending || secure}
+                onSelect={() => fileInputRef.current?.click()}
+              >
                 <Paperclip className="h-4 w-4" />
                 Upload
               </DropdownMenuItem>
+              {userId && activeNodeId && currentSessionId && (
+                <DropdownMenuItem onSelect={() => setSecretDialogOpen(true)}>
+                  <ShieldCheck className="h-4 w-4" />
+                  Securely send password / token
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
           {isNewSession ? (
@@ -740,6 +762,24 @@ export const SessionComposer = memo(function SessionComposer({
           )}
         </div>
       </div>
+      {userId && activeNodeId && currentSessionId && (
+        <SessionSecretDialog
+          key={`${draftKey}:${activeNodeId}`}
+          open={secretDialogOpen}
+          onOpenChange={setSecretDialogOpen}
+          userId={userId}
+          nodeId={activeNodeId}
+          onDelivered={({ fileRef, expiresAt }) => {
+            const existing =
+              useConsoleStore.getState().composerDrafts[draftKey] ?? "";
+            const reference = `A secret was delivered to this session's node in temporary file ${JSON.stringify(fileRef)} (expires ${expiresAt}). Use it locally without printing its contents or including them in tool output/chat. Delete the temporary file after use, including on failure.`;
+            setComposerDraft(
+              draftKey,
+              existing ? `${existing}\n\n${reference}` : reference,
+            );
+          }}
+        />
+      )}
     </form>
   );
 });

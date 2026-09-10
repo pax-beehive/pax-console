@@ -4,6 +4,12 @@ This file is for coding agents working on PAX Console. Keep it short, factual, a
 
 ## Mobile layout
 
+Existing sessions expose secure secret delivery in the composer + menu, including
+E2EE sessions where uploads remain disabled. Reuse NodeSecretChannelPush and the
+node-level channel API; never store plaintext in chat drafts or query caches.
+Only a successful file receipt is appended to the originating draft (preserving
+existing text); the user reviews/sends it. Keep the node-detail entry available.
+
 Expanded session headers use a two-row mobile grid: identity/name and collapse
 control first, model/status/actions second. Keep context-panel toggling in the
 mobile actions menu and retain the desktop shortcut. Model text may shrink;

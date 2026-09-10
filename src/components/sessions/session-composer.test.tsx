@@ -417,7 +417,7 @@ describe("SessionComposer", () => {
     );
   });
 
-  it("keeps running-turn actions as labelled icon controls", () => {
+  it("keeps running-turn actions and secure secret delivery available", async () => {
     render(
       <TooltipProvider>
         <SessionComposer
@@ -449,6 +449,8 @@ describe("SessionComposer", () => {
           queueTurnPending={false}
           queuedTurn={null}
           readOnlyWorkspace="~/pax"
+          userId="user_1"
+          secure
           showAdminFeatures={false}
           steerTurnPending={false}
           stopTurnPending={false}
@@ -482,6 +484,22 @@ describe("SessionComposer", () => {
     expect(
       screen.queryByRole("button", { name: "Send prompt" }),
     ).not.toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Add to conversation" }),
+    );
+    expect(screen.getByRole("menuitem", { name: "Upload" })).toHaveAttribute(
+      "data-disabled",
+    );
+    await userEvent.click(
+      screen.getByRole("menuitem", { name: "Securely send password / token" }),
+    );
+    expect(screen.getByRole("dialog")).toHaveTextContent("Target node: node_1");
+    await userEvent.type(screen.getByLabelText("Secret value"), "not-for-chat");
+    expect(
+      JSON.stringify(useConsoleStore.getState().composerDrafts),
+    ).not.toContain("not-for-chat");
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByLabelText("Secret value")).not.toBeInTheDocument();
   });
 
   it("shows the unified permission catalog for existing sessions", async () => {

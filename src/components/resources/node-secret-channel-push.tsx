@@ -16,6 +16,7 @@ import {
 type NodeSecretChannelPushProps = {
   nodeId: string;
   userId: string;
+  onDelivered?: (receipt: { fileRef: string; expiresAt: string }) => void;
 };
 
 type PushOutcome =
@@ -46,6 +47,7 @@ type SecretChannelAck = {
 export function NodeSecretChannelPush({
   nodeId,
   userId,
+  onDelivered,
 }: NodeSecretChannelPushProps) {
   const [value, setValue] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -57,7 +59,10 @@ export function NodeSecretChannelPush({
     setOutcome(undefined);
     setIsSending(true);
     try {
-      setOutcome(await deliverSecret(userId, nodeId, secretValue));
+      const result = await deliverSecret(userId, nodeId, secretValue);
+      setOutcome(result);
+      if (result.kind === "delivered")
+        onDelivered?.({ fileRef: result.fileRef, expiresAt: result.expiresAt });
     } catch (error) {
       setOutcome({ kind: "error", message: (error as Error).message });
     } finally {
@@ -69,15 +74,18 @@ export function NodeSecretChannelPush({
     <section className="grid min-w-0 gap-3 rounded-lg border border-hairline bg-surface-1 p-3">
       <h2 className="text-base font-medium">Send a secret to this node</h2>
       <p className="text-xs text-ink-tertiary">
-        Encrypted in this browser against a one-time key paxd generates on
-        the fly. pax-manager only ever relays ciphertext; paxd decrypts it
-        locally and drops it into a short-lived file for a local program to
-        pick up.
+        Encrypted in this browser against a one-time key paxd generates on the
+        fly. pax-manager only ever relays ciphertext; paxd decrypts it locally
+        and drops it into a short-lived file for a local program to pick up.
       </p>
       <div className="flex min-w-0 gap-2">
         <input
           autoComplete="off"
-          className="min-h-9 min-w-0 flex-1 rounded-lg border border-hairline bg-surface-1 px-3 text-sm text-ink outline-none placeholder:text-ink-tertiary focus:border-hairline-strong"
+          aria-label="Secret value"
+          className="min-h-9 min-w-0 flex-1 rounded-lg border border-hairline bg-surface-1 px-3 text-base text-ink outline-none placeholder:text-ink-tertiary focus:border-hairline-strong sm:text-sm"
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.preventDefault();
+          }}
           disabled={isSending}
           onChange={(event) => setValue(event.target.value)}
           placeholder="Secret value"
@@ -169,7 +177,7 @@ async function openChannel(
 
 function interpretAck(ack: SecretChannelAck): PushOutcome {
   const applied = ack.ok ? ack.result?.secret_channel_push : undefined;
-  if (applied) {
+  if (applied?.file_ref && applied.expires_at) {
     return {
       kind: "delivered",
       fileRef: applied.file_ref ?? "unknown",
