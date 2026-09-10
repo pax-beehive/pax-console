@@ -190,6 +190,26 @@ function renderPanel() {
 }
 
 describe("NodeSecretChannelPush", () => {
+  it("does not reopen or resend an expired channel and requires manual retry", async () => {
+    await setUpFakePaxd();
+    mocks.pushNodeDaemonSecretChannel.mockResolvedValue({
+      command_ack: {
+        ok: false,
+        error: { code: "expired", message: "secret channel expired or unknown" },
+      },
+    });
+    const { queryClient } = renderPanel();
+    await userEvent.type(screen.getByPlaceholderText("Secret value"), "synthetic-secret");
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(await screen.findByText(/Check the node before manually retrying/)).toBeInTheDocument();
+    expect(mocks.openNodeDaemonSecretChannel).toHaveBeenCalledTimes(1);
+    expect(mocks.pushNodeDaemonSecretChannel).toHaveBeenCalledTimes(1);
+    expect(screen.getByPlaceholderText("Secret value")).toHaveValue("");
+    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+    expect(queryClient.getMutationCache().getAll()).toHaveLength(0);
+  });
+
   it("delivers a secret end-to-end against a fake paxd with a different internal node_id", async () => {
     await setUpFakePaxd();
     const { queryClient } = renderPanel();

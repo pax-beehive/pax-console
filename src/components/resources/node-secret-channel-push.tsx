@@ -112,12 +112,15 @@ async function deliverSecret(
   nodeId: string,
   secretValue: string,
 ): Promise<PushOutcome> {
-  let ack = await sealAndPush(userId, nodeId, secretValue);
+  const ack = await sealAndPush(userId, nodeId, secretValue);
   if (ack.error?.code === "expired") {
-    // The channel timed out before this push arrived; a fresh channel is
-    // always safe to retry against, since nothing about the previous one
-    // was ever consumed.
-    ack = await sealAndPush(userId, nodeId, secretValue);
+    // paxd also reports unknown channels as expired after losing in-memory
+    // state. A new channel could repeat an already-applied delivery.
+    return {
+      kind: "error",
+      message:
+        "Secret channel expired or is no longer known. Check the node before manually retrying; an earlier delivery may have completed.",
+    };
   }
   return interpretAck(ack);
 }
