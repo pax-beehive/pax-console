@@ -136,12 +136,24 @@ export type NodeDaemonCommand = {
   updated_at?: string;
 };
 
+export type NodeDaemonSecretChannel = {
+  channel_id: string;
+  // Whatever paxd bound into this channel's encryption context. Not
+  // necessarily this node's manager-assigned ID — callers must echo it back
+  // verbatim when sealing/pushing a secret, never substitute their own idea
+  // of "this node's ID".
+  node_id: string;
+  public_key: string;
+  expires_at: string;
+};
+
 export type NodeDaemonQueryResult = {
   agent_connections?: { items: NodeDaemonAgentConnection[] };
   command?: NodeDaemonCommand;
   error?: NodeDaemonControlError;
   harnesses?: { items: NodeDaemonHarness[] };
   status?: NodeDaemonStatus;
+  secret_channel_open?: NodeDaemonSecretChannel;
   type: string;
 };
 
