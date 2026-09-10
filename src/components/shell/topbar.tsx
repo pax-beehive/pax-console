@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown, LogOut, RefreshCw } from "lucide-react";
+import { Check, ChevronDown, LogOut, RefreshCw, UserRound } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,7 +8,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SearchBox } from "@/components/ui/search-box";
-import { Button } from "@/components/ui/button";
 import { TruncatedText } from "@/components/ui/text";
 import { LOGOUT_URL } from "@/features/api/client";
 import { User } from "@/features/api/types";
@@ -25,8 +24,11 @@ export function Topbar({ user }: TopbarProps) {
   const isAdmin = isAdminUser(user);
 
   return (
-    <header className="mobile-safe-top flex min-h-[var(--topbar-h)] min-w-0 items-center justify-between gap-2 border-b border-hairline bg-canvas/95 px-3 backdrop-blur sm:gap-4 sm:px-4">
+    <header className="mobile-safe-top flex min-h-11 min-w-0 items-center justify-between gap-2 border-b border-hairline bg-canvas/95 px-3 backdrop-blur sm:min-h-[var(--topbar-h)] sm:gap-4 sm:px-4">
       <div className="flex min-w-0 flex-1 items-center gap-3">
+        <span className="text-xs font-semibold tracking-widest text-ink-muted sm:hidden">
+          PAX
+        </span>
         {isAdmin && !previewAsUser && (
           <SearchBox
             className="hidden w-full max-w-[340px] sm:flex"
@@ -35,16 +37,6 @@ export function Topbar({ user }: TopbarProps) {
         )}
       </div>
       <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-        <Button
-          aria-label="Reload PAX Console"
-          className="lg:hidden"
-          icon={<RefreshCw className="h-4 w-4" />}
-          onClick={() => window.location.reload()}
-          size="icon"
-          tooltip="Reload page"
-          type="button"
-          variant="ghost"
-        />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -60,10 +52,15 @@ export function Topbar({ user }: TopbarProps) {
                   {user.email ?? user.name ?? user.user_id}
                 </TruncatedText>
               </span>
-              <ChevronDown className="h-4 w-4 shrink-0 text-ink-tertiary" />
+              <UserRound className="h-4 w-4 shrink-0 text-ink-muted sm:hidden" />
+              <ChevronDown className="hidden h-4 w-4 shrink-0 text-ink-tertiary sm:block" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent>
+            <DropdownMenuItem onSelect={() => window.location.reload()}>
+              <RefreshCw className="h-4 w-4 shrink-0" />
+              Reload PAX Console
+            </DropdownMenuItem>
             {isAdmin && (
               <DropdownMenuItem
                 onSelect={() => setPreviewAsUser(!previewAsUser)}

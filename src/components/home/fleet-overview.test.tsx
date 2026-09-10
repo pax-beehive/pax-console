@@ -347,6 +347,19 @@ describe("FleetOverview session rail", () => {
     expect(screen.getByRole("link", { name: /Fallback task/ })).toBeVisible();
   });
 
+  it("gives the native project picker a visible surface and custom arrow", async () => {
+    renderOverview();
+    const picker = await screen.findByRole("combobox", { name: "Project" });
+    expect(picker).toHaveClass("appearance-none", "truncate", "text-base");
+    expect(picker.parentElement).toHaveClass(
+      "bg-surface-2",
+      "border-hairline-strong",
+    );
+    expect(
+      picker.parentElement?.querySelector("svg.pointer-events-none"),
+    ).not.toBeNull();
+  });
+
   it("uses the permission catalog in the Home new-session composer", async () => {
     mocks.useAgentPermissionCatalog.mockReturnValue({
       data: {

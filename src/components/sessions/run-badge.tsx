@@ -73,7 +73,7 @@ export function RunBadge({
     const label = isIdleTimeout ? "inactive" : "error";
 
     return (
-      <details className="group relative">
+      <details className="group relative shrink-0">
         <summary
           aria-label={`Session ${isIdleTimeout ? "inactive" : "error"}: ${detail}`}
           className="cursor-pointer list-none rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent [&::-webkit-details-marker]:hidden"
@@ -82,8 +82,10 @@ export function RunBadge({
             className="max-w-40 px-2 py-1 font-medium"
             tone={isIdleTimeout ? "neutral" : statusConfig.tone}
           >
-            {statusConfig.icon}
-            {label}
+            <span className="inline-flex items-center gap-1.5 whitespace-nowrap [&_svg]:shrink-0">
+              {statusConfig.icon}
+              {label}
+            </span>
           </Badge>
         </summary>
         <div
@@ -108,8 +110,10 @@ export function RunBadge({
       tone={statusConfig.tone}
       tooltip={statusConfig.tooltip}
     >
-      {statusConfig.icon}
-      {statusConfig.label}
+      <span className="inline-flex items-center gap-1.5 whitespace-nowrap [&_svg]:shrink-0">
+        {statusConfig.icon}
+        {statusConfig.label}
+      </span>
     </Badge>
   );
 }
