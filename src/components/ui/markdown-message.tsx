@@ -107,6 +107,7 @@ const markdownComponents: Components = {
       <code
         className={cn(
           "rounded border border-white/10 bg-[#242424] px-1 py-0.5 font-mono text-[0.9em] text-[#f4f4f5]",
+          "inline-block max-w-full align-baseline [overflow-wrap:anywhere]",
           className,
         )}
         {...props}

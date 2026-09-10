@@ -11,6 +11,7 @@ import {
 } from "react";
 import {
   FolderOpen,
+  ArrowUp,
   FolderPlus,
   LoaderCircle,
   Ellipsis,
@@ -439,7 +440,7 @@ export const SessionComposer = memo(function SessionComposer({
           rows={2}
           value={draft}
         />
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-1 sm:gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -568,13 +569,14 @@ export const SessionComposer = memo(function SessionComposer({
           )}
           <div className="min-w-0 flex-1" />
           {isTurnRunning && hasAttachments && (
-            <span className="text-xs text-warning">
+            <span className="order-last basis-full text-xs text-warning">
               Wait for the current turn to finish before sending attachments.
             </span>
           )}
           {showAdminFeatures && (
             <Button
               aria-label="Voice input is not available yet"
+              className="hidden sm:inline-flex"
               disabled
               icon={<Mic className="h-4 w-4" />}
               size="icon"
@@ -609,6 +611,7 @@ export const SessionComposer = memo(function SessionComposer({
                 variant="primary"
               />
               <Button
+                className="hidden sm:inline-flex"
                 aria-label={
                   currentSessionId
                     ? "Steer with this prompt"
@@ -632,6 +635,27 @@ export const SessionComposer = memo(function SessionComposer({
                 type="button"
                 variant="ghost"
               />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    aria-label="More turn actions"
+                    className="sm:hidden"
+                    icon={<Ellipsis className="h-4 w-4" />}
+                    size="icon"
+                    type="button"
+                    variant="ghost"
+                  />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" side="top">
+                  <DropdownMenuItem
+                    disabled={!canSteerTurn}
+                    onSelect={() => void steer()}
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Steer with this prompt
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button
                 aria-label={
                   currentSessionId
@@ -666,7 +690,7 @@ export const SessionComposer = memo(function SessionComposer({
                     "border-emerald-400/60 bg-emerald-400 text-emerald-950 shadow-[0_0_18px_rgba(52,211,153,0.16)] hover:bg-emerald-300",
                 )}
                 disabled={!canSend}
-                icon={<Send className="h-4 w-4" />}
+                icon={<ArrowUp className="h-5 w-5" />}
                 size="icon"
                 tooltip="Send prompt"
                 type="submit"

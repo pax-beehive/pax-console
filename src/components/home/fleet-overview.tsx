@@ -1274,14 +1274,14 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                   >
                     <div className="mb-2 grid min-w-0 gap-1 border-b border-hairline pb-2">
                       <div className="flex min-w-0 items-center gap-2">
-                        <label className="inline-flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-lg px-1 text-sm text-ink-muted focus-within:ring-1 focus-within:ring-accent/25">
+                        <label className="relative inline-flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border border-hairline-strong bg-surface-2 px-2 text-sm text-ink-muted focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/25 active:bg-surface-3">
                           <Folder className="h-4 w-4 shrink-0" />
                           <span className="hidden shrink-0 text-xs font-medium text-ink-tertiary sm:inline">
                             Project
                           </span>
                           <select
                             aria-label="Project"
-                            className="min-w-0 flex-1 bg-transparent text-base text-ink outline-none sm:text-sm"
+                            className="min-h-9 min-w-0 flex-1 appearance-none truncate bg-transparent pr-6 text-base text-ink outline-none [color-scheme:dark] sm:text-sm"
                             onChange={(event) => {
                               const projectId = event.target.value;
                               setSelectedProjectId(projectId);
@@ -1301,6 +1301,10 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                               </option>
                             ))}
                           </select>
+                          <ChevronDown
+                            aria-hidden="true"
+                            className="pointer-events-none absolute right-2 h-4 w-4 shrink-0 text-ink-muted"
+                          />
                         </label>
                         <AgentSelector
                           agents={agents}

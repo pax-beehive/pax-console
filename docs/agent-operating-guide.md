@@ -2,7 +2,19 @@
 
 This file is for coding agents working on PAX Console. Keep it short, factual, and current. When architecture or integration behavior changes, update this file together with `docs/architecture.zh.md`.
 
+## Mobile layout
+
+Mobile layout: keep Queue/Stop directly accessible; Steer is available in the
+mobile turn overflow menu and as a desktop shortcut. Bound the permission
+trigger width without shortening its accessible name or menu labels. Do not
+show the unavailable voice action on mobile. Project selects use a visible
+custom chevron and dark surface while retaining native selection. RunBadge
+icon/text must share a no-wrap inline flex container. The mobile topbar has a
+44px minimum height plus safe-area padding; reload lives in the user menu.
+Inline code may move as a unit, but long tokens must still wrap within the viewport.
+
 ## Encrypted transport boundary
+
 
 The Browser-to-paxd E2EE implementation lives in `src/features/e2ee`.
 Keep envelope construction, HKDF/AES-GCM, SSE parsing, and IndexedDB key access

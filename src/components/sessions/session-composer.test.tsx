@@ -474,6 +474,12 @@ describe("SessionComposer", () => {
       screen.getByRole("button", { name: "Stop current turn" }),
     ).toBeEnabled();
     expect(
+      screen.getByRole("button", { name: "More turn actions" }),
+    ).toHaveClass("sm:hidden");
+    expect(
+      screen.getByRole("button", { name: "Steer with this prompt" }),
+    ).toHaveClass("hidden", "sm:inline-flex");
+    expect(
       screen.queryByRole("button", { name: "Send prompt" }),
     ).not.toBeInTheDocument();
   });

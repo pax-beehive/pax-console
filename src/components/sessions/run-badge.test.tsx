@@ -21,6 +21,12 @@ function renderBadge(
 }
 
 describe("RunBadge", () => {
+  it("keeps the running icon and label together on one line", () => {
+    renderBadge("streaming");
+    const label = screen.getByText("running");
+    expect(label).toHaveClass("inline-flex", "whitespace-nowrap");
+    expect(label.querySelector("svg")).not.toBeNull();
+  });
   it("opens the transient conversation error when the badge is clicked", () => {
     const error = new Error("backend SSE failed");
     error.name = "ConversationRunError";
