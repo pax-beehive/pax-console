@@ -1218,3 +1218,8 @@ Docker 桌面使用 noVNC，paxd 在本地完成 VNC 密码认证，画面与输
 RFB 分块经 transient query 传输。它展示共享 Docker 桌面，支持鼠标键盘，
 但比直连 WebSocket 多往返延迟。连接超时、输入序号错误或缓冲超限时关闭，
 不自动重放输入。原生 Chrome 的一次性密码工具尚不属于 Docker MCP broker。
+
+The Docker desktop viewer uses a 16:9 container matching the node desktop,
+including on mobile. Its helper text distinguishes Docker from personal Chrome
+and explains that an empty Docker desktop can be black. No browser is launched
+just by connecting the viewer.

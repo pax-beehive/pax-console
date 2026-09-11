@@ -16,7 +16,9 @@ export function NodeBrowserVNC({
       <h3>Docker desktop</h3>
       <p className="text-xs text-ink-tertiary">
         Shows the shared Docker desktop, including all browser windows. Mouse
-        and keyboard input are enabled. Disconnect closes the viewer only.
+        and keyboard input are enabled. Disconnect closes the viewer only. This
+        is separate from your personal Chrome. A black desktop can mean there
+        are no Docker browser windows open.
       </p>
       <Button onClick={() => setConnected(!connected)}>
         {connected ? "Disconnect desktop" : "Connect Docker desktop"}
@@ -71,7 +73,7 @@ function Desktop({ userId, nodeId }: { userId: string; nodeId: string }) {
       </p>
       <div
         ref={host}
-        className="h-[60vh] min-h-64 w-full overflow-hidden bg-black"
+        className="aspect-video w-full overflow-hidden bg-black"
       />
     </>
   );

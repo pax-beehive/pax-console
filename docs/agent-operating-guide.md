@@ -1153,3 +1153,8 @@ direct noVNC WebSocket. No clipboard bridge or credential input is exposed by
 the wrapper UI. Native password grants do not apply to the unrestricted Docker
 MCP broker. Keep deployment/limitations aligned with agent-browser-runtime's
 `docs/pax-browser-mvp.md`.
+
+The Docker desktop viewer uses a 16:9 container matching the node desktop,
+including on mobile. Its helper text distinguishes Docker from personal Chrome
+and explains that an empty Docker desktop can be black. No browser is launched
+just by connecting the viewer.
