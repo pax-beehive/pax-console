@@ -9,7 +9,12 @@ export type BrowserState = {
   operator: string | null;
   audit: { at: string; event: string; origin?: string; outcome?: string }[];
 };
+export type BrowserTabs = {
+  tabs: { id: string; title: string; restricted: boolean }[];
+  activeTabID?: string;
+};
 export type BrowserFrame = {
+  pointer?: { x: number; y: number; action: string; at: number };
   frame: string;
   image: string;
   width: number;
@@ -75,6 +80,15 @@ export function browserControl<T>(
           "Browser returned no usable image. Update and reconnect the browser runtime if this persists.",
         );
       }
+    }
+    if (
+      operation === "view" &&
+      (payload as { action?: { type?: string } })?.action?.type === "tabs" &&
+      !Array.isArray((result.browser_control as Partial<BrowserTabs>).tabs)
+    ) {
+      throw Error(
+        "Browser tab list unavailable. Update and reconnect the browser runtime.",
+      );
     }
     return result.browser_control;
   });

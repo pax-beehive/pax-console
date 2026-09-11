@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useEffectEvent, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
+import { MousePointer2 } from "lucide-react";
+import { useBrowserState } from "@/features/browser-control/use-browser-state";
 import { Button } from "@/components/ui/button";
 import { InlineError } from "@/components/ui/inline-error";
 import { MonoId } from "@/components/ui/text";
@@ -9,7 +11,7 @@ import {
   browserControl,
   BrowserFrame,
   BrowserOperation,
-  BrowserState,
+  BrowserTabs,
 } from "@/features/browser-control/api";
 import { NodeBrowserVNC } from "./node-browser-vnc";
 import { NodeSecretChannelPush } from "./node-secret-channel-push";
@@ -41,35 +43,52 @@ export function NodeBrowserControl({
   );
 }
 
-function BrowserPanel({ nodeId, userId }: { nodeId: string; userId: string }) {
+export function NodeBrowserViewer({
+  nodeId,
+  userId,
+}: {
+  nodeId: string;
+  userId: string;
+}) {
+  return <BrowserPanel nodeId={nodeId} userId={userId} viewerOnly />;
+}
+
+function BrowserPanel({
+  nodeId,
+  userId,
+  viewerOnly = false,
+}: {
+  nodeId: string;
+  userId: string;
+  viewerOnly?: boolean;
+}) {
   const [error, setError] = useState<Error>();
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const [origin, setOrigin] = useState("");
   const [selectedSession, setSession] = useState("");
+  const [tabID, setTabID] = useState("");
+  const [tabs, setTabs] = useState<BrowserTabs>();
   const [live, setLive] = useState(true);
   const [target, setTarget] = useState("");
   const [captured, setCaptured] = useState<{
     session: string;
+    tabID: string;
     frame: BrowserFrame;
     at: number;
   }>();
   const [previewError, setPreviewError] = useState<Error>();
   const [grant, setGrant] = useState<{ secret_ref: string; expires: number }>();
-  const query = useQuery({
-    queryKey: ["user", userId, "node", nodeId, "browser-control"],
-    queryFn: () => browserControl<BrowserState>(userId, nodeId, "state"),
-    retry: false,
-    refetchInterval: 5000,
-    refetchIntervalInBackground: false,
-    gcTime: 0,
-  });
+  const query = useBrowserState(userId, nodeId);
   const state = query.data;
   const session =
     selectedSession ||
     state?.operator ||
     (state?.workers.length === 1 ? state.workers[0].session : "");
-  const frame = captured?.session === session ? captured.frame : undefined;
+  const frame =
+    captured?.session === session && captured.tabID === tabID
+      ? captured.frame
+      : undefined;
   const connected = Boolean(
     state?.workers.some((worker) => worker.session === session),
   );
@@ -106,7 +125,7 @@ function BrowserPanel({ nodeId, userId }: { nodeId: string; userId: string }) {
       if (timer) clearTimeout(timer);
       document.removeEventListener("visibilitychange", visibilityChanged);
     };
-  }, [live, session]);
+  }, [live, session, tabID]);
   async function run(operation: BrowserOperation, payload: unknown) {
     if (busyRef.current) return;
     busyRef.current = true;
@@ -130,16 +149,33 @@ function BrowserPanel({ nodeId, userId }: { nodeId: string; userId: string }) {
     setBusy(true);
     const oldFrame = frame;
     try {
+      if (action.type === "screenshot") {
+        const inventory = await browserControl<BrowserTabs>(
+          userId,
+          nodeId,
+          "view",
+          { session, action: { type: "tabs" } },
+        );
+        setTabs(inventory);
+        if (tabID && !inventory.tabs.some((tab) => tab.id === tabID)) {
+          setTabID("");
+          return false;
+        }
+      }
       if (action.type !== "screenshot")
         await browserControl(userId, nodeId, "view", {
           session,
-          action: { ...action, frame: oldFrame?.frame },
+          action: {
+            ...action,
+            tabID: tabID || undefined,
+            frame: oldFrame?.frame,
+          },
         });
       const next = await browserControl<BrowserFrame>(userId, nodeId, "view", {
         session,
-        action: { type: "screenshot" },
+        action: { type: "screenshot", tabID: tabID || undefined },
       });
-      setCaptured({ session, frame: next, at: Date.now() });
+      setCaptured({ session, tabID, frame: next, at: Date.now() });
       setPreviewError(undefined);
       return true;
     } catch (e) {
@@ -179,140 +215,159 @@ function BrowserPanel({ nodeId, userId }: { nodeId: string; userId: string }) {
         every two seconds without taking control. Taking control pauses agent
         browser tools until you release control.
       </p>
-      <Button
-        disabled={busy || query.isFetching}
-        onClick={() => void query.refetch()}
-      >
-        Refresh browser state
-      </Button>
+      {!viewerOnly && (
+        <>
+          <Button
+            disabled={busy || query.isFetching}
+            onClick={() => void query.refetch()}
+          >
+            Refresh browser state
+          </Button>
+        </>
+      )}
       {(error || query.error) && (
         <InlineError error={(error ?? query.error)!} />
       )}
-      <NodeBrowserVNC userId={userId} nodeId={nodeId} />
+      {!viewerOnly && <NodeBrowserVNC userId={userId} nodeId={nodeId} />}
       {state && (
         <>
-          <div className="flex flex-wrap gap-2">
-            <span>
-              {state.policy.paused
-                ? "All browser control paused"
-                : "Allowlist active"}
-            </span>
-            <Button
-              disabled={busy}
-              onClick={() =>
-                void run("policy", {
-                  ...state.policy,
-                  revision: state.policy.revision ?? 0,
-                  paused: !state.policy.paused,
-                })
-              }
+          {viewerOnly && (
+            <Link
+              className="text-xs text-ink-muted underline"
+              href={`/nodes/${encodeURIComponent(nodeId)}`}
             >
-              {state.policy.paused ? "Resume" : "Pause all"}
-            </Button>
-          </div>
-          <div className="grid gap-2">
-            <h3>Site approvals</h3>
-            {state.pending
-              .filter((p) => p.decision === "pending")
-              .map((p) => (
-                <div
-                  key={p.id}
-                  className="flex flex-wrap items-center gap-2 border-b border-hairline py-2"
-                >
-                  <span className="break-all">{p.origin}</span>
-                  <MonoId>{p.session}</MonoId>
-                  <Button
-                    disabled={busy}
-                    onClick={() =>
-                      void run("decide", {
-                        id: p.id,
-                        decision: "allow",
-                        scope: "session",
-                      })
-                    }
-                  >
-                    Allow session
-                  </Button>
-                  <Button
-                    disabled={busy}
-                    onClick={() =>
-                      void run("decide", {
-                        id: p.id,
-                        decision: "allow",
-                        scope: "global",
-                      })
-                    }
-                  >
-                    Always allow
-                  </Button>
-                  <Button
-                    disabled={busy}
-                    onClick={() =>
-                      void run("decide", {
-                        id: p.id,
-                        decision: "deny",
-                        scope: "session",
-                      })
-                    }
-                  >
-                    Deny
-                  </Button>
-                </div>
-              ))}
-            {state.policy.origins.map((o) => (
-              <div key={o} className="flex flex-wrap items-center gap-2">
-                <span className="break-all">{o}</span>
+              Browser access and settings
+            </Link>
+          )}
+          {!viewerOnly && (
+            <>
+              <div className="flex flex-wrap gap-2">
+                <span>
+                  {state.policy.paused
+                    ? "All browser control paused"
+                    : "Allowlist active"}
+                </span>
                 <Button
                   disabled={busy}
                   onClick={() =>
                     void run("policy", {
                       ...state.policy,
                       revision: state.policy.revision ?? 0,
-                      origins: state.policy.origins.filter((x) => x !== o),
+                      paused: !state.policy.paused,
                     })
                   }
                 >
-                  Revoke
+                  {state.policy.paused ? "Resume" : "Pause all"}
                 </Button>
               </div>
-            ))}
-            {state.grants.map((g) => (
-              <div
-                key={`${g.session}/${g.origin}`}
-                className="flex flex-wrap items-center gap-2"
-              >
-                <span>{g.origin}</span>
-                <MonoId>{g.session}</MonoId>
-                <Button disabled={busy} onClick={() => void run("revoke", g)}>
-                  Revoke session grant
+              <div className="grid gap-2">
+                <h3>Site approvals</h3>
+                {state.pending
+                  .filter((p) => p.decision === "pending")
+                  .map((p) => (
+                    <div
+                      key={p.id}
+                      className="flex flex-wrap items-center gap-2 border-b border-hairline py-2"
+                    >
+                      <span className="break-all">{p.origin}</span>
+                      <MonoId>{p.session}</MonoId>
+                      <Button
+                        disabled={busy}
+                        onClick={() =>
+                          void run("decide", {
+                            id: p.id,
+                            decision: "allow",
+                            scope: "session",
+                          })
+                        }
+                      >
+                        Allow session
+                      </Button>
+                      <Button
+                        disabled={busy}
+                        onClick={() =>
+                          void run("decide", {
+                            id: p.id,
+                            decision: "allow",
+                            scope: "global",
+                          })
+                        }
+                      >
+                        Always allow
+                      </Button>
+                      <Button
+                        disabled={busy}
+                        onClick={() =>
+                          void run("decide", {
+                            id: p.id,
+                            decision: "deny",
+                            scope: "session",
+                          })
+                        }
+                      >
+                        Deny
+                      </Button>
+                    </div>
+                  ))}
+                {state.policy.origins.map((o) => (
+                  <div key={o} className="flex flex-wrap items-center gap-2">
+                    <span className="break-all">{o}</span>
+                    <Button
+                      disabled={busy}
+                      onClick={() =>
+                        void run("policy", {
+                          ...state.policy,
+                          revision: state.policy.revision ?? 0,
+                          origins: state.policy.origins.filter((x) => x !== o),
+                        })
+                      }
+                    >
+                      Revoke
+                    </Button>
+                  </div>
+                ))}
+                {state.grants.map((g) => (
+                  <div
+                    key={`${g.session}/${g.origin}`}
+                    className="flex flex-wrap items-center gap-2"
+                  >
+                    <span>{g.origin}</span>
+                    <MonoId>{g.session}</MonoId>
+                    <Button
+                      disabled={busy}
+                      onClick={() => void run("revoke", g)}
+                    >
+                      Revoke session grant
+                    </Button>
+                  </div>
+                ))}
+                <label className="grid gap-1 text-sm">
+                  Site origin
+                  <input
+                    className={inputClass}
+                    value={origin}
+                    placeholder="https://example.com"
+                    onChange={(e) => {
+                      setOrigin(e.target.value);
+                      setGrant(undefined);
+                    }}
+                  />
+                </label>
+                <Button
+                  disabled={busy || !origin}
+                  onClick={() =>
+                    void run("policy", {
+                      ...state.policy,
+                      revision: state.policy.revision ?? 0,
+                      origins: [...state.policy.origins, origin],
+                    })
+                  }
+                >
+                  Add allowed site
                 </Button>
               </div>
-            ))}
-            <label className="grid gap-1 text-sm">
-              Site origin
-              <input
-                className={inputClass}
-                value={origin}
-                placeholder="https://example.com"
-                onChange={(e) => {
-                  setOrigin(e.target.value);
-                  setGrant(undefined);
-                }}
-              />
-            </label>
-            <Button
-              disabled={busy || !origin}
-              onClick={() =>
-                void run("policy", {
-                  ...state.policy,
-                  revision: state.policy.revision ?? 0,
-                  origins: [...state.policy.origins, origin],
-                })
-              }
-            >
-              Add allowed site
-            </Button>
-          </div>
+            </>
+          )}
           <div className="grid gap-2">
             <h3>Watch browser</h3>
             <label className="grid gap-1 text-sm">
@@ -323,6 +378,8 @@ function BrowserPanel({ nodeId, userId }: { nodeId: string; userId: string }) {
                 disabled={busy || Boolean(state.operator)}
                 onChange={(e) => {
                   setSession(e.target.value);
+                  setTabID("");
+                  setTabs(undefined);
                   setLive(true);
                   setCaptured(undefined);
                   setPreviewError(undefined);
@@ -337,6 +394,33 @@ function BrowserPanel({ nodeId, userId }: { nodeId: string; userId: string }) {
                 ))}
               </select>
             </label>
+            {tabs && (
+              <label className="grid gap-1 text-sm">
+                Browser tab
+                <select
+                  className={inputClass}
+                  value={tabID}
+                  disabled={busy}
+                  onChange={(e) => {
+                    setTabID(e.target.value);
+                    setCaptured(undefined);
+                    setPreviewError(undefined);
+                  }}
+                >
+                  <option value="">Follow active agent tab</option>
+                  {tabs.tabs.map((tab) => (
+                    <option
+                      key={tab.id}
+                      value={tab.id}
+                      disabled={tab.restricted}
+                    >
+                      {tab.title}
+                      {tabs.activeTabID === tab.id ? " (agent)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             {!state.workers.length && (
               <p className="text-xs text-ink-tertiary">
                 Waiting for an agent browser connection. This list updates
@@ -417,7 +501,7 @@ function BrowserPanel({ nodeId, userId }: { nodeId: string; userId: string }) {
                     ? "Browser image; click to interact"
                     : "Browser image; read-only preview"
                 }
-                className="block w-full overflow-hidden border border-hairline"
+                className="relative block w-full overflow-hidden border border-hairline"
                 disabled={busy || state.operator !== session || !frame.frame}
                 onClick={(e) => {
                   const r = e.currentTarget.getBoundingClientRect();
@@ -444,104 +528,133 @@ function BrowserPanel({ nodeId, userId }: { nodeId: string; userId: string }) {
                   className="block h-auto w-full"
                   draggable={false}
                 />
+                {frame.pointer &&
+                  Number.isFinite(frame.pointer.x) &&
+                  Number.isFinite(frame.pointer.y) && (
+                    <span
+                      aria-label="Agent's recent interaction"
+                      className="pointer-events-none absolute text-violet-400"
+                      style={{
+                        left: `${(frame.pointer.x / frame.width) * 100}%`,
+                        top: `${(frame.pointer.y / frame.height) * 100}%`,
+                      }}
+                    >
+                      <span className="absolute -left-3 -top-3 h-6 w-6 rounded-full border-2 border-violet-400 bg-violet-400/20" />
+                      <MousePointer2
+                        aria-hidden="true"
+                        className="relative h-5 w-5 fill-violet-400 stroke-white drop-shadow"
+                      />
+                    </span>
+                  )}
               </button>
             )}
-            <div className="flex flex-wrap gap-2">
-              {["Tab", "Enter", "Backspace", "Escape"].map((key) => (
+            {state.operator === session && (
+              <div className="flex flex-wrap gap-2">
+                {["Tab", "Enter", "Backspace", "Escape"].map((key) => (
+                  <Button
+                    key={key}
+                    disabled={
+                      busy || !frame?.frame || state.operator !== session
+                    }
+                    onClick={() => void view({ type: "key", key })}
+                  >
+                    {key}
+                  </Button>
+                ))}
                 <Button
-                  key={key}
                   disabled={busy || !frame?.frame || state.operator !== session}
-                  onClick={() => void view({ type: "key", key })}
+                  onClick={() => void view({ type: "scroll", x: 0, y: 600 })}
                 >
-                  {key}
+                  Scroll down
                 </Button>
-              ))}
-              <Button
-                disabled={busy || !frame?.frame || state.operator !== session}
-                onClick={() => void view({ type: "scroll", x: 0, y: 600 })}
-              >
-                Scroll down
-              </Button>
-              <Button
-                disabled={busy || !frame?.frame || state.operator !== session}
-                onClick={() => void view({ type: "scroll", x: 0, y: -600 })}
-              >
-                Scroll up
-              </Button>
-            </div>
-          </div>
-          <div className="grid gap-2">
-            <h3>One-use browser password</h3>
-            <p className="text-xs text-ink-tertiary">
-              Select the browser and site above, then the password field from
-              the agent page snapshot. The reference expires after one minute.
-              Release human control before asking the agent to fill it.
-            </p>
-            <label className="grid gap-1 text-sm">
-              Password field
-              <input
-                className={inputClass}
-                value={target}
-                placeholder="e12 or #password"
-                onChange={(e) => {
-                  setTarget(e.target.value);
-                  setGrant(undefined);
-                }}
-              />
-            </label>
-            {session && origin && target && (
-              <NodeSecretChannelPush
-                key={`${session}/${origin}/${target}`}
-                nodeId={nodeId}
-                userId={userId}
-                onDelivered={(receipt) => void register(receipt.fileRef)}
-              />
-            )}
-            {grant && (
-              <div className="text-xs">
-                <p>
-                  Give this one-use instruction to the agent before{" "}
-                  {new Date(grant.expires).toLocaleTimeString()}:
-                </p>
-                <pre className="whitespace-pre-wrap break-all">
-                  {JSON.stringify(
-                    {
-                      tool: "browser_fill_secret",
-                      arguments: {
-                        secret_ref: grant.secret_ref,
-                        origin,
-                        target,
-                      },
-                    },
-                    null,
-                    2,
-                  )}
-                </pre>
-              </div>
-            )}
-            {state.sensitiveSessions.map((s) => (
-              <div key={s} className="flex flex-wrap items-center gap-2">
-                <MonoId>{s}</MonoId>
-                <span className="text-xs">Password observation hold</span>
                 <Button
-                  disabled={busy}
-                  onClick={() => void run("resume_sensitive", { session: s })}
+                  disabled={busy || !frame?.frame || state.operator !== session}
+                  onClick={() => void view({ type: "scroll", x: 0, y: -600 })}
                 >
-                  Page is safe; resume agent
+                  Scroll up
                 </Button>
               </div>
-            ))}
+            )}
           </div>
-          <details>
-            <summary>Browser audit</summary>
-            <div className="max-h-64 overflow-auto text-xs">
-              {state.audit.map((a, i) => (
-                <p key={i}>
-                  {a.at} {a.event} {a.origin} {a.outcome}
+          {!viewerOnly && (
+            <>
+              <div className="grid gap-2">
+                <h3>One-use browser password</h3>
+                <p className="text-xs text-ink-tertiary">
+                  Select the browser and site above, then the password field
+                  from the agent page snapshot. The reference expires after one
+                  minute. Release human control before asking the agent to fill
+                  it.
                 </p>
-              ))}
-            </div>
-          </details>
+                <label className="grid gap-1 text-sm">
+                  Password field
+                  <input
+                    className={inputClass}
+                    value={target}
+                    placeholder="e12 or #password"
+                    onChange={(e) => {
+                      setTarget(e.target.value);
+                      setGrant(undefined);
+                    }}
+                  />
+                </label>
+                {session && origin && target && (
+                  <NodeSecretChannelPush
+                    key={`${session}/${origin}/${target}`}
+                    nodeId={nodeId}
+                    userId={userId}
+                    onDelivered={(receipt) => void register(receipt.fileRef)}
+                  />
+                )}
+                {grant && (
+                  <div className="text-xs">
+                    <p>
+                      Give this one-use instruction to the agent before{" "}
+                      {new Date(grant.expires).toLocaleTimeString()}:
+                    </p>
+                    <pre className="whitespace-pre-wrap break-all">
+                      {JSON.stringify(
+                        {
+                          tool: "browser_fill_secret",
+                          arguments: {
+                            secret_ref: grant.secret_ref,
+                            origin,
+                            target,
+                          },
+                        },
+                        null,
+                        2,
+                      )}
+                    </pre>
+                  </div>
+                )}
+                {state.sensitiveSessions.map((s) => (
+                  <div key={s} className="flex flex-wrap items-center gap-2">
+                    <MonoId>{s}</MonoId>
+                    <span className="text-xs">Password observation hold</span>
+                    <Button
+                      disabled={busy}
+                      onClick={() =>
+                        void run("resume_sensitive", { session: s })
+                      }
+                    >
+                      Page is safe; resume agent
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <details>
+                <summary>Browser audit</summary>
+                <div className="max-h-64 overflow-auto text-xs">
+                  {state.audit.map((a, i) => (
+                    <p key={i}>
+                      {a.at} {a.event} {a.origin} {a.outcome}
+                    </p>
+                  ))}
+                </div>
+              </details>
+            </>
+          )}
         </>
       )}
     </div>

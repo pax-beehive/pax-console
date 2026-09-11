@@ -14,6 +14,7 @@ import {
   AlertCircle,
   ArrowLeft,
   Brain,
+  Monitor,
   Check,
   FileText,
   LoaderCircle,
@@ -46,6 +47,8 @@ import {
   ToolEvidenceSelection,
   WorkstreamItemCard,
 } from "@/components/sessions/session-event-cards";
+import { SessionBrowserApprovals } from "./session-browser-approvals";
+import { SessionBrowserWindow } from "./session-browser-window";
 import { SessionComposer } from "@/components/sessions/session-composer";
 import { SessionConfigSelector } from "@/components/sessions/session-config-selector";
 import { MobileCollapsibleSessionHeader } from "@/components/sessions/mobile-collapsible-session-header";
@@ -301,6 +304,7 @@ export function SessionWorkbench({
     scrollHeight: number;
     scrollTop: number;
   } | null>(null);
+  const [browserOpen, setBrowserOpen] = useState(false);
   const [activeSidePanelId, setActiveSidePanelId] =
     useState<SessionSidePanelId | null>(null);
   const [selectedToolEvidence, setSelectedToolEvidence] =
@@ -1991,6 +1995,17 @@ export function SessionWorkbench({
     return () => window.cancelAnimationFrame(frameId);
   }, [historyPageCount, updateTimelineStickiness, workstreamItems]);
 
+  const browserButton = activeNodeId ? (
+    <Button
+      aria-label="Watch browser"
+      tooltip="Watch browser"
+      size="icon"
+      variant={browserOpen ? "secondary" : "ghost"}
+      icon={<Monitor className="h-4 w-4" />}
+      onClick={() => setBrowserOpen(!browserOpen)}
+    />
+  ) : null;
+
   const sidePanels = (
     [
       {
@@ -2096,6 +2111,7 @@ export function SessionWorkbench({
       {usesEncryptedTransport && <SecureModeActivation showStatus={false} />}
       <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
         <MobileCollapsibleSessionHeader
+          actions={browserButton}
           key={currentSessionId ?? "new"}
           summary={
             <div className="flex min-w-0 items-center gap-2">
@@ -2300,6 +2316,7 @@ export function SessionWorkbench({
               }
               status={displayedRunStatus}
             />
+            {browserButton}
             <SessionRuntimeActions
               canReset={Boolean(
                 activeSession?.runtime_turn_instance_id &&
@@ -2334,6 +2351,13 @@ export function SessionWorkbench({
             />
           </div>
         </MobileCollapsibleSessionHeader>
+        {activeNodeId && (
+          <SessionBrowserApprovals
+            key={`${user.user_id}/${activeNodeId}`}
+            nodeId={activeNodeId}
+            userId={user.user_id}
+          />
+        )}
 
         <div
           className={cn(
@@ -2512,6 +2536,13 @@ export function SessionWorkbench({
   return (
     <SessionWorkbenchFrame embedded={embedded} user={user}>
       {workbench}
+      {browserOpen && activeNodeId && (
+        <SessionBrowserWindow
+          nodeId={activeNodeId}
+          userId={user.user_id}
+          onClose={() => setBrowserOpen(false)}
+        />
+      )}
     </SessionWorkbenchFrame>
   );
 }

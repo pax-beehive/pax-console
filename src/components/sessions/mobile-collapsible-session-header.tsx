@@ -7,12 +7,14 @@ import { cn } from "@/lib/utils";
 
 type MobileCollapsibleSessionHeaderProps = {
   children: ReactNode;
+  actions?: ReactNode;
   summary: ReactNode;
   surfaceClassName?: string;
 };
 
 export function MobileCollapsibleSessionHeader({
   children,
+  actions,
   summary,
   surfaceClassName,
 }: MobileCollapsibleSessionHeaderProps) {
@@ -54,6 +56,7 @@ export function MobileCollapsibleSessionHeader({
           <span className="min-w-0 flex-1">{summary}</span>
           <ChevronDown className="h-4 w-4 shrink-0 text-ink-tertiary" />
         </button>
+        {actions}
       </div>
 
       <div

@@ -4,7 +4,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, expect, it, vi } from "vitest";
-import { NodeBrowserControl } from "./node-browser-control";
+import { NodeBrowserControl, NodeBrowserViewer } from "./node-browser-control";
 const mocks = vi.hoisted(() => ({ control: vi.fn() }));
 vi.mock("@/features/browser-control/api", () => ({
   browserControl: mocks.control,
@@ -25,10 +25,12 @@ it("continuously previews without takeover, pauses on request, and keeps input d
     operator: null,
     audit: [],
   };
-  mocks.control.mockImplementation(async (_user, _node, op) =>
+  mocks.control.mockImplementation(async (_user, _node, op, payload) =>
     op === "state"
       ? state
-      : { frame: "", image: "aW1hZ2U=", width: 800, height: 600 },
+      : payload.action.type === "tabs"
+        ? { tabs: [] }
+        : { frame: "", image: "aW1hZ2U=", width: 800, height: 600 },
   );
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -47,9 +49,11 @@ it("continuously previews without takeover, pauses on request, and keeps input d
   expect(
     screen.getByRole("button", { name: "Browser image; read-only preview" }),
   ).toBeDisabled();
-  expect(screen.getByRole("button", { name: "Tab" })).toBeDisabled();
+  expect(screen.queryByRole("button", { name: "Tab" })).not.toBeInTheDocument();
   const actions = () =>
-    mocks.control.mock.calls.filter((call) => call[2] === "view");
+    mocks.control.mock.calls.filter(
+      (call) => call[2] === "view" && call[3].action.type === "screenshot",
+    );
   await waitFor(() => expect(actions().length).toBeGreaterThanOrEqual(2), {
     timeout: 5000,
   });
@@ -79,8 +83,9 @@ it("automatically recovers a failed capture and reports the interruption beside 
     audit: [],
   };
   let captures = 0;
-  mocks.control.mockImplementation(async (_user, _node, op) => {
+  mocks.control.mockImplementation(async (_user, _node, op, payload) => {
     if (op === "state") return state;
+    if (payload.action.type === "tabs") return { tabs: [] };
     if (++captures === 1) throw new Error("Browser worker is busy");
     return { frame: "", image: "aW1hZ2U=", width: 800, height: 600 };
   });
@@ -119,3 +124,71 @@ it("automatically recovers a failed capture and reports the interruption beside 
   expect(captures).toBe(count);
   client.clear();
 }, 16000);
+
+it("selects a preview tab without controlling the agent and displays its recent target", async () => {
+  mocks.control.mockClear();
+  const user = userEvent.setup();
+  const state = {
+    policy: { paused: false, origins: [] },
+    pending: [],
+    grants: [],
+    sensitiveSessions: [],
+    workers: [{ session: "browser-3", seen: Date.now() }],
+    operator: null,
+    audit: [],
+  };
+  mocks.control.mockImplementation(async (_user, _node, op, payload) => {
+    if (op === "state") return state;
+    if (payload.action.type === "tabs")
+      return {
+        activeTabID: "tab1",
+        tabs: [
+          { id: "tab1", title: "Search", restricted: false },
+          { id: "tab2", title: "Wikipedia", restricted: false },
+        ],
+      };
+    return {
+      frame: "",
+      image: "aW1hZ2U=",
+      width: 800,
+      height: 600,
+      pointer: { x: 120, y: 60, action: "click", at: Date.now() },
+    };
+  });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={client}>
+      <NodeBrowserViewer nodeId="node" userId="user" />
+    </QueryClientProvider>,
+  );
+  expect(
+    await screen.findByLabelText("Agent's recent interaction"),
+  ).toBeVisible();
+  await user.selectOptions(
+    screen.getByRole("combobox", { name: "Browser tab" }),
+    "tab2",
+  );
+  await waitFor(() =>
+    expect(
+      mocks.control.mock.calls.some(
+        (call) =>
+          call[2] === "view" &&
+          call[3].action.type === "screenshot" &&
+          call[3].action.tabID === "tab2",
+      ),
+    ).toBe(true),
+  );
+  expect(
+    mocks.control.mock.calls.every(
+      (call) =>
+        call[2] === "state" ||
+        ["tabs", "screenshot"].includes(call[3].action.type),
+    ),
+  ).toBe(true);
+  expect(
+    screen.queryByText("One-use browser password"),
+  ).not.toBeInTheDocument();
+  client.clear();
+});
