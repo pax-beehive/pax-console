@@ -160,8 +160,11 @@ it("selects a preview tab without controlling the agent and displays its recent 
   });
   render(
     <QueryClientProvider client={client}>
-      <NodeBrowserViewer nodeId="node" userId="user" />
+      <NodeBrowserControl nodeId="node" userId="user" />
     </QueryClientProvider>,
+  );
+  await user.click(
+    screen.getByRole("button", { name: "Open browser control" }),
   );
   expect(
     await screen.findByLabelText("Agent's recent interaction"),
@@ -187,9 +190,7 @@ it("selects a preview tab without controlling the agent and displays its recent 
         ["tabs", "screenshot"].includes(call[3].action.type),
     ),
   ).toBe(true);
-  expect(
-    screen.queryByText("One-use browser password"),
-  ).not.toBeInTheDocument();
+
   client.clear();
 });
 
@@ -220,8 +221,11 @@ it("keeps selectors enabled during capture and discards a frame after selection 
   });
   render(
     <QueryClientProvider client={client}>
-      <NodeBrowserViewer nodeId="node" userId="user" />
+      <NodeBrowserControl nodeId="node" userId="user" />
     </QueryClientProvider>,
+  );
+  await user.click(
+    screen.getByRole("button", { name: "Open browser control" }),
   );
   const tabs = await screen.findByRole("combobox", { name: "Browser tab" });
   await waitFor(() => expect(finishCapture).toBeDefined());
@@ -238,5 +242,49 @@ it("keeps selectors enabled during capture and discards a frame after selection 
   expect(
     screen.queryByRole("img", { name: "Current browser page" }),
   ).not.toBeInTheDocument();
+  client.clear();
+});
+
+it("automatically follows recent browser activity without selectors in the session window", async () => {
+  mocks.control.mockClear();
+  const state = {
+    policy: { paused: false, origins: [] },
+    pending: [],
+    grants: [],
+    sensitiveSessions: [],
+    operator: null,
+    workers: [
+      { session: "old", seen: 2 },
+      { session: "active", seen: 1 },
+    ],
+    audit: [{ at: "", event: "tool.started", session: "active" }],
+  };
+  mocks.control.mockImplementation(async (_user, _node, operation) =>
+    operation === "state"
+      ? state
+      : { frame: "", image: "aW1hZ2U=", width: 800, height: 600 },
+  );
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={client}>
+      <NodeBrowserViewer nodeId="node" userId="user" />
+    </QueryClientProvider>,
+  );
+  expect(
+    await screen.findByRole("img", { name: "Current browser page" }),
+  ).toBeVisible();
+  expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Take control" })).toBeVisible();
+  expect(mocks.control).toHaveBeenCalledWith("user", "node", "view", {
+    session: "active",
+    action: { type: "screenshot", tabID: undefined },
+  });
+  expect(
+    mocks.control.mock.calls
+      .filter((call) => call[2] === "view")
+      .every((call) => call[3].action.type === "screenshot"),
+  ).toBe(true);
   client.clear();
 });

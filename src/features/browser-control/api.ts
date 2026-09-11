@@ -7,7 +7,13 @@ export type BrowserState = {
   sensitiveSessions: string[];
   workers: { session: string; seen: number }[];
   operator: string | null;
-  audit: { at: string; event: string; origin?: string; outcome?: string }[];
+  audit: {
+    at: string;
+    event: string;
+    session?: string;
+    origin?: string;
+    outcome?: string;
+  }[];
 };
 export type BrowserTabs = {
   tabs: { id: string; title: string; restricted: boolean }[];

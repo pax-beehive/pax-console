@@ -1206,3 +1206,17 @@ the window unmounts the viewer and closes its connection, leaving browser
 windows running. Docker shows the shared desktop and supports direct mouse
 and keyboard input; it is not mapped to an individual PAX session. The node
 settings entry still connects only when explicitly opened.
+
+Session viewer baseline: keep the existing location, Native/Docker switch and
+operator controls. Hide worker and preview-tab selectors in the Session only.
+Follow the newest connected native tool.started/tool.finished audit entry;
+ignore viewer requests and heartbeat ordering. Takeover pins the operator;
+retain the last followed worker when the bounded audit rotates out. If no
+worker can be identified, wait for activity instead of guessing. Native
+captures follow the worker's active page. Node management keeps manual choices.
+Docker remains in the Session. Its runtime has one Openbox workspace and
+maximizes Chromium windows; each MCP operation brings its current page to the
+front before and after the operation. Multiple agents share the desktop and
+follow the latest operation; this is not a PAX-session ownership guarantee.
+No paxd or Manager changes, new preview API or session-key setup is required.
+Further frontend information-architecture changes are deferred for discussion.

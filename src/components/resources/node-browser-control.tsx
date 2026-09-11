@@ -4,6 +4,7 @@ import { useEffect, useEffectEvent, useRef, useState } from "react";
 import Link from "next/link";
 import { MousePointer2 } from "lucide-react";
 import { useBrowserState } from "@/features/browser-control/use-browser-state";
+import { followBrowser } from "@/features/browser-control/follow-browser";
 import { Button } from "@/components/ui/button";
 import { InlineError } from "@/components/ui/inline-error";
 import { MonoId } from "@/components/ui/text";
@@ -83,10 +84,19 @@ function BrowserPanel({
   const [grant, setGrant] = useState<{ secret_ref: string; expires: number }>();
   const query = useBrowserState(userId, nodeId);
   const state = query.data;
-  const session =
-    selectedSession ||
-    state?.operator ||
-    (state?.workers.length === 1 ? state.workers[0].session : "");
+  const previousFollowed = useRef("");
+  const followed = followBrowser(state, previousFollowed.current);
+  useEffect(() => {
+    previousFollowed.current = followed;
+  }, [followed]);
+  const session = viewerOnly
+    ? followed
+    : selectedSession ||
+      state?.operator ||
+      (state?.workers.length === 1 ? state.workers[0].session : "");
+  useEffect(() => {
+    selectionVersion.current++;
+  }, [session]);
   const frame =
     captured?.session === session && captured.tabID === tabID
       ? captured.frame
@@ -155,7 +165,7 @@ function BrowserPanel({
     const version = selectionVersion.current;
     const oldFrame = frame;
     try {
-      if (action.type === "screenshot") {
+      if (action.type === "screenshot" && !viewerOnly) {
         const inventory = await browserControl<BrowserTabs>(
           userId,
           nodeId,
@@ -383,59 +393,68 @@ function BrowserPanel({
             </>
           )}
           <div className="grid gap-2">
-            <h3>Watch browser</h3>
-            <label className="grid gap-1 text-sm">
-              Connected browser
-              <select
-                className={inputClass}
-                value={session}
-                disabled={acting || Boolean(state.operator)}
-                onChange={(e) => {
-                  selectionVersion.current++;
-                  setSession(e.target.value);
-                  setTabID("");
-                  setTabs(undefined);
-                  setLive(true);
-                  setCaptured(undefined);
-                  setPreviewError(undefined);
-                  setGrant(undefined);
-                }}
-              >
-                <option value="">Select a browser session</option>
-                {state.workers.map((w) => (
-                  <option key={w.session} value={w.session}>
-                    {w.session}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {tabs && (
-              <label className="grid gap-1 text-sm">
-                Browser tab
-                <select
-                  className={inputClass}
-                  value={tabID}
-                  disabled={acting}
-                  onChange={(e) => {
-                    selectionVersion.current++;
-                    setTabID(e.target.value);
-                    setCaptured(undefined);
-                    setPreviewError(undefined);
-                  }}
-                >
-                  <option value="">Follow active agent tab</option>
-                  {tabs.tabs.map((tab) => (
-                    <option
-                      key={tab.id}
-                      value={tab.id}
-                      disabled={tab.restricted}
+            {!viewerOnly && (
+              <>
+                <h3>Watch browser</h3>
+                <label className="grid gap-1 text-sm">
+                  Connected browser
+                  <select
+                    className={inputClass}
+                    value={session}
+                    disabled={acting || Boolean(state.operator)}
+                    onChange={(e) => {
+                      selectionVersion.current++;
+                      setSession(e.target.value);
+                      setTabID("");
+                      setTabs(undefined);
+                      setLive(true);
+                      setCaptured(undefined);
+                      setPreviewError(undefined);
+                      setGrant(undefined);
+                    }}
+                  >
+                    <option value="">Select a browser session</option>
+                    {state.workers.map((w) => (
+                      <option key={w.session} value={w.session}>
+                        {w.session}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {tabs && (
+                  <label className="grid gap-1 text-sm">
+                    Browser tab
+                    <select
+                      className={inputClass}
+                      value={tabID}
+                      disabled={acting}
+                      onChange={(e) => {
+                        selectionVersion.current++;
+                        setTabID(e.target.value);
+                        setCaptured(undefined);
+                        setPreviewError(undefined);
+                      }}
                     >
-                      {tab.title}
-                      {tabs.activeTabID === tab.id ? " (agent)" : ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                      <option value="">Follow active agent tab</option>
+                      {tabs.tabs.map((tab) => (
+                        <option
+                          key={tab.id}
+                          value={tab.id}
+                          disabled={tab.restricted}
+                        >
+                          {tab.title}
+                          {tabs.activeTabID === tab.id ? " (agent)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+              </>
+            )}
+            {viewerOnly && (
+              <p className="text-xs text-ink-muted">
+                自动跟随最近操作的浏览器；接管期间保持当前画面。
+              </p>
             )}
             {!state.workers.length && (
               <p className="text-xs text-ink-tertiary">
@@ -481,7 +500,9 @@ function BrowserPanel({
             )}
             <div role="status" className="text-xs text-ink-tertiary">
               {!session
-                ? "Select a browser to watch."
+                ? viewerOnly
+                  ? "等待浏览器活动…"
+                  : "Select a browser to watch."
                 : !connected
                   ? "Waiting for the browser to reconnect..."
                   : state.policy.paused
@@ -503,7 +524,7 @@ function BrowserPanel({
               )}
             </div>
             {previewError && <InlineError error={previewError} />}
-            {!frame && (
+            {!viewerOnly && !frame && (
               <p className="text-xs text-ink-tertiary">
                 Select the browser used by your agent to watch its current page.
                 Take control is only needed to click or type.
