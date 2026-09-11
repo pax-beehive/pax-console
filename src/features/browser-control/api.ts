@@ -55,6 +55,27 @@ export function browserControl<T>(
         "Update and restart the node browser control service before opening this panel",
       );
     }
+    if (
+      operation === "view" &&
+      (payload as { action?: { type?: string } })?.action?.type === "screenshot"
+    ) {
+      const frame = result.browser_control as Partial<BrowserFrame>;
+      if (
+        typeof frame.image !== "string" ||
+        !frame.image ||
+        typeof frame.frame !== "string" ||
+        typeof frame.width !== "number" ||
+        !Number.isFinite(frame.width) ||
+        frame.width <= 0 ||
+        typeof frame.height !== "number" ||
+        !Number.isFinite(frame.height) ||
+        frame.height <= 0
+      ) {
+        throw Error(
+          "Browser returned no usable image. Update and reconnect the browser runtime if this persists.",
+        );
+      }
+    }
     return result.browser_control;
   });
   const tail = work.catch(() => {});

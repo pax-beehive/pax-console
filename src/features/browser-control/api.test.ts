@@ -36,3 +36,30 @@ describe("browser operator transport", () => {
     );
   });
 });
+
+describe("browser screenshot responses", () => {
+  it("rejects empty frames and recovers on the next request", async () => {
+    vi.mocked(apiFetch).mockResolvedValueOnce({
+      browser_control: { ok: true },
+    });
+    const payload = { session: "browser", action: { type: "screenshot" } };
+    await expect(
+      browserControl("user", "node", "view", payload),
+    ).rejects.toThrow("no usable image");
+    const frame = { frame: "", image: "aW1hZ2U=", width: 800, height: 600 };
+    vi.mocked(apiFetch).mockResolvedValueOnce({ browser_control: frame });
+    await expect(
+      browserControl("user", "node", "view", payload),
+    ).resolves.toEqual(frame);
+  });
+  it("surfaces the runtime error rather than treating it as a frame", async () => {
+    vi.mocked(apiFetch).mockResolvedValueOnce({
+      browser_control: { error: "Browser worker is not connected" },
+    });
+    await expect(
+      browserControl("user", "node", "view", {
+        action: { type: "screenshot" },
+      }),
+    ).rejects.toThrow("Browser worker is not connected");
+  });
+});

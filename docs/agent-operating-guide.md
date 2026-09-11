@@ -1158,3 +1158,17 @@ The Docker desktop viewer uses a 16:9 container matching the node desktop,
 including on mobile. Its helper text distinguishes Docker from personal Chrome
 and explains that an empty Docker desktop can be black. No browser is launched
 just by connecting the viewer.
+
+Native Chrome Watch browser is a read-only preview available without takeover.
+Selecting a worker starts sequential refreshes with a two-second delay between
+requests. Hidden pages suspend capture; closing the panel stops polling.
+Preview failures retry after five seconds and preserve the last valid frame,
+with the error and last-capture time shown beside the viewer. Browser inventory
+refreshes automatically. Captures are serialized; input is never replayed.
+Runtime heartbeats continue while capture waits for an agent operation, and
+expired queued operations are discarded before execution.
+A single connected worker is selected automatically; multiple workers require
+selection unless a current operator already identifies the worker. It retains page approval checks and the global pause switch;
+it neither changes operator ownership nor releases sensitive observation holds.
+Preview pixels remain transient. Clicking or typing still requires explicit
+takeover and a fresh interaction frame captured during takeover.
