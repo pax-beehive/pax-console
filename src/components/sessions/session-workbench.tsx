@@ -1999,11 +1999,15 @@ export function SessionWorkbench({
     <Button
       aria-label="Watch browser"
       tooltip="Watch browser"
-      size="icon"
-      variant={browserOpen ? "secondary" : "ghost"}
+      aria-expanded={browserOpen}
+      size="sm"
+      className="min-h-11 shrink-0 text-ink lg:min-h-9"
+      variant="secondary"
       icon={<Monitor className="h-4 w-4" />}
       onClick={() => setBrowserOpen(!browserOpen)}
-    />
+    >
+      浏览器
+    </Button>
   ) : null;
 
   const sidePanels = (

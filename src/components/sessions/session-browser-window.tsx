@@ -125,14 +125,16 @@ export function SessionBrowserWindow({
         aria-label="Browser source"
       >
         <Button
-          variant={source === "native" ? "secondary" : "ghost"}
+          variant={source === "native" ? "primary" : "secondary"}
+          className="min-h-11 flex-1 justify-center sm:min-h-9"
           aria-pressed={source === "native"}
           onClick={() => setSource("native")}
         >
           Native Chrome
         </Button>
         <Button
-          variant={source === "docker" ? "secondary" : "ghost"}
+          variant={source === "docker" ? "primary" : "secondary"}
+          className="min-h-11 flex-1 justify-center sm:min-h-9"
           aria-pressed={source === "docker"}
           onClick={() => setSource("docker")}
         >
