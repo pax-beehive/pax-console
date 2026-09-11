@@ -1278,3 +1278,11 @@ PAX Console should be built as a real-time agent workbench over a fleet control 
 The user should see what the agent is doing, understand why it is doing it, interrupt it naturally, and recover state after refresh or reconnect.
 
 The durable model is REST. The live model is WebSocket. The product model is a normalized event timeline.
+
+## Node browser operator surface
+
+Node detail has an opt-in Browser panel with site approvals, revocation, pause,
+auditing, native Chrome screenshot interaction, Docker noVNC and encrypted
+one-use native password registration. Browser management is node-owner scoped;
+credentials remain on paxd. Live pixels are ephemeral and never ACP history.
+Takeover and sensitive observation holds require explicit operator release.

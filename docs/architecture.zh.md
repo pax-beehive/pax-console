@@ -1199,3 +1199,22 @@ configuration query then refreshes the selectors. The notification is internal
 state and must not render a chat message or complete a turn. Explicit resume
 requests retain the original response result. Commands still arrive through
 independent `available_commands_update` notifications.
+
+## Pax 浏览器控制 MVP
+
+节点详情的 Browser 面板通过同源 `/api/pax` 调用新增
+`POST /api/v1/user/{user_id}/nodes/{node_id}/daemon/browser`。Manager 校验节点
+归属，paxd 只转发枚举内的操作到本机控制服务；网页不接收浏览器管理凭证。
+该链路使用现有 node-control query，仍要求请求到达持有节点连接的 Manager
+实例。画面与输入不进入 ACP 历史或 durable command 表。
+
+允许名单、审批、审计由 TanStack Query 读取。真实 Chrome 的查看是手动刷新的
+JPEG，点击/按键绑定一次性画面引用。用户接管期间 agent 工具暂停；关闭面板
+不会自动归还控制。密码沿用现有加密 secret channel，节点将临时文件注册为
+绑定 worker、origin、字段的 60 秒一次性引用。填写后单独保持观察暂停，需要
+用户确认页面不再回显敏感信息后恢复。密码明文不进入 query cache 或聊天。
+
+Docker 桌面使用 noVNC，paxd 在本地完成 VNC 密码认证，画面与输入以有限大小的
+RFB 分块经 transient query 传输。它展示共享 Docker 桌面，支持鼠标键盘，
+但比直连 WebSocket 多往返延迟。连接超时、输入序号错误或缓冲超限时关闭，
+不自动重放输入。原生 Chrome 的一次性密码工具尚不属于 Docker MCP broker。

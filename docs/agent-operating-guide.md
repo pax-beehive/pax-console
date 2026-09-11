@@ -1124,3 +1124,32 @@ configuration query then refreshes the selectors. The notification is internal
 state and must not render a chat message or complete a turn. Explicit resume
 requests retain the original response result. Commands still arrive through
 independent `available_commands_update` notifications.
+
+## Node browser control
+
+Node detail includes an explicitly opened Browser panel. Its API adapter lives
+in `src/features/browser-control` and uses same-origin `/api/pax` POST requests
+to `/api/v1/user/{user_id}/nodes/{node_id}/daemon/browser`. Manager checks node
+ownership and forwards transient node-control queries; no extension/admin/VNC
+credential belongs in frontend state. This inherits the node tunnel's current
+single-Manager-instance routing constraint.
+
+TanStack Query owns permission state; secret plaintext stays solely in the
+existing secret sender until encryption. One-use references bind native worker,
+origin and password target. The registered file expires after sixty seconds.
+Do not put the plaintext, screenshots or RFB chunks in query/mutation caches,
+chat drafts, local storage or ACP history. Operator image state is ephemeral.
+
+Native viewing is manually refreshed JPEG plus one-use screenshot references
+for input. Takeover pauses agent tools and requires explicit release. Password
+filling imposes a separate persistent observation hold. The operator explicitly
+confirms that the page is safe before releasing that hold. Closing a panel does
+not implicitly release either native hold.
+
+Docker viewing uses pinned noVNC with `VNCChannel`, a bounded, sequential raw
+channel over transient node queries. It closes on an ambiguous exchange rather
+than replaying bytes. It is a shared Docker display, and adds round trips versus
+direct noVNC WebSocket. No clipboard bridge or credential input is exposed by
+the wrapper UI. Native password grants do not apply to the unrestricted Docker
+MCP broker. Keep deployment/limitations aligned with agent-browser-runtime's
+`docs/pax-browser-mvp.md`.

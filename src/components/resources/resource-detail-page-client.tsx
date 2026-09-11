@@ -33,6 +33,7 @@ import { Agent, ApiRecord, Node, User } from "@/features/api/types";
 import { compactId } from "@/lib/format";
 import { nodeLabel } from "./resource-models";
 import { NodeDaemonControl } from "./node-daemon-control";
+import { NodeBrowserControl } from "./node-browser-control";
 import { NodeSecretChannelPush } from "./node-secret-channel-push";
 
 type NodeDetailPageClientProps = {
@@ -96,6 +97,8 @@ export function NodeDetailPageClient({
         </div>
 
         <NodeDaemonControl nodeId={nodeId} userId={user.user_id} />
+
+        <NodeBrowserControl nodeId={nodeId} userId={user.user_id} />
 
         <NodeSecretChannelPush nodeId={nodeId} userId={user.user_id} />
 
@@ -213,9 +216,7 @@ export function AgentDetailPageClient({
                   </TruncatedText>
                 </div>
                 <div className="flex items-start lg:justify-end">
-                  <Badge>
-                    {session.runtime_status ?? "unknown"}
-                  </Badge>
+                  <Badge>{session.runtime_status ?? "unknown"}</Badge>
                 </div>
               </Link>
             ))}
