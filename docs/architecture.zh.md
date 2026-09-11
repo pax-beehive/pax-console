@@ -1263,3 +1263,11 @@ not approval discovery. Requests explicitly show their originating browser and
 are node-scoped until a PAX-session-to-worker mapping exists. Allow grants only
 the requesting browser session; deny remains available while globally paused.
 Acknowledged decisions disappear immediately and refresh the shared state.
+
+The Session floating browser window offers Native Chrome and Docker desktop
+sources. Selecting Docker mounts the existing NodeBrowserVNC and connects
+immediately through the same node VNC channel. Switching sources or closing
+the window unmounts the viewer and closes its connection, leaving browser
+windows running. Docker shows the shared desktop and supports direct mouse
+and keyboard input; it is not mapped to an individual PAX session. The node
+settings entry still connects only when explicitly opened.

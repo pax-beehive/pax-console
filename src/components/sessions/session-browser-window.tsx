@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Maximize2, Minimize2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NodeBrowserViewer } from "@/components/resources/node-browser-control";
+import { NodeBrowserVNC } from "@/components/resources/node-browser-vnc";
 
 export function SessionBrowserWindow({
   nodeId,
@@ -16,6 +17,7 @@ export function SessionBrowserWindow({
   onClose: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [source, setSource] = useState<"native" | "docker">("native");
   const [position, setPosition] = useState<{ left: number; top: number }>();
   const windowRef = useRef<HTMLElement>(null);
   const drag = useRef<
@@ -117,12 +119,41 @@ export function SessionBrowserWindow({
           />
         </div>
       </header>
+      <div
+        className="flex shrink-0 gap-2 border-b border-hairline px-3 py-2"
+        role="group"
+        aria-label="Browser source"
+      >
+        <Button
+          variant={source === "native" ? "secondary" : "ghost"}
+          aria-pressed={source === "native"}
+          onClick={() => setSource("native")}
+        >
+          Native Chrome
+        </Button>
+        <Button
+          variant={source === "docker" ? "secondary" : "ghost"}
+          aria-pressed={source === "docker"}
+          onClick={() => setSource("docker")}
+        >
+          Docker desktop
+        </Button>
+      </div>
       <div className="min-h-0 flex-1 overflow-auto p-3">
-        <NodeBrowserViewer
-          key={`${userId}/${nodeId}`}
-          userId={userId}
-          nodeId={nodeId}
-        />
+        {source === "native" ? (
+          <NodeBrowserViewer
+            key={`${userId}/${nodeId}`}
+            userId={userId}
+            nodeId={nodeId}
+          />
+        ) : (
+          <NodeBrowserVNC
+            key={`${userId}/${nodeId}`}
+            userId={userId}
+            nodeId={nodeId}
+            autoConnect
+          />
+        )}
       </div>
     </section>,
     document.body,

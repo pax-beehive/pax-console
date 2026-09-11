@@ -6,11 +6,13 @@ import { VNCChannel } from "@/features/browser-control/vnc-channel";
 export function NodeBrowserVNC({
   userId,
   nodeId,
+  autoConnect = false,
 }: {
   userId: string;
   nodeId: string;
+  autoConnect?: boolean;
 }) {
-  const [connected, setConnected] = useState(false);
+  const [connected, setConnected] = useState(autoConnect);
   return (
     <section className="grid min-w-0 gap-2 border-t border-hairline pt-3">
       <h3>Docker desktop</h3>
