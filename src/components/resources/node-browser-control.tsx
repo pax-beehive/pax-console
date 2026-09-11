@@ -65,6 +65,8 @@ function BrowserPanel({
   const [error, setError] = useState<Error>();
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
+  const [acting, setActing] = useState(false);
+  const selectionVersion = useRef(0);
   const [origin, setOrigin] = useState("");
   const [selectedSession, setSession] = useState("");
   const [tabID, setTabID] = useState("");
@@ -130,6 +132,7 @@ function BrowserPanel({
     if (busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
+    setActing(true);
     setError(undefined);
     try {
       await browserControl(userId, nodeId, operation, payload);
@@ -139,6 +142,7 @@ function BrowserPanel({
     } finally {
       busyRef.current = false;
       setBusy(false);
+      setActing(false);
     }
   }
   async function view(action: Record<string, unknown>) {
@@ -147,6 +151,8 @@ function BrowserPanel({
       return false;
     busyRef.current = true;
     setBusy(true);
+    setActing(action.type !== "screenshot");
+    const version = selectionVersion.current;
     const oldFrame = frame;
     try {
       if (action.type === "screenshot") {
@@ -156,7 +162,12 @@ function BrowserPanel({
           "view",
           { session, action: { type: "tabs" } },
         );
-        setTabs(inventory);
+        if (version !== selectionVersion.current) return false;
+        setTabs((previous) =>
+          JSON.stringify(previous) === JSON.stringify(inventory)
+            ? previous
+            : inventory,
+        );
         if (tabID && !inventory.tabs.some((tab) => tab.id === tabID)) {
           setTabID("");
           return false;
@@ -175,10 +186,12 @@ function BrowserPanel({
         session,
         action: { type: "screenshot", tabID: tabID || undefined },
       });
+      if (version !== selectionVersion.current) return false;
       setCaptured({ session, tabID, frame: next, at: Date.now() });
       setPreviewError(undefined);
       return true;
     } catch (e) {
+      if (version !== selectionVersion.current) return false;
       setPreviewError(
         e instanceof Error ? e : new Error("Browser preview unavailable"),
       );
@@ -186,6 +199,7 @@ function BrowserPanel({
     } finally {
       busyRef.current = false;
       setBusy(false);
+      setActing(false);
     }
   }
   async function register(fileRef: string) {
@@ -375,8 +389,9 @@ function BrowserPanel({
               <select
                 className={inputClass}
                 value={session}
-                disabled={busy || Boolean(state.operator)}
+                disabled={acting || Boolean(state.operator)}
                 onChange={(e) => {
+                  selectionVersion.current++;
                   setSession(e.target.value);
                   setTabID("");
                   setTabs(undefined);
@@ -400,8 +415,9 @@ function BrowserPanel({
                 <select
                   className={inputClass}
                   value={tabID}
-                  disabled={busy}
+                  disabled={acting}
                   onChange={(e) => {
+                    selectionVersion.current++;
                     setTabID(e.target.value);
                     setCaptured(undefined);
                     setPreviewError(undefined);

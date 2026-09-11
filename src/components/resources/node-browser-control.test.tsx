@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, expect, it, vi } from "vitest";
@@ -189,6 +189,54 @@ it("selects a preview tab without controlling the agent and displays its recent 
   ).toBe(true);
   expect(
     screen.queryByText("One-use browser password"),
+  ).not.toBeInTheDocument();
+  client.clear();
+});
+
+it("keeps selectors enabled during capture and discards a frame after selection changes", async () => {
+  const user = userEvent.setup();
+  let finishCapture!: (value: unknown) => void;
+  mocks.control.mockImplementation(async (_user, _node, operation, payload) => {
+    if (operation === "state")
+      return {
+        policy: { paused: false, origins: [] },
+        pending: [],
+        grants: [],
+        sensitiveSessions: [],
+        workers: [{ session: "browser-1", seen: Date.now() }],
+        operator: null,
+        audit: [],
+      };
+    if (payload.action.type === "tabs")
+      return {
+        tabs: [{ id: "second", title: "Second tab", restricted: false }],
+      };
+    return new Promise((resolve) => {
+      finishCapture = resolve;
+    });
+  });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={client}>
+      <NodeBrowserViewer nodeId="node" userId="user" />
+    </QueryClientProvider>,
+  );
+  const tabs = await screen.findByRole("combobox", { name: "Browser tab" });
+  await waitFor(() => expect(finishCapture).toBeDefined());
+  expect(tabs).toBeEnabled();
+  expect(
+    screen.getByRole("combobox", { name: "Connected browser" }),
+  ).toBeEnabled();
+  await user.selectOptions(tabs, "second");
+  await act(async () => {
+    finishCapture({ frame: "", image: "old-frame", width: 800, height: 600 });
+  });
+  expect(tabs).toHaveValue("second");
+  expect(tabs).toBeEnabled();
+  expect(
+    screen.queryByRole("img", { name: "Current browser page" }),
   ).not.toBeInTheDocument();
   client.clear();
 });
