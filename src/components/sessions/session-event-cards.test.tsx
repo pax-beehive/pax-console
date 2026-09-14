@@ -1,10 +1,21 @@
 /* @vitest-environment jsdom */
 
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { WorkstreamItemCard } from "./session-event-cards";
+import {
+  WorkstreamItemCard,
+  type PermissionDecisionState,
+} from "./session-event-cards";
 import type {
   SessionEvent,
   WorkstreamItem,
@@ -29,16 +40,76 @@ beforeAll(() => {
 });
 
 afterAll(() => vi.unstubAllGlobals());
+afterEach(cleanup);
 
-function renderItem(item: WorkstreamItem) {
+function renderItem(
+  item: WorkstreamItem,
+  decision: PermissionDecisionState = permissionDecision,
+) {
   return render(
     <TooltipProvider>
-      <WorkstreamItemCard item={item} permissionDecision={permissionDecision} />
+      <WorkstreamItemCard item={item} permissionDecision={decision} />
     </TooltipProvider>,
   );
 }
 
 describe("session event cards", () => {
+  it("allows the next permission while a previous decision is still streaming", () => {
+    const event: Extract<SessionEvent, { type: "permission_request" }> = {
+      type: "permission_request",
+      id: "permission-2",
+      requestId: "request-2",
+      approvalId: "approval-2",
+      sessionId: "sess-1",
+      title: "Run next command",
+      options: [],
+      createdAt: "2026-09-13T00:00:00Z",
+    };
+    const onDecision = vi.fn();
+    renderItem(
+      { type: "event", id: event.id, event },
+      {
+        ...permissionDecision,
+        pending: true,
+        pendingApprovalId: "approval-1",
+        onDecision,
+        decisions: {
+          "approval-1": {
+            decisionOption: "allow_once",
+            source: "user",
+            status: "approved",
+          },
+        },
+      },
+    );
+    const allow = screen.getByRole("button", { name: "Allow once" });
+    expect(allow).toBeEnabled();
+    fireEvent.click(allow);
+    expect(onDecision).toHaveBeenCalledWith("approval-2", "allow_once");
+  });
+
+  it("prevents duplicate decisions for the request currently being submitted", () => {
+    const event: Extract<SessionEvent, { type: "permission_request" }> = {
+      type: "permission_request",
+      id: "permission-1",
+      requestId: "request-1",
+      approvalId: "approval-1",
+      sessionId: "sess-1",
+      title: "Run command",
+      options: [],
+      createdAt: "2026-09-13T00:00:00Z",
+    };
+    renderItem(
+      { type: "event", id: event.id, event },
+      {
+        ...permissionDecision,
+        pending: true,
+        pendingApprovalId: "approval-1",
+      },
+    );
+    expect(screen.getByRole("button", { name: "Allow once" })).toBeDisabled();
+  });
+
   it("collapses a work group containing thoughts and tool calls", () => {
     const thought: Extract<SessionEvent, { type: "progress" }> = {
       type: "progress",

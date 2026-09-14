@@ -767,6 +767,12 @@ stream with:
 PAX Manager converts the decided approval back into the ACP JSON-RPC response
 for the original permission request.
 
+Manager persists manual permission requests before broadcasting them, even
+without an initiating conversation stream. Observer/history frames must carry
+the durable approval ID. Serialize decision submissions, but once the decision
+is saved, a still-pending resumed conversation must not disable a different
+permission request's buttons.
+
 Do not confuse the two session ids:
 
 ```txt

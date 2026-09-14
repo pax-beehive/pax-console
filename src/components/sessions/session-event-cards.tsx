@@ -2039,8 +2039,12 @@ function PermissionRequestCard({
   const approved = decided?.status === "approved";
   const denied = decided?.status === "denied";
   const approvedLabel = permissionDecisionLabel(decided);
+  const submittingDecision =
+    permissionDecision.pending &&
+    (!permissionDecision.pendingApprovalId ||
+      !permissionDecision.decisions[permissionDecision.pendingApprovalId]);
   const canDecide =
-    Boolean(event.approvalId) && !permissionDecision.pending && !decided;
+    Boolean(event.approvalId) && !submittingDecision && !pending && !decided;
   const patchPatches = permissionRequestPatches(event);
 
   if (patchPatches.length > 0) {

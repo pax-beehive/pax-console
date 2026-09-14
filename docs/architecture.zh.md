@@ -1036,6 +1036,10 @@ decision 成功后，workbench 会重新打开当前 conversation stream，并�
 }
 ```
 
+Manager 在广播权限请求前持久化审批记录，即使发起对话的 SSE 已断开，observer
+和 history 也必须能拿到可操作的 approval ID。审批 mutation 会等待恢复后的
+对话流；决策提交需要串行，但保存成功后的流等待不能禁用后续权限请求的按钮。
+
 PAX Manager 负责把已决定的 approval 转回原始 ACP permission request 的
 JSON-RPC response。
 
