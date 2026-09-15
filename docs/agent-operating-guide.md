@@ -1148,11 +1148,11 @@ origin and password target. The registered file expires after sixty seconds.
 Do not put the plaintext, screenshots or RFB chunks in query/mutation caches,
 chat drafts, local storage or ACP history. Operator image state is ephemeral.
 
-Native viewing is manually refreshed JPEG plus one-use screenshot references
-for input. Takeover pauses agent tools and requires explicit release. Password
+Native viewing uses automatically refreshed JPEG plus one-use screenshot references
+for input. Takeover pauses agent tools until release or leaving the viewer. Password
 filling imposes a separate persistent observation hold. The operator explicitly
-confirms that the page is safe before releasing that hold. Closing a panel does
-not implicitly release either native hold.
+confirms that the page is safe before releasing that hold. Closing a panel releases its temporary takeover but never releases the
+separate sensitive observation hold.
 
 Docker viewing uses pinned noVNC with `VNCChannel`, a bounded, sequential raw
 channel over transient node queries. It closes on an ambiguous exchange rather
@@ -1207,13 +1207,21 @@ are node-scoped until a PAX-session-to-worker mapping exists. Allow grants only
 the requesting browser session; deny remains available while globally paused.
 Acknowledged decisions disappear immediately and refresh the shared state.
 
-The Session floating browser window offers Native Chrome and Docker desktop
-sources. Selecting Docker mounts the existing NodeBrowserVNC and connects
-immediately through the same node VNC channel. Switching sources or closing
-the window unmounts the viewer and closes its connection, leaving browser
-windows running. Docker shows the shared desktop and supports direct mouse
-and keyboard input; it is not mapped to an individual PAX session. The node
-settings entry still connects only when explicitly opened.
+The Session floating browser window defaults to preview for both Native Chrome
+and Docker. Both use BrowserPreviewImage with ephemeral complete JPEG frames.
+Docker requests `view` with `{source:"docker",action:{type:"screenshot"}}`;
+paxd captures one input-free full frame locally and closes the sampling TCP
+connection. No frontend noVNC connection exists in preview. It refreshes two
+seconds after successful capture, five after failure, and stops while hidden.
+Take control mounts noVNC; Release control, window blur, hidden visibility,
+pagehide, switching source, or closing the viewer ends temporary control.
+Refocusing never reconnects noVNC automatically. Native takeover acquired by
+this panel is also released on leave; sensitive/password observation holds
+are not released. Docker input still uses the existing transient VNC exchange
+transport, not the proposed independent WebSocket tunnel. Docker takeover does
+not add a broker-level agent pause; native takeover retains its existing gate.
+Deploy paxd before Console; Manager and Docker runtime need no change for this
+preview route. Actual browser windows remain running throughout mode changes.
 
 Session viewer baseline: keep the existing location, Native/Docker switch and
 operator controls. Hide worker and preview-tab selectors in the Session only.
@@ -1226,5 +1234,6 @@ Docker remains in the Session. Its runtime has one Openbox workspace and
 maximizes Chromium windows; each MCP operation brings its current page to the
 front before and after the operation. Multiple agents share the desktop and
 follow the latest operation; this is not a PAX-session ownership guarantee.
-No paxd or Manager changes, new preview API or session-key setup is required.
+The original window-follow behavior needs no session-key setup; the newer Docker
+preview mode requires the paxd screenshot implementation described above.
 Further frontend information-architecture changes are deferred for discussion.

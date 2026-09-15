@@ -288,3 +288,64 @@ it("automatically follows recent browser activity without selectors in the sessi
   ).toBe(true);
   client.clear();
 });
+
+it("releases native takeover when the page blurs, including pending acquisition", async () => {
+  mocks.control.mockReset();
+  const user = userEvent.setup();
+  const state = {
+    policy: { paused: false, origins: [] },
+    pending: [],
+    grants: [],
+    sensitiveSessions: [],
+    workers: [{ session: "native", seen: Date.now() }],
+    operator: null as string | null,
+    audit: [],
+  };
+  let acquired!: () => void;
+  mocks.control.mockImplementation(async (_u, _n, operation, payload) => {
+    if (operation === "state") return { ...state };
+    if (payload.action.type === "takeover") {
+      state.operator = "native";
+      await new Promise<void>((resolve) => {
+        acquired = resolve;
+      });
+      return {};
+    }
+    if (payload.action.type === "release") {
+      state.operator = null;
+      return {};
+    }
+    return { frame: "frame", image: "aW1hZ2U=", width: 800, height: 600 };
+  });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const view = render(
+    <QueryClientProvider client={client}>
+      <NodeBrowserViewer userId="u" nodeId="n" />
+    </QueryClientProvider>,
+  );
+  await screen.findByRole("img");
+  const take = screen.getByRole("button", { name: "Take control" });
+  await waitFor(() => expect(take).toBeEnabled());
+  await user.click(take);
+  act(() => window.dispatchEvent(new Event("blur")));
+  await waitFor(() =>
+    expect(mocks.control).toHaveBeenCalledWith("u", "n", "view", {
+      session: "native",
+      action: { type: "release" },
+    }),
+  );
+  await act(async () => {
+    acquired();
+  });
+  act(() => window.dispatchEvent(new Event("focus")));
+  expect(
+    mocks.control.mock.calls.filter((c) => c[3]?.action?.type === "takeover"),
+  ).toHaveLength(1);
+  expect(
+    screen.queryByRole("button", { name: "Browser image; click to interact" }),
+  ).not.toBeInTheDocument();
+  view.unmount();
+  client.clear();
+});

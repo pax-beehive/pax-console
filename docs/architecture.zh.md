@@ -1213,9 +1213,9 @@ independent `available_commands_update` notifications.
 该链路使用现有 node-control query，仍要求请求到达持有节点连接的 Manager
 实例。画面与输入不进入 ACP 历史或 durable command 表。
 
-允许名单、审批、审计由 TanStack Query 读取。真实 Chrome 的查看是手动刷新的
-JPEG，点击/按键绑定一次性画面引用。用户接管期间 agent 工具暂停；关闭面板
-不会自动归还控制。密码沿用现有加密 secret channel，节点将临时文件注册为
+允许名单、审批、审计由 TanStack Query 读取。真实 Chrome 的查看是自动更新的
+JPEG，点击/按键绑定一次性画面引用。用户接管期间 agent 工具暂停；关闭面板或页面失焦
+会归还该面板取得的临时控制。密码沿用现有加密 secret channel，节点将临时文件注册为
 绑定 worker、origin、字段的 60 秒一次性引用。填写后单独保持观察暂停，需要
 用户确认页面不再回显敏感信息后恢复。密码明文不进入 query cache 或聊天。
 
@@ -1269,13 +1269,21 @@ are node-scoped until a PAX-session-to-worker mapping exists. Allow grants only
 the requesting browser session; deny remains available while globally paused.
 Acknowledged decisions disappear immediately and refresh the shared state.
 
-The Session floating browser window offers Native Chrome and Docker desktop
-sources. Selecting Docker mounts the existing NodeBrowserVNC and connects
-immediately through the same node VNC channel. Switching sources or closing
-the window unmounts the viewer and closes its connection, leaving browser
-windows running. Docker shows the shared desktop and supports direct mouse
-and keyboard input; it is not mapped to an individual PAX session. The node
-settings entry still connects only when explicitly opened.
+The Session floating browser window defaults to preview for both Native Chrome
+and Docker. Both use BrowserPreviewImage with ephemeral complete JPEG frames.
+Docker requests `view` with `{source:"docker",action:{type:"screenshot"}}`;
+paxd captures one input-free full frame locally and closes the sampling TCP
+connection. No frontend noVNC connection exists in preview. It refreshes two
+seconds after successful capture, five after failure, and stops while hidden.
+Take control mounts noVNC; Release control, window blur, hidden visibility,
+pagehide, switching source, or closing the viewer ends temporary control.
+Refocusing never reconnects noVNC automatically. Native takeover acquired by
+this panel is also released on leave; sensitive/password observation holds
+are not released. Docker input still uses the existing transient VNC exchange
+transport, not the proposed independent WebSocket tunnel. Docker takeover does
+not add a broker-level agent pause; native takeover retains its existing gate.
+Deploy paxd before Console; Manager and Docker runtime need no change for this
+preview route. Actual browser windows remain running throughout mode changes.
 
 Session viewer baseline: keep the existing location, Native/Docker switch and
 operator controls. Hide worker and preview-tab selectors in the Session only.
@@ -1288,5 +1296,6 @@ Docker remains in the Session. Its runtime has one Openbox workspace and
 maximizes Chromium windows; each MCP operation brings its current page to the
 front before and after the operation. Multiple agents share the desktop and
 follow the latest operation; this is not a PAX-session ownership guarantee.
-No paxd or Manager changes, new preview API or session-key setup is required.
+The original window-follow behavior needs no session-key setup; the newer Docker
+preview mode requires the paxd screenshot implementation described above.
 Further frontend information-architecture changes are deferred for discussion.

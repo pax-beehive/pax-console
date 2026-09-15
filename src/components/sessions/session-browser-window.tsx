@@ -153,7 +153,6 @@ export function SessionBrowserWindow({
             key={`${userId}/${nodeId}`}
             userId={userId}
             nodeId={nodeId}
-            autoConnect
           />
         )}
       </div>

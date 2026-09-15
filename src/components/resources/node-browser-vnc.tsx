@@ -2,31 +2,32 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { VNCChannel } from "@/features/browser-control/vnc-channel";
+import { usePreviewFocus } from "@/features/browser-control/use-preview-focus";
+import { DockerBrowserPreview } from "./docker-browser-preview";
 
 export function NodeBrowserVNC({
   userId,
   nodeId,
-  autoConnect = false,
 }: {
   userId: string;
   nodeId: string;
-  autoConnect?: boolean;
 }) {
-  const [connected, setConnected] = useState(autoConnect);
+  const [connected, setConnected] = useState(false);
+  usePreviewFocus(() => setConnected(false));
   return (
     <section className="grid min-w-0 gap-2 border-t border-hairline pt-3">
       <h3>Docker desktop</h3>
       <p className="text-xs text-ink-tertiary">
-        Shows the shared Docker desktop, including all browser windows. Mouse
-        and keyboard input are enabled. Disconnect closes the viewer only. This
-        is separate from your personal Chrome. A black desktop can mean there
-        are no Docker browser windows open.
+        Watch the Docker desktop in preview. Take control to use the mouse and
+        keyboard. Leaving this page returns to preview.
       </p>
       <Button onClick={() => setConnected(!connected)}>
-        {connected ? "Disconnect desktop" : "Connect Docker desktop"}
+        {connected ? "Release control" : "Take control"}
       </Button>
-      {connected && (
+      {connected ? (
         <Desktop key={`${userId}/${nodeId}`} userId={userId} nodeId={nodeId} />
+      ) : (
+        <DockerBrowserPreview userId={userId} nodeId={nodeId} />
       )}
     </section>
   );
@@ -53,7 +54,7 @@ function Desktop({ userId, nodeId }: { userId: string; nodeId: string }) {
         viewer.addEventListener("disconnect", () => {
           if (!disposed)
             setStatus(
-              "Disconnected. Reconnect to continue; input was not replayed.",
+              `Disconnected. ${channel.failure ?? "No transport error was captured; the viewer or remote endpoint closed the connection."} Reconnect to continue; input was not replayed.`,
             );
         });
         void channel.connect();

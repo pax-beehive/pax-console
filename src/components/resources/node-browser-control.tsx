@@ -2,7 +2,8 @@
 
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import Link from "next/link";
-import { MousePointer2 } from "lucide-react";
+import { BrowserPreviewImage } from "./browser-preview-image";
+import { usePreviewFocus } from "@/features/browser-control/use-preview-focus";
 import { useBrowserState } from "@/features/browser-control/use-browser-state";
 import { followBrowser } from "@/features/browser-control/follow-browser";
 import { Button } from "@/components/ui/button";
@@ -84,6 +85,22 @@ function BrowserPanel({
   const [grant, setGrant] = useState<{ secret_ref: string; expires: number }>();
   const query = useBrowserState(userId, nodeId);
   const state = query.data;
+  const ownedControl = useRef<string | null>(null);
+  const [ownsControl, setOwnsControl] = useState(false);
+  function releaseOwnedControl() {
+    const owner = ownedControl.current;
+    if (!owner) return;
+    ownedControl.current = null;
+    setOwnsControl(false);
+    void browserControl(userId, nodeId, "view", {
+      session: owner,
+      action: { type: "release" },
+    })
+      .then(() => query.refetch())
+      .catch((e: Error) => setError(e));
+  }
+  usePreviewFocus(releaseOwnedControl);
+
   const previousFollowed = useRef("");
   const followed = followBrowser(state, previousFollowed.current);
   useEffect(() => {
@@ -145,6 +162,13 @@ function BrowserPanel({
     setActing(true);
     setError(undefined);
     try {
+      if (
+        operation === "view" &&
+        (payload as { action?: { type?: string } }).action?.type === "takeover"
+      ) {
+        ownedControl.current = session;
+        setOwnsControl(true);
+      }
       await browserControl(userId, nodeId, operation, payload);
       await query.refetch();
     } catch (e) {
@@ -157,7 +181,10 @@ function BrowserPanel({
   }
   async function view(action: Record<string, unknown>) {
     if (busyRef.current || !session) return false;
-    if (action.type !== "screenshot" && state?.operator !== session)
+    if (
+      action.type !== "screenshot" &&
+      (state?.operator !== session || ownedControl.current !== session)
+    )
       return false;
     busyRef.current = true;
     setBusy(true);
@@ -481,6 +508,8 @@ function BrowserPanel({
               <Button
                 disabled={busy || !state.operator}
                 onClick={() => {
+                  ownedControl.current = null;
+                  setOwnsControl(false);
                   setCaptured(undefined);
                   setPreviewError(undefined);
                   void run("view", {
@@ -494,8 +523,8 @@ function BrowserPanel({
             </div>
             {state.operator && (
               <p className="text-xs text-ink-tertiary">
-                Human control is active. Closing this panel leaves the agent
-                paused.
+                Human control is active. Control acquired here is released when
+                you leave this page or close the panel.
               </p>
             )}
             <div role="status" className="text-xs text-ink-tertiary">
@@ -534,12 +563,17 @@ function BrowserPanel({
               <button
                 type="button"
                 aria-label={
-                  state.operator === session
+                  state.operator === session && ownsControl
                     ? "Browser image; click to interact"
                     : "Browser image; read-only preview"
                 }
                 className="relative block w-full overflow-hidden border border-hairline"
-                disabled={busy || state.operator !== session || !frame.frame}
+                disabled={
+                  busy ||
+                  state.operator !== session ||
+                  !ownsControl ||
+                  !frame.frame
+                }
                 onClick={(e) => {
                   const r = e.currentTarget.getBoundingClientRect();
                   void view({
@@ -549,10 +583,8 @@ function BrowserPanel({
                   });
                 }}
               >
-                {/* Live pixels are transient and must not pass through the image optimizer. */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  alt="Current browser page"
+                <BrowserPreviewImage
+                  frame={frame}
                   onError={() => {
                     setPreviewError(
                       new Error(
@@ -561,37 +593,19 @@ function BrowserPanel({
                     );
                     setCaptured(undefined);
                   }}
-                  src={`data:image/jpeg;base64,${frame.image}`}
-                  className="block h-auto w-full"
-                  draggable={false}
                 />
-                {frame.pointer &&
-                  Number.isFinite(frame.pointer.x) &&
-                  Number.isFinite(frame.pointer.y) && (
-                    <span
-                      aria-label="Agent's recent interaction"
-                      className="pointer-events-none absolute text-violet-400"
-                      style={{
-                        left: `${(frame.pointer.x / frame.width) * 100}%`,
-                        top: `${(frame.pointer.y / frame.height) * 100}%`,
-                      }}
-                    >
-                      <span className="absolute -left-3 -top-3 h-6 w-6 rounded-full border-2 border-violet-400 bg-violet-400/20" />
-                      <MousePointer2
-                        aria-hidden="true"
-                        className="relative h-5 w-5 fill-violet-400 stroke-white drop-shadow"
-                      />
-                    </span>
-                  )}
               </button>
             )}
-            {state.operator === session && (
+            {state.operator === session && ownsControl && (
               <div className="flex flex-wrap gap-2">
                 {["Tab", "Enter", "Backspace", "Escape"].map((key) => (
                   <Button
                     key={key}
                     disabled={
-                      busy || !frame?.frame || state.operator !== session
+                      busy ||
+                      !frame?.frame ||
+                      state.operator !== session ||
+                      !ownsControl
                     }
                     onClick={() => void view({ type: "key", key })}
                   >
@@ -599,13 +613,23 @@ function BrowserPanel({
                   </Button>
                 ))}
                 <Button
-                  disabled={busy || !frame?.frame || state.operator !== session}
+                  disabled={
+                    busy ||
+                    !frame?.frame ||
+                    state.operator !== session ||
+                    !ownsControl
+                  }
                   onClick={() => void view({ type: "scroll", x: 0, y: 600 })}
                 >
                   Scroll down
                 </Button>
                 <Button
-                  disabled={busy || !frame?.frame || state.operator !== session}
+                  disabled={
+                    busy ||
+                    !frame?.frame ||
+                    state.operator !== session ||
+                    !ownsControl
+                  }
                   onClick={() => void view({ type: "scroll", x: 0, y: -600 })}
                 >
                   Scroll up
