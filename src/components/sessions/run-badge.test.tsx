@@ -21,6 +21,21 @@ function renderBadge(
 }
 
 describe("RunBadge", () => {
+  it("shows paxd offline while retaining the supplied execution status", () => {
+    const { rerender } = render(
+      <TooltipProvider>
+        <RunBadge status="streaming" paxdOffline />
+      </TooltipProvider>,
+    );
+    expect(screen.getByText("paxd offline")).toBeInTheDocument();
+    rerender(
+      <TooltipProvider>
+        <RunBadge status="streaming" />
+      </TooltipProvider>,
+    );
+    expect(screen.getByText("running")).toBeInTheDocument();
+  });
+
   it("keeps the running icon and label together on one line", () => {
     renderBadge("streaming");
     const label = screen.getByText("running");

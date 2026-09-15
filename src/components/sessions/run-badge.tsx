@@ -15,11 +15,23 @@ import { cn } from "@/lib/utils";
 
 export function RunBadge({
   error,
+  paxdOffline,
   status,
 }: {
   error?: Error | null;
+  paxdOffline?: boolean;
   status: SessionDisplayStatus;
 }) {
+  if (paxdOffline) {
+    return (
+      <Badge
+        tone="warning"
+        tooltip="paxd is offline. The last reported execution state is retained."
+      >
+        paxd offline
+      </Badge>
+    );
+  }
   const errorDetail =
     status === "error" && error ? formatErrorDetail(error) : null;
   const isIdleTimeout = status === "error" && isConversationIdleTimeout(error);
@@ -46,7 +58,7 @@ export function RunBadge({
       icon: <AlertCircle className="h-3.5 w-3.5" />,
       label: "status unknown",
       tone: "warning" as const,
-      tooltip: "The runtime connection did not recover within the grace period",
+      tooltip: "No authoritative runtime state is available",
     },
     done: {
       icon: <CheckCircle2 className="h-3.5 w-3.5" />,

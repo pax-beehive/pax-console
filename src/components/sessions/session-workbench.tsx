@@ -2132,6 +2132,7 @@ export function SessionWorkbench({
                 />
               )}
               <RunBadge
+                paxdOffline={activeNode?.online === false}
                 error={
                   usesEncryptedTransport
                     ? encryptedRuntime.error
@@ -2313,6 +2314,7 @@ export function SessionWorkbench({
               />
             )}
             <RunBadge
+              paxdOffline={activeNode?.online === false}
               error={
                 usesEncryptedTransport
                   ? encryptedRuntime.error

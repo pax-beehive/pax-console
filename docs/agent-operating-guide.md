@@ -382,10 +382,12 @@ while that window owns an explicitly submitted conversation turn. A local ACP
 still active. This overlay also controls the current window's composer, stop,
 queue, and stream behavior, but is never persisted as session status.
 Session queries use 30-second polling only as a disconnected-client fallback.
-`unknown` means the node-control connection did not recover within its runtime
-report grace period. It preserves the last turn identity and must keep the
-composer blocked until a reconnect snapshot or an explicit compare-and-reset
-restores an authoritative state. E2EE workbenches follow the same canonical
+paxd snapshots are the only durable runtime writer. A node-control disconnect
+preserves the last execution state and timestamp; it does not turn it into
+`unknown`. The workbench badge shows `paxd offline` when the node API reports
+`online: false`, without changing the execution state. Legacy `unknown` values
+remain blocked until a new snapshot or explicit reset.
+E2EE workbenches follow the same canonical
 status rule; their local decrypted stream may optimistically overlay an owned
 turn but must never replace a server-reported active or unknown state with idle.
 

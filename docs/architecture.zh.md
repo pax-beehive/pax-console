@@ -902,9 +902,10 @@ workbench badge 可以用该窗口拥有的本地状态乐观覆盖为 `running`
 刷新。该本地状态同时负责当前窗口的 composer、stop、queue 和流式交互，但不会写成
 或冒充持久化状态。
 Session query 仅保留 30 秒低频轮询作为断连兜底。
-node-control 断开后的 60 秒 grace 内保留最后一次运行状态；如果仍未重连，Manager
-把活跃状态改为 `unknown`，但保留 turn instance id。`unknown` 不能等同于 idle，
-workbench 必须继续锁住 composer，直到重连后的全量 snapshot 或显式 reset 完成校准。
+paxd snapshot 是持久化运行状态的唯一写入来源。node-control 断开时保留最后一次
+执行状态和时间，不再将其改成 `unknown`。node API 返回 `online: false` 时，
+workbench badge 显示 `paxd offline`，不修改底层执行状态。历史 `unknown` 仍等待
+新 snapshot 或显式 reset。
 E2EE workbench 同样以该服务端状态为准，本地解密流只能覆盖自己拥有的 turn，刷新后
 不能用本地初始化的 idle 覆盖服务端 running 或 unknown。
 
