@@ -13,7 +13,7 @@ import {
   streamConversationRun,
 } from "./conversation-run";
 import { normalizeTunnelFrame } from "./normalize-tunnel-frame";
-import { SessionEvent } from "./session-events";
+import { SessionEvent, type SessionMessageAttachment } from "./session-events";
 import {
   appendSessionEvents,
   useBufferedSessionEvents,
@@ -41,13 +41,18 @@ type UseConversationRunOptions = {
 type SendMessageOptions = {
   approvalMode?: SessionApprovalMode;
   attachmentIds?: string[];
+  attachments?: SessionMessageAttachment[];
+  onAccepted?: () => void;
   cwd?: string;
   permissionChoiceId?: string;
   primaryProjectId?: string;
   projectTargetId?: string;
 };
 
-type InitializeSessionOptions = Omit<SendMessageOptions, "attachmentIds">;
+type InitializeSessionOptions = Omit<
+  SendMessageOptions,
+  "attachmentIds" | "attachments" | "onAccepted"
+>;
 
 export function useConversationRun({
   agentId,
@@ -112,11 +117,12 @@ export function useConversationRun({
       const optimisticTurnId = `pending-turn:${startedAt}`;
       const streamId = `${optimisticSessionId}:turn:${startedAt}`;
       activeTurnIdRef.current = optimisticTurnId;
+      let accepted = false;
 
       setError(null);
       setTransportInterrupted(false);
       setStatus("streaming");
-      if (content) {
+      if (content || attachmentIds.length > 0) {
         appendEvents([
           {
             type: "user_message",
@@ -124,6 +130,13 @@ export function useConversationRun({
             sessionId: optimisticSessionId,
             turnId: optimisticTurnId,
             content,
+            ...(options?.attachments?.length
+              ? {
+                  attachments: options.attachments.map((attachment) => ({
+                    ...attachment,
+                  })),
+                }
+              : {}),
             createdAt: new Date().toISOString(),
           },
         ]);
@@ -153,6 +166,10 @@ export function useConversationRun({
             : { input: content }),
           nodeId,
           onEnvelope: (envelope) => {
+            if (envelope.type === "turn_started" && !accepted) {
+              accepted = true;
+              options?.onAccepted?.();
+            }
             const envelopeError = handleConversationEnvelope(envelope, {
               onSession: (nextSessionId) => {
                 sessionIdRef.current = nextSessionId;

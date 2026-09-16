@@ -6,7 +6,7 @@ import {
   projectHistoryMessagesForDisplay,
 } from "./invocation-display";
 import { normalizeTunnelFrame } from "./normalize-tunnel-frame";
-import { SessionEvent } from "./session-events";
+import { SessionEvent, type SessionMessageAttachment } from "./session-events";
 
 export function normalizeHistoryMessages(
   messages: HistoryMessage[],
@@ -87,11 +87,70 @@ function orderAggregatedHistoryText(events: SessionEvent[]) {
 export function normalizeHistoryMessage(
   message: HistoryMessage,
 ): SessionEvent[] {
-  const events = normalizeHistoryMessageWithoutTurn(message);
+  const attachments =
+    message.role === "user" ? historyPromptAttachments(message) : [];
+  const events = normalizeHistoryMessageWithoutTurn(message).map((event) =>
+    event.type === "user_message" && attachments.length > 0
+      ? { ...event, attachments }
+      : event,
+  );
+  if (
+    events.length === 0 &&
+    message.role === "user" &&
+    attachments.length > 0
+  ) {
+    events.push({
+      type: "user_message",
+      id: message.message_id,
+      sessionId: message.session_id ?? "unknown-session",
+      content: "",
+      attachments,
+      createdAt: message.created_at ?? new Date().toISOString(),
+    });
+  }
   if (!message.turn_id) {
     return events;
   }
   return events.map((event) => ({ ...event, turnId: message.turn_id }));
+}
+
+function historyPromptAttachments(
+  message: HistoryMessage,
+): SessionMessageAttachment[] {
+  const attachments = new Map<string, SessionMessageAttachment>();
+  for (const candidate of historyFrameCandidates(message)) {
+    const frame = asRecord(unwrapHistoryFrame(candidate));
+    if (frame?.method !== "session/prompt") continue;
+    const prompt = asRecord(frame.params)?.prompt;
+    if (!Array.isArray(prompt)) continue;
+    for (const block of prompt) {
+      const resource = asRecord(block);
+      if (resource?.type !== "resource_link") continue;
+      const filename = stringFromValue(resource, "name");
+      const uri = stringFromValue(resource, "uri");
+      if (!filename || !uri) continue;
+      attachments.set(uri, {
+        attachmentId: attachmentIdFromLocalURI(uri),
+        filename,
+        contentType: stringFromValue(resource, "mimeType"),
+      });
+    }
+  }
+  return [...attachments.values()];
+}
+
+function attachmentIdFromLocalURI(uri: string): string | undefined {
+  try {
+    const url = new URL(uri);
+    if (url.protocol !== "file:") return undefined;
+    // Paxd stores each uploaded file directly inside its attachment ID directory.
+    const directory = url.pathname.split("/").at(-2);
+    return directory && /^att_[a-f0-9]{48}$/.test(directory)
+      ? directory
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function normalizeHistoryMessageWithoutTurn(

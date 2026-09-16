@@ -54,6 +54,40 @@ function renderItem(
 }
 
 describe("session event cards", () => {
+  it("shows sent files inside the user message without composer removal controls", () => {
+    renderItem({
+      type: "event",
+      id: "user_1",
+      event: {
+        type: "user_message",
+        id: "user_1",
+        sessionId: "sess_1",
+        content: "See screenshot",
+        createdAt: "2026-09-15T00:00:00Z",
+        attachments: [
+          {
+            attachmentId: "att_1",
+            filename: "Screenshot.png",
+            contentType: "image/png",
+          },
+          {
+            attachmentId: "att_2",
+            filename: "notes.pdf",
+            contentType: "application/pdf",
+          },
+        ],
+      },
+    });
+    expect(screen.getByText("See screenshot")).toBeVisible();
+    expect(
+      screen.getByRole("list", { name: "Message attachments" }),
+    ).toBeVisible();
+    expect(screen.getByText("Screenshot.png")).toBeVisible();
+    expect(screen.getByText("notes.pdf")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: /Remove/ }),
+    ).not.toBeInTheDocument();
+  });
   it("allows the next permission while a previous decision is still streaming", () => {
     const event: Extract<SessionEvent, { type: "permission_request" }> = {
       type: "permission_request",

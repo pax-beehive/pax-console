@@ -50,6 +50,7 @@ import {
   codePatchToText,
 } from "@/features/runtime/tool-patches";
 import { cn } from "@/lib/utils";
+import { MessageAttachment } from "./message-attachment";
 
 export type PermissionDecisionOption =
   | "deny"
@@ -360,7 +361,7 @@ function EventCard({
   }
 
   if (event.type === "user_message") {
-    return <UserMessageCard event={event} />;
+    return <UserMessageCard event={event} userId={userId} />;
   }
 
   if (event.type === "agent_message") {
@@ -457,12 +458,31 @@ function ThoughtCard({
 
 function UserMessageCard({
   event,
+  userId,
 }: {
   event: Extract<SessionEvent, { type: "user_message" }>;
+  userId?: string;
 }) {
   return (
     <article className="flex min-w-0 justify-end py-1">
       <div className="w-fit max-w-[min(72%,640px)] min-w-0 rounded-lg bg-surface-2 px-3 py-2">
+        {event.attachments && event.attachments.length > 0 && (
+          <ul
+            aria-label="Message attachments"
+            className="mb-2 flex min-w-0 flex-wrap gap-1.5"
+          >
+            {event.attachments.map((attachment, index) => (
+              <li
+                key={
+                  attachment.attachmentId ?? `${index}:${attachment.filename}`
+                }
+                className="max-w-full min-w-0"
+              >
+                <MessageAttachment attachment={attachment} userId={userId} />
+              </li>
+            ))}
+          </ul>
+        )}
         <MarkdownMessage
           className="overflow-hidden text-base leading-6 text-ink sm:text-sm sm:leading-5"
           content={event.content}
