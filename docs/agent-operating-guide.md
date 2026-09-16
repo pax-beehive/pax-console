@@ -576,7 +576,20 @@ present, the browser sends structured `content` blocks instead:
 ]
 ```
 
-Continued sessions add `"session_id": "sess_*"`. Queue/steer endpoints remain
+Continued sessions add `"session_id": "sess_*"`. A `turn_started` acknowledgement
+clears only the attachments included
+in that submission; do not wait for the response stream to finish or clear files
+added for a later prompt. Keep sent attachment names and MIME types on the live
+user event, and recover them from durable `session/prompt` resource links for
+history. User message bubbles show file labels and lazy image thumbnails for
+PNG, JPEG, GIF, WebP, AVIF, and BMP. Clicking a thumbnail opens a keyboard-accessible
+dialog with the full image; failed loads retain the filename and a retry action.
+`GET /attachments/{attachment_id}/content` goes through the same-origin proxy;
+Manager checks ownership, completion, and storage bucket before issuing a
+short-lived signed object redirect with `Cache-Control: private, no-store`.
+History recovers IDs only from the direct `att_<48 hex digits>` parent directory
+in Paxd's localized file URI. Unknown legacy resources remain labels; never use
+node-local `file://` paths as browser image URLs. Queue/steer endpoints remain
 text-only. The browser reads the POST response body as a stream of default SSE
 `data:` messages. Each message is a PAX envelope:
 

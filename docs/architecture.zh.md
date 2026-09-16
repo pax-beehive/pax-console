@@ -862,6 +862,15 @@ boolean fast-mode 配置。
 ```
 
 续聊时附加 `session_id`。queued turn / steer 仍然只支持文本输入，不带附件。
+收到 `turn_started` 后，输入框立即移除本次已发送的附件，不再等整轮回复结束；
+新添加的附件不受影响。用户消息气泡展示附件文件名和类型图标，实时事件保留
+附件元数据，历史消息从持久化 `session/prompt` 的 `resource_link` 还原。
+PNG、JPEG、GIF、WebP、AVIF、BMP 图片显示懒加载缩略图，点击后弹窗放大；
+加载失败保留文件名并提供重试。通过同源代理请求
+`GET /attachments/{attachment_id}/content`，Manager 校验归属、上传完成状态和
+存储桶后返回短期签名重定向，并禁止缓存该重定向。历史消息只从 Paxd 本地 URI
+的直接父目录 `att_<48 位十六进制>` 恢复附件 ID；无法识别的旧附件仍显示文件标签。
+节点上的 `file://` 路径不作为浏览器图片地址。
 
 前端使用 fetch streaming 读取 response body，不能用原生 EventSource
 （这个接口是 POST + JSON body）。每条默认 SSE `data:` 是一个 PAX envelope：

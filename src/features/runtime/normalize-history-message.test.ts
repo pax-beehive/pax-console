@@ -6,6 +6,133 @@ import {
 } from "./normalize-history-message";
 
 describe("normalizeHistoryMessage", () => {
+  it.each([
+    [
+      `file:///home/pax/.paxd/attachments/remotes/remote/att_${"a".repeat(48)}/Screenshot%20one.png`,
+      `att_${"a".repeat(48)}`,
+    ],
+    [
+      `file:///home/pax/.paxd/attachments/local/att_${"b".repeat(48)}/photo.png`,
+      `att_${"b".repeat(48)}`,
+    ],
+    [`https://example.com/att_${"a".repeat(48)}/photo.png`, undefined],
+    ["file:///tmp/other/photo.png", undefined],
+    ["not a URL", undefined],
+  ])("restores only a localized attachment ID from %s", (uri, attachmentId) => {
+    const events = normalizeHistoryMessage({
+      role: "user",
+      message_id: "msg_image",
+      session_id: "sess_1",
+      raw_json: {
+        method: "session/prompt",
+        params: {
+          prompt: [
+            {
+              type: "resource_link",
+              uri,
+              name: "photo.png",
+              mimeType: "image/png",
+            },
+          ],
+        },
+      },
+    });
+    expect(events).toMatchObject([
+      {
+        type: "user_message",
+        attachments: [{ attachmentId, filename: "photo.png" }],
+      },
+    ]);
+    expect(events[0]).not.toHaveProperty("attachments.0.uri");
+  });
+  it("reads attachment-only history from a wrapped prompt part and ignores malformed resources", () => {
+    const events = normalizeHistoryMessage({
+      message_id: "msg_files",
+      role: "user",
+      session_id: "sess_1",
+      parts: [
+        {
+          part_index: 0,
+          part_type: "text",
+          text: "",
+          payload_json: {
+            type: "acp",
+            frame: {
+              method: "session/prompt",
+              params: {
+                prompt: [
+                  {
+                    type: "resource_link",
+                    uri: "file:///tmp/report.pdf",
+                    name: "report.pdf",
+                  },
+                  { type: "resource_link", name: "missing-uri" },
+                  { type: "resource_link", uri: "file:///tmp/missing-name" },
+                  null,
+                ],
+              },
+            },
+          },
+        },
+      ],
+    });
+    expect(events).toMatchObject([
+      {
+        type: "user_message",
+        content: "",
+        attachments: [{ filename: "report.pdf" }],
+      },
+    ]);
+  });
+  it("restores sent attachment names from the durable prompt without duplicating them", () => {
+    const prompt = {
+      method: "session/prompt",
+      params: {
+        prompt: [
+          { type: "text", text: "See screenshot" },
+          {
+            type: "resource_link",
+            uri: "file:///tmp/att_1/Screenshot.png",
+            name: "Screenshot.png",
+            mimeType: "image/png",
+          },
+          {
+            type: "resource_link",
+            uri: "file:///tmp/att_2/notes.pdf",
+            name: "notes.pdf",
+            mimeType: "application/pdf",
+          },
+        ],
+      },
+    };
+    const events = normalizeHistoryMessage({
+      message_id: "msg_1",
+      role: "user",
+      session_id: "sess_1",
+      turn_id: "turn_1",
+      raw_json: prompt,
+      parts: [
+        {
+          part_index: 0,
+          part_type: "text",
+          text: "See screenshot",
+          payload_json: prompt,
+        },
+      ],
+    });
+    expect(events).toMatchObject([
+      {
+        type: "user_message",
+        content: "See screenshot",
+        turnId: "turn_1",
+        attachments: [
+          { filename: "Screenshot.png", contentType: "image/png" },
+          { filename: "notes.pdf", contentType: "application/pdf" },
+        ],
+      },
+    ]);
+    expect(events).toHaveLength(1);
+  });
   it("preserves the durable business turn id", () => {
     expect(
       normalizeHistoryMessage({

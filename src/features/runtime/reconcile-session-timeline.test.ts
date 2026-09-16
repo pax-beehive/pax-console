@@ -5,6 +5,21 @@ import { reconcileSessionTimeline } from "./reconcile-session-timeline";
 const createdAt = "2026-08-04T00:00:00.000Z";
 
 describe("reconcileSessionTimeline", () => {
+  it("keeps one attachment-bearing user bubble when history replaces the live prompt", () => {
+    const attachments = [
+      { filename: "Screenshot.png", contentType: "image/png" },
+    ];
+    const durable: SessionEvent = {
+      ...user("history-user", "turn_1", "See screenshot"),
+      attachments,
+    };
+    const live: SessionEvent = {
+      ...user("live-user", "turn_1", "See screenshot"),
+      attachments,
+    };
+    const result = reconcileSessionTimeline([durable], [live]);
+    expect(result.timeline).toEqual([durable]);
+  });
   it("keeps the durable user prompt while conversation owns agent output", () => {
     const history = [
       user("history-user", "turn_1", "Please investigate"),
@@ -235,7 +250,11 @@ function done(id: string, turnId: string): SessionEvent {
   };
 }
 
-function user(id: string, turnId: string, content: string): SessionEvent {
+function user(
+  id: string,
+  turnId: string,
+  content: string,
+): Extract<SessionEvent, { type: "user_message" }> {
   return userAt(id, turnId, content, createdAt);
 }
 
@@ -244,7 +263,7 @@ function userAt(
   turnId: string,
   content: string,
   eventCreatedAt: string,
-): SessionEvent {
+): Extract<SessionEvent, { type: "user_message" }> {
   return {
     type: "user_message",
     id,

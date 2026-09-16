@@ -1080,6 +1080,13 @@ export function completeUserAttachment(userId: string, attachmentId: string) {
   );
 }
 
+export function userAttachmentContentHref(
+  userId: string,
+  attachmentId: string,
+) {
+  return `${API_BASE_URL}${userPath(userId, `/attachments/${encodeURIComponent(attachmentId)}/content`)}`;
+}
+
 async function fetchObjectStorage(
   url: string,
   init: RequestInit,

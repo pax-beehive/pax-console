@@ -57,12 +57,20 @@ export type PermissionRequestEvent = {
   createdAt: string;
 };
 
+export type SessionMessageAttachment = {
+  attachmentId?: string;
+  filename: string;
+  contentType?: string;
+  sizeBytes?: number;
+};
+
 export type SessionEvent = (
   | {
       type: "user_message";
       id: string;
       sessionId: string;
       content: string;
+      attachments?: SessionMessageAttachment[];
       createdAt: string;
     }
   | {

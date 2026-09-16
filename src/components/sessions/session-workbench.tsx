@@ -1645,6 +1645,13 @@ export function SessionWorkbench({
     isNewSession,
     usesEncryptedTransport,
   ]);
+  const clearSentAttachments = useCallback((attachmentIds: string[]) => {
+    const sentIds = new Set(attachmentIds);
+    setComposerAttachments((current) =>
+      current.filter((attachment) => !sentIds.has(attachment.attachmentId)),
+    );
+    setComposerAttachmentError(null);
+  }, []);
   const submitDraft = useCallback(
     async (content: string) => {
       if (!content || !activeAgentId || !activeNodeId || newSessionCwdInvalid) {
@@ -1717,9 +1724,9 @@ export function SessionWorkbench({
               }
             : {}),
           ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
+          attachments: composerAttachments,
+          onAccepted: () => clearSentAttachments(attachmentIds),
         });
-        setComposerAttachments([]);
-        setComposerAttachmentError(null);
         return true;
       } catch (caught) {
         if (isNewSession) {
@@ -1740,6 +1747,7 @@ export function SessionWorkbench({
       activeNodeId,
       beginEncryptedSession,
       composerAttachments,
+      clearSentAttachments,
       usesEncryptedTransport,
       isNewSession,
       isTurnRunning,
@@ -1893,10 +1901,13 @@ export function SessionWorkbench({
         primaryProjectId: initialPrimaryProjectId,
         projectTargetId: initialProjectTargetId,
         ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
+        attachments: composerAttachments,
+        onAccepted: () => {
+          clearSentAttachments(attachmentIds);
+          removeStoredInitialPrompt(initialPromptKey);
+        },
       })
         .then(() => {
-          setComposerAttachments([]);
-          setComposerAttachmentError(null);
           removeStoredInitialPrompt(initialPromptKey);
         })
         .catch((caught) => {
@@ -1934,6 +1945,7 @@ export function SessionWorkbench({
     activeAgentId,
     activeNodeId,
     composerAttachments,
+    clearSentAttachments,
     conversationRun.status,
     composerDraftKey,
     encryptedRuntime.keyLoading,
