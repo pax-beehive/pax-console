@@ -75,6 +75,7 @@ export type SessionEvent = (
     }
   | {
       type: "agent_message";
+      historyTextLayout?: "segment";
       id: string;
       sessionId: string;
       content: string;
@@ -84,6 +85,7 @@ export type SessionEvent = (
     }
   | {
       type: "progress";
+      historyTextLayout?: "segment";
       id: string;
       sessionId: string;
       content: string;

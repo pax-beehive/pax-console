@@ -1351,3 +1351,13 @@ Canonical prompt text parts stay inline; raw session/prompt text is a fallback
 when parts are missing. Flatten pages by message_id and order by session_seq so
 repeated turn context does not render twice. Tools remain available in work
 groups and load their full details only when opened.
+
+## Durable text segment boundaries
+
+New Manager text rows carry `raw_json.text_layout = "segment"`. They represent
+individual text blocks within a turn, not a whole-turn aggregate. Preserve their
+message IDs and stored order: A, tool, B must remain A, tool, B after refresh or
+observer replay. Do not concatenate distinct segmented rows when an intervening
+tool is outside the currently loaded page. Legacy end-of-turn aggregate
+reordering applies only to turns without segmented records. Historical merged
+text is not heuristically split. Deploy this Console support before Manager.
