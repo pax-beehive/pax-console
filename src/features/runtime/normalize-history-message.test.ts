@@ -390,6 +390,64 @@ describe("normalizeHistoryMessage", () => {
     ]);
   });
 
+  it("preserves segmented text around tools when restoring a completed turn", () => {
+    const segment = (id: string, content: string) => ({
+      ...historyTextChunk(id, content),
+      turn_id: "turn_1",
+      raw_json: { text_layout: "segment" },
+    });
+    const a = segment("a", "Starting");
+    const b = segment("b", "Finished");
+    const events = mergeEvents(
+      normalizeHistoryMessages([
+        a,
+        historyToolCall("tool", "turn_1", "tool_call", "completed"),
+        b,
+        {
+          message_id: "done",
+          message_type: "turn_done",
+          turn_id: "turn_1",
+          session_id: "sess_1",
+        },
+      ]),
+    );
+    expect(events.map((event) => event.type)).toEqual([
+      "agent_message",
+      "tool_call",
+      "agent_message",
+      "turn_done",
+    ]);
+    expect(
+      events
+        .filter((event) => event.type === "agent_message")
+        .map((event) => event.content),
+    ).toEqual(["Starting", "Finished"]);
+    // A summary page can omit the intervening tool. Distinct durable text rows
+    // must still not be concatenated merely because they are now adjacent.
+    expect(normalizeHistoryMessages([a, b]).map((event) => event.id)).toEqual([
+      "a",
+      "b",
+    ]);
+    // During a rolling update the opening row may predate the segment marker.
+    const mixed = normalizeHistoryMessages([
+      { ...a, raw_json: undefined },
+      historyToolCall("tool", "turn_1", "tool_call", "completed"),
+      b,
+      {
+        message_id: "done",
+        message_type: "turn_done",
+        turn_id: "turn_1",
+        session_id: "sess_1",
+      },
+    ]);
+    expect(mixed.map((event) => event.type)).toEqual([
+      "agent_message",
+      "tool_call",
+      "agent_message",
+      "turn_done",
+    ]);
+  });
+
   it("restores thought parts as progress events", () => {
     const events = normalizeHistoryMessage({
       message_id: "msg_2",

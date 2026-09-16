@@ -23,13 +23,23 @@ export function normalizeHistoryMessages(
 }
 
 /**
- * The durable history store aggregates every agent_message_chunk in a turn
+ * Legacy durable history aggregated agent_message_chunk across a whole turn
  * into one message row. That row keeps the ID/created_at of the first chunk,
  * even though its text eventually contains the final answer emitted after the
  * turn's tool calls. Keep live streams in receipt order, but place this
  * history-only aggregate immediately before the durable turn boundary.
  */
 function orderAggregatedHistoryText(events: SessionEvent[]) {
+  const segmentedTurnIds = new Set(
+    events
+      .filter(
+        (event) =>
+          (event.type === "agent_message" || event.type === "progress") &&
+          event.historyTextLayout === "segment" &&
+          event.turnId,
+      )
+      .map((event) => event.turnId),
+  );
   const completedTurnIds = new Set(
     events
       .filter((event) => event.type === "turn_done" && event.turnId)
@@ -41,6 +51,7 @@ function orderAggregatedHistoryText(events: SessionEvent[]) {
     if (
       event.type !== "agent_message" ||
       !event.turnId ||
+      segmentedTurnIds.has(event.turnId) ||
       !completedTurnIds.has(event.turnId) ||
       !["agent_message_chunk", "message_delta"].includes(
         event.sessionUpdate ?? "",
@@ -94,6 +105,18 @@ export function normalizeHistoryMessage(
       ? { ...event, attachments }
       : event,
   );
+  if (message.raw_json?.text_layout === "segment") {
+    for (let index = 0; index < events.length; index++) {
+      const event = events[index];
+      if (event.type === "agent_message" || event.type === "progress") {
+        events[index] = {
+          ...event,
+          historyTextLayout: "segment",
+          streaming: false,
+        };
+      }
+    }
+  }
   if (
     events.length === 0 &&
     message.role === "user" &&
