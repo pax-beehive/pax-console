@@ -88,6 +88,44 @@ describe("session event cards", () => {
       screen.queryByRole("button", { name: /Remove/ }),
     ).not.toBeInTheDocument();
   });
+  it("uses a saved manual decision instead of an inferred auto approval", () => {
+    const event: Extract<SessionEvent, { type: "permission_request" }> = {
+      type: "permission_request",
+      id: "permission-1",
+      requestId: "request-1",
+      approvalId: "approval-1",
+      sessionId: "sess-1",
+      title: "Run command",
+      options: [],
+      createdAt: "2026-09-15T00:00:00Z",
+      decision: {
+        decisionOption: "auto_approved",
+        source: "auto",
+        status: "approved",
+      },
+    };
+    renderItem(
+      { type: "event", id: event.id, event },
+      {
+        ...permissionDecision,
+        decisions: {
+          "approval-1": {
+            decisionOption: "allow_once",
+            source: "user",
+            status: "approved",
+          },
+        },
+      },
+    );
+    expect(screen.getByText("approved by user")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Allow once" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Deny" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("allows the next permission while a previous decision is still streaming", () => {
     const event: Extract<SessionEvent, { type: "permission_request" }> = {
       type: "permission_request",
@@ -117,6 +155,16 @@ describe("session event cards", () => {
       },
     );
     const allow = screen.getByRole("button", { name: "Allow once" });
+    expect(screen.getByRole("button", { name: "Deny" })).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: "This agent" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "This node" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "All agents" }),
+    ).not.toBeInTheDocument();
     expect(allow).toBeEnabled();
     fireEvent.click(allow);
     expect(onDecision).toHaveBeenCalledWith("approval-2", "allow_once");

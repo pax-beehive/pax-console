@@ -891,8 +891,8 @@ turn 投影都带 `turn_id`，并以 `message_type=turn_done`、`status=complete
 结束。timeline 必须把 history、当前窗口拥有的 conversation stream、observer replay
 作为三条独立有序流协调，不能按 `createdAt` 重排（observer 重放帧使用客户端接收时间）。
 本地 conversation 只接管该 turn 的 agent 输出，同时保留 durable user prompt，并把
-该 turn 留在原 history 位置；observer 只在现有 history/conversation 前缀后追加增量，
-过滤重放文本，不能删除整轮 history。只有 completion marker 出现在 history 后，
+该 turn 留在原 history 位置；新版 observer 在 `head` 提交完整 snapshot 后替换
+目标 turn 的旧投影，不再依赖重放文本过滤。只有 completion marker 出现在 history 后，
 durable history 才完整接管该 turn。
 durable history 可能把同一 turn 的全部 `agent_message_chunk` 聚合进第一条 chunk
 对应的记录；history normalization 必须把该聚合文本放在该 turn 的工作事件之后、
@@ -1046,6 +1046,11 @@ decision 成功后，workbench 会重新打开当前 conversation stream，并�
 }
 ```
 
+审批操作目前只展示 Deny 和 Allow once，其他长期授权选项隐藏，历史值仍兼容。
+权限决定的合并独立于工具卡片嵌套和实时流所有权，历史中的决定不能被实时请求覆盖。
+原生 request ID 按 session 和 turn 匹配，避免跨轮次误用；本地已保存的手动审批结果优先于
+根据工具更新推断的自动批准标签。
+
 Manager 在广播权限请求前持久化审批记录，即使发起对话的 SSE 已断开，observer
 和 history 也必须能拿到可操作的 approval ID。审批 mutation 会等待恢复后的
 对话流；决策提交需要串行，但保存成功后的流等待不能禁用后续权限请求的按钮。
@@ -1079,23 +1084,29 @@ tunnel 还活着，queued dispatch 也会继续。前端通过独立 observer �
 queued turn 或第二窗口的 live 展示：
 
 ```txt
-GET /api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/events?after_message_id=<message_id>
+GET /api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/events?turn_id=<turn_id>&after_seq=<head_seq>
 ```
 
 独立 `/sessions/{session_id}` 页面会先在分页的 flat sessions 列表里定位该
 session，并以返回的 `node_id`、`agent_id` 作为 queue 和 observer 请求的
 权威上下文；查询完成前不能回退到第一个 agent。
 
-这个 endpoint 的语义是观察该 session 当前正在 running 的 turn。如果没有
-running turn，后端发送 `type=no_running_turn` 后关闭；前端停止 observer，并用
-有界 history refetch 补齐 conversation/observer 交接窗口。如果有 running turn，
-后端先 replay turn-scoped memory
-buffer，再接上 live stream。`after_message_id` 是 REST history 里的全局
-`HistoryMessage.message_id`，这里只作为当前 turn buffer 的 trim hint；如果
-buffer 里找不到，后端发送 `type=buffer_miss`，跳过 replay，但继续发送后续
-live event。正常 live payload 是 `type=acp`，`frame` 形状与 `/conversation`
-一致，前端继续走 `normalizeTunnelFrame`。turn 终态时发送 `type=turn_done`
-并关闭 observer。
+这个 endpoint 固定观察一个业务 turn。首次省略 `turn_id` 时选择当前 active turn
+（running 或 waiting approval）；idle session 直接返回 `no_running_turn`，不重放历史。
+重连必须传回同一个 `turn_id` 和已提交的 `head_seq`（参数名为 `after_seq`）。
+旧的 `after_message_id` 明确返回 400，不再静默忽略；超过目标 turn head 的 cursor
+返回 409。任何参数都不能把范围扩大到其他 turn。
+
+协议为 `turn_start` → 完整 turn 的 `history_item` → `head`，然后继续发送消息最新版本。
+消息按 `message_id` 替换；`history_remove` 删除被 display projection 替代的记录。
+`session_seq` 是首次落库的排序键，正文追加不会改变它，因此带 cursor 重连也会刷新
+整轮前缀。前端收到 `head` 才提交重建结果；中途断线保留上一份已提交画面。
+这份 snapshot 完整接管目标 turn，替换旧 history/conversation 片段。
+
+Manager 当前每 500ms 读取目标 turn 的持久化摘要，SSE 只传变化的消息版本；浏览器
+不靠新增 history 轮询补缺口，也不再把 raw ACP delta 追加到持久化聚合文本后面。
+只有持久化 `turn_done` 才结束观察，并由 completed history 接管；`resync` 仍重连
+同一个 turn。Manager 与 Console 必须配套部署，旧版协议不支持这份 snapshot contract。
 
 stop 按钮调用：
 
@@ -1308,3 +1319,24 @@ follow the latest operation; this is not a PAX-session ownership guarantee.
 The original window-follow behavior needs no session-key setup; the newer Docker
 preview mode requires the paxd screenshot implementation described above.
 Further frontend information-architecture changes are deferred for discussion.
+
+## History 摘要与工具详情按需加载
+
+普通 Manager session 的 history 使用 `view=summary`，每页 100 条，继续使用
+seq 游标。工具记录只返回 ID、名称、状态等摘要；普通回复、think、用户附件、
+权限和 artifact/invocation 展示记录仍随列表返回。E2EE 和实时 ACP 协议保持原状。
+仅展开 Working 或工具分组不会拉取详情，展开具体工具或选择右侧 Tool 面板才调用：
+
+`GET /sessions/{session_id}/messages/{message_id}?section=input|output`
+
+接口先校验 session 的读取权限及 message 归属，每页最多 16384 个 Unicode
+码点，支持显式 Load more。续页携带服务端 revision；内容变化返回 409，由
+Reload details 从头读取，避免拼接新旧输出。TanStack Query 按用户、session、
+message、section、history 更新时间及完成状态缓存；运行中的已展开单页详情每两秒
+刷新，多页读取固定 revision，完成后重新读取最终结果。详情面板跟随当前 timeline 中的记录。
+JSON 片段拼完整后才解析。详情展示文本/JSON；实时 diff 展示继续保留，摘要
+history 不会为了计算轮次底部 diff 而预取所有工具详情。
+
+部署先 Manager 后 Console。原 full history 保留兼容；summary 查询不会触发
+旧的全 session artifact 修复扫描，正常写入路径继续负责展示记录的投影。
+本次不改变 paxd 或普通回复/think 的 part 0 存储，也不限制列表所有正文的总字节数。

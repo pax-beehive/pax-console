@@ -159,6 +159,32 @@ function normalizeHistoryMessageWithoutTurn(
   const sessionId = message.session_id ?? "unknown-session";
   const createdAt = message.created_at ?? new Date().toISOString();
   const id = message.message_id ?? String(message.id ?? crypto.randomUUID());
+  if (message.tool) {
+    const tool = message.tool;
+    return [
+      {
+        type: "tool_call",
+        id,
+        sessionId,
+        createdAt,
+        toolCallId: tool.tool_call_id || undefined,
+        name: tool.title || tool.tool_call_id || "Tool",
+        status: historyToolStatus(tool.status || message.status),
+        ...(tool.context_compaction ? { contextCompaction: true } : {}),
+        sessionUpdate: message.message_type,
+        ...(message.has_detail
+          ? {
+              historyDetails: [
+                {
+                  messageId: message.message_id,
+                  updatedAt: message.updated_at,
+                },
+              ],
+            }
+          : {}),
+      },
+    ];
+  }
   if (isPaxInvocationDisplayType(message.message_type)) {
     return createInvocationEvent({
       id,
@@ -595,4 +621,28 @@ function isThoughtKind(kind: string | undefined) {
     "reasoning",
     "progress",
   ].includes(normalized ?? "");
+}
+
+function historyToolStatus(
+  status?: string,
+): "called" | "queued" | "running" | "done" | "error" {
+  switch (status) {
+    case "completed":
+    case "done":
+    case "success":
+      return "done";
+    case "failed":
+    case "error":
+    case "cancelled":
+      return "error";
+    case "in_progress":
+    case "running":
+    case "streaming":
+      return "running";
+    case "pending":
+    case "queued":
+      return "queued";
+    default:
+      return "called";
+  }
 }

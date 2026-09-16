@@ -319,7 +319,25 @@ export type MessagePart = {
   updated_at?: string;
 };
 
+export type MessageDetailPage = {
+  message_id: string;
+  section: "input" | "output";
+  format: "text" | "json";
+  text: string;
+  revision: string;
+  next_offset: number;
+  has_more: boolean;
+};
+
 export type HistoryMessage = {
+  has_detail?: boolean;
+  tool?: {
+    tool_call_id: string;
+    title: string;
+    status: string;
+    kind?: string;
+    context_compaction?: boolean;
+  };
   id?: number;
   revision?: number;
   message_id: string;

@@ -1,3 +1,4 @@
+import { ToolMessageDetails } from "./tool-message-details";
 import { memo, type MouseEvent, useCallback, useState } from "react";
 import { ContextUsageGauge } from "./context-usage-gauge";
 import { createPortal } from "react-dom";
@@ -97,21 +98,6 @@ const permissionDecisionOptions: {
 }[] = [
   { label: "Deny", optionId: "deny", variant: "danger" },
   { label: "Allow once", optionId: "allow_once", variant: "primary" },
-  {
-    label: "This agent",
-    optionId: "allow_for_this_agent",
-    variant: "secondary",
-  },
-  {
-    label: "This node",
-    optionId: "allow_for_this_node",
-    variant: "secondary",
-  },
-  {
-    label: "All agents",
-    optionId: "allow_always_on_all_agents",
-    variant: "secondary",
-  },
 ];
 
 export const WorkstreamItemCard = memo(function WorkstreamItemCard({
@@ -124,6 +110,7 @@ export const WorkstreamItemCard = memo(function WorkstreamItemCard({
   if (item.type === "work_group") {
     return (
       <WorkGroupCard
+        userId={userId}
         complete={item.complete}
         events={item.events}
         onSelectToolEvidence={onSelectToolEvidence}
@@ -245,9 +232,11 @@ function areContextCompactionsEqual(
 
 export function ToolEvidencePanel({
   permissionDecision,
+  userId,
   selection,
 }: {
   permissionDecision: PermissionDecisionState;
+  userId?: string;
   selection: ToolEvidenceSelection | null;
 }) {
   if (!selection) {
@@ -305,12 +294,18 @@ export function ToolEvidencePanel({
         event={event}
         permissionDecision={permissionDecision}
       />
-      <ToolPayloadSection label="Input" value={event.input} />
-      <ToolPayloadSection
-        fallback={event.status === "done" ? "Success" : undefined}
-        label="Output"
-        value={event.output}
-      />
+      {event.historyDetails?.length ? (
+        <ToolMessageDetails event={event} userId={userId} />
+      ) : (
+        <>
+          <ToolPayloadSection label="Input" value={event.input} />
+          <ToolPayloadSection
+            fallback={event.status === "done" ? "Success" : undefined}
+            label="Output"
+            value={event.output}
+          />
+        </>
+      )}
     </div>
   );
 }
@@ -343,6 +338,7 @@ function EventCard({
   if (event.type === "tool_call") {
     return (
       <ToolGroupCard
+        userId={userId}
         events={[event]}
         onSelectToolEvidence={onSelectToolEvidence}
         permissionDecision={permissionDecision}
@@ -1003,11 +999,13 @@ function WorkGroupCard({
   events,
   onSelectToolEvidence,
   permissionDecision,
+  userId,
 }: {
   complete: boolean;
   events: WorkActivityEvent[];
   onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
   permissionDecision: PermissionDecisionState;
+  userId?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const pendingPermissionCount = events.reduce(
@@ -1061,6 +1059,7 @@ function WorkGroupCard({
               <ThoughtCard event={segment.event} key={segment.event.id} />
             ) : (
               <ToolGroupCard
+                userId={userId}
                 events={segment.events}
                 key={segment.id}
                 onSelectToolEvidence={onSelectToolEvidence}
@@ -1114,10 +1113,12 @@ function ToolGroupCard({
   events,
   onSelectToolEvidence,
   permissionDecision,
+  userId,
 }: {
   events: ToolCallEvent[];
   onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
   permissionDecision: PermissionDecisionState;
+  userId?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const runningCount = events.filter(
@@ -1174,6 +1175,7 @@ function ToolGroupCard({
         <div className="mt-2 overflow-hidden rounded-lg border border-hairline bg-surface-1">
           {events.map((event) => (
             <ToolEventRow
+              userId={userId}
               event={event}
               key={event.id}
               onSelectToolEvidence={onSelectToolEvidence}
@@ -1190,11 +1192,14 @@ function ToolEventRow({
   event,
   onSelectToolEvidence,
   permissionDecision,
+  userId,
 }: {
   event: ToolCallEvent;
   onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
   permissionDecision: PermissionDecisionState;
+  userId?: string;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const approvedDecisions = event.permissions
     ?.map((permission) =>
       permissionDecisionForPermission(permission, permissionDecision),
@@ -1230,7 +1235,8 @@ function ToolEventRow({
   return (
     <details
       className="group/tool min-w-0 border-b border-hairline last:border-b-0"
-      open={hasPendingPermission}
+      open={expanded || hasPendingPermission}
+      onToggle={(event) => setExpanded(event.currentTarget.open)}
     >
       <summary
         className="grid min-h-9 cursor-pointer list-none grid-cols-[16px_minmax(0,1fr)_auto_auto] items-center gap-2 px-3 py-1.5 outline-none transition hover:bg-canvas/70 [&::-webkit-details-marker]:hidden"
@@ -1257,12 +1263,20 @@ function ToolEventRow({
           onSelectToolEvidence={onSelectToolEvidence}
           permissionDecision={permissionDecision}
         />
-        <ToolPayloadSection label="Input" value={event.input} />
-        <ToolPayloadSection
-          fallback={event.status === "done" ? "Success" : undefined}
-          label="Output"
-          value={event.output}
-        />
+        {event.historyDetails?.length ? (
+          (expanded || hasPendingPermission) && (
+            <ToolMessageDetails event={event} userId={userId} />
+          )
+        ) : (
+          <>
+            <ToolPayloadSection label="Input" value={event.input} />
+            <ToolPayloadSection
+              fallback={event.status === "done" ? "Success" : undefined}
+              label="Output"
+              value={event.output}
+            />
+          </>
+        )}
       </div>
     </details>
   );
@@ -1913,10 +1927,9 @@ function permissionDecisionForPermission(
   permissionDecision: PermissionDecisionState,
 ) {
   return (
-    permission.decision ??
     (permission.approvalId
       ? permissionDecision.decisions[permission.approvalId]
-      : undefined)
+      : undefined) ?? permission.decision
   );
 }
 

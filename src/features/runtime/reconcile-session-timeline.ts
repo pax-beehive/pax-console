@@ -1,6 +1,7 @@
 import { filterMergedLiveEventsAlreadyInHistory } from "./filter-live-history-events";
 import { mergeEvents } from "./merge-session-events";
 import { SessionEvent } from "./session-events";
+import { reconcilePermissionDecisions } from "./permission-decisions";
 
 export type ReconciledSessionTimeline = {
   historyEvents: SessionEvent[];
@@ -9,26 +10,27 @@ export type ReconciledSessionTimeline = {
 };
 
 /**
- * Durable history, the owned conversation stream, and the observer are ordered
- * sources with different completeness guarantees. Conversation owns the agent
- * output for a locally submitted turn. Observer replay is only an incremental
- * continuation, so it extends the existing history/conversation prefix instead
- * of replacing the whole turn.
- *
- * Events from older servers without turn IDs retain the legacy text-based
- * overlap filter as a compatibility fallback.
+ * A committed observer snapshot replaces the complete target turn, including
+ * partial conversation output. Completed history takes ownership back. Older
+ * observers without snapshot boundaries keep the legacy incremental merge.
  */
 export function reconcileSessionTimeline(
   historyEvents: SessionEvent[],
   conversationEvents: SessionEvent[],
   observerEvents: SessionEvent[] = [],
+  observerSnapshotTurnIds: string[] = [],
 ): ReconciledSessionTimeline {
   const mergedHistory = mergeEvents(historyEvents);
   const mergedConversation = mergeEvents(conversationEvents);
   const mergedObserver = mergeEvents(observerEvents);
   const committedTurnIds = completedTurnIds(mergedHistory);
+  const observerOwns = new Set(
+    observerSnapshotTurnIds.filter((id) => !committedTurnIds.has(id)),
+  );
   const activeConversation = mergedConversation.filter(
-    (event) => !event.turnId || !committedTurnIds.has(event.turnId),
+    (event) =>
+      !event.turnId ||
+      (!committedTurnIds.has(event.turnId) && !observerOwns.has(event.turnId)),
   );
   const activeObserver = mergedObserver.filter(
     (event) => !event.turnId || !committedTurnIds.has(event.turnId),
@@ -46,6 +48,11 @@ export function reconcileSessionTimeline(
   for (const [turnId, historyTurn] of historyByTurn) {
     const conversationTurn = conversationByTurn.get(turnId);
     const observerTurn = observerByTurn.get(turnId);
+
+    if (observerOwns.has(turnId)) {
+      replacementByTurn.set(turnId, observerTurn ?? []);
+      continue;
+    }
 
     if (conversationTurn) {
       const durableUserEvents = historyTurn.filter(
@@ -122,7 +129,10 @@ export function reconcileSessionTimeline(
   return {
     historyEvents: visibleHistory,
     liveEvents: visibleRuntime,
-    timeline: mergeEvents([...timeline, ...runtimeTail]),
+    timeline: reconcilePermissionDecisions(
+      mergeEvents([...timeline, ...runtimeTail]),
+      [...mergedConversation, ...mergedObserver, ...mergedHistory],
+    ),
   };
 }
 
