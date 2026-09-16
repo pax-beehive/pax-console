@@ -1133,3 +1133,43 @@ function historyToolCall(
     },
   };
 }
+
+describe("compact tool history", () => {
+  it("merges summary and terminal references without losing completion or turn identity", () => {
+    const events = mergeEvents(
+      normalizeHistoryMessages([
+        {
+          message_id: "tool",
+          session_id: "session",
+          turn_id: "turn",
+          message_type: "tool_call",
+          tool: {
+            tool_call_id: "call",
+            title: "Run tests",
+            status: "completed",
+          },
+          has_detail: true,
+          updated_at: "2026-09-16T01:00:00Z",
+        },
+        {
+          message_id: "terminal",
+          session_id: "session",
+          turn_id: "turn",
+          message_type: "tool_call_update",
+          tool: { tool_call_id: "call", title: "", status: "" },
+          has_detail: true,
+          updated_at: "2026-09-16T00:59:00Z",
+        },
+      ]),
+    );
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      type: "tool_call",
+      name: "Run tests",
+      status: "done",
+      turnId: "turn",
+      historyDetails: [{ messageId: "tool" }, { messageId: "terminal" }],
+    });
+    expect(events[0]).not.toHaveProperty("raw_json");
+  });
+});

@@ -131,6 +131,7 @@ export type SessionEvent = (
     }
   | {
       type: "tool_call";
+      historyDetails?: { messageId: string; updatedAt?: string }[];
       id: string;
       sessionId: string;
       name: string;

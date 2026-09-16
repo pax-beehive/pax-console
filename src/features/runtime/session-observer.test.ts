@@ -102,7 +102,37 @@ describe("streamSessionObserver", () => {
     vi.unstubAllGlobals();
   });
 
-  it("gets session events with an optional message trim cursor", async () => {
+  it("pins reconnect to the selected turn and advances only at committed heads", async () => {
+    const responses = [
+      [
+        'data: {"type":"turn_start","session_id":"sess_1","turn_id":"turn_1"}\n\n',
+        'data: {"type":"head","session_id":"sess_1","turn_id":"turn_1","head_seq":7}\n\n',
+        'data: {"type":"history_item","session_id":"sess_1","turn_id":"turn_1","seq":8}\n\n',
+      ].join(""),
+      'data: {"type":"turn_done","session_id":"sess_1","turn_id":"turn_1"}\n\n',
+    ];
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(streamFromChunks([responses.shift() ?? ""]), {
+          headers: { "content-type": "text/event-stream" },
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await streamSessionObserverWithReconnect({
+      agentId: "agent_1",
+      sessionId: "sess_1",
+      userId: "self",
+      onEnvelope: vi.fn(),
+      maxReconnectAttempts: 1,
+      reconnectDelayMs: 0,
+    });
+    expect((fetchMock as Mock).mock.calls[0]?.[0]).not.toContain("?");
+    expect((fetchMock as Mock).mock.calls[1]?.[0]).toContain(
+      "turn_id=turn_1&after_seq=7",
+    );
+  });
+
+  it("gets session events with an turn scope and sequence watermark", async () => {
     const fetchMock = vi.fn(async () => {
       return new Response(
         streamFromChunks([
@@ -120,7 +150,8 @@ describe("streamSessionObserver", () => {
     const onConnected = vi.fn();
 
     await streamSessionObserver({
-      afterMessageId: "msg_1",
+      afterSeq: 7,
+      turnId: "turn_1",
       agentId: "agent_1",
       onConnected,
       onEnvelope: (envelope) => envelopes.push(envelope),
@@ -135,7 +166,7 @@ describe("streamSessionObserver", () => {
       RequestInit,
     ];
     expect(url).toBe(
-      "/api/pax/api/v1/user/self/agents/agent_1/sessions/sess_1/events?after_message_id=msg_1",
+      "/api/pax/api/v1/user/self/agents/agent_1/sessions/sess_1/events?turn_id=turn_1&after_seq=7",
     );
     expect(init.method).toBe("GET");
     expect(init.headers).toEqual({ Accept: "text/event-stream" });
@@ -208,7 +239,8 @@ describe("streamSessionObserver", () => {
     const onQueuedTurnFinished = vi.fn();
 
     await streamSessionObserverWithQueuedReplay({
-      afterMessageId: "msg_previous_turn",
+      afterSeq: 7,
+      turnId: "turn_1",
       agentId: "agent_1",
       followQueuedTurn: true,
       onEnvelope: (envelope) => envelopes.push(envelope),
@@ -223,14 +255,10 @@ describe("streamSessionObserver", () => {
     expect(onQueuedTurnStarted).toHaveBeenCalledOnce();
     expect(onQueuedTurnFinished).toHaveBeenCalledOnce();
     expect((fetchMock as Mock).mock.calls[0]?.[0]).toContain(
-      "after_message_id=msg_previous_turn",
+      "turn_id=turn_1&after_seq=7",
     );
-    expect((fetchMock as Mock).mock.calls[1]?.[0]).not.toContain(
-      "after_message_id",
-    );
-    expect((fetchMock as Mock).mock.calls[2]?.[0]).not.toContain(
-      "after_message_id",
-    );
+    expect((fetchMock as Mock).mock.calls[1]?.[0]).not.toContain("after_seq");
+    expect((fetchMock as Mock).mock.calls[2]?.[0]).not.toContain("after_seq");
     expect(envelopes.map((envelope) => envelope.type)).toEqual([
       "turn_done",
       "no_running_turn",
@@ -261,7 +289,8 @@ describe("streamSessionObserver", () => {
     const onReconnect = vi.fn();
 
     await streamSessionObserverWithReconnect({
-      afterMessageId: "msg_1",
+      afterSeq: 7,
+      turnId: "turn_1",
       agentId: "agent_1",
       maxReconnectAttempts: 1,
       onEnvelope: (envelope) => envelopes.push(envelope),
@@ -278,7 +307,7 @@ describe("streamSessionObserver", () => {
       "turn_done",
     ]);
     expect((fetchMock as Mock).mock.calls[1]?.[0]).toContain(
-      "after_message_id=msg_1",
+      "turn_id=turn_1&after_seq=7",
     );
   });
 });

@@ -1,5 +1,7 @@
 "use client";
 
+import type { MessageDetailPage } from "./types";
+
 import {
   type QueryClient,
   useInfiniteQuery,
@@ -844,10 +846,13 @@ export function listSessionMessages(
 export function listSessionHistory(
   userId: string,
   sessionId: string,
-  limit = 500,
+  limit = 100,
   cursor: { beforeSeq?: number; afterSeq?: number; beforeId?: number } = {},
 ) {
-  const params = new URLSearchParams({ limit: String(limit) });
+  const params = new URLSearchParams({
+    limit: String(limit),
+    view: cursor.beforeId ? "full" : "summary",
+  });
   if (cursor.afterSeq && cursor.afterSeq > 0) {
     params.set("after_seq", String(cursor.afterSeq));
   } else if (cursor.beforeSeq && cursor.beforeSeq > 0) {
@@ -2358,7 +2363,7 @@ export function useSessionHistory(userId?: string, sessionId?: string) {
       sessionId ?? "pending",
     ),
     queryFn: ({ pageParam }) =>
-      listSessionHistory(userId as string, sessionId as string, 500, {
+      listSessionHistory(userId as string, sessionId as string, 100, {
         beforeSeq: pageParam,
       }),
     enabled: Boolean(userId && sessionId),
@@ -2476,4 +2481,52 @@ function agentOwnerLookupKey(lookup: AgentOwnerInfoLookup) {
   return lookup.representativeAgentId
     ? `rep:${lookup.representativeAgentId}`
     : `agent:${lookup.agentId ?? ""}`;
+}
+
+export function useMessageDetail(
+  userId: string | undefined,
+  sessionId: string,
+  messageId: string,
+  section: "input" | "output",
+  updatedAt?: string,
+  complete = true,
+) {
+  return useInfiniteQuery({
+    queryKey: [
+      "message-detail",
+      userId,
+      sessionId,
+      messageId,
+      section,
+      updatedAt,
+      complete,
+    ],
+    queryFn: ({ pageParam, signal }) => {
+      const params = new URLSearchParams({
+        section,
+        offset: String(pageParam.offset),
+      });
+      if (pageParam.revision) params.set("revision", pageParam.revision);
+      return apiFetch<MessageDetailPage>(
+        userPath(
+          userId as string,
+          `/sessions/${encodeURIComponent(sessionId)}/messages/${encodeURIComponent(messageId)}?${params}`,
+        ),
+        { signal },
+      );
+    },
+    initialPageParam: { offset: 0, revision: "" },
+    getNextPageParam: (page) =>
+      page.has_more
+        ? { offset: page.next_offset, revision: page.revision }
+        : undefined,
+    enabled: Boolean(userId),
+    staleTime: complete ? Infinity : 0,
+    // Refresh only the first page while running. A multi-page read remains
+    // pinned to its revision and explicitly reloads if the content changes.
+    refetchInterval: (query) =>
+      !complete && (query.state.data?.pages.length ?? 0) <= 1 ? 2000 : false,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
 }

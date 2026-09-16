@@ -1008,7 +1008,7 @@ describe("listSessionHistory", () => {
     });
 
     expect(apiFetch).toHaveBeenCalledWith(
-      "/api/v1/user/u1/sessions/sess_1/history?limit=500",
+      "/api/v1/user/u1/sessions/sess_1/history?limit=100&view=summary",
     );
   });
 
@@ -1021,7 +1021,7 @@ describe("listSessionHistory", () => {
     await listSessionHistory("u1", "sess_1", 500, { beforeSeq: 42 });
 
     expect(apiFetch).toHaveBeenCalledWith(
-      "/api/v1/user/u1/sessions/sess_1/history?limit=500&before_seq=42",
+      "/api/v1/user/u1/sessions/sess_1/history?limit=500&view=summary&before_seq=42",
     );
   });
 
@@ -1030,12 +1030,12 @@ describe("listSessionHistory", () => {
 
     await listSessionHistory("u1", "sess_1", 500, { afterSeq: 7 });
     expect(apiFetch).toHaveBeenCalledWith(
-      "/api/v1/user/u1/sessions/sess_1/history?limit=500&after_seq=7",
+      "/api/v1/user/u1/sessions/sess_1/history?limit=500&view=summary&after_seq=7",
     );
 
     await listSessionHistory("u1", "sess_1", 500, { beforeId: 99 });
     expect(apiFetch).toHaveBeenCalledWith(
-      "/api/v1/user/u1/sessions/sess_1/history?limit=500&before_id=99",
+      "/api/v1/user/u1/sessions/sess_1/history?limit=500&view=full&before_id=99",
     );
   });
 

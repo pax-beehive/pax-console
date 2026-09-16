@@ -20,6 +20,51 @@ describe("reconcileSessionTimeline", () => {
     const result = reconcileSessionTimeline([durable], [live]);
     expect(result.timeline).toEqual([durable]);
   });
+  it("replaces fragmented live text with a committed observer turn snapshot", () => {
+    const history = [
+      user("older", "turn_0", "Earlier"),
+      user("prompt", "turn_1", "Now"),
+      event("agent_message", "partial", "turn_1", "A"),
+    ];
+    const live = [
+      event("agent_message", "live-a", "turn_1", "A"),
+      tool("live-tool", "turn_1", "terminal"),
+      event("agent_message", "live-b", "turn_1", "B"),
+    ];
+    const snapshot = [
+      user("prompt", "turn_1", "Now"),
+      event("agent_message", "durable", "turn_1", "AB"),
+      tool("durable-tool", "turn_1", "terminal"),
+    ];
+    const result = reconcileSessionTimeline(history, live, snapshot, [
+      "turn_1",
+    ]);
+    expect(result.timeline.map((item) => item.id)).toEqual([
+      "older",
+      "prompt",
+      "durable",
+      "durable-tool",
+    ]);
+    expect(result.liveEvents.map((item) => item.id)).not.toContain("live-a");
+  });
+
+  it("hands an observer snapshot back to completed history", () => {
+    const history = [
+      event("agent_message", "final", "turn_1", "ABC"),
+      {
+        type: "turn_done",
+        id: "done",
+        turnId: "turn_1",
+        sessionId: "sess_1",
+        createdAt,
+      } as SessionEvent,
+    ];
+    const snapshot = [event("agent_message", "stale", "turn_1", "AB")];
+    expect(
+      reconcileSessionTimeline(history, [], snapshot, ["turn_1"]).timeline,
+    ).toEqual(history);
+  });
+
   it("keeps the durable user prompt while conversation owns agent output", () => {
     const history = [
       user("history-user", "turn_1", "Please investigate"),

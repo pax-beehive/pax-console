@@ -103,7 +103,6 @@ import {
   SessionApprovalMode,
   SessionPaxConfig,
   SessionArtifact,
-  HistoryMessage,
   User,
 } from "@/features/api/types";
 import {
@@ -780,7 +779,6 @@ export function SessionWorkbench({
       refreshActiveSessionRuntime();
     }
   }, [completedConversationTurnVersion, refreshActiveSessionRuntime]);
-  const lastHistoryMessageID = lastMessageID(historyMessages);
   const shouldObserveSessionTurn =
     !usesEncryptedTransport &&
     Boolean(activeAgentId && currentSessionId) &&
@@ -912,7 +910,6 @@ export function SessionWorkbench({
     ],
   );
   const sessionObserver = useSessionObserver({
-    afterMessageId: shouldFollowQueuedTurn ? undefined : lastHistoryMessageID,
     agentId: activeAgentId,
     // The local conversation run owns its turn. Observing it at the same time
     // replays the same ACP frames under a different stream id, which renders
@@ -1436,6 +1433,7 @@ export function SessionWorkbench({
           ? encryptedRuntime.events
           : conversationRun.events,
         usesEncryptedTransport ? [] : sessionObserver.events,
+        usesEncryptedTransport ? [] : sessionObserver.snapshotTurnIds,
       ),
     [
       conversationRun.events,
@@ -1443,9 +1441,23 @@ export function SessionWorkbench({
       historyEvents,
       usesEncryptedTransport,
       sessionObserver.events,
+      sessionObserver.snapshotTurnIds,
     ],
   );
   const { timeline } = reconciledTimeline;
+  const currentToolEvidence =
+    selectedToolEvidence?.type === "tool"
+      ? {
+          ...selectedToolEvidence,
+          event:
+            timeline.find(
+              (event): event is Extract<SessionEvent, { type: "tool_call" }> =>
+                event.type === "tool_call" &&
+                event.id === selectedToolEvidence.event.id &&
+                event.turnId === selectedToolEvidence.event.turnId,
+            ) ?? selectedToolEvidence.event,
+        }
+      : selectedToolEvidence;
   const invocationOwnerLookups = useMemo(
     () => agentOwnerLookupsFromInvocations(timeline),
     [timeline],
@@ -2031,8 +2043,9 @@ export function SessionWorkbench({
         icon: <Wrench className="h-4 w-4" />,
         content: (
           <ToolEvidencePanel
+            userId={user.user_id}
             permissionDecision={permissionDecision}
-            selection={selectedToolEvidence}
+            selection={currentToolEvidence}
           />
         ),
       },
@@ -2597,14 +2610,6 @@ function readInitialPrompt(initialPrompt?: string, initialPromptKey?: string) {
   } catch {
     return "";
   }
-}
-
-function lastMessageID(messages?: HistoryMessage[]) {
-  if (!messages || messages.length === 0) {
-    return undefined;
-  }
-
-  return messages[messages.length - 1]?.message_id;
 }
 
 function isActiveSessionRunStatus(status?: string) {

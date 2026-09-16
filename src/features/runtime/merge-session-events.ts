@@ -1,4 +1,5 @@
 import { SessionEvent } from "./session-events";
+import { reconcilePermissionDecisions } from "./permission-decisions";
 import { CodePatch, coalesceCodePatches } from "./tool-patches";
 import { mergeToolCallOutput, textFromToolPayload } from "./tool-call-output";
 
@@ -130,8 +131,10 @@ export function mergeEvents(events: SessionEvent[]) {
     merged.push(event);
   }
 
-  return attachAdjacentPermissionsToTools(
-    merged.filter((event) => !hiddenEventIds.has(event.id)),
+  return reconcilePermissionDecisions(
+    attachAdjacentPermissionsToTools(
+      merged.filter((event) => !hiddenEventIds.has(event.id)),
+    ),
   );
 }
 
@@ -193,6 +196,24 @@ function mergeToolCallEvent(
     ...event,
     createdAt: existing.createdAt,
     id: existing.id,
+    historyDetails:
+      existing.historyDetails || event.historyDetails
+        ? [
+            ...new Map(
+              [
+                ...(existing.historyDetails ?? []),
+                ...(event.historyDetails ?? []),
+              ].map((detail) => [detail.messageId, detail]),
+            ).values(),
+          ]
+        : undefined,
+    status:
+      event.historyDetails &&
+      existing.historyDetails &&
+      ["done", "error"].includes(existing.status) &&
+      !["done", "error"].includes(event.status)
+        ? existing.status
+        : event.status,
     input: mergeToolPayload(existing, event, "input"),
     name: existing.name || event.name,
     output: mergeToolCallOutput(

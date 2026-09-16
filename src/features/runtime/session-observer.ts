@@ -4,7 +4,10 @@ import { Dispatch, SetStateAction, useEffect, useRef, useState } from "react";
 import { HistoryMessage } from "@/features/api/types";
 import { API_BASE_URL, userPath } from "../api/client";
 import { ApiError, AuthError } from "../api/errors";
-import { normalizeHistoryMessage } from "./normalize-history-message";
+import {
+  normalizeHistoryMessages,
+  normalizeHistoryMessage,
+} from "./normalize-history-message";
 import { normalizeTunnelFrame } from "./normalize-tunnel-frame";
 import { SessionEvent } from "./session-events";
 import { parseSseDataBlock, streamSseResponse } from "./conversation-run";
@@ -14,6 +17,13 @@ import {
 } from "./use-buffered-session-events";
 
 export type SessionObserverEnvelope =
+  | { type: "turn_start"; session_id: string; turn_id: string }
+  | {
+      type: "history_remove";
+      session_id: string;
+      turn_id: string;
+      message_id: string;
+    }
   | {
       type: "acp";
       agent_id?: string;
@@ -74,6 +84,7 @@ export type SessionObserverEnvelope =
       node_id?: string;
       session_id?: string;
       head_seq?: number;
+      turn_id?: string;
       message?: string;
     };
 
@@ -84,8 +95,91 @@ export type SessionObserverStatus =
   | "done"
   | "error";
 
+export type ObserverTranscript = {
+  sessionId?: string;
+  turnIds: string[];
+  events: SessionEvent[];
+  pendingTurnId?: string;
+  items: Record<string, HistoryMessage>;
+  dirty?: boolean;
+};
+
+const emptyObserverTranscript: ObserverTranscript = {
+  turnIds: [],
+  events: [],
+  items: {},
+};
+
+export function applyObserverTranscript(
+  current: ObserverTranscript,
+  envelope: SessionObserverEnvelope,
+): ObserverTranscript {
+  if (envelope.type === "turn_start") {
+    const previous =
+      current.sessionId === envelope.session_id
+        ? current
+        : emptyObserverTranscript;
+    return {
+      ...previous,
+      sessionId: envelope.session_id,
+      pendingTurnId: envelope.turn_id,
+      items: {},
+      dirty: true,
+    };
+  }
+  if (
+    envelope.type === "history_item" &&
+    envelope.item &&
+    envelope.session_id === current.sessionId &&
+    envelope.turn_id === current.pendingTurnId &&
+    envelope.item.session_id === current.sessionId &&
+    envelope.item.turn_id === current.pendingTurnId &&
+    envelope.item.message_id
+  ) {
+    return {
+      ...current,
+      dirty: true,
+      items: { ...current.items, [envelope.item.message_id]: envelope.item },
+    };
+  }
+  if (
+    envelope.type === "history_remove" &&
+    envelope.session_id === current.sessionId &&
+    envelope.turn_id === current.pendingTurnId
+  ) {
+    const items = { ...current.items };
+    delete items[envelope.message_id];
+    return { ...current, items, dirty: true };
+  }
+  if (
+    envelope.type !== "head" ||
+    envelope.session_id !== current.sessionId ||
+    !envelope.turn_id ||
+    envelope.turn_id !== current.pendingTurnId
+  )
+    return current;
+  if (!current.dirty) return current;
+  const turnId = envelope.turn_id;
+  const messages = Object.values(current.items).sort(
+    (a, b) => (a.session_seq ?? 0) - (b.session_seq ?? 0),
+  );
+  if (messages.length === 0 && !current.turnIds.includes(turnId)) {
+    return { ...current, dirty: false };
+  }
+  return {
+    ...current,
+    dirty: false,
+    turnIds: [...new Set([...current.turnIds, turnId])],
+    events: [
+      ...current.events.filter((event) => event.turnId !== turnId),
+      ...normalizeHistoryMessages(messages),
+    ],
+  };
+}
+
 type StreamSessionObserverOptions = {
-  afterMessageId?: string;
+  afterSeq?: number;
+  turnId?: string;
   agentId: string;
   onConnected?: () => void;
   onEnvelope: (envelope: SessionObserverEnvelope) => void;
@@ -95,7 +189,8 @@ type StreamSessionObserverOptions = {
 };
 
 type UseSessionObserverOptions = {
-  afterMessageId?: string;
+  afterSeq?: number;
+  turnId?: string;
   agentId?: string;
   enabled?: boolean;
   followQueuedTurn?: boolean;
@@ -111,7 +206,8 @@ type UseSessionObserverOptions = {
 };
 
 export async function streamSessionObserver({
-  afterMessageId,
+  afterSeq,
+  turnId,
   agentId,
   onConnected,
   onEnvelope,
@@ -120,9 +216,8 @@ export async function streamSessionObserver({
   userId,
 }: StreamSessionObserverOptions) {
   const params = new URLSearchParams();
-  if (afterMessageId) {
-    params.set("after_message_id", afterMessageId);
-  }
+  if (turnId) params.set("turn_id", turnId);
+  if (afterSeq !== undefined) params.set("after_seq", String(afterSeq));
   const query = params.toString();
   const response = await fetch(
     `${API_BASE_URL}${userPath(
@@ -183,10 +278,14 @@ export async function streamSessionObserverWithQueuedReplay({
     let terminalType: "error" | "no_running_turn" | "turn_done" | undefined;
     await streamSessionObserver({
       ...options,
-      afterMessageId: waitingForFollowUp ? undefined : options.afterMessageId,
+      afterSeq: waitingForFollowUp ? undefined : options.afterSeq,
+      turnId: waitingForFollowUp ? undefined : options.turnId,
       onEnvelope: (envelope) => {
         options.onEnvelope(envelope);
-        if (waitingForFollowUp && envelope.type === "acp") {
+        if (
+          waitingForFollowUp &&
+          (envelope.type === "acp" || envelope.type === "turn_start")
+        ) {
           waitingForFollowUp = false;
           followUpAvailable = false;
           followUpStarted = true;
@@ -241,11 +340,29 @@ export async function streamSessionObserverWithReconnect({
   reconnectMaxDelayMs?: number;
 }) {
   let attempt = 0;
+  let pinnedTurnId = options.turnId;
+  let afterSeq = options.afterSeq;
   let delayMs = Math.max(0, reconnectDelayMs);
 
   while (!options.signal?.aborted) {
     try {
-      await streamSessionObserverWithQueuedReplay(options);
+      await streamSessionObserverWithQueuedReplay({
+        ...options,
+        turnId: pinnedTurnId,
+        afterSeq,
+        onEnvelope: (envelope) => {
+          options.onEnvelope(envelope);
+          if (envelope.type === "turn_start") {
+            if (pinnedTurnId !== envelope.turn_id) afterSeq = undefined;
+            pinnedTurnId = envelope.turn_id;
+          }
+          if (envelope.type === "head" && envelope.turn_id === pinnedTurnId) {
+            afterSeq = envelope.head_seq;
+          }
+          if (envelope.type === "resync")
+            throw new SessionObserverDisconnectedError();
+        },
+      });
       return;
     } catch (caught) {
       if (options.signal?.aborted) {
@@ -275,7 +392,8 @@ export function parseSessionObserverSseBlock(block: string) {
 }
 
 export function useSessionObserver({
-  afterMessageId,
+  afterSeq,
+  turnId,
   agentId,
   enabled = true,
   followQueuedTurn,
@@ -298,6 +416,9 @@ export function useSessionObserver({
     flush: flushEvents,
     reset: resetEvents,
   } = useBufferedSessionEvents();
+  const [transcript, setTranscript] = useState<ObserverTranscript>(
+    emptyObserverTranscript,
+  );
   const canObserve = Boolean(enabled && agentId && sessionId);
 
   useEffect(() => {
@@ -312,7 +433,8 @@ export function useSessionObserver({
     const streamId = [
       sessionId,
       "observe",
-      afterMessageId ?? "head",
+      turnId ?? "active",
+      String(afterSeq ?? 0),
       Date.now(),
     ].join(":");
 
@@ -326,11 +448,23 @@ export function useSessionObserver({
     });
 
     void streamSessionObserverWithReconnect({
-      afterMessageId,
+      afterSeq,
+      turnId,
       agentId,
       followQueuedTurn,
       onConnected,
-      onEnvelope: (envelope) =>
+      onEnvelope: (envelope) => {
+        if (abortController.signal.aborted) return;
+        if (
+          ["turn_start", "history_item", "history_remove", "head"].includes(
+            envelope.type,
+          )
+        ) {
+          setTranscript((current) =>
+            applyObserverTranscript(current, envelope),
+          );
+          return;
+        }
         handleSessionObserverEnvelope(envelope, {
           onBufferMiss,
           onNoRunningTurn,
@@ -339,7 +473,8 @@ export function useSessionObserver({
           appendEvents,
           setStatus,
           streamId,
-        }),
+        });
+      },
       sessionId,
       signal: abortController.signal,
       userId,
@@ -369,7 +504,8 @@ export function useSessionObserver({
       }
     };
   }, [
-    afterMessageId,
+    afterSeq,
+    turnId,
     agentId,
     appendEvents,
     enabled,
@@ -389,7 +525,14 @@ export function useSessionObserver({
 
   return {
     error: canObserve ? error : null,
-    events: canObserve ? events : [],
+    events:
+      transcript.sessionId === sessionId && transcript.turnIds.length
+        ? transcript.events
+        : canObserve
+          ? events
+          : [],
+    snapshotTurnIds:
+      transcript.sessionId === sessionId ? transcript.turnIds : [],
     status: canObserve ? status : "idle",
   };
 }
@@ -470,8 +613,8 @@ export function handleSessionObserverEnvelope(
   }
 
   if (envelope.type === "head" || envelope.type === "resync") {
-    // Watermark / overflow signal. The outer onEnvelope consumer pulls
-    // history?after_seq to reconcile; nothing to render here.
+    // Snapshot heads are committed by the transcript reducer. Resync is
+    // handled by the reconnect loop and stays pinned to the same turn.
     return;
   }
 

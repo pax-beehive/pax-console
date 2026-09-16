@@ -545,7 +545,7 @@ turn owner.
 The workbench observes background or second-window turns through:
 
 ```txt
-GET /api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/events?after_message_id=<message_id>
+GET /api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/events?turn_id=<turn_id>&after_seq=<head_seq>
 Accept: text/event-stream
 ```
 
@@ -554,17 +554,30 @@ session in the paginated flat sessions list and uses its authoritative
 `node_id` and `agent_id` for queue and observer requests. It must not fall back
 to the first available agent while that lookup is pending.
 
-The endpoint observes the current running turn for that session. If there is no
-running turn, it emits `type=no_running_turn` and closes; the UI should stop the
-observer and use bounded history refetch to close any conversation/observer
-handoff gap. If a turn is running, it replays the
-turn-scoped in-memory buffer and then streams live events. `after_message_id`
-is the global `HistoryMessage.message_id` from REST history, used only as a
-trim hint inside the current turn buffer. If it is not found in the buffer, the
-endpoint emits `type=buffer_miss`, skips replay, and keeps streaming the live
-tail. On terminal prompt response it emits `type=turn_done` and closes. Normal
-live payloads use `type=acp` with the same `frame` shape as `/conversation`, so
-the UI should pass `frame` to `normalizeTunnelFrame`.
+The endpoint is pinned to one business turn. Omit `turn_id` only on the first
+connection to select the active turn (running or waiting for approval); an idle
+session emits `no_running_turn` without replay. Reconnect sends that same
+`turn_id` and the last committed `head_seq` as `after_seq`. The legacy
+`after_message_id` is rejected, not silently ignored.
+
+The stream starts with `turn_start`, replays the complete durable turn as
+`history_item`, and commits the batch with `head`. Subsequent items replace
+message versions by `message_id`; `history_remove` removes superseded display
+rows. `session_seq` orders rows but does not change when text grows, so reconnect
+must refresh the prefix even when a watermark is supplied. A cursor ahead of
+the target turn is rejected; no cursor can expand replay to other turns.
+
+Manager currently checks the durable turn every 500 ms and sends changed
+versions. The browser does not poll history for recovery and does not mix these
+versions with raw ACP deltas. `applyObserverTranscript` stages a reconnect batch
+until `head`, retaining the prior view if replay disconnects halfway through.
+A committed snapshot replaces that turn's previous history/conversation view.
+Only a durable `turn_done` marker ends the stream and lets completed history
+retake ownership. `resync` reconnects to the same turn. Legacy ACP observer
+normalization remains for compatibility with older servers.
+
+Deploy Manager and Console together: old Console uses a rejected cursor
+parameter, and the snapshot contract is not supported by the old Manager.
 
 New sessions usually send `{ "input": "..." }`; when prompt attachments are
 present, the browser sends structured `content` blocks instead:
@@ -612,9 +625,8 @@ keeps history, the owned conversation stream, and observer replay as separate
 ordered sources; it must not timestamp-sort them because replayed ACP frames
 receive client arrival timestamps. A locally owned conversation replaces only
 that turn's agent projection while retaining the durable user prompt at the
-turn's original history position. Observer replay extends the existing
-history/conversation prefix and filters repeated text instead of deleting the
-whole turn. Once the completion marker appears, durable history owns the turn.
+turn's original history position. A committed observer snapshot replaces the full target turn; message identity,
+not repeated-text filtering, determines the resulting projection. Once the completion marker appears, durable history owns the turn.
 Durable storage may aggregate every `agent_message_chunk` in that turn into a
 single row anchored at the first chunk. History normalization therefore places
 that aggregate after the turn's work events and immediately before the durable
@@ -787,6 +799,15 @@ without an initiating conversation stream. Observer/history frames must carry
 the durable approval ID. Serialize decision submissions, but once the decision
 is saved, a still-pending resumed conversation must not disable a different
 permission request's buttons.
+
+Only Deny and Allow once are currently exposed in timeline and Home approval
+actions. Keep the other decision values compatible with existing history, but
+do not offer persistent grants in these controls.
+
+Reconcile permission decisions independently of timeline ownership and tool
+card nesting. Durable decisions must survive live turn replacement; match ACP
+request IDs within their session and turn so reused IDs cannot settle another
+request. Locally saved manual decisions override inferred auto-approval labels.
 
 Do not confuse the two session ids:
 
@@ -1250,3 +1271,33 @@ follow the latest operation; this is not a PAX-session ownership guarantee.
 The original window-follow behavior needs no session-key setup; the newer Docker
 preview mode requires the paxd screenshot implementation described above.
 Further frontend information-architecture changes are deferred for discussion.
+
+## Compact history and lazy tool details
+
+Manager history reads request `view=summary` with 100 messages per page and seq
+cursors. Tool rows carry `tool` metadata and `has_detail`, not full ACP frames or
+parts. `normalize-history-message.ts` normalizes these directly and preserves
+all message references when terminal output shares a tool ID. Ordinary text,
+thoughts, user attachments, permission decisions, and artifact/invocation display
+records stay inline. The legacy before_id helper explicitly requests full view.
+E2EE history and live ACP handling keep their existing contracts.
+
+Opening an individual tool or selecting its evidence panel mounts
+`tool-message-details.tsx`. Resource hooks fetch
+`GET /sessions/{session_id}/messages/{message_id}?section=input|output` through
+the same-origin proxy. TanStack Query owns cached pages, keyed by user, session,
+message, section, history update timestamp, and completion state. While running,
+only an open single-page detail refreshes every two seconds; multi-page reads
+stay pinned. Completion starts a fresh cache entry. Merely expanding Working or
+the tool group fetches nothing. Load more is explicit. Each continuation sends
+the server revision; 409 requires Reload details from offset zero. Offsets count
+Unicode code points. JSON fragments are decoded only when complete. The evidence
+panel resolves its selection against the current timeline so completion/history
+updates select the new cache revision. Detail sections display text/JSON; live
+rich patch rendering is unchanged, while compact history does not fetch patches
+for turn-footer aggregation.
+
+Deploy Manager before Console. Summary mode avoids the old history GET repair
+scan; publication reconciliation still happens on write paths. Full history stays
+available for older clients. These changes do not split ordinary reply/thought
+part 0, cap total inline text bytes, or change paxd persistence.

@@ -2738,7 +2738,10 @@ function buildWorkItems({
 
 function homeApprovalOptions(approval: AgentApproval) {
   const options = (approval.options ?? [])
-    .filter((option) => option.option_id)
+    .filter(
+      (option) =>
+        option.option_id === "deny" || option.option_id === "allow_once",
+    )
     .map((option) => ({
       label: option.label ?? approvalOptionLabel(option.option_id!),
       optionId: option.option_id!,
@@ -2748,7 +2751,6 @@ function homeApprovalOptions(approval: AgentApproval) {
     ? options
     : [
         { label: "Allow once", optionId: "allow_once" },
-        { label: "Allow for agent", optionId: "allow_for_this_agent" },
         { label: "Deny", optionId: "deny" },
       ];
 }
