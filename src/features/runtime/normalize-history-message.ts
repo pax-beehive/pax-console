@@ -232,7 +232,8 @@ function normalizeHistoryMessageWithoutTurn(
     return frameEvents;
   }
 
-  const textContent = textFromParts(message, isTextPartType);
+  const textContent =
+    textFromParts(message, isTextPartType) || historyPromptText(message);
   const isThoughtMessage = isThoughtKind(message.message_type);
   const thoughtContent =
     textFromParts(message, isThoughtPartType) ||
@@ -469,6 +470,26 @@ function historyFrameCandidates(message: HistoryMessage) {
   }
 
   return candidates;
+}
+
+function historyPromptText(message: HistoryMessage) {
+  if (message.role !== "user") return "";
+  for (const candidate of historyFrameCandidates(message)) {
+    const frame = asRecord(unwrapHistoryFrame(candidate));
+    if (frame?.method !== "session/prompt") continue;
+    const prompt = asRecord(frame.params)?.prompt;
+    if (!Array.isArray(prompt)) continue;
+    const text = prompt
+      .flatMap((block) => {
+        const content = asRecord(block);
+        return content?.type === "text" && typeof content.text === "string"
+          ? [content.text]
+          : [];
+      })
+      .join("\n");
+    if (text) return text;
+  }
+  return "";
 }
 
 function parseJSONPartText(text: string | undefined) {
