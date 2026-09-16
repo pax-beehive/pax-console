@@ -1054,6 +1054,28 @@ describe("listSessionHistory", () => {
     ).toEqual(["msg_1", "msg_2", "msg_3", "msg_4"]);
   });
 
+  it("deduplicates turn context across tool pages and keeps sequence order", () => {
+    const prompt = { message_id: "prompt", session_seq: 1 };
+    const answer = { message_id: "answer", session_seq: 2 };
+    const pages = [
+      {
+        messages: [
+          prompt,
+          answer,
+          { message_id: "tool-new", session_seq: 105 },
+        ],
+        pagination: {},
+      },
+      {
+        messages: [prompt, answer, { message_id: "tool-old", session_seq: 3 }],
+        pagination: {},
+      },
+    ];
+    expect(
+      flattenSessionHistoryPages(pages).map((message) => message.message_id),
+    ).toEqual(["prompt", "answer", "tool-old", "tool-new"]);
+  });
+
   it("treats a null empty-history response as no messages", () => {
     expect(
       flattenSessionHistoryPages([

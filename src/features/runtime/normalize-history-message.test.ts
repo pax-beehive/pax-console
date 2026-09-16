@@ -6,6 +6,37 @@ import {
 } from "./normalize-history-message";
 
 describe("normalizeHistoryMessage", () => {
+  it("restores prompt text when a summary contains only the raw prompt frame", () => {
+    const message = {
+      message_id: "prompt",
+      session_id: "sess_1",
+      turn_id: "turn_1",
+      role: "user",
+      raw_json: {
+        method: "session/prompt",
+        params: {
+          prompt: [
+            { type: "text", text: "Read deployment status" },
+            { type: "text", text: "Keep it read-only" },
+          ],
+        },
+      },
+      parts: [],
+    };
+    expect(normalizeHistoryMessage(message)).toMatchObject([
+      {
+        type: "user_message",
+        content: "Read deployment status\nKeep it read-only",
+        turnId: "turn_1",
+      },
+    ]);
+    expect(
+      normalizeHistoryMessage({
+        ...message,
+        parts: [{ part_index: 0, part_type: "text", text: "Canonical prompt" }],
+      }),
+    ).toMatchObject([{ type: "user_message", content: "Canonical prompt" }]);
+  });
   it.each([
     [
       `file:///home/pax/.paxd/attachments/remotes/remote/att_${"a".repeat(48)}/Screenshot%20one.png`,

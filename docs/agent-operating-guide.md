@@ -1301,3 +1301,14 @@ Deploy Manager before Console. Summary mode avoids the old history GET repair
 scan; publication reconciliation still happens on write paths. Full history stays
 available for older clients. These changes do not split ordinary reply/thought
 part 0, cap total inline text bytes, or change paxd persistence.
+
+## Summary history preserves conversation text
+
+Summary pages use a base transport-row cursor and include non-tool context for
+the turns present on that page. A long turn must still show its user prompt and
+assistant aggregate even when their first-touch sequences precede the latest
+100 tool rows. The original base-page cursor remains the next-page cursor.
+Canonical prompt text parts stay inline; raw session/prompt text is a fallback
+when parts are missing. Flatten pages by message_id and order by session_seq so
+repeated turn context does not render twice. Tools remain available in work
+groups and load their full details only when opened.

@@ -1340,3 +1340,14 @@ history 不会为了计算轮次底部 diff 而预取所有工具详情。
 部署先 Manager 后 Console。原 full history 保留兼容；summary 查询不会触发
 旧的全 session artifact 修复扫描，正常写入路径继续负责展示记录的投影。
 本次不改变 paxd 或普通回复/think 的 part 0 存储，也不限制列表所有正文的总字节数。
+
+## Summary history preserves conversation text
+
+Summary pages use a base transport-row cursor and include non-tool context for
+the turns present on that page. A long turn must still show its user prompt and
+assistant aggregate even when their first-touch sequences precede the latest
+100 tool rows. The original base-page cursor remains the next-page cursor.
+Canonical prompt text parts stay inline; raw session/prompt text is a fallback
+when parts are missing. Flatten pages by message_id and order by session_seq so
+repeated turn context does not render twice. Tools remain available in work
+groups and load their full details only when opened.

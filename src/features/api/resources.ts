@@ -866,7 +866,24 @@ export function listSessionHistory(
 }
 
 export function flattenSessionHistoryPages(pages?: HistoryListData[]) {
-  return [...(pages ?? [])].reverse().flatMap((page) => page.messages ?? []);
+  const messages = new Map<string, HistoryMessage>();
+  for (const page of [...(pages ?? [])].reverse()) {
+    for (const message of page.messages ?? []) {
+      const existing = messages.get(message.message_id);
+      if (
+        existing?.updated_at &&
+        message.updated_at &&
+        existing.updated_at > message.updated_at
+      )
+        continue;
+      messages.set(message.message_id, message);
+    }
+  }
+  const ordered = [...messages.values()];
+  if (ordered.every((message) => typeof message.session_seq === "number")) {
+    ordered.sort((a, b) => a.session_seq! - b.session_seq!);
+  }
+  return ordered;
 }
 
 export function stopSessionTurn(
