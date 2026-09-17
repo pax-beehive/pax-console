@@ -11,6 +11,7 @@ import {
 import { normalizeTunnelFrame } from "./normalize-tunnel-frame";
 import { SessionEvent } from "./session-events";
 import { parseSseDataBlock, streamSseResponse } from "./conversation-run";
+import { usePageResume } from "./use-page-resume";
 import {
   appendSessionEvents,
   useBufferedSessionEvents,
@@ -420,6 +421,10 @@ export function useSessionObserver({
     emptyObserverTranscript,
   );
   const canObserve = Boolean(enabled && agentId && sessionId);
+  const [resumeVersion, setResumeVersion] = useState(0);
+  usePageResume(() => {
+    if (canObserve) setResumeVersion((version) => version + 1);
+  });
 
   useEffect(() => {
     abortRef.current?.abort();
@@ -519,6 +524,7 @@ export function useSessionObserver({
     onQueuedTurnUnavailable,
     onTurnDone,
     resetEvents,
+    resumeVersion,
     sessionId,
     userId,
   ]);
