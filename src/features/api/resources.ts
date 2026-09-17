@@ -263,6 +263,7 @@ export type QueuedSessionTurnData = {
   queued_turn_id: string;
   session_id: string;
   updated_at: string;
+  state?: "queued" | "sending" | "uncertain";
 };
 
 type DeleteQueuedSessionTurnData = {
@@ -2352,6 +2353,7 @@ export function useUserSession(
   userId?: string,
   sessionId?: string,
   agentId?: string,
+  refetchInterval = 30_000,
 ) {
   return useQuery({
     queryKey: queryKeys.sessionMetadata(
@@ -2361,7 +2363,7 @@ export function useUserSession(
     queryFn: () =>
       getUserSession(userId as string, sessionId as string, agentId),
     enabled: Boolean(userId && sessionId),
-    refetchInterval: 30_000,
+    refetchInterval,
   });
 }
 

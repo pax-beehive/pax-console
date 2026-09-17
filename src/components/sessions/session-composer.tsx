@@ -303,29 +303,36 @@ export const SessionComposer = memo(function SessionComposer({
           <div className="mb-2 grid gap-2 rounded-xl border border-primary/25 bg-primary/5 p-2.5">
             <div className="flex min-w-0 items-center gap-2">
               <span className="text-xs font-medium text-primary-hover">
-                Queued next
+                {queuedTurn.state === "sending"
+                  ? "Sending queued message"
+                  : queuedTurn.state === "uncertain"
+                    ? "Delivery unconfirmed"
+                    : "Queued next"}
               </span>
               <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-ink-tertiary">
                 {compactId(queuedTurn.queued_turn_id)}
               </span>
-              {queuedTurnEditingId !== queuedTurn.queued_turn_id && (
-                <Button
-                  aria-label="Edit queued message"
-                  disabled={deleteQueuedTurnPending}
-                  icon={<Pencil className="h-3.5 w-3.5" />}
-                  onClick={() => {
-                    setQueuedTurnDraft(queuedTurn.input);
-                    setQueuedTurnEditingId(queuedTurn.queued_turn_id);
-                  }}
-                  size="icon"
-                  tooltip="Edit queued message"
-                  type="button"
-                  variant="ghost"
-                />
-              )}
+              {queuedTurnEditingId !== queuedTurn.queued_turn_id &&
+                (!queuedTurn.state || queuedTurn.state === "queued") && (
+                  <Button
+                    aria-label="Edit queued message"
+                    disabled={deleteQueuedTurnPending}
+                    icon={<Pencil className="h-3.5 w-3.5" />}
+                    onClick={() => {
+                      setQueuedTurnDraft(queuedTurn.input);
+                      setQueuedTurnEditingId(queuedTurn.queued_turn_id);
+                    }}
+                    size="icon"
+                    tooltip="Edit queued message"
+                    type="button"
+                    variant="ghost"
+                  />
+                )}
               <Button
                 aria-label="Delete queued message"
-                disabled={deleteQueuedTurnPending}
+                disabled={
+                  deleteQueuedTurnPending || queuedTurn.state === "sending"
+                }
                 icon={
                   deleteQueuedTurnPending ? (
                     <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
@@ -340,7 +347,15 @@ export const SessionComposer = memo(function SessionComposer({
                 variant="ghost"
               />
             </div>
-            {queuedTurnEditingId === queuedTurn.queued_turn_id ? (
+            {queuedTurn.state === "uncertain" && (
+              <p className="text-xs text-warning">
+                Delivery could not be confirmed. Check the conversation before
+                sending again. Deleting this entry does not cancel a message
+                already received by paxd.
+              </p>
+            )}
+            {queuedTurnEditingId === queuedTurn.queued_turn_id &&
+            (!queuedTurn.state || queuedTurn.state === "queued") ? (
               <div className="grid gap-2">
                 <SessionCommandInput
                   commands={secure ? undefined : availableCommands}

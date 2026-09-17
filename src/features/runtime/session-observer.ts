@@ -255,11 +255,11 @@ export async function streamSessionObserver({
 
 export async function streamSessionObserverWithQueuedReplay({
   followQueuedTurn = false,
-  maxQueuedTurnAttempts = 20,
+  maxQueuedTurnAttempts = 40,
   onQueuedTurnStarted,
   onQueuedTurnFinished,
   onQueuedTurnUnavailable,
-  retryDelayMs = 150,
+  retryDelayMs = 1000,
   ...options
 }: StreamSessionObserverOptions & {
   followQueuedTurn?: boolean;
