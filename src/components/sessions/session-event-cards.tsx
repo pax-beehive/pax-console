@@ -1,5 +1,13 @@
 import { ToolMessageDetails } from "./tool-message-details";
-import { memo, type MouseEvent, useCallback, useState } from "react";
+import {
+  memo,
+  type MouseEvent,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import { ContextUsageGauge } from "./context-usage-gauge";
 import { createPortal } from "react-dom";
 import { motion } from "motion/react";
@@ -479,12 +487,81 @@ function UserMessageCard({
             ))}
           </ul>
         )}
-        <MarkdownMessage
-          className="overflow-hidden text-base leading-6 text-ink sm:text-sm sm:leading-5"
-          content={event.content}
-        />
+        <UserMessageBody key={event.id} content={event.content} />
       </div>
     </article>
+  );
+}
+
+function UserMessageBody({ content }: { content: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [canExpand, setCanExpand] = useState(false);
+  const contentId = useId();
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    const body = contentRef.current;
+    if (!viewport || !body) return;
+
+    const measure = () => {
+      const lineHeight = parseFloat(
+        window.getComputedStyle(viewport).lineHeight,
+      );
+      // Measure the unclipped content so the control remains available when open.
+      setCanExpand(body.scrollHeight > lineHeight * 3 + 1);
+    };
+    const frame = window.requestAnimationFrame(measure);
+    const observer = new ResizeObserver(measure);
+    observer.observe(body);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [content]);
+
+  return (
+    <>
+      <div
+        id={contentId}
+        ref={viewportRef}
+        className={cn(
+          "overflow-hidden text-base leading-6 sm:text-sm sm:leading-5",
+          !expanded && "max-h-[3lh]",
+        )}
+        onFocusCapture={() => {
+          // Reveal any Markdown link or code action reached using the keyboard.
+          if (canExpand) setExpanded(true);
+        }}
+      >
+        <div ref={contentRef}>
+          <MarkdownMessage
+            className="overflow-hidden text-base leading-6 text-ink sm:text-sm sm:leading-5"
+            content={content}
+          />
+        </div>
+      </div>
+      {canExpand && (
+        <Button
+          aria-controls={contentId}
+          aria-expanded={expanded}
+          className="mt-1"
+          icon={
+            <ChevronDown
+              aria-hidden="true"
+              className={cn("h-3.5 w-3.5", expanded && "rotate-180")}
+            />
+          }
+          onClick={() => setExpanded((current) => !current)}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          {expanded ? "Click to collapse" : "Click to expand"}
+        </Button>
+      )}
+    </>
   );
 }
 

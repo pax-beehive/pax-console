@@ -212,6 +212,11 @@ vertically only; long names, descriptions, and hints wrap within the composer.
 Markdown paragraphs use 6px spacing. Agent-message and work-group
 items add no vertical padding beyond the 8px timeline gap.
 
+User-message bodies taller than three rendered lines start collapsed. A
+"Click to expand" / "Click to collapse" button toggles the full Markdown body;
+short messages have no toggle. Measure rendered height again when the message
+or viewport size changes, and keep sent attachments outside the collapsed body.
+
 Copy should be specific and operational. Avoid generic AI-control-plane
 language when a concrete engineering label is available. For example, prefer
 `Tunnel connected`, `3 files changed`, `Waiting for approval`, or

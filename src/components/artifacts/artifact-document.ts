@@ -138,9 +138,10 @@ export function artifactDocumentFromPublication({
     agentId: publication?.agent_id || artifact?.agent_id,
     previewMode: "document",
     title:
-      publication?.title ??
-      publication?.filename ??
-      artifact?.title ??
+      publication?.title?.trim() ||
+      artifact?.title?.trim() ||
+      content?.filename ||
+      publication?.filename ||
       fallbackTitle,
     filename: content?.filename ?? publication?.filename,
     sizeBytes: content?.size_bytes,
@@ -165,7 +166,7 @@ export function artifactDocumentFromSessionArtifact(
     sessionId: artifact.session_id,
     agentId: artifact.agent_id,
     previewMode: "document",
-    title: artifact.title ?? content?.filename ?? artifact.artifact_id,
+    title: artifact.title?.trim() || content?.filename || "Untitled artifact",
     filename: content?.filename,
     sizeBytes: content?.size_bytes,
     contentType: content?.content_type,

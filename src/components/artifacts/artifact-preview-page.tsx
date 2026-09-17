@@ -13,7 +13,6 @@ import {
   getArtifactPublicationContent,
   useArtifact,
   useArtifactPublication,
-  useUserSession,
 } from "@/features/api/resources";
 import type { User } from "@/features/api/types";
 import { AuthGate } from "@/features/auth/auth-gate";
@@ -68,7 +67,9 @@ function ArtifactPreviewPage({
           artifactId,
           contentRef,
         ),
-        fallbackTitle: artifactId,
+        fallbackTitle: publicationQuery.data
+          ? "Untitled artifact"
+          : "Loading artifact…",
         publicationId: artifactId,
         state: publicationQuery.data,
       });
@@ -79,7 +80,9 @@ function ArtifactPreviewPage({
         id: artifactId,
         sourceType: "session_artifact",
         previewMode: "document",
-        title: artifactId,
+        title: artifactQuery.isError
+          ? "Artifact unavailable"
+          : "Loading artifact…",
         status: artifactQuery.isError ? "failed" : "loading",
         statusMessage:
           artifactQuery.error instanceof Error
@@ -108,15 +111,6 @@ function ArtifactPreviewPage({
     sourceType,
     user.user_id,
   ]);
-  const sourceSession = useUserSession(
-    user.user_id,
-    document.sessionId,
-    document.agentId,
-  );
-  const sessionName =
-    sourceSession.data?.name ||
-    sourceSession.data?.reported_name ||
-    "Source session";
   useDocumentTitle(`${document.title} · Artifact`);
 
   const loadPreview = useCallback(async () => {
@@ -186,14 +180,16 @@ function ArtifactPreviewPage({
               <Button
                 asChild
                 variant="ghost"
-                className="min-w-0 shrink"
-                tooltip={sessionName}
+                size="sm"
+                aria-label="Back to session"
+                tooltip="Back to session"
+                className="max-sm:h-9 max-sm:w-9 max-sm:justify-center max-sm:px-0"
               >
                 <Link
                   href={`/sessions/${encodeURIComponent(document.sessionId)}`}
                 >
                   <ArrowLeft className="h-4 w-4 shrink-0" />
-                  <span className="truncate">{sessionName}</span>
+                  <span className="hidden sm:inline">Back to session</span>
                 </Link>
               </Button>
             ) : (

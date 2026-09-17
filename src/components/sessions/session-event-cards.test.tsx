@@ -1,7 +1,13 @@
 /* @vitest-environment jsdom */
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import {
   afterAll,
   afterEach,
@@ -40,7 +46,10 @@ beforeAll(() => {
 });
 
 afterAll(() => vi.unstubAllGlobals());
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 function renderItem(
   item: WorkstreamItem,
@@ -53,7 +62,79 @@ function renderItem(
   );
 }
 
+function mockMessageHeight(height: number) {
+  const getComputedStyle = window.getComputedStyle;
+  vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(
+    height,
+  );
+  return vi.spyOn(window, "getComputedStyle").mockImplementation((element) => {
+    const style = getComputedStyle(element);
+    style.lineHeight = "20px";
+    return style;
+  });
+}
+
 describe("session event cards", () => {
+  it("lets the user expand and collapse a message taller than three rendered lines", async () => {
+    mockMessageHeight(100);
+    renderItem({
+      type: "event",
+      id: "long-user",
+      event: {
+        type: "user_message",
+        id: "long-user",
+        sessionId: "sess_1",
+        content: "A long prompt that wraps across several lines at this width.",
+        createdAt: "2026-09-17T00:00:00Z",
+        attachments: [
+          {
+            attachmentId: "att_1",
+            filename: "notes.pdf",
+            contentType: "application/pdf",
+          },
+        ],
+      },
+    });
+
+    const expand = await screen.findByRole("button", {
+      name: "Click to expand",
+    });
+    expect(expand).toHaveAttribute("aria-expanded", "false");
+    expect(
+      document.getElementById(expand.getAttribute("aria-controls")!),
+    ).toHaveTextContent("A long prompt");
+    expect(screen.getByText("notes.pdf")).toBeVisible();
+
+    fireEvent.click(expand);
+    const collapse = screen.getByRole("button", { name: "Click to collapse" });
+    expect(collapse).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(collapse);
+    expect(
+      screen.getByRole("button", { name: "Click to expand" }),
+    ).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("does not show an expand action for a message that fits in three lines", async () => {
+    const measure = mockMessageHeight(60);
+    renderItem({
+      type: "event",
+      id: "short-user",
+      event: {
+        type: "user_message",
+        id: "short-user",
+        sessionId: "sess_1",
+        content: "Short prompt",
+        createdAt: "2026-09-17T00:00:00Z",
+      },
+    });
+
+    await waitFor(() => expect(measure).toHaveBeenCalled());
+    expect(screen.getByText("Short prompt")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: /Click to (expand|collapse)/ }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows sent files inside the user message without composer removal controls", () => {
     renderItem({
       type: "event",
