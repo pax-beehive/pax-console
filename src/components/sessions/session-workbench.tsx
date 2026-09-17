@@ -5,6 +5,7 @@ import {
   ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -120,11 +121,16 @@ import {
   SessionEvent,
 } from "@/features/runtime/session-events";
 import { useConversationRun } from "@/features/runtime/use-conversation-run";
+import {
+  captureTimelineAnchor,
+  restoreTimelineAnchor,
+  type TimelineAnchor,
+} from "@/features/runtime/timeline-anchor";
 import { usePageResume } from "@/features/runtime/use-page-resume";
 import { useSessionObserver } from "@/features/runtime/session-observer";
 import { useSessionTurnObservation } from "@/features/runtime/use-session-turn-observation";
 import { sessionDisplayStatus } from "@/features/runtime/session-display-status";
-import { retrySessionHistoryHandoff } from "@/features/runtime/session-history-handoff";
+import { useSessionHistorySync } from "@/features/runtime/use-session-history-sync";
 import { isSupportedSessionWorkspace } from "@/features/runtime/workspace-path";
 import {
   PAX_AUTO_APPROVE_CHOICE_ID,
@@ -309,6 +315,7 @@ export function SessionWorkbench({
     expectedPageCount: number;
     scrollHeight: number;
     scrollTop: number;
+    anchor?: TimelineAnchor;
   } | null>(null);
   const [browserOpen, setBrowserOpen] = useState(false);
   const [activeSidePanelId, setActiveSidePanelId] =
@@ -343,40 +350,6 @@ export function SessionWorkbench({
   const activeSessionReportedRunning = isActiveSessionRunStatus(
     activeSession?.runtime_status,
   );
-  const historyRevision = JSON.stringify([
-    activeSession?.last_message_at,
-    activeSession?.last_user_message_at,
-    activeSession?.runtime_status,
-  ]);
-  const observedHistoryRevisionRef = useRef<{
-    sessionId: string;
-    revision: string;
-  } | null>(null);
-  useEffect(() => {
-    if (!currentSessionId || !activeSession || usesEncryptedTransport) return;
-    const previous = observedHistoryRevisionRef.current;
-    observedHistoryRevisionRef.current = {
-      sessionId: currentSessionId,
-      revision: historyRevision,
-    };
-    // A short turn can start and finish between metadata polls. Its messages
-    // still need to appear even if we never observed a running status.
-    if (
-      previous?.sessionId === currentSessionId &&
-      previous.revision !== historyRevision
-    ) {
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.sessionHistory(user.user_id, currentSessionId),
-      });
-    }
-  }, [
-    activeSession,
-    currentSessionId,
-    historyRevision,
-    queryClient,
-    user.user_id,
-    usesEncryptedTransport,
-  ]);
   const activeSessionRuntimeBlocksPrompt =
     activeSessionReportedRunning || activeSession?.runtime_status === "unknown";
   const isExternallyCreatedSession = Boolean(
@@ -616,7 +589,7 @@ export function SessionWorkbench({
     startEncryptedNativeSession,
     user.user_id,
   ]);
-  const historyMessages = useMemo(
+  const baseHistoryMessages = useMemo(
     () =>
       usesEncryptedTransport
         ? flattenEncryptedHistoryPages(
@@ -629,12 +602,21 @@ export function SessionWorkbench({
       usesEncryptedTransport,
     ],
   );
+  const historySync = useSessionHistorySync({
+    userId: user.user_id,
+    sessionId: usesEncryptedTransport ? undefined : currentSessionId,
+    session: activeSession,
+    history: baseHistoryMessages,
+    metadataVersion: sessionMetadataQuery.dataUpdatedAt,
+  });
+  const historyMessages = usesEncryptedTransport
+    ? baseHistoryMessages
+    : historySync.messages;
   const historyPageCount = historyQuery.data?.pages.length ?? 0;
   const {
     fetchNextPage: fetchNextHistoryPage,
     hasNextPage: hasNextHistoryPage,
     isFetchingNextPage: isFetchingNextHistoryPage,
-    refetch: refetchSessionHistory,
   } = historyQuery;
   const capsulesQuery = useKnowledgeCapsules(
     showAdminFeatures ? user.user_id : undefined,
@@ -771,6 +753,25 @@ export function SessionWorkbench({
     sessionId: routeSessionId,
     userId: user.user_id,
   });
+  const finishCalibratedConversation = conversationRun.finishObservedTurn;
+  useEffect(() => {
+    const turnId = latestRuntimeTurnId(conversationRun.events);
+    if (
+      !usesEncryptedTransport &&
+      turnId &&
+      (conversationRun.status === "streaming" ||
+        conversationRun.status === "waiting_approval") &&
+      historySync.calibratedTurnIds.includes(turnId)
+    ) {
+      finishCalibratedConversation();
+    }
+  }, [
+    conversationRun.events,
+    conversationRun.status,
+    historySync.calibratedTurnIds,
+    finishCalibratedConversation,
+    usesEncryptedTransport,
+  ]);
   const refreshActiveSessionRuntime = useCallback(() => {
     void queryClient.invalidateQueries({
       queryKey: queryKeys.userSessionsRoot(user.user_id),
@@ -783,9 +784,6 @@ export function SessionWorkbench({
     if (currentSessionId) {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.sessionMetadata(user.user_id, currentSessionId),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.sessionHistory(user.user_id, currentSessionId),
       });
     }
     if (activeAgentId && currentSessionId) {
@@ -805,12 +803,25 @@ export function SessionWorkbench({
     user.user_id,
   ]);
   usePageResume(refreshActiveSessionRuntime);
+  const calibrateHistoryTurn = historySync.calibrate;
   const completedConversationTurnVersion = conversationRun.completedTurnVersion;
+  const calibratedConversationVersionRef = useRef(0);
   useEffect(() => {
-    if (completedConversationTurnVersion > 0) {
+    if (
+      completedConversationTurnVersion >
+      calibratedConversationVersionRef.current
+    ) {
+      calibratedConversationVersionRef.current =
+        completedConversationTurnVersion;
       refreshActiveSessionRuntime();
+      calibrateHistoryTurn(latestRuntimeTurnId(conversationRun.events));
     }
-  }, [completedConversationTurnVersion, refreshActiveSessionRuntime]);
+  }, [
+    completedConversationTurnVersion,
+    refreshActiveSessionRuntime,
+    calibrateHistoryTurn,
+    conversationRun.events,
+  ]);
   const shouldObserveSessionTurn =
     !usesEncryptedTransport &&
     Boolean(activeAgentId && currentSessionId) &&
@@ -883,35 +894,7 @@ export function SessionWorkbench({
   const markConversationObserverConnected =
     conversationRun.markObserverConnected;
   const conversationTransportInterrupted = conversationRun.transportInterrupted;
-  const historyHandoffKeysRef = useRef(new Set<string>());
-  const retryTerminalHistoryHandoff = useCallback(
-    (targetTurnId?: string) => {
-      if (!currentSessionId) {
-        return;
-      }
-
-      const handoffKey = `${currentSessionId}:${targetTurnId ?? "unknown-turn"}`;
-      if (historyHandoffKeysRef.current.has(handoffKey)) {
-        return;
-      }
-      historyHandoffKeysRef.current.add(handoffKey);
-
-      const baselineCompletionMessageIds = historyMessages
-        .filter((message) => message.message_type === "turn_done")
-        .map((message) => message.message_id);
-      void retrySessionHistoryHandoff({
-        baselineCompletionMessageIds,
-        refetch: async () => {
-          const result = await refetchSessionHistory();
-          return flattenSessionHistoryPages(result.data?.pages);
-        },
-        targetTurnId,
-      }).finally(() => {
-        historyHandoffKeysRef.current.delete(handoffKey);
-      });
-    },
-    [currentSessionId, historyMessages, refetchSessionHistory],
-  );
+  const retryTerminalHistoryHandoff = historySync.calibrate;
   const handleNoRunningTurn = useCallback(() => {
     const interruptedTurnId = latestRuntimeTurnId(conversationRun.events);
     finishConversationRunFromObserver();
@@ -1473,6 +1456,7 @@ export function SessionWorkbench({
           : conversationRun.events,
         usesEncryptedTransport ? [] : sessionObserver.events,
         usesEncryptedTransport ? [] : sessionObserver.snapshotTurnIds,
+        usesEncryptedTransport ? undefined : historySync.calibratedTurnIds,
       ),
     [
       conversationRun.events,
@@ -1481,6 +1465,7 @@ export function SessionWorkbench({
       usesEncryptedTransport,
       sessionObserver.events,
       sessionObserver.snapshotTurnIds,
+      historySync.calibratedTurnIds,
     ],
   );
   const { timeline } = reconciledTimeline;
@@ -1601,6 +1586,7 @@ export function SessionWorkbench({
     }
 
     pendingHistoryPrependRef.current = {
+      anchor: captureTimelineAnchor(scrollElement),
       expectedPageCount: historyPageCount + 1,
       scrollHeight: scrollElement.scrollHeight,
       scrollTop: scrollElement.scrollTop,
@@ -2021,7 +2007,7 @@ export function SessionWorkbench({
     shouldStickToBottomRef.current = true;
   }, [currentSessionId]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const pendingPrepend = pendingHistoryPrependRef.current;
     const shouldRestorePrepend =
       pendingPrepend && historyPageCount >= pendingPrepend.expectedPageCount;
@@ -2029,7 +2015,7 @@ export function SessionWorkbench({
       return;
     }
 
-    const frameId = window.requestAnimationFrame(() => {
+    {
       const scrollElement = timelineScrollRef.current;
       if (!scrollElement) {
         return;
@@ -2040,10 +2026,12 @@ export function SessionWorkbench({
         currentPrepend &&
         historyPageCount >= currentPrepend.expectedPageCount
       ) {
-        scrollElement.scrollTop = restoredScrollTop(
-          currentPrepend,
-          scrollElement.scrollHeight,
-        );
+        if (!restoreTimelineAnchor(scrollElement, currentPrepend.anchor)) {
+          scrollElement.scrollTop = restoredScrollTop(
+            currentPrepend,
+            scrollElement.scrollHeight,
+          );
+        }
         pendingHistoryPrependRef.current = null;
         updateTimelineStickiness();
         return;
@@ -2053,9 +2041,7 @@ export function SessionWorkbench({
         scrollElement.scrollTop = scrollElement.scrollHeight;
         shouldStickToBottomRef.current = true;
       }
-    });
-
-    return () => window.cancelAnimationFrame(frameId);
+    }
   }, [historyPageCount, updateTimelineStickiness, workstreamItems]);
 
   const browserButton = activeNodeId ? (
@@ -2431,23 +2417,21 @@ export function SessionWorkbench({
 
         <div
           className={cn(
-            "min-h-0 flex-1 overflow-auto p-3 transition-colors duration-500 sm:p-4",
+            "min-h-0 flex-1 overflow-auto [overflow-anchor:none] p-3 transition-colors duration-500 sm:p-4",
             usesEncryptedTransport ? "bg-emerald-500/[0.012]" : "bg-canvas",
           )}
           onScroll={handleTimelineScroll}
           ref={timelineScrollRef}
         >
           <div className="mx-auto grid w-full max-w-4xl gap-2">
-            {isFetchingNextHistoryPage && (
-              <div
-                className="py-1 text-center text-xs text-ink-tertiary"
-                role="status"
-              >
-                Loading earlier messages
-              </div>
-            )}
+            <div
+              className="h-6 text-center text-xs text-ink-tertiary"
+              role="status"
+            >
+              {isFetchingNextHistoryPage ? "Loading earlier messages" : null}
+            </div>
             <SessionErrors
-              messagesError={historyQuery.error}
+              messagesError={historyQuery.error ?? historySync.error}
               missingRouteState={!activeNodeId || !activeAgentId}
               sendError={
                 encryptedKeyError ??
@@ -2458,10 +2442,7 @@ export function SessionWorkbench({
               }
             />
             {workstreamItems.map((item) => (
-              <div
-                className="min-w-0 max-w-full [contain-intrinsic-size:auto_80px] [content-visibility:auto]"
-                key={item.id}
-              >
+              <div className="min-w-0 max-w-full" key={item.id}>
                 <WorkstreamItemCard
                   agentOwnerInfos={agentOwnerInfos}
                   item={item}

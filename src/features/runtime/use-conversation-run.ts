@@ -21,7 +21,6 @@ import {
 import type { ApprovalOption, SessionApprovalMode } from "../api/types";
 import { ApiError } from "../api/errors";
 import { isConversationObserverRecoverableError } from "./session-display-status";
-import { usePageResume } from "./use-page-resume";
 
 export type ConversationRunStatus =
   | "idle"
@@ -76,17 +75,6 @@ export function useConversationRun({
     flush: flushEvents,
     update: updateEvents,
   } = useBufferedSessionEvents();
-
-  usePageResume(() => {
-    if (
-      activeTurnIdRef.current &&
-      !activeTurnIdRef.current.startsWith("pending-turn:") &&
-      (status === "streaming" || status === "waiting_approval")
-    ) {
-      flushEvents();
-      setTransportInterrupted(true);
-    }
-  });
 
   useEffect(() => {
     return () => {
