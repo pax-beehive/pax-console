@@ -1104,8 +1104,8 @@ session，并以返回的 `node_id`、`agent_id` 作为 queue 和 observer 请�
 这份 snapshot 完整接管目标 turn，替换旧 history/conversation 片段。
 
 Manager 当前每 500ms 读取目标 turn 的持久化摘要，SSE 只传变化的消息版本；浏览器
-不靠新增 history 轮询补缺口，也不再把 raw ACP delta 追加到持久化聚合文本后面。
-只有持久化 `turn_done` 才结束观察，并由 completed history 接管；`resync` 仍重连
+通过 session 状态轮询发现缺口，再用 history 补齐；不把 raw ACP delta 追加到持久化聚合文本后面。
+只有持久化 `turn_done` 才结束观察；完整读取该 turn 的全部 history 分页后才接管正文；`resync` 仍重连
 同一个 turn。Manager 与 Console 必须配套部署，旧版协议不支持这份 snapshot contract。
 
 stop 按钮调用：
@@ -1387,9 +1387,23 @@ Observer 只观察，等待下一轮的重试窗口覆盖一个周期上报间�
 `runtime_turn_instance_id` 变化后重新订阅该 turn，不依赖先看到 idle。
 消息时间或运行状态变化会刷新历史，补上在两次详情检查之间已结束的短 turn。
 
-### 切回前台时恢复会话
+### Session 状态轮询与整轮校准
 
-页面从隐藏恢复可见或从 bfcache 恢复时，刷新 session metadata、history 和队列。
-已确认开始的本地 turn 即使发送连接没有报错，也启用 observer 补读，并优先使用
-本地 turn ID，避免 runtime snapshot 滞后时订阅到上一轮。已有 observer 在恢复时
-重新连接，收到新快照的 `head` 前保留原画面。此流程不会重新发送 prompt 或取消执行。
+页面可见时每 5 秒读取单个 session 详情，使用 node/agent/session 路由。只有尚不
+知道归属时才搜索 session 列表。详情返回 Manager 持久化历史的 latest_message_id、
+latest_message_seq、latest_turn_id，不增加 paxd 上报或数据库表。
+
+本地 conversation 正常时继续使用它；否则 running 的 turn 通过 events 观察。
+切回浏览器标签页立即刷新状态和历史尾部；idle 时发现陌生的最新消息，从本地倒数
+第二条的 session_seq 使用 after_seq 补读，按 has_newer 继续分页。
+
+conversation/events 结束或发现 idle 的最新 turn 时，使用
+history?view=summary&turn_id=...，按 before_seq 读到 has_older=false。只有整轮
+全部读取成功且包含 turn_done，才一次性提交校准结果，移交该轮正文的展示权。
+失败保留当前画面并在后续状态轮询重试。校准结果放在按用户和 session 隔离的
+TanStack Query 缓存；结束的 turn 不再接受迟到实时片段覆盖。普通分页中出现
+turn_done 不等于已拿全整轮。E2EE 继续沿用原来的加密历史流程。
+
+向上翻页不在 focus 时重读全部历史。分页前记录可见行 ID 和相对视口的偏移，
+在 useLayoutEffect 中恢复，避免列表尾部同时增长造成跳动；移除行上的
+content-visibility 估算高度，并为加载提示保留固定空间。

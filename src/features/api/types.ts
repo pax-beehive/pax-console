@@ -366,6 +366,9 @@ export type HistoryMessage = {
 };
 
 export type AgentSession = {
+  latest_message_id?: string;
+  latest_message_seq?: number;
+  latest_turn_id?: string;
   id?: number;
   session_id: string;
   native_id?: string;

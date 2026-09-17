@@ -397,10 +397,9 @@ displayed as `running` and immediately hands ownership to the session `/events`
 observer, even if the canonical running snapshot has not arrived yet. A
 successful observer connection clears the transport notice; observer
 `turn_done` or `no_running_turn` completes the local display and starts a
-bounded, exponentially backed-off history refetch. Refetch stops as soon as
-durable history contains that turn's `turn_done` marker; if the runtime turn id
-was unavailable, it waits for a completion marker newer than the pre-handoff
-history snapshot. Only an explicit conversation business-error envelope is a
+whole-turn history calibration. Every page must be read and the result must
+contain that turn's `turn_done` marker before committing; failures are retried
+on subsequent metadata polls without discarding the displayed transcript. Only an explicit conversation business-error envelope is a
 terminal run error.
 
 For a rare false-alive projection, the workbench overflow menu calls:
@@ -567,12 +566,12 @@ must refresh the prefix even when a watermark is supplied. A cursor ahead of
 the target turn is rejected; no cursor can expand replay to other turns.
 
 Manager currently checks the durable turn every 500 ms and sends changed
-versions. The browser does not poll history for recovery and does not mix these
-versions with raw ACP deltas. `applyObserverTranscript` stages a reconnect batch
+versions. The browser also polls session metadata every five seconds while visible and
+uses durable history to repair gaps and calibrate completed turns. `applyObserverTranscript` stages a reconnect batch
 until `head`, retaining the prior view if replay disconnects halfway through.
 A committed snapshot replaces that turn's previous history/conversation view.
-Only a durable `turn_done` marker ends the stream and lets completed history
-retake ownership. `resync` reconnects to the same turn. Legacy ACP observer
+A durable `turn_done` marker ends the stream. History retakes ownership only
+after every page of the target turn has been fetched successfully. `resync` reconnects to the same turn. Legacy ACP observer
 normalization remains for compatibility with older servers.
 
 Deploy Manager and Console together: old Console uses a rejected cursor
@@ -625,7 +624,7 @@ ordered sources; it must not timestamp-sort them because replayed ACP frames
 receive client arrival timestamps. A locally owned conversation replaces only
 that turn's agent projection while retaining the durable user prompt at the
 turn's original history position. A committed observer snapshot replaces the full target turn; message identity,
-not repeated-text filtering, determines the resulting projection. Once the completion marker appears, durable history owns the turn.
+not repeated-text filtering, determines the resulting projection. Once all pages of the completed turn have been calibrated, durable history owns the turn.
 Durable storage may aggregate every `agent_message_chunk` in that turn into a
 single row anchored at the first chunk. History normalization therefore places
 that aggregate after the turn's work events and immediately before the durable
@@ -1355,11 +1354,27 @@ stays running. Changes in message timestamps or runtime status invalidate histor
 so turns that finish between metadata polls still appear. No-running suppression
 must never hide all future turns for a session.
 
-### Foreground recovery
+### Session history synchronization
 
-On a hidden-to-visible transition or a bfcache restore, refresh session metadata,
-history, and the queue. An accepted local turn enables observer recovery even
-when its conversation fetch has not rejected; pin recovery to the local turn ID
-until it finishes. Reopen an already enabled observer on resume. Keep the last
-committed transcript until the replacement snapshot reaches `head`; never
-resubmit the prompt or cancel execution as part of foreground recovery.
+Session detail uses the node/agent/session route. Flat session lists are only
+used to discover routing when it is unknown. Poll detail every five seconds
+while visible; detail includes latest_message_id, latest_message_seq, and
+latest_turn_id from durable Manager history, not paxd reporting.
+
+Keep a healthy locally owned conversation stream. Otherwise observe a running
+turn through events. On page resume refresh metadata and the history tail;
+unknown latest IDs while idle trigger after_seq catch-up starting at the second
+newest known message. Follow has_newer rather than treating one page as complete.
+
+On local/observed completion or discovery of an idle latest turn, read
+history?view=summary&turn_id=... and follow before_seq until has_older is false.
+Only a fully fetched turn containing turn_done is calibrated. Publish all pages
+atomically into the session-scoped TanStack history-sync cache; retry failures
+on metadata polls while retaining the old view. Calibrated turns are immutable
+and ignore late live fragments. A turn_done in an ordinary page alone does not
+transfer ownership. E2EE retains its existing history flow.
+
+Older history pages do not refetch on focus. Prepending captures the visible
+row ID and pixel offset and restores it in a layout effect before paint; bottom
+updates must not affect that offset. Avoid content-visibility estimated heights
+on timeline rows. Foreground recovery never resubmits prompts or cancels turns.

@@ -165,6 +165,8 @@ export const queryKeys = {
     ] as const,
   sessionHistory: (userId: string, sessionId: string) =>
     ["users", userId, "sessions", sessionId, "history"] as const,
+  sessionHistorySync: (userId: string, sessionId: string) =>
+    ["users", userId, "sessions", sessionId, "history-sync"] as const,
   encryptedSessionHistory: (
     userId: string,
     agentId: string,

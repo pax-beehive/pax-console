@@ -6,6 +6,7 @@ import {
   type QueryClient,
   useInfiniteQuery,
   useQuery,
+  useQueryClient,
 } from "@tanstack/react-query";
 import { API_BASE_URL, apiFetch, userPath } from "./client";
 import { ApiError, AuthError } from "./errors";
@@ -624,12 +625,13 @@ export async function getUserSession(
   userId: string,
   sessionId: string,
   agentId?: string,
+  nodeId?: string,
 ) {
-  if (agentId) {
+  if (agentId && nodeId) {
     return apiFetch<AgentSession>(
       userPath(
         userId,
-        `/agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(sessionId)}`,
+        `/nodes/${encodeURIComponent(nodeId)}/agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(sessionId)}`,
       ),
     );
   }
@@ -644,7 +646,13 @@ export async function getUserSession(
     });
     const session = page.sessions.find((item) => item.session_id === sessionId);
     if (session) {
-      return session;
+      if (!session.agent_id || !session.node_id) return session;
+      return getUserSession(
+        userId,
+        sessionId,
+        session.agent_id,
+        session.node_id,
+      );
     }
 
     if (page.pagination?.total_pages) {
@@ -860,12 +868,18 @@ export function listSessionHistory(
   userId: string,
   sessionId: string,
   limit = 100,
-  cursor: { beforeSeq?: number; afterSeq?: number; beforeId?: number } = {},
+  cursor: {
+    beforeSeq?: number;
+    afterSeq?: number;
+    beforeId?: number;
+    turnId?: string;
+  } = {},
 ) {
   const params = new URLSearchParams({
     limit: String(limit),
     view: cursor.beforeId ? "full" : "summary",
   });
+  if (cursor.turnId) params.set("turn_id", cursor.turnId);
   if (cursor.afterSeq && cursor.afterSeq > 0) {
     params.set("after_seq", String(cursor.afterSeq));
   } else if (cursor.beforeSeq && cursor.beforeSeq > 0) {
@@ -2355,13 +2369,30 @@ export function useUserSession(
   agentId?: string,
   refetchInterval = 30_000,
 ) {
+  const client = useQueryClient();
   return useQuery({
     queryKey: queryKeys.sessionMetadata(
       userId ?? "pending",
       sessionId ?? "pending",
     ),
     queryFn: () =>
-      getUserSession(userId as string, sessionId as string, agentId),
+      getUserSession(
+        userId as string,
+        sessionId as string,
+        agentId ??
+          client.getQueryData<AgentSession>(
+            queryKeys.sessionMetadata(
+              userId ?? "pending",
+              sessionId ?? "pending",
+            ),
+          )?.agent_id,
+        client.getQueryData<AgentSession>(
+          queryKeys.sessionMetadata(
+            userId ?? "pending",
+            sessionId ?? "pending",
+          ),
+        )?.node_id,
+      ),
     enabled: Boolean(userId && sessionId),
     refetchInterval,
   });
@@ -2414,7 +2445,8 @@ export function useSessionHistory(userId?: string, sessionId?: string) {
         : undefined;
     },
     initialPageParam: 0,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
+    staleTime: Infinity,
   });
 }
 

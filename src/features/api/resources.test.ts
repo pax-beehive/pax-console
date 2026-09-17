@@ -88,13 +88,13 @@ describe("uploadUserAttachmentFile", () => {
       name: "Source session",
     });
     await expect(
-      getUserSession("u1", "sess/source", "agent/source"),
+      getUserSession("u1", "sess/source", "agent/source", "node/source"),
     ).resolves.toMatchObject({
       name: "Source session",
     });
     expect(apiFetch).toHaveBeenCalledTimes(1);
     expect(apiFetch).toHaveBeenCalledWith(
-      "/api/v1/user/u1/agents/agent%2Fsource/sessions/sess%2Fsource",
+      "/api/v1/user/u1/nodes/node%2Fsource/agents/agent%2Fsource/sessions/sess%2Fsource",
     );
   });
 
@@ -902,16 +902,27 @@ describe("listUserSessions", () => {
         sessions: [
           { agent_id: "agent_1", node_id: "node_1", session_id: "sess_1" },
         ],
+      })
+      .mockResolvedValueOnce({
+        agent_id: "agent_1",
+        node_id: "node_1",
+        session_id: "sess_1",
+        latest_message_id: "latest",
       });
 
     await expect(getUserSession("u1", "sess_1")).resolves.toMatchObject({
       agent_id: "agent_1",
       node_id: "node_1",
       session_id: "sess_1",
+      latest_message_id: "latest",
     });
     expect(apiFetch).toHaveBeenNthCalledWith(
       1,
       "/api/v1/user/u1/sessions?page_size=200&page_num=1&include_archived=true",
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      3,
+      "/api/v1/user/u1/nodes/node_1/agents/agent_1/sessions/sess_1",
     );
     expect(apiFetch).toHaveBeenNthCalledWith(
       2,

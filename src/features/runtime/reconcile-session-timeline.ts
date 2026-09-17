@@ -19,11 +19,14 @@ export function reconcileSessionTimeline(
   conversationEvents: SessionEvent[],
   observerEvents: SessionEvent[] = [],
   observerSnapshotTurnIds: string[] = [],
+  calibratedTurnIds?: string[],
 ): ReconciledSessionTimeline {
   const mergedHistory = mergeEvents(historyEvents);
   const mergedConversation = mergeEvents(conversationEvents);
   const mergedObserver = mergeEvents(observerEvents);
-  const committedTurnIds = completedTurnIds(mergedHistory);
+  const committedTurnIds = calibratedTurnIds
+    ? new Set(calibratedTurnIds)
+    : completedTurnIds(mergedHistory);
   const observerOwns = new Set(
     observerSnapshotTurnIds.filter((id) => !committedTurnIds.has(id)),
   );
