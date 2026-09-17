@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  artifactDocumentFromPublication,
   artifactDocumentFromSessionArtifact,
   artifactPreviewPageHref,
   builtinArtifactRendererRegistry,
@@ -8,6 +9,33 @@ import {
 import { parseCsvPreview, parseJsonlPreview } from "./artifact-preview-data";
 
 describe("artifact document renderer registry", () => {
+  it("uses filenames for blank titles from either artifact source", () => {
+    const file = {
+      artifact_id: "artifact_1",
+      kind: "file",
+      schema_version: 1,
+      title: "  ",
+      status: "available",
+      contents: [{ ref: "main", filename: "report.md" }],
+    };
+    expect(artifactDocumentFromSessionArtifact(file).title).toBe("report.md");
+    expect(
+      artifactDocumentFromPublication({
+        contentRef: "main",
+        fallbackTitle: "Untitled artifact",
+        publicationId: "pub_1",
+        state: {
+          publication: {
+            publication_id: "pub_1",
+            status: "available",
+            title: " ",
+          },
+          artifact: file,
+        },
+      }).title,
+    ).toBe("report.md");
+  });
+
   it("prefers explicit preview kind over content type and filename", () => {
     expect(
       resolveArtifactRenderer(

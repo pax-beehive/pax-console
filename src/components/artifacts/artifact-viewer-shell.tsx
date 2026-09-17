@@ -17,6 +17,7 @@ import {
   ExternalLink,
   FileDown,
   FileText,
+  Link2,
   LoaderCircle,
   Maximize2,
   Minimize2,
@@ -35,6 +36,7 @@ import { Button } from "@/components/ui/button";
 import { MarkdownMessage } from "@/components/ui/markdown-message";
 import { TruncatedText } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
+import { compactDate } from "@/lib/format";
 import {
   ArtifactDocument,
   ArtifactPreviewDescriptor,
@@ -79,10 +81,39 @@ export function ArtifactViewerShell({
   const [previewError, setPreviewError] = useState<Error | null>(null);
   const [previewPending, setPreviewPending] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const [copyMessage, setCopyMessage] = useState("");
+  const copyMessageTimeoutRef = useRef<
+    ReturnType<typeof setTimeout> | undefined
+  >(undefined);
   const autoLoadedArtifactRef = useRef<string | undefined>(undefined);
   const previewObjectUrlRef = useRef<string | undefined>(undefined);
   const previewRequestRef = useRef(0);
   const renderer = resolveArtifactRenderer(artifact, preview);
+  const title =
+    artifact.title.trim() || artifact.filename || "Untitled artifact";
+  const readerStatus =
+    previewError || sourceError || artifact.status === "failed"
+      ? "Preview unavailable"
+      : previewPending || artifact.status === "loading"
+        ? "Loading…"
+        : !isArtifactAvailable(artifact.status)
+          ? "Processing…"
+          : undefined;
+
+  useEffect(() => () => clearTimeout(copyMessageTimeoutRef.current), []);
+
+  const handleCopyLink = async () => {
+    clearTimeout(copyMessageTimeoutRef.current);
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopyMessage("Link copied");
+    } catch {
+      setCopyMessage(
+        "Couldn't copy link. Try again or copy the address bar URL.",
+      );
+    }
+    copyMessageTimeoutRef.current = setTimeout(() => setCopyMessage(""), 4000);
+  };
 
   const revokePreviewObjectUrl = useCallback((url?: string) => {
     if (!url) {
@@ -217,7 +248,7 @@ export function ArtifactViewerShell({
 
   const shell = (
     <section
-      aria-label={`Artifact viewer: ${artifact.title}`}
+      aria-label={`Artifact viewer: ${title}`}
       className={cn(
         "flex min-w-0 flex-col overflow-hidden rounded-lg border border-hairline bg-surface-1",
         fullscreen
@@ -252,13 +283,49 @@ export function ArtifactViewerShell({
       )}
 
       {standalone ? (
-        <header className="flex min-w-0 items-center gap-2 border-b border-hairline px-3 py-2">
-          <div className="min-w-0 flex-1">{navigation}</div>
+        <header className="flex min-w-0 shrink-0 items-center gap-1 border-b border-hairline px-2 py-2 sm:gap-3 sm:px-3">
+          {navigation && <div className="shrink-0">{navigation}</div>}
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <FileText
+              aria-hidden="true"
+              className="hidden h-4 w-4 shrink-0 text-ink-tertiary sm:block"
+            />
+            <div className="min-w-0 flex-1">
+              <h1 className="min-w-0 text-sm font-medium text-ink">
+                <TruncatedText>{title}</TruncatedText>
+              </h1>
+              {readerStatus && (
+                <p className="truncate text-xs text-ink-muted" role="status">
+                  {readerStatus}
+                </p>
+              )}
+            </div>
+          </div>
+          <Button
+            className="hidden sm:inline-flex"
+            icon={<Link2 className="h-4 w-4" />}
+            onClick={() => void handleCopyLink()}
+            size="sm"
+            variant="ghost"
+          >
+            Copy link
+          </Button>
           {artifact.downloadHref && isArtifactAvailable(artifact.status) && (
-            <Button asChild size="sm" variant="ghost">
-              <a href={artifact.downloadHref} rel="noreferrer" target="_blank">
+            <Button
+              asChild
+              size="sm"
+              variant="ghost"
+              tooltip="Download"
+              className="max-sm:h-9 max-sm:w-9 max-sm:justify-center max-sm:px-0"
+            >
+              <a
+                aria-label="Download"
+                href={artifact.downloadHref}
+                rel="noreferrer"
+                target="_blank"
+              >
                 <Download className="h-4 w-4" />
-                <span>Download</span>
+                <span className="hidden sm:inline">Download</span>
               </a>
             </Button>
           )}
@@ -268,17 +335,15 @@ export function ArtifactViewerShell({
                 aria-label="Artifact options"
                 icon={<MoreHorizontal className="h-4 w-4" />}
                 size="icon"
+                tooltip="More options"
                 variant="ghost"
               />
             </DropdownMenuTrigger>
             <DropdownMenuContent className="max-w-[calc(100vw-2rem)]">
-              <div className="max-w-xs break-words border-b border-hairline px-2.5 py-2 text-xs text-ink-muted">
-                <div className="font-medium text-ink">{artifact.title}</div>
-                {artifact.filename && <div>{artifact.filename}</div>}
-                {artifact.sizeBytes ? (
-                  <div>{formatArtifactBytes(artifact.sizeBytes)}</div>
-                ) : null}
-              </div>
+              <DropdownMenuItem onSelect={() => void handleCopyLink()}>
+                <Link2 className="h-4 w-4" />
+                Copy link
+              </DropdownMenuItem>
               <DropdownMenuItem
                 disabled={
                   !loadPreview ||
@@ -296,6 +361,35 @@ export function ArtifactViewerShell({
                   </a>
                 </DropdownMenuItem>
               )}
+              <div className="mt-1 max-w-xs break-words border-t border-hairline px-2.5 py-2 text-xs text-ink-muted">
+                <div className="mb-1 font-medium text-ink">File details</div>
+                <dl className="space-y-1">
+                  {artifact.filename && artifact.filename !== title && (
+                    <div>
+                      <dt className="text-ink-tertiary">Filename</dt>
+                      <dd>{artifact.filename}</dd>
+                    </div>
+                  )}
+                  {artifact.sizeBytes != null && (
+                    <div>
+                      <dt className="inline text-ink-tertiary">Size </dt>
+                      <dd className="inline">
+                        {formatArtifactBytes(artifact.sizeBytes)}
+                      </dd>
+                    </div>
+                  )}
+                  {artifact.createdAt && (
+                    <div>
+                      <dt className="inline text-ink-tertiary">Created </dt>
+                      <dd className="inline">
+                        <time dateTime={artifact.createdAt}>
+                          {compactDate(artifact.createdAt)}
+                        </time>
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+              </div>
             </DropdownMenuContent>
           </DropdownMenu>
         </header>
@@ -376,6 +470,15 @@ export function ArtifactViewerShell({
               variant="ghost"
             />
           )}
+        </div>
+      )}
+
+      {standalone && copyMessage && (
+        <div
+          role="status"
+          className="shrink-0 border-b border-hairline px-3 py-2 text-xs text-ink-muted"
+        >
+          {copyMessage}
         </div>
       )}
 

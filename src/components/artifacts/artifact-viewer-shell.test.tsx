@@ -8,8 +8,10 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ARTIFACT_PREVIEW_BUDGET } from "./artifact-preview-data";
 import { ArtifactViewerShell } from "./artifact-viewer-shell";
@@ -25,10 +27,22 @@ const artifact = {
   downloadHref: "/download",
 };
 
+beforeEach(() => {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+});
+
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  window.history.replaceState({}, "", "/");
 });
 
 describe("ArtifactViewerShell", () => {
@@ -142,7 +156,7 @@ describe("ArtifactViewerShell", () => {
             url: "https://signed.example/preview.md",
           })}
           standalone
-          navigation={<Link href="/sessions/source">Source session</Link>}
+          navigation={<Link href="/sessions/source">Back to session</Link>}
         />
       </TooltipProvider>,
     );
@@ -151,13 +165,86 @@ describe("ArtifactViewerShell", () => {
       await screen.findByRole("heading", { name: "Standalone reader" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Source session" }),
+      screen.getByRole("link", { name: "Back to session" }),
     ).toHaveAttribute("href", "/sessions/source");
     expect(screen.queryByText("available")).not.toBeInTheDocument();
-    expect(screen.queryByText("Result")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Result" })).toBeVisible();
     expect(
       screen.getByRole("button", { name: "Artifact options" }),
     ).toBeInTheDocument();
+  });
+
+  it("copies the reader URL with its content reference, not a download URL", async () => {
+    const user = userEvent.setup();
+    window.history.replaceState(
+      {},
+      "",
+      "/artifacts/files/artifact_1?ref=report",
+    );
+    const writeText = vi.spyOn(navigator.clipboard, "writeText");
+    render(
+      <TooltipProvider>
+        <ArtifactViewerShell artifact={artifact} standalone />
+      </TooltipProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Copy link" }));
+
+    expect(writeText).toHaveBeenCalledWith(window.location.href);
+    expect(await screen.findByRole("status")).toHaveTextContent("Link copied");
+    expect(screen.getByRole("link", { name: "Download" })).toHaveAttribute(
+      "href",
+      "/download",
+    );
+  });
+
+  it("reports clipboard failure and lets the user retry from the menu", async () => {
+    const user = userEvent.setup();
+    const writeText = vi
+      .spyOn(navigator.clipboard, "writeText")
+      .mockRejectedValueOnce(new Error("Permission denied"))
+      .mockResolvedValueOnce();
+    render(
+      <TooltipProvider>
+        <ArtifactViewerShell artifact={artifact} standalone />
+      </TooltipProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Copy link" }));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Couldn't copy link",
+    );
+    await user.click(screen.getByRole("button", { name: "Artifact options" }));
+    await user.click(screen.getByRole("menuitem", { name: "Copy link" }));
+
+    expect(writeText).toHaveBeenCalledTimes(2);
+    expect(await screen.findByRole("status")).toHaveTextContent("Link copied");
+  });
+
+  it("keeps file details in the menu and falls back to the filename", async () => {
+    const user = userEvent.setup();
+    render(
+      <TooltipProvider>
+        <ArtifactViewerShell
+          artifact={{
+            ...artifact,
+            title: "",
+            sizeBytes: 1024,
+            createdAt: "2026-09-17T12:00:00Z",
+          }}
+          standalone
+        />
+      </TooltipProvider>,
+    );
+
+    expect(screen.getByRole("heading", { name: "result.json" })).toBeVisible();
+    expect(screen.queryByText("1.0 KB")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Artifact options" }));
+    const menu = screen.getByRole("menu");
+    expect(within(menu).getByText("File details")).toBeInTheDocument();
+    expect(within(menu).getByText("1.0 KB")).toBeInTheDocument();
+    expect(within(menu).getByText("Created")).toBeInTheDocument();
+    expect(within(menu).queryByText("result.json")).not.toBeInTheDocument();
   });
 
   it("opens and closes the host-owned fullscreen dialog", () => {

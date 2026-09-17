@@ -1322,14 +1322,17 @@ tool is outside the currently loaded page. Legacy end-of-turn aggregate
 reordering applies only to turns without segmented records. Historical merged
 text is not heuristically split. Deploy this Console support before Manager.
 
-Standalone artifact readers use one toolbar: a named link to the source PAX
-session, Download, and an options menu for refresh, open file, and file details.
-Source adapters retain session/agent IDs. When both IDs are known, session
-metadata uses the direct agent/session GET endpoint through the existing
-same-origin API client and TanStack Query cache, avoiding a session-list scan.
-Missing names use "Source session"; artifacts without an association retain a
-generic Back action. Do not repeat the artifact title in the reader chrome or
-show status badges; pending/failed content states remain in the viewer body.
+Standalone artifact readers use one non-scrolling toolbar: a fixed "Back to
+session" link, the artifact title (filename fallback), Copy link, Download, and
+an options menu for refresh, open file, and file details. Do not fetch session
+names for this link; source adapters retain the session/agent IDs. Artifacts
+without a session association retain a generic Back action. Copy link copies
+the current protected reader URL, including the content reference, never a
+signed content URL. On mobile, navigation/download use labeled icons and Copy
+link lives in the options menu, preserving room for the title. Filename (when
+different from title), size, and creation date live in file details. Only
+loading, processing, and failure states appear beside the title; full errors
+remain in the viewer body. Do not show normal-status badges or renderer IDs.
 
 ## Snapshot-driven queued turns
 

@@ -1362,12 +1362,14 @@ tool is outside the currently loaded page. Legacy end-of-turn aggregate
 reordering applies only to turns without segmented records. Historical merged
 text is not heuristically split. Deploy this Console support before Manager.
 
-Artifact 独立阅读页只保留一条工具栏：左侧为来源 session 名称及直达链接，
-右侧为下载和更多菜单（刷新、打开文件、文件详情）。来源适配器保留 session_id /
-agent_id；已知两者时通过现有同源 API client 直接读取 agent/session 详情，
-继续使用 TanStack Query 的 session metadata 缓存，不扫描所有 session。
-名称缺失时显示 Source session，无关联时保留普通返回按钮。移除重复标题栏
-和状态徽章；上传未完成、失败提示仍由正文区域显示。
+Artifact 独立阅读页保留一条不随正文滚动的工具栏：固定文案 Back to session、
+常驻文件标题（缺失时使用 filename）、复制链接、下载、更多菜单。来源适配器保留
+session_id / agent_id，但顶栏不再查询 session 名称；无关联时使用普通返回按钮。
+复制的是当前受认证保护的预览页 URL（包含内容 ref），不是短效 signed URL。
+手机上返回和下载使用带无障碍名称的图标，复制链接收进更多菜单，为标题留出空间。
+更多菜单保留刷新、打开文件和文件详情；详情显示与标题不同的 filename、大小和
+创建日期。顶栏仅显示加载、处理中和失败状态，完整错误仍在正文；不显示正常状态
+徽章、artifact ID 或 renderer ID。
 
 ## Snapshot 驱动的待发消息
 
