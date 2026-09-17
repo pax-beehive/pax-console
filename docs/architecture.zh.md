@@ -1361,3 +1361,10 @@ observer replay. Do not concatenate distinct segmented rows when an intervening
 tool is outside the currently loaded page. Legacy end-of-turn aggregate
 reordering applies only to turns without segmented records. Historical merged
 text is not heuristically split. Deploy this Console support before Manager.
+
+Artifact 独立阅读页只保留一条工具栏：左侧为来源 session 名称及直达链接，
+右侧为下载和更多菜单（刷新、打开文件、文件详情）。来源适配器保留 session_id /
+agent_id；已知两者时通过现有同源 API client 直接读取 agent/session 详情，
+继续使用 TanStack Query 的 session metadata 缓存，不扫描所有 session。
+名称缺失时显示 Source session，无关联时保留普通返回按钮。移除重复标题栏
+和状态徽章；上传未完成、失败提示仍由正文区域显示。

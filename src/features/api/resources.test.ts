@@ -82,6 +82,22 @@ afterEach(() => {
 });
 
 describe("uploadUserAttachmentFile", () => {
+  it("fetches a known source session directly without listing every session", async () => {
+    apiFetch.mockResolvedValueOnce({
+      session_id: "sess/source",
+      name: "Source session",
+    });
+    await expect(
+      getUserSession("u1", "sess/source", "agent/source"),
+    ).resolves.toMatchObject({
+      name: "Source session",
+    });
+    expect(apiFetch).toHaveBeenCalledTimes(1);
+    expect(apiFetch).toHaveBeenCalledWith(
+      "/api/v1/user/u1/agents/agent%2Fsource/sessions/sess%2Fsource",
+    );
+  });
+
   it("uploads an S3 presigned ticket with the ticket headers", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(null, {
