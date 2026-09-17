@@ -2702,7 +2702,6 @@ function ArtifactTools({
                     ) : null}
                   </div>
                 </div>
-                <Badge>{artifact.status}</Badge>
               </div>
               {content?.filename && (
                 <MonoId tooltip={content.filename}>{content.filename}</MonoId>

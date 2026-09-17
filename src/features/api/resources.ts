@@ -619,7 +619,19 @@ export function listUserSessions(
   );
 }
 
-export async function getUserSession(userId: string, sessionId: string) {
+export async function getUserSession(
+  userId: string,
+  sessionId: string,
+  agentId?: string,
+) {
+  if (agentId) {
+    return apiFetch<AgentSession>(
+      userPath(
+        userId,
+        `/agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(sessionId)}`,
+      ),
+    );
+  }
   const pageSize = 200;
   let pageNum = 1;
 
@@ -2336,13 +2348,18 @@ export function useAgentSessions(
   });
 }
 
-export function useUserSession(userId?: string, sessionId?: string) {
+export function useUserSession(
+  userId?: string,
+  sessionId?: string,
+  agentId?: string,
+) {
   return useQuery({
     queryKey: queryKeys.sessionMetadata(
       userId ?? "pending",
       sessionId ?? "pending",
     ),
-    queryFn: () => getUserSession(userId as string, sessionId as string),
+    queryFn: () =>
+      getUserSession(userId as string, sessionId as string, agentId),
     enabled: Boolean(userId && sessionId),
     refetchInterval: 30_000,
   });

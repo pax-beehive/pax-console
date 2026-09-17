@@ -1,6 +1,7 @@
 /* @vitest-environment jsdom */
 
 import "@testing-library/jest-dom/vitest";
+import Link from "next/link";
 import {
   cleanup,
   fireEvent,
@@ -141,12 +142,21 @@ describe("ArtifactViewerShell", () => {
             url: "https://signed.example/preview.md",
           })}
           standalone
+          navigation={<Link href="/sessions/source">Source session</Link>}
         />
       </TooltipProvider>,
     );
 
     expect(
       await screen.findByRole("heading", { name: "Standalone reader" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Source session" }),
+    ).toHaveAttribute("href", "/sessions/source");
+    expect(screen.queryByText("available")).not.toBeInTheDocument();
+    expect(screen.queryByText("Result")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Artifact options" }),
     ).toBeInTheDocument();
   });
 

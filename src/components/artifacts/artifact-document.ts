@@ -28,6 +28,8 @@ export type ArtifactDocument = {
   sourceType: ArtifactSourceType;
   previewMode: "document";
   title: string;
+  sessionId?: string;
+  agentId?: string;
   filename?: string;
   sizeBytes?: number;
   contentType?: string;
@@ -132,6 +134,8 @@ export function artifactDocumentFromPublication({
   return {
     id: publicationId,
     sourceType: "publication",
+    sessionId: publication?.session_id || artifact?.session_id,
+    agentId: publication?.agent_id || artifact?.agent_id,
     previewMode: "document",
     title:
       publication?.title ??
@@ -158,6 +162,8 @@ export function artifactDocumentFromSessionArtifact(
   return {
     id: artifact.artifact_id,
     sourceType: "session_artifact",
+    sessionId: artifact.session_id,
+    agentId: artifact.agent_id,
     previewMode: "document",
     title: artifact.title ?? content?.filename ?? artifact.artifact_id,
     filename: content?.filename,

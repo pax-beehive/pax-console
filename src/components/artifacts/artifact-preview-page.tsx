@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
-import { ArrowLeft, FileText } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import {
   getArtifactPublicationContent,
   useArtifact,
   useArtifactPublication,
+  useUserSession,
 } from "@/features/api/resources";
 import type { User } from "@/features/api/types";
 import { AuthGate } from "@/features/auth/auth-gate";
@@ -106,6 +108,15 @@ function ArtifactPreviewPage({
     sourceType,
     user.user_id,
   ]);
+  const sourceSession = useUserSession(
+    user.user_id,
+    document.sessionId,
+    document.agentId,
+  );
+  const sessionName =
+    sourceSession.data?.name ||
+    sourceSession.data?.reported_name ||
+    "Source session";
   useDocumentTitle(`${document.title} · Artifact`);
 
   const loadPreview = useCallback(async () => {
@@ -162,29 +173,6 @@ function ArtifactPreviewPage({
   return (
     <ConsoleLayout user={user}>
       <div className="flex min-h-0 flex-1 flex-col bg-canvas">
-        <header className="flex min-w-0 items-center gap-3 border-b border-hairline bg-surface-1 px-3 py-2.5 sm:px-4">
-          <Button
-            aria-label="Back to previous page"
-            icon={<ArrowLeft className="h-4 w-4" />}
-            onClick={() => router.back()}
-            size="icon"
-            tooltip="Back"
-            type="button"
-            variant="ghost"
-          />
-          <FileText className="h-4 w-4 shrink-0 text-ink-tertiary" />
-          <div className="min-w-0">
-            <div className="truncate text-sm font-medium text-ink">
-              {document.title}
-            </div>
-            <div className="truncate font-mono text-xs text-ink-tertiary">
-              {sourceType === "publications"
-                ? "artifact publication"
-                : "session artifact"}{" "}
-              · {artifactId}
-            </div>
-          </div>
-        </header>
         <ArtifactViewerShell
           artifact={document}
           autoLoad
@@ -193,6 +181,31 @@ function ArtifactPreviewPage({
           key={`${sourceType}:${artifactId}:${contentRef}`}
           loadPreview={loadPreview}
           standalone
+          navigation={
+            document.sessionId ? (
+              <Button
+                asChild
+                variant="ghost"
+                className="min-w-0 shrink"
+                tooltip={sessionName}
+              >
+                <Link
+                  href={`/sessions/${encodeURIComponent(document.sessionId)}`}
+                >
+                  <ArrowLeft className="h-4 w-4 shrink-0" />
+                  <span className="truncate">{sessionName}</span>
+                </Link>
+              </Button>
+            ) : (
+              <Button
+                icon={<ArrowLeft className="h-4 w-4" />}
+                onClick={() => router.back()}
+                variant="ghost"
+              >
+                Back
+              </Button>
+            )
+          }
         />
       </div>
     </ConsoleLayout>

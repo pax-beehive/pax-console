@@ -1322,3 +1322,12 @@ observer replay. Do not concatenate distinct segmented rows when an intervening
 tool is outside the currently loaded page. Legacy end-of-turn aggregate
 reordering applies only to turns without segmented records. Historical merged
 text is not heuristically split. Deploy this Console support before Manager.
+
+Standalone artifact readers use one toolbar: a named link to the source PAX
+session, Download, and an options menu for refresh, open file, and file details.
+Source adapters retain session/agent IDs. When both IDs are known, session
+metadata uses the direct agent/session GET endpoint through the existing
+same-origin API client and TanStack Query cache, avoiding a session-list scan.
+Missing names use "Source session"; artifacts without an association retain a
+generic Back action. Do not repeat the artifact title in the reader chrome or
+show status badges; pending/failed content states remain in the viewer body.

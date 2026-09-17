@@ -21,10 +21,16 @@ import {
   Maximize2,
   Minimize2,
   Minus,
+  MoreHorizontal,
   Plus,
   X,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { MarkdownMessage } from "@/components/ui/markdown-message";
 import { TruncatedText } from "@/components/ui/text";
@@ -55,6 +61,7 @@ type ArtifactViewerShellProps = {
   error?: Error | null;
   loadPreview?: () => Promise<ArtifactPreviewDescriptor>;
   standalone?: boolean;
+  navigation?: ReactNode;
   viewerHref?: string;
 };
 
@@ -65,6 +72,7 @@ export function ArtifactViewerShell({
   error: sourceError,
   loadPreview,
   standalone = false,
+  navigation,
   viewerHref,
 }: ArtifactViewerShellProps) {
   const [preview, setPreview] = useState<LoadedArtifactPreview>();
@@ -221,104 +229,155 @@ export function ArtifactViewerShell({
       )}
       role={fullscreen ? "dialog" : undefined}
     >
-      <div className="flex min-w-0 items-start gap-3 border-b border-hairline px-3 py-2.5">
-        <FileText className="mt-0.5 h-4 w-4 shrink-0 text-ink-tertiary" />
-        <div className="min-w-0 flex-1">
-          <TruncatedText className="text-sm font-medium text-ink">
-            {artifact.title}
-          </TruncatedText>
-          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-tertiary">
-            {artifact.filename && (
-              <TruncatedText tooltip={artifact.filename}>
-                {artifact.filename}
-              </TruncatedText>
-            )}
-            {artifact.sizeBytes ? (
-              <span>{formatArtifactBytes(artifact.sizeBytes)}</span>
-            ) : null}
-            <span className="font-mono">{renderer.id}</span>
+      {!standalone && (
+        <div className="flex min-w-0 items-start gap-3 border-b border-hairline px-3 py-2.5">
+          <FileText className="mt-0.5 h-4 w-4 shrink-0 text-ink-tertiary" />
+          <div className="min-w-0 flex-1">
+            <TruncatedText className="text-sm font-medium text-ink">
+              {artifact.title}
+            </TruncatedText>
+            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-tertiary">
+              {artifact.filename && (
+                <TruncatedText tooltip={artifact.filename}>
+                  {artifact.filename}
+                </TruncatedText>
+              )}
+              {artifact.sizeBytes ? (
+                <span>{formatArtifactBytes(artifact.sizeBytes)}</span>
+              ) : null}
+              <span className="font-mono">{renderer.id}</span>
+            </div>
           </div>
         </div>
-        <Badge tone={artifactStatusTone(artifact.status)}>
-          {artifact.status}
-        </Badge>
-      </div>
+      )}
 
-      <div className="flex min-w-0 flex-wrap items-center gap-1 border-b border-hairline px-2 py-1.5">
-        <Button
-          disabled={
-            !loadPreview ||
-            previewPending ||
-            !isArtifactAvailable(artifact.status)
-          }
-          icon={
-            previewPending ? (
-              <LoaderCircle className="h-4 w-4 animate-spin" />
-            ) : (
-              <FileText className="h-4 w-4" />
-            )
-          }
-          onClick={() => void handlePreview()}
-          size="sm"
-          type="button"
-          variant="secondary"
-        >
-          {preview ? "Refresh" : "Preview"}
-        </Button>
-        {viewerHref && (
-          <Button asChild size="sm" variant="secondary">
-            <Link href={viewerHref}>
-              <ExternalLink className="h-4 w-4" />
-              <span className="min-w-0 truncate">Open page</span>
-            </Link>
-          </Button>
-        )}
-        {artifact.downloadHref && (
-          <Button asChild size="sm" variant="ghost">
-            <a href={artifact.downloadHref} rel="noreferrer" target="_blank">
-              <Download className="h-4 w-4" />
-              <span className="min-w-0 truncate">Download</span>
-            </a>
-          </Button>
-        )}
-        {preview?.url && (
-          <Button asChild size="sm" variant="ghost">
-            <a href={preview.url} rel="noreferrer" target="_blank">
-              <ExternalLink className="h-4 w-4" />
-              <span className="min-w-0 truncate">Open file</span>
-            </a>
-          </Button>
-        )}
-        <div className="min-w-0 flex-1" />
-        <Button
-          aria-label={
-            fullscreen ? "Exit artifact fullscreen" : "Open artifact fullscreen"
-          }
-          icon={
-            fullscreen ? (
-              <Minimize2 className="h-4 w-4" />
-            ) : (
-              <Maximize2 className="h-4 w-4" />
-            )
-          }
-          onClick={() => setFullscreen((current) => !current)}
-          size="icon"
-          tooltip={fullscreen ? "Exit fullscreen" : "Open fullscreen"}
-          type="button"
-          variant="ghost"
-        />
-        {fullscreen && (
+      {standalone ? (
+        <header className="flex min-w-0 items-center gap-2 border-b border-hairline px-3 py-2">
+          <div className="min-w-0 flex-1">{navigation}</div>
+          {artifact.downloadHref && isArtifactAvailable(artifact.status) && (
+            <Button asChild size="sm" variant="ghost">
+              <a href={artifact.downloadHref} rel="noreferrer" target="_blank">
+                <Download className="h-4 w-4" />
+                <span>Download</span>
+              </a>
+            </Button>
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                aria-label="Artifact options"
+                icon={<MoreHorizontal className="h-4 w-4" />}
+                size="icon"
+                variant="ghost"
+              />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="max-w-[calc(100vw-2rem)]">
+              <div className="max-w-xs break-words border-b border-hairline px-2.5 py-2 text-xs text-ink-muted">
+                <div className="font-medium text-ink">{artifact.title}</div>
+                {artifact.filename && <div>{artifact.filename}</div>}
+                {artifact.sizeBytes ? (
+                  <div>{formatArtifactBytes(artifact.sizeBytes)}</div>
+                ) : null}
+              </div>
+              <DropdownMenuItem
+                disabled={
+                  !loadPreview ||
+                  previewPending ||
+                  !isArtifactAvailable(artifact.status)
+                }
+                onSelect={() => void handlePreview()}
+              >
+                Refresh
+              </DropdownMenuItem>
+              {preview?.url && (
+                <DropdownMenuItem asChild>
+                  <a href={preview.url} rel="noreferrer" target="_blank">
+                    Open file
+                  </a>
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </header>
+      ) : (
+        <div className="flex min-w-0 flex-wrap items-center gap-1 border-b border-hairline px-2 py-1.5">
           <Button
-            aria-label="Close artifact fullscreen"
-            icon={<X className="h-4 w-4" />}
-            onClick={() => setFullscreen(false)}
+            disabled={
+              !loadPreview ||
+              previewPending ||
+              !isArtifactAvailable(artifact.status)
+            }
+            icon={
+              previewPending ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : (
+                <FileText className="h-4 w-4" />
+              )
+            }
+            onClick={() => void handlePreview()}
+            size="sm"
+            type="button"
+            variant="secondary"
+          >
+            {preview ? "Refresh" : "Preview"}
+          </Button>
+          {viewerHref && (
+            <Button asChild size="sm" variant="secondary">
+              <Link href={viewerHref}>
+                <ExternalLink className="h-4 w-4" />
+                <span className="min-w-0 truncate">Open page</span>
+              </Link>
+            </Button>
+          )}
+          {artifact.downloadHref && (
+            <Button asChild size="sm" variant="ghost">
+              <a href={artifact.downloadHref} rel="noreferrer" target="_blank">
+                <Download className="h-4 w-4" />
+                <span className="min-w-0 truncate">Download</span>
+              </a>
+            </Button>
+          )}
+          {preview?.url && (
+            <Button asChild size="sm" variant="ghost">
+              <a href={preview.url} rel="noreferrer" target="_blank">
+                <ExternalLink className="h-4 w-4" />
+                <span className="min-w-0 truncate">Open file</span>
+              </a>
+            </Button>
+          )}
+          <div className="min-w-0 flex-1" />
+          <Button
+            aria-label={
+              fullscreen
+                ? "Exit artifact fullscreen"
+                : "Open artifact fullscreen"
+            }
+            icon={
+              fullscreen ? (
+                <Minimize2 className="h-4 w-4" />
+              ) : (
+                <Maximize2 className="h-4 w-4" />
+              )
+            }
+            onClick={() => setFullscreen((current) => !current)}
             size="icon"
-            tooltip="Close fullscreen"
+            tooltip={fullscreen ? "Exit fullscreen" : "Open fullscreen"}
             type="button"
             variant="ghost"
           />
-        )}
-      </div>
+          {fullscreen && (
+            <Button
+              aria-label="Close artifact fullscreen"
+              icon={<X className="h-4 w-4" />}
+              onClick={() => setFullscreen(false)}
+              size="icon"
+              tooltip="Close fullscreen"
+              type="button"
+              variant="ghost"
+            />
+          )}
+        </div>
+      )}
 
       <div className="min-h-0 flex-1 overflow-auto bg-canvas">
         <ArtifactViewerBody
@@ -845,16 +904,6 @@ function useStoredNumber(
   );
 
   return [value, update] as const;
-}
-
-function artifactStatusTone(status: string) {
-  if (isArtifactAvailable(status)) {
-    return "success" as const;
-  }
-  if (status === "failed") {
-    return "warning" as const;
-  }
-  return "neutral" as const;
 }
 
 function isArtifactAvailable(status: string) {
