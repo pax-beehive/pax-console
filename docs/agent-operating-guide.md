@@ -1351,3 +1351,12 @@ changing runtime_turn_instance_id reopens a pinned observer even if runtime stat
 stays running. Changes in message timestamps or runtime status invalidate history,
 so turns that finish between metadata polls still appear. No-running suppression
 must never hide all future turns for a session.
+
+### Foreground recovery
+
+On a hidden-to-visible transition or a bfcache restore, refresh session metadata,
+history, and the queue. An accepted local turn enables observer recovery even
+when its conversation fetch has not rejected; pin recovery to the local turn ID
+until it finishes. Reopen an already enabled observer on resume. Keep the last
+committed transcript until the replacement snapshot reaches `head`; never
+resubmit the prompt or cancel execution as part of foreground recovery.

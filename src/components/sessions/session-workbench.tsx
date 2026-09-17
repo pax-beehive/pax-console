@@ -120,6 +120,7 @@ import {
   SessionEvent,
 } from "@/features/runtime/session-events";
 import { useConversationRun } from "@/features/runtime/use-conversation-run";
+import { usePageResume } from "@/features/runtime/use-page-resume";
 import { useSessionObserver } from "@/features/runtime/session-observer";
 import { useSessionTurnObservation } from "@/features/runtime/use-session-turn-observation";
 import { sessionDisplayStatus } from "@/features/runtime/session-display-status";
@@ -803,6 +804,7 @@ export function SessionWorkbench({
     queryClient,
     user.user_id,
   ]);
+  usePageResume(refreshActiveSessionRuntime);
   const completedConversationTurnVersion = conversationRun.completedTurnVersion;
   useEffect(() => {
     if (completedConversationTurnVersion > 0) {
@@ -812,7 +814,7 @@ export function SessionWorkbench({
   const shouldObserveSessionTurn =
     !usesEncryptedTransport &&
     Boolean(activeAgentId && currentSessionId) &&
-    !observerSuppressed &&
+    (!observerSuppressed || conversationRun.transportInterrupted) &&
     (conversationRun.transportInterrupted ||
       (activeSessionReportedRunning &&
         conversationRun.status !== "streaming" &&
@@ -942,13 +944,18 @@ export function SessionWorkbench({
   );
   const sessionObserver = useSessionObserver({
     agentId: activeAgentId,
-    // The local conversation run owns its turn. Observing it at the same time
-    // replays the same ACP frames under a different stream id, which renders
-    // every timeline row twice. Only observe turns the run does not own.
+    // After a transport interruption or page resume, a committed observer
+    // snapshot takes ownership from the potentially stalled conversation.
     enabled:
       !usesEncryptedTransport &&
       (shouldObserveSessionTurn || shouldFollowQueuedTurn),
-    turnId: activeSessionReportedRunning ? observedTurnId : undefined,
+    turnId: conversationRun.transportInterrupted
+      ? latestRuntimeTurnId(conversationRun.events)?.startsWith("pending-turn:")
+        ? undefined
+        : latestRuntimeTurnId(conversationRun.events)
+      : activeSessionReportedRunning
+        ? observedTurnId
+        : undefined,
     followQueuedTurn: shouldFollowQueuedTurn,
     onBufferMiss: refreshActiveSessionRuntime,
     onConnected: handleObserverConnected,

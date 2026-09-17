@@ -1384,3 +1384,10 @@ Observer 只观察，等待下一轮的重试窗口覆盖一个周期上报间�
 运行状态刷新同时失效 session 详情缓存。暂停 observer 只作用于具体 session/turn，
 `runtime_turn_instance_id` 变化后重新订阅该 turn，不依赖先看到 idle。
 消息时间或运行状态变化会刷新历史，补上在两次详情检查之间已结束的短 turn。
+
+### 切回前台时恢复会话
+
+页面从隐藏恢复可见或从 bfcache 恢复时，刷新 session metadata、history 和队列。
+已确认开始的本地 turn 即使发送连接没有报错，也启用 observer 补读，并优先使用
+本地 turn ID，避免 runtime snapshot 滞后时订阅到上一轮。已有 observer 在恢复时
+重新连接，收到新快照的 `head` 前保留原画面。此流程不会重新发送 prompt 或取消执行。

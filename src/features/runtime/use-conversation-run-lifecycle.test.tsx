@@ -1,7 +1,7 @@
 /* @vitest-environment jsdom */
 
 import { act, renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useConversationRun } from "./use-conversation-run";
 import { ApiError } from "../api/errors";
 
@@ -15,6 +15,69 @@ vi.mock("./conversation-run", async (importOriginal) => ({
 }));
 
 describe("useConversationRun lifecycle", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("recovers an accepted turn after background suspension without resending or cancelling", async () => {
+    let options!: Parameters<
+      typeof import("./conversation-run").streamConversationRun
+    >[0];
+    let finish!: () => void;
+    mocks.streamConversationRun.mockImplementationOnce((value) => {
+      options = value;
+      return new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+    });
+    const visibility = vi.spyOn(document, "visibilityState", "get");
+    visibility.mockReturnValue("visible");
+    const resume = () => {
+      act(() => {
+        visibility.mockReturnValue("hidden");
+        document.dispatchEvent(new Event("visibilitychange"));
+        visibility.mockReturnValue("visible");
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+    };
+    const { result } = renderHook(() =>
+      useConversationRun({
+        agentId: "agent_1",
+        nodeId: "node_1",
+        sessionId: "sess_1",
+        userId: "user_1",
+      }),
+    );
+    let sending!: ReturnType<typeof result.current.sendMessage>;
+    act(() => {
+      sending = result.current.sendMessage("New prompt");
+    });
+    resume();
+    expect(result.current.transportInterrupted).toBe(false);
+    act(() =>
+      options.onEnvelope({
+        type: "turn_started",
+        node_id: "node_1",
+        agent_id: "agent_1",
+        session_id: "sess_1",
+        turn_id: "turn_1",
+      }),
+    );
+    resume();
+    expect(result.current.transportInterrupted).toBe(true);
+    expect(result.current.status).toBe("streaming");
+    expect(result.current.events).toContainEqual(
+      expect.objectContaining({
+        type: "user_message",
+        content: "New prompt",
+        turnId: "turn_1",
+      }),
+    );
+    expect(options.signal?.aborted).toBe(false);
+    expect(mocks.streamConversationRun).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      finish();
+      await sending;
+    });
+  });
   beforeEach(() => {
     mocks.streamConversationRun.mockReset();
   });
