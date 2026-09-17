@@ -1368,3 +1368,19 @@ agent_id；已知两者时通过现有同源 API client 直接读取 agent/sessi
 继续使用 TanStack Query 的 session metadata 缓存，不扫描所有 session。
 名称缺失时显示 Source session，无关联时保留普通返回按钮。移除重复标题栏
 和状态徽章；上传未完成、失败提示仍由正文区域显示。
+
+## Snapshot 驱动的待发消息
+
+Manager 将每个 session 的一条待发消息持久化（最多 64 KiB），由 paxd 的
+runtime snapshot 触发后台发送，消费过程不再依赖浏览器的 conversation 连接。
+GET queue 增加可选 state：queued / sending / uncertain。前端在队列非空时继续
+刷新；sending 禁止编辑和删除，uncertain 表示未确认送达，不能自动重发或覆盖。
+用户删除 uncertain 记录仅移除跟踪，不会取消可能已到达 paxd 的消息。
+Observer 只观察，等待下一轮的重试窗口覆盖一个周期上报间隔。先部署 Manager。
+
+## 后续 turn 的发现
+
+打开的 workbench 每 5 秒检查 session 详情；其他详情消费者保持 30 秒默认间隔。
+运行状态刷新同时失效 session 详情缓存。暂停 observer 只作用于具体 session/turn，
+`runtime_turn_instance_id` 变化后重新订阅该 turn，不依赖先看到 idle。
+消息时间或运行状态变化会刷新历史，补上在两次详情检查之间已结束的短 turn。

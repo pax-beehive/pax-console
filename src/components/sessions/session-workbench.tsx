@@ -121,6 +121,7 @@ import {
 } from "@/features/runtime/session-events";
 import { useConversationRun } from "@/features/runtime/use-conversation-run";
 import { useSessionObserver } from "@/features/runtime/session-observer";
+import { useSessionTurnObservation } from "@/features/runtime/use-session-turn-observation";
 import { sessionDisplayStatus } from "@/features/runtime/session-display-status";
 import { retrySessionHistoryHandoff } from "@/features/runtime/session-history-handoff";
 import { isSupportedSessionWorkspace } from "@/features/runtime/workspace-path";
@@ -227,7 +228,12 @@ export function SessionWorkbench({
   const routeSessionId = sessionId === "new" ? undefined : sessionId;
   const [currentSessionId, setCurrentSessionId] = useState(routeSessionId);
   const isNewSession = !currentSessionId;
-  const sessionMetadataQuery = useUserSession(user.user_id, currentSessionId);
+  const sessionMetadataQuery = useUserSession(
+    user.user_id,
+    currentSessionId,
+    undefined,
+    5_000,
+  );
   const sessionMetadata = sessionMetadataQuery.data ?? undefined;
   const nodesQuery = useNodes(user.user_id);
   const nodes = nodesQuery.data?.nodes ?? [];
@@ -336,6 +342,40 @@ export function SessionWorkbench({
   const activeSessionReportedRunning = isActiveSessionRunStatus(
     activeSession?.runtime_status,
   );
+  const historyRevision = JSON.stringify([
+    activeSession?.last_message_at,
+    activeSession?.last_user_message_at,
+    activeSession?.runtime_status,
+  ]);
+  const observedHistoryRevisionRef = useRef<{
+    sessionId: string;
+    revision: string;
+  } | null>(null);
+  useEffect(() => {
+    if (!currentSessionId || !activeSession || usesEncryptedTransport) return;
+    const previous = observedHistoryRevisionRef.current;
+    observedHistoryRevisionRef.current = {
+      sessionId: currentSessionId,
+      revision: historyRevision,
+    };
+    // A short turn can start and finish between metadata polls. Its messages
+    // still need to appear even if we never observed a running status.
+    if (
+      previous?.sessionId === currentSessionId &&
+      previous.revision !== historyRevision
+    ) {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.sessionHistory(user.user_id, currentSessionId),
+      });
+    }
+  }, [
+    activeSession,
+    currentSessionId,
+    historyRevision,
+    queryClient,
+    user.user_id,
+    usesEncryptedTransport,
+  ]);
   const activeSessionRuntimeBlocksPrompt =
     activeSessionReportedRunning || activeSession?.runtime_status === "unknown";
   const isExternallyCreatedSession = Boolean(
@@ -344,28 +384,15 @@ export function SessionWorkbench({
     activeSession?.source &&
     activeSession.source !== "acp_tunnel",
   );
-  const [observerSuppressedSessionId, setObserverSuppressedSessionId] =
-    useState<string | null>(null);
-  useEffect(() => {
-    if (
-      observerSuppressedSessionId !== currentSessionId ||
-      activeSessionReportedRunning
-    ) {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setObserverSuppressedSessionId(null);
-    }, 0);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [
-    activeSessionReportedRunning,
+  const {
+    turnId: observedTurnId,
+    suppressed: observerSuppressed,
+    suppress: suppressObservedTurn,
+  } = useSessionTurnObservation(
     currentSessionId,
-    observerSuppressedSessionId,
-  ]);
+    activeSession?.runtime_turn_instance_id,
+    activeSessionReportedRunning,
+  );
   const activePaxConfig =
     activeSession?.pax_config ?? pendingSessionPaxConfig ?? undefined;
   const effectiveNewSessionPermissionChoiceId = resolvePermissionChoiceId(
@@ -754,6 +781,9 @@ export function SessionWorkbench({
     }
     if (currentSessionId) {
       void queryClient.invalidateQueries({
+        queryKey: queryKeys.sessionMetadata(user.user_id, currentSessionId),
+      });
+      void queryClient.invalidateQueries({
         queryKey: queryKeys.sessionHistory(user.user_id, currentSessionId),
       });
     }
@@ -782,7 +812,7 @@ export function SessionWorkbench({
   const shouldObserveSessionTurn =
     !usesEncryptedTransport &&
     Boolean(activeAgentId && currentSessionId) &&
-    observerSuppressedSessionId !== currentSessionId &&
+    !observerSuppressed &&
     (conversationRun.transportInterrupted ||
       (activeSessionReportedRunning &&
         conversationRun.status !== "streaming" &&
@@ -805,7 +835,7 @@ export function SessionWorkbench({
     ),
     refetchInterval: (query) =>
       query.state.data
-        ? false
+        ? 1500
         : shouldObserveSessionTurn ||
             conversationRun.status === "streaming" ||
             conversationRun.status === "waiting_approval" ||
@@ -816,7 +846,8 @@ export function SessionWorkbench({
   });
   const shouldFollowQueuedTurn =
     Boolean(currentSessionId) &&
-    (Boolean(queuedTurnQuery.data) ||
+    ((Boolean(queuedTurnQuery.data) &&
+      queuedTurnQuery.data?.state !== "uncertain") ||
       queuedFollowUpSessionId === currentSessionId);
   const handleQueuedTurnStarted = useCallback(() => {
     if (activeAgentId && currentSessionId) {
@@ -882,12 +913,12 @@ export function SessionWorkbench({
   const handleNoRunningTurn = useCallback(() => {
     const interruptedTurnId = latestRuntimeTurnId(conversationRun.events);
     finishConversationRunFromObserver();
-    setObserverSuppressedSessionId(currentSessionId ?? null);
+    suppressObservedTurn();
     refreshActiveSessionRuntime();
     retryTerminalHistoryHandoff(interruptedTurnId);
   }, [
     conversationRun.events,
-    currentSessionId,
+    suppressObservedTurn,
     finishConversationRunFromObserver,
     refreshActiveSessionRuntime,
     retryTerminalHistoryHandoff,
@@ -917,6 +948,7 @@ export function SessionWorkbench({
     enabled:
       !usesEncryptedTransport &&
       (shouldObserveSessionTurn || shouldFollowQueuedTurn),
+    turnId: activeSessionReportedRunning ? observedTurnId : undefined,
     followQueuedTurn: shouldFollowQueuedTurn,
     onBufferMiss: refreshActiveSessionRuntime,
     onConnected: handleObserverConnected,

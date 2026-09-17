@@ -523,9 +523,9 @@ Content-Type: application/json
 ```
 
 with `{ "input": "..." }`. The backend keeps one replaceable queued draft per
-active session; sending queue again before the current turn completes replaces
-the pending draft. The backend turn sequencer, not the browser stream, sends
-the queued prompt after the active prompt returns a terminal response.
+session; sending queue again before dispatch claims the slot replaces the
+pending draft. Manager persists the slot and sends it when an applied paxd
+snapshot confirms the session is idle, independently of the browser stream.
 
 The steer button calls:
 
@@ -537,10 +537,9 @@ Content-Type: application/json
 
 with `{ "input": "..." }`. This is manager-side stop plus queue: it sends the
 ACP `session/cancel` notification for the current prompt, then runs the queued
-prompt after the current turn returns a terminal prompt response. Closing the
-page does not cancel the queued dispatch while the manager process and ACP
-tunnel remain alive. The existing `/conversation` SSE request is not the queued
-turn owner.
+prompt after paxd reports idle. Closing the page does not cancel the queued
+dispatch, and pending slots survive Manager restart. The existing
+`/conversation` SSE request is not the queued turn owner.
 
 The workbench observes background or second-window turns through:
 
@@ -1331,3 +1330,24 @@ same-origin API client and TanStack Query cache, avoiding a session-list scan.
 Missing names use "Source session"; artifacts without an association retain a
 generic Back action. Do not repeat the artifact title in the reader chrome or
 show status badges; pending/failed content states remain in the viewer body.
+
+## Snapshot-driven queued turns
+
+Manager persists one queued draft per session (64 KiB maximum), dispatched by
+paxd runtime snapshots without a browser conversation stream. Queue GET adds
+optional state: queued, sending, uncertain. Poll nonempty queue entries so a
+completed handoff cannot leave a stale card. Sending slots cannot be edited or
+deleted. Uncertain means receipt was not confirmed; do not automatically resend
+or overwrite it. Explicit deletion removes tracking, not an already received
+prompt. The observer remains read-only and waits across one periodic snapshot
+interval; it does not own queue dispatch. Deploy Manager before Console.
+
+## Discovering subsequent turns
+
+The open workbench polls session metadata every five seconds (other consumers
+retain the 30-second default). Runtime refresh also invalidates session metadata,
+not just session lists. Observer suppression belongs to a session/turn pair;
+changing runtime_turn_instance_id reopens a pinned observer even if runtime status
+stays running. Changes in message timestamps or runtime status invalidate history,
+so turns that finish between metadata polls still appear. No-running suppression
+must never hide all future turns for a session.
