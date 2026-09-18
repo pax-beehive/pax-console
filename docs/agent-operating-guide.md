@@ -1382,7 +1382,12 @@ latest_turn_id from durable Manager history, not paxd reporting.
 
 Keep a healthy locally owned conversation stream. Otherwise observe a running
 turn through events. On page resume refresh metadata and the history tail;
-unknown latest IDs while idle trigger after_seq catch-up starting at the second
+the workbench also immediately invalidates runtime/metadata queries on window
+blur-to-focus, even when visibility never changed, bypassing the polling wait
+and cache freshness. Coalesce focus and visibility events for the same return.
+Window-focus handling is opt-in on the runtime refresh hook; it must not reopen
+healthy streams or refetch all history pages on each window focus.
+Unknown latest IDs while idle trigger after_seq catch-up starting at the second
 newest known message. Follow has_newer rather than treating one page as complete.
 
 On local/observed completion or discovery of an idle latest turn, read

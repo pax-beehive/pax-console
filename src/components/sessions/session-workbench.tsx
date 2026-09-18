@@ -802,7 +802,7 @@ export function SessionWorkbench({
     queryClient,
     user.user_id,
   ]);
-  usePageResume(refreshActiveSessionRuntime);
+  usePageResume(refreshActiveSessionRuntime, { includeWindowFocus: true });
   const calibrateHistoryTurn = historySync.calibrate;
   const completedConversationTurnVersion = conversationRun.completedTurnVersion;
   const calibratedConversationVersionRef = useRef(0);
