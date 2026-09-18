@@ -2421,6 +2421,7 @@ export function SessionWorkbench({
             usesEncryptedTransport ? "bg-emerald-500/[0.012]" : "bg-canvas",
           )}
           onScroll={handleTimelineScroll}
+          data-viewport-scroll
           ref={timelineScrollRef}
         >
           <div className="mx-auto grid w-full max-w-4xl gap-2">
@@ -2499,7 +2500,6 @@ export function SessionWorkbench({
           draftKey={composerDraftKey}
           isNewSession={isNewSession}
           isTurnRunning={isTurnRunning}
-          mobileScrollRootRef={timelineScrollRef}
           showAdminFeatures={showAdminFeatures}
           newSessionCwd={newSessionCwd}
           newSessionCwdInvalid={newSessionCwdInvalid}

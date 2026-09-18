@@ -1,6 +1,7 @@
 "use client";
 
-import { ReactNode } from "react";
+import { ReactNode, useRef } from "react";
+import { useConsoleViewport } from "@/lib/use-console-viewport";
 import { User } from "@/features/api/types";
 import { useConsoleStore } from "@/stores/console-store";
 import { canSeeAdminFeatures } from "@/features/auth/admin-view";
@@ -14,12 +15,17 @@ type ConsoleLayoutProps = {
 };
 
 export function ConsoleLayout({ user, children }: ConsoleLayoutProps) {
+  const shellRef = useRef<HTMLElement>(null);
+  useConsoleViewport(shellRef);
   const sidebarCollapsed = useConsoleStore((state) => state.sidebarCollapsed);
   const previewAsUser = useConsoleStore((state) => state.previewAsUser);
   const showAdminFeatures = canSeeAdminFeatures(user, previewAsUser);
 
   return (
-    <main className="console-shell flex overflow-hidden bg-canvas text-ink">
+    <main
+      ref={shellRef}
+      className="console-shell flex overflow-hidden bg-canvas text-ink"
+    >
       <div
         className="hidden shrink-0 overflow-hidden transition-[width] duration-200 lg:block"
         style={{ width: sidebarCollapsed ? 76 : 248 }}

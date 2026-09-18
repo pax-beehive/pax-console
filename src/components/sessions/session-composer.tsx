@@ -4,7 +4,6 @@ import {
   FormEvent,
   KeyboardEvent,
   memo,
-  type RefObject,
   useCallback,
   useRef,
   useState,
@@ -29,6 +28,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SessionCommandInput } from "@/components/sessions/session-command-input";
+import { SessionDraftInput } from "./session-draft-input";
 import { SessionPermissionSelector } from "@/components/sessions/session-permission-selector";
 import { SessionSecretDialog } from "./session-secret-dialog";
 import {
@@ -45,7 +45,6 @@ import type {
   SessionAvailableCommand,
 } from "@/features/api/types";
 import { compactId } from "@/lib/format";
-import { useMobileComposerKeyboardInset } from "@/lib/use-mobile-composer-keyboard-inset";
 import { cn } from "@/lib/utils";
 import { useConsoleStore } from "@/stores/console-store";
 
@@ -72,7 +71,6 @@ type SessionComposerProps = {
   draftKey: string;
   isNewSession: boolean;
   isTurnRunning: boolean;
-  mobileScrollRootRef?: RefObject<HTMLElement | null>;
   newSessionCwd: string;
   newSessionCwdInvalid: boolean;
   newSessionWorkspaceOpen: boolean;
@@ -120,7 +118,6 @@ export const SessionComposer = memo(function SessionComposer({
   draftKey,
   isNewSession,
   isTurnRunning,
-  mobileScrollRootRef,
   newSessionCwd,
   newSessionCwdInvalid,
   newSessionWorkspaceOpen,
@@ -151,8 +148,8 @@ export const SessionComposer = memo(function SessionComposer({
   supportsQueuedTurns = true,
   updateQueuedTurnPending,
 }: SessionComposerProps) {
-  const draft = useConsoleStore(
-    (state) => state.composerDrafts[draftKey] ?? "",
+  const hasContent = useConsoleStore((state) =>
+    Boolean(state.composerDrafts[draftKey]?.trim()),
   );
   const setComposerDraft = useConsoleStore((state) => state.setComposerDraft);
   const [secretDialogOpen, setSecretDialogOpen] = useState(false);
@@ -161,24 +158,18 @@ export const SessionComposer = memo(function SessionComposer({
   );
   const [queuedTurnDraft, setQueuedTurnDraft] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const composerFormRef = useRef<HTMLFormElement | null>(null);
-  const { composerPaddingStyle, handleBlurCapture, handleFocusCapture } =
-    useMobileComposerKeyboardInset(composerFormRef, {
-      scrollRootRef: mobileScrollRootRef,
-    });
-  const content = draft.trim();
   const hasAttachments = attachments.length > 0;
   const canSend =
     Boolean(activeAgentId && activeNodeId) &&
     !isTurnRunning &&
     !newSessionCwdInvalid &&
     !attachmentUploadPending &&
-    content.length > 0;
+    hasContent;
   const canQueueTurn =
     isTurnRunning &&
     supportsQueuedTurns &&
     Boolean(activeAgentId && currentSessionId) &&
-    content.length > 0 &&
+    hasContent &&
     !hasAttachments &&
     !attachmentUploadPending &&
     !queueTurnPending;
@@ -186,7 +177,7 @@ export const SessionComposer = memo(function SessionComposer({
     isTurnRunning &&
     supportsQueuedTurns &&
     Boolean(activeAgentId && currentSessionId) &&
-    content.length > 0 &&
+    hasContent &&
     !hasAttachments &&
     !attachmentUploadPending &&
     !steerTurnPending;
@@ -221,6 +212,8 @@ export const SessionComposer = memo(function SessionComposer({
 
   function submit(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
+    const content =
+      useConsoleStore.getState().composerDrafts[draftKey]?.trim() ?? "";
     if ((!canSend && !canQueueTurn) || !content) {
       return;
     }
@@ -251,6 +244,8 @@ export const SessionComposer = memo(function SessionComposer({
   }
 
   function steer() {
+    const content =
+      useConsoleStore.getState().composerDrafts[draftKey]?.trim() ?? "";
     if (!canSteerTurn || !content) {
       return;
     }
@@ -271,11 +266,7 @@ export const SessionComposer = memo(function SessionComposer({
           : "border-hairline bg-surface-1",
       )}
       data-secure-mode={secure}
-      onBlurCapture={handleBlurCapture}
-      onFocusCapture={handleFocusCapture}
       onSubmit={submit}
-      ref={composerFormRef}
-      style={composerPaddingStyle}
     >
       <input
         className="sr-only"
@@ -441,13 +432,13 @@ export const SessionComposer = memo(function SessionComposer({
             {attachmentError.name}: {attachmentError.message}
           </div>
         )}
-        <SessionCommandInput
+        <SessionDraftInput
           key={draftKey}
+          draftKey={draftKey}
           commands={secure ? undefined : availableCommands}
           className="max-h-40 min-h-12 w-full resize-none overflow-y-auto bg-transparent px-1 py-1 text-base leading-6 text-ink outline-none [field-sizing:content] placeholder:text-ink-tertiary sm:text-sm sm:leading-5"
           disabled={!activeAgentId}
           enterKeyHint="send"
-          onValueChange={(value) => setComposerDraft(draftKey, value)}
           onKeyDown={handleKeyDown}
           placeholder={
             secure
@@ -457,7 +448,6 @@ export const SessionComposer = memo(function SessionComposer({
                 : "Select an agent before sending a prompt"
           }
           rows={2}
-          value={draft}
         />
         <div className="flex min-w-0 flex-wrap items-center gap-1 sm:gap-2">
           <DropdownMenu>

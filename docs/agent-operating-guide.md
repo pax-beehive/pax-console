@@ -4,6 +4,23 @@ This file is for coding agents working on PAX Console. Keep it short, factual, a
 
 ## Mobile layout
 
+ConsoleLayout owns visual viewport sizing through `useConsoleViewport` at all
+screen widths, including iPad hardware-keyboard accessory bars. Update shell
+height/offset CSS variables in one animation frame, without React state updates
+or per-composer keyboard padding/scrollIntoView. Lock document scrolling only
+while the console is mounted; keep scrollable work areas inside the shell and
+mark chat/context scroll roots with `data-viewport-scroll` to preserve reading
+position or bottom anchoring. Mobile navigation is positioned inside the shell.
+Do not resize the shell during pinch zoom or disable user zoom. WebKit touch
+form controls use at least 16px even at tablet/desktop breakpoints.
+
+`SessionDraftInput` alone subscribes to draft text on every keystroke. Session
+controls subscribe only to whether the draft is nonempty; submission, queue,
+and steer handlers read the current Zustand draft synchronously. Home's new
+message draft uses the user-scoped `home:{user_id}` key in the same in-memory
+store. Never debounce draft writes or subscribe Home/the timeline to raw draft
+text. Completion scrolls its own list and focuses the input with preventScroll.
+
 Existing sessions expose secure secret delivery in the composer + menu, including
 E2EE sessions where uploads remain disabled. Reuse NodeSecretChannelPush and the
 node-level channel API; never store plaintext in chat drafts or query caches.
