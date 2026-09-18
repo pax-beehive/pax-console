@@ -1408,7 +1408,11 @@ Observer 只观察，等待下一轮的重试窗口覆盖一个周期上报间�
 latest_message_seq、latest_turn_id，不增加 paxd 上报或数据库表。
 
 本地 conversation 正常时继续使用它；否则 running 的 turn 通过 events 观察。
-切回浏览器标签页立即刷新状态和历史尾部；idle 时发现陌生的最新消息，从本地倒数
+切回浏览器标签页立即刷新状态和历史尾部。当前 workbench 还监听 window 的
+blur → focus：即使 visibility 未变化，也立即失效运行状态和详情缓存，不等待
+5 秒轮询或缓存过期。同一次返回的 focus 和 visibilitychange 合并触发；只有
+运行状态刷新启用该 focus 选项，不因此重连正常的流或重读全部历史。
+idle 时发现陌生的最新消息，从本地倒数
 第二条的 session_seq 使用 after_seq 补读，按 has_newer 继续分页。
 
 conversation/events 结束或发现 idle 的最新 turn 时，使用

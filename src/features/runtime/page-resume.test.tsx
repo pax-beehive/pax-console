@@ -11,6 +11,66 @@ afterEach(() => {
 });
 
 describe("page resume", () => {
+  it("refreshes immediately on window refocus with the latest callback and removes listeners", () => {
+    const first = vi.fn();
+    const latest = vi.fn();
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    const { rerender, unmount } = renderHook(
+      ({ callback }) => usePageResume(callback, { includeWindowFocus: true }),
+      { initialProps: { callback: first } },
+    );
+    window.dispatchEvent(new Event("blur"));
+    rerender({ callback: latest });
+    window.dispatchEvent(new Event("focus"));
+    expect(first).not.toHaveBeenCalled();
+    expect(latest).toHaveBeenCalledTimes(1);
+    window.dispatchEvent(new Event("focus"));
+    expect(latest).toHaveBeenCalledTimes(1);
+    window.dispatchEvent(new Event("blur"));
+    window.dispatchEvent(new Event("focus"));
+    expect(latest).toHaveBeenCalledTimes(2);
+    unmount();
+    window.dispatchEvent(new Event("blur"));
+    window.dispatchEvent(new Event("focus"));
+    expect(latest).toHaveBeenCalledTimes(2);
+  });
+
+  it("coalesces visibility resume and focus without refreshing while hidden", () => {
+    const refresh = vi.fn();
+    const visibility = vi.spyOn(document, "visibilityState", "get");
+    visibility.mockReturnValue("visible");
+    const { unmount } = renderHook(() =>
+      usePageResume(refresh, { includeWindowFocus: true }),
+    );
+    window.dispatchEvent(new Event("blur"));
+    visibility.mockReturnValue("hidden");
+    document.dispatchEvent(new Event("visibilitychange"));
+    window.dispatchEvent(new Event("focus"));
+    expect(refresh).not.toHaveBeenCalled();
+    visibility.mockReturnValue("visible");
+    document.dispatchEvent(new Event("visibilitychange"));
+    window.dispatchEvent(new Event("focus"));
+    expect(refresh).toHaveBeenCalledTimes(1);
+    // Some browsers deliver focus before visibilitychange on return.
+    window.dispatchEvent(new Event("blur"));
+    visibility.mockReturnValue("hidden");
+    document.dispatchEvent(new Event("visibilitychange"));
+    visibility.mockReturnValue("visible");
+    window.dispatchEvent(new Event("focus"));
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(refresh).toHaveBeenCalledTimes(2);
+    unmount();
+  });
+
+  it("leaves window refocus recovery opt-in for stream and history consumers", () => {
+    const refresh = vi.fn();
+    const { unmount } = renderHook(() => usePageResume(refresh));
+    window.dispatchEvent(new Event("blur"));
+    window.dispatchEvent(new Event("focus"));
+    expect(refresh).not.toHaveBeenCalled();
+    unmount();
+  });
+
   it("refreshes only on resume and uses the latest callback", () => {
     const first = vi.fn();
     const latest = vi.fn();
