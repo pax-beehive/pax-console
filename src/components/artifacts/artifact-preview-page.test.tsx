@@ -40,7 +40,7 @@ afterEach(() => {
 
 describe("artifact reader navigation", () => {
   it.each(["files", "publications"] as const)(
-    "returns to the source session for %s without fetching its name",
+    "returns to the source session inside Home for %s without fetching its name",
     (sourceType) => {
       mocks.useArtifact.mockReturnValue({
         data: {
@@ -74,7 +74,7 @@ describe("artifact reader navigation", () => {
 
       expect(
         screen.getByRole("link", { name: "Back to session" }),
-      ).toHaveAttribute("href", "/sessions/session%2Fone");
+      ).toHaveAttribute("href", "/?session_id=session%2Fone");
       expect(
         screen.getByRole("heading", { name: "API Contract" }),
       ).toBeVisible();

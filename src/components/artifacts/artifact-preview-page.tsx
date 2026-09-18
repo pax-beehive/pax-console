@@ -186,7 +186,7 @@ function ArtifactPreviewPage({
                 className="max-sm:h-9 max-sm:w-9 max-sm:justify-center max-sm:px-0"
               >
                 <Link
-                  href={`/sessions/${encodeURIComponent(document.sessionId)}`}
+                  href={`/?session_id=${encodeURIComponent(document.sessionId)}`}
                 >
                   <ArrowLeft className="h-4 w-4 shrink-0" />
                   <span className="hidden sm:inline">Back to session</span>

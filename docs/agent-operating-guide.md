@@ -1325,6 +1325,8 @@ Standalone artifact readers use one non-scrolling toolbar: a fixed "Back to
 session" link, the artifact title (filename fallback), Copy link, Download, and
 an options menu for refresh, open file, and file details. Do not fetch session
 names for this link; source adapters retain the session/agent IDs. Artifacts
+with a source session link to `/?session_id={encodedSessionId}`, selecting that
+session in the Home workbench rather than opening `/sessions/{id}`. Artifacts
 without a session association retain a generic Back action. Copy link copies
 the current protected reader URL, including the content reference, never a
 signed content URL. On mobile, navigation/download use labeled icons and Copy

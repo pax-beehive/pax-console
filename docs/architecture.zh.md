@@ -1365,6 +1365,8 @@ text is not heuristically split. Deploy this Console support before Manager.
 Artifact 独立阅读页保留一条不随正文滚动的工具栏：固定文案 Back to session、
 常驻文件标题（缺失时使用 filename）、复制链接、下载、更多菜单。来源适配器保留
 session_id / agent_id，但顶栏不再查询 session 名称；无关联时使用普通返回按钮。
+Back to session 指向 `/?session_id={encodedSessionId}`，在 Home 中选中来源会话，
+不跳转到独立的 `/sessions/{id}` 页面。
 复制的是当前受认证保护的预览页 URL（包含内容 ref），不是短效 signed URL。
 手机上返回和下载使用带无障碍名称的图标，复制链接收进更多菜单，为标题留出空间。
 更多菜单保留刷新、打开文件和文件详情；详情显示与标题不同的 filename、大小和

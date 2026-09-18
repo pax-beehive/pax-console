@@ -1345,17 +1345,22 @@ describe("FleetOverview session rail", () => {
     await waitFor(() => expect(mocks.routerPush).not.toHaveBeenCalled());
   });
 
-  it("loads a directly linked legacy sessionId and normalizes the URL", async () => {
-    window.history.replaceState(null, "", "/?sessionId=sess_1");
+  it.each(["session_id", "sessionId"])(
+    "opens a directly linked %s in the Home workbench",
+    async (parameter) => {
+      window.history.replaceState(null, "", `/?${parameter}=sess_1`);
 
-    renderOverview();
+      renderOverview();
 
-    const workbench = await screen.findByTestId("session-workbench");
-    expect(workbench).toHaveTextContent("sess_1");
-    expect(workbench).toHaveAttribute("data-node-id", "node_1");
-    expect(workbench).toHaveAttribute("data-agent-id", "agent_1");
-    expect(window.location.search).toBe("?session_id=sess_1");
-  });
+      const workbench = await screen.findByTestId("session-workbench");
+      expect(workbench).toHaveTextContent("sess_1");
+      expect(workbench).toHaveAttribute("data-embedded", "true");
+      expect(workbench).toHaveAttribute("data-node-id", "node_1");
+      expect(workbench).toHaveAttribute("data-agent-id", "agent_1");
+      expect(window.location.search).toBe("?session_id=sess_1");
+      expect(window.location.pathname).toBe("/");
+    },
+  );
 
   it("leaves command-click navigation to the Home session link", async () => {
     const queryClient = new QueryClient({
