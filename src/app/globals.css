@@ -151,12 +151,36 @@ button {
 
 .console-shell {
   position: fixed;
-  inset: 0;
+  inset: var(--console-viewport-top, 0px) 0 auto;
   height: 100vh;
-  height: 100dvh;
-  max-height: 100dvh;
+  height: var(--console-viewport-height, 100dvh);
+  max-height: var(--console-viewport-height, 100dvh);
   width: 100%;
   overscroll-behavior: none;
+}
+
+/* Only the console owns a locked document; auth and other pages may scroll. */
+html[data-console-viewport],
+html[data-console-viewport] body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+html[data-console-viewport] body {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+}
+
+/* iPad can use desktop breakpoints even with a keyboard attached. Prevent
+   WebKit's small-input focus zoom without disabling user pinch zoom. */
+@supports (-webkit-touch-callout: none) {
+  input,
+  textarea,
+  select {
+    font-size: max(16px, 1rem);
+  }
 }
 
 .mobile-safe-bottom {

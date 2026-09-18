@@ -1,6 +1,6 @@
 "use client";
 
-import { SessionCommandInput } from "@/components/sessions/session-command-input";
+import { SessionDraftInput } from "@/components/sessions/session-draft-input";
 import Link from "next/link";
 import {
   FormEvent,
@@ -67,7 +67,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { TruncatedText } from "@/components/ui/text";
 import { Tooltip } from "@/components/ui/tooltip";
-import { useMobileComposerKeyboardInset } from "@/lib/use-mobile-composer-keyboard-inset";
 import {
   completeUserAttachment,
   createProjectTarget,
@@ -191,14 +190,14 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const showAdminFeatures = canSeeAdminFeatures(user, previewAsUser);
   const searchParams = useSearchParams();
   const composerFileInputRef = useRef<HTMLInputElement>(null);
-  const composerFormRef = useRef<HTMLFormElement>(null);
-  const composerContentScrollRef = useRef<HTMLDivElement>(null);
   const persistedTargetSessionIdsRef = useRef(new Set<string>());
   const canonicalUrlSessionId = searchParams.get("session_id") ?? "";
   const legacyUrlSessionId = searchParams.get("sessionId") ?? "";
   const urlSessionId = canonicalUrlSessionId || legacyUrlSessionId;
   const [composerMode, setComposerMode] = useState<ComposerMode>("clean");
-  const [draft, setDraft] = useState("");
+  const homeDraftKey = `home:${user.user_id}`;
+  const setComposerDraft = useConsoleStore((state) => state.setComposerDraft);
+  const setDraft = (value: string) => setComposerDraft(homeDraftKey, value);
   const [generatedDrafts, setGeneratedDrafts] = useState<
     Record<string, string>
   >({});
@@ -229,10 +228,6 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [mobileComposerOpen, setMobileComposerOpen] = useState(true);
   const [mobileRailOpen, setMobileRailOpen] = useState(false);
-  const { composerPaddingStyle, handleBlurCapture, handleFocusCapture } =
-    useMobileComposerKeyboardInset(composerFormRef, {
-      scrollRootRef: composerContentScrollRef,
-    });
   const [dismissedDeckSession, setDismissedDeckSession] = useState<{
     index: number;
     sessionId: string;
@@ -755,6 +750,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const draft = useConsoleStore.getState().composerDrafts[homeDraftKey] ?? "";
     if (composerMode === "summarize-note" && selectedInquiry) {
       setGeneratedDrafts((current) => ({
         ...current,
@@ -1169,7 +1165,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 </div>
                 <div
                   className="min-h-0 flex-1 overflow-auto p-3 sm:p-5"
-                  ref={composerContentScrollRef}
+                  data-viewport-scroll
                 >
                   <div className="mx-auto grid w-full max-w-4xl gap-4">
                     {needsOnboarding && (
@@ -1258,11 +1254,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                       ? "border-emerald-400/20 bg-emerald-500/[0.035] backdrop-blur-xl"
                       : "border-hairline bg-surface-1",
                   )}
-                  onBlurCapture={handleBlurCapture}
-                  onFocusCapture={handleFocusCapture}
                   onSubmit={submit}
-                  ref={composerFormRef}
-                  style={composerPaddingStyle}
                 >
                   <div
                     className={cn(
@@ -1513,18 +1505,17 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                         {composerAttachmentError.message}
                       </div>
                     )}
-                    <SessionCommandInput
+                    <SessionDraftInput
+                      draftKey={homeDraftKey}
                       className="max-h-40 min-h-12 w-full resize-none overflow-y-auto bg-transparent px-1 py-1 text-base leading-6 text-ink outline-none [field-sizing:content] placeholder:text-ink-tertiary sm:text-sm sm:leading-5"
                       enterKeyHint="send"
                       onKeyDown={handleComposerKeyDown}
-                      onValueChange={setDraft}
                       placeholder={
                         secureComposerActive
                           ? "Send an end-to-end encrypted message"
                           : composerPlaceholder(composerMode)
                       }
                       rows={2}
-                      value={draft}
                     />
                     <div className="flex min-w-0 flex-wrap items-center gap-1 sm:gap-2">
                       <DropdownMenu>

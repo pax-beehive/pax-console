@@ -206,8 +206,9 @@ timeline uses an 8px row gap; agent and user copy uses 14px type with a 20px
 line height, Markdown H1/H2/H3 use 18px/16px/15px type, and blockquotes use
 13px type. Session and Home composer input uses the same 14px/20px typography
 as body copy on desktop. Below 640px, composer input and agent/user messages use 16px/24px, and
-form controls use at least 16px to prevent focus zoom. Larger layouts retain
-component sizes even with a touchscreen. Preserve user pinch zoom. Command suggestions scroll
+form controls use at least 16px to prevent focus zoom. iPad WebKit form controls
+also keep this 16px minimum at larger breakpoints; desktop controls retain their
+normal sizes. Preserve user pinch zoom. Command suggestions scroll
 vertically only; long names, descriptions, and hints wrap within the composer.
 Markdown paragraphs use 6px spacing. Agent-message and work-group
 items add no vertical padding beyond the 8px timeline gap.

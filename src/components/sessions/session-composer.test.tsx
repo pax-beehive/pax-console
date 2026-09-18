@@ -19,6 +19,7 @@ import {
   vi,
 } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import * as buttonModule from "@/components/ui/button";
 import { useConsoleStore } from "@/stores/console-store";
 import { SessionComposer } from "./session-composer";
 
@@ -70,6 +71,7 @@ afterAll(() => {
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   mockVisualViewport.height = 900;
   mockVisualViewport.offsetTop = 0;
   scrollIntoViewMock.mockReset();
@@ -228,7 +230,7 @@ describe("SessionComposer", () => {
     );
   });
 
-  it("uses touch-friendly composer sizing and lifts itself above the mobile keyboard", async () => {
+  it("lets the shell resize for the keyboard without padding or document scrolling", async () => {
     render(
       <TooltipProvider>
         <SessionComposer
@@ -271,30 +273,15 @@ describe("SessionComposer", () => {
     const form = textarea.closest("form") as HTMLFormElement;
     expect(textarea).toHaveClass("text-base", "sm:text-sm");
     expect(textarea).toHaveAttribute("enterkeyhint", "send");
-    expect(form).toHaveStyle({
-      paddingBottom: "calc(max(0.75rem, env(safe-area-inset-bottom)) + 0px)",
-    });
-
     fireEvent.focus(textarea);
-    mockVisualViewport.height = 620;
+    mockVisualViewport.height = 856;
     mockVisualViewport.dispatchEvent(new Event("resize"));
-
-    await waitFor(() =>
-      expect(form).toHaveStyle({
-        paddingBottom:
-          "calc(max(0.75rem, env(safe-area-inset-bottom)) + 280px)",
-      }),
-    );
-    fireEvent.blur(textarea);
-
-    await waitFor(() =>
-      expect(form).toHaveStyle({
-        paddingBottom: "calc(max(0.75rem, env(safe-area-inset-bottom)) + 0px)",
-      }),
-    );
+    expect(form.style.paddingBottom).toBe("");
+    expect(scrollIntoViewMock).not.toHaveBeenCalled();
   });
 
   it("updates its draft without rerendering sibling timeline content", async () => {
+    const renderButton = vi.spyOn(buttonModule, "Button");
     let timelineRenderCount = 0;
     const onSubmitDraft = vi.fn(async () => true);
 
@@ -361,8 +348,11 @@ describe("SessionComposer", () => {
     expect(textarea).toHaveValue("hello");
     expect(timelineRenderCount).toBe(1);
 
+    const controlRenderCount = renderButton.mock.calls.length;
+    fireEvent.change(textarea, { target: { value: "hello world" } });
+    expect(renderButton).toHaveBeenCalledTimes(controlRenderCount);
     fireEvent.submit(textarea.closest("form")!);
-    expect(onSubmitDraft).toHaveBeenCalledWith("hello");
+    expect(onSubmitDraft).toHaveBeenCalledWith("hello world");
     await waitFor(() => expect(textarea).toHaveValue(""));
     expect(timelineRenderCount).toBe(1);
   });

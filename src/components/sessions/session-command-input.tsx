@@ -43,17 +43,23 @@ export function SessionCommandInput({
     typeof selected?.input?.hint === "string" ? selected.input.hint : undefined;
 
   useEffect(() => {
-    if (activeId)
-      document.getElementById(activeId)?.scrollIntoView?.({
-        block: "nearest",
-        inline: "nearest",
-      });
-  }, [activeId]);
+    const option = activeId ? document.getElementById(activeId) : null;
+    const list = document.getElementById(listId);
+    if (!option || !list) return;
+    // Scroll only the suggestion list, never the document/visual viewport.
+    if (option.offsetTop < list.scrollTop) list.scrollTop = option.offsetTop;
+    else if (
+      option.offsetTop + option.offsetHeight >
+      list.scrollTop + list.clientHeight
+    )
+      list.scrollTop =
+        option.offsetTop + option.offsetHeight - list.clientHeight;
+  }, [activeId, listId]);
 
   function select(command: SessionAvailableCommand) {
     onValueChange(`/${command.name} `);
     setActiveIndex(0);
-    textareaRef.current?.focus();
+    textareaRef.current?.focus({ preventScroll: true });
   }
 
   return (

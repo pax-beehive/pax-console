@@ -22,6 +22,7 @@ import {
   vi,
 } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useConsoleStore } from "@/stores/console-store";
 import type { AgentSession, Project, User } from "@/features/api/types";
 import { FleetOverview } from "./fleet-overview";
 
@@ -167,6 +168,7 @@ vi.mock("@/features/api/resources", async (importOriginal) => {
 });
 
 beforeEach(() => {
+  useConsoleStore.setState({ composerDrafts: {} });
   localStorageValues.clear();
   window.history.replaceState(null, "", "/");
   mocks.completeUserAttachment.mockReset();
@@ -304,6 +306,21 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("FleetOverview session rail", () => {
+  it("keeps Home and the session rail out of per-keystroke draft updates", async () => {
+    renderOverview();
+    await screen.findByRole("link", { name: /Session one/ });
+    const input = screen.getByRole("textbox", { name: "Message" });
+    const renders = mocks.useNodes.mock.calls.length;
+    for (const value of ["h", "he", "hel", "hello", "hello world"]) {
+      fireEvent.change(input, { target: { value } });
+    }
+    expect(input).toHaveValue("hello world");
+    expect(useConsoleStore.getState().composerDrafts["home:user_1"]).toBe(
+      "hello world",
+    );
+    expect(mocks.useNodes).toHaveBeenCalledTimes(renders);
+  });
+
   it("collapses equal combined session names but preserves meaningful pairs", async () => {
     mocks.listUserSessions.mockResolvedValue({
       pagination: { page_num: 1, page_size: 20, total: 3, total_pages: 1 },
