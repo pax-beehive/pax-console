@@ -66,4 +66,30 @@ describe("PAX API proxy route", () => {
     const [url] = (fetchMock as Mock).mock.calls[0] as [URL | string];
     expect(String(url)).toBe("http://localhost:19879/api/v1/health");
   });
+
+  it("forwards the signed Access cookie as the assertion for an internal upstream", async () => {
+    process.env.PAX_MANAGER_URL = "http://pax-manager:9879";
+    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { GET } = await import("./route");
+
+    await GET(
+      new NextRequest("https://paxworkspace.net/api/pax/api/v1/user/self/me", {
+        headers: { cookie: "CF_Authorization=signed-access-jwt" },
+      }),
+      {
+        params: Promise.resolve({
+          path: ["api", "v1", "user", "self", "me"],
+        }),
+      },
+    );
+
+    const [, init] = (fetchMock as Mock).mock.calls[0] as [
+      URL | string,
+      RequestInit,
+    ];
+    expect((init.headers as Headers).get("Cf-Access-Jwt-Assertion")).toBe(
+      "signed-access-jwt",
+    );
+  });
 });
