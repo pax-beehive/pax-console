@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { getAgentTunnelUrl } from "./tunnel-url";
+import { getAgentTunnelUrl, resolveHostedWsBaseUrl } from "./tunnel-url";
 
 const originalWsBaseUrl = process.env.NEXT_PUBLIC_PAX_WS_BASE_URL;
 
@@ -19,6 +19,18 @@ describe("getAgentTunnelUrl", () => {
   it("defaults browser tunnels to api.lakeward.net", () => {
     expect(getAgentTunnelUrl("agent_1")).toBe(
       "wss://api.lakeward.net/api/v1/user/self/agents/agent_1/tunnel",
+    );
+  });
+
+  it("uses the company API for the company Console hostname", () => {
+    expect(resolveHostedWsBaseUrl("paxworkspace.net")).toBe(
+      "wss://api.paxworkspace.net",
+    );
+  });
+
+  it("keeps the legacy API for the legacy Console hostname", () => {
+    expect(resolveHostedWsBaseUrl("ws.lakeward.net")).toBe(
+      "wss://api.lakeward.net",
     );
   });
 
