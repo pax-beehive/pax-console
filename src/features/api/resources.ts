@@ -2375,8 +2375,11 @@ export function useUserSession(
       userId ?? "pending",
       sessionId ?? "pending",
     ),
-    queryFn: () =>
-      getUserSession(
+    queryFn: async () => {
+      // Client-side read timing, not a field supplied by Manager. Capture before
+      // the request so a delayed pre-submit response cannot finish a new turn.
+      const runtimeSnapshotRequestedAt = Date.now();
+      const session = await getUserSession(
         userId as string,
         sessionId as string,
         agentId ??
@@ -2392,7 +2395,9 @@ export function useUserSession(
             sessionId ?? "pending",
           ),
         )?.node_id,
-      ),
+      );
+      return session ? { ...session, runtimeSnapshotRequestedAt } : null;
+    },
     enabled: Boolean(userId && sessionId),
     refetchInterval,
   });
