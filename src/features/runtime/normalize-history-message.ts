@@ -11,14 +11,93 @@ import { SessionEvent, type SessionMessageAttachment } from "./session-events";
 export function normalizeHistoryMessages(
   messages: HistoryMessage[],
 ): SessionEvent[] {
+  const projectedMessages = mergeConsecutiveHistoryTextSegments(
+    projectHistoryMessagesForDisplay(messages),
+  );
   return finalizeHistoryTextChunks(
     orderAggregatedHistoryText(
       mergeAdjacentHistoryTextChunks(
-        projectHistoryMessagesForDisplay(messages).flatMap((message) =>
+        projectedMessages.flatMap((message) =>
           normalizeHistoryMessage(message),
         ),
       ),
     ),
+  );
+}
+
+function mergeConsecutiveHistoryTextSegments(messages: HistoryMessage[]) {
+  const merged: HistoryMessage[] = [];
+
+  for (const message of messages) {
+    const previous = merged.at(-1);
+    if (
+      !previous ||
+      !canMergeConsecutiveHistoryTextSegments(previous, message)
+    ) {
+      merged.push(message);
+      continue;
+    }
+
+    const includePart = isThoughtKind(message.message_type)
+      ? isThoughtPartType
+      : isTextPartType;
+    const appendedText = textFromParts(message, includePart);
+    const parts = [...(previous.parts ?? [])];
+    const targetIndex = parts.findLastIndex((part) =>
+      includePart(part.part_type),
+    );
+    if (!appendedText || targetIndex < 0) {
+      merged.push(message);
+      continue;
+    }
+
+    const target = parts[targetIndex];
+    parts[targetIndex] = {
+      ...target,
+      text: `${target.text ?? ""}${appendedText}`,
+      updated_at: message.updated_at ?? target.updated_at,
+    };
+    merged[merged.length - 1] = {
+      ...previous,
+      parts,
+      revision: Math.max(previous.revision ?? 0, message.revision ?? 0),
+      session_seq: message.session_seq,
+      conversation_seq: message.conversation_seq ?? previous.conversation_seq,
+      updated_at: message.updated_at ?? previous.updated_at,
+    };
+  }
+
+  return merged;
+}
+
+function canMergeConsecutiveHistoryTextSegments(
+  previous: HistoryMessage,
+  message: HistoryMessage,
+) {
+  if (!previous.turn_id || previous.turn_id !== message.turn_id) {
+    return false;
+  }
+  if (
+    previous.raw_json?.text_layout !== "segment" ||
+    message.raw_json?.text_layout !== "segment"
+  ) {
+    return false;
+  }
+  if (
+    !["agent_message_chunk", "agent_thought_chunk", "message_delta"].includes(
+      message.message_type ?? "",
+    ) ||
+    previous.message_type !== message.message_type ||
+    previous.session_id !== message.session_id ||
+    previous.role !== message.role
+  ) {
+    return false;
+  }
+
+  return (
+    Number.isSafeInteger(previous.session_seq) &&
+    Number.isSafeInteger(message.session_seq) &&
+    message.session_seq === previous.session_seq! + 1
   );
 }
 

@@ -912,7 +912,9 @@ turn 投影都带 `turn_id`，并以 `message_type=turn_done`、`status=complete
 durable history 才完整接管该 turn。
 durable history 可能把同一 turn 的全部 `agent_message_chunk` 聚合进第一条 chunk
 对应的记录；history normalization 必须把该聚合文本放在该 turn 的工作事件之后、
-durable turn boundary 之前。实时流仍按接收顺序展示。
+durable turn boundary 之前。`text_layout=segment` 的相邻记录如果 `session_seq`
+严格连续，属于同一个可见文本块，必须原样拼接且不能额外插入空白；存在序号缺口或
+可见工作事件时仍保留分段边界。实时流仍按接收顺序展示。
 
 manager 负责代理 ACP initialize / session/new / session/prompt。续聊时必须传
 已有且属于当前用户、URL 中 node/agent 下的 `sess_*`，并且后端已有 native id 绑定。

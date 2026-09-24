@@ -653,7 +653,10 @@ not repeated-text filtering, determines the resulting projection. Once all pages
 Durable storage may aggregate every `agent_message_chunk` in that turn into a
 single row anchored at the first chunk. History normalization therefore places
 that aggregate after the turn's work events and immediately before the durable
-turn boundary; live streams continue to use receipt order.
+turn boundary. Consecutive `text_layout=segment` rows with adjacent
+`session_seq` values are one visible text block and must be concatenated
+without inserting whitespace; a sequence gap or visible work event preserves
+the segment boundary. Live streams continue to use receipt order.
 
 Session names are updated through the existing node/agent-scoped endpoint:
 
