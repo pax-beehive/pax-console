@@ -20,9 +20,9 @@ Project facts:
 
 ```txt
 Project root              /Users/jiahangzhang/code-base/project/pax-console
-Local browser hostname    https://ws.lakeward.net
-PAX Manager upstream      https://api.lakeward.net
-Browser WebSocket         wss://api.lakeward.net
+Local browser hostname    https://paxworkspace.net
+PAX Manager upstream      https://api.paxworkspace.net
+Browser WebSocket         wss://api.paxworkspace.net
 Browser API base          /api/pax
 REST proxy                src/app/api/pax/[...path]/route.ts
 Human architecture doc    docs/architecture.zh.md
@@ -31,7 +31,7 @@ Agent operating guide     docs/agent-operating-guide.md
 
 Hard rules:
 
-- Do not make browser REST calls directly to `https://api.lakeward.net` for normal app behavior. Use same-origin `/api/pax`.
+- Do not make browser REST calls directly to `https://api.paxworkspace.net` for normal app behavior. Use same-origin `/api/pax`.
 - Keep Cloudflare Access and cookie forwarding inside the Next server route handler.
 - Keep server data in TanStack Query and client-only UI state in Zustand.
 - Keep ACP JSON-RPC isolated in `src/features/runtime/agent-tunnel-runtime.ts`; React components should call runtime methods, not build raw WebSocket frames.

@@ -5,7 +5,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const defaultAccessAppUrl = "https://api.lakeward.net";
+const defaultAccessAppUrl = "https://api.paxworkspace.net";
 const appUrl = resolveAccessAppUrl(process.env);
 
 const envPath = resolve(process.cwd(), ".env.local");
@@ -13,7 +13,7 @@ const exampleEnvPath = resolve(process.cwd(), ".env.example");
 
 const defaultEnv = `NEXT_PUBLIC_PAX_API_BASE_URL=/api/pax
 NEXT_PUBLIC_PAX_USER_SCOPE=self
-PAX_MANAGER_URL=https://api.lakeward.net
+PAX_MANAGER_URL=https://api.paxworkspace.net
 `;
 
 export function resolveAccessAppUrl(env) {

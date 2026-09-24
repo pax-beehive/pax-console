@@ -53,7 +53,7 @@ cookie forwarding, or browser WebSocket behavior:
 
 ```txt
 Browser
-  -> https://ws.lakeward.net
+  -> https://paxworkspace.net
   -> Cloudflare Tunnel
   -> http://localhost:3000
 ```
@@ -69,13 +69,13 @@ Copy `.env.example` to `.env.local` if you need to override defaults.
 ```txt
 NEXT_PUBLIC_PAX_API_BASE_URL=/api/pax
 NEXT_PUBLIC_PAX_USER_SCOPE=self
-PAX_MANAGER_URL=https://api.lakeward.net
+PAX_MANAGER_URL=https://api.paxworkspace.net
 ```
 
-The hosted Console is `https://ws.lakeward.net`. Browser REST stays on its
+The hosted Console is `https://paxworkspace.net`. Browser REST stays on its
 same-origin `/api/pax` proxy, whose upstream defaults to
-`https://api.lakeward.net`; direct agent tunnels default to
-`wss://api.lakeward.net`. Set `NEXT_PUBLIC_PAX_WS_BASE_URL` only when a local or
+`https://api.paxworkspace.net`; direct agent tunnels default to
+`wss://api.paxworkspace.net`. Set `NEXT_PUBLIC_PAX_WS_BASE_URL` only when a local or
 alternate manager needs a different tunnel origin.
 
 Cloudflare Access owns browser authentication. The frontend must not store or
@@ -91,7 +91,7 @@ For local REST development against the protected backend, use the server-side de
 ```txt
 NEXT_PUBLIC_PAX_API_BASE_URL=/api/pax
 NEXT_PUBLIC_PAX_USER_SCOPE=self
-PAX_MANAGER_URL=https://api.lakeward.net
+PAX_MANAGER_URL=https://api.paxworkspace.net
 PAX_CF_AUTHORIZATION=<local-only Cloudflare Access cookie value>
 ```
 
@@ -100,7 +100,7 @@ Run `pnpm auth:local` to refresh `PAX_CF_AUTHORIZATION` manually. Do not commit
 and returns a clear 401 when it is missing.
 
 `auth:local` resolves its Access application URL from `PAX_ACCESS_APP_URL`, then
-`PAX_MANAGER_URL`, then `https://api.lakeward.net`. It writes that computed URL
+`PAX_MANAGER_URL`, then `https://api.paxworkspace.net`. It writes that computed URL
 back as `PAX_MANAGER_URL`; an explicit local or alternate upstream is not
 replaced with the hosted default.
 

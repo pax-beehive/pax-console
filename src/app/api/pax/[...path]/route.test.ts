@@ -18,7 +18,7 @@ describe("PAX API proxy route", () => {
     }
   });
 
-  it("defaults to api.lakeward.net as the manager upstream", async () => {
+  it("defaults to api.paxworkspace.net as the manager upstream", async () => {
     const fetchMock = vi.fn(async () => {
       return new Response(JSON.stringify({ code: 200, data: { ok: true } }), {
         headers: { "content-type": "application/json" },
@@ -29,7 +29,7 @@ describe("PAX API proxy route", () => {
     const { GET } = await import("./route");
 
     const request = new NextRequest(
-      "https://ws.lakeward.net/api/pax/api/v1/user/self/me?fresh=1",
+      "https://paxworkspace.net/api/pax/api/v1/user/self/me?fresh=1",
       { headers: { "Cf-Access-Jwt-Assertion": "jwt" } },
     );
     const response = await GET(request, {
@@ -43,7 +43,7 @@ describe("PAX API proxy route", () => {
       RequestInit,
     ];
     expect(String(url)).toBe(
-      "https://api.lakeward.net/api/v1/user/self/me?fresh=1",
+      "https://api.paxworkspace.net/api/v1/user/self/me?fresh=1",
     );
     expect((init.headers as Headers).get("Cf-Access-Jwt-Assertion")).toBe(
       "jwt",
@@ -57,7 +57,7 @@ describe("PAX API proxy route", () => {
     const { GET } = await import("./route");
 
     await GET(
-      new NextRequest("https://ws.lakeward.net/api/pax/api/v1/health", {
+      new NextRequest("https://paxworkspace.net/api/pax/api/v1/health", {
         headers: { "Cf-Access-Jwt-Assertion": "jwt" },
       }),
       { params: Promise.resolve({ path: ["api", "v1", "health"] }) },

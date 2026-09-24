@@ -6,8 +6,8 @@ import {
 } from "./sync-cloudflare-access-token.mjs";
 
 describe("sync-cloudflare-access-token", () => {
-  it("uses the lakeward API application by default", () => {
-    expect(resolveAccessAppUrl({})).toBe("https://api.lakeward.net");
+  it("uses the paxworkspace API application by default", () => {
+    expect(resolveAccessAppUrl({})).toBe("https://api.paxworkspace.net");
   });
 
   it("preserves the configured Access application URL", () => {

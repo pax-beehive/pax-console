@@ -382,7 +382,7 @@ Topbar
   compact Button/SearchBox/TruncatedText primitives
 ```
 
-Avoid dynamic Tailwind `grid-cols-[...]` strings for shell collapse behavior. The sidebar uses explicit width because local development through `ws.lakeward.net` and Turbopack can otherwise make stale chunk/class behavior hard to diagnose.
+Avoid dynamic Tailwind `grid-cols-[...]` strings for shell collapse behavior. The sidebar uses explicit width because local development through `paxworkspace.net` and Turbopack can otherwise make stale chunk/class behavior hard to diagnose.
 
 ## Existing API Model
 
@@ -601,7 +601,7 @@ Browser REST requests
   use credentials: "include"
 
 Browser WebSocket handshakes
-  connect directly to api.lakeward.net and include cookies scoped to that host
+  connect directly to api.paxworkspace.net and include cookies scoped to that host
 
 PAX Manager
   validates Cloudflare Access identity
@@ -627,13 +627,13 @@ The correct browser design is:
 
 ```ts
 new WebSocket(
-  `wss://api.lakeward.net/api/v1/user/self/agents/${agentId}/tunnel`,
+  `wss://api.paxworkspace.net/api/v1/user/self/agents/${agentId}/tunnel`,
 );
 ```
 
-The browser will include cookies valid for `api.lakeward.net` during the
+The browser will include cookies valid for `api.paxworkspace.net` during the
 WebSocket handshake. The Console must not attempt to copy the
-`ws.lakeward.net` cookie into JavaScript or synthesize a Cookie header.
+`paxworkspace.net` cookie into JavaScript or synthesize a Cookie header.
 
 ### Auth Boot Flow
 
@@ -642,9 +642,9 @@ WebSocket handshake. The Console must not attempt to copy the
 2. Frontend calls GET /api/v1/user/self/me with credentials included.
 3. If 200, render console.
 4. If 401 or 403, render sign-in state or redirect to Cloudflare Access login.
-5. After login, Cloudflare returns to ws.lakeward.net.
-6. REST stays on the ws.lakeward.net same-origin proxy; direct WebSocket calls
-   use the Access session valid for api.lakeward.net.
+5. After login, Cloudflare returns to paxworkspace.net.
+6. REST stays on the paxworkspace.net same-origin proxy; direct WebSocket calls
+   use the Access session valid for api.paxworkspace.net.
 ```
 
 ### REST Client
@@ -761,7 +761,7 @@ coverage:
 The browser-facing tunnel endpoint:
 
 ```txt
-wss://api.lakeward.net/api/v1/user/self/agents/{agent_id}/tunnel
+wss://api.paxworkspace.net/api/v1/user/self/agents/{agent_id}/tunnel
 ```
 
 This should be wrapped by an agent runtime. Components must not directly create or parse tunnel frames.
@@ -1185,23 +1185,23 @@ future live update.
 Hosted domain mapping:
 
 ```txt
-Console / human verification  https://ws.lakeward.net
-REST proxy upstream            https://api.lakeward.net
-Direct WebSocket               wss://api.lakeward.net/api/v1/user/self/agents/{agent_id}/tunnel
+Console / human verification  https://paxworkspace.net
+REST proxy upstream            https://api.paxworkspace.net
+Direct WebSocket               wss://api.paxworkspace.net/api/v1/user/self/agents/{agent_id}/tunnel
 ```
 
 REST calls remain same-origin to the Console through `/api/pax`, whose server
-upstream defaults to `https://api.lakeward.net`. The tunnel helper defaults to
+upstream defaults to `https://api.paxworkspace.net`. The tunnel helper defaults to
 the API WebSocket origin and preserves `NEXT_PUBLIC_PAX_WS_BASE_URL` as an
 explicit override.
 
-Local development needs a deliberate strategy because the Console entrypoint and direct tunnel use separate `ws.lakeward.net` and `api.lakeward.net` hosts.
+Local development needs a deliberate strategy because the Console entrypoint and direct tunnel use separate `paxworkspace.net` and `api.paxworkspace.net` hosts.
 
 Recommended modes:
 
 ```txt
 Mode A: develop against deployed staging app domain.
-Mode B: Next.js dev proxy forwards REST to api.lakeward.net while direct WebSocket uses api.lakeward.net.
+Mode B: Next.js dev proxy forwards REST to api.paxworkspace.net while direct WebSocket uses api.paxworkspace.net.
 Mode C: local backend bypasses Cloudflare only in a controlled dev environment.
 ```
 
@@ -1209,7 +1209,7 @@ Do not copy `CF_Authorization` into frontend source, localStorage, Zustand, or `
 
 If a dev proxy needs Cloudflare service credentials, keep them server-side only.
 
-When developing through `https://ws.lakeward.net`, Next static dev chunks are served through Cloudflare as well. `next.config.ts` sets `Cache-Control: no-store, max-age=0` for `/_next/:path*` so UI shell changes such as sidebar collapse do not get stuck behind stale chunk caching.
+When developing through `https://paxworkspace.net`, Next static dev chunks are served through Cloudflare as well. `next.config.ts` sets `Cache-Control: no-store, max-age=0` for `/_next/:path*` so UI shell changes such as sidebar collapse do not get stuck behind stale chunk caching.
 
 ## Security Principles
 

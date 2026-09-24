@@ -361,7 +361,7 @@ describe("toPaxdConnectPreview", () => {
       pair_code: "ABC123",
       registration_id: "nreg_1",
       request: {
-        api_endpoint: "https://api.lakeward.net",
+        api_endpoint: "https://api.paxworkspace.net",
         arch: "arm64",
         hostname: "workstation.local",
         machine_type: "mac",
@@ -372,7 +372,7 @@ describe("toPaxdConnectPreview", () => {
     });
 
     expect(preview).toEqual({
-      apiEndpoint: "https://api.lakeward.net",
+      apiEndpoint: "https://api.paxworkspace.net",
       arch: "arm64",
       city: "San Francisco",
       country: "United States",

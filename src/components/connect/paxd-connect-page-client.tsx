@@ -25,7 +25,7 @@ import { PaxdConnectPreview, User } from "@/features/api/types";
 import { Button } from "@/components/ui/button";
 
 const pairCodePattern = /^[A-Z0-9]{6}$/;
-const defaultPaxApiEndpoint = "https://api.lakeward.net";
+const defaultPaxApiEndpoint = "https://api.paxworkspace.net";
 
 export function resolvePaxdConnectApiEndpoint(
   preview?: Pick<PaxdConnectPreview, "apiEndpoint">,

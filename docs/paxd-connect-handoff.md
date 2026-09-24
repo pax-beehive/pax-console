@@ -6,7 +6,7 @@ This note summarizes the frontend changes for the paxd interactive pairing entry
 
 ```txt
 paxd starts node registration
-  -> pax-manager returns https://ws.lakeward.net/connect.html?code=<PAIR_CODE>
+  -> pax-manager returns https://paxworkspace.net/connect.html?code=<PAIR_CODE>
   -> user opens the link and signs in through Cloudflare Access
   -> PAX Console shows the pairing page
   -> user reviews the pair code and node identity context
@@ -124,7 +124,7 @@ Suggested response fields:
     "arch": "arm64",
     "machine_type": "MacBook Pro",
     "paxd_version": "0.1.0",
-    "api_endpoint": "https://api.lakeward.net"
+    "api_endpoint": "https://api.paxworkspace.net"
   },
   "network": {
     "ip_address": "203.0.113.10",

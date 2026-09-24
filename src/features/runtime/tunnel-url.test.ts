@@ -16,9 +16,9 @@ describe("getAgentTunnelUrl", () => {
     }
   });
 
-  it("defaults browser tunnels to api.lakeward.net", () => {
+  it("defaults browser tunnels to api.paxworkspace.net", () => {
     expect(getAgentTunnelUrl("agent_1")).toBe(
-      "wss://api.lakeward.net/api/v1/user/self/agents/agent_1/tunnel",
+      "wss://api.paxworkspace.net/api/v1/user/self/agents/agent_1/tunnel",
     );
   });
 

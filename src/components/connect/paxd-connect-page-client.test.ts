@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { resolvePaxdConnectApiEndpoint } from "./paxd-connect-page-client";
 
 describe("resolvePaxdConnectApiEndpoint", () => {
-  it("uses the lakeward API when a pairing preview has no endpoint", () => {
-    expect(resolvePaxdConnectApiEndpoint()).toBe("https://api.lakeward.net");
+  it("uses the paxworkspace API when a pairing preview has no endpoint", () => {
+    expect(resolvePaxdConnectApiEndpoint()).toBe("https://api.paxworkspace.net");
   });
 
   it("preserves an endpoint reported by paxd", () => {

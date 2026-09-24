@@ -7,8 +7,8 @@ const additionalDevOrigins = (process.env.PAX_ALLOWED_DEV_ORIGINS ?? "")
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: [
-    "ws.lakeward.net",
-    "*.console-dev.lakeward.net",
+    "paxworkspace.net",
+    "*.console-dev.paxworkspace.net",
     ...additionalDevOrigins,
   ],
   output: "standalone",

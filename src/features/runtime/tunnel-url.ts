@@ -1,6 +1,6 @@
 import { API_BASE_URL } from "../api/client";
 
-const DEFAULT_WS_BASE_URL = "wss://api.lakeward.net";
+const DEFAULT_WS_BASE_URL = "wss://api.paxworkspace.net";
 
 export function getAgentTunnelUrl(agentId: string, sessionId?: string) {
   const wsBaseUrl =
