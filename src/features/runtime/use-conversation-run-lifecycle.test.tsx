@@ -84,6 +84,113 @@ describe("useConversationRun lifecycle", () => {
     mocks.streamConversationRun.mockReset();
   });
 
+  it("clears a stalled local run when the server confirms that same turn became idle", async () => {
+    let options!: Parameters<
+      typeof import("./conversation-run").streamConversationRun
+    >[0];
+    mocks.streamConversationRun.mockImplementationOnce((value) => {
+      options = value;
+      return new Promise(() => {});
+    });
+    const { result, rerender, unmount } = renderHook(
+      ({ snapshot }) =>
+        useConversationRun({
+          agentId: "agent_1",
+          nodeId: "node_1",
+          sessionId: "sess_1",
+          userId: "user_1",
+          runtimeSnapshot: snapshot,
+        }),
+      { initialProps: { snapshot: { status: "idle", turnId: "previous" } } },
+    );
+    act(() => {
+      void result.current.sendMessage("new turn");
+    });
+    act(() =>
+      options.onEnvelope({
+        type: "turn_started",
+        node_id: "node_1",
+        agent_id: "agent_1",
+        session_id: "sess_1",
+        turn_id: "turn_1",
+      }),
+    );
+    rerender({ snapshot: { status: "idle", turnId: "turn_1" } });
+    expect(result.current.status).toBe("streaming"); // initial idle must not win
+    rerender({ snapshot: { status: "running", turnId: "turn_1" } });
+    rerender({ snapshot: { status: "idle", turnId: "previous" } });
+    expect(result.current.status).toBe("streaming"); // wrong turn must not win
+    rerender({ snapshot: { status: "idle", turnId: "turn_1" } });
+    await waitFor(() => expect(result.current.status).toBe("done"));
+    expect(result.current.transportInterrupted).toBe(false);
+    unmount();
+  });
+
+  it("ignores late completion from an old observer after a new prompt starts", () => {
+    mocks.streamConversationRun.mockImplementation(() => new Promise(() => {}));
+    const { result, unmount } = renderHook(() =>
+      useConversationRun({
+        agentId: "agent_1",
+        nodeId: "node_1",
+        sessionId: "sess_1",
+        userId: "user_1",
+      }),
+    );
+    act(() => {
+      void result.current.sendMessage("new turn");
+    });
+    act(() => result.current.finishObservedTurn("previous"));
+    expect(result.current.status).toBe("streaming");
+    unmount();
+  });
+
+  it("refreshes on ACP end_turn before durable completion and ignores old stream frames", async () => {
+    const streams: Parameters<
+      typeof import("./conversation-run").streamConversationRun
+    >[0][] = [];
+    const finishes: (() => void)[] = [];
+    mocks.streamConversationRun.mockImplementation((options) => {
+      streams.push(options);
+      return new Promise<void>((resolve) => finishes.push(resolve));
+    });
+    const onTurnEnd = vi.fn();
+    const { result, unmount } = renderHook(() =>
+      useConversationRun({
+        agentId: "agent",
+        nodeId: "node",
+        sessionId: "session",
+        userId: "self",
+        onTurnEnd,
+      }),
+    );
+    act(() => {
+      void result.current.sendMessage("first");
+    });
+    const end = {
+      type: "acp" as const,
+      agent_id: "agent",
+      node_id: "node",
+      session_id: "session",
+      turn_id: "first",
+      frame: { jsonrpc: "2.0", id: 1, result: { stopReason: "end_turn" } },
+    };
+    act(() => streams[0].onEnvelope(end));
+    expect(result.current.status).toBe("done");
+    expect(onTurnEnd).toHaveBeenCalledWith("first");
+    expect(result.current.completedTurnVersion).toBe(0);
+    act(() => {
+      void result.current.sendMessage("second");
+    });
+    await act(async () => {
+      streams[0].onEnvelope(end);
+      finishes[0]();
+    });
+    expect(result.current.status).toBe("streaming");
+    expect(onTurnEnd).toHaveBeenCalledTimes(1);
+    unmount();
+    finishes[1]();
+  });
+
   it("does not acknowledge a prompt rejected before the turn starts", async () => {
     mocks.streamConversationRun.mockRejectedValueOnce(
       new ApiError("Agent unavailable", 409, null),

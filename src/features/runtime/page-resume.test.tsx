@@ -11,6 +11,62 @@ afterEach(() => {
 });
 
 describe("page resume", () => {
+  it("refreshes status from a replayed terminal marker before the observer stream closes", async () => {
+    let stream!: ReadableStreamDefaultController<Uint8Array>;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                stream = controller;
+              },
+            }),
+            { headers: { "content-type": "text/event-stream" } },
+          ),
+      ),
+    );
+    const onTurnEnd = vi.fn();
+    const onTurnDone = vi.fn();
+    const { unmount } = renderHook(() =>
+      useSessionObserver({
+        userId: "self",
+        agentId: "agent",
+        sessionId: "session",
+        turnId: "current",
+        onTurnEnd,
+        onTurnDone,
+      }),
+    );
+    await waitFor(() => expect(stream).toBeDefined());
+    const emit = (turn: string) =>
+      stream.enqueue(
+        new TextEncoder().encode(
+          `data: ${JSON.stringify({
+            type: "history_item",
+            session_id: "session",
+            turn_id: turn,
+            item: {
+              message_id: `end-${turn}`,
+              session_id: "session",
+              turn_id: turn,
+              message_type: "turn_done",
+              session_seq: 1,
+              parts: [],
+            },
+          })}\n\n`,
+        ),
+      );
+    await act(async () => emit("previous"));
+    expect(onTurnEnd).not.toHaveBeenCalled();
+    await act(async () => emit("current"));
+    expect(onTurnEnd).toHaveBeenCalledWith("current");
+    expect(onTurnDone).not.toHaveBeenCalled();
+    unmount();
+    stream.close();
+  });
+
   it("refreshes immediately on window refocus with the latest callback and removes listeners", () => {
     const first = vi.fn();
     const latest = vi.fn();

@@ -6,6 +6,8 @@ export function sessionDisplayStatus(
   runtimeStatus?: string,
   options?: {
     ownedConversationStatus?: ConversationRunStatus;
+    ownedTurnId?: string;
+    runtimeTurnId?: string;
   },
 ): SessionDisplayStatus {
   if (
@@ -13,7 +15,14 @@ export function sessionDisplayStatus(
     options?.ownedConversationStatus === "cancelled" ||
     options?.ownedConversationStatus === "error"
   ) {
-    return options.ownedConversationStatus;
+    // A completed local turn cannot hide a subsequent server-owned turn.
+    if (
+      !options.ownedTurnId ||
+      !options.runtimeTurnId ||
+      options.ownedTurnId === options.runtimeTurnId
+    ) {
+      return options.ownedConversationStatus;
+    }
   }
   if (options?.ownedConversationStatus === "waiting_approval") {
     return "waiting_approval";

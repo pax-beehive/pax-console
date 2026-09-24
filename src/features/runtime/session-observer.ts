@@ -201,6 +201,7 @@ type UseSessionObserverOptions = {
   onQueuedTurnStarted?: () => void;
   onQueuedTurnFinished?: () => void;
   onQueuedTurnUnavailable?: () => void;
+  onTurnEnd?: (turnId?: string) => void;
   onTurnDone?: (turnId?: string) => void;
   sessionId?: string;
   userId: string;
@@ -404,6 +405,7 @@ export function useSessionObserver({
   onQueuedTurnStarted,
   onQueuedTurnFinished,
   onQueuedTurnUnavailable,
+  onTurnEnd,
   onTurnDone,
   sessionId,
   userId,
@@ -461,6 +463,14 @@ export function useSessionObserver({
       onEnvelope: (envelope) => {
         if (abortController.signal.aborted) return;
         if (
+          envelope.type === "history_item" &&
+          envelope.item?.message_type === "turn_done"
+        ) {
+          const endedTurnId = envelope.item.turn_id ?? envelope.turn_id;
+          if (endedTurnId && (!turnId || endedTurnId === turnId))
+            onTurnEnd?.(endedTurnId);
+        }
+        if (
           ["turn_start", "history_item", "history_remove", "head"].includes(
             envelope.type,
           )
@@ -473,6 +483,7 @@ export function useSessionObserver({
         handleSessionObserverEnvelope(envelope, {
           onBufferMiss,
           onNoRunningTurn,
+          onTurnEnd,
           onTurnDone,
           setError,
           appendEvents,
@@ -522,6 +533,7 @@ export function useSessionObserver({
     onQueuedTurnStarted,
     onQueuedTurnFinished,
     onQueuedTurnUnavailable,
+    onTurnEnd,
     onTurnDone,
     resetEvents,
     resumeVersion,
@@ -548,6 +560,7 @@ export function handleSessionObserverEnvelope(
   {
     onBufferMiss,
     onNoRunningTurn,
+    onTurnEnd,
     onTurnDone,
     setError,
     appendEvents,
@@ -557,6 +570,7 @@ export function handleSessionObserverEnvelope(
   }: {
     onBufferMiss?: () => void;
     onNoRunningTurn?: () => void;
+    onTurnEnd?: (turnId?: string) => void;
     onTurnDone?: (turnId?: string) => void;
     setError: Dispatch<SetStateAction<Error | null>>;
     appendEvents?: (events: SessionEvent[]) => void;
@@ -576,6 +590,9 @@ export function handleSessionObserverEnvelope(
     );
     if (events.length > 0) {
       appendObserverEvents({ appendEvents, setEvents }, events);
+    }
+    if (events.some((event) => event.type === "turn_done")) {
+      onTurnEnd?.(envelope.turn_id);
     }
     return;
   }
