@@ -306,6 +306,53 @@ describe("normalizeHistoryMessage", () => {
     ]);
   });
 
+  it("coalesces consecutive durable segments without adding display breaks", () => {
+    const segment = (id: string, content: string, sessionSeq: number) => ({
+      ...historyTextChunk(id, content),
+      raw_json: { text_layout: "segment" },
+      session_seq: sessionSeq,
+      turn_id: "turn_1",
+    });
+
+    const events = normalizeHistoryMessages([
+      segment("msg_14", "1. **这是", 14),
+      segment("msg_15", "先做给自己家用？**\n2. **", 15),
+      segment("msg_16", "远程访问能接受 Tailscale 这类", 16),
+      segment("msg_17", "客户端吗？**\n", 17),
+    ]);
+
+    expect(events).toMatchObject([
+      {
+        type: "agent_message",
+        id: "msg_14",
+        content:
+          "1. **这是先做给自己家用？**\n2. **远程访问能接受 Tailscale 这类客户端吗？**\n",
+        historyTextLayout: "segment",
+        streaming: false,
+      },
+    ]);
+  });
+
+  it("keeps durable segments separate across a sequence gap", () => {
+    const segment = (id: string, content: string, sessionSeq: number) => ({
+      ...historyTextChunk(id, content),
+      raw_json: { text_layout: "segment" },
+      session_seq: sessionSeq,
+      turn_id: "turn_1",
+    });
+
+    const events = normalizeHistoryMessages([
+      segment("msg_14", "Before tool", 14),
+      segment("msg_16", "After tool", 16),
+    ]);
+
+    expect(
+      events
+        .filter((event) => event.type === "agent_message")
+        .map((event) => event.content),
+    ).toEqual(["Before tool", "After tool"]);
+  });
+
   it("does not virtually append closing backticks to completed history", () => {
     const events = normalizeHistoryMessages([
       historyTextChunk("msg_1", "bbb` "),
