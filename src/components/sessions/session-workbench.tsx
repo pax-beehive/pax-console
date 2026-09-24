@@ -746,32 +746,6 @@ export function SessionWorkbench({
     },
     onSuccess: refreshKnowledge,
   });
-  const conversationRun = useConversationRun({
-    agentId: activeAgentId,
-    nodeId: activeNodeId,
-    onSession: handleSessionAssigned,
-    sessionId: routeSessionId,
-    userId: user.user_id,
-  });
-  const finishCalibratedConversation = conversationRun.finishObservedTurn;
-  useEffect(() => {
-    const turnId = latestRuntimeTurnId(conversationRun.events);
-    if (
-      !usesEncryptedTransport &&
-      turnId &&
-      (conversationRun.status === "streaming" ||
-        conversationRun.status === "waiting_approval") &&
-      historySync.calibratedTurnIds.includes(turnId)
-    ) {
-      finishCalibratedConversation();
-    }
-  }, [
-    conversationRun.events,
-    conversationRun.status,
-    historySync.calibratedTurnIds,
-    finishCalibratedConversation,
-    usesEncryptedTransport,
-  ]);
   const refreshActiveSessionRuntime = useCallback(() => {
     void queryClient.invalidateQueries({
       queryKey: queryKeys.userSessionsRoot(user.user_id),
@@ -801,6 +775,39 @@ export function SessionWorkbench({
     currentSessionId,
     queryClient,
     user.user_id,
+  ]);
+  const conversationRun = useConversationRun({
+    agentId: activeAgentId,
+    nodeId: activeNodeId,
+    onSession: handleSessionAssigned,
+    onTurnEnd: refreshActiveSessionRuntime,
+    runtimeSnapshot: usesEncryptedTransport
+      ? undefined
+      : {
+          status: activeSession?.runtime_status,
+          turnId: activeSession?.latest_turn_id,
+        },
+    sessionId: routeSessionId,
+    userId: user.user_id,
+  });
+  const finishCalibratedConversation = conversationRun.finishObservedTurn;
+  useEffect(() => {
+    const turnId = latestRuntimeTurnId(conversationRun.events);
+    if (
+      !usesEncryptedTransport &&
+      turnId &&
+      (conversationRun.status === "streaming" ||
+        conversationRun.status === "waiting_approval") &&
+      historySync.calibratedTurnIds.includes(turnId)
+    ) {
+      finishCalibratedConversation(turnId);
+    }
+  }, [
+    conversationRun.events,
+    conversationRun.status,
+    historySync.calibratedTurnIds,
+    finishCalibratedConversation,
+    usesEncryptedTransport,
   ]);
   usePageResume(refreshActiveSessionRuntime, { includeWindowFocus: true });
   const calibrateHistoryTurn = historySync.calibrate;
@@ -897,12 +904,13 @@ export function SessionWorkbench({
   const retryTerminalHistoryHandoff = historySync.calibrate;
   const handleNoRunningTurn = useCallback(() => {
     const interruptedTurnId = latestRuntimeTurnId(conversationRun.events);
-    finishConversationRunFromObserver();
+    finishConversationRunFromObserver(interruptedTurnId ?? observedTurnId);
     suppressObservedTurn();
     refreshActiveSessionRuntime();
     retryTerminalHistoryHandoff(interruptedTurnId);
   }, [
     conversationRun.events,
+    observedTurnId,
     suppressObservedTurn,
     finishConversationRunFromObserver,
     refreshActiveSessionRuntime,
@@ -915,7 +923,7 @@ export function SessionWorkbench({
   }, [conversationTransportInterrupted, markConversationObserverConnected]);
   const handleObservedTurnDone = useCallback(
     (turnId?: string) => {
-      finishConversationRunFromObserver();
+      finishConversationRunFromObserver(turnId);
       refreshActiveSessionRuntime();
       retryTerminalHistoryHandoff(turnId);
     },
@@ -924,6 +932,14 @@ export function SessionWorkbench({
       refreshActiveSessionRuntime,
       retryTerminalHistoryHandoff,
     ],
+  );
+  const handleObservedTurnEnd = useCallback(
+    (turnId?: string) => {
+      // End frames are a UI/status hint, not proof that every history page is durable.
+      if (turnId) finishConversationRunFromObserver(turnId);
+      refreshActiveSessionRuntime();
+    },
+    [finishConversationRunFromObserver, refreshActiveSessionRuntime],
   );
   const sessionObserver = useSessionObserver({
     agentId: activeAgentId,
@@ -946,6 +962,7 @@ export function SessionWorkbench({
     onQueuedTurnFinished: handleQueuedTurnFinished,
     onQueuedTurnStarted: handleQueuedTurnStarted,
     onQueuedTurnUnavailable: handleQueuedTurnUnavailable,
+    onTurnEnd: handleObservedTurnEnd,
     onTurnDone: handleObservedTurnDone,
     sessionId: currentSessionId,
     userId: user.user_id,
@@ -953,6 +970,10 @@ export function SessionWorkbench({
   const displayedRunStatus = sessionDisplayStatus(
     activeSession?.runtime_status,
     {
+      ownedTurnId: usesEncryptedTransport
+        ? undefined
+        : conversationRun.activeTurnId,
+      runtimeTurnId: activeSession?.latest_turn_id,
       ownedConversationStatus: usesEncryptedTransport
         ? encryptedRuntime.status === "locked"
           ? undefined
@@ -963,11 +984,14 @@ export function SessionWorkbench({
   const isTurnRunning = usesEncryptedTransport
     ? activeSessionRuntimeBlocksPrompt ||
       encryptedRuntime.status === "streaming"
-    : conversationRun.status === "streaming" ||
-      conversationRun.status === "waiting_approval" ||
-      shouldObserveSessionTurn ||
-      shouldFollowQueuedTurn ||
-      activeSession?.runtime_status === "unknown";
+    : shouldFollowQueuedTurn ||
+      (displayedRunStatus !== "done" &&
+        displayedRunStatus !== "cancelled" &&
+        displayedRunStatus !== "error" &&
+        (conversationRun.status === "streaming" ||
+          conversationRun.status === "waiting_approval" ||
+          shouldObserveSessionTurn ||
+          activeSession?.runtime_status === "unknown"));
   const [pendingSessionConfigOptionId, setPendingSessionConfigOptionId] =
     useState<string>();
   const updateSessionConfiguration = useMutation({

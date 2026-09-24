@@ -407,6 +407,14 @@ while that window owns an explicitly submitted conversation turn. A local ACP
 still active. This overlay also controls the current window's composer, stop,
 queue, and stream behavior, but is never persisted as session status.
 Session queries use 30-second polling only as a disconnected-client fallback.
+ACP `end_turn` and observer replayed terminal markers immediately invalidate
+session runtime/detail/list queries; this notification is separate from durable
+`turn_done` and must not transfer history ownership early. An owned turn's local
+streaming/approval overlay also ends when metadata has first reported that same
+`latest_turn_id` active and subsequently idle. Initial idle or another turn's
+snapshot cannot finish a new prompt. Match observer/history completions to the
+owned turn and ignore callbacks from aborted streams. A terminal overlay controls
+both the header and composer, and cannot mask a newer server-owned turn.
 paxd snapshots are the only durable runtime writer. A node-control disconnect
 preserves the last execution state and timestamp; it does not turn it into
 `unknown`. The workbench badge shows `paxd offline` when the node API reports

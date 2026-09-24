@@ -11,6 +11,29 @@ import {
 import { SessionEvent } from "./session-events";
 
 describe("handleSessionObserverEnvelope", () => {
+  it("requests a status refresh on ACP end_turn without claiming durable history completion", () => {
+    const onTurnEnd = vi.fn();
+    const onTurnDone = vi.fn();
+    handleSessionObserverEnvelope(
+      {
+        type: "acp",
+        session_id: "session",
+        turn_id: "turn",
+        frame: { jsonrpc: "2.0", id: 1, result: { stopReason: "end_turn" } },
+      },
+      {
+        onTurnEnd,
+        onTurnDone,
+        setError: vi.fn(),
+        setStatus: vi.fn(),
+        appendEvents: vi.fn(),
+        streamId: "test",
+      },
+    );
+    expect(onTurnEnd).toHaveBeenCalledWith("turn");
+    expect(onTurnDone).not.toHaveBeenCalled();
+  });
+
   it("preserves the business turn on ACP events and emits turn_done", () => {
     let status: SessionObserverStatus = "observing";
     let events: SessionEvent[] = [];

@@ -929,6 +929,12 @@ workbench badge 可以用该窗口拥有的本地状态乐观覆盖为 `running`
 刷新。该本地状态同时负责当前窗口的 composer、stop、queue 和流式交互，但不会写成
 或冒充持久化状态。
 Session query 仅保留 30 秒低频轮询作为断连兜底。
+ACP `end_turn` 和 observer 回放的结束记录会立即刷新 session 状态、详情和列表；
+这个结束提示与持久化 `turn_done` 分开处理，不提前移交历史正文的展示权。
+本地运行覆盖只绑定当前 turn：metadata 确认同一 `latest_turn_id` 已运行后，
+再返回 idle 时清除残留 streaming/approval；初始 idle 和其他 turn 的快照不能
+结束刚提交的任务。observer/history 结束通知必须匹配当前轮，已中止流的迟到
+回调忽略。结束覆盖同时控制顶部状态和停止按钮，也不能掩盖服务端新一轮运行。
 paxd snapshot 是持久化运行状态的唯一写入来源。node-control 断开时保留最后一次
 执行状态和时间，不再将其改成 `unknown`。node API 返回 `online: false` 时，
 workbench badge 显示 `paxd offline`，不修改底层执行状态。历史 `unknown` 仍等待

@@ -34,6 +34,8 @@ type UseConversationRunOptions = {
   agentId?: string;
   nodeId?: string;
   onSession?: (sessionId: string) => void;
+  onTurnEnd?: (turnId?: string) => void;
+  runtimeSnapshot?: { status?: string; turnId?: string };
   sessionId?: string;
   userId: string;
 };
@@ -58,12 +60,16 @@ export function useConversationRun({
   agentId,
   nodeId,
   onSession,
+  onTurnEnd,
+  runtimeSnapshot,
   sessionId,
   userId,
 }: UseConversationRunOptions) {
   const abortRef = useRef<AbortController | null>(null);
   const sessionIdRef = useRef(sessionId);
   const activeTurnIdRef = useRef<string | undefined>(undefined);
+  const [activeTurnId, setActiveTurnId] = useState<string>();
+  const serverObservedTurnRef = useRef<string | undefined>(undefined);
   const completedTurnKeysRef = useRef(new Set<string>());
   const [status, setStatus] = useState<ConversationRunStatus>("idle");
   const [error, setError] = useState<Error | null>(null);
@@ -117,6 +123,8 @@ export function useConversationRun({
       const optimisticTurnId = `pending-turn:${startedAt}`;
       const streamId = `${optimisticSessionId}:turn:${startedAt}`;
       activeTurnIdRef.current = optimisticTurnId;
+      setActiveTurnId(optimisticTurnId);
+      serverObservedTurnRef.current = undefined;
       let accepted = false;
 
       setError(null);
@@ -166,6 +174,7 @@ export function useConversationRun({
             : { input: content }),
           nodeId,
           onEnvelope: (envelope) => {
+            if (abortController.signal.aborted) return;
             if (envelope.type === "turn_started" && !accepted) {
               accepted = true;
               options?.onAccepted?.();
@@ -180,7 +189,9 @@ export function useConversationRun({
               fallbackTurnId: activeTurnIdRef.current,
               onTurnStarted: (turnId) => {
                 activeTurnIdRef.current = turnId;
+                setActiveTurnId(turnId);
               },
+              onTurnEnd,
               onTurnDone: (turnId) => {
                 markTurnCompleted(turnId ?? streamId);
               },
@@ -203,6 +214,8 @@ export function useConversationRun({
           userId,
         });
 
+        if (abortController.signal.aborted)
+          return { sessionId: sessionIdRef.current };
         flushEvents();
         setStatus((current) =>
           current === "waiting_approval" || current === "error"
@@ -237,6 +250,7 @@ export function useConversationRun({
       flushEvents,
       nodeId,
       onSession,
+      onTurnEnd,
       markTurnCompleted,
       updateEvents,
       userId,
@@ -346,6 +360,7 @@ export function useConversationRun({
           agentId,
           nodeId,
           onEnvelope: (envelope) => {
+            if (abortController.signal.aborted) return;
             const envelopeError = handleConversationEnvelope(envelope, {
               onSession: (nextSessionId) => {
                 sessionIdRef.current = nextSessionId;
@@ -356,7 +371,9 @@ export function useConversationRun({
               fallbackTurnId: activeTurnIdRef.current,
               onTurnStarted: (turnId) => {
                 activeTurnIdRef.current = turnId;
+                setActiveTurnId(turnId);
               },
+              onTurnEnd,
               onTurnDone: (turnId) => {
                 markTurnCompleted(turnId ?? streamId);
               },
@@ -374,6 +391,8 @@ export function useConversationRun({
           userId,
         });
 
+        if (abortController.signal.aborted)
+          return { sessionId: sessionIdRef.current };
         flushEvents();
         setStatus((current) =>
           current === "waiting_approval" || current === "error"
@@ -408,6 +427,7 @@ export function useConversationRun({
       flushEvents,
       nodeId,
       onSession,
+      onTurnEnd,
       markTurnCompleted,
       updateEvents,
       userId,
@@ -426,13 +446,48 @@ export function useConversationRun({
     setError(null);
   }, []);
 
-  const finishObservedTurn = useCallback(() => {
+  const finishObservedTurn = useCallback((turnId?: string) => {
+    if (turnId && activeTurnIdRef.current && turnId !== activeTurnIdRef.current)
+      return;
+    if (turnId && !activeTurnIdRef.current) {
+      activeTurnIdRef.current = turnId;
+      setActiveTurnId(turnId);
+    }
     setError(null);
     setTransportInterrupted(false);
     setStatus((current) => (current === "cancelled" ? current : "done"));
   }, []);
 
+  useEffect(() => {
+    if (
+      !activeTurnId ||
+      activeTurnId.startsWith("pending-turn:") ||
+      runtimeSnapshot?.turnId !== activeTurnId
+    )
+      return;
+    if (
+      runtimeSnapshot.status === "running" ||
+      runtimeSnapshot.status === "waiting_approval"
+    ) {
+      serverObservedTurnRef.current = activeTurnId;
+    } else if (
+      runtimeSnapshot.status === "idle" &&
+      serverObservedTurnRef.current === activeTurnId &&
+      (status === "streaming" || status === "waiting_approval")
+    ) {
+      // A pre-submit idle snapshot must not cancel a newly submitted prompt.
+      finishObservedTurn(activeTurnId);
+    }
+  }, [
+    activeTurnId,
+    runtimeSnapshot?.status,
+    runtimeSnapshot?.turnId,
+    status,
+    finishObservedTurn,
+  ]);
+
   return {
+    activeTurnId,
     error,
     events,
     completedTurnVersion,
@@ -455,6 +510,7 @@ export function handleConversationEnvelope(
     appendEvents,
     fallbackTurnId,
     onTurnStarted,
+    onTurnEnd,
     onTurnDone,
     setEvents,
     setStatus,
@@ -466,6 +522,7 @@ export function handleConversationEnvelope(
     appendEvents?: (events: SessionEvent[]) => void;
     fallbackTurnId?: string;
     onTurnStarted?: (turnId: string) => void;
+    onTurnEnd?: (turnId?: string) => void;
     onTurnDone?: (turnId?: string) => void;
     setEvents?: Dispatch<SetStateAction<SessionEvent[]>>;
     setStatus: Dispatch<SetStateAction<ConversationRunStatus>>;
@@ -519,6 +576,7 @@ export function handleConversationEnvelope(
       appendConversationEvents({ appendEvents, setEvents }, events);
     }
     if (events.some((event) => event.type === "turn_done")) {
+      onTurnEnd?.(envelope.turn_id ?? fallbackTurnId);
       setStatus((current) =>
         current === "error" || current === "cancelled" ? current : "done",
       );

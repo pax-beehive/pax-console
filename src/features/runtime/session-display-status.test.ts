@@ -20,6 +20,16 @@ describe("sessionDisplayStatus", () => {
   });
 
   describe("when this client owns the submitted turn", () => {
+    it("does not let a completed local turn hide a newer running turn", () => {
+      expect(
+        sessionDisplayStatus("running", {
+          ownedConversationStatus: "done",
+          ownedTurnId: "previous",
+          runtimeTurnId: "next",
+        }),
+      ).toBe("streaming");
+    });
+
     it("shows running immediately while the canonical snapshot is still idle", () => {
       expect(
         sessionDisplayStatus("idle", {
