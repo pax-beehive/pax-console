@@ -132,6 +132,10 @@ Browser
 
 这样浏览器 REST 只面对 `paxworkspace.net`，复杂的 Cloudflare Access identity 转发集中在 Next route handler 里。直接 agent tunnel 则使用 `wss://api.paxworkspace.net`。
 
+双域名迁移期间，浏览器 REST 仍只面对当前 Console 同源入口。生产容器可将 `PAX_MANAGER_URL` 指向内部 `http://pax-manager:9879`，route handler 将入口提供的 `Cf-Access-Jwt-Assertion` 原样交给 Manager 验证，避免把不同 Cloudflare 账号签发的 JWT 再送入另一个账号的 Access 边界。
+
+直接 agent tunnel 根据运行时浏览器 hostname 选择入口：`paxworkspace.net` 使用 `wss://api.paxworkspace.net`，`ws.lakeward.net` 继续使用 `wss://api.lakeward.net`。显式 `NEXT_PUBLIC_PAX_WS_BASE_URL` 仍优先，但它属于 Next.js build-time public env，不适合用一个镜像承载两个不同 hostname。
+
 ## 关键环境变量
 
 本地 `.env.local`：

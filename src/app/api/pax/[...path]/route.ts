@@ -59,10 +59,14 @@ async function proxyPaxRequest(request: NextRequest, context: RouteContext) {
   headers.delete("host");
   headers.delete("content-length");
   headers.set("accept-encoding", "identity");
-  // Preserve the user Access identity for pax-manager. The JWT header is the
-  // production path; the cookie path keeps local development working.
-  if (accessJwt) {
-    headers.set("Cf-Access-Jwt-Assertion", accessJwt);
+  // Preserve the user Access identity for pax-manager. When Console uses an
+  // internal Manager upstream there is no second Cloudflare edge to translate
+  // CF_Authorization into the assertion header, so forward the signed cookie
+  // JWT as the assertion fallback. Manager still verifies its signature,
+  // issuer, audience, and lifetime.
+  const managerAssertion = accessJwt ?? cfAuthorization;
+  if (managerAssertion) {
+    headers.set("Cf-Access-Jwt-Assertion", managerAssertion);
   }
   if (cfAuthorization) {
     headers.set("cookie", `CF_Authorization=${cfAuthorization}`);
