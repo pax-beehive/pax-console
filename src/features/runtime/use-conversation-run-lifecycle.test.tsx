@@ -84,47 +84,68 @@ describe("useConversationRun lifecycle", () => {
     mocks.streamConversationRun.mockReset();
   });
 
-  it("clears a stalled local run when the server confirms that same turn became idle", async () => {
-    let options!: Parameters<
-      typeof import("./conversation-run").streamConversationRun
-    >[0];
-    mocks.streamConversationRun.mockImplementationOnce((value) => {
-      options = value;
-      return new Promise(() => {});
-    });
-    const { result, rerender, unmount } = renderHook(
-      ({ snapshot }) =>
-        useConversationRun({
-          agentId: "agent_1",
-          nodeId: "node_1",
-          sessionId: "sess_1",
-          userId: "user_1",
-          runtimeSnapshot: snapshot,
+  it.each(["streaming", "waiting_approval"] as const)(
+    "reconciles stale %s from a fresh idle read even when polling missed running",
+    async (localStatus) => {
+      const clock = vi.spyOn(Date, "now").mockReturnValue(100);
+      let options!: Parameters<
+        typeof import("./conversation-run").streamConversationRun
+      >[0];
+      mocks.streamConversationRun.mockImplementationOnce((value) => {
+        options = value;
+        return new Promise(() => {});
+      });
+      const { result, rerender, unmount } = renderHook(
+        ({ snapshot }) =>
+          useConversationRun({
+            agentId: "agent_1",
+            nodeId: "node_1",
+            sessionId: "sess_1",
+            userId: "user_1",
+            runtimeSnapshot: snapshot,
+          }),
+        { initialProps: { snapshot: { status: "idle", requestedAt: 50 } } },
+      );
+      act(() => {
+        void result.current.sendMessage("new turn");
+      });
+      expect(result.current.status).toBe("streaming");
+      clock.mockReturnValue(200);
+      act(() =>
+        options.onEnvelope({
+          type: "turn_started",
+          node_id: "node_1",
+          agent_id: "agent_1",
+          session_id: "sess_1",
+          turn_id: "turn_1",
         }),
-      { initialProps: { snapshot: { status: "idle", turnId: "previous" } } },
-    );
-    act(() => {
-      void result.current.sendMessage("new turn");
-    });
-    act(() =>
-      options.onEnvelope({
-        type: "turn_started",
-        node_id: "node_1",
-        agent_id: "agent_1",
-        session_id: "sess_1",
-        turn_id: "turn_1",
-      }),
-    );
-    rerender({ snapshot: { status: "idle", turnId: "turn_1" } });
-    expect(result.current.status).toBe("streaming"); // initial idle must not win
-    rerender({ snapshot: { status: "running", turnId: "turn_1" } });
-    rerender({ snapshot: { status: "idle", turnId: "previous" } });
-    expect(result.current.status).toBe("streaming"); // wrong turn must not win
-    rerender({ snapshot: { status: "idle", turnId: "turn_1" } });
-    await waitFor(() => expect(result.current.status).toBe("done"));
-    expect(result.current.transportInterrupted).toBe(false);
-    unmount();
-  });
+      );
+      if (localStatus === "waiting_approval") {
+        act(() =>
+          options.onEnvelope({
+            type: "interrupted",
+            reason: "permission_required",
+            session_id: "sess_1",
+          }),
+        );
+      }
+      // A request started before acceptance can arrive after it: ignore it.
+      rerender({ snapshot: { status: "idle", requestedAt: 150 } });
+      expect(result.current.status).toBe(localStatus);
+      // Manager idle has no runtime_turn_instance_id. History head may lag;
+      // neither that ID nor a prior observed running snapshot is a prerequisite.
+      rerender({ snapshot: { status: "idle", requestedAt: 300 } });
+      await waitFor(() => expect(result.current.status).toBe("idle"));
+      expect(result.current.transportInterrupted).toBe(false);
+      // Old idle must not finish the next prompt in the same mounted session.
+      clock.mockReturnValue(400);
+      act(() => {
+        void result.current.sendMessage("next turn");
+      });
+      expect(result.current.status).toBe("streaming");
+      unmount();
+    },
+  );
 
   it("ignores late completion from an old observer after a new prompt starts", () => {
     mocks.streamConversationRun.mockImplementation(() => new Promise(() => {}));

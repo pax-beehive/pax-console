@@ -928,13 +928,18 @@ workbench badge 可以用该窗口拥有的本地状态乐观覆盖为 `running`
 分别立即原地覆盖为 `done`、`error` 或 `cancelled`，不等待旧的 running snapshot
 刷新。该本地状态同时负责当前窗口的 composer、stop、queue 和流式交互，但不会写成
 或冒充持久化状态。
-Session query 仅保留 30 秒低频轮询作为断连兜底。
+当前 workbench 每 5 秒轮询 Session 详情，其他列表保留各自的兜底间隔。
 ACP `end_turn` 和 observer 回放的结束记录会立即刷新 session 状态、详情和列表；
 这个结束提示与持久化 `turn_done` 分开处理，不提前移交历史正文的展示权。
-本地运行覆盖只绑定当前 turn：metadata 确认同一 `latest_turn_id` 已运行后，
-再返回 idle 时清除残留 streaming/approval；初始 idle 和其他 turn 的快照不能
-结束刚提交的任务。observer/history 结束通知必须匹配当前轮，已中止流的迟到
-回调忽略。结束覆盖同时控制顶部状态和停止按钮，也不能掩盖服务端新一轮运行。
+详情的 runtime 状态变化也会刷新列表，避免结束事件早于 paxd idle 快照时，列表
+继续保留旧的 running。
+`useUserSession` 在请求发起前记录客户端 `runtimeSnapshotRequestedAt`，随成功
+查询结果保存在 Query cache；它不是后端字段。当前 prompt 被接受后发起的新查询
+返回 idle，就清除本地 streaming/approval；不要求先观察到 running，也不依赖
+历史头的 `latest_turn_id`，因为历史落库与执行状态更新不保证同步。
+发送前的缓存和在途请求不能结束新任务。用实时 `runtime_turn_instance_id` 识别
+服务端新一轮运行，避免旧的 done 覆盖它。observer/history 结束通知必须匹配
+当前轮，已中止流的迟到回调忽略。顶部状态和停止按钮使用同一结束状态。
 paxd snapshot 是持久化运行状态的唯一写入来源。node-control 断开时保留最后一次
 执行状态和时间，不再将其改成 `unknown`。node API 返回 `online: false` 时，
 workbench badge 显示 `paxd offline`，不修改底层执行状态。历史 `unknown` 仍等待

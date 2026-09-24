@@ -35,7 +35,7 @@ type UseConversationRunOptions = {
   nodeId?: string;
   onSession?: (sessionId: string) => void;
   onTurnEnd?: (turnId?: string) => void;
-  runtimeSnapshot?: { status?: string; turnId?: string };
+  runtimeSnapshot?: { status?: string; requestedAt?: number };
   sessionId?: string;
   userId: string;
 };
@@ -69,7 +69,7 @@ export function useConversationRun({
   const sessionIdRef = useRef(sessionId);
   const activeTurnIdRef = useRef<string | undefined>(undefined);
   const [activeTurnId, setActiveTurnId] = useState<string>();
-  const serverObservedTurnRef = useRef<string | undefined>(undefined);
+  const acceptedAtRef = useRef<number | undefined>(undefined);
   const completedTurnKeysRef = useRef(new Set<string>());
   const [status, setStatus] = useState<ConversationRunStatus>("idle");
   const [error, setError] = useState<Error | null>(null);
@@ -124,7 +124,7 @@ export function useConversationRun({
       const streamId = `${optimisticSessionId}:turn:${startedAt}`;
       activeTurnIdRef.current = optimisticTurnId;
       setActiveTurnId(optimisticTurnId);
-      serverObservedTurnRef.current = undefined;
+      acceptedAtRef.current = undefined;
       let accepted = false;
 
       setError(null);
@@ -189,6 +189,7 @@ export function useConversationRun({
               fallbackTurnId: activeTurnIdRef.current,
               onTurnStarted: (turnId) => {
                 activeTurnIdRef.current = turnId;
+                acceptedAtRef.current = Date.now();
                 setActiveTurnId(turnId);
               },
               onTurnEnd,
@@ -350,6 +351,7 @@ export function useConversationRun({
       const abortController = new AbortController();
       abortRef.current = abortController;
       const streamId = `${currentSessionId}:resume:${approvalId}:${Date.now()}`;
+      acceptedAtRef.current = Date.now();
 
       setError(null);
       setTransportInterrupted(false);
@@ -371,6 +373,7 @@ export function useConversationRun({
               fallbackTurnId: activeTurnIdRef.current,
               onTurnStarted: (turnId) => {
                 activeTurnIdRef.current = turnId;
+                acceptedAtRef.current = Date.now();
                 setActiveTurnId(turnId);
               },
               onTurnEnd,
@@ -462,28 +465,29 @@ export function useConversationRun({
     if (
       !activeTurnId ||
       activeTurnId.startsWith("pending-turn:") ||
-      runtimeSnapshot?.turnId !== activeTurnId
+      acceptedAtRef.current === undefined ||
+      runtimeSnapshot?.requestedAt === undefined ||
+      runtimeSnapshot.requestedAt <= acceptedAtRef.current
     )
       return;
     if (
-      runtimeSnapshot.status === "running" ||
-      runtimeSnapshot.status === "waiting_approval"
-    ) {
-      serverObservedTurnRef.current = activeTurnId;
-    } else if (
       runtimeSnapshot.status === "idle" &&
-      serverObservedTurnRef.current === activeTurnId &&
       (status === "streaming" || status === "waiting_approval")
     ) {
-      // A pre-submit idle snapshot must not cancel a newly submitted prompt.
-      finishObservedTurn(activeTurnId);
+      // Trust a read initiated after acceptance, even if polling missed running.
+      // History's latest_turn_id can lag runtime and is not an execution clock.
+      const timer = window.setTimeout(() => {
+        setError(null);
+        setTransportInterrupted(false);
+        setStatus("idle");
+      }, 0);
+      return () => window.clearTimeout(timer);
     }
   }, [
     activeTurnId,
     runtimeSnapshot?.status,
-    runtimeSnapshot?.turnId,
+    runtimeSnapshot?.requestedAt,
     status,
-    finishObservedTurn,
   ]);
 
   return {

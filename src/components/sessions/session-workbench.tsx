@@ -785,7 +785,7 @@ export function SessionWorkbench({
       ? undefined
       : {
           status: activeSession?.runtime_status,
-          turnId: activeSession?.latest_turn_id,
+          requestedAt: sessionMetadata?.runtimeSnapshotRequestedAt,
         },
     sessionId: routeSessionId,
     userId: user.user_id,
@@ -810,6 +810,26 @@ export function SessionWorkbench({
     usesEncryptedTransport,
   ]);
   usePageResume(refreshActiveSessionRuntime, { includeWindowFocus: true });
+  useEffect(() => {
+    // A terminal-triggered refresh can race paxd's final runtime snapshot.
+    // Once detail polling observes the transition, refresh the rails as well.
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.userSessionsRoot(user.user_id),
+    });
+    if (activeNodeId && activeAgentId) {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.sessions(user.user_id, activeNodeId, activeAgentId),
+      });
+    }
+  }, [
+    activeSession?.runtime_status,
+    activeSession?.runtime_turn_instance_id,
+    activeAgentId,
+    activeNodeId,
+    queryClient,
+    user.user_id,
+  ]);
+
   const calibrateHistoryTurn = historySync.calibrate;
   const completedConversationTurnVersion = conversationRun.completedTurnVersion;
   const calibratedConversationVersionRef = useRef(0);
@@ -973,7 +993,7 @@ export function SessionWorkbench({
       ownedTurnId: usesEncryptedTransport
         ? undefined
         : conversationRun.activeTurnId,
-      runtimeTurnId: activeSession?.latest_turn_id,
+      runtimeTurnId: activeSession?.runtime_turn_instance_id,
       ownedConversationStatus: usesEncryptedTransport
         ? encryptedRuntime.status === "locked"
           ? undefined
