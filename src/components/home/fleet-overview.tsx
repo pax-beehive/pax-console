@@ -49,8 +49,12 @@ import {
   SessionWorkbench,
 } from "@/components/sessions/session-workbench";
 import { SecureModeActivation } from "@/components/sessions/secure-mode-activation";
-import { SessionSettings } from "@/components/sessions/session-settings";
+import {
+  SessionSettings,
+  SessionSettingsHome,
+} from "@/components/sessions/session-settings";
 import { WorkspacePicker } from "@/components/sessions/workspace-picker";
+import { SettingsToggle } from "@/components/ui/settings-controls";
 import { SessionPermissionSelector } from "@/components/sessions/session-permission-selector";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -61,6 +65,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { TruncatedText } from "@/components/ui/text";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Tooltip } from "@/components/ui/tooltip";
 import {
   completeUserAttachment,
@@ -1225,44 +1234,35 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                         </DropdownMenuContent>
                       </DropdownMenu>
                       <SessionSettings
-                        summary={
+                        summary={[
+                          secureComposerActive ? "Encrypted" : undefined,
                           newSessionPermissionChoices.find(
                             (choice) =>
                               choice.choice_id ===
                               effectiveNewSessionPermissionChoiceId,
-                          )?.label ?? "Ask"
-                        }
+                          )?.label ?? "Ask",
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
                       >
-                        <Button
-                          aria-label="Use end-to-end encryption"
-                          aria-pressed={newSessionTransport === "e2ee"}
-                          className={cn(
-                            "transition-all duration-300",
-                            newSessionTransport === "e2ee"
-                              ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
-                              : "text-ink-subtle",
-                          )}
-                          disabled={composerAttachments.length > 0}
-                          icon={<LockKeyhole className="h-4 w-4" />}
-                          onClick={() =>
-                            setNewSessionTransport((transport) =>
-                              transport === "e2ee" ? "manager" : "e2ee",
-                            )
-                          }
-                          size="sm"
-                          tooltip={
-                            composerAttachments.length > 0
-                              ? "Remove attachments before enabling encryption"
-                              : newSessionTransport === "e2ee"
-                                ? "End-to-end encryption on · tap to turn off"
-                                : "Encrypt between this browser and paxd · tap to turn on"
-                          }
-                          tooltipOnClick
-                          type="button"
-                          variant="ghost"
-                        >
-                          End-to-end encryption
-                        </Button>
+                        <SessionSettingsHome>
+                          <SettingsToggle
+                            label="End-to-end encryption"
+                            ariaLabel="Use end-to-end encryption"
+                            checked={newSessionTransport === "e2ee"}
+                            disabled={composerAttachments.length > 0}
+                            description={
+                              composerAttachments.length > 0
+                                ? "Remove attachments before enabling encryption"
+                                : undefined
+                            }
+                            onChange={(checked) =>
+                              setNewSessionTransport(
+                                checked ? "e2ee" : "manager",
+                              )
+                            }
+                          />
+                        </SessionSettingsHome>
                         <SessionPermissionSelector
                           field
                           catalog={permissionCatalogQuery.data}
@@ -2036,68 +2036,66 @@ function AgentSelector({
   const [open, setOpen] = useState(false);
 
   return (
-    <div
-      className="relative min-w-0 flex-1"
-      onBlur={(event) => {
-        const nextTarget = event.relatedTarget;
-        if (
-          !(nextTarget instanceof globalThis.Node) ||
-          !event.currentTarget.contains(nextTarget)
-        ) {
-          setOpen(false);
-        }
-      }}
-    >
-      <button
-        className="inline-flex min-h-9 w-full min-w-0 items-center gap-2 rounded-lg border border-transparent bg-transparent py-1 pl-2 pr-2 text-sm text-ink-muted outline-none transition hover:bg-surface-3 focus:border-hairline-strong"
-        aria-expanded={open}
-        disabled={agents.length === 0}
-        onClick={() => setOpen((current) => !current)}
-        type="button"
-      >
-        <span className="relative grid h-4 w-4 shrink-0 place-items-center">
-          <Bot className="h-4 w-4 text-ink-tertiary" />
-          {selectedAgent?.online && <OnlineDot className="-right-0.5 -top-1" />}
-        </span>
-        <TruncatedText className="min-w-0 flex-1 text-left">
-          {selectedLabel}
-        </TruncatedText>
-        <ChevronDown className="h-4 w-4 shrink-0 text-ink-tertiary" />
-      </button>
-      {open && (
-        <div className="absolute bottom-full right-0 z-20 mb-2 min-w-56 max-w-[calc(100vw-32px)] max-h-64 overflow-y-auto rounded-lg border border-hairline bg-surface-2 py-1 shadow-xl">
-          {agents.map((agent) => (
-            <button
-              className={cn(
-                "flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink transition",
-                agent.agent_id === selectedAgentId
-                  ? "bg-accent/10 hover:bg-accent/15"
-                  : "hover:bg-surface-3",
+    <Popover open={open} onOpenChange={setOpen}>
+      <div className="min-w-0 flex-1">
+        <PopoverTrigger asChild>
+          <button
+            className="inline-flex min-h-9 w-full min-w-0 items-center gap-2 rounded-lg border border-transparent bg-transparent py-1 pl-2 pr-2 text-sm text-ink-muted outline-none transition hover:bg-surface-3 focus:border-hairline-strong"
+            aria-expanded={open}
+            disabled={agents.length === 0}
+            type="button"
+          >
+            <span className="relative grid h-4 w-4 shrink-0 place-items-center">
+              <Bot className="h-4 w-4 text-ink-tertiary" />
+              {selectedAgent?.online && (
+                <OnlineDot className="-right-0.5 -top-1" />
               )}
-              key={agent.agent_id}
-              onClick={() => {
-                onChange(agent.agent_id);
-                setOpen(false);
-              }}
-              type="button"
-            >
-              <span className="grid h-4 w-4 shrink-0 place-items-center">
-                <span
-                  aria-hidden="true"
-                  className={cn(
-                    "h-2 w-2 rounded-full",
-                    agent.online ? "bg-success" : "bg-ink-tertiary/30",
-                  )}
-                />
-              </span>
-              <TruncatedText className="min-w-0 flex-1">
-                {agentDisplayLabels.get(agent.agent_id) ?? agentLabel(agent)}
-              </TruncatedText>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+            </span>
+            <TruncatedText className="min-w-0 flex-1 text-left">
+              {selectedLabel}
+            </TruncatedText>
+            <ChevronDown className="h-4 w-4 shrink-0 text-ink-tertiary" />
+          </button>
+        </PopoverTrigger>
+      </div>
+      <PopoverContent
+        aria-label="Choose agent"
+        align="end"
+        side="bottom"
+        collisionPadding={12}
+        className="w-72 max-h-[min(16rem,var(--radix-popover-content-available-height))] p-1"
+      >
+        {agents.map((agent) => (
+          <button
+            className={cn(
+              "flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink transition",
+              agent.agent_id === selectedAgentId
+                ? "bg-accent/10 hover:bg-accent/15"
+                : "hover:bg-surface-3",
+            )}
+            key={agent.agent_id}
+            onClick={() => {
+              onChange(agent.agent_id);
+              setOpen(false);
+            }}
+            type="button"
+          >
+            <span className="grid h-4 w-4 shrink-0 place-items-center">
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "h-2 w-2 rounded-full",
+                  agent.online ? "bg-success" : "bg-ink-tertiary/30",
+                )}
+              />
+            </span>
+            <TruncatedText className="min-w-0 flex-1">
+              {agentDisplayLabels.get(agent.agent_id) ?? agentLabel(agent)}
+            </TruncatedText>
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
   );
 }
 

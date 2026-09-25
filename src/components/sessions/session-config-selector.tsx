@@ -1,13 +1,14 @@
 "use client";
 
 import { LoaderCircle, RefreshCw, SlidersHorizontal } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
+import { SessionSettings, useSessionSettings } from "./session-settings";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+  SettingsToggle,
+  SettingsRow,
+  SettingsChoice,
+  SettingsChoices,
+} from "@/components/ui/settings-controls";
 import type {
   SessionConfigOption,
   SessionConfiguration,
@@ -65,7 +66,32 @@ export function configurationModel(configuration?: SessionConfiguration) {
   );
 }
 
-export function SessionConfigSelector({
+export function SessionConfigSelector(props: SessionConfigSelectorProps) {
+  const settings = useSessionSettings();
+  const model = configurationModel(props.configuration);
+  if (!settings)
+    return (
+      <SessionSettings
+        trigger={
+          <Button
+            aria-label={`Session configuration${model ? `, model ${model}` : ""}`}
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={props.disabled}
+            icon={<SlidersHorizontal className="h-3.5 w-3.5" />}
+          >
+            {model ?? "Config"}
+          </Button>
+        }
+      >
+        <SessionConfigSelector {...props} />
+      </SessionSettings>
+    );
+  return <SessionConfigFields {...props} />;
+}
+
+function SessionConfigFields({
   configuration,
   disabled,
   errorMessage,
@@ -74,15 +100,65 @@ export function SessionConfigSelector({
   onRefresh,
   pendingOptionId,
   refreshing,
-  inline = false,
 }: SessionConfigSelectorProps) {
+  const settings = useSessionSettings()!;
   const options =
     configuration?.options.filter((option) => !isPermissionOption(option)) ??
     [];
-  const model = configurationModel(configuration);
-  const content = (
-    <div className="grid gap-2">
-      <div className="flex items-center justify-between gap-2">
+  const option = options.find(
+    (option) => settings.page.id === `config:${option.id}`,
+  );
+  const locked =
+    disabled || !configuration?.can_set || Boolean(pendingOptionId);
+  if (settings.page.id !== "home") {
+    if (!settings.page.id.startsWith("config:")) return null;
+    if (!option)
+      return (
+        <p role="status" className="px-3 py-4 text-sm text-ink-muted">
+          This option is no longer available. Go back to settings to refresh.
+        </p>
+      );
+    const candidates = option.options ?? [];
+    const values = candidates.some(
+      (candidate) => candidate.value === option.current_value,
+    )
+      ? candidates
+      : [
+          {
+            name: String(option.current_value),
+            value: String(option.current_value),
+          },
+          ...candidates,
+        ];
+    return (
+      <>
+        {option.description && (
+          <p className="px-3 pb-4 pt-2 text-sm leading-6 text-ink-muted">
+            {option.description}
+          </p>
+        )}
+        <SettingsChoices label={option.name}>
+          {values.map((candidate) => (
+            <SettingsChoice
+              key={candidate.value}
+              label={candidate.name}
+              description={candidate.group}
+              selected={candidate.value === option.current_value}
+              disabled={locked}
+              onClick={() => {
+                if (candidate.value !== option.current_value)
+                  onChange(option.id, candidate.value);
+                settings.finish();
+              }}
+            />
+          ))}
+        </SettingsChoices>
+      </>
+    );
+  }
+  return (
+    <>
+      <div className="flex items-center justify-between px-3 pb-2">
         <span className="text-xs text-ink-tertiary">Agent configuration</span>
         <Button
           aria-label="Force refresh session configuration"
@@ -101,10 +177,12 @@ export function SessionConfigSelector({
         />
       </div>
       {loading && !options.length && (
-        <p className="text-xs text-ink-tertiary">Loading configuration...</p>
+        <p className="px-3 pb-3 text-sm text-ink-muted">
+          Loading configuration...
+        </p>
       )}
       {errorMessage && (
-        <p role="alert" className="text-xs text-danger">
+        <p role="alert" className="px-3 pb-3 text-sm text-danger">
           {errorMessage}
         </p>
       )}
@@ -112,96 +190,53 @@ export function SessionConfigSelector({
         !options.length &&
         !configuration?.legacy_models?.available?.length &&
         !errorMessage && (
-          <p className="text-xs text-ink-tertiary">
+          <p className="px-3 pb-3 text-sm text-ink-muted">
             This agent has not reported model or session configuration for this
             session.
           </p>
         )}
-      {options.map((option) => (
-        <label
-          key={option.id}
-          className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-3 border-b border-hairline py-2 text-sm"
-        >
-          <span className="min-w-0" title={option.description}>
-            {option.name}
-          </span>
-          {option.type === "boolean" ? (
-            <Switch
-              aria-label={option.name}
-              className="justify-self-end"
+      <div className="grid gap-1">
+        {options.map((option) =>
+          option.type === "boolean" ? (
+            <SettingsToggle
+              key={option.id}
+              label={option.name}
               checked={Boolean(option.current_value)}
-              disabled={
-                disabled || !configuration?.can_set || Boolean(pendingOptionId)
-              }
-              onCheckedChange={(checked) => onChange(option.id, checked)}
+              disabled={locked}
+              onChange={(checked) => onChange(option.id, checked)}
             />
           ) : (
-            <select
-              aria-label={option.name}
-              value={String(option.current_value)}
-              disabled={
-                disabled || !configuration?.can_set || Boolean(pendingOptionId)
+            <SettingsRow
+              key={option.id}
+              label={option.name}
+              value={optionValueLabel(option)}
+              ariaLabel={`${option.name}: ${optionValueLabel(option)}`}
+              disabled={locked}
+              onClick={() =>
+                settings.navigate({
+                  id: `config:${option.id}`,
+                  title: option.name,
+                })
               }
-              onChange={(event) => onChange(option.id, event.target.value)}
-              className="min-w-0 truncate rounded-md bg-surface-3 px-2 py-2 text-base text-ink outline-none [color-scheme:dark] sm:text-sm"
-            >
-              {!option.options?.some(
-                (candidate) => candidate.value === option.current_value,
-              ) && (
-                <option value={String(option.current_value)}>
-                  {String(option.current_value)}
-                </option>
-              )}
-              {option.options?.map((candidate) => (
-                <option key={candidate.value} value={candidate.value}>
-                  {candidate.group ? `${candidate.group} · ` : ""}
-                  {candidate.name}
-                </option>
-              ))}
-            </select>
-          )}
-        </label>
-      ))}
+            />
+          ),
+        )}
+      </div>
       {!options.some(isModelOption) &&
-      configuration?.legacy_models?.available?.length ? (
-        <label className="grid gap-2 text-xs text-ink-tertiary">
-          Model
-          <select
-            aria-label="Legacy model"
-            disabled
-            value={configuration.legacy_models.current_model_id ?? ""}
-            className="min-w-0 bg-surface-3 p-2 text-ink"
-          >
-            {configuration.legacy_models.available.map((candidate) => (
-              <option key={candidate.id} value={candidate.id}>
-                {candidate.name}
-              </option>
-            ))}
-          </select>
-          Legacy agent model list; switching is not standardized.
-        </label>
-      ) : null}
-    </div>
-  );
-  return inline ? (
-    content
-  ) : (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          aria-label={`Session configuration${model ? `, model ${model}` : ""}`}
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={disabled}
-          icon={<SlidersHorizontal className="h-3.5 w-3.5" />}
-        >
-          {model ?? "Config"}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent side="top" align="start">
-        {content}
-      </PopoverContent>
-    </Popover>
+        Boolean(configuration?.legacy_models?.available?.length) && (
+          <div>
+            <SettingsRow
+              label="Model"
+              value={configurationModel(configuration)}
+              ariaLabel="Legacy model"
+              disabled
+              onClick={() => {}}
+            />
+            <p className="px-3 pb-3 text-xs leading-5 text-ink-tertiary">
+              Legacy agent model list; switching is not standardized.
+            </p>
+          </div>
+        )}
+    </>
   );
 }

@@ -86,10 +86,10 @@ describe("SessionConfigSelector", () => {
     );
     expect(screen.getByText("Thinking")).toBeVisible();
     expect(screen.getByText("Fast mode")).toBeVisible();
-    await userEvent.selectOptions(
-      screen.getByRole("combobox", { name: "Thinking" }),
-      "high",
+    await userEvent.click(
+      screen.getByRole("button", { name: "Thinking: Medium" }),
     );
+    await userEvent.click(screen.getByRole("radio", { name: "High" }));
     await userEvent.click(screen.getByRole("switch", { name: "Fast mode" }));
     expect(onChange).toHaveBeenCalledWith("fast", true);
     expect(onChange).toHaveBeenCalledWith("reasoning_effort", "high");
@@ -121,9 +121,7 @@ describe("SessionConfigSelector", () => {
         name: "Session configuration, model DeepSeek V4",
       }),
     );
-    expect(
-      screen.getByRole("combobox", { name: "Legacy model" }),
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Legacy model" })).toBeDisabled();
     expect(screen.getByText(/switching is not standardized/i)).toBeVisible();
   });
 });

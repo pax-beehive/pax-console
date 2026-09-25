@@ -169,6 +169,45 @@ describe("session event cards", () => {
       screen.queryByRole("button", { name: /Remove/ }),
     ).not.toBeInTheDocument();
   });
+  it("connects images from the same message to one preview gallery", () => {
+    render(
+      <TooltipProvider>
+        <WorkstreamItemCard
+          userId="user_1"
+          permissionDecision={permissionDecision}
+          item={{
+            type: "event",
+            id: "gallery-message",
+            event: {
+              type: "user_message",
+              id: "gallery-message",
+              sessionId: "s",
+              content: "Compare these",
+              createdAt: "2026-09-25T00:00:00Z",
+              attachments: [
+                {
+                  attachmentId: "one",
+                  filename: "One.png",
+                  contentType: "image/png",
+                },
+                {
+                  attachmentId: "two",
+                  filename: "Two.png",
+                  contentType: "image/png",
+                },
+              ],
+            },
+          }}
+        />
+      </TooltipProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Preview One.png" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next image" }));
+    expect(screen.getByRole("dialog", { name: "Two.png" })).toBeVisible();
+    expect(
+      screen.getByRole("status", { name: "Image position" }),
+    ).toHaveTextContent("2 / 2");
+  });
   it("uses a saved manual decision instead of an inferred auto approval", () => {
     const event: Extract<SessionEvent, { type: "permission_request" }> = {
       type: "permission_request",

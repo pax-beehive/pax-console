@@ -1312,8 +1312,20 @@ Home / Collaboration / Settings retain their existing access rules.
 
 One Session settings trigger summarizes model and permissions. Its compact
 rows include every reported ACP option, permission choices, and creation-only
-encryption. Models are available once the agent reports them. Content addition
-stays in +. Empty send on creation initializes a session with immediate leading
+encryption. Mobile uses a full-width bottom sheet with a backdrop; desktop uses
+a centered panel. Selection rows consistently show label, current value, and
+chevron. Opening a row replaces the content in place with a titled choice page,
+using a right-aligned check and readable descriptions. Boolean settings use
+switches. Back, close, and the heading remain fixed while long option lists
+scroll; permission confirmation uses the same panel, with no nested overlay.
+Models are available once the agent reports them.
+
+Enabling encryption shows a brief, readable notice that dismisses after 2.4
+seconds; the settings summary retains Encrypted without covering content. The
+agent picker remains usable in either mode, opening below the header through a
+portal. Switching agents keeps the selected encryption mode.
+
+Content addition stays in +. Empty send on creation initializes a session with immediate leading
 execution, a 500 ms repeat guard, and an in-flight lock; existing empty sends do
 nothing. No separate Create empty session action occupies the toolbar.
 

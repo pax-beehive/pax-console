@@ -296,7 +296,8 @@ describe("SessionComposer", () => {
     expect(timelineRenderCount).toBe(1);
   });
 
-  it("renders auto approve as an icon toggle with an explanation", async () => {
+  it("renders and updates the fallback auto-approve switch", async () => {
+    const onToggleApprovalMode = vi.fn();
     render(
       <TooltipProvider>
         <SessionComposer
@@ -319,7 +320,7 @@ describe("SessionComposer", () => {
           onSteer={async () => true}
           onStop={vi.fn()}
           onSubmitDraft={async () => true}
-          onToggleApprovalMode={vi.fn()}
+          onToggleApprovalMode={onToggleApprovalMode}
           onUpdateQueuedTurn={async () => true}
           queueTurnPending={false}
           queuedTurn={null}
@@ -334,15 +335,12 @@ describe("SessionComposer", () => {
     await userEvent.click(
       screen.getByRole("button", { name: "Session settings" }),
     );
-    const approvalToggle = screen.getByRole("button", {
-      name: "Ask before running tools",
+    const approvalToggle = screen.getByRole("switch", {
+      name: "Auto approve tools",
     });
-    expect(approvalToggle).toHaveAttribute("aria-pressed", "false");
-    expect(approvalToggle).not.toHaveTextContent("Ask before tools");
+    expect(approvalToggle).toHaveAttribute("aria-checked", "false");
     await userEvent.click(approvalToggle);
-    expect(await screen.findByRole("tooltip")).toHaveTextContent(
-      "Ask before running tools",
-    );
+    expect(onToggleApprovalMode).toHaveBeenCalledOnce();
   });
 
   it("keeps running-turn actions and secure secret delivery available", async () => {
@@ -494,9 +492,7 @@ describe("SessionComposer", () => {
       }),
     );
     expect(screen.getByText("Agent permissions")).toBeInTheDocument();
-    await userEvent.click(
-      screen.getByRole("menuitemradio", { name: "Full access" }),
-    );
+    await userEvent.click(screen.getByRole("radio", { name: "Full access" }));
 
     expect(onSelectPermissionChoice).toHaveBeenCalledWith("agent:full-access");
     expect(

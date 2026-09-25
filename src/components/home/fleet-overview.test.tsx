@@ -414,11 +414,9 @@ describe("FleetOverview session rail", () => {
     });
     await userEvent.click(permissionSelector);
 
+    expect(screen.getByRole("radio", { name: "Full access" })).toBeVisible();
     expect(
-      screen.getByRole("menuitemradio", { name: "Full access" }),
-    ).toBeVisible();
-    expect(
-      screen.getByRole("menuitemradio", { name: /Auto approve \(PAX\)/ }),
+      screen.getByRole("radio", { name: /Auto approve \(PAX\)/ }),
     ).toBeVisible();
   });
 
@@ -483,9 +481,7 @@ describe("FleetOverview session rail", () => {
         name: "Session permissions: Workspace access",
       }),
     );
-    await userEvent.click(
-      screen.getByRole("menuitemradio", { name: /Full access/ }),
-    );
+    await userEvent.click(screen.getByRole("radio", { name: /Full access/ }));
     await userEvent.click(
       screen.getByRole("button", { name: "Use this permission" }),
     );
@@ -495,6 +491,9 @@ describe("FleetOverview session rail", () => {
       }),
     ).toBeVisible();
 
+    await userEvent.click(
+      screen.getByRole("button", { name: "Close settings" }),
+    );
     await userEvent.click(screen.getByRole("button", { name: "Pi agent" }));
     await userEvent.click(screen.getByRole("button", { name: "Second agent" }));
     await openSettings();
@@ -517,9 +516,7 @@ describe("FleetOverview session rail", () => {
         name: "Session permissions: Workspace access",
       }),
     );
-    await userEvent.click(
-      screen.getByRole("menuitemradio", { name: /Full access/ }),
-    );
+    await userEvent.click(screen.getByRole("radio", { name: /Full access/ }));
     await userEvent.click(
       screen.getByRole("button", { name: "Use this permission" }),
     );
@@ -532,7 +529,7 @@ describe("FleetOverview session rail", () => {
       }),
     );
     await userEvent.click(
-      screen.getByRole("menuitemradio", { name: /Ask before tools/ }),
+      screen.getByRole("radio", { name: /Ask before tools/ }),
     );
     secondAgentPending = false;
     rerender(fleetView());
@@ -815,13 +812,13 @@ describe("FleetOverview session rail", () => {
     await userEvent.click(screen.getByRole("link", { name: "New session" }));
 
     const composerPane = screen.getByTestId("home-composer-pane");
+    expect(screen.getByLabelText("Project")).toBeVisible();
     await openSettings();
-    const encryptedToggle = screen.getByRole("button", {
+    const encryptedToggle = screen.getByRole("switch", {
       name: "Use end-to-end encryption",
     });
     expect(composerPane).toHaveAttribute("data-secure-mode", "false");
-    expect(screen.getByLabelText("Project")).toBeVisible();
-    expect(encryptedToggle).toHaveAttribute("aria-pressed", "false");
+    expect(encryptedToggle).toHaveAttribute("aria-checked", "false");
     expect(encryptedToggle).not.toHaveTextContent("Encrypted");
     expect(
       screen.getByRole("button", {
@@ -830,17 +827,19 @@ describe("FleetOverview session rail", () => {
     ).toBeVisible();
     await userEvent.click(encryptedToggle);
     expect(composerPane).toHaveAttribute("data-secure-mode", "true");
-    expect(encryptedToggle).toHaveAttribute("aria-pressed", "true");
-    expect(await screen.findByRole("tooltip")).toHaveTextContent(
-      "End-to-end encryption on",
+    expect(encryptedToggle).toHaveAttribute("aria-checked", "true");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Close settings" }),
     );
     expect(
-      screen.getByRole("status", { name: "Session secured" }),
+      screen.getByRole("status", { name: "Encryption enabled" }),
     ).toBeInTheDocument();
     expect(
       screen.getByTestId("secure-activation-animation"),
     ).toBeInTheDocument();
-    expect(screen.getByText("End-to-end encrypted")).toBeInTheDocument();
+    expect(
+      screen.getByText("End-to-end encryption enabled"),
+    ).toBeInTheDocument();
 
     const composer = screen.getByPlaceholderText(
       "Send an end-to-end encrypted message",
@@ -857,19 +856,69 @@ describe("FleetOverview session rail", () => {
     );
   });
 
+  it("keeps encrypted intent when changing the agent before creating a session", async () => {
+    mocks.listAgents.mockResolvedValue({
+      agents: [
+        {
+          agent_id: "agent_1",
+          name: "Pi agent",
+          node_id: "node_1",
+          online: true,
+        },
+        {
+          agent_id: "agent_2",
+          name: "Second agent",
+          node_id: "node_1",
+          online: true,
+        },
+      ],
+    });
+    renderOverview();
+    await screen.findByRole("button", { name: "Pi agent" });
+    await openSettings();
+    await userEvent.click(
+      screen.getByRole("switch", { name: "Use end-to-end encryption" }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Close settings" }),
+    );
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Pi agent" }));
+    await userEvent.click(
+      within(screen.getByRole("dialog", { name: "Choose agent" })).getByRole(
+        "button",
+        { name: "Second agent" },
+      ),
+    );
+    expect(
+      screen.getByRole("button", { name: "Session settings" }),
+    ).toHaveTextContent("Encrypted");
+    const composer = screen.getByPlaceholderText(
+      "Send an end-to-end encrypted message",
+    );
+    await userEvent.type(composer, "Private message for the second agent");
+    fireEvent.submit(composer.closest("form")!);
+    const workbench = await screen.findByTestId("session-workbench");
+    expect(workbench).toHaveAttribute("data-agent-id", "agent_2");
+    expect(workbench).toHaveAttribute("data-initial-transport", "e2ee");
+  });
+
   it("clears encrypted draft UI when switching to an existing session", async () => {
     renderOverview();
     await userEvent.click(screen.getByRole("link", { name: "New session" }));
 
     await openSettings();
     await userEvent.click(
-      screen.getByRole("button", { name: "Use end-to-end encryption" }),
+      screen.getByRole("switch", { name: "Use end-to-end encryption" }),
     );
     expect(screen.getByTestId("home-composer-pane")).toHaveAttribute(
       "data-secure-mode",
       "true",
     );
 
+    await userEvent.click(
+      screen.getByRole("button", { name: "Close settings" }),
+    );
     await userEvent.click(
       await screen.findByRole("link", { name: /Session one/ }),
     );
@@ -879,7 +928,7 @@ describe("FleetOverview session rail", () => {
       "false",
     );
     expect(
-      screen.queryByRole("status", { name: "Session secured" }),
+      screen.queryByRole("status", { name: "Encryption enabled" }),
     ).not.toBeInTheDocument();
     expect(screen.getByTestId("session-workbench")).toHaveTextContent("sess_1");
   });
@@ -889,7 +938,10 @@ describe("FleetOverview session rail", () => {
     await userEvent.click(screen.getByRole("link", { name: "New session" }));
     await openSettings();
     await userEvent.click(
-      screen.getByRole("button", { name: "Use end-to-end encryption" }),
+      screen.getByRole("switch", { name: "Use end-to-end encryption" }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Close settings" }),
     );
     await userEvent.click(
       await screen.findByRole("link", { name: /Session one/ }),
@@ -898,8 +950,8 @@ describe("FleetOverview session rail", () => {
 
     await openSettings();
     expect(
-      screen.getByRole("button", { name: "Use end-to-end encryption" }),
-    ).toHaveAttribute("aria-pressed", "false");
+      screen.getByRole("switch", { name: "Use end-to-end encryption" }),
+    ).toHaveAttribute("aria-checked", "false");
     expect(screen.getByTestId("home-composer-pane")).toHaveAttribute(
       "data-secure-mode",
       "false",
@@ -926,7 +978,7 @@ describe("FleetOverview session rail", () => {
     ).toBeVisible();
     await openSettings();
     expect(
-      screen.getByRole("button", { name: "Use end-to-end encryption" }),
+      screen.getByRole("switch", { name: "Use end-to-end encryption" }),
     ).toBeVisible();
     expect(
       screen.getByRole("button", { name: /Session permissions/ }),
@@ -941,7 +993,7 @@ describe("FleetOverview session rail", () => {
       if (transport === "e2ee") {
         await openSettings();
         await userEvent.click(
-          screen.getByRole("button", { name: "Use end-to-end encryption" }),
+          screen.getByRole("switch", { name: "Use end-to-end encryption" }),
         );
         await userEvent.keyboard("{Escape}");
       }

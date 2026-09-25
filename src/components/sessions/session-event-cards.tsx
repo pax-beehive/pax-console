@@ -484,7 +484,11 @@ function UserMessageCard({
                 }
                 className="max-w-full min-w-0"
               >
-                <MessageAttachment attachment={attachment} userId={userId} />
+                <MessageAttachment
+                  attachment={attachment}
+                  gallery={event.attachments}
+                  userId={userId}
+                />
               </li>
             ))}
           </ul>
