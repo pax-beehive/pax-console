@@ -161,7 +161,14 @@ src/app/api/pax/[...path]/route.ts
 Do not spread Cloudflare cookie handling into React components.
 
 Home has one recent-session rail, grouped by date, with Project filtering and
-Project / Agent context per row. Projects are logical, owner-scoped, nestable
+Project / Agent context per row. Pass the selected `primary_project_id` into both
+the paginated session request and its Query key; never filter only loaded pages.
+All projects includes unassigned sessions. Agent, Node and archive filters still
+apply. Keep scroll pagination and a Load more sessions button for short lists.
+Changing the Project filter preserves the open workbench instance and does not
+change creation context. Identity/workspace headers share 20px mobile and 24px
+desktop horizontal padding; rail text uses 24px left padding.
+Projects are logical, owner-scoped, nestable
 work groups. Targets bind an Agent to a directory intent. Creation has two
 header rows: Project / Agent, then Workspace. Resolve only enabled targets for
 that pair: default, then sole match; otherwise require a choice. The workspace

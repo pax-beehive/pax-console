@@ -765,6 +765,160 @@ describe("FleetOverview session rail", () => {
     expect(screen.getByRole("combobox", { name: "Project" })).toHaveValue("");
   });
 
+  it("queries a project's full session history and paginates without requiring scroll", async () => {
+    const user = userEvent.setup();
+    mocks.listUserSessions.mockImplementation(
+      async (
+        _userId: string,
+        options: { primaryProjectId?: string; pageNum?: number },
+      ) => {
+        const filtered = options.primaryProjectId === "project_1";
+        const page = options.pageNum ?? 1;
+        return {
+          pagination: {
+            page_num: page,
+            page_size: 20,
+            total_pages: 2,
+            total: 21,
+          },
+          sessions: [
+            filtered
+              ? sessionFixture(
+                  `project_${page}`,
+                  `Older project session ${page}`,
+                  "project_1",
+                )
+              : sessionFixture("unassigned", "Recent unassigned session", ""),
+          ],
+        };
+      },
+    );
+    renderOverview();
+    expect(
+      await screen.findByRole("link", { name: /Recent unassigned session/ }),
+    ).toBeVisible();
+    const filter = screen.getByRole("combobox", { name: "Filter by project" });
+    await user.selectOptions(filter, "project_1");
+    expect(
+      await screen.findByRole("link", { name: /Older project session 1/ }),
+    ).toBeVisible();
+    expect(mocks.listUserSessions).toHaveBeenLastCalledWith(
+      "user_1",
+      expect.objectContaining({
+        primaryProjectId: "project_1",
+        pageNum: 1,
+      }),
+    );
+    expect(
+      screen.queryByRole("link", { name: /Recent unassigned session/ }),
+    ).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Load more sessions" }),
+    );
+    expect(
+      await screen.findByRole("link", { name: /Older project session 2/ }),
+    ).toBeVisible();
+    expect(mocks.listUserSessions).toHaveBeenLastCalledWith(
+      "user_1",
+      expect.objectContaining({
+        primaryProjectId: "project_1",
+        pageNum: 2,
+      }),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Load more sessions" }),
+    ).not.toBeInTheDocument();
+    await user.selectOptions(filter, "");
+    expect(
+      await screen.findByRole("link", { name: /Recent unassigned session/ }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("link", { name: /Older project session/ }),
+    ).not.toBeInTheDocument();
+    expect(mocks.listUserSessions).toHaveBeenLastCalledWith(
+      "user_1",
+      expect.objectContaining({
+        primaryProjectId: undefined,
+        pageNum: 1,
+      }),
+    );
+  });
+
+  it("keeps the open session mounted when changing the project's session query", async () => {
+    setProjectContents(
+      [
+        projectFixture("root", "Root"),
+        projectFixture("child", "Child", "root"),
+      ],
+      [
+        sessionFixture("one", "First session", "root"),
+        sessionFixture("two", "Second session", "child"),
+      ],
+    );
+    renderOverview();
+    await userEvent.click(
+      await screen.findByRole("link", { name: /First session/ }),
+    );
+    const workbench = screen.getByTestId("session-workbench");
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: "Filter by project" }),
+      "child",
+    );
+    await waitFor(() =>
+      expect(mocks.listUserSessions).toHaveBeenLastCalledWith(
+        "user_1",
+        expect.objectContaining({ primaryProjectId: "child" }),
+      ),
+    );
+    expect(
+      await screen.findByRole("link", { name: /Second session/ }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("link", { name: /First session/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-workbench")).toBe(workbench);
+    expect(workbench).toHaveTextContent("one");
+    expect(window.location.search).toBe("?session_id=one");
+  });
+
+  it("preserves the creation agent when project filtering changes recent-agent ordering", async () => {
+    mocks.listAgents.mockResolvedValue({
+      agents: [
+        { agent_id: "agent_1", name: "Alpha", node_id: "node_1", online: true },
+        { agent_id: "agent_2", name: "Beta", node_id: "node_1", online: true },
+      ],
+    });
+    setProjectContents(
+      [
+        projectFixture("root", "Root"),
+        projectFixture("child", "Child", "root"),
+      ],
+      [
+        {
+          ...sessionFixture("latest", "Latest session", "root"),
+          agent_id: "agent_2",
+          updated_at: "2026-07-21T12:00:00.000Z",
+        },
+        sessionFixture("older", "Older session", "child"),
+      ],
+    );
+    renderOverview();
+    expect(await screen.findByRole("button", { name: "Beta" })).toBeVisible();
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: "Filter by project" }),
+      "child",
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("link", { name: /Latest session/ }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(
+      await screen.findByRole("link", { name: /Older session/ }),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Beta" })).toBeVisible();
+  });
+
   it("starts a project session through the normal Home composer", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
@@ -1665,15 +1819,25 @@ function setProjectContents(projects: Project[], sessions: AgentSession[]) {
     error: null,
     isLoading: false,
   });
-  mocks.listUserSessions.mockResolvedValue({
-    pagination: {
-      page_num: 1,
-      page_size: 20,
-      total: sessions.length,
-      total_pages: sessions.length > 0 ? 1 : 0,
+  mocks.listUserSessions.mockImplementation(
+    async (_userId: string, options: { primaryProjectId?: string }) => {
+      const filtered = options.primaryProjectId
+        ? sessions.filter(
+            (session) =>
+              session.primary_project_id === options.primaryProjectId,
+          )
+        : sessions;
+      return {
+        pagination: {
+          page_num: 1,
+          page_size: 20,
+          total: filtered.length,
+          total_pages: filtered.length > 0 ? 1 : 0,
+        },
+        sessions: filtered,
+      };
     },
-    sessions,
-  });
+  );
 }
 
 function renderOverview() {

@@ -633,6 +633,11 @@ Save as workspace target 默认不勾选。只有显式勾选且 native session 
 左侧统一 Recent 列表按 Today / Yesterday / Previous 7 days / Earlier 分组，每行带
 Project / Agent 上下文。Project 筛选只影响列表，不改变新建上下文。固定顶部控制，
 仅列表滚动，移除重复的横向 session tabs。导航仍是 Home 内的 `?session_id=`。
+Project 筛选按 session 的 `primary_project_id` 传入后端分页查询，并纳入 Query key，
+不能只筛已加载的 20 条。未关联 project 的会话保留在 All projects，归档、Agent 和
+Node 条件继续叠加。保留滚动加载，并提供 Load more sessions 作为无滚动条时的入口。
+切换筛选保留已打开 workbench 的身份和实例；标题及 workspace 共用左右留白，
+手机 20px、桌面 24px，左侧列表文字从边缘内缩 24px。
 底部 Home / Collaboration / Settings 保留既有权限规则。
 
 ## 当前 Shell / UI 状态

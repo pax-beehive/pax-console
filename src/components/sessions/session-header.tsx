@@ -16,7 +16,7 @@ export function SessionHeader({
 }: SessionHeaderProps) {
   return (
     <header
-      className={cn("border-b px-3 py-2 sm:px-4", surfaceClassName)}
+      className={cn("border-b px-5 py-2 sm:px-6", surfaceClassName)}
       data-testid="session-details-panel"
     >
       <div className="flex min-w-0 items-center gap-2">{children}</div>
