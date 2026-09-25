@@ -50,6 +50,7 @@ import {
 } from "@/components/sessions/session-event-cards";
 import { SessionBrowserApprovals } from "./session-browser-approvals";
 import { SessionBrowserWindow } from "./session-browser-window";
+import { SessionWorkspaceDetails } from "./session-workspace-details";
 import { SessionComposer } from "@/components/sessions/session-composer";
 import { SessionConfigSelector } from "@/components/sessions/session-config-selector";
 import { MobileCollapsibleSessionHeader } from "@/components/sessions/mobile-collapsible-session-header";
@@ -2094,12 +2095,12 @@ export function SessionWorkbench({
       tooltip="Watch browser"
       aria-expanded={browserOpen}
       size="sm"
-      className="min-h-11 shrink-0 text-ink lg:min-h-9"
-      variant="secondary"
+      className="min-h-10 w-10 shrink-0 rounded-full px-0 text-ink-muted lg:min-h-9 lg:w-auto lg:px-3"
+      variant="ghost"
       icon={<Monitor className="h-4 w-4" />}
       onClick={() => setBrowserOpen(!browserOpen)}
     >
-      浏览器
+      <span className="hidden lg:inline">浏览器</span>
     </Button>
   ) : null;
 
@@ -2209,6 +2210,11 @@ export function SessionWorkbench({
       {usesEncryptedTransport && <SecureModeActivation showStatus={false} />}
       <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
         <MobileCollapsibleSessionHeader
+          details={
+            shouldShowReadOnlyWorkspace ? (
+              <SessionWorkspaceDetails workspace={displayedWorkspace} />
+            ) : undefined
+          }
           actions={browserButton}
           key={currentSessionId ?? "new"}
           summary={
@@ -2226,6 +2232,7 @@ export function SessionWorkbench({
                 />
               )}
               <RunBadge
+                compact
                 paxdOffline={activeNode?.online === false}
                 error={
                   usesEncryptedTransport
@@ -2390,23 +2397,6 @@ export function SessionWorkbench({
             </div>
           </div>
           <div className="col-span-2 row-start-2 flex min-w-0 items-center gap-2 border-t border-hairline pt-2 lg:shrink-0 lg:border-0 lg:pt-0">
-            {currentSessionId && !usesEncryptedTransport && (
-              <SessionConfigSelector
-                configuration={sessionConfigurationQuery.data}
-                errorMessage={
-                  sessionConfigurationQuery.error instanceof Error
-                    ? formatErrorDetail(sessionConfigurationQuery.error)
-                    : undefined
-                }
-                loading={sessionConfigurationQuery.isPending}
-                onChange={(configId, value) =>
-                  updateSessionConfiguration.mutate({ configId, value })
-                }
-                onRefresh={() => refreshSessionConfiguration.mutate()}
-                pendingOptionId={pendingSessionConfigOptionId}
-                refreshing={refreshSessionConfiguration.isPending}
-              />
-            )}
             <RunBadge
               paxdOffline={activeNode?.online === false}
               error={
@@ -2571,8 +2561,25 @@ export function SessionWorkbench({
           permissionCatalogLoading={permissionCatalogQuery.isPending}
           permissionChoiceId={displayedPermissionChoiceId}
           permissionChoices={permissionChoices}
-          readOnlyWorkspace={
-            shouldShowReadOnlyWorkspace ? displayedWorkspace : undefined
+          configurationControl={
+            currentSessionId &&
+            !usesEncryptedTransport && (
+              <SessionConfigSelector
+                configuration={sessionConfigurationQuery.data}
+                errorMessage={
+                  sessionConfigurationQuery.error instanceof Error
+                    ? formatErrorDetail(sessionConfigurationQuery.error)
+                    : undefined
+                }
+                loading={sessionConfigurationQuery.isPending}
+                onChange={(configId, value) =>
+                  updateSessionConfiguration.mutate({ configId, value })
+                }
+                onRefresh={() => refreshSessionConfiguration.mutate()}
+                pendingOptionId={pendingSessionConfigOptionId}
+                refreshing={refreshSessionConfiguration.isPending}
+              />
+            )
           }
           secure={usesEncryptedTransport}
           steerTurnPending={steerTurn.isPending}

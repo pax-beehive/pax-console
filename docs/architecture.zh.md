@@ -591,6 +591,12 @@ history 路由只用于后端兼容。
 
 ## Home 新会话工作位置
 
+已有 Session 的 Workspace 是只读信息，移到顶部展开详情中显示完整路径并提供复制。
+底部 composer 保留输入区和一行附件、模型配置、权限、发送工具；运行时 Queue 与 Stop
+仍直接显示。长模型名和权限名优先截断，菜单及 accessible name 保留完整文字。
+Home 创建页的 Project / Agent 并排，Workspace 摘要与已保存目录选择同排；点击摘要
+才展开目录输入与校验。布局调整不改变 SessionDraftInput 的逐字订阅隔离或目录解析规则。
+
 Project 与 Agent 独立选择。Workspace 只从当前项目、当前 Agent 的启用绑定中
 解析：优先默认项，其次唯一项；多个且无默认时由用户选择。已解析目录折叠为
 可编辑的一行，缺少绑定时在输入区展开目录输入；可以从已保存位置菜单显式

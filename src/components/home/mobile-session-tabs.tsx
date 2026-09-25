@@ -103,7 +103,7 @@ export function MobileSessionTabs({
 
       <Button
         aria-label="Start new session"
-        className="h-full w-10 shrink-0 rounded-none border-l border-hairline"
+        className="h-full w-10 shrink-0 rounded-none text-ink-muted"
         icon={<Plus className="h-4 w-4" />}
         onClick={onNewSession}
         size="icon"
@@ -260,7 +260,10 @@ function MobileSessionTab({
     event.preventDefault();
   }
 
-  function handleDrag(_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) {
+  function handleDrag(
+    _: MouseEvent | TouchEvent | PointerEvent,
+    info: PanInfo,
+  ) {
     const scrollContainer = scrollContainerRef.current;
     if (!scrollContainer) {
       return;
@@ -305,8 +308,8 @@ function MobileSessionTab({
     <Reorder.Item
       as="div"
       className={cn(
-        "relative flex h-full min-w-[116px] max-w-[180px] shrink-0 select-none touch-pan-y items-center border-r border-hairline [-webkit-touch-callout:none]",
-        active ? "bg-surface-2" : "bg-surface-1",
+        "relative flex h-full min-w-[116px] max-w-[180px] shrink-0 select-none touch-pan-y items-center [-webkit-touch-callout:none]",
+        active ? "bg-accent/5" : "bg-transparent",
         dragging && "z-30 shadow-lg",
       )}
       data-reordering={dragging ? "true" : "false"}
@@ -331,7 +334,7 @@ function MobileSessionTab({
         className={cn(
           "h-full min-w-0 flex-1 truncate px-3 pr-1 text-left text-xs transition",
           active
-            ? "font-medium text-ink"
+            ? "font-medium text-accent-bright"
             : "text-ink-tertiary hover:text-ink-muted",
         )}
         onClick={(event) => {

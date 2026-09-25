@@ -14,10 +14,12 @@ import type { SessionDisplayStatus } from "@/features/runtime/session-display-st
 import { cn } from "@/lib/utils";
 
 export function RunBadge({
+  compact = false,
   error,
   paxdOffline,
   status,
 }: {
+  compact?: boolean;
   error?: Error | null;
   paxdOffline?: boolean;
   status: SessionDisplayStatus;
@@ -118,7 +120,10 @@ export function RunBadge({
   return (
     <Badge
       aria-label={statusConfig.tooltip}
-      className="max-w-40 px-2 py-1 font-medium"
+      className={cn(
+        "max-w-40 px-2 py-1 font-medium",
+        compact && "border-transparent bg-transparent px-0 text-[11px]",
+      )}
       tone={statusConfig.tone}
       tooltip={statusConfig.tooltip}
     >

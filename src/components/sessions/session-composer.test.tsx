@@ -438,7 +438,6 @@ describe("SessionComposer", () => {
           onUpdateQueuedTurn={async () => true}
           queueTurnPending={false}
           queuedTurn={null}
-          readOnlyWorkspace="~/pax"
           userId="user_1"
           secure
           showAdminFeatures={false}
@@ -452,10 +451,7 @@ describe("SessionComposer", () => {
     expect(
       screen.getByRole("button", { name: "Ask before running tools" }),
     ).not.toHaveTextContent("Ask before tools");
-    expect(screen.getByText("~/pax").parentElement).toHaveClass(
-      "basis-full",
-      "sm:basis-auto",
-    );
+    expect(screen.queryByLabelText("Workspace")).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Queue after current turn" }),
     ).toBeDisabled();

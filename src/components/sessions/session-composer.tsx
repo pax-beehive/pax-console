@@ -3,6 +3,7 @@
 import {
   FormEvent,
   KeyboardEvent,
+  ReactNode,
   memo,
   useCallback,
   useRef,
@@ -93,7 +94,7 @@ type SessionComposerProps = {
   permissionCatalogLoading?: boolean;
   permissionChoiceId?: string;
   permissionChoices?: AgentPermissionChoice[];
-  readOnlyWorkspace?: string;
+  configurationControl?: ReactNode;
   secure?: boolean;
   showAdminFeatures: boolean;
   steerTurnPending: boolean;
@@ -140,7 +141,7 @@ export const SessionComposer = memo(function SessionComposer({
   permissionCatalogLoading,
   permissionChoiceId,
   permissionChoices,
-  readOnlyWorkspace,
+  configurationControl,
   secure = false,
   showAdminFeatures,
   steerTurnPending,
@@ -436,7 +437,7 @@ export const SessionComposer = memo(function SessionComposer({
           key={draftKey}
           draftKey={draftKey}
           commands={secure ? undefined : availableCommands}
-          className="max-h-40 min-h-12 w-full resize-none overflow-y-auto bg-transparent px-1 py-1 text-base leading-6 text-ink outline-none [field-sizing:content] placeholder:text-ink-tertiary sm:text-sm sm:leading-5"
+          className="max-h-40 min-h-10 w-full resize-none overflow-y-auto bg-transparent px-1 py-1 text-base leading-6 text-ink outline-none [field-sizing:content] placeholder:text-ink-tertiary sm:text-sm sm:leading-5"
           disabled={!activeAgentId}
           enterKeyHint="send"
           onKeyDown={handleKeyDown}
@@ -447,9 +448,19 @@ export const SessionComposer = memo(function SessionComposer({
                 ? "Send a prompt to this agent"
                 : "Select an agent before sending a prompt"
           }
-          rows={2}
+          rows={1}
         />
-        <div className="flex min-w-0 flex-wrap items-center gap-1 sm:gap-2">
+        {isTurnRunning && hasAttachments && (
+          <span className="mb-2 block text-xs text-warning">
+            Wait for the current turn to finish before sending attachments.
+          </span>
+        )}
+        <div
+          className={cn(
+            "flex min-w-0 items-center gap-1 sm:gap-2",
+            isNewSession && "flex-wrap",
+          )}
+        >
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -544,17 +555,8 @@ export const SessionComposer = memo(function SessionComposer({
                 variant="ghost"
               />
             )
-          ) : readOnlyWorkspace ? (
-            <div className="order-first inline-flex min-h-9 min-w-0 basis-full items-center gap-2 rounded-lg border border-hairline bg-canvas px-2.5 text-sm text-ink-muted sm:order-none sm:max-w-64 sm:basis-auto">
-              <FolderOpen className="h-4 w-4 shrink-0" />
-              <span className="shrink-0 text-xs font-medium text-ink-tertiary">
-                Workspace
-              </span>
-              <span className="min-w-0 truncate font-mono text-xs text-ink">
-                {readOnlyWorkspace}
-              </span>
-            </div>
           ) : null}
+          {configurationControl}
           {permissionChoices?.length &&
           permissionChoiceId &&
           onSelectPermissionChoice ? (
@@ -595,11 +597,6 @@ export const SessionComposer = memo(function SessionComposer({
             />
           )}
           <div className="min-w-0 flex-1" />
-          {isTurnRunning && hasAttachments && (
-            <span className="order-last basis-full text-xs text-warning">
-              Wait for the current turn to finish before sending attachments.
-            </span>
-          )}
           {showAdminFeatures && (
             <Button
               aria-label="Voice input is not available yet"
@@ -713,6 +710,9 @@ export const SessionComposer = memo(function SessionComposer({
               <Button
                 aria-label="Send prompt"
                 className={cn(
+                  "rounded-full",
+                  !secure &&
+                    "border-accent-bright bg-accent-bright text-canvas hover:bg-accent",
                   secure &&
                     "border-emerald-400/60 bg-emerald-400 text-emerald-950 shadow-[0_0_18px_rgba(52,211,153,0.16)] hover:bg-emerald-300",
                 )}

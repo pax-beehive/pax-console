@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 type MobileCollapsibleSessionHeaderProps = {
   children: ReactNode;
   actions?: ReactNode;
+  details?: ReactNode;
   summary: ReactNode;
   surfaceClassName?: string;
 };
@@ -15,6 +16,7 @@ type MobileCollapsibleSessionHeaderProps = {
 export function MobileCollapsibleSessionHeader({
   children,
   actions,
+  details,
   summary,
   surfaceClassName,
 }: MobileCollapsibleSessionHeaderProps) {
@@ -61,7 +63,7 @@ export function MobileCollapsibleSessionHeader({
 
       <div
         className={cn(
-          "grid-cols-[minmax(0,1fr)_auto] items-center justify-between gap-2 border-b px-3 py-2 transition-[background-color,border-color] duration-500 sm:gap-4 sm:px-4 sm:py-3 lg:flex",
+          "grid-cols-[minmax(0,1fr)_auto] items-center justify-between gap-2 border-b px-3 py-2 transition-[background-color,border-color] duration-500 sm:gap-4 sm:px-4 sm:py-3 lg:flex lg:flex-wrap",
           mobileExpanded ? "grid" : "hidden",
           surfaceClassName,
         )}
@@ -71,6 +73,11 @@ export function MobileCollapsibleSessionHeader({
       >
         {children}
         {collapseButton}
+        {details && (
+          <div className="col-span-2 row-start-3 min-w-0 basis-full border-t border-hairline pt-2">
+            {details}
+          </div>
+        )}
       </div>
     </>
   );
