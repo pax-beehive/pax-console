@@ -411,6 +411,14 @@ Collaboration and knowledge resources are normal user-scoped REST resources:
   the manager's HEAD validation remains authoritative. Other non-2xx responses
   fail. `gcs_resumable` retains the legacy initialize-then-PUT handshake.
   Unknown protocols must fail before uploading. Attachments are not agent-bound.
+  Home and session composers share ComposerDropZone for multi-file drops into
+  the input surface; keep the file-picker path as well. Only file drags prevent
+  browser defaults, with nested drag feedback cleared on leave/cancel/drop.
+  Reuse the same upload pipeline and an in-flight guard. Encrypted sessions
+  reject file drops and picker uploads; encryption cannot be enabled mid-upload.
+  ComposerAttachmentStatus uses neutral upload/waiting feedback, and a compact
+  dismissible error with technical details collapsed. Do not style ordinary
+  upload progress or waiting for the current turn as a warning.
 
 /artifact-publications/{publication_id} and
 /artifact-publications/{publication_id}/content/main

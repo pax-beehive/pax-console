@@ -1,6 +1,8 @@
 "use client";
 
 import { SessionDraftInput } from "@/components/sessions/session-draft-input";
+import { ComposerDropZone } from "@/components/sessions/composer-drop-zone";
+import { ComposerAttachmentStatus } from "@/components/sessions/composer-attachment-status";
 import Link from "next/link";
 import {
   FormEvent,
@@ -225,6 +227,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     useState<Error | null>(null);
   const [composerAttachmentUploadPending, setComposerAttachmentUploadPending] =
     useState(false);
+  const attachmentUploadRef = useRef(false);
   const [projectTargetSaveError, setProjectTargetSaveError] =
     useState<Error | null>(null);
   const [archivedWorkItemIds, setArchivedWorkItemIds] = useState<string[]>([]);
@@ -692,10 +695,15 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   }
 
   async function addComposerAttachments(files: File[]) {
-    if (files.length === 0) {
+    if (
+      files.length === 0 ||
+      attachmentUploadRef.current ||
+      newSessionTransport === "e2ee"
+    ) {
       return;
     }
 
+    attachmentUploadRef.current = true;
     setComposerAttachmentError(null);
     setComposerAttachmentUploadPending(true);
     try {
@@ -726,6 +734,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
         caught instanceof Error ? caught : new Error(String(caught)),
       );
     } finally {
+      attachmentUploadRef.current = false;
       setComposerAttachmentUploadPending(false);
     }
   }
@@ -1131,7 +1140,15 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                   )}
                   onSubmit={submit}
                 >
-                  <div
+                  <ComposerDropZone
+                    disabledReason={
+                      secureComposerActive
+                        ? "Attachments aren’t available in encrypted sessions yet"
+                        : composerAttachmentUploadPending
+                          ? "Upload in progress"
+                          : undefined
+                    }
+                    onFiles={addComposerAttachments}
                     className={cn(
                       "mx-auto w-full max-w-4xl rounded-[22px] border px-3 py-2 transition-[background-color,border-color,box-shadow] duration-500",
                       secureComposerActive
@@ -1149,6 +1166,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                     />
                     <input
                       className="sr-only"
+                      disabled={
+                        secureComposerActive || composerAttachmentUploadPending
+                      }
                       multiple
                       onChange={(event) => {
                         const files = [...(event.currentTarget.files ?? [])];
@@ -1192,12 +1212,11 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                         ))}
                       </div>
                     )}
-                    {composerAttachmentError && (
-                      <div className="mb-2 text-xs text-warning">
-                        {composerAttachmentError.name}:{" "}
-                        {composerAttachmentError.message}
-                      </div>
-                    )}
+                    <ComposerAttachmentStatus
+                      uploading={composerAttachmentUploadPending}
+                      error={composerAttachmentError}
+                      onDismissError={() => setComposerAttachmentError(null)}
+                    />
                     <SessionDraftInput
                       draftKey={homeDraftKey}
                       className="max-h-40 min-h-10 w-full resize-none overflow-y-auto bg-transparent px-1 py-1 text-base leading-6 text-ink outline-none [field-sizing:content] placeholder:text-ink-tertiary sm:text-sm sm:leading-5"
@@ -1268,11 +1287,16 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                             label="End-to-end encryption"
                             ariaLabel="Use end-to-end encryption"
                             checked={newSessionTransport === "e2ee"}
-                            disabled={composerAttachments.length > 0}
+                            disabled={
+                              composerAttachments.length > 0 ||
+                              composerAttachmentUploadPending
+                            }
                             description={
-                              composerAttachments.length > 0
-                                ? "Remove attachments before enabling encryption"
-                                : undefined
+                              composerAttachmentUploadPending
+                                ? "Wait for the upload to finish"
+                                : composerAttachments.length > 0
+                                  ? "Remove attachments before enabling encryption"
+                                  : undefined
                             }
                             onChange={(checked) =>
                               setNewSessionTransport(
@@ -1330,7 +1354,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                         />
                       </div>
                     </div>
-                  </div>
+                  </ComposerDropZone>
                 </form>
               </>
             )}

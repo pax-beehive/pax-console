@@ -914,6 +914,12 @@ boolean fast-mode 配置。
 
 当 composer 带附件时，前端改为发送结构化 content block：
 
+Home 和 session composer 共用 ComposerDropZone，支持拖入多个文件，保留「＋」
+选文件入口，均复用既有上传流程；同步 in-flight guard 阻止重复提交上传。拖入时
+显示就地提示，离开、取消或松开后收起，普通文本拖放不拦截。E2EE 禁止附件上传，
+上传中不允许切换加密。ComposerAttachmentStatus 将正常上传/等待回合提示与错误
+分开：前者为中性状态，后者可关闭，技术细节默认折叠，不直接铺满黄色异常文本。
+
 ```json
 {
   "content": [

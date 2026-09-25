@@ -28,6 +28,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SessionCommandInput } from "@/components/sessions/session-command-input";
 import { SessionDraftInput } from "./session-draft-input";
+import { ComposerDropZone } from "./composer-drop-zone";
+import { ComposerAttachmentStatus } from "./composer-attachment-status";
 import { SettingsToggle } from "@/components/ui/settings-controls";
 import { SessionPermissionSelector } from "@/components/sessions/session-permission-selector";
 import { SessionSettings, SessionSettingsHome } from "./session-settings";
@@ -74,6 +76,7 @@ type SessionComposerProps = {
   isTurnRunning: boolean;
   newSessionCwdInvalid: boolean;
   onAddAttachments: (files: File[]) => Promise<void>;
+  onDismissAttachmentError?: () => void;
   onCreateEmptySession?: () => Promise<boolean>;
   onDeleteQueuedTurn: () => void;
   onRemoveAttachment: (attachmentId: string) => void;
@@ -118,6 +121,7 @@ export const SessionComposer = memo(function SessionComposer({
   isTurnRunning,
   newSessionCwdInvalid,
   onAddAttachments,
+  onDismissAttachmentError,
   onCreateEmptySession,
   onDeleteQueuedTurn,
   onRemoveAttachment,
@@ -301,7 +305,7 @@ export const SessionComposer = memo(function SessionComposer({
     >
       <input
         className="sr-only"
-        disabled={secure}
+        disabled={secure || attachmentUploadPending}
         multiple
         onChange={(event) => {
           const files = [...(event.currentTarget.files ?? [])];
@@ -313,7 +317,17 @@ export const SessionComposer = memo(function SessionComposer({
         ref={fileInputRef}
         type="file"
       />
-      <div
+      <ComposerDropZone
+        disabledReason={
+          secure
+            ? "Attachments aren’t available in encrypted sessions yet"
+            : attachmentUploadPending
+              ? "Upload in progress"
+              : !activeAgentId
+                ? "Select an agent to upload files"
+                : undefined
+        }
+        onFiles={onAddAttachments}
         className={cn(
           "mx-auto w-full max-w-4xl rounded-[22px] border px-3 py-2 transition-[background-color,border-color,box-shadow] duration-500",
           secure
@@ -458,11 +472,12 @@ export const SessionComposer = memo(function SessionComposer({
             ))}
           </div>
         )}
-        {attachmentError && (
-          <div className="mb-2 text-xs text-warning">
-            {attachmentError.name}: {attachmentError.message}
-          </div>
-        )}
+        <ComposerAttachmentStatus
+          uploading={attachmentUploadPending}
+          error={attachmentError}
+          onDismissError={onDismissAttachmentError}
+          waitingForTurn={isTurnRunning && hasAttachments}
+        />
         <SessionDraftInput
           key={draftKey}
           draftKey={draftKey}
@@ -480,11 +495,6 @@ export const SessionComposer = memo(function SessionComposer({
           }
           rows={1}
         />
-        {isTurnRunning && hasAttachments && (
-          <span className="mb-2 block text-xs text-warning">
-            Wait for the current turn to finish before sending attachments.
-          </span>
-        )}
         <div
           className={cn(
             "flex min-w-0 items-center gap-1 sm:gap-2",
@@ -704,7 +714,7 @@ export const SessionComposer = memo(function SessionComposer({
             </>
           )}
         </div>
-      </div>
+      </ComposerDropZone>
       {userId && activeNodeId && currentSessionId && (
         <SessionSecretDialog
           key={`${draftKey}:${activeNodeId}`}

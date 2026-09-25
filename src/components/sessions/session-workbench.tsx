@@ -292,6 +292,7 @@ export function SessionWorkbench({
     useState<Error | null>(null);
   const [composerAttachmentUploadPending, setComposerAttachmentUploadPending] =
     useState(false);
+  const attachmentUploadRef = useRef(false);
   const [sessionNameEditing, setSessionNameEditing] = useState(false);
   const [sessionNameDraft, setSessionNameDraft] = useState("");
   const timelineScrollRef = useRef<HTMLDivElement>(null);
@@ -650,10 +651,15 @@ export function SessionWorkbench({
   };
   const handleAddComposerAttachments = useCallback(
     async (files: File[]) => {
-      if (files.length === 0) {
+      if (
+        files.length === 0 ||
+        attachmentUploadRef.current ||
+        usesEncryptedTransport
+      ) {
         return;
       }
 
+      attachmentUploadRef.current = true;
       setComposerAttachmentError(null);
       setComposerAttachmentUploadPending(true);
       try {
@@ -684,15 +690,19 @@ export function SessionWorkbench({
           caught instanceof Error ? caught : new Error(String(caught)),
         );
       } finally {
+        attachmentUploadRef.current = false;
         setComposerAttachmentUploadPending(false);
       }
     },
-    [user.user_id],
+    [user.user_id, usesEncryptedTransport],
   );
   const handleRemoveComposerAttachment = useCallback((attachmentId: string) => {
     setComposerAttachments((current) =>
       current.filter((attachment) => attachment.attachmentId !== attachmentId),
     );
+    setComposerAttachmentError(null);
+  }, []);
+  const handleDismissAttachmentError = useCallback(() => {
     setComposerAttachmentError(null);
   }, []);
 
@@ -2513,6 +2523,7 @@ export function SessionWorkbench({
           showAdminFeatures={showAdminFeatures}
           newSessionCwdInvalid={newSessionCwdInvalid}
           onAddAttachments={handleAddComposerAttachments}
+          onDismissAttachmentError={handleDismissAttachmentError}
           onCreateEmptySession={isNewSession ? createEmptySession : undefined}
           onDeleteQueuedTurn={handleDeleteQueuedTurn}
           onRemoveAttachment={handleRemoveComposerAttachment}
