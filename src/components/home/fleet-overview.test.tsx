@@ -1721,65 +1721,131 @@ describe("FleetOverview session rail", () => {
     expect(mocks.routerPush).not.toHaveBeenCalled();
   });
 
-  it("uploads files from the Home composer and forwards them to the new session", async () => {
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+  it.each(["picker", "drop"])(
+    "uploads files with %s and forwards them to the new session",
+    async (method) => {
+      const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false } },
+      });
 
-    const { container } = render(
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <FleetOverview user={{ user_id: "user_1" } as User} />
-        </TooltipProvider>
-      </QueryClientProvider>,
+      const { container } = render(
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <FleetOverview user={{ user_id: "user_1" } as User} />
+          </TooltipProvider>
+        </QueryClientProvider>,
+      );
+
+      const addButton = await screen.findByRole("button", {
+        name: "Upload files",
+      });
+      expect(
+        screen.queryByRole("menuitem", { name: "Upload" }),
+      ).not.toBeInTheDocument();
+      await userEvent.click(addButton);
+      expect(
+        screen.getByRole("menuitem", { name: "Upload" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Open artifacts")).not.toBeInTheDocument();
+      const fileInput = container.querySelector<HTMLInputElement>(
+        'input[type="file"][multiple]',
+      );
+      expect(fileInput).not.toBeNull();
+      const file = new File(["notes"], "notes.txt", { type: "text/plain" });
+      if (method === "picker") {
+        fireEvent.change(fileInput!, { target: { files: [file] } });
+      } else {
+        fireEvent.keyDown(document.body, { key: "Escape" });
+        fireEvent.drop(
+          screen.getByPlaceholderText("Ask an agent to do something"),
+          {
+            dataTransfer: { types: ["Files"], files: [file] },
+          },
+        );
+      }
+
+      expect(await screen.findByText("notes.txt")).toBeInTheDocument();
+      expect(mocks.createUserAttachment).toHaveBeenCalledWith("user_1", {
+        content_type: "text/plain",
+        filename: "notes.txt",
+        sha256: "",
+        size_bytes: 5,
+      });
+      expect(mocks.uploadUserAttachmentFile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          attachment: expect.objectContaining({ attachment_id: "att_1" }),
+        }),
+        file,
+      );
+
+      const composer = screen.getByPlaceholderText(
+        "Ask an agent to do something",
+      );
+      fireEvent.change(composer, {
+        target: { value: "Read the attachment" },
+      });
+      fireEvent.submit(composer.closest("form")!);
+
+      const workbench = await screen.findByTestId("session-workbench");
+      expect(workbench).toHaveAttribute("data-initial-attachments", "att_1");
+      expect(workbench).toHaveAttribute(
+        "data-initial-prompt",
+        "Read the attachment",
+      );
+    },
+  );
+
+  it("shows upload progress, blocks repeated drops, and makes a failure dismissible", async () => {
+    let rejectUpload!: (error: Error) => void;
+    mocks.uploadUserAttachmentFile.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectUpload = reject;
+        }),
     );
-
-    const addButton = await screen.findByRole("button", {
-      name: "Upload files",
-    });
-    expect(
-      screen.queryByRole("menuitem", { name: "Upload" }),
-    ).not.toBeInTheDocument();
-    await userEvent.click(addButton);
-    expect(
-      screen.getByRole("menuitem", { name: "Upload" }),
-    ).toBeInTheDocument();
-    expect(screen.queryByText("Open artifacts")).not.toBeInTheDocument();
-    const fileInput = container.querySelector<HTMLInputElement>(
-      'input[type="file"][multiple]',
-    );
-    expect(fileInput).not.toBeNull();
-    const file = new File(["notes"], "notes.txt", { type: "text/plain" });
-    fireEvent.change(fileInput!, { target: { files: [file] } });
-
-    expect(await screen.findByText("notes.txt")).toBeInTheDocument();
-    expect(mocks.createUserAttachment).toHaveBeenCalledWith("user_1", {
-      content_type: "text/plain",
-      filename: "notes.txt",
-      sha256: "",
-      size_bytes: 5,
-    });
-    expect(mocks.uploadUserAttachmentFile).toHaveBeenCalledWith(
-      expect.objectContaining({
-        attachment: expect.objectContaining({ attachment_id: "att_1" }),
-      }),
-      file,
-    );
-
-    const composer = screen.getByPlaceholderText(
+    renderOverview();
+    const input = await screen.findByPlaceholderText(
       "Ask an agent to do something",
     );
-    fireEvent.change(composer, {
-      target: { value: "Read the attachment" },
-    });
-    fireEvent.submit(composer.closest("form")!);
-
-    const workbench = await screen.findByTestId("session-workbench");
-    expect(workbench).toHaveAttribute("data-initial-attachments", "att_1");
-    expect(workbench).toHaveAttribute(
-      "data-initial-prompt",
-      "Read the attachment",
+    fireEvent.change(input, { target: { value: "Keep my draft" } });
+    const dataTransfer = {
+      types: ["Files"],
+      files: [new File(["notes"], "notes.txt", { type: "text/plain" })],
+    };
+    fireEvent.drop(input, { dataTransfer });
+    expect(await screen.findByText("Uploading files…")).toBeVisible();
+    fireEvent.drop(input, { dataTransfer });
+    await waitFor(() =>
+      expect(mocks.uploadUserAttachmentFile).toHaveBeenCalledOnce(),
     );
+    expect(
+      screen.getByRole("button", { name: "Start session" }),
+    ).toBeDisabled();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Session settings" }),
+    );
+    expect(
+      screen.getByRole("switch", { name: "Use end-to-end encryption" }),
+    ).toBeDisabled();
+    await userEvent.keyboard("{Escape}");
+    rejectUpload(new Error("Attachment upload failed with 503"));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Couldn’t attach files",
+    );
+    expect(screen.queryByText("Uploading files…")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Attachment upload failed with 503"),
+    ).not.toBeVisible();
+    await userEvent.click(screen.getByText("Details"));
+    expect(screen.getByText("Attachment upload failed with 503")).toBeVisible();
+    expect(input).toHaveValue("Keep my draft");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Dismiss attachment error" }),
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    fireEvent.drop(input, { dataTransfer });
+    expect(await screen.findByText("notes.txt")).toBeVisible();
+    expect(mocks.uploadUserAttachmentFile).toHaveBeenCalledTimes(2);
   });
 });
 

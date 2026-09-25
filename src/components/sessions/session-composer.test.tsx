@@ -597,6 +597,74 @@ const creationProps = {
   stopTurnPending: false,
   updateQueuedTurnPending: false,
 };
+it("uploads multiple files dropped onto the composer without replacing its draft", async () => {
+  const add = vi.fn().mockResolvedValue(undefined);
+  useConsoleStore.getState().setComposerDraft("new", "Review these files");
+  render(
+    <TooltipProvider>
+      <SessionComposer {...creationProps} onAddAttachments={add} />
+    </TooltipProvider>,
+  );
+  const input = screen.getByRole("textbox");
+  const files = [
+    new File(["notes"], "notes.txt"),
+    new File(["image"], "image.png", { type: "image/png" }),
+  ];
+  const dataTransfer = { types: ["Files"], files, dropEffect: "none" };
+  fireEvent.dragEnter(input, { dataTransfer });
+  expect(screen.getByText("Drop files to upload")).toBeVisible();
+  expect(fireEvent.drop(input, { dataTransfer })).toBe(false);
+  expect(add).toHaveBeenCalledExactlyOnceWith(files);
+  expect(input).toHaveValue("Review these files");
+  expect(screen.queryByText("Drop files to upload")).not.toBeInTheDocument();
+});
+
+it.each([{ secure: true }, { attachmentUploadPending: true }])(
+  "blocks file drops when %j",
+  (state) => {
+    const add = vi.fn();
+    render(
+      <TooltipProvider>
+        <SessionComposer {...creationProps} {...state} onAddAttachments={add} />
+      </TooltipProvider>,
+    );
+    const dataTransfer = {
+      types: ["Files"],
+      files: [new File(["private"], "secret.txt")],
+      dropEffect: "copy",
+    };
+    expect(fireEvent.drop(screen.getByRole("textbox"), { dataTransfer })).toBe(
+      false,
+    );
+    expect(add).not.toHaveBeenCalled();
+  },
+);
+
+it("keeps the drop target visible across children and leaves text dragging alone", () => {
+  const add = vi.fn();
+  render(
+    <TooltipProvider>
+      <SessionComposer {...creationProps} onAddAttachments={add} />
+    </TooltipProvider>,
+  );
+  const input = screen.getByRole("textbox");
+  const button = screen.getByRole("button", { name: "Upload files" });
+  const dataTransfer = { types: ["Files"], files: [], dropEffect: "none" };
+  fireEvent.dragEnter(input, { dataTransfer });
+  fireEvent.dragEnter(button, { dataTransfer });
+  fireEvent.dragLeave(input, { dataTransfer });
+  expect(screen.getByText("Drop files to upload")).toBeVisible();
+  fireEvent.dragLeave(button, { dataTransfer });
+  expect(screen.queryByText("Drop files to upload")).not.toBeInTheDocument();
+  fireEvent.dragEnter(input, { dataTransfer });
+  fireEvent.dragEnd(window);
+  expect(screen.queryByText("Drop files to upload")).not.toBeInTheDocument();
+  const textTransfer = { types: ["text/plain"], files: [] };
+  expect(fireEvent.dragOver(input, { dataTransfer: textTransfer })).toBe(true);
+  expect(fireEvent.drop(input, { dataTransfer: textTransfer })).toBe(true);
+  expect(add).not.toHaveBeenCalled();
+});
+
 it("blocks another empty creation for the entire pending request, then allows retry", async () => {
   let finish!: (value: boolean) => void;
   const create = vi.fn(
