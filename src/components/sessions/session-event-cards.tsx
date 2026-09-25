@@ -60,6 +60,7 @@ import {
 } from "@/features/runtime/tool-patches";
 import { cn } from "@/lib/utils";
 import { MessageAttachment } from "./message-attachment";
+import { liveActivityLabel } from "./activity-label";
 
 export type PermissionDecisionOption =
   | "deny"
@@ -1123,9 +1124,6 @@ function WorkGroupCard({
       : elapsedSeconds < 60
         ? `${elapsedSeconds}s`
         : `${Math.floor(elapsedSeconds / 60)}m ${elapsedSeconds % 60}s`;
-  const currentTool = tools.findLast((event) =>
-    ["called", "queued", "running"].includes(event.status),
-  );
   // A tool error is evidence for the agent, not a terminal error for the turn.
   // Do not infer "retrying" until another tool invocation actually arrives.
   const label = needsApproval
@@ -1134,9 +1132,7 @@ function WorkGroupCard({
       ? tools.length
         ? `Finished ${tools.length} operation${tools.length === 1 ? "" : "s"}`
         : "Activity complete"
-      : currentTool
-        ? `${currentTool.status === "queued" ? "Queued" : "Running"} ${currentTool.name.replace(/^Run\s+/i, "")}`
-        : "Agent is working";
+      : liveActivityLabel(events);
 
   return (
     <section aria-label="Agent activity" className="min-w-0">

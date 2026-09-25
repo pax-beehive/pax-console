@@ -288,28 +288,7 @@ export function groupWorkstreamEvents(
     return accumulator;
   };
 
-  const exposeSingleWorkActivity = () => {
-    if (!workGroup || workGroup.events.length !== 1) {
-      return false;
-    }
-
-    const event = workGroup.events[0];
-    const workGroupIndex = items.indexOf(workGroup);
-    items[workGroupIndex] = {
-      type: "event",
-      id: event.id,
-      event,
-    };
-    workGroup = undefined;
-    workGroupTurnKey = undefined;
-    return true;
-  };
-
   const endWorkGroup = (completedAt?: string) => {
-    if (exposeSingleWorkActivity()) {
-      return;
-    }
-
     if (!workGroup) {
       return;
     }
@@ -482,7 +461,6 @@ export function groupWorkstreamEvents(
     }
   }
 
-  exposeSingleWorkActivity();
   return items;
 }
 

@@ -362,9 +362,12 @@ src/components/sessions/
   Knowledge、未接通的语音输入等实验入口只对 admin 展示，并受
   `Preview as user` 开关控制。
 
-  连续的 thought/progress 与 tool call 达到 2 个时，按原顺序聚合为默认折叠的
-  活动行。执行中显示当前工具名称，工具间隙显示 Agent is working；活动段结束后
-  显示工具操作数量，有真实结束边界时间时才显示耗时。单个工具直接展开；活动段
+  连续的 thought/progress 与 tool call 从第 1 个事件起按原顺序聚合为默认折叠的
+  活动行。明确的最新流式思考显示 Thinking…；可识别的运行工具显示 Reading files…
+  等动作，未知工具显示 Using tools…，并行工具显示数量，排队不冒充执行。
+  没有活跃工具和最新流式思考时显示 Working…，不推断正在思考或重试。
+  原始工具名称与内容保留在展开详情中。活动段结束后显示工具操作数量，只有真实
+  结束边界时间才显示耗时。单个工具也使用同一活动行；活动段
   展开后直接显示各项思考和工具记录，去掉中间的 Tool calls 分组。
   工具失败只保留在操作详情，由 agent 处理，不提供用户重试按钮、不改变 session
   runtime status，也不由前端自动重跑工具。待授权请求在折叠行外始终可操作，

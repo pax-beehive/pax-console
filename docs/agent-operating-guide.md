@@ -800,12 +800,17 @@ AuthGate-protected full-width preview at
 `/artifacts/files/[artifactId]?ref=...`; those pages reuse the same renderer,
 auto-load a short-lived URL, and do not expose public artifact links.
 
-Runs of two or more contiguous thought/progress and tool-call events render as
-one collapsed activity row, preserving event order. The summary names the latest
-active tool, or says `Agent is working` between calls. A closed block shows
+Contiguous thought/progress and tool calls use the same collapsed activity row
+from the first event. An explicit streaming thought displays `Thinking…`;
+recognized running tools use concise actions such as `Reading files…` or
+`Running tests…`, and unknown tools use `Using tools…`. Multiple running tools
+show `Using tools · N running`; queued or mixed activity is labeled accurately.
+With no active tool or latest live thought, use `Working…` without inferring
+thinking or retries. Raw tool names and payloads stay inside expanded details.
+A closed block shows
 `Finished N operations` (tool calls only) and elapsed time only when its actual
 closing event supplies a valid timestamp. This is activity-block timing, not
-session runtime status. A single tool call is a direct expandable row. Expanding
+session runtime status. A single tool uses the same collapsed row. Expanding
 a block reveals individual thought/tool rows without an intermediate Tool calls
 group. Tool errors stay in the expanded evidence; never turn them into a terminal
 session error, an automatic frontend retry, or a user-facing Retry action. Only

@@ -314,7 +314,7 @@ describe("session event cards", () => {
 
   it("shows the current operation and opens a flat activity list", () => {
     const { container } = renderItem(activityGroup(false));
-    expect(screen.getByText("Running shell")).toBeVisible();
+    expect(screen.getByText("Running tests…")).toBeVisible();
     expect(screen.queryByText("Tool calls")).not.toBeInTheDocument();
     expect(screen.queryByText("Checking files")).not.toBeInTheDocument();
     const group = container.querySelector("details")!;
@@ -323,6 +323,34 @@ describe("session event cards", () => {
     expect(screen.getByText("shell")).toBeVisible();
     expect(screen.queryByText("Tool calls")).not.toBeInTheDocument();
     expect(container.querySelectorAll("details")).toHaveLength(3);
+  });
+
+  it("shows explicit live thought and counts concurrent tools in the same collapsed row", () => {
+    const item = activityGroup(false);
+    item.events = item.events.slice(0, 1);
+    const view = renderItem(item);
+    expect(screen.getByText("Thinking…")).toBeVisible();
+    expect(screen.queryByText("Checking files")).not.toBeInTheDocument();
+    const concurrent = activityGroup(false);
+    const tool = concurrent.events[1] as Extract<
+      SessionEvent,
+      { type: "tool_call" }
+    >;
+    concurrent.events.push(
+      { ...tool, id: "tool-2", name: "Read" },
+      { ...tool, id: "tool-3", name: "Grep" },
+    );
+    view.rerender(
+      <TooltipProvider>
+        <WorkstreamItemCard
+          item={concurrent}
+          permissionDecision={permissionDecision}
+        />
+      </TooltipProvider>,
+    );
+    expect(screen.getByText("Using tools · 3 running")).toBeVisible();
+    expect(screen.queryByText("Thinking…")).not.toBeInTheDocument();
+    expect(screen.queryByText("shell")).not.toBeInTheDocument();
   });
 
   it("keeps an actionable approval outside the collapsed activity list without duplicating it", () => {
@@ -362,7 +390,7 @@ describe("session event cards", () => {
     (item.events[1] as Extract<SessionEvent, { type: "tool_call" }>).status =
       "error";
     const { container } = renderItem(item);
-    expect(screen.getByText("Agent is working")).toBeVisible();
+    expect(screen.getByText("Working…")).toBeVisible();
     expect(
       screen.queryByRole("button", { name: /retry/i }),
     ).not.toBeInTheDocument();
@@ -403,7 +431,7 @@ describe("session event cards", () => {
       status: "running",
     });
     renderItem(item);
-    expect(screen.getByText("Running Read upload handler")).toBeVisible();
+    expect(screen.getByText("Reading files…")).toBeVisible();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 

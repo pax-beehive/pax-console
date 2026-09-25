@@ -196,14 +196,18 @@ what the agent is doing now
 what evidence exists: files, logs, approvals, diffs, token usage
 ```
 
-Runs of two or more contiguous thought/progress and tool-call events form a
-collapsed activity row. Its live summary names the latest active operation;
-between calls it says `Agent is working`. Completed blocks summarize their tool
-operation count and elapsed time when a valid closing timestamp is available.
+Contiguous thought/progress and tool calls use the same collapsed activity row
+from the first event. An explicit streaming thought displays `Thinking…`;
+recognized running tools use concise actions such as `Reading files…` or
+`Running tests…`, and unknown tools use `Using tools…`. Multiple running tools
+show `Using tools · N running`; queued or mixed activity is labeled accurately.
+With no active tool or latest live thought, use `Working…` without inferring
+thinking or retries. Raw tool names and payloads stay inside expanded details.
+Completed blocks summarize their tool operation count and elapsed time when a valid closing timestamp is available.
 Expand once to see individual operations, then expand an operation for its
 input/output. Avoid nested Tool calls groups and status-badge stacks. Single
-tool calls are directly expandable. Pending approvals remain actionable outside
-the collapsed row. A failed tool is recorded in its details while the agent
+tools use the same collapsed summary. Pending approvals remain actionable
+outside the collapsed row. A failed tool is recorded in its details while the agent
 continues; it must not create a user Retry prompt or override session status.
 Normal messages and standalone actionable events end the group. The session
 timeline uses an 8px row gap; agent and user copy uses 14px type with a 20px
