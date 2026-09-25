@@ -32,6 +32,18 @@ Rename and runtime reset live in Session actions. One panel-right button opens
 Artifacts / Browser / Knowledge (admin-only); tool evidence is a contextual tab.
 Mobile resources use a bottom sheet; desktop keeps a right panel. Home's left
 hamburger opens recent sessions, not a duplicate horizontal tab strip.
+SessionSettings provides one modal surface for both new and existing sessions:
+mobile bottom sheet, desktop centered dialog. Its local context owns only page
+navigation, while configuration values and permission mutations keep their
+existing owners. Use the shared SettingsRow / SettingsChoice / SettingsToggle
+primitives. Model, reasoning, and permission choices replace the panel content;
+do not nest a dropdown or native select. Broad permission confirmation also
+stays inside this panel and must complete before committing. Back/Cancel never
+commit, selection returns home, and closing restores trigger focus. Page
+changes focus the heading and reset internal scrolling; reopening starts fresh.
+Creation-only controls are wrapped in SessionSettingsHome so they do not leak
+onto option or confirmation pages.
+
 The turn-footer gauge represents context used/window (not per-turn tokens).
 Its needle and colored arc share a clamped continuous ratio and green-to-red
 hue; absent/invalid capacity is neutral and does not imply zero usage.

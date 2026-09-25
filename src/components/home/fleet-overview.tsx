@@ -49,8 +49,12 @@ import {
   SessionWorkbench,
 } from "@/components/sessions/session-workbench";
 import { SecureModeActivation } from "@/components/sessions/secure-mode-activation";
-import { SessionSettings } from "@/components/sessions/session-settings";
+import {
+  SessionSettings,
+  SessionSettingsHome,
+} from "@/components/sessions/session-settings";
 import { WorkspacePicker } from "@/components/sessions/workspace-picker";
+import { SettingsToggle } from "@/components/ui/settings-controls";
 import { SessionPermissionSelector } from "@/components/sessions/session-permission-selector";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -1233,36 +1237,24 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                           )?.label ?? "Ask"
                         }
                       >
-                        <Button
-                          aria-label="Use end-to-end encryption"
-                          aria-pressed={newSessionTransport === "e2ee"}
-                          className={cn(
-                            "transition-all duration-300",
-                            newSessionTransport === "e2ee"
-                              ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
-                              : "text-ink-subtle",
-                          )}
-                          disabled={composerAttachments.length > 0}
-                          icon={<LockKeyhole className="h-4 w-4" />}
-                          onClick={() =>
-                            setNewSessionTransport((transport) =>
-                              transport === "e2ee" ? "manager" : "e2ee",
-                            )
-                          }
-                          size="sm"
-                          tooltip={
-                            composerAttachments.length > 0
-                              ? "Remove attachments before enabling encryption"
-                              : newSessionTransport === "e2ee"
-                                ? "End-to-end encryption on · tap to turn off"
-                                : "Encrypt between this browser and paxd · tap to turn on"
-                          }
-                          tooltipOnClick
-                          type="button"
-                          variant="ghost"
-                        >
-                          End-to-end encryption
-                        </Button>
+                        <SessionSettingsHome>
+                          <SettingsToggle
+                            label="End-to-end encryption"
+                            ariaLabel="Use end-to-end encryption"
+                            checked={newSessionTransport === "e2ee"}
+                            disabled={composerAttachments.length > 0}
+                            description={
+                              composerAttachments.length > 0
+                                ? "Remove attachments before enabling encryption"
+                                : undefined
+                            }
+                            onChange={(checked) =>
+                              setNewSessionTransport(
+                                checked ? "e2ee" : "manager",
+                              )
+                            }
+                          />
+                        </SessionSettingsHome>
                         <SessionPermissionSelector
                           field
                           catalog={permissionCatalogQuery.data}

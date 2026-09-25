@@ -414,11 +414,9 @@ describe("FleetOverview session rail", () => {
     });
     await userEvent.click(permissionSelector);
 
+    expect(screen.getByRole("radio", { name: "Full access" })).toBeVisible();
     expect(
-      screen.getByRole("menuitemradio", { name: "Full access" }),
-    ).toBeVisible();
-    expect(
-      screen.getByRole("menuitemradio", { name: /Auto approve \(PAX\)/ }),
+      screen.getByRole("radio", { name: /Auto approve \(PAX\)/ }),
     ).toBeVisible();
   });
 
@@ -483,9 +481,7 @@ describe("FleetOverview session rail", () => {
         name: "Session permissions: Workspace access",
       }),
     );
-    await userEvent.click(
-      screen.getByRole("menuitemradio", { name: /Full access/ }),
-    );
+    await userEvent.click(screen.getByRole("radio", { name: /Full access/ }));
     await userEvent.click(
       screen.getByRole("button", { name: "Use this permission" }),
     );
@@ -495,6 +491,9 @@ describe("FleetOverview session rail", () => {
       }),
     ).toBeVisible();
 
+    await userEvent.click(
+      screen.getByRole("button", { name: "Close settings" }),
+    );
     await userEvent.click(screen.getByRole("button", { name: "Pi agent" }));
     await userEvent.click(screen.getByRole("button", { name: "Second agent" }));
     await openSettings();
@@ -517,9 +516,7 @@ describe("FleetOverview session rail", () => {
         name: "Session permissions: Workspace access",
       }),
     );
-    await userEvent.click(
-      screen.getByRole("menuitemradio", { name: /Full access/ }),
-    );
+    await userEvent.click(screen.getByRole("radio", { name: /Full access/ }));
     await userEvent.click(
       screen.getByRole("button", { name: "Use this permission" }),
     );
@@ -532,7 +529,7 @@ describe("FleetOverview session rail", () => {
       }),
     );
     await userEvent.click(
-      screen.getByRole("menuitemradio", { name: /Ask before tools/ }),
+      screen.getByRole("radio", { name: /Ask before tools/ }),
     );
     secondAgentPending = false;
     rerender(fleetView());
@@ -815,13 +812,13 @@ describe("FleetOverview session rail", () => {
     await userEvent.click(screen.getByRole("link", { name: "New session" }));
 
     const composerPane = screen.getByTestId("home-composer-pane");
+    expect(screen.getByLabelText("Project")).toBeVisible();
     await openSettings();
-    const encryptedToggle = screen.getByRole("button", {
+    const encryptedToggle = screen.getByRole("switch", {
       name: "Use end-to-end encryption",
     });
     expect(composerPane).toHaveAttribute("data-secure-mode", "false");
-    expect(screen.getByLabelText("Project")).toBeVisible();
-    expect(encryptedToggle).toHaveAttribute("aria-pressed", "false");
+    expect(encryptedToggle).toHaveAttribute("aria-checked", "false");
     expect(encryptedToggle).not.toHaveTextContent("Encrypted");
     expect(
       screen.getByRole("button", {
@@ -830,9 +827,9 @@ describe("FleetOverview session rail", () => {
     ).toBeVisible();
     await userEvent.click(encryptedToggle);
     expect(composerPane).toHaveAttribute("data-secure-mode", "true");
-    expect(encryptedToggle).toHaveAttribute("aria-pressed", "true");
-    expect(await screen.findByRole("tooltip")).toHaveTextContent(
-      "End-to-end encryption on",
+    expect(encryptedToggle).toHaveAttribute("aria-checked", "true");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Close settings" }),
     );
     expect(
       screen.getByRole("status", { name: "Session secured" }),
@@ -863,13 +860,16 @@ describe("FleetOverview session rail", () => {
 
     await openSettings();
     await userEvent.click(
-      screen.getByRole("button", { name: "Use end-to-end encryption" }),
+      screen.getByRole("switch", { name: "Use end-to-end encryption" }),
     );
     expect(screen.getByTestId("home-composer-pane")).toHaveAttribute(
       "data-secure-mode",
       "true",
     );
 
+    await userEvent.click(
+      screen.getByRole("button", { name: "Close settings" }),
+    );
     await userEvent.click(
       await screen.findByRole("link", { name: /Session one/ }),
     );
@@ -889,7 +889,10 @@ describe("FleetOverview session rail", () => {
     await userEvent.click(screen.getByRole("link", { name: "New session" }));
     await openSettings();
     await userEvent.click(
-      screen.getByRole("button", { name: "Use end-to-end encryption" }),
+      screen.getByRole("switch", { name: "Use end-to-end encryption" }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Close settings" }),
     );
     await userEvent.click(
       await screen.findByRole("link", { name: /Session one/ }),
@@ -898,8 +901,8 @@ describe("FleetOverview session rail", () => {
 
     await openSettings();
     expect(
-      screen.getByRole("button", { name: "Use end-to-end encryption" }),
-    ).toHaveAttribute("aria-pressed", "false");
+      screen.getByRole("switch", { name: "Use end-to-end encryption" }),
+    ).toHaveAttribute("aria-checked", "false");
     expect(screen.getByTestId("home-composer-pane")).toHaveAttribute(
       "data-secure-mode",
       "false",
@@ -926,7 +929,7 @@ describe("FleetOverview session rail", () => {
     ).toBeVisible();
     await openSettings();
     expect(
-      screen.getByRole("button", { name: "Use end-to-end encryption" }),
+      screen.getByRole("switch", { name: "Use end-to-end encryption" }),
     ).toBeVisible();
     expect(
       screen.getByRole("button", { name: /Session permissions/ }),
@@ -941,7 +944,7 @@ describe("FleetOverview session rail", () => {
       if (transport === "e2ee") {
         await openSettings();
         await userEvent.click(
-          screen.getByRole("button", { name: "Use end-to-end encryption" }),
+          screen.getByRole("switch", { name: "Use end-to-end encryption" }),
         );
         await userEvent.keyboard("{Escape}");
       }

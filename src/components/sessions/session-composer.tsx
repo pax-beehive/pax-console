@@ -28,8 +28,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SessionCommandInput } from "@/components/sessions/session-command-input";
 import { SessionDraftInput } from "./session-draft-input";
+import { SettingsToggle } from "@/components/ui/settings-controls";
 import { SessionPermissionSelector } from "@/components/sessions/session-permission-selector";
-import { SessionSettings } from "./session-settings";
+import { SessionSettings, SessionSettingsHome } from "./session-settings";
 import { SessionSecretDialog } from "./session-secret-dialog";
 import {
   DropdownMenu,
@@ -544,31 +545,14 @@ export const SessionComposer = memo(function SessionComposer({
                 value={permissionChoiceId}
               />
             ) : (
-              <Button
-                aria-label={
-                  approvalMode === "auto_approve_all"
-                    ? "Auto approve tools without asking"
-                    : "Ask before running tools"
-                }
-                aria-pressed={approvalMode === "auto_approve_all"}
-                className={cn(
-                  approvalMode === "auto_approve_all"
-                    ? "border-success/25 bg-success/10 text-success hover:bg-success/15 hover:text-success"
-                    : "text-primary-hover",
-                )}
-                disabled={approvalModePending}
-                icon={<ShieldCheck className="h-4 w-4" />}
-                onClick={onToggleApprovalMode}
-                size="icon"
-                tooltip={
-                  approvalMode === "auto_approve_all"
-                    ? "Auto approve tools without asking · tap to require approval"
-                    : "Ask before running tools · tap to auto approve"
-                }
-                tooltipOnClick
-                type="button"
-                variant="ghost"
-              />
+              <SessionSettingsHome>
+                <SettingsToggle
+                  label="Auto approve tools"
+                  checked={approvalMode === "auto_approve_all"}
+                  disabled={approvalModePending}
+                  onChange={onToggleApprovalMode}
+                />
+              </SessionSettingsHome>
             )}
           </SessionSettings>
           <div className="min-w-0 flex-1" />

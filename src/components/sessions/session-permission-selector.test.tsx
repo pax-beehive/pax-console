@@ -50,9 +50,9 @@ describe("SessionPermissionSelector", () => {
       }),
     );
     expect(
-      screen.getByRole("menuitemradio", { name: /Ask before tools/ }),
+      screen.getByRole("radio", { name: /Ask before tools/ }),
     ).toHaveAttribute("aria-checked", "true");
-    const fullAccess = screen.getByRole("menuitemradio", {
+    const fullAccess = screen.getByRole("radio", {
       name: /Full access/,
     });
     expect(fullAccess).toHaveAttribute("aria-checked", "false");
@@ -91,8 +91,31 @@ describe("SessionPermissionSelector", () => {
     );
 
     await userEvent.click(
-      screen.getByRole("menuitemradio", { name: /Ask before tools/ }),
+      screen.getByRole("radio", { name: /Ask before tools/ }),
     );
     expect(onChange).toHaveBeenCalledWith(PAX_MANUAL_CHOICE_ID);
   });
+});
+
+it("does not commit a permission removed while confirmation is open", async () => {
+  const onChange = vi.fn();
+  const props = {
+    catalog: confirmationCatalog,
+    choices: confirmationChoices,
+    onChange,
+    value: PAX_MANUAL_CHOICE_ID,
+  };
+  const { rerender } = render(<SessionPermissionSelector {...props} />);
+  await userEvent.click(
+    screen.getByRole("button", {
+      name: "Session permissions: Ask before tools",
+    }),
+  );
+  await userEvent.click(screen.getByRole("radio", { name: /Full access/ }));
+  rerender(<SessionPermissionSelector {...props} choices={[]} />);
+  expect(screen.getByRole("status")).toHaveTextContent("no longer available");
+  expect(
+    screen.getByRole("button", { name: "Use this permission" }),
+  ).toBeDisabled();
+  expect(onChange).not.toHaveBeenCalled();
 });
