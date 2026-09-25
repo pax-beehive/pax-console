@@ -52,6 +52,12 @@ the encrypted creation intent.
 Image/browser preview close controls use an accessible label without a tooltip.
 A tooltip on a dialog's initially focused close button can remain open over
 the content; preserve autofocus and keyboard dismissal without that bubble.
+MessageAttachment receives its message's attachment list as a gallery. Navigate
+only resolvable raster images in attachment order, skip non-images, disable
+boundary arrows, and hide navigation for one image. Buttons and Left/Right
+keys update the title and position counter. Preview errors/retries belong to
+the current image independently of the message thumbnail; render only the
+selected image through the existing authenticated attachment endpoint.
 
 
 The turn-footer gauge represents context used/window (not per-turn tokens).

@@ -10,6 +10,7 @@ import {
   it,
   vi,
 } from "vitest";
+import userEvent from "@testing-library/user-event";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { MessageAttachment } from "./message-attachment";
 
@@ -103,4 +104,85 @@ describe("sent attachment preview", () => {
     expect(screen.getByText("legacy.png")).toBeVisible();
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
   });
+});
+
+const gallery = [
+  { attachmentId: "att_1", filename: "First.png", contentType: "image/png" },
+  {
+    attachmentId: "doc",
+    filename: "Notes.pdf",
+    contentType: "application/pdf",
+  },
+  { attachmentId: "att_2", filename: "Second.jpg", contentType: "image/jpeg" },
+  { filename: "Unresolved.png", contentType: "image/png" },
+  { attachmentId: "att_3", filename: "Third.webp", contentType: "image/webp" },
+];
+function renderGallery() {
+  return render(
+    <TooltipProvider>
+      <MessageAttachment
+        userId="user_1"
+        attachment={gallery[2]}
+        gallery={gallery}
+      />
+    </TooltipProvider>,
+  );
+}
+it("navigates images in attachment order with buttons and arrow keys, preserving the opening image", async () => {
+  const user = userEvent.setup();
+  renderGallery();
+  const trigger = screen.getByRole("button", { name: "Preview Second.jpg" });
+  await user.click(trigger);
+  expect(
+    screen.getByRole("status", { name: "Image position" }),
+  ).toHaveTextContent("2 / 3");
+  expect(screen.getByRole("button", { name: "Close preview" })).toHaveFocus();
+  expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Next image" }));
+  expect(screen.getByRole("dialog", { name: "Third.webp" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Next image" })).toBeDisabled();
+  fireEvent.keyDown(screen.getByRole("dialog"), { key: "ArrowLeft" });
+  expect(screen.getByRole("dialog", { name: "Second.jpg" })).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Previous image" }));
+  expect(screen.getByRole("dialog", { name: "First.png" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Previous image" })).toBeDisabled();
+  fireEvent.keyDown(screen.getByRole("dialog"), { key: "ArrowRight" });
+  expect(
+    screen.getByRole("status", { name: "Image position" }),
+  ).toHaveTextContent("2 / 3");
+  await user.click(screen.getByRole("button", { name: "Close preview" }));
+  expect(trigger).toHaveFocus();
+  await user.click(trigger);
+  expect(screen.getByRole("dialog", { name: "Second.jpg" })).toBeVisible();
+});
+it("keeps navigation working after an image fails and retries only that image", async () => {
+  const user = userEvent.setup();
+  renderGallery();
+  await user.click(screen.getByRole("button", { name: "Preview Second.jpg" }));
+  fireEvent.error(screen.getByRole("img", { name: "Second.jpg" }));
+  await user.click(screen.getByRole("button", { name: "Retry preview" }));
+  expect(screen.getByRole("img", { name: "Second.jpg" })).toHaveAttribute(
+    "src",
+    "/api/pax/api/v1/user/user_1/attachments/att_2/content?retry=1",
+  );
+  fireEvent.error(screen.getByRole("img", { name: "Second.jpg" }));
+  await user.click(screen.getByRole("button", { name: "Next image" }));
+  expect(screen.getByRole("img", { name: "Third.webp" })).toBeVisible();
+  expect(screen.queryByText("Preview unavailable")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Close preview" }));
+  expect(
+    screen.getByRole("button", { name: "Preview Second.jpg" }),
+  ).toBeVisible();
+});
+it("does not show gallery controls for a single image", () => {
+  renderAttachment();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Preview Screenshot.png" }),
+  );
+  expect(
+    screen.queryByRole("button", { name: "Previous image" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Next image" }),
+  ).not.toBeInTheDocument();
 });

@@ -36,6 +36,9 @@ SessionSettings 统一承载新建/已有会话的配置和权限：手机为带
 避让视口边界，避免被 composer 的 overflow-hidden 裁切；切换 agent 保留加密意图。
 图片与浏览器预览的关闭按钮保留 aria-label，不附加 Tooltip，避免 dialog 自动
 聚焦关闭按钮时留下持续遮挡内容的 Close preview 气泡。
+同一条消息的可预览图片按附件顺序组成 gallery，支持上一张/下一张、左右方向键
+和位置计数；首尾禁用对应按钮，单图隐藏导航，非图片和无 attachment ID 项跳过。
+预览仅请求当前图片，切换时独立重置错误/重试状态，不影响消息缩略图。
 
 
 
