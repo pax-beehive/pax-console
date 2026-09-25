@@ -1478,3 +1478,14 @@ retained conversation/observer fragments only while metadata is idle and no
 local conversation is streaming or waiting for approval. Do not stop a running
 conversation merely because a history snapshot was fetched. Failed or empty
 incomplete reads retain the prior snapshot.
+
+## Runtime release configuration
+
+The root layout waits for `connection()` and embeds an allowlisted public config
+before client hydration. `PAX_RUNTIME_WS_BASE_URL` is a runtime-only WebSocket
+origin and overrides the legacy build-time NEXT_PUBLIC_PAX_WS_BASE_URL. The same
+Console image can therefore run in staging and production without rebuilding.
+Unset runtime configuration preserves the existing hosted/legacy defaults.
+Only wsBaseUrl, PAX_RELEASE_ID and PAX_COMMIT_SHA are exposed; never serialize
+process.env or PAX_MANAGER_URL/Cloudflare credentials into the browser. Inline
+JSON escapes `<` to prevent closing-script injection. REST remains /api/pax.

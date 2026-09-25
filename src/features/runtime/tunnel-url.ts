@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "../api/client";
+import { getPublicRuntimeConfig } from "./public-runtime-config";
 
 const DEFAULT_WS_BASE_URL = "wss://api.paxworkspace.net";
 const LEGACY_CONSOLE_HOSTNAME = "ws.lakeward.net";
@@ -15,6 +16,7 @@ export function resolveHostedWsBaseUrl(hostname?: string) {
 
 export function getAgentTunnelUrl(agentId: string, sessionId?: string) {
   const wsBaseUrl =
+    getPublicRuntimeConfig()?.wsBaseUrl ??
     process.env.NEXT_PUBLIC_PAX_WS_BASE_URL ??
     (API_BASE_URL.startsWith("http") ? API_BASE_URL : resolveHostedWsBaseUrl());
   const baseUrl = new URL(wsBaseUrl);
