@@ -832,12 +832,14 @@ describe("FleetOverview session rail", () => {
       screen.getByRole("button", { name: "Close settings" }),
     );
     expect(
-      screen.getByRole("status", { name: "Session secured" }),
+      screen.getByRole("status", { name: "Encryption enabled" }),
     ).toBeInTheDocument();
     expect(
       screen.getByTestId("secure-activation-animation"),
     ).toBeInTheDocument();
-    expect(screen.getByText("End-to-end encrypted")).toBeInTheDocument();
+    expect(
+      screen.getByText("End-to-end encryption enabled"),
+    ).toBeInTheDocument();
 
     const composer = screen.getByPlaceholderText(
       "Send an end-to-end encrypted message",
@@ -852,6 +854,53 @@ describe("FleetOverview session rail", () => {
       "data-initial-prompt",
       "Keep this private",
     );
+  });
+
+  it("keeps encrypted intent when changing the agent before creating a session", async () => {
+    mocks.listAgents.mockResolvedValue({
+      agents: [
+        {
+          agent_id: "agent_1",
+          name: "Pi agent",
+          node_id: "node_1",
+          online: true,
+        },
+        {
+          agent_id: "agent_2",
+          name: "Second agent",
+          node_id: "node_1",
+          online: true,
+        },
+      ],
+    });
+    renderOverview();
+    await screen.findByRole("button", { name: "Pi agent" });
+    await openSettings();
+    await userEvent.click(
+      screen.getByRole("switch", { name: "Use end-to-end encryption" }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Close settings" }),
+    );
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Pi agent" }));
+    await userEvent.click(
+      within(screen.getByRole("dialog", { name: "Choose agent" })).getByRole(
+        "button",
+        { name: "Second agent" },
+      ),
+    );
+    expect(
+      screen.getByRole("button", { name: "Session settings" }),
+    ).toHaveTextContent("Encrypted");
+    const composer = screen.getByPlaceholderText(
+      "Send an end-to-end encrypted message",
+    );
+    await userEvent.type(composer, "Private message for the second agent");
+    fireEvent.submit(composer.closest("form")!);
+    const workbench = await screen.findByTestId("session-workbench");
+    expect(workbench).toHaveAttribute("data-agent-id", "agent_2");
+    expect(workbench).toHaveAttribute("data-initial-transport", "e2ee");
   });
 
   it("clears encrypted draft UI when switching to an existing session", async () => {
@@ -879,7 +928,7 @@ describe("FleetOverview session rail", () => {
       "false",
     );
     expect(
-      screen.queryByRole("status", { name: "Session secured" }),
+      screen.queryByRole("status", { name: "Encryption enabled" }),
     ).not.toBeInTheDocument();
     expect(screen.getByTestId("session-workbench")).toHaveTextContent("sess_1");
   });

@@ -1318,8 +1318,14 @@ chevron. Opening a row replaces the content in place with a titled choice page,
 using a right-aligned check and readable descriptions. Boolean settings use
 switches. Back, close, and the heading remain fixed while long option lists
 scroll; permission confirmation uses the same panel, with no nested overlay.
-Models are available once the agent reports them. Content addition
-stays in +. Empty send on creation initializes a session with immediate leading
+Models are available once the agent reports them.
+
+Enabling encryption shows a brief, readable notice that dismisses after 2.4
+seconds; the settings summary retains Encrypted without covering content. The
+agent picker remains usable in either mode, opening below the header through a
+portal. Switching agents keeps the selected encryption mode.
+
+Content addition stays in +. Empty send on creation initializes a session with immediate leading
 execution, a 500 ms repeat guard, and an in-flight lock; existing empty sends do
 nothing. No separate Create empty session action occupies the toolbar.
 

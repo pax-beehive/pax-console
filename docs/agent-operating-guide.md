@@ -43,6 +43,13 @@ commit, selection returns home, and closing restores trigger focus. Page
 changes focus the heading and reset internal scrolling; reopening starts fresh.
 Creation-only controls are wrapped in SessionSettingsHome so they do not leak
 onto option or confirmation pages.
+E2EE activation displays a readable, non-interactive notice for 2.4 seconds;
+the persistent Encrypted state lives in the settings summary and switch. Do not
+leave a floating status or click tooltip over the workspace. Home agent choices
+use a portaled popover anchored below the trigger with viewport collision handling,
+so the composer clipping boundary cannot hide them. Changing agents preserves
+the encrypted creation intent.
+
 
 The turn-footer gauge represents context used/window (not per-turn tokens).
 Its needle and colored arc share a clamped continuous ratio and green-to-red
