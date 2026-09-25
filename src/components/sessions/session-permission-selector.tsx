@@ -94,7 +94,7 @@ export function SessionPermissionSelector({
           <button
             aria-label={`Session permissions: ${selected?.label ?? "Choose permissions"}`}
             className={cn(
-              "inline-flex min-h-9 max-w-24 shrink-0 items-center gap-1 rounded-lg px-2 text-sm transition disabled:cursor-not-allowed disabled:opacity-60 sm:max-w-56 sm:gap-2 sm:px-2.5",
+              "inline-flex min-h-9 min-w-0 max-w-24 shrink items-center gap-1 rounded-lg px-2 text-sm transition disabled:cursor-not-allowed disabled:opacity-60 sm:max-w-56 sm:gap-2 sm:px-2.5",
               isPaxAuto
                 ? "bg-success/10 text-success"
                 : "text-primary-hover hover:bg-surface-3",
@@ -110,6 +110,7 @@ export function SessionPermissionSelector({
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="start"
+          side="top"
           className="w-80 max-w-[calc(100vw-24px)]"
         >
           <div aria-label="PAX permissions" role="group">

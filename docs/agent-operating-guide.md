@@ -1032,6 +1032,18 @@ chevron collapses it again. Desktop keeps the complete header visible. Because
 this behavior lives in `SessionWorkbench`, it must stay consistent for both the
 embedded Home workbench and standalone Session routes.
 
+An existing session's immutable Workspace belongs in the expanded header, with
+the full selectable path and a copy action. Do not put it back in the composer.
+Model/configuration and permissions stay in the single composer toolbar beside
+attachments; Queue and Stop remain directly available while running. Let long
+model/permission labels truncate before wrapping or hiding those actions, and
+retain their complete accessible names and menu labels.
+Home creation keeps Project and Agent on one compact row, followed by the
+Workspace summary and saved-workspace picker on the same row. Editing reveals
+the directory field and validation. These are presentation changes only: keep
+the Project/Agent-keyed workspace draft and target resolution rules intact.
+The shared message input retains per-keystroke isolation in SessionDraftInput.
+
 Android preview packages use a Bubblewrap-generated Trusted Web Activity with
 package id `net.paxtech.console`. Keep `public/manifest.webmanifest` linked from
 the root layout, and keep the signing certificate fingerprint in

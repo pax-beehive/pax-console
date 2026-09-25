@@ -97,9 +97,9 @@ export function SessionConfigSelector({
       <DropdownMenuTrigger asChild>
         <Button
           aria-label={`Session configuration${model ? `, model ${model}` : ""}`}
-          className="min-w-0 max-w-56 shrink gap-1.5 px-2"
+          className="min-h-9 min-w-0 max-w-28 shrink gap-1 rounded-lg px-1.5 sm:max-w-56 sm:px-2"
           disabled={disabled}
-          icon={<SlidersHorizontal className="h-3.5 w-3.5" />}
+          icon={<SlidersHorizontal className="h-3.5 w-3.5 shrink-0" />}
           size="sm"
           tooltip={model ? `Current model: ${model}` : "Session configuration"}
           type="button"
@@ -108,7 +108,11 @@ export function SessionConfigSelector({
           <span className="max-w-36 truncate text-xs">{model ?? "Config"}</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="max-h-[min(70vh,640px)] w-96 max-w-[calc(100vw-24px)] overflow-y-auto">
+      <DropdownMenuContent
+        side="top"
+        align="start"
+        className="max-h-[min(70vh,640px)] w-96 max-w-[calc(100vw-24px)] overflow-y-auto"
+      >
         <div className="flex items-start justify-between gap-3 px-2.5 py-2">
           <div className="min-w-0">
             <div className="text-sm font-medium text-ink">
