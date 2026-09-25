@@ -1,7 +1,7 @@
 /* @vitest-environment jsdom */
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   afterAll,
@@ -123,5 +123,68 @@ describe("SessionConfigSelector", () => {
     );
     expect(screen.getByRole("button", { name: "Legacy model" })).toBeDisabled();
     expect(screen.getByText(/switching is not standardized/i)).toBeVisible();
+  });
+
+  it("reveals a model option's description on hover", async () => {
+    renderWithTooltip(
+      <SessionConfigSelector
+        configuration={{
+          can_force_refresh: false,
+          can_set: true,
+          options: [
+            {
+              category: "model",
+              current_value: "claude-sonnet",
+              description: "AI model to use",
+              id: "model",
+              name: "Model",
+              options: [
+                {
+                  name: "Sonnet",
+                  value: "claude-sonnet",
+                  description: "Balanced everyday model",
+                },
+                {
+                  name: "Opus",
+                  value: "claude-opus",
+                  description: "Most capable model",
+                },
+              ],
+              type: "select",
+            },
+          ],
+          session_id: "sess_hover",
+        }}
+        onChange={vi.fn()}
+        onRefresh={vi.fn()}
+      />,
+    );
+
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: "Session configuration, model Sonnet",
+      }),
+    );
+
+    await userEvent.hover(
+      screen.getByRole("button", { name: "Model: Sonnet" }),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("tooltip")).toHaveTextContent("AI model to use"),
+    );
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Model: Sonnet" }),
+    );
+
+    expect(screen.queryByText("Most capable model")).not.toBeInTheDocument();
+
+    await userEvent.hover(screen.getByRole("radio", { name: "Opus" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("tooltip")).toHaveTextContent(
+        "Most capable model",
+      ),
+    );
   });
 });

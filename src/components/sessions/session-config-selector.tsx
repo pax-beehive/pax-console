@@ -143,6 +143,7 @@ function SessionConfigFields({
               key={candidate.value}
               label={candidate.name}
               description={candidate.group}
+              tooltip={candidate.description}
               selected={candidate.value === option.current_value}
               disabled={locked}
               onClick={() => {
@@ -201,6 +202,7 @@ function SessionConfigFields({
             <SettingsToggle
               key={option.id}
               label={option.name}
+              tooltip={option.description}
               checked={Boolean(option.current_value)}
               disabled={locked}
               onChange={(checked) => onChange(option.id, checked)}
@@ -210,6 +212,7 @@ function SessionConfigFields({
               key={option.id}
               label={option.name}
               value={optionValueLabel(option)}
+              tooltip={option.description}
               ariaLabel={`${option.name}: ${optionValueLabel(option)}`}
               disabled={locked}
               onClick={() =>
