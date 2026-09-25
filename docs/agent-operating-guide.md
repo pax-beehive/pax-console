@@ -49,6 +49,9 @@ leave a floating status or click tooltip over the workspace. Home agent choices
 use a portaled popover anchored below the trigger with viewport collision handling,
 so the composer clipping boundary cannot hide them. Changing agents preserves
 the encrypted creation intent.
+Image/browser preview close controls use an accessible label without a tooltip.
+A tooltip on a dialog's initially focused close button can remain open over
+the content; preserve autofocus and keyboard dismissal without that bubble.
 
 
 The turn-footer gauge represents context used/window (not per-turn tokens).

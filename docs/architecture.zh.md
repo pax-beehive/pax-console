@@ -34,6 +34,8 @@ SessionSettings 统一承载新建/已有会话的配置和权限：手机为带
 新会话开启 E2EE 时只短暂显示 2.4 秒的提示，持续状态留在设置入口的 Encrypted
 文字与开关中，不长期遮挡 workspace。Agent 选择使用 portal popover 向下展开并
 避让视口边界，避免被 composer 的 overflow-hidden 裁切；切换 agent 保留加密意图。
+图片与浏览器预览的关闭按钮保留 aria-label，不附加 Tooltip，避免 dialog 自动
+聚焦关闭按钮时留下持续遮挡内容的 Close preview 气泡。
 
 
 

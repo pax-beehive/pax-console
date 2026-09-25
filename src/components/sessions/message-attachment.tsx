@@ -104,7 +104,6 @@ export function MessageAttachment({
             <Dialog.Close asChild>
               <Button
                 aria-label="Close preview"
-                tooltip="Close preview"
                 size="icon"
                 icon={<X className="h-4 w-4" />}
                 type="button"

@@ -60,7 +60,10 @@ describe("sent attachment preview", () => {
       screen.getByRole("dialog", { name: "Screenshot.png" }),
     ).toBeVisible();
     expect(screen.getByRole("img", { name: "Screenshot.png" })).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "Close preview" }));
+    const close = screen.getByRole("button", { name: "Close preview" });
+    expect(close).toHaveFocus();
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    fireEvent.click(close);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 

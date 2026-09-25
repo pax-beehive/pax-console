@@ -113,7 +113,6 @@ export function SessionBrowserWindow({
             size="icon"
             variant="ghost"
             aria-label="Close browser preview"
-            tooltip="Close preview"
             icon={<X className="h-4 w-4" />}
             onClick={onClose}
           />
