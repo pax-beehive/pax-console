@@ -16,7 +16,6 @@ import type {
 
 type SessionConfigSelectorProps = {
   configuration?: SessionConfiguration;
-  inline?: boolean;
   disabled?: boolean;
   errorMessage?: string;
   loading?: boolean;
@@ -235,6 +234,21 @@ function SessionConfigFields({
               disabled
               onClick={() => {}}
             />
+            <SettingsChoices label="Legacy models">
+              {configuration?.legacy_models?.available?.map((candidate) => (
+                <SettingsChoice
+                  key={candidate.id}
+                  label={candidate.name}
+                  description={candidate.description}
+                  selected={
+                    configuration?.legacy_models?.current_model_id ===
+                    candidate.id
+                  }
+                  disabled
+                  onClick={() => {}}
+                />
+              ))}
+            </SettingsChoices>
             <p className="px-3 pb-3 text-xs leading-5 text-ink-tertiary">
               Legacy agent model list; switching is not standardized.
             </p>

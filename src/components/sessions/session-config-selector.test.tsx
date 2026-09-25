@@ -103,7 +103,11 @@ describe("SessionConfigSelector", () => {
           can_set: false,
           legacy_models: {
             available: [
-              { id: "deepseek:v4", name: "DeepSeek V4" },
+              {
+                id: "deepseek:v4",
+                name: "DeepSeek V4",
+                description: "Flagship reasoning model",
+              },
               { id: "deepseek:flash", name: "DeepSeek Flash" },
             ],
             current_model_id: "deepseek:v4",
@@ -122,6 +126,13 @@ describe("SessionConfigSelector", () => {
       }),
     );
     expect(screen.getByRole("button", { name: "Legacy model" })).toBeDisabled();
+    expect(screen.getByText("Flagship reasoning model")).toBeVisible();
+    const current = screen.getByRole("radio", { name: /DeepSeek V4/ });
+    expect(current).toBeDisabled();
+    expect(current).toHaveAttribute("aria-checked", "true");
+    expect(
+      screen.getByRole("radio", { name: /DeepSeek Flash/ }),
+    ).toBeDisabled();
     expect(screen.getByText(/switching is not standardized/i)).toBeVisible();
   });
 
