@@ -23,6 +23,7 @@ import {
 import { cn } from "@/lib/utils";
 
 type SessionPermissionSelectorProps = {
+  field?: boolean;
   catalog?: AgentPermissionCatalog;
   choices: AgentPermissionChoice[];
   disabled?: boolean;
@@ -34,6 +35,7 @@ type SessionPermissionSelectorProps = {
 
 export function SessionPermissionSelector({
   catalog,
+  field = false,
   choices,
   disabled,
   error,
@@ -95,6 +97,8 @@ export function SessionPermissionSelector({
             aria-label={`Session permissions: ${selected?.label ?? "Choose permissions"}`}
             className={cn(
               "inline-flex min-h-9 min-w-0 max-w-24 shrink items-center gap-1 rounded-lg px-2 text-sm transition disabled:cursor-not-allowed disabled:opacity-60 sm:max-w-56 sm:gap-2 sm:px-2.5",
+              field &&
+                "w-full max-w-full justify-between px-0 sm:max-w-full sm:px-0",
               isPaxAuto
                 ? "bg-success/10 text-success"
                 : "text-primary-hover hover:bg-surface-3",
@@ -102,7 +106,11 @@ export function SessionPermissionSelector({
             disabled={disabled}
             type="button"
           >
-            <ShieldCheck className="h-4 w-4 shrink-0" />
+            {field ? (
+              <span className="text-sm text-ink">Permissions</span>
+            ) : (
+              <ShieldCheck className="h-4 w-4 shrink-0" />
+            )}
             <span className="truncate whitespace-nowrap text-xs sm:text-sm">
               {selected?.label ?? "Choose permissions"}
             </span>

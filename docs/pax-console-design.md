@@ -86,7 +86,7 @@ drawer state
 composer drafts
 local filters
 tunnel connection display state
-mobile open-session tab ids
+legacy locally remembered session ids (no horizontal tab presentation)
 ```
 
 The mobile open-session workset persists only user-scoped session ids. Its top
@@ -316,7 +316,7 @@ PAX Console
 
 The sidebar keeps only Home and Collaboration as top-level entries; everything
 else lives in one Settings disclosure group pinned to the bottom of the
-sidebar. Home owns one unified Projects / Recents session rail plus the
+sidebar. Home owns one recent-session rail with date groups and a secondary Project filter plus the
 embedded session workbench; do not add Sessions or Projects as separate
 first-level sidebar items.
 First-level groups are independent disclosures, not an accordion. Settings
@@ -1297,3 +1297,27 @@ auditing, native Chrome screenshot interaction, Docker noVNC and encrypted
 one-use native password registration. Browser management is node-owner scoped;
 credentials remain on paxd. Live pixels are ephemeral and never ACP history.
 Takeover and sensitive observation holds require explicit operator release.
+
+## Session workbench layout (September 2026)
+
+Creation has two compact header rows: Project / Agent, then Workspace. The
+centered “What’s next?” prompt leads to a single composer. Existing sessions
+show title, Project / Agent, and immutable workspace directly; no duplicate
+workspace menu or copy action. Message copy remains available.
+
+The hamburger opens Recent sessions, grouped by date with project context;
+the panel-right entry opens Artifacts / Browser / Knowledge, a bottom sheet on
+mobile and a right panel on desktop. Tool evidence appears contextually.
+Home / Collaboration / Settings retain their existing access rules.
+
+One Session settings trigger summarizes model and permissions. Its compact
+rows include every reported ACP option, permission choices, and creation-only
+encryption. Models are available once the agent reports them. Content addition
+stays in +. Empty send on creation initializes a session with immediate leading
+execution, a 500 ms repeat guard, and an in-flight lock; existing empty sends do
+nothing. No separate Create empty session action occupies the toolbar.
+
+Workspace selection separates saved locations from typed paths. Use this path
+only selects; Save as workspace target is optional and unchecked by default.
+Persistence waits for successful native assignment and reuses matching targets.
+Both path and save intent are scoped to the selected Project / Agent.

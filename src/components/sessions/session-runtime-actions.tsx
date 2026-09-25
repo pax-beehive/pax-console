@@ -1,6 +1,6 @@
 "use client";
 
-import { MoreHorizontal, PanelRight, RefreshCw } from "lucide-react";
+import { MoreHorizontal, Pencil, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -15,14 +15,12 @@ export function SessionRuntimeActions({
   canReset,
   isPending,
   onReset,
-  contextPanelOpen,
-  onToggleContextPanel,
+  onRename,
 }: {
   canReset: boolean;
   isPending: boolean;
   onReset: () => Promise<unknown> | void;
-  contextPanelOpen?: boolean;
-  onToggleContextPanel?: () => void;
+  onRename?: () => void;
 }) {
   const [resetOpen, setResetOpen] = useState(false);
 
@@ -46,13 +44,10 @@ export function SessionRuntimeActions({
           />
         </DropdownMenuTrigger>
         <DropdownMenuContent>
-          {onToggleContextPanel && (
-            <DropdownMenuItem
-              className="lg:hidden"
-              onSelect={onToggleContextPanel}
-            >
-              <PanelRight className="h-4 w-4" />
-              {contextPanelOpen ? "Hide context panel" : "Show context panel"}
+          {onRename && (
+            <DropdownMenuItem onSelect={onRename}>
+              <Pencil className="h-4 w-4" />
+              Rename session
             </DropdownMenuItem>
           )}
           <DropdownMenuItem
