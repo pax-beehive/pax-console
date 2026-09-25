@@ -1523,3 +1523,14 @@ latest_message_id / latest_message_seq / latest_turn_id 只代表顺序，不代
 工作台仅在 session idle 且本地 conversation 未 streaming / waiting_approval 时，
 让快照优先于内存里保留的旧 conversation / observer 片段；不得据此结束仍在运行的 turn。
 读取失败或未完成的空结果保留旧快照。无需刷新页面或清空运行时对象才能展示最新正文。
+
+## Runtime release configuration
+
+The root layout waits for `connection()` and embeds an allowlisted public config
+before client hydration. `PAX_RUNTIME_WS_BASE_URL` is a runtime-only WebSocket
+origin and overrides the legacy build-time NEXT_PUBLIC_PAX_WS_BASE_URL. The same
+Console image can therefore run in staging and production without rebuilding.
+Unset runtime configuration preserves the existing hosted/legacy defaults.
+Only wsBaseUrl, PAX_RELEASE_ID and PAX_COMMIT_SHA are exposed; never serialize
+process.env or PAX_MANAGER_URL/Cloudflare credentials into the browser. Inline
+JSON escapes `<` to prevent closing-script injection. REST remains /api/pax.
