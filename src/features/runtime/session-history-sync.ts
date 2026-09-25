@@ -50,9 +50,10 @@ export async function syncSessionHistory({
   const known = mergeSyncedHistory(history, current);
   let messages = [...current.messages];
   const calibrated = new Set(current.calibratedTurnIds);
-  const targets = new Set(
+  const requestedTurns = new Set(
     turnIds.filter((id) => id && !id.startsWith("pending-turn:")),
   );
+  const targets = new Set(requestedTurns);
   const idle = session?.runtime_status === "idle";
   if (idle && session.latest_turn_id) targets.add(session.latest_turn_id);
   const missingHead =
@@ -60,14 +61,17 @@ export async function syncSessionHistory({
     session.latest_message_id &&
     !known.some((m) => m.message_id === session.latest_message_id);
 
-  if (refreshTail || missingHead) {
+  // Head IDs/seqs are ordering keys, not content versions. Legacy idle
+  // sessions without a turn head must re-read the tail even when IDs match.
+  if (refreshTail || missingHead || (idle && !session.latest_turn_id)) {
     const seqs = [...new Set(known.map((m) => m.session_seq ?? 0))].sort(
       (a, b) => a - b,
     );
     let afterSeq = seqs.length > 1 ? seqs[seqs.length - 2] : 0;
     for (;;) {
       const page = await read(userId, sessionId, 100, { afterSeq });
-      // Never let a late tail read modify an already calibrated turn.
+      // A tail page cannot replace a whole calibrated turn. Stage it for a
+      // complete paginated read instead, including same-ID part updates.
       messages = mergeSyncedHistory(messages, {
         messages: (page.messages ?? []).filter(
           (m) => !m.turn_id || !calibrated.has(m.turn_id),
@@ -75,7 +79,11 @@ export async function syncSessionHistory({
         calibratedTurnIds: [],
       });
       for (const m of page.messages ?? []) {
-        if (m.message_type === "turn_done" && m.turn_id) targets.add(m.turn_id);
+        if (
+          m.turn_id &&
+          (m.message_type === "turn_done" || calibrated.has(m.turn_id))
+        )
+          targets.add(m.turn_id);
       }
       if (!page.pagination?.has_newer) break;
       const next = page.pagination.next_after_seq ?? 0;
@@ -88,7 +96,15 @@ export async function syncSessionHistory({
   );
   if (latestCompleted?.turn_id) targets.add(latestCompleted.turn_id);
   for (const turnId of targets) {
-    if (calibrated.has(turnId)) continue;
+    // Calibration establishes ownership over live fragments, not immutability.
+    // Parts can change without any new message ID, seq, or turn ID.
+    if (
+      calibrated.has(turnId) &&
+      !idle &&
+      !refreshTail &&
+      !requestedTurns.has(turnId)
+    )
+      continue;
     let beforeSeq = 0;
     const turnMessages: HistoryMessage[] = [];
     for (;;) {

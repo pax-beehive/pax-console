@@ -77,12 +77,13 @@ it("recovers a turn completed while another browser tab was open, retaining cont
   rerender({ session: idle, version: 3 });
   await waitFor(() => expect(result.current.calibratedTurnIds).toEqual(["t"]));
   expect(result.current.messages).toEqual([prompt, reply, done]);
+  mocks.read.mockResolvedValue({ messages: [prompt, reply, done] });
   const calls = mocks.read.mock.calls.length;
   rerender({ session: idle, version: 4 });
   await act(async () => {
     await Promise.resolve();
   });
-  expect(mocks.read).toHaveBeenCalledTimes(calls);
+  expect(mocks.read).toHaveBeenCalledTimes(calls + 1);
   unmount();
   client.clear();
 });
@@ -207,6 +208,60 @@ it("queues idle metadata arriving during a history read and fetches every missin
   await waitFor(() => expect(result.current.calibratedTurnIds).toEqual(["t"]));
   expect(result.current.messages).toEqual([prompt, reply, done]);
   expect(mocks.read).toHaveBeenCalledTimes(5);
+  unmount();
+  client.clear();
+});
+
+it("refreshes message parts on an idle metadata poll with unchanged head IDs", async () => {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  const reply: HistoryMessage = {
+    message_id: "reply",
+    session_id: "s",
+    turn_id: "t",
+    session_seq: 1,
+    parts: [{ part_index: 0, part_type: "text", text: "partial" }],
+  };
+  const done: HistoryMessage = {
+    message_id: "done",
+    session_id: "s",
+    turn_id: "t",
+    session_seq: 2,
+    message_type: "turn_done",
+  };
+  const session: AgentSession = {
+    session_id: "s",
+    agent_id: "a",
+    node_id: "n",
+    runtime_status: "idle",
+    latest_message_id: "done",
+    latest_message_seq: 2,
+    latest_turn_id: "t",
+  };
+  mocks.read.mockResolvedValue({ messages: [reply, done] });
+  const { result, rerender, unmount } = renderHook(
+    ({ version }) =>
+      useSessionHistorySync({
+        userId: "self",
+        sessionId: "s",
+        session,
+        history: [reply, done],
+        metadataVersion: version,
+      }),
+    { wrapper, initialProps: { version: 1 } },
+  );
+  await waitFor(() => expect(result.current.calibratedTurnIds).toEqual(["t"]));
+  const updated = {
+    ...reply,
+    parts: [{ part_index: 0, part_type: "text", text: "full response" }],
+  };
+  mocks.read.mockResolvedValue({ messages: [updated, done] });
+  rerender({ version: 2 });
+  await waitFor(() => expect(result.current.messages).toEqual([updated, done]));
   unmount();
   client.clear();
 });

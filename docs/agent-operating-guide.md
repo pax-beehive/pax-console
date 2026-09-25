@@ -1441,8 +1441,16 @@ On local/observed completion or discovery of an idle latest turn, read
 history?view=summary&turn_id=... and follow before_seq until has_older is false.
 Only a fully fetched turn containing turn_done is calibrated. Publish all pages
 atomically into the session-scoped TanStack history-sync cache; retry failures
-on metadata polls while retaining the old view. Calibrated turns are immutable
-and ignore late live fragments. A turn_done in an ordinary page alone does not
+on metadata polls while retaining the old view. Calibration suppresses late live
+fragments but does not make durable messages immutable. Manager appends/updates
+message_parts under the same message_id and session_seq; latest head IDs are
+ordering markers, not content revisions (even messages.updated_at need not change).
+Every idle metadata poll re-reads the latest turn's complete paginated snapshot,
+including already calibrated turns. Resume and explicit calibration also revalidate
+calibrated turns encountered in the tail. Replace the entire turn only after all
+pages succeed and contain turn_done, so removed rows disappear and failures retain
+the previous snapshot. Without latest_turn_id, idle polls re-read the tail.
+A turn_done in an ordinary page alone does not
 transfer ownership. E2EE retains its existing history flow.
 
 Older history pages do not refetch on focus. Prepending captures the visible

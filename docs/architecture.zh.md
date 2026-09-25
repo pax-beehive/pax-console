@@ -1461,3 +1461,13 @@ Session 元数据在 idle 时仍每 5 秒读取 latest_message_id / latest_turn_
 窗口 blur 后 focus（即使 visibility 未变）也刷新历史 tail；新元数据或恢复事件
 若遇到正在进行的历史读取，排队再执行一次，避免请求合并导致漏掉 idle 校准。
 Tail 沿 has_newer 补齐，完成 turn 沿 has_older 读完后原子提交；旧历史页不全量重刷。
+
+### 同 ID message 内容更新
+
+Manager 的 UpsertMessage 保留 message_id / session_seq；AppendMessagePartText
+和 UpsertMessagePart 会原地更新 parts，message 自身 updated_at 也未必变化。
+latest_message_id / latest_message_seq / latest_turn_id 只代表顺序，不代表内容版本。
+因此已校准 turn 不能永久跳过：idle 每次元数据轮询都重新分页读取最新 turn，
+恢复页面及显式校准也重读 tail 涉及的已校准 turn。全页读取成功且包含 turn_done
+后整轮替换，既更新同 ID 内容，也移除已消失的 message；失败保留旧快照并重试。
+校准仍阻止晚到 live fragment 覆盖完整历史，但不阻止新的完整历史快照。

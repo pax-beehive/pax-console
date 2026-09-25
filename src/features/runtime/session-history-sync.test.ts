@@ -139,9 +139,9 @@ describe("history calibration", () => {
       history: [done],
       session,
       current: sync,
-      read,
+      read: read.mockResolvedValue(page([message("reply", 2), done])),
     });
-    expect(read).toHaveBeenCalledTimes(1);
+    expect(read).toHaveBeenCalledTimes(2);
   });
 
   it("leaves running turns on their live connection and retries missing completion later", async () => {
@@ -157,6 +157,98 @@ describe("history calibration", () => {
     const sync = await syncSessionHistory({ ...args, turnIds: ["turn"], read });
     expect(sync.calibratedTurnIds).toEqual([]);
     expect(sync.messages).toEqual([]);
+  });
+
+  it("revalidates same-ID content outside the tail window with an unchanged idle head", async () => {
+    const old = message("reply", 1, "turn", "agent_message_chunk", "partial");
+    const updated = {
+      ...old,
+      parts: [{ part_index: 0, part_type: "text", text: "complete answer" }],
+    };
+    const removed = message("removed", 2);
+    const tool = message("tool", 3, "turn", "tool_call");
+    const done = message("done", 4, "turn", "turn_done");
+    const current = {
+      messages: [old, removed, tool, done],
+      calibratedTurnIds: ["turn"],
+    };
+    const read = vi
+      .fn<typeof listSessionHistory>()
+      .mockResolvedValueOnce(
+        page([tool, done], { has_older: true, next_before_seq: 3 }),
+      )
+      .mockResolvedValueOnce(page([updated]));
+    const sync = await syncSessionHistory({ ...args, session, current, read });
+    expect(read.mock.calls.map((call) => call[3])).toEqual([
+      { turnId: "turn", beforeSeq: 0 },
+      { turnId: "turn", beforeSeq: 3 },
+    ]);
+    expect(sync.messages).toEqual([tool, done, updated]);
+    expect(sync.calibratedTurnIds).toEqual(["turn"]);
+    const timeline = reconcileSessionTimeline(
+      normalizeHistoryMessages(mergeSyncedHistory([old, removed], sync)),
+      normalizeHistoryMessages([old]),
+      [],
+      [],
+      sync.calibratedTurnIds,
+    ).timeline;
+    expect(timeline).toContainEqual(
+      expect.objectContaining({ content: "complete answer" }),
+    );
+    expect(timeline).not.toContainEqual(
+      expect.objectContaining({ content: "partial" }),
+    );
+  });
+
+  it("keeps a calibrated snapshot when revalidation fails and retries the same head", async () => {
+    const old = message("reply", 1, "turn", "agent_message_chunk", "partial");
+    const updated = message(
+      "reply",
+      1,
+      "turn",
+      "agent_message_chunk",
+      "complete",
+    );
+    const done = message("done", 4, "turn", "turn_done");
+    const current = { messages: [old, done], calibratedTurnIds: ["turn"] };
+    const read = vi
+      .fn<typeof listSessionHistory>()
+      .mockResolvedValueOnce(
+        page([done], { has_older: true, next_before_seq: 4 }),
+      )
+      .mockRejectedValueOnce(new Error("offline"));
+    await expect(
+      syncSessionHistory({ ...args, session, current, read }),
+    ).rejects.toThrow("offline");
+    expect(current.messages).toEqual([old, done]);
+    read.mockResolvedValueOnce(page([updated, done]));
+    const next = await syncSessionHistory({ ...args, session, current, read });
+    expect(next.messages).toEqual([updated, done]);
+  });
+
+  it("revalidates a calibrated tail turn on resume while another turn runs", async () => {
+    const old = message("reply", 1);
+    const updated = message(
+      "reply",
+      1,
+      "turn",
+      "agent_message_chunk",
+      "updated part",
+    );
+    const done = message("done", 4, "turn", "turn_done");
+    const current = { messages: [old, done], calibratedTurnIds: ["turn"] };
+    const read = vi
+      .fn<typeof listSessionHistory>()
+      .mockResolvedValueOnce(page([done]))
+      .mockResolvedValueOnce(page([updated, done]));
+    const next = await syncSessionHistory({
+      ...args,
+      session: { ...session, runtime_status: "running" },
+      current,
+      refreshTail: true,
+      read,
+    });
+    expect(next.messages).toEqual([updated, done]);
   });
 
   it("does not let late partial history erase calibrated content or unrelated older pages", () => {
