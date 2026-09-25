@@ -21,18 +21,13 @@ import {
   LoaderCircle,
   Menu,
   PanelRight,
-  RefreshCw,
   RotateCcw,
   ShieldCheck,
   Wrench,
   X,
 } from "lucide-react";
-import {
-  artifactDocumentFromSessionArtifact,
-  artifactPreviewPageHref,
-  type ArtifactPreviewDescriptor,
-} from "@/components/artifacts/artifact-document";
-import { ArtifactViewerShell } from "@/components/artifacts/artifact-viewer-shell";
+import { primaryArtifactContent } from "@/components/artifacts/artifact-document";
+import { SessionArtifactsPanel } from "./session-artifacts-panel";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -108,7 +103,6 @@ import {
   SessionKnowledgeInjection,
   SessionApprovalMode,
   SessionPaxConfig,
-  SessionArtifact,
   User,
 } from "@/features/api/types";
 import {
@@ -634,15 +628,10 @@ export function SessionWorkbench({
   const artifactsQuery = useSessionArtifacts(user.user_id, currentSessionId);
   const [capsuleKeyword, setCapsuleKeyword] = useState("");
   const [selectedCapsuleId, setSelectedCapsuleId] = useState("");
-  const [selectedArtifactId, setSelectedArtifactId] = useState("");
   const activeCapsules = capsulesQuery.data?.capsules ?? [];
   const activeArtifacts = artifactsQuery.data?.artifacts ?? [];
   const selectedInjectionCapsuleId =
     selectedCapsuleId || activeCapsules[0]?.capsule_id || "";
-  const selectedArtifact =
-    activeArtifacts.find(
-      (artifact) => artifact.artifact_id === selectedArtifactId,
-    ) ?? activeArtifacts[0];
   const refreshKnowledge = () => {
     if (!currentSessionId) {
       return;
@@ -2167,7 +2156,7 @@ export function SessionWorkbench({
         description: "Uploaded files and generated outputs",
         icon: <FileText className="h-4 w-4" />,
         content: (
-          <ArtifactTools
+          <SessionArtifactsPanel
             artifacts={activeArtifacts}
             downloadHref={(artifact, ref) =>
               artifactContentDownloadHref(
@@ -2195,9 +2184,6 @@ export function SessionWorkbench({
               };
             }}
             onRefresh={refreshArtifacts}
-            onSelect={setSelectedArtifactId}
-            selectedArtifact={selectedArtifact}
-            selectedArtifactId={selectedArtifact?.artifact_id ?? ""}
           />
         ),
       },
@@ -2621,8 +2607,8 @@ export function SessionWorkbench({
         />
       )}
       {activeSidePanel && (
-        <aside className="absolute inset-x-0 bottom-0 z-30 max-h-[80%] min-h-0 w-full overflow-auto rounded-t-2xl border border-hairline bg-surface-1 shadow-2xl shadow-black/40 lg:relative lg:inset-auto lg:z-auto lg:max-h-full lg:w-[340px] lg:rounded-none lg:border-y-0 lg:border-r-0 lg:shadow-none">
-          <div className="flex min-w-0 items-start justify-between gap-3 border-b border-hairline p-4">
+        <aside className="absolute inset-x-0 bottom-0 z-30 flex h-[80%] min-h-0 w-full flex-col overflow-hidden rounded-t-2xl border border-hairline bg-surface-1 shadow-2xl shadow-black/40 lg:relative lg:inset-auto lg:z-auto lg:h-full lg:w-[340px] lg:shrink-0 lg:rounded-none lg:border-y-0 lg:border-r-0 lg:shadow-none">
+          <div className="flex min-w-0 shrink-0 items-start justify-between gap-3 border-b border-hairline p-4">
             <div className="min-w-0">
               <div className="flex items-center gap-2 text-sm font-medium text-ink">
                 <PanelRight className="h-4 w-4" />
@@ -2639,7 +2625,7 @@ export function SessionWorkbench({
               variant="ghost"
             />
           </div>
-          <div className="flex gap-1 border-b border-hairline px-3 py-2">
+          <div className="flex shrink-0 gap-1 border-b border-hairline px-3 py-2">
             {sidePanels.map((panel) => (
               <button
                 className={cn(
@@ -2657,7 +2643,16 @@ export function SessionWorkbench({
               </button>
             ))}
           </div>
-          <div className="p-4">{activeSidePanel.content}</div>
+          <div
+            className={cn(
+              "min-h-0 flex-1",
+              activeSidePanel.id === "artifacts"
+                ? "overflow-hidden"
+                : "overflow-y-auto p-4",
+            )}
+          >
+            {activeSidePanel.content}
+          </div>
         </aside>
       )}
     </div>
@@ -2730,111 +2725,6 @@ function removeStoredInitialPrompt(initialPromptKey?: string) {
   } catch {
     // Ignore storage cleanup failures; the in-memory handoff is already done.
   }
-}
-
-function ArtifactTools({
-  artifacts,
-  downloadHref,
-  isLoading,
-  onLoadPreview,
-  onRefresh,
-  onSelect,
-  selectedArtifact,
-  selectedArtifactId,
-}: {
-  artifacts: SessionArtifact[];
-  downloadHref: (artifact: SessionArtifact, ref: string) => string;
-  isLoading: boolean;
-  onLoadPreview: (
-    artifact: SessionArtifact,
-  ) => Promise<ArtifactPreviewDescriptor>;
-  onRefresh: () => void;
-  onSelect: (artifactId: string) => void;
-  selectedArtifact?: SessionArtifact;
-  selectedArtifactId: string;
-}) {
-  return (
-    <div className="grid gap-4">
-      <div className="flex min-w-0 items-center gap-2">
-        <Button
-          icon={<RefreshCw className="h-4 w-4" />}
-          onClick={onRefresh}
-          size="icon"
-          tooltip="Refresh artifacts"
-          type="button"
-          variant="ghost"
-        />
-        <div className="min-w-0 flex-1" />
-        <Badge className="font-mono">{String(artifacts.length)}</Badge>
-      </div>
-
-      <section className="grid gap-2">
-        {isLoading && (
-          <div className="text-xs text-ink-tertiary">Loading artifacts</div>
-        )}
-        {artifacts.map((artifact) => {
-          const content = primaryArtifactContent(artifact);
-          const selected = artifact.artifact_id === selectedArtifactId;
-          return (
-            <button
-              className={cn(
-                "grid min-w-0 gap-2 rounded-lg border p-2 text-left transition",
-                selected
-                  ? "border-primary-focus bg-surface-3"
-                  : "border-hairline bg-canvas hover:border-hairline-strong",
-              )}
-              key={artifact.artifact_id}
-              onClick={() => onSelect(artifact.artifact_id)}
-              type="button"
-            >
-              <div className="flex min-w-0 items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <TruncatedText className="text-sm font-medium text-ink">
-                    {artifactTitle(artifact)}
-                  </TruncatedText>
-                  <div className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-ink-tertiary">
-                    <span className="shrink-0">{artifact.kind}</span>
-                    {content?.size_bytes ? (
-                      <span className="shrink-0">
-                        {formatBytes(content.size_bytes)}
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-              {content?.filename && (
-                <MonoId tooltip={content.filename}>{content.filename}</MonoId>
-              )}
-            </button>
-          );
-        })}
-        {!isLoading && artifacts.length === 0 && (
-          <div className="rounded-lg border border-dashed border-hairline bg-canvas p-2 text-xs text-ink-tertiary">
-            No artifacts for this session
-          </div>
-        )}
-      </section>
-
-      {selectedArtifact && (
-        <ArtifactViewerShell
-          key={selectedArtifact.artifact_id}
-          artifact={artifactDocumentFromSessionArtifact(
-            selectedArtifact,
-            downloadHref(
-              selectedArtifact,
-              primaryArtifactContent(selectedArtifact)?.ref ?? "main",
-            ),
-          )}
-          loadPreview={() => onLoadPreview(selectedArtifact)}
-          viewerHref={artifactPreviewPageHref(
-            "session_artifact",
-            selectedArtifact.artifact_id,
-            primaryArtifactContent(selectedArtifact)?.ref ?? "main",
-          )}
-        />
-      )}
-    </div>
-  );
 }
 
 function KnowledgeTools({
@@ -3021,33 +2911,4 @@ function InlineError({ error }: { error: Error }) {
       {formatErrorDetail(error)}
     </TruncatedText>
   );
-}
-
-function primaryArtifactContent(artifact: SessionArtifact) {
-  return (
-    artifact.contents?.find((content) => content.ref === "main") ??
-    artifact.contents?.[0]
-  );
-}
-
-function artifactTitle(artifact: SessionArtifact) {
-  return (
-    artifact.title ||
-    primaryArtifactContent(artifact)?.filename ||
-    compactId(artifact.artifact_id)
-  );
-}
-
-function formatBytes(value: number) {
-  if (value < 1024) {
-    return `${value} B`;
-  }
-  const units = ["KB", "MB", "GB", "TB"];
-  let size = value / 1024;
-  let unitIndex = 0;
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024;
-    unitIndex += 1;
-  }
-  return `${size.toFixed(size >= 10 ? 0 : 1)} ${units[unitIndex]}`;
 }

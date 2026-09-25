@@ -534,7 +534,10 @@ Artifact publications
   /artifacts/files/{artifact_id}?ref=...，独立页不会产生公开 artifact URL。
 
 Artifacts
-  Session Artifacts 面板对所有 session 用户开放只读能力。列表走
+  Session Artifacts 面板对所有 session 用户开放只读能力。
+  SessionArtifactsPanel 管理列表与预览的本地导航：点击条目后原位切换到
+  自动加载的共享 viewer，返回列表时恢复滚动位置和焦点，不在长列表底部
+  堆叠预览。资源面板标题、标签和关闭按钮固定，内容区域独立滚动。列表走
   /sessions/{session_id}/artifacts，预览/下载走 artifact content endpoint 返回的
   signed GET URL 或 redirect。普通文件预览由共享 builtin document renderer
   registry 解析；Markdown/text/JSON/JSONL/CSV 只拉取有预算的只读预览，
