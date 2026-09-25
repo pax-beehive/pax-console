@@ -238,6 +238,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const [contextClosed, setContextClosed] = useState(false);
   const [sessionAgentFilters, setSessionAgentFilters] = useState<string[]>([]);
   const [sessionNodeFilters, setSessionNodeFilters] = useState<string[]>([]);
+  const [sessionProjectFilter, setSessionProjectFilter] = useState("");
   const [includeArchivedSessions, setIncludeArchivedSessions] = useState(false);
   const [sessionFilterMenuOpen, setSessionFilterMenuOpen] = useState(false);
   const [embeddedSessionTarget, setEmbeddedSessionTarget] =
@@ -296,6 +297,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       includeArchived: includeArchivedSessions,
       nodeIds: effectiveSessionNodeFilters,
       pageSize: homeSessionPageSize,
+      primaryProjectId: sessionProjectFilter || undefined,
     }),
     queryFn: ({ pageParam }) =>
       listUserSessions(user.user_id, {
@@ -304,6 +306,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
         nodeIds: effectiveSessionNodeFilters,
         pageNum: pageParam,
         pageSize: homeSessionPageSize,
+        primaryProjectId: sessionProjectFilter || undefined,
       }),
     enabled: Boolean(user.user_id),
     getNextPageParam: (lastPage) => {
@@ -582,7 +585,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     }
   }, [activeSessionTarget?.sessionId, rememberSession]);
 
-  function handleRailScroll(event: UIEvent<HTMLElement>) {
+  function loadMoreSessions() {
     if (
       !sessionsQuery.hasNextPage ||
       sessionsQuery.isFetchingNextPage ||
@@ -590,13 +593,16 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     ) {
       return;
     }
+    void sessionsQuery.fetchNextPage();
+  }
 
+  function handleRailScroll(event: UIEvent<HTMLElement>) {
     const { clientHeight, scrollHeight, scrollTop } = event.currentTarget;
     if (
       scrollHeight - scrollTop - clientHeight <=
       nextSessionPageScrollOffset
     ) {
-      void sessionsQuery.fetchNextPage();
+      loadMoreSessions();
     }
   }
 
@@ -848,6 +854,17 @@ export function FleetOverview({ user }: FleetOverviewProps) {
             </div>
             <ProjectSessionRail
               activeSessionId={activeSessionTarget?.sessionId}
+              hasMore={Boolean(sessionsQuery.hasNextPage)}
+              onLoadMore={loadMoreSessions}
+              onProjectFilterChange={(projectId) => {
+                // The query can reorder recent agents; keep creation context.
+                if (activeAgent) setSelectedAgentId(activeAgent.agent_id);
+                // Filtering the rail must not unmount the open conversation.
+                if (activeSessionTarget) {
+                  setEmbeddedSessionTarget(activeSessionTarget);
+                }
+                setSessionProjectFilter(projectId);
+              }}
               onScroll={handleRailScroll}
               loadingMore={sessionsQuery.isFetchingNextPage}
               loading={projectsQuery.isLoading || sessionsQuery.isLoading}
@@ -857,6 +874,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
               onSetArchived={(item) => updateSessionArchived.mutate(item)}
               archivePendingId={updateSessionArchived.variables?.id}
               projects={projects}
+              projectFilter={sessionProjectFilter}
               sessions={visibleWorkItems}
             />
           </section>
@@ -954,7 +972,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
               </div>
             ) : (
               <>
-                <div className="grid min-w-0 gap-1 border-b border-hairline bg-surface-1 px-3 py-2">
+                <div className="grid min-w-0 gap-1 border-b border-hairline bg-surface-1 px-5 py-2 sm:px-6">
                   <div className="flex min-w-0 items-center gap-2">
                     <Button
                       aria-label="Open Home sidebar"
@@ -1326,28 +1344,32 @@ export function FleetOverview({ user }: FleetOverviewProps) {
 function ProjectSessionRail({
   activeSessionId,
   archivePendingId,
+  hasMore,
   loading,
   loadingMore,
+  onLoadMore,
+  onProjectFilterChange,
   onScroll,
   onSelectSession,
   onSetArchived,
   projects,
+  projectFilter,
   sessions,
 }: {
   activeSessionId?: string;
   archivePendingId?: string;
+  hasMore: boolean;
   loading: boolean;
   loadingMore: boolean;
+  onLoadMore: () => void;
+  onProjectFilterChange: (projectId: string) => void;
   onScroll: (event: UIEvent<HTMLElement>) => void;
   onSelectSession: (session: WorkItem) => void;
   onSetArchived: (session: WorkItem) => void;
   projects: Project[];
+  projectFilter: string;
   sessions: WorkItem[];
 }) {
-  const [projectFilter, setProjectFilter] = useState("");
-  const filtered = sessions.filter(
-    (session) => !projectFilter || session.primaryProjectId === projectFilter,
-  );
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const groups = ["Today", "Yesterday", "Previous 7 days", "Earlier"];
@@ -1357,13 +1379,13 @@ function ProjectSessionRail({
   };
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="shrink-0 flex items-center gap-2 border-b border-hairline bg-surface-1 px-4 py-2">
+      <div className="shrink-0 flex items-center gap-2 border-b border-hairline bg-surface-1 px-6 py-2">
         <Folder className="h-3.5 w-3.5 shrink-0 text-ink-tertiary" />
         <select
           aria-label="Filter by project"
           className="min-w-0 flex-1 bg-surface-1 text-sm text-ink outline-none [color-scheme:dark]"
           value={projectFilter}
-          onChange={(event) => setProjectFilter(event.target.value)}
+          onChange={(event) => onProjectFilterChange(event.target.value)}
         >
           <option value="">All projects</option>
           {projects.map((project) => (
@@ -1384,7 +1406,7 @@ function ProjectSessionRail({
         aria-label="Recent sessions"
       >
         {groups.map((label, index) => {
-          const items = filtered
+          const items = sessions
             .filter((session) => groupFor(session) === index)
             .sort((a, b) =>
               (b.createdAt ?? "").localeCompare(a.createdAt ?? ""),
@@ -1392,7 +1414,7 @@ function ProjectSessionRail({
           return (
             items.length > 0 && (
               <section key={label} aria-label={label}>
-                <div className="px-4 pb-1 pt-4 text-xs text-ink-tertiary">
+                <div className="px-6 pb-1 pt-4 text-xs text-ink-tertiary">
                   {label}
                 </div>
                 {items.map((session) => (
@@ -1429,8 +1451,24 @@ function ProjectSessionRail({
             Loading more sessions...
           </div>
         )}
-        {!loading && !filtered.length && (
-          <div className="p-4 text-sm text-ink-tertiary">No sessions yet.</div>
+        {!loading && !loadingMore && hasMore && (
+          <div className="px-6 py-3">
+            <Button
+              onClick={onLoadMore}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              Load more sessions
+            </Button>
+          </div>
+        )}
+        {!loading && !sessions.length && (
+          <div className="px-6 py-4 text-sm text-ink-tertiary">
+            {projectFilter
+              ? "No sessions match this project and filters."
+              : "No sessions match the current filters."}
+          </div>
         )}
       </div>
     </div>
@@ -1455,7 +1493,7 @@ function HomeSessionRow({
   return (
     <div
       className={cn(
-        "group flex min-w-0 items-center pr-1 transition-colors duration-200",
+        "group flex min-w-0 items-center pr-3 transition-colors duration-200",
         session.transport === "e2ee"
           ? active
             ? "bg-emerald-400/[0.07] shadow-[inset_2px_0_0_rgba(52,211,153,0.9)]"
@@ -1464,7 +1502,7 @@ function HomeSessionRow({
             ? "bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)]"
             : "text-ink-muted hover:bg-surface-2",
       )}
-      style={{ paddingLeft: `${16 + depth * 16}px` }}
+      style={{ paddingLeft: `${24 + depth * 16}px` }}
     >
       <Link
         className="grid min-w-0 flex-1 gap-0.5 py-2 text-left"
