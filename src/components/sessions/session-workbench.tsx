@@ -243,7 +243,7 @@ export function SessionWorkbench({
     5_000,
   );
   const sessionMetadata = sessionMetadataQuery.data ?? undefined;
-  const nodesQuery = useNodes(user.user_id);
+  const nodesQuery = useNodes(user.user_id, 5_000);
   const nodes = nodesQuery.data?.nodes ?? [];
   const activeNodeId = currentSessionId
     ? (sessionMetadata?.node_id ?? nodeId)
@@ -748,6 +748,9 @@ export function SessionWorkbench({
     onSuccess: refreshKnowledge,
   });
   const refreshActiveSessionRuntime = useCallback(() => {
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.nodes(user.user_id),
+    });
     void queryClient.invalidateQueries({
       queryKey: queryKeys.userSessionsRoot(user.user_id),
     });

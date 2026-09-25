@@ -425,7 +425,10 @@ header and composer, and cannot mask a newer server-owned turn.
 paxd snapshots are the only durable runtime writer. A node-control disconnect
 preserves the last execution state and timestamp; it does not turn it into
 `unknown`. The workbench badge shows `paxd offline` when the node API reports
-`online: false`, without changing the execution state. Legacy `unknown` values
+`online: false`, without changing the execution state. Node lists poll every
+15 seconds by default, every five seconds in the workbench, and refresh on
+foreground return; offline nodes continue polling so recovery clears the badge.
+Legacy `unknown` values
 remain blocked until a new snapshot or explicit reset.
 E2EE workbenches follow the same canonical
 status rule; their local decrypted stream may optimistically overlay an owned
@@ -888,7 +891,10 @@ src/components/artifacts/*
   ArtifactDocument; the builtin renderer registry resolves image, PDF, HTML,
   Markdown, text, JSON, JSONL, CSV, or download fallback. Text renderers enforce
   preview byte/line/record/table budgets, and HTML stays inside a sandboxed
-  iframe. Keep signed URL acquisition in the source-specific API adapter.
+  iframe with `allow-scripts` only (never `allow-same-origin`). The Manager
+  `download` hint describes direct URL handling; recognized types still use
+  local renderers. Fetch URL previews within the blob budget and render blob
+  URLs; normalize HTML blobs to `text/html`. Keep signed URL acquisition in the source-specific API adapter.
   Timeline cards and the Session Artifacts panel provide a compact viewer plus
   an Open page link; the dedicated full-width route reuses this shell with
   auto-load rather than defining a second rendering stack.
@@ -1423,8 +1429,11 @@ turn through events. On page resume refresh metadata and the history tail;
 the workbench also immediately invalidates runtime/metadata queries on window
 blur-to-focus, even when visibility never changed, bypassing the polling wait
 and cache freshness. Coalesce focus and visibility events for the same return.
-Window-focus handling is opt-in on the runtime refresh hook; it must not reopen
-healthy streams or refetch all history pages on each window focus.
+Window-focus handling is opt-in on runtime and history-tail refresh hooks; it
+must not reopen healthy streams or refetch older history pages on each focus.
+Runtime refresh also invalidates nodes. History sync queues a follow-up when
+metadata or focus changes during a read, so fresh idle/latest-message/latest-turn
+metadata is checked after the in-flight read commits instead of being dropped.
 Unknown latest IDs while idle trigger after_seq catch-up starting at the second
 newest known message. Follow has_newer rather than treating one page as complete.
 

@@ -103,12 +103,14 @@ export function resolveArtifactRenderer(
       ? filenameKind
       : undefined;
   const kind =
-    (previewKind !== "text" ? previewKind : undefined) ??
+    (previewKind !== "text" && previewKind !== "download"
+      ? previewKind
+      : undefined) ??
     (contentTypeKind !== "text" ? contentTypeKind : undefined) ??
     structuredFilenameKind ??
-    previewKind ??
     contentTypeKind ??
     filenameKind ??
+    previewKind ??
     "download";
 
   return rendererDefinitions[kind];

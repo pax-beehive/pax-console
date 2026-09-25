@@ -1919,13 +1919,15 @@ export function listKnowledgeInjections(userId: string, sessionId: string) {
   );
 }
 
-export function useNodes(userId?: string) {
+export function useNodes(userId?: string, refetchInterval = 15_000) {
   // Hooks in this file are thin TanStack Query wrappers around pax-manager
   // resources. They own caching/loading state; components only compose results.
   return useQuery({
     queryKey: queryKeys.nodes(userId ?? "pending"),
     queryFn: () => listNodes(userId as string),
     enabled: Boolean(userId),
+    refetchInterval,
+    refetchOnWindowFocus: "always",
   });
 }
 

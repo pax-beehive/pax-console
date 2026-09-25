@@ -85,6 +85,28 @@ describe("artifact document renderer registry", () => {
     },
   );
 
+  it.each([
+    ["text/html", "report.html", "builtin:html"],
+    ["application/octet-stream", "report.html", "builtin:html"],
+    ["text/plain", "report.html", "builtin:html"],
+    ["text/csv", "report.csv", "builtin:csv"],
+    ["application/octet-stream", "archive.zip", "builtin:download"],
+  ])(
+    "resolves download hints for %s / %s",
+    (contentType, filename, expected) => {
+      expect(
+        resolveArtifactRenderer(
+          { filename, contentType },
+          {
+            previewKind: "download",
+            contentType,
+            filename,
+          },
+        ).id,
+      ).toBe(expected);
+    },
+  );
+
   it("builds protected standalone preview links for both sources", () => {
     expect(
       artifactPreviewPageHref("publication", "publication_1", "report draft"),

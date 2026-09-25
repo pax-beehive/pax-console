@@ -531,7 +531,9 @@ Artifacts
   /sessions/{session_id}/artifacts，预览/下载走 artifact content endpoint 返回的
   signed GET URL 或 redirect。普通文件预览由共享 builtin document renderer
   registry 解析；Markdown/text/JSON/JSONL/CSV 只拉取有预算的只读预览，
-  image/PDF/HTML 直接消费 signed URL，其中 HTML 必须 sandbox。Console 不再
+  image/PDF/HTML 在大小预算内读取 signed URL，再用本地 blob URL 展示。
+  后端 download 提示不覆盖已识别的本地 renderer；HTML blob 使用 text/html，
+  iframe 只允许 allow-scripts，不允许 allow-same-origin，保持源隔离。Console 不再
   展示旧的浏览器 artifact 上传入口。
 ```
 
@@ -1448,3 +1450,14 @@ turn_done 不等于已拿全整轮。E2EE 继续沿用原来的加密历史流�
 向上翻页不在 focus 时重读全部历史。分页前记录可见行 ID 和相对视口的偏移，
 在 useLayoutEffect 中恢复，避免列表尾部同时增长造成跳动；移除行上的
 content-visibility 估算高度，并为加载提示保留固定空间。
+
+### 节点在线状态与切回 idle session 的同步
+
+工作台的 `paxd offline` 标签来自节点列表 `node.online === false`，不改变
+`session.runtime_status`。节点列表默认每 15 秒轮询，工作台每 5 秒轮询；
+离线后继续轮询，页面回到前台立即刷新节点与 session 元数据。后台暂停轮询。
+
+Session 元数据在 idle 时仍每 5 秒读取 latest_message_id / latest_turn_id。
+窗口 blur 后 focus（即使 visibility 未变）也刷新历史 tail；新元数据或恢复事件
+若遇到正在进行的历史读取，排队再执行一次，避免请求合并导致漏掉 idle 校准。
+Tail 沿 has_newer 补齐，完成 turn 沿 has_older 读完后原子提交；旧历史页不全量重刷。

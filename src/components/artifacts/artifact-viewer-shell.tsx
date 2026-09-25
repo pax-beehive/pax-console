@@ -193,7 +193,13 @@ export function ArtifactViewerShell({
 
         let objectUrl: string;
         try {
-          objectUrl = URL.createObjectURL(blob);
+          // HTML may arrive as text/plain or octet-stream. The resolved
+          // renderer determines the isolated preview document MIME type.
+          objectUrl = URL.createObjectURL(
+            resolved.kind === "html"
+              ? blob.slice(0, blob.size, "text/html")
+              : blob,
+          );
         } catch {
           throw new Error("Preview response could not be prepared");
         }
@@ -623,7 +629,7 @@ function DocumentRenderer({
           standalone && "h-full min-h-[calc(100dvh-13rem)]",
         )}
         referrerPolicy="no-referrer"
-        sandbox=""
+        sandbox="allow-scripts"
         src={preview.url}
         title={artifact.title}
       />

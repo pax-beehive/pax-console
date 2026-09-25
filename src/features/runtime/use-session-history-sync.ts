@@ -71,16 +71,48 @@ export function useSessionHistorySync({
     },
   });
   const { refetch } = query;
+  const refreshQueueRef = useRef<{
+    key: typeof key;
+    running: boolean;
+    requested: boolean;
+    active: boolean;
+  } | null>(null);
+  useEffect(() => {
+    const queue = { key, running: false, requested: false, active: true };
+    refreshQueueRef.current = queue;
+    return () => {
+      queue.active = false;
+    };
+  }, [key]);
   const refresh = useCallback(() => {
-    if (sessionId) void refetch({ cancelRefetch: false });
-  }, [refetch, sessionId]);
+    const refreshQueue = refreshQueueRef.current;
+    if (!sessionId || !refreshQueue || refreshQueue.key !== key) return;
+    refreshQueue.requested = true;
+    if (refreshQueue.running) return;
+    refreshQueue.running = true;
+    void (async () => {
+      try {
+        // A metadata/focus update during a read must run again with the latest
+        // query options after that read commits, rather than being deduplicated.
+        while (refreshQueue.active && refreshQueue.requested) {
+          refreshQueue.requested = false;
+          await refetch({ cancelRefetch: false });
+        }
+      } finally {
+        refreshQueue.running = false;
+      }
+    })();
+  }, [refetch, key, sessionId]);
   useEffect(() => {
     refresh();
   }, [metadataVersion, refresh]);
-  usePageResume(() => {
-    getPending().tail = true;
-    refresh();
-  });
+  usePageResume(
+    () => {
+      getPending().tail = true;
+      refresh();
+    },
+    { includeWindowFocus: true },
+  );
   const calibrate = useCallback(
     (turnId?: string) => {
       const pending = getPending();

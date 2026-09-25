@@ -379,6 +379,60 @@ describe("ArtifactViewerShell", () => {
     },
   );
 
+  it.each([false, true])(
+    "previews download-marked HTML with generic MIME (standalone=%s)",
+    async (standalone) => {
+      vi.stubGlobal(
+        "fetch",
+        vi
+          .fn()
+          .mockResolvedValue(
+            new Response(
+              '<html><body><script>document.body.textContent = "Rendered"</script></body></html>',
+              { headers: { "content-type": "application/octet-stream" } },
+            ),
+          ),
+      );
+      const createObjectURL = vi
+        .spyOn(URL, "createObjectURL")
+        .mockReturnValue("blob:pax-html");
+      vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+      const { container } = render(
+        <TooltipProvider>
+          <ArtifactViewerShell
+            artifact={{
+              ...artifact,
+              filename: "result.html",
+              contentType: "application/octet-stream",
+            }}
+            autoLoad={standalone}
+            standalone={standalone}
+            loadPreview={async () => ({
+              previewKind: "download",
+              contentType: "application/octet-stream",
+              url: "https://signed.example/result.html",
+            })}
+          />
+        </TooltipProvider>,
+      );
+      if (!standalone)
+        fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+      await waitFor(() =>
+        expect(container.querySelector("iframe")).toHaveAttribute(
+          "src",
+          "blob:pax-html",
+        ),
+      );
+      expect(createObjectURL.mock.calls[0][0]).toMatchObject({
+        type: "text/html",
+      });
+      expect(container.querySelector("iframe")).toHaveAttribute(
+        "sandbox",
+        "allow-scripts",
+      );
+    },
+  );
+
   it("shows a stable error when the binary preview transport fails", async () => {
     const signedUrl = "https://signed.example/image?X-Amz-Signature=top-secret";
     vi.stubGlobal(
