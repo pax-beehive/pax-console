@@ -776,12 +776,21 @@ AuthGate-protected full-width preview at
 auto-load a short-lived URL, and do not expose public artifact links.
 
 Runs of two or more contiguous thought/progress and tool-call events render as
-one collapsed work block, preserving their original order. A single thought or
-tool call stays directly visible. The grouped summary is only `工作中` while any
-child is active or `工作过程` after completion; counts stay out of the summary,
-while pending approvals remain visible. Expanding it reveals the nested thought
-rows and adjacent tool groups. Normal messages and actionable standalone events
-end the work block. The timeline uses an 8px row gap; agent and user copy uses
+one collapsed activity row, preserving event order. The summary names the latest
+active tool, or says `Agent is working` between calls. A closed block shows
+`Finished N operations` (tool calls only) and elapsed time only when its actual
+closing event supplies a valid timestamp. This is activity-block timing, not
+session runtime status. A single tool call is a direct expandable row. Expanding
+a block reveals individual thought/tool rows without an intermediate Tool calls
+group. Tool errors stay in the expanded evidence; never turn them into a terminal
+session error, an automatic frontend retry, or a user-facing Retry action. Only
+a real subsequent invocation can establish that the agent is retrying.
+Pending tool permissions stay actionable outside the disclosure, and are omitted
+from its inner rows while pending to avoid duplicate decision controls. Existing
+approval scopes, pending locks, decisions, history detail loading, patches, and
+Tool evidence remain intact. Normal messages and standalone actionable events
+close the block; the closing timestamp is view-projection metadata only.
+The timeline uses an 8px row gap; agent and user copy uses
 14px type with a 20px line height, while Markdown H1/H2/H3 use 18px/16px/15px
 type and blockquotes use 13px type. Session and Home composer input uses the
 same 14px/20px typography as body copy on desktop. Below 640px, composer input, agent/user messages, and form controls use

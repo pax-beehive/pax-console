@@ -196,11 +196,15 @@ what the agent is doing now
 what evidence exists: files, logs, approvals, diffs, token usage
 ```
 
-Runs of two or more contiguous thought/progress and tool-call events should be
-grouped, in order, inside one collapsed work block. A single thought or tool
-call remains directly visible. The summary says only `工作中` while active or
-`工作过程` when complete; it omits event counts but keeps approval requirements
-visible. Expanding the block reveals its thought rows and adjacent tool groups.
+Runs of two or more contiguous thought/progress and tool-call events form a
+collapsed activity row. Its live summary names the latest active operation;
+between calls it says `Agent is working`. Completed blocks summarize their tool
+operation count and elapsed time when a valid closing timestamp is available.
+Expand once to see individual operations, then expand an operation for its
+input/output. Avoid nested Tool calls groups and status-badge stacks. Single
+tool calls are directly expandable. Pending approvals remain actionable outside
+the collapsed row. A failed tool is recorded in its details while the agent
+continues; it must not create a user Retry prompt or override session status.
 Normal messages and standalone actionable events end the group. The session
 timeline uses an 8px row gap; agent and user copy uses 14px type with a 20px
 line height, Markdown H1/H2/H3 use 18px/16px/15px type, and blockquotes use

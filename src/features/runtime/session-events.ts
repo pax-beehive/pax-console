@@ -227,6 +227,7 @@ export type WorkstreamItem =
       sessionId: string;
       createdAt: string;
       complete: boolean;
+      completedAt?: string;
       events: WorkActivityEvent[];
     }
   | {
@@ -304,7 +305,7 @@ export function groupWorkstreamEvents(
     return true;
   };
 
-  const endWorkGroup = () => {
+  const endWorkGroup = (completedAt?: string) => {
     if (exposeSingleWorkActivity()) {
       return;
     }
@@ -314,6 +315,7 @@ export function groupWorkstreamEvents(
     }
 
     workGroup.complete = true;
+    workGroup.completedAt = completedAt;
     workGroup = undefined;
     workGroupTurnKey = undefined;
   };
@@ -363,7 +365,7 @@ export function groupWorkstreamEvents(
     if (event.type === "turn_done") {
       const turnKey = event.turnId ?? activeTurnId ?? legacyTurnKey;
       if (workGroupTurnKey === turnKey) {
-        endWorkGroup();
+        endWorkGroup(event.createdAt);
       }
       markAgentTurnEnded(turnKey, event);
       if (!event.turnId || activeTurnId === event.turnId) {
@@ -467,7 +469,7 @@ export function groupWorkstreamEvents(
       accumulator.proposedPatches.push(...permissionRequestCodePatches(event));
     }
 
-    endWorkGroup();
+    endWorkGroup(event.type === "user_message" ? undefined : event.createdAt);
     const item: Extract<WorkstreamItem, { type: "event" }> = {
       type: "event",
       id: event.id,
