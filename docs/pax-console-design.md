@@ -203,6 +203,10 @@ recognized running tools use concise actions such as `Reading files…` or
 show `Using tools · N running`; queued or mixed activity is labeled accurately.
 With no active tool or latest live thought, use `Working…` without inferring
 thinking or retries. Raw tool names and payloads stay inside expanded details.
+Gaps after commentary keep the quiet breathing mark and three dots while the
+turn is running. An active activity row replaces this indicator; completion
+and approval waits remove it. It carries no invented progress percentage.
+
 Completed blocks summarize their tool operation count and elapsed time when a valid closing timestamp is available.
 Expand once to see individual operations, then expand an operation for its
 input/output. Avoid nested Tool calls groups and status-badge stacks. Single

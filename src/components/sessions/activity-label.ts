@@ -1,4 +1,8 @@
-import type { WorkActivityEvent } from "@/features/runtime/session-events";
+import type { SessionDisplayStatus } from "@/features/runtime/session-display-status";
+import type {
+  WorkActivityEvent,
+  WorkstreamItem,
+} from "@/features/runtime/session-events";
 
 type Tool = Extract<WorkActivityEvent, { type: "tool_call" }>;
 
@@ -77,4 +81,15 @@ function isTestCommand(input: unknown) {
   return /^(?:(?:pnpm|npm|yarn|bun)\s+(?:run\s+)?test|go\s+test|cargo\s+test|pytest|(?:python3?|uv run python)\s+-m\s+(?:pytest|unittest)|(?:npx\s+)?(?:vitest|jest))(?:\s|$)/.test(
     command.trim(),
   );
+}
+
+// Keep feedback visible in the gaps after commentary, not only before the first
+// output. Active activity rows already provide their own animation/approval UI.
+export function showPendingActivity(
+  status: SessionDisplayStatus,
+  items: readonly WorkstreamItem[],
+) {
+  if (status !== "streaming") return false;
+  const last = items.at(-1);
+  return !(last?.type === "work_group" && !last.complete);
 }

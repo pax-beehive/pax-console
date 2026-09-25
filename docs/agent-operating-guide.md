@@ -807,6 +807,12 @@ recognized running tools use concise actions such as `Reading files…` or
 show `Using tools · N running`; queued or mixed activity is labeled accurately.
 With no active tool or latest live thought, use `Working…` without inferring
 thinking or retries. Raw tool names and payloads stay inside expanded details.
+During streaming, retain the lightweight pending indicator after commentary
+unless the last item is an active activity row with its own feedback. Do not
+gate it on whether the turn has ever produced output. Idle, terminal, unknown,
+and waiting-approval states hide the indicator; it does not infer tool progress
+or alter runtime status. The CSS animation respects reduced-motion preferences.
+
 A closed block shows
 `Finished N operations` (tool calls only) and elapsed time only when its actual
 closing event supplies a valid timestamp. This is activity-block timing, not

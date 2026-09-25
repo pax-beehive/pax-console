@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { WorkActivityEvent } from "@/features/runtime/session-events";
-import { liveActivityLabel } from "./activity-label";
+import type {
+  WorkActivityEvent,
+  WorkstreamItem,
+} from "@/features/runtime/session-events";
+import { liveActivityLabel, showPendingActivity } from "./activity-label";
 const thought: WorkActivityEvent = {
   type: "progress",
   id: "thought",
@@ -81,5 +84,53 @@ describe("live activity labels", () => {
     ).toBe("Using tools · 2 queued");
     expect(liveActivityLabel([tool("Read", "queued")])).toBe("Tool queued…");
     expect(liveActivityLabel([tool("Read", "called")])).toBe("Using tools…");
+  });
+});
+
+describe("pending activity indicator", () => {
+  const reply: WorkstreamItem = {
+    type: "event",
+    id: "reply",
+    event: {
+      type: "agent_message",
+      id: "reply",
+      sessionId: "s",
+      content: "I will check the files.",
+      createdAt: "2026-09-25T00:00:00Z",
+    },
+  };
+  const activity: WorkstreamItem = {
+    type: "work_group",
+    id: "work",
+    sessionId: "s",
+    createdAt: "2026-09-25T00:00:00Z",
+    complete: false,
+    events: [tool("Read", "called")],
+  };
+  it("continues showing a wait indicator after commentary, before a tool starts", () => {
+    expect(showPendingActivity("streaming", [])).toBe(true);
+    expect(showPendingActivity("streaming", [reply])).toBe(true);
+    expect(
+      showPendingActivity("streaming", [
+        { ...activity, complete: true },
+        reply,
+      ]),
+    ).toBe(true);
+  });
+  it("does not duplicate an already animated activity row", () => {
+    expect(showPendingActivity("streaming", [reply, activity])).toBe(false);
+    expect(
+      showPendingActivity("streaming", [{ ...activity, complete: true }]),
+    ).toBe(true);
+  });
+  it.each([
+    "idle",
+    "done",
+    "cancelled",
+    "error",
+    "waiting_approval",
+    "unknown",
+  ] as const)("hides the indicator for %s", (status) => {
+    expect(showPendingActivity(status, [reply])).toBe(false);
   });
 });
