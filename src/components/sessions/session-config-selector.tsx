@@ -1,26 +1,21 @@
 "use client";
 
-import {
-  Check,
-  LoaderCircle,
-  RefreshCw,
-  SlidersHorizontal,
-} from "lucide-react";
+import { LoaderCircle, RefreshCw, SlidersHorizontal } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import type {
   SessionConfigOption,
   SessionConfiguration,
 } from "@/features/api/types";
-import { cn } from "@/lib/utils";
 
 type SessionConfigSelectorProps = {
   configuration?: SessionConfiguration;
+  inline?: boolean;
   disabled?: boolean;
   errorMessage?: string;
   loading?: boolean;
@@ -57,7 +52,7 @@ function optionValueLabel(option: SessionConfigOption) {
   );
 }
 
-function configurationModel(configuration?: SessionConfiguration) {
+export function configurationModel(configuration?: SessionConfiguration) {
   const modelOption = configuration?.options.find(isModelOption);
   if (modelOption) {
     return optionValueLabel(modelOption);
@@ -79,208 +74,134 @@ export function SessionConfigSelector({
   onRefresh,
   pendingOptionId,
   refreshing,
+  inline = false,
 }: SessionConfigSelectorProps) {
   const options =
     configuration?.options.filter((option) => !isPermissionOption(option)) ??
     [];
   const model = configurationModel(configuration);
-  const hasLegacyModels = Boolean(
-    configuration?.legacy_models?.available?.length,
-  );
-  const hasConfiguration = options.length > 0 || hasLegacyModels;
-  const observedAt = configuration?.observed_at
-    ? new Date(configuration.observed_at).toLocaleString()
-    : undefined;
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+  const content = (
+    <div className="grid gap-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs text-ink-tertiary">Agent configuration</span>
         <Button
-          aria-label={`Session configuration${model ? `, model ${model}` : ""}`}
-          className="min-h-9 min-w-0 max-w-28 shrink gap-1 rounded-lg px-1.5 sm:max-w-56 sm:px-2"
-          disabled={disabled}
-          icon={<SlidersHorizontal className="h-3.5 w-3.5 shrink-0" />}
-          size="sm"
-          tooltip={model ? `Current model: ${model}` : "Session configuration"}
-          type="button"
+          aria-label="Force refresh session configuration"
           variant="ghost"
-        >
-          <span className="max-w-36 truncate text-xs">{model ?? "Config"}</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        side="top"
-        align="start"
-        className="max-h-[min(70vh,640px)] w-96 max-w-[calc(100vw-24px)] overflow-y-auto"
-      >
-        <div className="flex items-start justify-between gap-3 px-2.5 py-2">
-          <div className="min-w-0">
-            <div className="text-sm font-medium text-ink">
-              Session configuration
-            </div>
-            <div className="mt-0.5 text-xs leading-4 text-ink-tertiary">
-              {observedAt
-                ? `Observed ${observedAt}`
-                : "Waiting for the agent to report configuration"}
-            </div>
-          </div>
-          <Button
-            aria-label="Force refresh session configuration"
-            disabled={!configuration?.can_force_refresh || refreshing}
-            icon={
-              refreshing ? (
-                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <RefreshCw className="h-3.5 w-3.5" />
-              )
-            }
-            onClick={onRefresh}
-            size="icon"
-            tooltip="Ask the agent for a complete snapshot by reapplying the current model value"
-            type="button"
-            variant="ghost"
-          />
-        </div>
-
-        {loading && !hasConfiguration && (
-          <div className="px-2.5 py-3 text-xs text-ink-tertiary">
-            Loading configuration...
-          </div>
-        )}
-        {errorMessage && (
-          <div className="mx-2 mb-2 rounded-md border border-danger/30 bg-danger/5 px-2.5 py-2 text-xs text-danger">
-            {errorMessage}
-          </div>
-        )}
-        {!loading && !hasConfiguration && !errorMessage && (
-          <div className="px-2.5 py-3 text-xs leading-5 text-ink-tertiary">
+          size="icon"
+          type="button"
+          disabled={!configuration?.can_force_refresh || refreshing}
+          onClick={onRefresh}
+          icon={
+            refreshing ? (
+              <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" />
+            )
+          }
+        />
+      </div>
+      {loading && !options.length && (
+        <p className="text-xs text-ink-tertiary">Loading configuration...</p>
+      )}
+      {errorMessage && (
+        <p role="alert" className="text-xs text-danger">
+          {errorMessage}
+        </p>
+      )}
+      {!loading &&
+        !options.length &&
+        !configuration?.legacy_models?.available?.length &&
+        !errorMessage && (
+          <p className="text-xs text-ink-tertiary">
             This agent has not reported model or session configuration for this
             session.
-          </div>
+          </p>
         )}
-
-        {options.map((option, optionIndex) => (
-          <div key={option.id}>
-            {(optionIndex > 0 || hasLegacyModels) && (
-              <div
-                className="mx-2 my-1 border-t border-hairline"
-                role="separator"
-              />
-            )}
-            <div className="px-2.5 pb-1 pt-2">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-xs font-medium text-ink">
-                  {option.name}
-                </span>
-                <span className="max-w-48 truncate font-mono text-[11px] text-ink-tertiary">
-                  {String(option.current_value)}
-                </span>
-              </div>
-              {option.description && (
-                <div className="mt-0.5 text-xs leading-4 text-ink-tertiary">
-                  {option.description}
-                </div>
-              )}
-            </div>
-            {option.type === "boolean"
-              ? [false, true].map((value) => (
-                  <ConfigValueItem
-                    checked={option.current_value === value}
-                    disabled={
-                      !configuration?.can_set || Boolean(pendingOptionId)
-                    }
-                    key={String(value)}
-                    label={value ? "On" : "Off"}
-                    onSelect={() => onChange(option.id, value)}
-                  />
-                ))
-              : option.options?.map((candidate, index) => (
-                  <div key={candidate.value}>
-                    {candidate.group &&
-                      (index === 0 ||
-                        option.options?.[index - 1]?.group !==
-                          candidate.group) && (
-                        <div className="px-8 pb-1 pt-2 text-[10px] font-medium uppercase tracking-wide text-ink-tertiary">
-                          {candidate.group}
-                        </div>
-                      )}
-                    <ConfigValueItem
-                      checked={option.current_value === candidate.value}
-                      description={candidate.description}
-                      disabled={
-                        !configuration?.can_set || Boolean(pendingOptionId)
-                      }
-                      label={candidate.name}
-                      onSelect={() => onChange(option.id, candidate.value)}
-                    />
-                  </div>
-                ))}
-          </div>
-        ))}
-
-        {hasLegacyModels && !options.some(isModelOption) && (
-          <div>
-            <div className="px-2.5 pb-1 pt-2">
-              <div className="text-xs font-medium text-ink">Model</div>
-              <div className="mt-0.5 text-xs text-ink-tertiary">
-                Legacy agent model list; switching is not standardized.
-              </div>
-            </div>
-            {configuration?.legacy_models?.available?.map((candidate) => (
-              <ConfigValueItem
-                checked={
-                  configuration.legacy_models?.current_model_id === candidate.id
-                }
-                description={candidate.description}
-                disabled
-                key={candidate.id}
-                label={candidate.name}
-                onSelect={() => undefined}
-              />
-            ))}
-          </div>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function ConfigValueItem({
-  checked,
-  description,
-  disabled,
-  label,
-  onSelect,
-}: {
-  checked: boolean;
-  description?: string;
-  disabled?: boolean;
-  label: string;
-  onSelect: () => void;
-}) {
-  return (
-    <DropdownMenuItem
-      aria-checked={checked}
-      className="items-start"
-      disabled={disabled}
-      onSelect={onSelect}
-      role="menuitemradio"
-    >
-      <Check
-        aria-hidden="true"
-        className={cn(
-          "mt-0.5 h-4 w-4 shrink-0",
-          checked ? "opacity-100" : "opacity-0",
-        )}
-      />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-ink">{label}</span>
-        {description && (
-          <span className="mt-0.5 block text-xs leading-4 text-ink-tertiary">
-            {description}
+      {options.map((option) => (
+        <label
+          key={option.id}
+          className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-3 border-b border-hairline py-2 text-sm"
+        >
+          <span className="min-w-0" title={option.description}>
+            {option.name}
           </span>
-        )}
-      </span>
-    </DropdownMenuItem>
+          {option.type === "boolean" ? (
+            <Switch
+              aria-label={option.name}
+              className="justify-self-end"
+              checked={Boolean(option.current_value)}
+              disabled={
+                disabled || !configuration?.can_set || Boolean(pendingOptionId)
+              }
+              onCheckedChange={(checked) => onChange(option.id, checked)}
+            />
+          ) : (
+            <select
+              aria-label={option.name}
+              value={String(option.current_value)}
+              disabled={
+                disabled || !configuration?.can_set || Boolean(pendingOptionId)
+              }
+              onChange={(event) => onChange(option.id, event.target.value)}
+              className="min-w-0 truncate rounded-md bg-surface-3 px-2 py-2 text-base text-ink outline-none [color-scheme:dark] sm:text-sm"
+            >
+              {!option.options?.some(
+                (candidate) => candidate.value === option.current_value,
+              ) && (
+                <option value={String(option.current_value)}>
+                  {String(option.current_value)}
+                </option>
+              )}
+              {option.options?.map((candidate) => (
+                <option key={candidate.value} value={candidate.value}>
+                  {candidate.group ? `${candidate.group} · ` : ""}
+                  {candidate.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </label>
+      ))}
+      {!options.some(isModelOption) &&
+      configuration?.legacy_models?.available?.length ? (
+        <label className="grid gap-2 text-xs text-ink-tertiary">
+          Model
+          <select
+            aria-label="Legacy model"
+            disabled
+            value={configuration.legacy_models.current_model_id ?? ""}
+            className="min-w-0 bg-surface-3 p-2 text-ink"
+          >
+            {configuration.legacy_models.available.map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>
+                {candidate.name}
+              </option>
+            ))}
+          </select>
+          Legacy agent model list; switching is not standardized.
+        </label>
+      ) : null}
+    </div>
+  );
+  return inline ? (
+    content
+  ) : (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          aria-label={`Session configuration${model ? `, model ${model}` : ""}`}
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={disabled}
+          icon={<SlidersHorizontal className="h-3.5 w-3.5" />}
+        >
+          {model ?? "Config"}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent side="top" align="start">
+        {content}
+      </PopoverContent>
+    </Popover>
   );
 }

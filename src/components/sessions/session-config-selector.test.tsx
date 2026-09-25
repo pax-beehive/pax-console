@@ -86,7 +86,12 @@ describe("SessionConfigSelector", () => {
     );
     expect(screen.getByText("Thinking")).toBeVisible();
     expect(screen.getByText("Fast mode")).toBeVisible();
-    await userEvent.click(screen.getByRole("menuitemradio", { name: "High" }));
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: "Thinking" }),
+      "high",
+    );
+    await userEvent.click(screen.getByRole("switch", { name: "Fast mode" }));
+    expect(onChange).toHaveBeenCalledWith("fast", true);
     expect(onChange).toHaveBeenCalledWith("reasoning_effort", "high");
   });
 
@@ -117,8 +122,8 @@ describe("SessionConfigSelector", () => {
       }),
     );
     expect(
-      screen.getByRole("menuitemradio", { name: "DeepSeek V4" }),
-    ).toHaveAttribute("aria-disabled", "true");
+      screen.getByRole("combobox", { name: "Legacy model" }),
+    ).toBeDisabled();
     expect(screen.getByText(/switching is not standardized/i)).toBeVisible();
   });
 });

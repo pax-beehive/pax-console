@@ -10,11 +10,9 @@ import {
   useState,
 } from "react";
 import {
-  FolderOpen,
-  ArrowUp,
-  FolderPlus,
-  LoaderCircle,
   Ellipsis,
+  ArrowUp,
+  LoaderCircle,
   Mic,
   Paperclip,
   Pencil,
@@ -31,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { SessionCommandInput } from "@/components/sessions/session-command-input";
 import { SessionDraftInput } from "./session-draft-input";
 import { SessionPermissionSelector } from "@/components/sessions/session-permission-selector";
+import { SessionSettings } from "./session-settings";
 import { SessionSecretDialog } from "./session-secret-dialog";
 import {
   DropdownMenu,
@@ -72,18 +71,14 @@ type SessionComposerProps = {
   draftKey: string;
   isNewSession: boolean;
   isTurnRunning: boolean;
-  newSessionCwd: string;
   newSessionCwdInvalid: boolean;
-  newSessionWorkspaceOpen: boolean;
   onAddAttachments: (files: File[]) => Promise<void>;
   onCreateEmptySession?: () => Promise<boolean>;
   onDeleteQueuedTurn: () => void;
   onRemoveAttachment: (attachmentId: string) => void;
-  onSetNewSessionCwd: (value: string) => void;
-  onSetNewSessionWorkspaceOpen: (open: boolean) => void;
   onSteer: (content: string) => Promise<boolean>;
   onStop: () => void;
-  onSubmitDraft: (content: string) => Promise<boolean>;
+  onSubmitDraft: (content: string, onAccepted?: () => void) => Promise<boolean>;
   onSelectPermissionChoice?: (choiceId: string) => void;
   onToggleApprovalMode: () => void;
   onUpdateQueuedTurn: (content: string) => Promise<boolean>;
@@ -95,6 +90,7 @@ type SessionComposerProps = {
   permissionChoiceId?: string;
   permissionChoices?: AgentPermissionChoice[];
   configurationControl?: ReactNode;
+  configurationSummary?: string;
   secure?: boolean;
   showAdminFeatures: boolean;
   steerTurnPending: boolean;
@@ -119,15 +115,11 @@ export const SessionComposer = memo(function SessionComposer({
   draftKey,
   isNewSession,
   isTurnRunning,
-  newSessionCwd,
   newSessionCwdInvalid,
-  newSessionWorkspaceOpen,
   onAddAttachments,
   onCreateEmptySession,
   onDeleteQueuedTurn,
   onRemoveAttachment,
-  onSetNewSessionCwd,
-  onSetNewSessionWorkspaceOpen,
   onSteer,
   onStop,
   onSubmitDraft,
@@ -142,6 +134,7 @@ export const SessionComposer = memo(function SessionComposer({
   permissionChoiceId,
   permissionChoices,
   configurationControl,
+  configurationSummary,
   secure = false,
   showAdminFeatures,
   steerTurnPending,
@@ -158,6 +151,11 @@ export const SessionComposer = memo(function SessionComposer({
     null,
   );
   const [queuedTurnDraft, setQueuedTurnDraft] = useState("");
+  const submissionRef = useRef({
+    create: { pending: false, lastStartedAt: -Infinity },
+    send: { pending: false, lastStartedAt: -Infinity },
+    queue: { pending: false, lastStartedAt: -Infinity },
+  });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const hasAttachments = attachments.length > 0;
   const canSend =
@@ -165,7 +163,7 @@ export const SessionComposer = memo(function SessionComposer({
     !isTurnRunning &&
     !newSessionCwdInvalid &&
     !attachmentUploadPending &&
-    hasContent;
+    (hasContent || hasAttachments);
   const canQueueTurn =
     isTurnRunning &&
     supportsQueuedTurns &&
@@ -188,7 +186,6 @@ export const SessionComposer = memo(function SessionComposer({
     !stopTurnPending;
   const canCreateEmptySession =
     isNewSession &&
-    !secure &&
     Boolean(activeAgentId && activeNodeId && onCreateEmptySession) &&
     !isTurnRunning &&
     !newSessionCwdInvalid &&
@@ -215,19 +212,32 @@ export const SessionComposer = memo(function SessionComposer({
     event?.preventDefault();
     const content =
       useConsoleStore.getState().composerDrafts[draftKey]?.trim() ?? "";
-    if ((!canSend && !canQueueTurn) || !content) {
+    const emptyCreation = !content && !hasAttachments && canCreateEmptySession;
+    if (!emptyCreation && !canSend && !canQueueTurn) return;
+    const guard =
+      submissionRef.current[
+        isNewSession ? "create" : isTurnRunning ? "queue" : "send"
+      ];
+    const now = Date.now();
+    if (guard.pending || (isNewSession && now - guard.lastStartedAt < 500))
       return;
-    }
-    const submission = onSubmitDraft(content);
-    if (isTurnRunning) {
-      void submission.then((accepted) => {
-        if (accepted) {
-          clearSubmittedDraft(content);
-        }
-      });
-      return;
-    }
-    clearSubmittedDraft(content);
+    guard.pending = true;
+    guard.lastStartedAt = now;
+    void (async () => {
+      try {
+        let acknowledged = false;
+        const onAccepted = () => {
+          if (!acknowledged) clearSubmittedDraft(content);
+          acknowledged = true;
+        };
+        const accepted = emptyCreation
+          ? await onCreateEmptySession!()
+          : await onSubmitDraft(content, onAccepted);
+        if (accepted && !acknowledged) onAccepted();
+      } finally {
+        guard.pending = false;
+      }
+    })();
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -508,94 +518,59 @@ export const SessionComposer = memo(function SessionComposer({
               )}
             </DropdownMenuContent>
           </DropdownMenu>
-          {isNewSession ? (
-            newSessionWorkspaceOpen ? (
-              <label
-                className={cn(
-                  "order-first inline-flex min-h-9 min-w-0 basis-full items-center gap-2 rounded-lg border bg-canvas px-2.5 text-sm transition sm:order-none sm:min-w-64 sm:max-w-96 sm:basis-auto sm:flex-1",
-                  newSessionCwdInvalid
-                    ? "border-warning text-warning"
-                    : "border-hairline text-ink-muted focus-within:border-primary-focus focus-within:ring-2 focus-within:ring-primary-focus/20",
-                )}
-                onBlur={(event) => {
-                  const nextTarget = event.relatedTarget;
-                  if (
-                    (nextTarget instanceof globalThis.Node &&
-                      event.currentTarget.contains(nextTarget)) ||
-                    newSessionCwd.trim()
-                  ) {
-                    return;
-                  }
-                  onSetNewSessionWorkspaceOpen(false);
-                }}
-              >
-                <FolderOpen className="h-4 w-4 shrink-0" />
-                <span className="shrink-0 text-xs font-medium text-ink-tertiary">
-                  Workspace
-                </span>
-                <input
-                  aria-invalid={newSessionCwdInvalid}
-                  aria-label="Workspace"
-                  autoFocus
-                  className="min-w-0 flex-1 bg-transparent font-mono text-base text-ink outline-none placeholder:text-ink-tertiary sm:text-xs"
-                  onChange={(event) => onSetNewSessionCwd(event.target.value)}
-                  placeholder="~/project"
-                  spellCheck={false}
-                  value={newSessionCwd}
-                />
-              </label>
+          <SessionSettings
+            summary={[
+              configurationSummary,
+              permissionChoices?.find(
+                (choice) => choice.choice_id === permissionChoiceId,
+              )?.label ??
+                (approvalMode === "auto_approve_all" ? "Auto approve" : "Ask"),
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          >
+            {configurationControl}
+            {permissionChoices?.length &&
+            permissionChoiceId &&
+            onSelectPermissionChoice ? (
+              <SessionPermissionSelector
+                field
+                catalog={permissionCatalog}
+                choices={permissionChoices}
+                disabled={approvalModePending}
+                error={permissionCatalogError}
+                loading={permissionCatalogLoading}
+                onChange={onSelectPermissionChoice}
+                value={permissionChoiceId}
+              />
             ) : (
               <Button
-                aria-label="Set workspace"
-                icon={<FolderPlus className="h-4 w-4" />}
-                onClick={() => onSetNewSessionWorkspaceOpen(true)}
+                aria-label={
+                  approvalMode === "auto_approve_all"
+                    ? "Auto approve tools without asking"
+                    : "Ask before running tools"
+                }
+                aria-pressed={approvalMode === "auto_approve_all"}
+                className={cn(
+                  approvalMode === "auto_approve_all"
+                    ? "border-success/25 bg-success/10 text-success hover:bg-success/15 hover:text-success"
+                    : "text-primary-hover",
+                )}
+                disabled={approvalModePending}
+                icon={<ShieldCheck className="h-4 w-4" />}
+                onClick={onToggleApprovalMode}
                 size="icon"
-                tooltip="Set workspace"
+                tooltip={
+                  approvalMode === "auto_approve_all"
+                    ? "Auto approve tools without asking · tap to require approval"
+                    : "Ask before running tools · tap to auto approve"
+                }
+                tooltipOnClick
                 type="button"
                 variant="ghost"
               />
-            )
-          ) : null}
-          {configurationControl}
-          {permissionChoices?.length &&
-          permissionChoiceId &&
-          onSelectPermissionChoice ? (
-            <SessionPermissionSelector
-              catalog={permissionCatalog}
-              choices={permissionChoices}
-              disabled={approvalModePending}
-              error={permissionCatalogError}
-              loading={permissionCatalogLoading}
-              onChange={onSelectPermissionChoice}
-              value={permissionChoiceId}
-            />
-          ) : (
-            <Button
-              aria-label={
-                approvalMode === "auto_approve_all"
-                  ? "Auto approve tools without asking"
-                  : "Ask before running tools"
-              }
-              aria-pressed={approvalMode === "auto_approve_all"}
-              className={cn(
-                approvalMode === "auto_approve_all"
-                  ? "border-success/25 bg-success/10 text-success hover:bg-success/15 hover:text-success"
-                  : "text-primary-hover",
-              )}
-              disabled={approvalModePending}
-              icon={<ShieldCheck className="h-4 w-4" />}
-              onClick={onToggleApprovalMode}
-              size="icon"
-              tooltip={
-                approvalMode === "auto_approve_all"
-                  ? "Auto approve tools without asking · tap to require approval"
-                  : "Ask before running tools · tap to auto approve"
-              }
-              tooltipOnClick
-              type="button"
-              variant="ghost"
-            />
-          )}
+            )}
+          </SessionSettings>
           <div className="min-w-0 flex-1" />
           {showAdminFeatures && (
             <Button
@@ -716,53 +691,13 @@ export const SessionComposer = memo(function SessionComposer({
                   secure &&
                     "border-emerald-400/60 bg-emerald-400 text-emerald-950 shadow-[0_0_18px_rgba(52,211,153,0.16)] hover:bg-emerald-300",
                 )}
-                disabled={!canSend}
+                disabled={!canSend && !canCreateEmptySession}
                 icon={<ArrowUp className="h-5 w-5" />}
                 size="icon"
                 tooltip="Send prompt"
                 type="submit"
                 variant="primary"
               />
-              {isNewSession && !secure && onCreateEmptySession && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      aria-label="Advanced session actions"
-                      disabled={createEmptySessionPending}
-                      icon={
-                        createEmptySessionPending ? (
-                          <LoaderCircle className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Ellipsis className="h-4 w-4" />
-                        )
-                      }
-                      size="icon"
-                      tooltip="Advanced session actions"
-                      type="button"
-                      variant="ghost"
-                    />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-72">
-                    <div className="px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-ink-tertiary">
-                      Advanced
-                    </div>
-                    <DropdownMenuItem
-                      className="items-start py-2"
-                      disabled={!canCreateEmptySession}
-                      onSelect={() => void onCreateEmptySession()}
-                    >
-                      <span className="min-w-0">
-                        <span className="block text-ink">
-                          Create empty session
-                        </span>
-                        <span className="mt-0.5 block text-xs leading-4 text-ink-tertiary">
-                          Initialize the agent without sending a prompt.
-                        </span>
-                      </span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
             </>
           )}
         </div>

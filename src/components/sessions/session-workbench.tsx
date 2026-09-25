@@ -21,7 +21,6 @@ import {
   LoaderCircle,
   Menu,
   PanelRight,
-  Pencil,
   RefreshCw,
   RotateCcw,
   ShieldCheck,
@@ -50,10 +49,14 @@ import {
 } from "@/components/sessions/session-event-cards";
 import { SessionBrowserApprovals } from "./session-browser-approvals";
 import { SessionBrowserWindow } from "./session-browser-window";
+import { WorkspacePicker } from "./workspace-picker";
 import { SessionWorkspaceDetails } from "./session-workspace-details";
 import { SessionComposer } from "@/components/sessions/session-composer";
-import { SessionConfigSelector } from "@/components/sessions/session-config-selector";
-import { MobileCollapsibleSessionHeader } from "@/components/sessions/mobile-collapsible-session-header";
+import {
+  SessionConfigSelector,
+  configurationModel,
+} from "@/components/sessions/session-config-selector";
+import { SessionHeader } from "@/components/sessions/session-header";
 import { SecureModeActivation } from "@/components/sessions/secure-mode-activation";
 import { mergeRecoveredInitialPromptDraft } from "@/components/sessions/session-initial-prompt";
 import { SessionRuntimeActions } from "@/components/sessions/session-runtime-actions";
@@ -87,6 +90,7 @@ import {
   uploadUserAttachmentFile,
   useAgentOwnerInfos,
   useAgentPermissionCatalog,
+  useProject,
   useKnowledgeCapsules,
   useKnowledgeInjections,
   useAgentSessions,
@@ -275,9 +279,6 @@ export function SessionWorkbench({
     string | null
   >(null);
   const [newSessionCwd, setNewSessionCwd] = useState(initialCwd ?? "");
-  const [newSessionWorkspaceOpen, setNewSessionWorkspaceOpen] = useState(
-    Boolean(initialCwd),
-  );
   const [newSessionApprovalMode, setNewSessionApprovalMode] =
     useState<SessionApprovalMode>(initialApprovalMode ?? "manual");
   const [newSessionPermissionChoiceId, setNewSessionPermissionChoiceId] =
@@ -339,6 +340,10 @@ export function SessionWorkbench({
       ),
     [currentSessionId, sessionMetadata, sessionsQuery.data?.sessions],
   );
+  const projectQuery = useProject(
+    user.user_id,
+    activeSession?.primary_project_id ?? initialPrimaryProjectId,
+  );
   const usesEncryptedTransport =
     initialTransport === "e2ee" || activeSession?.transport === "e2ee";
   const sessionConfigurationQuery = useSessionConfiguration(
@@ -385,15 +390,12 @@ export function SessionWorkbench({
   const displayedPermissionChoiceId =
     activePaxConfig?.permission_choice_id ??
     effectiveNewSessionPermissionChoiceId;
-  const displayedWorkspace =
-    currentSessionId && activePaxConfig?.cwd
-      ? activePaxConfig.cwd
-      : currentSessionId
-        ? "/tmp"
-        : normalizedNewSessionCwd;
-  const shouldShowReadOnlyWorkspace =
-    Boolean(currentSessionId && displayedWorkspace) &&
-    displayedWorkspace !== "/tmp";
+  const displayedWorkspace = currentSessionId
+    ? (activePaxConfig?.cwd ?? initialCwd ?? "")
+    : normalizedNewSessionCwd;
+  const shouldShowReadOnlyWorkspace = Boolean(
+    currentSessionId && displayedWorkspace,
+  );
   const composerDraftKey =
     currentSessionId ??
     `new:${activeNodeId ?? "node"}:${activeAgentId ?? "agent"}`;
@@ -1006,7 +1008,8 @@ export function SessionWorkbench({
     },
   );
   const isTurnRunning = usesEncryptedTransport
-    ? activeSessionRuntimeBlocksPrompt ||
+    ? Boolean(pendingEncryptedBootstrap) ||
+      activeSessionRuntimeBlocksPrompt ||
       encryptedRuntime.status === "streaming"
     : shouldFollowQueuedTurn ||
       (displayedRunStatus !== "done" &&
@@ -1668,10 +1671,15 @@ export function SessionWorkbench({
   const queueDraft = queueTurn.mutateAsync;
   const sendConversationMessage = conversationRun.sendMessage;
   const initializeConversationSession = conversationRun.initializeSession;
+  const emptyCreationRef = useRef({ pending: false, lastStartedAt: -Infinity });
   const createEmptySession = useCallback(async () => {
     if (!activeAgentId || !activeNodeId || newSessionCwdInvalid) {
       return false;
     }
+    const guard = emptyCreationRef.current;
+    if (guard.pending || Date.now() - guard.lastStartedAt < 500) return false;
+    guard.pending = true;
+    guard.lastStartedAt = Date.now();
     const sourceDraftKey = composerDraftKey;
     setSendError(null);
     setPendingSessionPaxConfig({
@@ -1679,6 +1687,10 @@ export function SessionWorkbench({
       approval_mode: effectiveNewSessionApprovalMode,
     });
     try {
+      if (usesEncryptedTransport) {
+        await beginEncryptedSession("");
+        return true;
+      }
       const result = await initializeConversationSession({
         approvalMode: effectiveNewSessionApprovalMode,
         cwd: normalizedNewSessionCwd || undefined,
@@ -1707,6 +1719,8 @@ export function SessionWorkbench({
         caught instanceof Error ? caught : new Error(String(caught)),
       );
       return false;
+    } finally {
+      guard.pending = false;
     }
   }, [
     activeAgentId,
@@ -1717,6 +1731,8 @@ export function SessionWorkbench({
     initialPrimaryProjectId,
     initialProjectTargetId,
     initializeConversationSession,
+    beginEncryptedSession,
+    usesEncryptedTransport,
     newSessionCwdInvalid,
     normalizedNewSessionCwd,
     recoverPermissionCatalogAfterCreateFailure,
@@ -1726,7 +1742,7 @@ export function SessionWorkbench({
     if (
       !initialInitializeOnly ||
       !isNewSession ||
-      usesEncryptedTransport ||
+      (usesEncryptedTransport && encryptedRuntime.keyLoading) ||
       initialEmptySessionStartedRef.current
     ) {
       return;
@@ -1736,6 +1752,7 @@ export function SessionWorkbench({
   }, [
     createEmptySession,
     initialInitializeOnly,
+    encryptedRuntime.keyLoading,
     isNewSession,
     usesEncryptedTransport,
   ]);
@@ -1747,8 +1764,13 @@ export function SessionWorkbench({
     setComposerAttachmentError(null);
   }, []);
   const submitDraft = useCallback(
-    async (content: string) => {
-      if (!content || !activeAgentId || !activeNodeId || newSessionCwdInvalid) {
+    async (content: string, onAccepted?: () => void) => {
+      if (
+        (!content && composerAttachments.length === 0) ||
+        !activeAgentId ||
+        !activeNodeId ||
+        newSessionCwdInvalid
+      ) {
         return false;
       }
 
@@ -1819,7 +1841,10 @@ export function SessionWorkbench({
             : {}),
           ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
           attachments: composerAttachments,
-          onAccepted: () => clearSentAttachments(attachmentIds),
+          onAccepted: () => {
+            clearSentAttachments(attachmentIds);
+            onAccepted?.();
+          },
         });
         return true;
       } catch (caught) {
@@ -1931,7 +1956,7 @@ export function SessionWorkbench({
     if (
       initialPromptSentRef.current ||
       sessionId !== "new" ||
-      !content ||
+      (!content && composerAttachments.length === 0) ||
       !activeAgentId ||
       !activeNodeId ||
       newSessionCwdInvalid ||
@@ -1985,6 +2010,7 @@ export function SessionWorkbench({
       const attachmentIds = composerAttachments.map(
         (attachment) => attachment.attachmentId,
       );
+      let initialAccepted = false;
       void sendConversationMessage(content, {
         approvalMode: initialPromptPermission.approvalMode,
         cwd: normalizedNewSessionCwd || undefined,
@@ -1997,6 +2023,7 @@ export function SessionWorkbench({
         ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
         attachments: composerAttachments,
         onAccepted: () => {
+          initialAccepted = true;
           clearSentAttachments(attachmentIds);
           removeStoredInitialPrompt(initialPromptKey);
         },
@@ -2006,11 +2033,11 @@ export function SessionWorkbench({
         })
         .catch((caught) => {
           setPendingSessionPaxConfig(null);
-          const recovered = recoverPermissionCatalogAfterCreateFailure(
+          recoverPermissionCatalogAfterCreateFailure(
             caught,
             initialPromptPermission.choiceId,
           );
-          if (recovered) {
+          if (!initialAccepted) {
             const consoleStore = useConsoleStore.getState();
             consoleStore.setComposerDraft(
               composerDraftKey,
@@ -2019,13 +2046,13 @@ export function SessionWorkbench({
                 consoleStore.composerDrafts[composerDraftKey] ?? "",
               ),
             );
-            pendingInitialPromptRef.current = "";
-            initialPromptPermissionRef.current = null;
-            // Keep automatic delivery latched off. The recovered draft is sent
-            // only after the user explicitly retries with PAX manual.
-            initialPromptSentRef.current = true;
-            removeStoredInitialPrompt(initialPromptKey);
           }
+          pendingInitialPromptRef.current = "";
+          initialPromptPermissionRef.current = null;
+          // Keep automatic delivery latched off. The recovered draft is sent
+          // only after an explicit retry.
+          initialPromptSentRef.current = true;
+          removeStoredInitialPrompt(initialPromptKey);
           setSendError(
             caught instanceof Error ? caught : new Error(String(caught)),
           );
@@ -2107,12 +2134,15 @@ export function SessionWorkbench({
       tooltip="Watch browser"
       aria-expanded={browserOpen}
       size="sm"
-      className="min-h-10 w-10 shrink-0 rounded-full px-0 text-ink-muted lg:min-h-9 lg:w-auto lg:px-3"
+      className="w-full justify-start text-ink-muted"
       variant="ghost"
       icon={<Monitor className="h-4 w-4" />}
-      onClick={() => setBrowserOpen(!browserOpen)}
+      onClick={() => {
+        setBrowserOpen(true);
+        setActiveSidePanelId(null);
+      }}
     >
-      <span className="hidden lg:inline">浏览器</span>
+      <span>Open browser</span>
     </Button>
   ) : null;
 
@@ -2172,6 +2202,15 @@ export function SessionWorkbench({
         ),
       },
       {
+        id: "browser",
+        label: "Browser",
+        description: "Browser on this session’s device",
+        icon: <Monitor className="h-4 w-4" />,
+        content: browserButton ?? (
+          <p className="text-sm text-ink-tertiary">No device available.</p>
+        ),
+      },
+      {
         id: "knowledge",
         label: "Knowledge",
         description: "Capsules and system handoff injections",
@@ -2195,7 +2234,11 @@ export function SessionWorkbench({
         ),
       },
     ] satisfies SessionSidePanel[]
-  ).filter((panel) => canSeeSessionSidePanel(panel.id, showAdminFeatures));
+  ).filter(
+    (panel) =>
+      canSeeSessionSidePanel(panel.id, showAdminFeatures) &&
+      (panel.id !== "tool" || activeSidePanelId === "tool"),
+  );
   const activeSidePanel = sidePanels.find(
     (panel) => panel.id === activeSidePanelId,
   );
@@ -2221,40 +2264,22 @@ export function SessionWorkbench({
     >
       {usesEncryptedTransport && <SecureModeActivation showStatus={false} />}
       <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
-        <MobileCollapsibleSessionHeader
+        <SessionHeader
           details={
-            shouldShowReadOnlyWorkspace ? (
+            isNewSession ? (
+              <WorkspacePicker
+                value={newSessionCwd}
+                targets={[]}
+                save={false}
+                canSave={false}
+                disabled={!activeAgentId}
+                onChange={setNewSessionCwd}
+              />
+            ) : shouldShowReadOnlyWorkspace ? (
               <SessionWorkspaceDetails workspace={displayedWorkspace} />
             ) : undefined
           }
-          actions={browserButton}
           key={currentSessionId ?? "new"}
-          summary={
-            <div className="flex min-w-0 items-center gap-2">
-              <TruncatedText
-                className="text-sm font-medium"
-                tooltip={sessionTitleTooltip}
-              >
-                {sessionDisplayName}
-              </TruncatedText>
-              {usesEncryptedTransport && (
-                <ShieldCheck
-                  aria-label="End-to-end encrypted session"
-                  className="h-3.5 w-3.5 shrink-0 text-emerald-400"
-                />
-              )}
-              <RunBadge
-                compact
-                paxdOffline={activeNode?.online === false}
-                error={
-                  usesEncryptedTransport
-                    ? encryptedRuntime.error
-                    : conversationRun.error
-                }
-                status={displayedRunStatus}
-              />
-            </div>
-          }
           surfaceClassName={
             usesEncryptedTransport
               ? "border-emerald-400/20 bg-emerald-500/[0.03] backdrop-blur-xl"
@@ -2288,17 +2313,20 @@ export function SessionWorkbench({
                 variant="ghost"
               />
             )}
-            <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 gap-1 text-xs text-ink-tertiary sm:max-w-[52vw] sm:text-sm">
+            <div className="flex min-w-0 flex-1 flex-col">
+              <div className="order-2 flex min-w-0 gap-1 text-xs text-ink-muted sm:max-w-[52vw] sm:text-sm">
                 <TruncatedText>
-                  {activeNode?.name ?? activeNode?.hostname ?? "Unknown node"}
+                  {projectQuery.data?.project.display_name ??
+                    activeNode?.name ??
+                    activeNode?.hostname ??
+                    "No project"}
                 </TruncatedText>
                 <span className="shrink-0">/</span>
                 <TruncatedText>
                   {activeAgent?.name ?? activeAgentId ?? "Unknown agent"}
                 </TruncatedText>
               </div>
-              <div className="mt-1 flex min-w-0 items-center gap-1">
+              <div className="flex min-w-0 items-center gap-1">
                 {sessionNameEditing ? (
                   <form
                     className="flex min-w-0 flex-1 items-center gap-1"
@@ -2380,18 +2408,6 @@ export function SessionWorkbench({
                     >
                       {sessionDisplayName}
                     </TruncatedText>
-                    {currentSessionId && (
-                      <Button
-                        aria-label="Rename session"
-                        className="h-8 w-8"
-                        icon={<Pencil className="h-3.5 w-3.5" />}
-                        onClick={beginSessionNameEdit}
-                        size="icon"
-                        tooltip="Rename session"
-                        type="button"
-                        variant="ghost"
-                      />
-                    )}
                   </>
                 )}
                 {usesEncryptedTransport && (
@@ -2408,8 +2424,9 @@ export function SessionWorkbench({
               </div>
             </div>
           </div>
-          <div className="col-span-2 row-start-2 flex min-w-0 items-center gap-2 border-t border-hairline pt-2 lg:shrink-0 lg:border-0 lg:pt-0">
+          <div className="flex shrink-0 items-center gap-1">
             <RunBadge
+              compact
               paxdOffline={activeNode?.online === false}
               error={
                 usesEncryptedTransport
@@ -2418,7 +2435,6 @@ export function SessionWorkbench({
               }
               status={displayedRunStatus}
             />
-            {browserButton}
             <SessionRuntimeActions
               canReset={Boolean(
                 activeSession?.runtime_turn_instance_id &&
@@ -2426,33 +2442,30 @@ export function SessionWorkbench({
               )}
               isPending={resetStaleSessionStatus.isPending}
               onReset={() => resetStaleSessionStatus.mutateAsync()}
-              contextPanelOpen={Boolean(activeSidePanel)}
-              onToggleContextPanel={() =>
-                setActiveSidePanelId((current) =>
-                  current ? null : (sidePanels[0]?.id ?? null),
-                )
-              }
+              onRename={currentSessionId ? beginSessionNameEdit : undefined}
             />
-            <Button
-              className="hidden lg:inline-flex"
-              aria-label={
-                activeSidePanel ? "Hide context panel" : "Show context panel"
-              }
-              icon={<PanelRight className="h-4 w-4" />}
-              onClick={() =>
-                setActiveSidePanelId((current) =>
-                  current ? null : (sidePanels[0]?.id ?? null),
-                )
-              }
-              size="icon"
-              tooltip={
-                activeSidePanel ? "Hide context panel" : "Show context panel"
-              }
-              type="button"
-              variant={activeSidePanel ? "secondary" : "ghost"}
-            />
+            {currentSessionId && (
+              <Button
+                className="shrink-0"
+                aria-label={
+                  activeSidePanel ? "Hide session panel" : "Open session panel"
+                }
+                icon={<PanelRight className="h-4 w-4" />}
+                onClick={() =>
+                  setActiveSidePanelId((current) =>
+                    current ? null : "artifacts",
+                  )
+                }
+                size="icon"
+                tooltip={
+                  activeSidePanel ? "Hide session panel" : "Open session panel"
+                }
+                type="button"
+                variant={activeSidePanel ? "secondary" : "ghost"}
+              />
+            )}
           </div>
-        </MobileCollapsibleSessionHeader>
+        </SessionHeader>
         {activeNodeId && (
           <SessionBrowserApprovals
             key={`${user.user_id}/${activeNodeId}`}
@@ -2547,19 +2560,11 @@ export function SessionWorkbench({
           isNewSession={isNewSession}
           isTurnRunning={isTurnRunning}
           showAdminFeatures={showAdminFeatures}
-          newSessionCwd={newSessionCwd}
           newSessionCwdInvalid={newSessionCwdInvalid}
-          newSessionWorkspaceOpen={newSessionWorkspaceOpen}
           onAddAttachments={handleAddComposerAttachments}
-          onCreateEmptySession={
-            isNewSession && !usesEncryptedTransport
-              ? createEmptySession
-              : undefined
-          }
+          onCreateEmptySession={isNewSession ? createEmptySession : undefined}
           onDeleteQueuedTurn={handleDeleteQueuedTurn}
           onRemoveAttachment={handleRemoveComposerAttachment}
-          onSetNewSessionCwd={setNewSessionCwd}
-          onSetNewSessionWorkspaceOpen={setNewSessionWorkspaceOpen}
           onSteer={handleSteerTurn}
           onStop={handleStopTurn}
           onSubmitDraft={submitDraft}
@@ -2573,10 +2578,16 @@ export function SessionWorkbench({
           permissionCatalogLoading={permissionCatalogQuery.isPending}
           permissionChoiceId={displayedPermissionChoiceId}
           permissionChoices={permissionChoices}
+          configurationSummary={
+            !usesEncryptedTransport
+              ? configurationModel(sessionConfigurationQuery.data)
+              : undefined
+          }
           configurationControl={
             currentSessionId &&
             !usesEncryptedTransport && (
               <SessionConfigSelector
+                inline
                 configuration={sessionConfigurationQuery.data}
                 errorMessage={
                   sessionConfigurationQuery.error instanceof Error
@@ -2602,15 +2613,20 @@ export function SessionWorkbench({
       </section>
 
       {activeSidePanel && (
-        <aside className="absolute inset-y-0 right-0 z-20 min-h-0 w-full overflow-auto border-l border-hairline bg-surface-1 shadow-2xl shadow-black/40 sm:w-[min(100vw,320px)] lg:relative lg:inset-auto lg:z-auto lg:w-[300px] lg:shadow-none">
+        <button
+          type="button"
+          aria-label="Close session panel"
+          className="absolute inset-0 z-20 bg-black/40 lg:hidden"
+          onClick={() => setActiveSidePanelId(null)}
+        />
+      )}
+      {activeSidePanel && (
+        <aside className="absolute inset-x-0 bottom-0 z-30 max-h-[80%] min-h-0 w-full overflow-auto rounded-t-2xl border border-hairline bg-surface-1 shadow-2xl shadow-black/40 lg:relative lg:inset-auto lg:z-auto lg:max-h-full lg:w-[340px] lg:rounded-none lg:border-y-0 lg:border-r-0 lg:shadow-none">
           <div className="flex min-w-0 items-start justify-between gap-3 border-b border-hairline p-4">
             <div className="min-w-0">
               <div className="flex items-center gap-2 text-sm font-medium text-ink">
-                {activeSidePanel.icon}
-                {activeSidePanel.label}
-              </div>
-              <div className="mt-1 text-xs text-ink-tertiary">
-                {activeSidePanel.description}
+                <PanelRight className="h-4 w-4" />
+                Session panel
               </div>
             </div>
             <Button

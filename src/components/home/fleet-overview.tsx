@@ -27,10 +27,7 @@ import {
   Bot,
   Check,
   ChevronDown,
-  ChevronRight,
-  Ellipsis,
   Folder,
-  FolderOpen,
   Inbox,
   ListFilter,
   LockKeyhole,
@@ -46,16 +43,14 @@ import {
   X,
 } from "lucide-react";
 import { PaxdGettingStartedGuide } from "@/components/connect/paxd-getting-started";
-import {
-  MobileSessionTabs,
-  type MobileSessionTabItem,
-} from "@/components/home/mobile-session-tabs";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import {
   type ComposerAttachment,
   SessionWorkbench,
 } from "@/components/sessions/session-workbench";
 import { SecureModeActivation } from "@/components/sessions/secure-mode-activation";
+import { SessionSettings } from "@/components/sessions/session-settings";
+import { WorkspacePicker } from "@/components/sessions/workspace-picker";
 import { SessionPermissionSelector } from "@/components/sessions/session-permission-selector";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -169,6 +164,7 @@ type EmbeddedSessionTarget = {
   nodeId?: string;
   primaryProjectId?: string;
   projectTargetId?: string;
+  saveWorkspaceTarget?: boolean;
   sessionId: string;
 };
 
@@ -204,10 +200,8 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const [workspaceDraft, setWorkspaceDraft] = useState<{
     key: string;
     cwd: string;
+    save?: boolean;
   } | null>(null);
-  const [workspaceEditingKey, setWorkspaceEditingKey] = useState<string | null>(
-    null,
-  );
   const [newSessionTransport, setNewSessionTransport] =
     useState<NonNullable<AgentSession["transport"]>>("manager");
   const [
@@ -228,19 +222,10 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [mobileComposerOpen, setMobileComposerOpen] = useState(true);
   const [mobileRailOpen, setMobileRailOpen] = useState(false);
-  const [dismissedDeckSession, setDismissedDeckSession] = useState<{
-    index: number;
-    sessionId: string;
-    title: string;
-  } | null>(null);
-  const dismissUndoTimerRef = useRef<number | null>(null);
-  const {
-    dismissSession: dismissDeckSession,
-    rememberSession,
-    reorderSessions: reorderDeckSessions,
-    restoreSession,
-    sessionIds: openSessionIds,
-  } = useSessionDeck(user.user_id);
+  const creationStartedAtRef = useRef(-Infinity);
+  const creationPendingRef = useRef(false);
+  const { rememberSession, dismissSession: dismissDeckSession } =
+    useSessionDeck(user.user_id);
   const [contextClosed, setContextClosed] = useState(false);
   const [sessionAgentFilters, setSessionAgentFilters] = useState<string[]>([]);
   const [sessionNodeFilters, setSessionNodeFilters] = useState<string[]>([]);
@@ -413,19 +398,8 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const newSessionCwdInvalid =
     normalizedNewSessionCwd.length > 0 &&
     !isSupportedSessionWorkspace(normalizedNewSessionCwd);
-  const newSessionWorkspaceOpen =
-    workspaceEditingKey === workspaceKey ||
-    newSessionCwdInvalid ||
-    Boolean(selectedProjectId && !normalizedNewSessionCwd && !workspaceLoading);
   const matchingProjectTarget = suggestedProjectTargets.find(
     (target) => target.cwd === normalizedNewSessionCwd,
-  );
-  const availableProjectTargets = useMemo(
-    () =>
-      enabledProjectTargets.filter((target) =>
-        agents.some((agent) => agent.agent_id === target.agent_id),
-      ),
-    [enabledProjectTargets, agents],
   );
 
   const sessions = useMemo(
@@ -478,18 +452,6 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       effectiveSessionNodeFilters,
     ],
   );
-  const sessionAgentFilterLabel = filterSelectionLabel(
-    sessionAgentFilterOptions,
-    effectiveSessionAgentFilters,
-    "All agents",
-    "agents",
-  );
-  const sessionNodeFilterLabel = filterSelectionLabel(
-    sessionNodeFilterOptions,
-    effectiveSessionNodeFilters,
-    "All nodes",
-    "nodes",
-  );
   const selectedWorkItem = selectedWorkItemId
     ? activeWorkItems.find((item) => item.id === selectedWorkItemId)
     : undefined;
@@ -520,28 +482,6 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     Boolean(activeSessionTarget) &&
     activeSessionTarget?.sessionId !== "new" &&
     (!activeSessionTarget?.nodeId || !activeSessionTarget?.agentId);
-  const mobileSessionTabItems = useMemo(
-    () =>
-      openSessionIds.map((sessionId): MobileSessionTabItem => {
-        const item = workItems.find(
-          (candidate) =>
-            candidate.kind === "session" && candidate.sessionId === sessionId,
-        );
-        return {
-          runStatus: item?.runStatus,
-          sessionId,
-          title: item?.title ?? compactId(sessionId),
-        };
-      }),
-    [openSessionIds, workItems],
-  );
-  const railSubtitle = [
-    sessionAgentFilterLabel,
-    sessionNodeFilterLabel,
-    includeArchivedSessions ? "Archived included" : undefined,
-  ]
-    .filter(Boolean)
-    .join(" · ");
   const updateSessionArchived = useMutation({
     mutationFn: async (item: WorkItem) => {
       if (!item.nodeId || !item.agentId || !item.sessionId) {
@@ -592,13 +532,6 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     activeSessionTarget || composerContextItem || selectedProjectId,
   );
   const mobilePaneOpen = mobileDetailOpen || mobileComposerOpen;
-  const mobileDetailTitle = activeSessionTarget
-    ? "Session"
-    : mobileComposerOpen
-      ? "New chat"
-      : selectedProjectId
-        ? "Project"
-        : "Composer";
   const secureComposerActive =
     !activeSessionTarget && newSessionTransport === "e2ee";
 
@@ -640,15 +573,6 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     }
   }, [activeSessionTarget?.sessionId, rememberSession]);
 
-  useEffect(
-    () => () => {
-      if (dismissUndoTimerRef.current !== null) {
-        window.clearTimeout(dismissUndoTimerRef.current);
-      }
-    },
-    [],
-  );
-
   function handleRailScroll(event: UIEvent<HTMLElement>) {
     if (
       !sessionsQuery.hasNextPage ||
@@ -683,71 +607,6 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     setNewSessionTransport("manager");
   }
 
-  function openTabSession(sessionId: string) {
-    const item = workItems.find(
-      (candidate) =>
-        candidate.kind === "session" && candidate.sessionId === sessionId,
-    );
-    if (item) {
-      openSessionItem(item);
-      return;
-    }
-
-    setSessionAgentFilters([]);
-    setSessionNodeFilters([]);
-    setEmbeddedSessionTarget({
-      key: `tab:${sessionId}`,
-      sessionId,
-    });
-    setSelectedProjectId("");
-    setSelectedWorkItemId("");
-    replaceHomeSessionUrl(sessionId);
-    setMobileComposerOpen(false);
-    setMobileRailOpen(false);
-    setContextClosed(false);
-    setComposerMode("clean");
-    setNewSessionTransport("manager");
-  }
-
-  function closeSessionTab(sessionId: string) {
-    const index = openSessionIds.indexOf(sessionId);
-    const title =
-      mobileSessionTabItems.find((item) => item.sessionId === sessionId)
-        ?.title ?? compactId(sessionId);
-    setDismissedDeckSession({ index: Math.max(0, index), sessionId, title });
-    dismissDeckSession(sessionId);
-
-    if (dismissUndoTimerRef.current !== null) {
-      window.clearTimeout(dismissUndoTimerRef.current);
-    }
-    dismissUndoTimerRef.current = window.setTimeout(() => {
-      setDismissedDeckSession(null);
-      dismissUndoTimerRef.current = null;
-    }, 5_000);
-
-    if (activeSessionTarget?.sessionId === sessionId) {
-      const remainingIds = openSessionIds.filter((id) => id !== sessionId);
-      const nextSessionId = remainingIds[index] ?? remainingIds[index - 1];
-      if (nextSessionId) {
-        openTabSession(nextSessionId);
-      } else {
-        showCleanComposer();
-      }
-    }
-  }
-
-  function undoTabClose() {
-    if (!dismissedDeckSession) {
-      return;
-    }
-    restoreSession(dismissedDeckSession.sessionId, dismissedDeckSession.index);
-    setDismissedDeckSession(null);
-    if (dismissUndoTimerRef.current !== null) {
-      window.clearTimeout(dismissUndoTimerRef.current);
-      dismissUndoTimerRef.current = null;
-    }
-  }
-
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const draft = useConsoleStore.getState().composerDrafts[homeDraftKey] ?? "";
@@ -779,6 +638,13 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     }
 
     const nonce = Date.now();
+    if (
+      creationPendingRef.current ||
+      nonce - creationStartedAtRef.current < 500
+    )
+      return;
+    creationPendingRef.current = true;
+    creationStartedAtRef.current = nonce;
     const initialPrompt = draft.trim();
     setProjectTargetSaveError(null);
     setEmbeddedSessionTarget({
@@ -788,6 +654,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       initialAttachments: composerAttachments,
       initialCwd: normalizedNewSessionCwd || undefined,
       initialPrompt: initialPrompt || undefined,
+      initialInitializeOnly: !initialPrompt && composerAttachments.length === 0,
+      saveWorkspaceTarget:
+        workspaceDraft?.key === workspaceKey && Boolean(workspaceDraft.save),
       initialTransport: newSessionTransport,
       key: `new:${nonce}`,
       nodeId: activeAgent.node_id,
@@ -805,42 +674,6 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     setNewSessionTransport("manager");
     setComposerAttachments([]);
     setComposerAttachmentError(null);
-  }
-
-  function initializeEmptySession() {
-    if (
-      !activeAgent?.agent_id ||
-      !activeAgent.node_id ||
-      newSessionTransport === "e2ee" ||
-      (selectedProjectId && !normalizedNewSessionCwd) ||
-      workspaceLoading ||
-      newSessionCwdInvalid ||
-      composerAttachmentUploadPending ||
-      composerAttachments.length > 0
-    ) {
-      return;
-    }
-
-    setProjectTargetSaveError(null);
-    setEmbeddedSessionTarget({
-      agentId: activeAgent.agent_id,
-      initialApprovalMode: effectiveNewSessionApprovalMode,
-      initialInitializeOnly: true,
-      initialPermissionChoiceId: effectiveNewSessionPermissionChoiceId,
-      initialCwd: normalizedNewSessionCwd || undefined,
-      initialTransport: "manager",
-      key: `new:${Date.now()}`,
-      nodeId: activeAgent.node_id,
-      primaryProjectId: selectedProjectId || undefined,
-      projectTargetId: matchingProjectTarget?.target_id,
-      sessionId: "new",
-    });
-    clearHomeSessionUrl();
-    setMobileComposerOpen(false);
-    setMobileRailOpen(false);
-    setSelectedWorkItemId("");
-    setContextClosed(false);
-    setComposerMode("clean");
   }
 
   async function addComposerAttachments(files: File[]) {
@@ -883,6 +716,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   }
 
   function showCleanComposer() {
+    creationPendingRef.current = false;
     const targetAgentId =
       activeSessionTarget?.agentId ??
       (effectiveSessionAgentFilters.length === 1
@@ -924,17 +758,6 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-canvas">
         {apiError && <ApiState error={apiError} />}
 
-        <MobileSessionTabs
-          activeSessionId={activeSessionTarget?.sessionId}
-          dismissedTitle={dismissedDeckSession?.title}
-          items={mobileSessionTabItems}
-          onDismiss={closeSessionTab}
-          onNewSession={showCleanComposer}
-          onReorder={reorderDeckSessions}
-          onSelect={openTabSession}
-          onUndoDismiss={undoTabClose}
-        />
-
         <main className="relative grid min-h-0 flex-1 overflow-hidden lg:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]">
           {mobilePaneOpen && mobileRailOpen && (
             <button
@@ -946,27 +769,49 @@ export function FleetOverview({ user }: FleetOverviewProps) {
           )}
           <section
             className={cn(
-              "min-h-0 overflow-auto border-b border-hairline bg-surface-1 lg:static lg:z-auto lg:block lg:w-auto lg:border-b-0 lg:border-r lg:shadow-none",
+              "min-h-0 flex-col overflow-hidden border-b border-hairline bg-surface-1 lg:static lg:z-auto lg:flex lg:w-auto lg:border-b-0 lg:border-r lg:shadow-none",
               mobilePaneOpen
                 ? mobileRailOpen
-                  ? "absolute inset-y-0 left-0 z-30 block w-[min(82vw,320px)] shadow-2xl shadow-black/50"
+                  ? "absolute inset-y-0 left-0 z-30 flex w-[min(82vw,320px)] shadow-2xl shadow-black/50"
                   : "hidden"
-                : "block",
+                : "flex",
             )}
-            onScroll={handleRailScroll}
           >
-            <div className="sticky top-0 z-10 border-b border-hairline bg-surface-1 px-4 py-3">
+            <div className="shrink-0 border-b border-hairline bg-surface-1 px-4 py-3">
               <div className="flex min-w-0 items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-sm font-medium">Work</div>
-                  <TruncatedText
-                    className="mt-1 text-xs text-ink-tertiary"
-                    tooltip={railSubtitle}
+                <Button
+                  asChild
+                  icon={<Plus className="h-4 w-4" />}
+                  variant="ghost"
+                >
+                  <Link
+                    href="/sessions/new"
+                    onClick={(event) => {
+                      if (
+                        event.button !== 0 ||
+                        event.metaKey ||
+                        event.ctrlKey ||
+                        event.shiftKey ||
+                        event.altKey
+                      )
+                        return;
+                      event.preventDefault();
+                      showCleanComposer();
+                    }}
                   >
-                    {railSubtitle}
-                  </TruncatedText>
-                </div>
+                    New session
+                  </Link>
+                </Button>
                 <div className="flex shrink-0 items-center gap-1">
+                  <Button
+                    aria-label="Close sidebar"
+                    className="lg:hidden"
+                    icon={<X className="h-4 w-4" />}
+                    onClick={() => setMobileRailOpen(false)}
+                    size="icon"
+                    variant="ghost"
+                    type="button"
+                  />
                   <SessionFilterMenu
                     agentOptions={sessionAgentFilterOptions}
                     includeArchived={includeArchivedSessions}
@@ -991,59 +836,20 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                   />
                 </div>
               </div>
-              <Button
-                asChild
-                className="mt-3 w-full justify-start"
-                icon={<Plus className="h-4 w-4" />}
-                variant="primary"
-              >
-                <Link
-                  href="/sessions/new"
-                  onClick={(event) => {
-                    if (
-                      event.button !== 0 ||
-                      event.metaKey ||
-                      event.ctrlKey ||
-                      event.shiftKey ||
-                      event.altKey
-                    ) {
-                      return;
-                    }
-                    event.preventDefault();
-                    showCleanComposer();
-                  }}
-                >
-                  New session
-                </Link>
-              </Button>
             </div>
             <ProjectSessionRail
               activeSessionId={activeSessionTarget?.sessionId}
+              onScroll={handleRailScroll}
+              loadingMore={sessionsQuery.isFetchingNextPage}
               loading={projectsQuery.isLoading || sessionsQuery.isLoading}
-              onSelectProject={(projectId) => {
-                setSelectedProjectId(projectId);
-                setEmbeddedSessionTarget(null);
-                clearHomeSessionUrl();
-                setSelectedWorkItemId("");
-                setMobileComposerOpen(true);
-                setMobileRailOpen(false);
-                setContextClosed(false);
-                setComposerMode("clean");
-              }}
               onSelectSession={(item) => {
                 openSessionItem(item);
               }}
               onSetArchived={(item) => updateSessionArchived.mutate(item)}
               archivePendingId={updateSessionArchived.variables?.id}
               projects={projects}
-              selectedProjectId={selectedProjectId}
               sessions={visibleWorkItems}
             />
-            {sessionsQuery.isFetchingNextPage && (
-              <div className="border-b border-hairline px-4 py-3 text-sm text-ink-tertiary">
-                Loading more sessions...
-              </div>
-            )}
           </section>
 
           <section
@@ -1084,11 +890,13 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 nodeId={activeSessionTarget.nodeId}
                 onMobileMenu={() => setMobileRailOpen(true)}
                 onSessionAssigned={(sessionId) => {
+                  creationPendingRef.current = false;
                   void queryClient.invalidateQueries({
                     queryKey: queryKeys.userSessionsRoot(user.user_id),
                   });
                   if (
                     activeSessionTarget.sessionId === "new" &&
+                    activeSessionTarget.saveWorkspaceTarget &&
                     activeSessionTarget.primaryProjectId &&
                     activeSessionTarget.agentId &&
                     activeSessionTarget.initialCwd &&
@@ -1130,43 +938,81 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 user={user}
               />
             ) : fleetSetupGuideKind ? (
-              <div className="min-h-0 flex-1 overflow-auto p-3 sm:p-5">
+              <div className="flex min-h-0 flex-1 items-center overflow-auto p-3 sm:p-5">
                 <div className="mx-auto w-full max-w-4xl">
                   <PaxdGettingStartedGuide kind={fleetSetupGuideKind} />
                 </div>
               </div>
             ) : (
               <>
-                <div
-                  className={cn(
-                    "flex min-w-0 items-center gap-2 border-b px-3 py-2 transition-colors duration-500 lg:hidden",
-                    secureComposerActive
-                      ? "border-emerald-400/15 bg-emerald-500/[0.025] backdrop-blur-xl"
-                      : "border-hairline bg-surface-1",
-                  )}
-                >
-                  <Button
-                    aria-label="Open Home sidebar"
-                    icon={<Menu className="h-4 w-4" />}
-                    onClick={() => setMobileRailOpen(true)}
-                    size="icon"
-                    tooltip="Open Home sidebar"
-                    type="button"
-                    variant="ghost"
-                  />
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-ink">
-                      {mobileDetailTitle}
-                    </div>
-                    {composerContextItem && (
-                      <div className="truncate text-xs text-ink-tertiary">
-                        {composerContextItem.title}
-                      </div>
-                    )}
+                <div className="grid min-w-0 gap-1 border-b border-hairline bg-surface-1 px-3 py-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Button
+                      aria-label="Open Home sidebar"
+                      className="lg:hidden"
+                      icon={<Menu className="h-4 w-4" />}
+                      onClick={() => setMobileRailOpen(true)}
+                      size="icon"
+                      type="button"
+                      variant="ghost"
+                    />
+                    <label className="relative inline-flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border border-transparent bg-transparent px-2 text-sm text-ink-muted focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/25 active:bg-surface-3">
+                      <Folder className="h-4 w-4 shrink-0" />
+                      <span className="hidden shrink-0 text-xs font-medium text-ink-tertiary sm:inline">
+                        Project
+                      </span>
+                      <select
+                        aria-label="Project"
+                        className="min-h-9 min-w-0 flex-1 appearance-none truncate bg-transparent pr-6 text-base text-ink outline-none [color-scheme:dark] sm:text-sm"
+                        onChange={(event) => {
+                          const projectId = event.target.value;
+                          setSelectedProjectId(projectId);
+                          setProjectTargetSaveError(null);
+                        }}
+                        value={selectedProjectId}
+                      >
+                        <option value="">Project</option>
+                        {projects.map((project) => (
+                          <option
+                            key={project.project_id}
+                            value={project.project_id}
+                          >
+                            {projectPath(project, projects)
+                              .map((item) => item.display_name)
+                              .join(" / ")}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown
+                        aria-hidden="true"
+                        className="pointer-events-none absolute right-2 h-4 w-4 shrink-0 text-ink-muted"
+                      />
+                    </label>
+                    <AgentSelector
+                      agents={agents}
+                      nodes={nodes}
+                      selectedAgentId={activeAgent?.agent_id}
+                      onChange={setSelectedAgentId}
+                    />
                   </div>
+                  <WorkspacePicker
+                    key={workspaceKey}
+                    value={newSessionCwd}
+                    loading={workspaceLoading}
+                    disabled={!activeAgent}
+                    canSave={Boolean(selectedProjectId)}
+                    targets={suggestedProjectTargets}
+                    save={
+                      workspaceDraft?.key === workspaceKey &&
+                      Boolean(workspaceDraft.save)
+                    }
+                    onChange={(cwd, save) =>
+                      setWorkspaceDraft({ key: workspaceKey, cwd, save })
+                    }
+                  />
                 </div>
                 <div
-                  className="min-h-0 flex-1 overflow-auto p-3 sm:p-5"
+                  className="flex min-h-0 flex-1 items-center overflow-auto p-3 sm:p-5"
                   data-viewport-scroll
                 >
                   <div className="mx-auto grid w-full max-w-4xl gap-4">
@@ -1266,208 +1112,6 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                         : "border-hairline bg-surface-2 focus-within:border-accent/60 focus-within:ring-1 focus-within:ring-accent/20",
                     )}
                   >
-                    <div className="mb-2 grid min-w-0 gap-1 border-b border-hairline pb-2">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <label className="relative inline-flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border border-transparent bg-transparent px-2 text-sm text-ink-muted focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/25 active:bg-surface-3">
-                          <Folder className="h-4 w-4 shrink-0" />
-                          <span className="hidden shrink-0 text-xs font-medium text-ink-tertiary sm:inline">
-                            Project
-                          </span>
-                          <select
-                            aria-label="Project"
-                            className="min-h-9 min-w-0 flex-1 appearance-none truncate bg-transparent pr-6 text-base text-ink outline-none [color-scheme:dark] sm:text-sm"
-                            onChange={(event) => {
-                              const projectId = event.target.value;
-                              setSelectedProjectId(projectId);
-                              setProjectTargetSaveError(null);
-                            }}
-                            value={selectedProjectId}
-                          >
-                            <option value="">No project</option>
-                            {projects.map((project) => (
-                              <option
-                                key={project.project_id}
-                                value={project.project_id}
-                              >
-                                {projectPath(project, projects)
-                                  .map((item) => item.display_name)
-                                  .join(" / ")}
-                              </option>
-                            ))}
-                          </select>
-                          <ChevronDown
-                            aria-hidden="true"
-                            className="pointer-events-none absolute right-2 h-4 w-4 shrink-0 text-ink-muted"
-                          />
-                        </label>
-                        <AgentSelector
-                          agents={agents}
-                          nodes={nodes}
-                          selectedAgentId={activeAgent?.agent_id}
-                          onChange={setSelectedAgentId}
-                        />
-                      </div>
-                      <div className="flex min-w-0 items-start gap-1">
-                        <div className="min-w-0 flex-1">
-                          {workspaceLoading ? (
-                            <div
-                              role="status"
-                              className="px-1 py-1 text-xs text-ink-tertiary"
-                            >
-                              Loading workspaces…
-                            </div>
-                          ) : newSessionWorkspaceOpen ? (
-                            <div className="grid min-w-0 gap-1">
-                              <label
-                                className={cn(
-                                  "flex min-h-9 min-w-0 items-center gap-2 rounded-lg border bg-canvas px-2.5 focus-within:border-accent",
-                                  newSessionCwdInvalid
-                                    ? "border-warning text-warning"
-                                    : "border-hairline text-ink-muted",
-                                )}
-                              >
-                                <FolderOpen className="h-4 w-4 shrink-0" />
-                                <input
-                                  aria-label="Workspace"
-                                  aria-invalid={newSessionCwdInvalid}
-                                  disabled={!activeAgent}
-                                  className="min-w-0 flex-1 bg-transparent font-mono text-base text-ink outline-none placeholder:text-ink-tertiary sm:text-sm"
-                                  onChange={(event) => {
-                                    setWorkspaceDraft({
-                                      key: workspaceKey,
-                                      cwd: event.target.value,
-                                    });
-                                    setWorkspaceEditingKey(workspaceKey);
-                                  }}
-                                  onKeyDown={(event) => {
-                                    if (event.key === "Enter") {
-                                      event.preventDefault();
-                                      if (
-                                        normalizedNewSessionCwd &&
-                                        !newSessionCwdInvalid
-                                      )
-                                        setWorkspaceEditingKey(null);
-                                    }
-                                  }}
-                                  placeholder="~/project"
-                                  spellCheck={false}
-                                  value={newSessionCwd}
-                                />
-                                <Button
-                                  aria-label="Use workspace"
-                                  disabled={
-                                    !normalizedNewSessionCwd ||
-                                    newSessionCwdInvalid
-                                  }
-                                  icon={<Check className="h-4 w-4" />}
-                                  onClick={() => setWorkspaceEditingKey(null)}
-                                  size="icon"
-                                  tooltip="Use workspace"
-                                  type="button"
-                                  variant="ghost"
-                                />
-                              </label>
-                              <span className="px-1 text-xs text-ink-tertiary">
-                                {newSessionCwdInvalid
-                                  ? "Use an absolute path, ~, or a path starting with ~/"
-                                  : "Choose a directory on the selected agent’s device."}
-                              </span>
-                            </div>
-                          ) : (
-                            <Button
-                              aria-label={
-                                normalizedNewSessionCwd
-                                  ? "Change workspace"
-                                  : "Set workspace"
-                              }
-                              className="w-full min-w-0 justify-start px-1 text-ink-tertiary"
-                              icon={
-                                <FolderOpen className="h-3.5 w-3.5 shrink-0" />
-                              }
-                              onClick={() =>
-                                setWorkspaceEditingKey(workspaceKey)
-                              }
-                              size="sm"
-                              tooltip={
-                                normalizedNewSessionCwd ||
-                                "Use the agent’s default directory or set a workspace"
-                              }
-                              type="button"
-                              variant="ghost"
-                            >
-                              {normalizedNewSessionCwd ||
-                                "Agent default directory"}
-                            </Button>
-                          )}
-                        </div>
-                        {selectedProjectId &&
-                          availableProjectTargets.length > 0 &&
-                          (newSessionWorkspaceOpen ||
-                            availableProjectTargets.length > 1) && (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  aria-label={
-                                    suggestedProjectTargets.length
-                                      ? "Saved workspaces"
-                                      : "Use a configured agent"
-                                  }
-                                  tooltip="Choose a saved workspace"
-                                  className="shrink-0 px-2 text-ink-tertiary"
-                                  size="sm"
-                                  type="button"
-                                  variant="ghost"
-                                  icon={<ChevronDown className="h-3.5 w-3.5" />}
-                                >
-                                  <span className="hidden sm:inline">
-                                    {suggestedProjectTargets.length
-                                      ? "Saved workspaces"
-                                      : "Use a configured agent"}
-                                  </span>
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent
-                                align="end"
-                                side="top"
-                                className="max-h-64 max-w-[calc(100vw-32px)] overflow-y-auto"
-                              >
-                                {availableProjectTargets.map((target) => (
-                                  <DropdownMenuItem
-                                    key={target.target_id}
-                                    onSelect={() => {
-                                      setSelectedAgentId(target.agent_id);
-                                      setWorkspaceDraft({
-                                        key: JSON.stringify([
-                                          selectedProjectId,
-                                          target.agent_id,
-                                        ]),
-                                        cwd: target.cwd,
-                                      });
-                                      setWorkspaceEditingKey(null);
-                                    }}
-                                  >
-                                    <div className="min-w-0">
-                                      <div className="truncate">
-                                        {agentLabel(
-                                          agents.find(
-                                            (agent) =>
-                                              agent.agent_id ===
-                                              target.agent_id,
-                                          )!,
-                                        )}
-                                        {target.is_default ? " · Default" : ""}
-                                      </div>
-                                      <div className="break-all font-mono text-xs text-ink-tertiary">
-                                        {target.cwd}
-                                      </div>
-                                    </div>
-                                  </DropdownMenuItem>
-                                ))}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          )}
-                      </div>
-                    </div>
                     <ComposerModeHint
                       secure={secureComposerActive}
                       mode={composerMode}
@@ -1539,7 +1183,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                       }
                       rows={1}
                     />
-                    <div className="flex min-w-0 flex-wrap items-center gap-1 sm:gap-2">
+                    <div className="flex min-w-0 items-center gap-1 sm:gap-2">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button
@@ -1580,99 +1224,69 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
-                      <Button
-                        aria-label="Use end-to-end encryption"
-                        aria-pressed={newSessionTransport === "e2ee"}
-                        className={cn(
-                          "transition-all duration-300",
-                          newSessionTransport === "e2ee"
-                            ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
-                            : "text-ink-subtle",
-                        )}
-                        disabled={composerAttachments.length > 0}
-                        icon={<LockKeyhole className="h-4 w-4" />}
-                        onClick={() =>
-                          setNewSessionTransport((transport) =>
-                            transport === "e2ee" ? "manager" : "e2ee",
-                          )
+                      <SessionSettings
+                        summary={
+                          newSessionPermissionChoices.find(
+                            (choice) =>
+                              choice.choice_id ===
+                              effectiveNewSessionPermissionChoiceId,
+                          )?.label ?? "Ask"
                         }
-                        size="icon"
-                        tooltip={
-                          composerAttachments.length > 0
-                            ? "Remove attachments before enabling encryption"
-                            : newSessionTransport === "e2ee"
-                              ? "End-to-end encryption on · tap to turn off"
-                              : "Encrypt between this browser and paxd · tap to turn on"
-                        }
-                        tooltipOnClick
-                        type="button"
-                        variant="ghost"
-                      />
-                      <SessionPermissionSelector
-                        catalog={permissionCatalogQuery.data}
-                        choices={newSessionPermissionChoices}
-                        error={permissionCatalogQuery.isError}
-                        loading={permissionCatalogQuery.isPending}
-                        onChange={(choiceId) => {
-                          if (!activeAgent?.agent_id) {
-                            return;
+                      >
+                        <Button
+                          aria-label="Use end-to-end encryption"
+                          aria-pressed={newSessionTransport === "e2ee"}
+                          className={cn(
+                            "transition-all duration-300",
+                            newSessionTransport === "e2ee"
+                              ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
+                              : "text-ink-subtle",
+                          )}
+                          disabled={composerAttachments.length > 0}
+                          icon={<LockKeyhole className="h-4 w-4" />}
+                          onClick={() =>
+                            setNewSessionTransport((transport) =>
+                              transport === "e2ee" ? "manager" : "e2ee",
+                            )
                           }
-                          setNewSessionPermissionChoiceByAgent((current) => ({
-                            ...current,
-                            [activeAgent.agent_id]: choiceId,
-                          }));
-                        }}
-                        value={effectiveNewSessionPermissionChoiceId}
-                      />
+                          size="sm"
+                          tooltip={
+                            composerAttachments.length > 0
+                              ? "Remove attachments before enabling encryption"
+                              : newSessionTransport === "e2ee"
+                                ? "End-to-end encryption on · tap to turn off"
+                                : "Encrypt between this browser and paxd · tap to turn on"
+                          }
+                          tooltipOnClick
+                          type="button"
+                          variant="ghost"
+                        >
+                          End-to-end encryption
+                        </Button>
+                        <SessionPermissionSelector
+                          field
+                          catalog={permissionCatalogQuery.data}
+                          choices={newSessionPermissionChoices}
+                          error={permissionCatalogQuery.isError}
+                          loading={permissionCatalogQuery.isPending}
+                          onChange={(choiceId) => {
+                            if (!activeAgent?.agent_id) {
+                              return;
+                            }
+                            setNewSessionPermissionChoiceByAgent((current) => ({
+                              ...current,
+                              [activeAgent.agent_id]: choiceId,
+                            }));
+                          }}
+                          value={effectiveNewSessionPermissionChoiceId}
+                        />
+                      </SessionSettings>
                       {attachmentName && (
                         <Badge className="max-w-40" tooltip={attachmentName}>
                           {attachmentName}
                         </Badge>
                       )}
                       <div className="ml-auto flex shrink-0 items-center gap-2">
-                        {newSessionTransport === "manager" && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                aria-label="Advanced session actions"
-                                icon={<Ellipsis className="h-4 w-4" />}
-                                size="icon"
-                                tooltip="Advanced session actions"
-                                type="button"
-                                variant="ghost"
-                              />
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-72">
-                              <div className="px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-ink-tertiary">
-                                Advanced
-                              </div>
-                              <DropdownMenuItem
-                                className="items-start py-2"
-                                disabled={
-                                  !activeAgent?.agent_id ||
-                                  !activeAgent.node_id ||
-                                  (Boolean(selectedProjectId) &&
-                                    !normalizedNewSessionCwd) ||
-                                  workspaceLoading ||
-                                  newSessionCwdInvalid ||
-                                  composerAttachmentUploadPending ||
-                                  composerAttachments.length > 0
-                                }
-                                onSelect={initializeEmptySession}
-                              >
-                                <span className="min-w-0">
-                                  <span className="block text-ink">
-                                    Create empty session
-                                  </span>
-                                  <span className="mt-0.5 block text-xs leading-4 text-ink-tertiary">
-                                    Initialize the agent without sending a
-                                    prompt.
-                                  </span>
-                                </span>
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
                         <Button
                           aria-label="Start session"
                           className={cn(
@@ -1709,209 +1323,116 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   );
 }
 
-type HomeProjectTreeNode = {
-  children: HomeProjectTreeNode[];
-  project: Project;
-};
-
 function ProjectSessionRail({
   activeSessionId,
   archivePendingId,
   loading,
-  onSelectProject,
+  loadingMore,
+  onScroll,
   onSelectSession,
   onSetArchived,
   projects,
-  selectedProjectId,
   sessions,
 }: {
   activeSessionId?: string;
   archivePendingId?: string;
   loading: boolean;
-  onSelectProject: (projectId: string) => void;
+  loadingMore: boolean;
+  onScroll: (event: UIEvent<HTMLElement>) => void;
   onSelectSession: (session: WorkItem) => void;
   onSetArchived: (session: WorkItem) => void;
   projects: Project[];
-  selectedProjectId: string;
   sessions: WorkItem[];
 }) {
-  const [collapsedProjectIds, setCollapsedProjectIds] = useState<Set<string>>(
-    () => new Set(),
+  const [projectFilter, setProjectFilter] = useState("");
+  const filtered = sessions.filter(
+    (session) => !projectFilter || session.primaryProjectId === projectFilter,
   );
-  const tree = useMemo(() => buildHomeProjectTree(projects), [projects]);
-  const projectIds = useMemo(
-    () => new Set(projects.map((project) => project.project_id)),
-    [projects],
-  );
-  const recentSessions = sessions.filter(
-    (session) =>
-      !session.primaryProjectId || !projectIds.has(session.primaryProjectId),
-  );
-
-  function toggleProject(projectId: string) {
-    setCollapsedProjectIds((current) => {
-      const next = new Set(current);
-      if (next.has(projectId)) next.delete(projectId);
-      else next.add(projectId);
-      return next;
-    });
-  }
-
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const groups = ["Today", "Yesterday", "Previous 7 days", "Earlier"];
+  const groupFor = (session: WorkItem) => {
+    const age = today.getTime() - new Date(session.createdAt ?? "").getTime();
+    return age <= 0 ? 0 : age <= 86400000 ? 1 : age <= 6 * 86400000 ? 2 : 3;
+  };
   return (
-    <div className="grid pb-4">
-      <div className="flex items-center justify-between px-4 pb-2 pt-4">
-        <span className="text-xs font-medium uppercase tracking-[0.14em] text-ink-tertiary">
-          Projects
-        </span>
-        <Link
-          className="text-xs text-accent-bright transition hover:text-ink"
-          href="/settings/projects"
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="shrink-0 flex items-center gap-2 border-b border-hairline bg-surface-1 px-4 py-2">
+        <Folder className="h-3.5 w-3.5 shrink-0 text-ink-tertiary" />
+        <select
+          aria-label="Filter by project"
+          className="min-w-0 flex-1 bg-surface-1 text-sm text-ink outline-none [color-scheme:dark]"
+          value={projectFilter}
+          onChange={(event) => setProjectFilter(event.target.value)}
         >
+          <option value="">All projects</option>
+          {projects.map((project) => (
+            <option key={project.project_id} value={project.project_id}>
+              {projectPath(project, projects)
+                .map((item) => item.display_name)
+                .join(" / ")}
+            </option>
+          ))}
+        </select>
+        <Link href="/settings/projects" className="text-xs text-ink-tertiary">
           Manage
         </Link>
       </div>
-      {tree.map((node) => (
-        <HomeProjectTreeRow
-          activeSessionId={activeSessionId}
-          archivePendingId={archivePendingId}
-          collapsedProjectIds={collapsedProjectIds}
-          depth={0}
-          key={node.project.project_id}
-          node={node}
-          onSelectProject={onSelectProject}
-          onSelectSession={onSelectSession}
-          onSetArchived={onSetArchived}
-          onToggleProject={toggleProject}
-          selectedProjectId={selectedProjectId}
-          sessions={sessions}
-        />
-      ))}
-      {!loading && tree.length === 0 && (
-        <div className="px-4 py-3 text-sm text-ink-tertiary">
-          No projects yet. Create one in Settings.
-        </div>
-      )}
-
-      <div className="px-4 pb-2 pt-5 text-xs font-medium uppercase tracking-[0.14em] text-ink-tertiary">
-        Recents
-      </div>
-      {recentSessions.map((session) => (
-        <HomeSessionRow
-          active={session.sessionId === activeSessionId}
-          depth={0}
-          key={session.id}
-          onSelect={() => onSelectSession(session)}
-          onSetArchived={() => onSetArchived(session)}
-          archivePending={archivePendingId === session.id}
-          session={session}
-        />
-      ))}
-      {!loading && recentSessions.length === 0 && (
-        <div className="px-4 py-3 text-sm text-ink-tertiary">
-          No unassigned sessions.
-        </div>
-      )}
-      {loading && (
-        <div className="px-4 py-3 text-sm text-ink-tertiary">Loading...</div>
-      )}
-    </div>
-  );
-}
-
-function HomeProjectTreeRow({
-  activeSessionId,
-  archivePendingId,
-  collapsedProjectIds,
-  depth,
-  node,
-  onSelectProject,
-  onSelectSession,
-  onSetArchived,
-  onToggleProject,
-  selectedProjectId,
-  sessions,
-}: {
-  activeSessionId?: string;
-  archivePendingId?: string;
-  collapsedProjectIds: Set<string>;
-  depth: number;
-  node: HomeProjectTreeNode;
-  onSelectProject: (projectId: string) => void;
-  onSelectSession: (session: WorkItem) => void;
-  onSetArchived: (session: WorkItem) => void;
-  onToggleProject: (projectId: string) => void;
-  selectedProjectId: string;
-  sessions: WorkItem[];
-}) {
-  const projectId = node.project.project_id;
-  const collapsed = collapsedProjectIds.has(projectId);
-  const projectSessions = sessions.filter(
-    (session) => session.primaryProjectId === projectId,
-  );
-
-  return (
-    <div>
       <div
-        className={cn(
-          "group flex min-w-0 items-center gap-1 pr-2 transition hover:bg-surface-2",
-          selectedProjectId === projectId && !activeSessionId
-            ? "bg-accent/10 text-accent-bright"
-            : "text-ink-muted",
-        )}
-        style={{ paddingLeft: `${8 + depth * 16}px` }}
+        className="min-h-0 flex-1 overflow-y-auto pb-4"
+        onScroll={onScroll}
+        aria-label="Recent sessions"
       >
-        <button
-          aria-label={`${collapsed ? "Expand" : "Collapse"} ${node.project.display_name}`}
-          className="grid h-8 w-6 shrink-0 place-items-center text-ink-tertiary"
-          onClick={() => onToggleProject(projectId)}
-          type="button"
-        >
-          {collapsed ? (
-            <ChevronRight className="h-3.5 w-3.5" />
-          ) : (
-            <ChevronDown className="h-3.5 w-3.5" />
-          )}
-        </button>
-        <button
-          className="flex min-h-9 min-w-0 flex-1 items-center gap-2 text-left text-sm"
-          onClick={() => onSelectProject(projectId)}
-          type="button"
-        >
-          <Folder className="h-4 w-4 shrink-0" />
-          <span className="truncate">{node.project.display_name}</span>
-        </button>
+        {groups.map((label, index) => {
+          const items = filtered
+            .filter((session) => groupFor(session) === index)
+            .sort((a, b) =>
+              (b.createdAt ?? "").localeCompare(a.createdAt ?? ""),
+            );
+          return (
+            items.length > 0 && (
+              <section key={label} aria-label={label}>
+                <div className="px-4 pb-1 pt-4 text-xs text-ink-tertiary">
+                  {label}
+                </div>
+                {items.map((session) => (
+                  <HomeSessionRow
+                    key={session.id}
+                    active={session.sessionId === activeSessionId}
+                    archivePending={archivePendingId === session.id}
+                    depth={0}
+                    onSelect={() => onSelectSession(session)}
+                    onSetArchived={() => onSetArchived(session)}
+                    session={{
+                      ...session,
+                      context: [
+                        projects.find(
+                          (project) =>
+                            project.project_id === session.primaryProjectId,
+                        )?.display_name,
+                        session.context,
+                      ]
+                        .filter(Boolean)
+                        .join(" / "),
+                    }}
+                  />
+                ))}
+              </section>
+            )
+          );
+        })}
+        {loading && (
+          <div className="p-4 text-sm text-ink-tertiary">Loading...</div>
+        )}
+        {loadingMore && (
+          <div role="status" className="p-4 text-sm text-ink-tertiary">
+            Loading more sessions...
+          </div>
+        )}
+        {!loading && !filtered.length && (
+          <div className="p-4 text-sm text-ink-tertiary">No sessions yet.</div>
+        )}
       </div>
-      {!collapsed && (
-        <>
-          {node.children.map((child) => (
-            <HomeProjectTreeRow
-              activeSessionId={activeSessionId}
-              archivePendingId={archivePendingId}
-              collapsedProjectIds={collapsedProjectIds}
-              depth={depth + 1}
-              key={child.project.project_id}
-              node={child}
-              onSelectProject={onSelectProject}
-              onSelectSession={onSelectSession}
-              onSetArchived={onSetArchived}
-              onToggleProject={onToggleProject}
-              selectedProjectId={selectedProjectId}
-              sessions={sessions}
-            />
-          ))}
-          {projectSessions.map((session) => (
-            <HomeSessionRow
-              active={session.sessionId === activeSessionId}
-              depth={depth + 1}
-              key={session.id}
-              onSelect={() => onSelectSession(session)}
-              onSetArchived={() => onSetArchived(session)}
-              archivePending={archivePendingId === session.id}
-              session={session}
-            />
-          ))}
-        </>
-      )}
     </div>
   );
 }
@@ -1943,7 +1464,7 @@ function HomeSessionRow({
             ? "bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)]"
             : "text-ink-muted hover:bg-surface-2",
       )}
-      style={{ paddingLeft: `${40 + depth * 16}px` }}
+      style={{ paddingLeft: `${16 + depth * 16}px` }}
     >
       <Link
         className="grid min-w-0 flex-1 gap-0.5 py-2 text-left"
@@ -2238,7 +1759,7 @@ function SelectedContext({
       <section className="flex min-h-24 items-center justify-center px-4 py-5 text-center sm:min-h-[160px] sm:py-10">
         <div className="grid gap-1.5">
           <div className="text-lg font-medium tracking-tight text-ink">
-            What should we work on today?
+            What’s next?
           </div>
           <div className="text-xs text-ink-tertiary">
             <span className="sm:hidden">Type below to start a session</span>
@@ -3023,24 +2544,6 @@ function filterSessionWorkItems(
   );
 }
 
-function filterSelectionLabel(
-  options: Array<{ label: string; value: string }>,
-  selectedValues: string[],
-  emptyLabel: string,
-  pluralLabel: string,
-) {
-  if (selectedValues.length === 0) {
-    return emptyLabel;
-  }
-  if (selectedValues.length === 1) {
-    return (
-      options.find((option) => option.value === selectedValues[0])?.label ??
-      emptyLabel
-    );
-  }
-  return `${selectedValues.length} ${pluralLabel}`;
-}
-
 function toggleFilterValue(current: string[], value: string) {
   return current.includes(value)
     ? current.filter((candidate) => candidate !== value)
@@ -3131,30 +2634,6 @@ function latestSessionMessageTimeByAgent(sessions: AgentSession[]) {
   }
 
   return latestByAgent;
-}
-
-function buildHomeProjectTree(projects: Project[]) {
-  const nodes = new Map<string, HomeProjectTreeNode>(
-    projects.map((project) => [project.project_id, { children: [], project }]),
-  );
-  const roots: HomeProjectTreeNode[] = [];
-
-  for (const node of nodes.values()) {
-    const parent = node.project.parent_project_id
-      ? nodes.get(node.project.parent_project_id)
-      : undefined;
-    if (parent) parent.children.push(node);
-    else roots.push(node);
-  }
-
-  const sortNodes = (items: HomeProjectTreeNode[]) => {
-    items.sort((left, right) =>
-      left.project.display_name.localeCompare(right.project.display_name),
-    );
-    for (const item of items) sortNodes(item.children);
-  };
-  sortNodes(roots);
-  return roots;
 }
 
 function projectPath(project: Project, projects: Project[]) {

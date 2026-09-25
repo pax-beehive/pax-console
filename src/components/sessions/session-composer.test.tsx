@@ -2,6 +2,7 @@
 
 import "@testing-library/jest-dom/vitest";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -79,10 +80,9 @@ afterEach(() => {
 });
 
 describe("SessionComposer", () => {
-  it("offers empty-session creation as an advanced action and preserves the draft", async () => {
+  it("creates an empty session immediately from send and suppresses repeated clicks", async () => {
     const user = userEvent.setup();
     const onCreateEmptySession = vi.fn().mockResolvedValue(true);
-    useConsoleStore.getState().setComposerDraft("new", "unsent draft");
 
     render(
       <TooltipProvider>
@@ -99,15 +99,11 @@ describe("SessionComposer", () => {
           draftKey="new"
           isNewSession
           isTurnRunning={false}
-          newSessionCwd=""
           newSessionCwdInvalid={false}
-          newSessionWorkspaceOpen={false}
           onAddAttachments={async () => undefined}
           onCreateEmptySession={onCreateEmptySession}
           onDeleteQueuedTurn={vi.fn()}
           onRemoveAttachment={vi.fn()}
-          onSetNewSessionCwd={vi.fn()}
-          onSetNewSessionWorkspaceOpen={vi.fn()}
           onSteer={async () => true}
           onStop={vi.fn()}
           onSubmitDraft={async () => true}
@@ -123,15 +119,12 @@ describe("SessionComposer", () => {
       </TooltipProvider>,
     );
 
-    await user.click(
-      screen.getByRole("button", { name: "Advanced session actions" }),
-    );
-    await user.click(
-      screen.getByRole("menuitem", { name: /Create empty session/ }),
-    );
+    await user.dblClick(screen.getByRole("button", { name: "Send prompt" }));
 
     expect(onCreateEmptySession).toHaveBeenCalledOnce();
-    expect(useConsoleStore.getState().composerDrafts.new).toBe("unsent draft");
+    expect(
+      screen.queryByRole("button", { name: "Advanced session actions" }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders the secured composer treatment for encrypted sessions", () => {
@@ -150,14 +143,10 @@ describe("SessionComposer", () => {
           draftKey="sess_e2ee"
           isNewSession={false}
           isTurnRunning={false}
-          newSessionCwd=""
           newSessionCwdInvalid={false}
-          newSessionWorkspaceOpen={false}
           onAddAttachments={async () => undefined}
           onDeleteQueuedTurn={vi.fn()}
           onRemoveAttachment={vi.fn()}
-          onSetNewSessionCwd={vi.fn()}
-          onSetNewSessionWorkspaceOpen={vi.fn()}
           onSteer={async () => true}
           onStop={vi.fn()}
           onSubmitDraft={async () => true}
@@ -185,51 +174,6 @@ describe("SessionComposer", () => {
     expect(screen.getByRole("button", { name: "Upload files" })).toBeDisabled();
   });
 
-  it("keeps the new-session workspace input usable on desktop", () => {
-    render(
-      <TooltipProvider>
-        <SessionComposer
-          activeAgentId="agent_1"
-          activeNodeId="node_1"
-          approvalMode="manual"
-          approvalModePending={false}
-          attachmentError={null}
-          attachmentUploadPending={false}
-          attachments={[]}
-          deleteQueuedTurnPending={false}
-          draftKey="new"
-          isNewSession
-          isTurnRunning={false}
-          newSessionCwd=""
-          newSessionCwdInvalid={false}
-          newSessionWorkspaceOpen
-          onAddAttachments={async () => undefined}
-          onDeleteQueuedTurn={vi.fn()}
-          onRemoveAttachment={vi.fn()}
-          onSetNewSessionCwd={vi.fn()}
-          onSetNewSessionWorkspaceOpen={vi.fn()}
-          onSteer={async () => true}
-          onStop={vi.fn()}
-          onSubmitDraft={async () => true}
-          onToggleApprovalMode={vi.fn()}
-          onUpdateQueuedTurn={async () => true}
-          queueTurnPending={false}
-          queuedTurn={null}
-          showAdminFeatures={false}
-          steerTurnPending={false}
-          stopTurnPending={false}
-          updateQueuedTurnPending={false}
-        />
-      </TooltipProvider>,
-    );
-
-    expect(screen.getByLabelText("Workspace").closest("label")).toHaveClass(
-      "basis-full",
-      "sm:min-w-64",
-      "sm:max-w-96",
-    );
-  });
-
   it("lets the shell resize for the keyboard without padding or document scrolling", async () => {
     render(
       <TooltipProvider>
@@ -246,14 +190,10 @@ describe("SessionComposer", () => {
           draftKey="sess_1"
           isNewSession={false}
           isTurnRunning={false}
-          newSessionCwd=""
           newSessionCwdInvalid={false}
-          newSessionWorkspaceOpen={false}
           onAddAttachments={async () => undefined}
           onDeleteQueuedTurn={vi.fn()}
           onRemoveAttachment={vi.fn()}
-          onSetNewSessionCwd={vi.fn()}
-          onSetNewSessionWorkspaceOpen={vi.fn()}
           onSteer={async () => true}
           onStop={vi.fn()}
           onSubmitDraft={async () => true}
@@ -306,14 +246,10 @@ describe("SessionComposer", () => {
           draftKey="sess_1"
           isNewSession={false}
           isTurnRunning={false}
-          newSessionCwd=""
           newSessionCwdInvalid={false}
-          newSessionWorkspaceOpen={false}
           onAddAttachments={async () => undefined}
           onDeleteQueuedTurn={vi.fn()}
           onRemoveAttachment={vi.fn()}
-          onSetNewSessionCwd={vi.fn()}
-          onSetNewSessionWorkspaceOpen={vi.fn()}
           onSteer={async () => true}
           onStop={vi.fn()}
           onSubmitDraft={onSubmitDraft}
@@ -352,7 +288,10 @@ describe("SessionComposer", () => {
     fireEvent.change(textarea, { target: { value: "hello world" } });
     expect(renderButton).toHaveBeenCalledTimes(controlRenderCount);
     fireEvent.submit(textarea.closest("form")!);
-    expect(onSubmitDraft).toHaveBeenCalledWith("hello world");
+    expect(onSubmitDraft).toHaveBeenCalledWith(
+      "hello world",
+      expect.any(Function),
+    );
     await waitFor(() => expect(textarea).toHaveValue(""));
     expect(timelineRenderCount).toBe(1);
   });
@@ -373,14 +312,10 @@ describe("SessionComposer", () => {
           draftKey="sess_1"
           isNewSession={false}
           isTurnRunning={false}
-          newSessionCwd=""
           newSessionCwdInvalid={false}
-          newSessionWorkspaceOpen={false}
           onAddAttachments={async () => undefined}
           onDeleteQueuedTurn={vi.fn()}
           onRemoveAttachment={vi.fn()}
-          onSetNewSessionCwd={vi.fn()}
-          onSetNewSessionWorkspaceOpen={vi.fn()}
           onSteer={async () => true}
           onStop={vi.fn()}
           onSubmitDraft={async () => true}
@@ -396,6 +331,9 @@ describe("SessionComposer", () => {
       </TooltipProvider>,
     );
 
+    await userEvent.click(
+      screen.getByRole("button", { name: "Session settings" }),
+    );
     const approvalToggle = screen.getByRole("button", {
       name: "Ask before running tools",
     });
@@ -423,14 +361,10 @@ describe("SessionComposer", () => {
           draftKey="sess_1"
           isNewSession={false}
           isTurnRunning
-          newSessionCwd=""
           newSessionCwdInvalid={false}
-          newSessionWorkspaceOpen={false}
           onAddAttachments={async () => undefined}
           onDeleteQueuedTurn={vi.fn()}
           onRemoveAttachment={vi.fn()}
-          onSetNewSessionCwd={vi.fn()}
-          onSetNewSessionWorkspaceOpen={vi.fn()}
           onSteer={async () => true}
           onStop={vi.fn()}
           onSubmitDraft={async () => true}
@@ -449,8 +383,8 @@ describe("SessionComposer", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: "Ask before running tools" }),
-    ).not.toHaveTextContent("Ask before tools");
+      screen.getByRole("button", { name: "Session settings" }),
+    ).toBeVisible();
     expect(screen.queryByLabelText("Workspace")).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Queue after current turn" }),
@@ -506,15 +440,11 @@ describe("SessionComposer", () => {
           draftKey="sess_1"
           isNewSession={false}
           isTurnRunning={false}
-          newSessionCwd=""
           newSessionCwdInvalid={false}
-          newSessionWorkspaceOpen={false}
           onAddAttachments={async () => undefined}
           onDeleteQueuedTurn={vi.fn()}
           onRemoveAttachment={vi.fn()}
           onSelectPermissionChoice={onSelectPermissionChoice}
-          onSetNewSessionCwd={vi.fn()}
-          onSetNewSessionWorkspaceOpen={vi.fn()}
           onSteer={async () => true}
           onStop={vi.fn()}
           onSubmitDraft={async () => true}
@@ -556,6 +486,9 @@ describe("SessionComposer", () => {
     );
 
     await userEvent.click(
+      screen.getByRole("button", { name: "Session settings" }),
+    );
+    await userEvent.click(
       screen.getByRole("button", {
         name: "Session permissions: Workspace access",
       }),
@@ -588,15 +521,11 @@ describe("SessionComposer", () => {
           draftKey="sess_1"
           isNewSession={false}
           isTurnRunning
-          newSessionCwd=""
           newSessionCwdInvalid={false}
-          newSessionWorkspaceOpen={false}
           onAddAttachments={async () => undefined}
           onDeleteQueuedTurn={vi.fn()}
           onRemoveAttachment={vi.fn()}
           onSelectPermissionChoice={vi.fn()}
-          onSetNewSessionCwd={vi.fn()}
-          onSetNewSessionWorkspaceOpen={vi.fn()}
           onSteer={async () => true}
           onStop={vi.fn()}
           onSubmitDraft={onSubmitDraft}
@@ -642,4 +571,138 @@ describe("SessionComposer", () => {
       expect(onUpdateQueuedTurn).toHaveBeenCalledWith("/review-branch main"),
     );
   });
+});
+
+const creationProps = {
+  activeAgentId: "agent_1",
+  activeNodeId: "node_1",
+  approvalMode: "manual" as const,
+  approvalModePending: false,
+  attachmentError: null,
+  attachmentUploadPending: false,
+  attachments: [],
+  deleteQueuedTurnPending: false,
+  draftKey: "new",
+  isNewSession: true,
+  isTurnRunning: false,
+  newSessionCwdInvalid: false,
+  onAddAttachments: async () => {},
+  onDeleteQueuedTurn: () => {},
+  onRemoveAttachment: () => {},
+  onSteer: async () => true,
+  onStop: () => {},
+  onSubmitDraft: async () => true,
+  onToggleApprovalMode: () => {},
+  onUpdateQueuedTurn: async () => true,
+  queueTurnPending: false,
+  queuedTurn: null,
+  showAdminFeatures: false,
+  steerTurnPending: false,
+  stopTurnPending: false,
+  updateQueuedTurnPending: false,
+};
+it("blocks another empty creation for the entire pending request, then allows retry", async () => {
+  let finish!: (value: boolean) => void;
+  const create = vi.fn(
+    () =>
+      new Promise<boolean>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const now = vi.spyOn(Date, "now").mockReturnValue(1000);
+  render(
+    <TooltipProvider>
+      <SessionComposer {...creationProps} onCreateEmptySession={create} />
+    </TooltipProvider>,
+  );
+  const send = screen.getByRole("button", { name: "Send prompt" });
+  fireEvent.click(send);
+  expect(create).toHaveBeenCalledTimes(1);
+  now.mockReturnValue(2000);
+  fireEvent.click(send);
+  expect(create).toHaveBeenCalledTimes(1);
+  await act(async () => finish(false));
+  fireEvent.click(send);
+  expect(create).toHaveBeenCalledTimes(2);
+  await act(async () => finish(true));
+});
+it("retains a rejected creation draft and does not let rapid Enter and send duplicate it", async () => {
+  let finish!: (value: boolean) => void;
+  const submit = vi.fn(
+    () =>
+      new Promise<boolean>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  useConsoleStore.getState().setComposerDraft("new", "Keep my work");
+  render(
+    <TooltipProvider>
+      <SessionComposer {...creationProps} onSubmitDraft={submit} />
+    </TooltipProvider>,
+  );
+  const input = screen.getByRole("textbox");
+  fireEvent.keyDown(input, { key: "Enter" });
+  fireEvent.click(screen.getByRole("button", { name: "Send prompt" }));
+  expect(submit).toHaveBeenCalledOnce();
+  expect(submit).toHaveBeenCalledWith("Keep my work", expect.any(Function));
+  await act(async () => finish(false));
+  expect(input).toHaveValue("Keep my work");
+});
+it("does not initialize or send an empty prompt to an existing session", () => {
+  const submit = vi.fn();
+  const create = vi.fn();
+  render(
+    <TooltipProvider>
+      <SessionComposer
+        {...creationProps}
+        isNewSession={false}
+        currentSessionId="existing"
+        onSubmitDraft={submit}
+        onCreateEmptySession={create}
+      />
+    </TooltipProvider>,
+  );
+  expect(screen.getByRole("button", { name: "Send prompt" })).toBeDisabled();
+  fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" });
+  expect(submit).not.toHaveBeenCalled();
+  expect(create).not.toHaveBeenCalled();
+});
+
+it("clears an acknowledged prompt before completion and still allows queueing the next turn", async () => {
+  let finish!: (accepted: boolean) => void;
+  const submit = vi.fn((_content: string, onAccepted?: () => void) => {
+    onAccepted?.();
+    return new Promise<boolean>((resolve) => {
+      finish = resolve;
+    });
+  });
+  useConsoleStore.getState().setComposerDraft("new", "First turn");
+  const view = (running: boolean) => (
+    <TooltipProvider>
+      <SessionComposer
+        {...creationProps}
+        currentSessionId={running ? "assigned" : undefined}
+        isNewSession={!running}
+        isTurnRunning={running}
+        onSubmitDraft={submit}
+      />
+    </TooltipProvider>
+  );
+  const { rerender } = render(view(false));
+  fireEvent.click(screen.getByRole("button", { name: "Send prompt" }));
+  expect(screen.getByRole("textbox")).toHaveValue("");
+  const finishFirst = finish;
+  rerender(view(true));
+  await userEvent.type(screen.getByRole("textbox"), "Next turn");
+  fireEvent.click(
+    screen.getByRole("button", { name: "Queue after current turn" }),
+  );
+  expect(submit).toHaveBeenCalledTimes(2);
+  expect(submit).toHaveBeenLastCalledWith("Next turn", expect.any(Function));
+  await userEvent.type(screen.getByRole("textbox"), "Still writing");
+  await act(async () => {
+    finishFirst(true);
+    finish(true);
+  });
+  expect(screen.getByRole("textbox")).toHaveValue("Still writing");
 });

@@ -408,6 +408,7 @@ describe("FleetOverview session rail", () => {
       </QueryClientProvider>,
     );
 
+    await openSettings();
     const permissionSelector = await screen.findByRole("button", {
       name: "Session permissions: Workspace access",
     });
@@ -476,6 +477,7 @@ describe("FleetOverview session rail", () => {
     );
     const { rerender } = render(fleetView());
 
+    await openSettings();
     await userEvent.click(
       await screen.findByRole("button", {
         name: "Session permissions: Workspace access",
@@ -495,6 +497,7 @@ describe("FleetOverview session rail", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Pi agent" }));
     await userEvent.click(screen.getByRole("button", { name: "Second agent" }));
+    await openSettings();
     expect(
       screen.getByRole("button", {
         name: "Session permissions: Ask before tools",
@@ -680,13 +683,21 @@ describe("FleetOverview session rail", () => {
     expect(
       screen.queryByRole("button", { name: "Inbox" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByText("Projects")).toBeVisible();
-    expect(screen.getByText("Recents")).toBeVisible();
+    expect(
+      screen.queryByRole("tablist", { name: /session/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("combobox", { name: "Filter by project" }),
+    ).toBeVisible();
     expect(screen.getByRole("link", { name: "Manage" })).toHaveAttribute(
       "href",
       "/settings/projects",
     );
-    expect(screen.getByRole("button", { name: "Pax" })).toBeVisible();
+    expect(
+      within(
+        screen.getByRole("combobox", { name: "Filter by project" }),
+      ).getByRole("option", { name: "Pax" }),
+    ).toBeInTheDocument();
     expect(
       await screen.findByRole("link", { name: /Session one/ }),
     ).toBeVisible();
@@ -727,84 +738,34 @@ describe("FleetOverview session rail", () => {
     expect(window.location.search).toBe("?session_id=sess_encrypted");
   });
 
-  it("shows subprojects before sessions at every project nesting level", async () => {
-    const rootProject = projectFixture("project_root", "Root project");
-    const childProject = projectFixture(
-      "project_child",
-      "Child project",
-      rootProject.project_id,
-    );
-    const grandchildProject = projectFixture(
-      "project_grandchild",
-      "Grandchild project",
-      childProject.project_id,
-    );
+  it("lists project sessions once and filters without changing creation context", async () => {
+    const root = projectFixture("root", "Root");
+    const child = projectFixture("child", "Child", "root");
     setProjectContents(
-      [rootProject, childProject, grandchildProject],
+      [root, child],
       [
-        sessionFixture("sess_root", "Root session", rootProject.project_id),
-        sessionFixture("sess_child", "Child session", childProject.project_id),
+        sessionFixture("one", "First session", "root"),
+        sessionFixture("two", "Second session", "child"),
       ],
     );
-
     renderOverview();
-
     expect(
-      screen.getByRole("button", { name: "Child project" }),
-    ).toAppearBefore(await screen.findByRole("link", { name: /Root session/ }));
-    expect(
-      screen.getByRole("button", { name: "Grandchild project" }),
-    ).toAppearBefore(screen.getByRole("link", { name: /Child session/ }));
-  });
-
-  it("renders a project with sessions and no subprojects without extra contents", async () => {
-    const project = projectFixture("project_root", "Sessions only project");
-    setProjectContents(
-      [project],
-      [sessionFixture("sess_root", "Only session", project.project_id)],
+      await screen.findByRole("link", { name: /First session/ }),
+    ).toHaveTextContent("Root / Pi agent");
+    expect(screen.getAllByRole("link", { name: /First session/ })).toHaveLength(
+      1,
     );
-
-    renderOverview();
-
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: "Filter by project" }),
+      "child",
+    );
     expect(
-      await screen.findByRole("link", { name: /Only session/ }),
-    ).toBeVisible();
-    expect(
-      screen.queryByRole("button", { name: "Child project" }),
+      screen.queryByRole("link", { name: /First session/ }),
     ).not.toBeInTheDocument();
-  });
-
-  it("renders a project with subprojects and no sessions without extra contents", async () => {
-    const rootProject = projectFixture(
-      "project_root",
-      "Subprojects only project",
-    );
-    const childProject = projectFixture(
-      "project_child",
-      "Child project",
-      rootProject.project_id,
-    );
-    setProjectContents([rootProject, childProject], []);
-
-    renderOverview();
-
-    expect(screen.getByRole("button", { name: "Child project" })).toBeVisible();
     expect(
-      screen.queryByRole("link", { name: /Only session/ }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("renders a project with no sessions or subprojects without a project placeholder", async () => {
-    const project = projectFixture("project_root", "Empty project");
-    setProjectContents([project], []);
-
-    renderOverview();
-
-    const projectRow = screen
-      .getByRole("button", { name: "Empty project" })
-      .closest("div");
-    const projectContents = projectRow?.parentElement;
-    expect(projectContents?.nextElementSibling).toHaveTextContent("Recents");
+      screen.getByRole("link", { name: /Second session/ }),
+    ).toHaveTextContent("Child / Pi agent");
+    expect(screen.getByRole("combobox", { name: "Project" })).toHaveValue("");
   });
 
   it("starts a project session through the normal Home composer", async () => {
@@ -819,12 +780,15 @@ describe("FleetOverview session rail", () => {
       </QueryClientProvider>,
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "Pax" }));
+    await userEvent.selectOptions(
+      await screen.findByRole("combobox", { name: "Project" }),
+      "project_1",
+    );
     expect(screen.getByRole("combobox", { name: "Project" })).toHaveValue(
       "project_1",
     );
     expect(
-      screen.getByRole("button", { name: "Change workspace" }),
+      screen.getByRole("button", { name: "Choose workspace" }),
     ).toHaveTextContent("~/pax");
     const composer = screen.getByPlaceholderText(
       "Ask an agent to do something",
@@ -851,6 +815,7 @@ describe("FleetOverview session rail", () => {
     await userEvent.click(screen.getByRole("link", { name: "New session" }));
 
     const composerPane = screen.getByTestId("home-composer-pane");
+    await openSettings();
     const encryptedToggle = screen.getByRole("button", {
       name: "Use end-to-end encryption",
     });
@@ -896,6 +861,7 @@ describe("FleetOverview session rail", () => {
     renderOverview();
     await userEvent.click(screen.getByRole("link", { name: "New session" }));
 
+    await openSettings();
     await userEvent.click(
       screen.getByRole("button", { name: "Use end-to-end encryption" }),
     );
@@ -921,6 +887,7 @@ describe("FleetOverview session rail", () => {
   it("abandons encrypted intent when returning to a clean composer", async () => {
     renderOverview();
     await userEvent.click(screen.getByRole("link", { name: "New session" }));
+    await openSettings();
     await userEvent.click(
       screen.getByRole("button", { name: "Use end-to-end encryption" }),
     );
@@ -929,6 +896,7 @@ describe("FleetOverview session rail", () => {
     );
     await userEvent.click(screen.getByRole("link", { name: "New session" }));
 
+    await openSettings();
     expect(
       screen.getByRole("button", { name: "Use end-to-end encryption" }),
     ).toHaveAttribute("aria-pressed", "false");
@@ -938,48 +906,67 @@ describe("FleetOverview session rail", () => {
     );
   });
 
-  it("keeps every new-session control usable in responsive composer rows", async () => {
+  it("keeps project and workspace above the conversation, with one settings trigger", async () => {
     renderOverview();
-    await userEvent.click(screen.getByRole("link", { name: "New session" }));
-    await userEvent.click(
-      screen.getByRole("button", { name: "Set workspace" }),
+    await screen.findByRole("button", { name: "Pi agent" });
+    const form = screen
+      .getByPlaceholderText("Ask an agent to do something")
+      .closest("form")!;
+    expect(form).not.toContainElement(
+      screen.getByRole("combobox", { name: "Project" }),
     );
-
-    const project = screen.getByRole("combobox", { name: "Project" });
-    const workspace = screen.getByRole("textbox", { name: "Workspace" });
-    expect(project).toBeVisible();
-    expect(workspace).toBeVisible();
-    expect(screen.getByRole("button", { name: "Upload files" })).toBeVisible();
+    expect(form).not.toContainElement(
+      screen.getByRole("button", { name: "Choose workspace" }),
+    );
+    expect(
+      screen.queryByRole("button", { name: /Session permissions/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Session settings" }),
+    ).toBeVisible();
+    await openSettings();
     expect(
       screen.getByRole("button", { name: "Use end-to-end encryption" }),
     ).toBeVisible();
     expect(
-      screen.getByRole("button", {
-        name: "Session permissions: Ask before tools",
-      }),
+      screen.getByRole("button", { name: /Session permissions/ }),
     ).toBeVisible();
-    expect(screen.getByRole("button", { name: "Start session" })).toBeVisible();
   });
 
-  it("starts empty session initialization from the Home advanced menu", async () => {
-    renderOverview();
-    await userEvent.click(screen.getByRole("link", { name: "New session" }));
-
-    await userEvent.click(
-      screen.getByRole("button", { name: "Advanced session actions" }),
-    );
-    await userEvent.click(
-      screen.getByRole("menuitem", { name: /Create empty session/ }),
-    );
-
-    expect(await screen.findByTestId("session-workbench")).toHaveAttribute(
-      "data-initial-initialize-only",
-      "true",
-    );
-  });
+  it.each(["manager", "e2ee"])(
+    "initializes an empty %s session from send",
+    async (transport) => {
+      renderOverview();
+      await screen.findByRole("button", { name: "Pi agent" });
+      if (transport === "e2ee") {
+        await openSettings();
+        await userEvent.click(
+          screen.getByRole("button", { name: "Use end-to-end encryption" }),
+        );
+        await userEvent.keyboard("{Escape}");
+      }
+      const form = screen
+        .getByPlaceholderText(
+          transport === "e2ee"
+            ? "Send an end-to-end encrypted message"
+            : "Ask an agent to do something",
+        )
+        .closest("form")!;
+      fireEvent.submit(form);
+      fireEvent.submit(form);
+      expect(await screen.findByTestId("session-workbench")).toHaveAttribute(
+        "data-initial-initialize-only",
+        "true",
+      );
+      expect(screen.getByTestId("session-workbench")).toHaveAttribute(
+        "data-initial-transport",
+        transport,
+      );
+    },
+  );
 
   it.skipIf(!process.env.PAX_BROWSER_TESTS)(
-    "fits resolved and missing workspace controls on phone and desktop",
+    "fits the creation header and composer on phone and desktop",
     async () => {
       const { createRequire } = await import("node:module");
       const { readFile } = await import("node:fs/promises");
@@ -999,16 +986,13 @@ describe("FleetOverview session rail", () => {
         await screen.findByRole("combobox", { name: "Project" }),
         "project_1",
       );
-      const form = () =>
-        screen
-          .getByPlaceholderText("Ask an agent to do something")
-          .closest("form")!.outerHTML;
-      const resolved = form();
-      await userEvent.click(
-        screen.getByRole("button", { name: "Change workspace" }),
+      const pane = () => screen.getByTestId("home-composer-pane").outerHTML;
+      const resolved = pane();
+      await userEvent.selectOptions(
+        screen.getByRole("combobox", { name: "Project" }),
+        "",
       );
-      await userEvent.clear(screen.getByRole("textbox", { name: "Workspace" }));
-      const missing = form();
+      const missing = pane();
       const browser = await chromium.launch({
         executablePath: process.env.PAX_TEST_CHROMIUM_PATH || undefined,
       });
@@ -1034,9 +1018,7 @@ describe("FleetOverview session rail", () => {
               ),
             ).toBe(true);
             for (const control of await page
-              .locator(
-                'form button, form select, form textarea, form input:not([type="file"])',
-              )
+              .locator('button, select, textarea, input:not([type="file"])')
               .all()) {
               const bounds = await control.boundingBox();
               if (bounds) {
@@ -1069,7 +1051,7 @@ describe("FleetOverview session rail", () => {
       screen.queryByRole("textbox", { name: "Workspace" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Change workspace" }),
+      screen.getByRole("button", { name: "Choose workspace" }),
     ).toHaveTextContent("~/pax");
     await userEvent.type(
       screen.getByPlaceholderText("Ask an agent to do something"),
@@ -1099,16 +1081,20 @@ describe("FleetOverview session rail", () => {
     });
     renderOverview();
     await userEvent.click(
-      await screen.findByRole("button", { name: "Set workspace" }),
+      await screen.findByRole("button", { name: "Choose workspace" }),
     );
     await userEvent.type(
       screen.getByRole("textbox", { name: "Workspace" }),
       "~/temporary",
     );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Use this path" }),
+    );
     await userEvent.selectOptions(
       screen.getByRole("combobox", { name: "Project" }),
       "project_1",
     );
+    await openPath();
     expect(screen.getByRole("textbox", { name: "Workspace" })).toHaveValue("");
     expect(
       screen.getByRole("button", { name: "Start session" }),
@@ -1116,6 +1102,9 @@ describe("FleetOverview session rail", () => {
     await userEvent.type(
       screen.getByRole("textbox", { name: "Workspace" }),
       "~/new-project",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Use this path" }),
     );
     await userEvent.type(
       screen.getByPlaceholderText("Ask an agent to do something"),
@@ -1154,18 +1143,16 @@ describe("FleetOverview session rail", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: "Pi agent" }));
     await userEvent.click(screen.getByRole("button", { name: "Second agent" }));
-    expect(screen.getByRole("textbox", { name: "Workspace" })).toHaveValue("");
+    expect(
+      screen.getByRole("button", { name: "Choose workspace" }),
+    ).toHaveTextContent("Choose a workspace");
     expect(
       screen.getByRole("button", { name: "Start session" }),
     ).toBeDisabled();
-    await userEvent.click(
-      screen.getByRole("button", { name: "Use a configured agent" }),
-    );
-    await userEvent.click(
-      screen.getByRole("menuitem", { name: /Pi agent.*pax/ }),
-    );
+    await userEvent.click(screen.getByRole("button", { name: "Second agent" }));
+    await userEvent.click(screen.getByRole("button", { name: "Pi agent" }));
     expect(
-      screen.getByRole("button", { name: "Change workspace" }),
+      screen.getByRole("button", { name: "Choose workspace" }),
     ).toHaveTextContent("~/pax");
     await userEvent.type(
       screen.getByPlaceholderText("Ask an agent to do something"),
@@ -1221,16 +1208,18 @@ describe("FleetOverview session rail", () => {
       await screen.findByRole("combobox", { name: "Project" }),
       "project_1",
     );
-    expect(screen.getByRole("textbox", { name: "Workspace" })).toHaveValue("");
+    expect(
+      screen.getByRole("button", { name: "Start session" }),
+    ).toBeDisabled();
     await userEvent.click(
-      screen.getByRole("button", { name: "Saved workspaces" }),
+      screen.getByRole("button", { name: "Choose workspace" }),
     );
     expect(
-      screen.queryByRole("menuitem", { name: /disabled/ }),
+      screen.queryByRole("button", { name: /disabled/ }),
     ).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("menuitem", { name: /two/ }));
+    await userEvent.click(screen.getByRole("button", { name: /two/ }));
     expect(
-      screen.getByRole("button", { name: "Change workspace" }),
+      screen.getByRole("button", { name: "Choose workspace" }),
     ).toHaveTextContent("~/two");
   });
 
@@ -1241,18 +1230,19 @@ describe("FleetOverview session rail", () => {
       "project_1",
     );
     await userEvent.click(
-      screen.getByRole("button", { name: "Change workspace" }),
+      screen.getByRole("button", { name: "Choose workspace" }),
     );
+    await userEvent.click(screen.getByRole("tab", { name: "Enter a path" }));
     await userEvent.type(
       screen.getByRole("textbox", { name: "Workspace" }),
       "-other",
     );
     await userEvent.click(
-      screen.getByRole("button", { name: "Saved workspaces" }),
+      screen.getByRole("tab", { name: "Saved workspaces" }),
     );
-    await userEvent.click(screen.getByRole("menuitem", { name: /pax/ }));
+    await userEvent.click(screen.getByRole("button", { name: /pax/ }));
     expect(
-      screen.getByRole("button", { name: "Change workspace" }),
+      screen.getByRole("button", { name: "Choose workspace" }),
     ).toHaveTextContent("~/pax");
     expect(
       screen.queryByRole("textbox", { name: "Workspace" }),
@@ -1278,59 +1268,80 @@ describe("FleetOverview session rail", () => {
     ).toBeDisabled();
   });
 
-  it("creates a target for a new project workspace only after native session assignment", async () => {
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <FleetOverview user={{ user_id: "user_1" } as User} />
-        </TooltipProvider>
-      </QueryClientProvider>,
-    );
+  it.each([false, true])(
+    "saves a target only after assignment and explicit opt-in (%s)",
+    async (save) => {
+      const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false } },
+      });
+      render(
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <FleetOverview user={{ user_id: "user_1" } as User} />
+          </TooltipProvider>
+        </QueryClientProvider>,
+      );
 
-    await userEvent.selectOptions(
-      await screen.findByRole("combobox", { name: "Project" }),
-      "project_1",
-    );
-    await userEvent.click(
-      screen.getByRole("button", { name: "Change workspace" }),
-    );
-    await userEvent.clear(screen.getByLabelText("Workspace"));
-    await userEvent.type(
-      screen.getByLabelText("Workspace"),
-      "~/worktrees/kev-8",
-    );
-    const composer = screen.getByPlaceholderText(
-      "Ask an agent to do something",
-    );
-    const submit = composer
-      .closest("form")!
-      .querySelector<HTMLButtonElement>('button[type="submit"]')!;
-    expect(submit).toBeEnabled();
-    await userEvent.type(composer, "Work on KEV-8");
-    await userEvent.click(submit);
-
-    const workbench = await screen.findByTestId("session-workbench");
-    expect(workbench).not.toHaveAttribute("data-project-target-id");
-    expect(workbench).toHaveAttribute("data-initial-cwd", "~/worktrees/kev-8");
-    expect(mocks.createProjectTarget).not.toHaveBeenCalled();
-
-    await userEvent.click(
-      screen.getByRole("button", { name: "Assign native session" }),
-    );
-    await waitFor(() =>
-      expect(mocks.createProjectTarget).toHaveBeenCalledWith(
-        "user_1",
+      await userEvent.selectOptions(
+        await screen.findByRole("combobox", { name: "Project" }),
         "project_1",
-        {
-          agent_id: "agent_1",
-          cwd: "~/worktrees/kev-8",
-        },
-      ),
-    );
-  });
+      );
+      await userEvent.click(
+        screen.getByRole("button", { name: "Choose workspace" }),
+      );
+      await userEvent.click(screen.getByRole("tab", { name: "Enter a path" }));
+      await userEvent.clear(screen.getByLabelText("Workspace"));
+      await userEvent.type(
+        screen.getByLabelText("Workspace"),
+        "~/worktrees/kev-8",
+      );
+      expect(
+        screen.getByRole("checkbox", { name: "Save as workspace target" }),
+      ).not.toBeChecked();
+      if (save)
+        await userEvent.click(
+          screen.getByRole("checkbox", { name: "Save as workspace target" }),
+        );
+      await userEvent.click(
+        screen.getByRole("button", { name: "Use this path" }),
+      );
+      const composer = screen.getByPlaceholderText(
+        "Ask an agent to do something",
+      );
+      const submit = composer
+        .closest("form")!
+        .querySelector<HTMLButtonElement>('button[type="submit"]')!;
+      expect(submit).toBeEnabled();
+      await userEvent.type(composer, "Work on KEV-8");
+      await userEvent.click(submit);
+
+      const workbench = await screen.findByTestId("session-workbench");
+      expect(workbench).not.toHaveAttribute("data-project-target-id");
+      expect(workbench).toHaveAttribute(
+        "data-initial-cwd",
+        "~/worktrees/kev-8",
+      );
+      expect(mocks.createProjectTarget).not.toHaveBeenCalled();
+
+      await userEvent.click(
+        screen.getByRole("button", { name: "Assign native session" }),
+      );
+      if (!save) {
+        expect(mocks.createProjectTarget).not.toHaveBeenCalled();
+        return;
+      }
+      await waitFor(() =>
+        expect(mocks.createProjectTarget).toHaveBeenCalledWith(
+          "user_1",
+          "project_1",
+          {
+            agent_id: "agent_1",
+            cwd: "~/worktrees/kev-8",
+          },
+        ),
+      );
+    },
+  );
 
   it("keeps Home mounted and opens a selected session in the embedded workbench", async () => {
     const queryClient = new QueryClient({
@@ -1352,7 +1363,9 @@ describe("FleetOverview session rail", () => {
     expect(workbench).toHaveAttribute("data-embedded", "true");
     expect(workbench).toHaveAttribute("data-node-id", "node_1");
     expect(workbench).toHaveAttribute("data-agent-id", "agent_1");
-    expect(screen.getByText("Recents")).toBeVisible();
+    expect(
+      screen.getByRole("combobox", { name: "Filter by project" }),
+    ).toBeVisible();
     expect(window.location.pathname).toBe("/");
     expect(window.location.search).toBe("?session_id=sess_1");
     await waitFor(() => expect(mocks.routerPush).not.toHaveBeenCalled());
@@ -1494,7 +1507,9 @@ describe("FleetOverview session rail", () => {
       "data-initial-prompt",
       "Keep this chat on Home",
     );
-    expect(screen.getByText("Recents")).toBeVisible();
+    expect(
+      screen.getByRole("combobox", { name: "Filter by project" }),
+    ).toBeVisible();
     expect(window.location.pathname).toBe("/");
     expect(window.location.search).toBe("");
     expect(mocks.routerPush).not.toHaveBeenCalled();
@@ -1629,4 +1644,17 @@ function emptyQueryData(key: string) {
     error: null,
     isLoading: false,
   };
+}
+
+async function openSettings() {
+  if (!screen.queryByRole("button", { name: /Session permissions/ }))
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Session settings" }),
+    );
+}
+async function openPath() {
+  await userEvent.click(
+    screen.getByRole("button", { name: "Choose workspace" }),
+  );
+  await userEvent.click(screen.getByRole("tab", { name: "Enter a path" }));
 }

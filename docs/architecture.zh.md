@@ -20,7 +20,10 @@ WebKit 触屏表单控件在平板宽度也至少 16px，不禁用用户缩放�
 
 Secret Channel 的主入口在已有 session 输入框的「＋」菜单，自动选择当前节点，普通/E2EE 会话均可用。弹窗复用节点详情的加密投递组件，不新增后端接口；成功后仅将临时文件引用、过期时间和不回显/使用后删除提示追加到原会话草稿，保留已有内容，用户确认后再发送。密码只在弹窗临时状态中，发送时清空，不进入聊天、Zustand 或 mutation cache；节点详情入口继续保留。
 
-展开的 session 标题栏在手机上使用两行网格：名称/身份和收起按钮在第一行，模型/状态/更多操作在第二行；分栏入口归入手机更多菜单，桌面保留快捷按钮。轮次底部仪表盘使用上下文已用量/容量驱动连续指针和同色进度弧，弧线终点与指针角度一致，颜色随占用率由绿到红；没有有效容量时显示灰色未知状态，不使用单轮 token 数推测百分比。
+Session 标题、Project / Agent 和不可变 workspace 在顶部直接可见。重命名和
+runtime reset 在更多操作中；独立的 panel-right 入口打开 Artifacts / Browser /
+Knowledge（保留 admin 限制），工具证据按上下文进入。手机为底部面板，桌面为右栏。
+轮次底部仪表盘继续按上下文已用量/容量显示，不以单轮 token 推测占用率。
 
 移动端 composer 的权限按钮限制宽度，完整权限名称保留在菜单和无障碍标签中。运行中 Queue/Stop 保持直接可见，Steer 放在移动端更多菜单（桌面仍保留快捷按钮），未实现的语音按钮不占用手机工具栏。Project 原生选择保留系统交互，但用自定义箭头和明确的深色背景/边框；RunBadge 内部图标与文字保持同行。移动端顶部栏为 44px 最小高度加安全区，刷新入口移至用户菜单。短行内代码作为整体换行，超长内容仍允许断行，避免横向溢出。
 
@@ -257,7 +260,7 @@ src/components/home/
   Home composer 不直接暴露 Target，而是让用户选择可选 Project、Agent 并输入
   Workspace 路径。若已有相同 Project/Agent/cwd 的 enabled Target，则复用并在
   Conversation 请求中携带 `project_target_id`；否则请求只携带
-  `primary_project_id` 和 cwd，native session 分配成功后才自动创建 Target。
+  `primary_project_id` 和 cwd，只有用户勾选 Save as workspace target，才在 native session 分配成功后创建 Target。
   后端先创建 native ACP session，成功后才把 Agent、cwd 和
   `primary_project_id` 固化到 PAX Session。
   `primary_project_id` 只表达单一的主要
@@ -477,11 +480,11 @@ drawer open/close
 composer drafts
 local filters
 临时 UI selection
-手机 open-session tabs 的有序 session_id（localStorage 持久化）
+兼容保留的旧 open-session 本地 id（不再展示横向 tabs）
 ```
 
-Open-session tabs 只保存 UI selection id，不复制 Session resource。标题和状态继续
-从 TanStack Query 的 user session list 派生。
+旧 tab id 仅为本地 UI 数据，移除 tabs 展示不删除或停止 session。Recent 列表的
+标题、状态仍从 TanStack Query 的 user session list 派生。
 
 不要把 nodes、agents、sessions、messages 复制进 Zustand。否则会出现两个 truth source。
 同理，teams、friends、envelopes、knowledge capsules/injections、session artifacts
@@ -597,19 +600,23 @@ history 路由只用于后端兼容。
 
 ## Home 新会话工作位置
 
-已有 Session 的 Workspace 是只读信息，移到顶部展开详情中显示完整路径并提供复制。
-底部 composer 保留输入区和一行附件、模型配置、权限、发送工具；运行时 Queue 与 Stop
-仍直接显示。长模型名和权限名优先截断，菜单及 accessible name 保留完整文字。
-Home 创建页的 Project / Agent 并排，Workspace 摘要与已保存目录选择同排；点击摘要
-才展开目录输入与校验。布局调整不改变 SessionDraftInput 的逐字订阅隔离或目录解析规则。
+已有 Session 的 workspace 路径直接在标题栏显示一次，可选择文字，不提供复制按钮或
+重复的只读说明；消息复制保留。创建页顶部只有 Project / Agent、Workspace 两行。
+输入框保留内容添加、统一 Session settings、发送；运行中保留 Queue / Stop 和 Steer。
+Settings 收纳动态 Model、Fast mode、reasoning 等全部 Agent 配置与 Permissions，
+权限升级确认、加载状态、错误状态不变。新建时还可切换加密；Agent 未报告的配置不伪造。
+E2EE 不暴露 Manager 配置接口。输入仍由 SessionDraftInput 独立逐字订阅。
 
-Project 与 Agent 独立选择。Workspace 只从当前项目、当前 Agent 的启用绑定中
-解析：优先默认项，其次唯一项；多个且无默认时由用户选择。已解析目录折叠为
-可编辑的一行，缺少绑定时在输入区展开目录输入；可以从已保存位置菜单显式
-切到其他已配置的 Agent，不自动切换执行端。目录草稿及编辑状态按 Project/Agent
-组合隔离，切换后不沿用另一组合的路径。绑定加载期间禁止启动项目会话。
-首次配置仍在 native session 分配成功后保存，匹配已有绑定时不重复创建。
-项目、Agent、目录统一放在 prompt 上方，移除重复的项目大卡及 Clean session 标签。
+Workspace 选择器分 Saved workspaces 和 Enter a path。后者点击 Use this path 才应用，
+Save as workspace target 默认不勾选。只有显式勾选且 native session 分配成功后才保存。
+已有启用的 Project/Agent/cwd 匹配项复用；优先默认项或唯一项，多个无默认则等待选择。
+路径与保存意图按 Project/Agent 隔离，切换后不沿用另一组合的数据；不隐式切换 Agent。
+绑定加载期间禁止创建项目会话。
+
+左侧统一 Recent 列表按 Today / Yesterday / Previous 7 days / Earlier 分组，每行带
+Project / Agent 上下文。Project 筛选只影响列表，不改变新建上下文。固定顶部控制，
+仅列表滚动，移除重复的横向 session tabs。导航仍是 Home 内的 `?session_id=`。
+底部 Home / Collaboration / Settings 保留既有权限规则。
 
 ## 当前 Shell / UI 状态
 
@@ -834,17 +841,12 @@ SSE 开始后的失败通过 `type=error` envelope 返回 `status_code` 与
 { "input": "hello" }
 ```
 
-New session composer 的主 Send 行为不变，仍要求 prompt。Send 旁的次级
-Advanced 菜单提供一次性的 `Create empty session`：它向同一个 endpoint 发送
-`{"initialize_only":true}`，可同时携带创建期 cwd、Project context 和 permission
-choice。Manager 只执行 `session/new`、live permission 校验/设置与 durable session
-绑定，然后依次返回 `type=session`、`type=done`；不发送 `session/prompt`，不创建
-turn 或空 user message。成功后 workbench 进入普通 session，并把未发送 draft 从
-New-session key 迁移到新 session key。该 action 不适用于 E2EE session，也不是可持久化
-的 session mode。
-Home 的 `New chat` 第一阶段 composer 也提供相同入口。它通过一次性的
-`initialInitializeOnly` 意图挂载 Session Workbench，由 Workbench 复用同一条
-initialize-only、permission refresh 和错误恢复链路，避免复制请求或重复创建 session。
+创建页允许点击发送或按 Enter 创建空 session，不再提供独立 Advanced 菜单项。
+首次提交立即执行，500ms 内重复动作忽略，请求未完成时继续锁定。已有 session 的空发送
+不产生消息。普通 transport 使用 `{"initialize_only":true}`，不创建 prompt 或 turn；
+E2EE 复用加密 native bootstrap，初始 prompt 为空时不调用 session/prompt。
+Home 通过一次性的 initialInitializeOnly 挂载 Workbench，保留原有 permission refresh、
+native assignment 和错误恢复链路。失败保留草稿，提交期间新输入的内容不被清除。
 明文 session 创建后继续显示相同的 permission selector。修改 choice 时前端调用
 session-scoped permission endpoint；Manager 成功执行 live ACP `set_mode` 或
 `set_config_option` 并返回有效 session config 后，前端才确认新的选择。

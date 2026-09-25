@@ -27,10 +27,11 @@ node-level channel API; never store plaintext in chat drafts or query caches.
 Only a successful file receipt is appended to the originating draft (preserving
 existing text); the user reviews/sends it. Keep the node-detail entry available.
 
-Expanded session headers use a two-row mobile grid: identity/name and collapse
-control first, model/status/actions second. Keep context-panel toggling in the
-mobile actions menu and retain the desktop shortcut. Model text may shrink;
-it must not compete with the session name for the same mobile row.
+Session headers keep the title, Project / Agent, and immutable workspace visible.
+Rename and runtime reset live in Session actions. One panel-right button opens
+Artifacts / Browser / Knowledge (admin-only); tool evidence is a contextual tab.
+Mobile resources use a bottom sheet; desktop keeps a right panel. Home's left
+hamburger opens recent sessions, not a duplicate horizontal tab strip.
 The turn-footer gauge represents context used/window (not per-turn tokens).
 Its needle and colored arc share a clamped continuous ratio and green-to-red
 hue; absent/invalid capacity is neutral and does not imply zero usage.
@@ -131,21 +132,17 @@ src/app/api/pax/[...path]/route.ts
 
 Do not spread Cloudflare cookie handling into React components.
 
-Home has two resource rails: Sessions and Projects. Projects are logical,
-owner-scoped, nestable work groups. A reusable Project Target binds an Agent to
-a working-directory intent. The Home composer exposes Project, Agent, and
-Workspace instead of asking users to manage Targets. Project and Agent remain
-independent. Resolve a workspace only among enabled targets for the selected
-Project and Agent: use the default, or the sole match; multiple matches without
-a default require selection. Scope typed directories and editor state to that
-Project/Agent pair, so changing either never carries a different pair’s path.
-Show resolved paths as an editable summary; missing bindings open an inline
-input, and saved-workspace choices can explicitly switch to another configured
-Agent. Do not switch agents implicitly. Wait for target loading before starting
-project sessions. Keep project/location controls above the prompt, omit the
-redundant project hero card and clean-session label. An enabled Target with the
-same Project, Agent, and cwd is reused; otherwise the Console saves one only
-after native session assignment succeeds. The Session's optional
+Home has one recent-session rail, grouped by date, with Project filtering and
+Project / Agent context per row. Projects are logical, owner-scoped, nestable
+work groups. Targets bind an Agent to a directory intent. Creation has two
+header rows: Project / Agent, then Workspace. Resolve only enabled targets for
+that pair: default, then sole match; otherwise require a choice. The workspace
+picker separates Saved workspaces and Enter a path. Manual input only commits
+on Use this path. Save as workspace target is unchecked by default; persist a
+new target only when opted in and native session assignment succeeds. Reuse a
+matching enabled target. Scope both path and save intent to Project / Agent;
+never implicitly switch agents. Wait for targets to load before project creation.
+The Session's optional
 `primary_project_id` is immutable. Do not overload that singular field for
 future multi-Project labels; use a separate association model.
 
@@ -480,16 +477,16 @@ Accept: text/event-stream
 Content-Type: application/json
 ```
 
-The New session composer keeps empty initialization behind its secondary
-Advanced menu. `Create empty session` sends `{ "initialize_only": true }`
-through the same endpoint, together with creation-only workspace, Project, and
-permission fields. It must not manufacture prompt content, an optimistic turn,
-or an empty user message. A successful stream emits `session` followed by
-`done`; preserve the unsent draft by moving it from the New-session draft key
-to the assigned session key. This action is unavailable for E2EE sessions.
-The Home `New chat` composer exposes the same Advanced action. It mounts the
-normal Session Workbench with a one-shot initialize-only intent, so both entry
-surfaces share the same ACP request, permission refresh, and error recovery.
+On creation screens, sending with no text or attachments initializes an empty
+session immediately. There is no separate Advanced / Create empty action.
+Use a leading-edge 500 ms repeat guard plus an in-flight lock shared by keyboard
+and button submission. Existing sessions never send an empty user message.
+Manager transport uses `initialize_only: true` with creation-only workspace,
+Project and permission fields; it must not manufacture a prompt or turn. E2EE
+uses its normal encrypted native bootstrap with an empty initial prompt and
+skips session/prompt. Preserve native-assignment ordering and transport safety.
+Home passes a one-shot initialInitializeOnly intent to the shared workbench.
+Retain drafts on rejected sends, and leave work typed during submission intact.
 After a plaintext session is assigned, the same permission selector remains
 available. Selecting a choice posts to the session-scoped permission endpoint;
 the UI only accepts the returned effective session config after Manager has
@@ -1013,51 +1010,25 @@ and Node option lists plus Include archived. Selected rows use a subtle
 background and trailing checkmark instead of leading checkboxes. Long option
 labels stay within the filter panel and truncate visually while preserving
 their full tooltip.
-Sessions are nested under their primary Project, and projectless sessions stay
-in Recents. Each session row can archive or restore the
-session through the existing session PATCH endpoint. In the
-new-session agent selector, duplicate agent names are qualified as
-`agent @ node`. Clicking a session keeps Home mounted and opens the embedded
-workbench at `/?session_id={session_id}`, preserving the Project / Session rail.
-Legacy direct links using `/?sessionId={session_id}` remain supported and are
-normalized to the canonical snake_case query parameter during initialization.
-Home-generated links, including modified clicks that open a new tab, use this
-same query-string URL. Starting from either the global or
-Project-scoped Home composer opens the embedded new workbench. A Project-scoped
-first prompt uses the normal Conversation endpoint with `primary_project_id`
-and, when an enabled Project/Agent/cwd match exists, `project_target_id`.
-Otherwise it uses the typed cwd and saves the reusable Target after native
-session assignment succeeds. There is no separate Target session-creation
-endpoint.
-On mobile widths, Home defaults to the clean composer. The Project/Session rail
-opens as a left drawer over the composer or embedded SessionWorkbench instead
-of replacing the whole page.
-Below the global mobile Topbar, Home exposes locally opened sessions as a
-dedicated horizontally scrolling tab row. Tapping switches directly, closing a
-tab offers Undo without stopping its session, and the trailing New session
-action returns to the clean composer. The row remains separate from both the
-Session tools header and the composer. The global mobile Topbar includes a hard
-reload action equivalent to the browser refresh button. Long-pressing a tab
-starts horizontal drag reordering; normal horizontal movement continues to
-scroll the strip, and tab labels must not become browser text selections.
-On mobile, the shared Session tools header starts as a compact disclosure row
-showing the session name and ambient security/run state. Tapping it reveals the
-existing node, agent, rename, runtime, and side-panel controls; the upward
-chevron collapses it again. Desktop keeps the complete header visible. Because
-this behavior lives in `SessionWorkbench`, it must stay consistent for both the
-embedded Home workbench and standalone Session routes.
+All sessions appear once in the Home recent list, grouped Today / Yesterday /
+Previous 7 days / Earlier. Project filter is secondary and does not alter the
+creation Project. Archive/restore remains on each row. Session navigation stays
+at `/?session_id=...`; legacy `sessionId` links remain normalized. New-session
+links preserve modified-click navigation to `/sessions/new`. Retired local tab
+IDs are not durable sessions and removing their presentation never deletes or
+stops a session. The rail scrolls independently beneath fixed controls.
 
-An existing session's immutable Workspace belongs in the expanded header, with
-the full selectable path and a copy action. Do not put it back in the composer.
-Model/configuration and permissions stay in the single composer toolbar beside
-attachments; Queue and Stop remain directly available while running. Let long
-model/permission labels truncate before wrapping or hiding those actions, and
-retain their complete accessible names and menu labels.
-Home creation keeps Project and Agent on one compact row, followed by the
-Workspace summary and saved-workspace picker on the same row. Editing reveals
-the directory field and validation. These are presentation changes only: keep
-the Project/Agent-keyed workspace draft and target resolution rules intact.
-The shared message input retains per-keystroke isolation in SessionDraftInput.
+Existing workspace paths are shown once in the header, selectable, with no copy
+button or editing control. Message copying remains available. Composer has one
+Session settings trigger summarizing model and permissions. Its panel renders
+all dynamic ACP configuration options as compact selects or boolean switches,
+plus permissions (including confirmation and loading/error states). Creation
+also places the encryption toggle here; models become available after the
+agent reports configuration. E2EE does not expose Manager configuration APIs.
+The + menu contains upload and existing-session secure secret delivery. Queue
+and Stop remain accessible; Steer retains its mobile overflow behavior.
+Home / Collaboration / Settings navigation and admin gating remain intact.
+SessionDraftInput keeps its per-keystroke subscription isolation.
 
 Android preview packages use a Bubblewrap-generated Trusted Web Activity with
 package id `net.paxtech.console`. Keep `public/manifest.webmanifest` linked from
