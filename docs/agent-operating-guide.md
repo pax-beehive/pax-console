@@ -1457,7 +1457,8 @@ ordering markers, not content revisions (even messages.updated_at need not chang
 Every idle metadata poll re-reads the latest turn's complete paginated snapshot,
 including already calibrated turns. Resume and explicit calibration also revalidate
 calibrated turns encountered in the tail. Replace the entire turn only after all
-pages succeed and contain turn_done, so removed rows disappear and failures retain
+pages succeed; turn_done confirms completion, while an idle snapshot can be
+displayed without that marker. Removed rows disappear and failures retain
 the previous snapshot. Without latest_turn_id, idle polls re-read the tail.
 A turn_done in an ordinary page alone does not
 transfer ownership. E2EE retains its existing history flow.
@@ -1466,3 +1467,14 @@ Older history pages do not refetch on focus. Prepending captures the visible
 row ID and pixel offset and restores it in a layout effect before paint; bottom
 updates must not affect that offset. Avoid content-visibility estimated heights
 on timeline rows. Foreground recovery never resubmits prompts or cancels turns.
+
+### Idle history display without a completion row
+
+Keep fully paginated history snapshots separate from turn completion. An idle
+turn snapshot can update the display even without a synthetic turn_done row.
+Only turn_done adds a calibrated/completed turn; snapshotTurnIds record full
+history reads independently. The workbench gives these snapshots priority over
+retained conversation/observer fragments only while metadata is idle and no
+local conversation is streaming or waiting for approval. Do not stop a running
+conversation merely because a history snapshot was fetched. Failed or empty
+incomplete reads retain the prior snapshot.

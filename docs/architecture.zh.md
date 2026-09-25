@@ -1475,3 +1475,11 @@ latest_message_id / latest_message_seq / latest_turn_id 只代表顺序，不代
 恢复页面及显式校准也重读 tail 涉及的已校准 turn。全页读取成功且包含 turn_done
 后整轮替换，既更新同 ID 内容，也移除已消失的 message；失败保留旧快照并重试。
 校准仍阻止晚到 live fragment 覆盖完整历史，但不阻止新的完整历史快照。
+
+### idle 历史快照与完成标记分离
+
+完整分页的 idle turn history 即使没有 turn_done 也应展示。snapshotTurnIds
+记录已读完的快照，calibratedTurnIds 仍只记录含 turn_done 的完成历史。
+工作台仅在 session idle 且本地 conversation 未 streaming / waiting_approval 时，
+让快照优先于内存里保留的旧 conversation / observer 片段；不得据此结束仍在运行的 turn。
+读取失败或未完成的空结果保留旧快照。无需刷新页面或清空运行时对象才能展示最新正文。

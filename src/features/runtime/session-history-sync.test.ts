@@ -251,6 +251,64 @@ describe("history calibration", () => {
     expect(next.messages).toEqual([updated, done]);
   });
 
+  it("shows a complete idle history snapshot over retained streams without a turn_done row", async () => {
+    const partial = message(
+      "reply",
+      2,
+      "turn",
+      "agent_message_chunk",
+      "partial",
+    );
+    const final = message(
+      "reply",
+      2,
+      "turn",
+      "agent_message_chunk",
+      "complete response",
+    );
+    const prompt = message("prompt", 1, "turn", "user");
+    const idleSession = {
+      ...session,
+      latest_message_id: "reply",
+      latest_message_seq: 2,
+    };
+    const read = vi
+      .fn<typeof listSessionHistory>()
+      .mockResolvedValueOnce(
+        page([final], { has_older: true, next_before_seq: 2 }),
+      )
+      .mockResolvedValueOnce(page([prompt]));
+    const sync = await syncSessionHistory({
+      ...args,
+      history: [prompt, partial],
+      session: idleSession,
+      read,
+    });
+    expect(sync.calibratedTurnIds).toEqual([]);
+    expect(mergeSyncedHistory([prompt, partial], sync)).toEqual([
+      prompt,
+      final,
+    ]);
+    const history = normalizeHistoryMessages(
+      mergeSyncedHistory([prompt, partial], sync),
+    );
+    const staleStream = normalizeHistoryMessages([partial]);
+    const timeline = reconcileSessionTimeline(
+      history,
+      staleStream,
+      staleStream,
+      ["turn"],
+      sync.calibratedTurnIds,
+      sync.snapshotTurnIds,
+    ).timeline;
+    expect(timeline).toContainEqual(
+      expect.objectContaining({ content: "complete response" }),
+    );
+    expect(timeline).not.toContainEqual(
+      expect.objectContaining({ content: "partial" }),
+    );
+  });
+
   it("does not let late partial history erase calibrated content or unrelated older pages", () => {
     const final = message(
       "reply",

@@ -126,6 +126,7 @@ export function useSessionHistorySync({
   return {
     messages: useMemo(() => mergeSyncedHistory(history, sync), [history, sync]),
     calibratedTurnIds: sync.calibratedTurnIds,
+    snapshotTurnIds: sync.snapshotTurnIds,
     calibrate,
     error: query.error,
   };

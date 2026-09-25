@@ -1,9 +1,17 @@
 /* @vitest-environment jsdom */
-import { act, renderHook, waitFor } from "@testing-library/react";
+import {
+  act,
+  render,
+  screen,
+  renderHook,
+  waitFor,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import { useSessionHistorySync } from "./use-session-history-sync";
+import { normalizeHistoryMessages } from "./normalize-history-message";
+import { reconcileSessionTimeline } from "./reconcile-session-timeline";
 import type { AgentSession, HistoryMessage } from "../api/types";
 
 const mocks = vi.hoisted(() => ({ read: vi.fn() }));
@@ -262,6 +270,80 @@ it("refreshes message parts on an idle metadata poll with unchanged head IDs", a
   mocks.read.mockResolvedValue({ messages: [updated, done] });
   rerender({ version: 2 });
   await waitFor(() => expect(result.current.messages).toEqual([updated, done]));
+  unmount();
+  client.clear();
+});
+
+it("updates the mounted timeline on refocus while stale stream events remain in memory", async () => {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const partial: HistoryMessage = {
+    message_id: "reply",
+    session_id: "s",
+    turn_id: "t",
+    session_seq: 1,
+    role: "assistant",
+    message_type: "agent_message_chunk",
+    created_at: "2026-09-25T00:00:00Z",
+    raw_json: { text_layout: "segment" },
+    parts: [{ part_index: 0, part_type: "text", text: "partial reply" }],
+  };
+  const final = {
+    ...partial,
+    parts: [{ part_index: 0, part_type: "text", text: "full durable reply" }],
+  };
+  const session: AgentSession = {
+    session_id: "s",
+    agent_id: "a",
+    node_id: "n",
+    runtime_status: "idle",
+    latest_message_id: "reply",
+    latest_message_seq: 1,
+    latest_turn_id: "t",
+  };
+  const stale = normalizeHistoryMessages([partial]);
+  function Timeline() {
+    const sync = useSessionHistorySync({
+      userId: "self",
+      sessionId: "s",
+      session,
+      history: [partial],
+      metadataVersion: 1,
+    });
+    const { timeline } = reconcileSessionTimeline(
+      normalizeHistoryMessages(sync.messages),
+      stale,
+      stale,
+      ["t"],
+      sync.calibratedTurnIds,
+      sync.snapshotTurnIds,
+    );
+    return (
+      <div>
+        {timeline
+          .map((event) => ("content" in event ? String(event.content) : ""))
+          .join("\n")}
+      </div>
+    );
+  }
+  mocks.read.mockResolvedValue({ messages: [partial] });
+  const { unmount } = render(
+    <QueryClientProvider client={client}>
+      <Timeline />
+    </QueryClientProvider>,
+  );
+  await waitFor(() => expect(mocks.read).toHaveBeenCalledTimes(2));
+  expect(screen.getByText("partial reply")).toBeTruthy();
+  mocks.read.mockResolvedValue({ messages: [final] });
+  act(() => {
+    window.dispatchEvent(new Event("blur"));
+    window.dispatchEvent(new Event("focus"));
+  });
+  await waitFor(() =>
+    expect(screen.getByText("full durable reply")).toBeTruthy(),
+  );
+  expect(screen.queryByText("partial reply")).toBeNull();
   unmount();
   client.clear();
 });

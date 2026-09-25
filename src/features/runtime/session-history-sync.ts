@@ -4,6 +4,7 @@ import { listSessionHistory } from "../api/resources";
 export type HistorySyncState = {
   messages: HistoryMessage[];
   calibratedTurnIds: string[];
+  snapshotTurnIds?: string[];
 };
 
 export const emptyHistorySync: HistorySyncState = {
@@ -15,10 +16,13 @@ export function mergeSyncedHistory(
   history: HistoryMessage[],
   sync: HistorySyncState,
 ) {
-  const completed = new Set(sync.calibratedTurnIds);
+  const replacedTurns = new Set([
+    ...sync.calibratedTurnIds,
+    ...(sync.snapshotTurnIds ?? []),
+  ]);
   const byId = new Map(
     history
-      .filter((m) => !m.turn_id || !completed.has(m.turn_id))
+      .filter((m) => !m.turn_id || !replacedTurns.has(m.turn_id))
       .map((m) => [m.message_id, m]),
   );
   for (const message of sync.messages) byId.set(message.message_id, message);
@@ -50,6 +54,7 @@ export async function syncSessionHistory({
   const known = mergeSyncedHistory(history, current);
   let messages = [...current.messages];
   const calibrated = new Set(current.calibratedTurnIds);
+  const snapshots = new Set(current.snapshotTurnIds ?? []);
   const requestedTurns = new Set(
     turnIds.filter((id) => id && !id.startsWith("pending-turn:")),
   );
@@ -74,14 +79,18 @@ export async function syncSessionHistory({
       // complete paginated read instead, including same-ID part updates.
       messages = mergeSyncedHistory(messages, {
         messages: (page.messages ?? []).filter(
-          (m) => !m.turn_id || !calibrated.has(m.turn_id),
+          (m) =>
+            !m.turn_id ||
+            (!calibrated.has(m.turn_id) && !snapshots.has(m.turn_id)),
         ),
         calibratedTurnIds: [],
       });
       for (const m of page.messages ?? []) {
         if (
           m.turn_id &&
-          (m.message_type === "turn_done" || calibrated.has(m.turn_id))
+          (m.message_type === "turn_done" ||
+            calibrated.has(m.turn_id) ||
+            snapshots.has(m.turn_id))
         )
           targets.add(m.turn_id);
       }
@@ -120,12 +129,20 @@ export async function syncSessionHistory({
       }
       beforeSeq = next;
     }
-    if (!turnMessages.some((m) => m.message_type === "turn_done")) continue;
+    const complete = turnMessages.some((m) => m.message_type === "turn_done");
+    // A fully paginated idle snapshot is usable history even when the API
+    // has no synthetic completion row. Keep runtime completion separate.
+    if (!complete && (!idle || turnMessages.length === 0)) continue;
     messages = [
       ...messages.filter((m) => m.turn_id !== turnId),
       ...turnMessages,
     ];
-    calibrated.add(turnId);
+    snapshots.add(turnId);
+    if (complete) calibrated.add(turnId);
   }
-  return { messages, calibratedTurnIds: [...calibrated] };
+  return {
+    messages,
+    calibratedTurnIds: [...calibrated],
+    snapshotTurnIds: [...snapshots],
+  };
 }

@@ -1505,6 +1505,12 @@ export function SessionWorkbench({
         usesEncryptedTransport ? [] : sessionObserver.events,
         usesEncryptedTransport ? [] : sessionObserver.snapshotTurnIds,
         usesEncryptedTransport ? undefined : historySync.calibratedTurnIds,
+        !usesEncryptedTransport &&
+          activeSession?.runtime_status === "idle" &&
+          conversationRun.status !== "streaming" &&
+          conversationRun.status !== "waiting_approval"
+          ? historySync.snapshotTurnIds
+          : undefined,
       ),
     [
       conversationRun.events,
@@ -1514,6 +1520,9 @@ export function SessionWorkbench({
       sessionObserver.events,
       sessionObserver.snapshotTurnIds,
       historySync.calibratedTurnIds,
+      historySync.snapshotTurnIds,
+      activeSession?.runtime_status,
+      conversationRun.status,
     ],
   );
   const { timeline } = reconciledTimeline;

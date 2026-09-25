@@ -20,6 +20,7 @@ export function reconcileSessionTimeline(
   observerEvents: SessionEvent[] = [],
   observerSnapshotTurnIds: string[] = [],
   calibratedTurnIds?: string[],
+  historySnapshotTurnIds: string[] = [],
 ): ReconciledSessionTimeline {
   const mergedHistory = mergeEvents(historyEvents);
   const mergedConversation = mergeEvents(conversationEvents);
@@ -27,6 +28,7 @@ export function reconcileSessionTimeline(
   const committedTurnIds = calibratedTurnIds
     ? new Set(calibratedTurnIds)
     : completedTurnIds(mergedHistory);
+  for (const turnId of historySnapshotTurnIds) committedTurnIds.add(turnId);
   const observerOwns = new Set(
     observerSnapshotTurnIds.filter((id) => !committedTurnIds.has(id)),
   );
