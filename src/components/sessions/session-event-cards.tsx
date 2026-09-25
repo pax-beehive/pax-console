@@ -120,6 +120,7 @@ export const WorkstreamItemCard = memo(function WorkstreamItemCard({
       <WorkGroupCard
         userId={userId}
         complete={item.complete}
+        completedAt={item.completedAt}
         events={item.events}
         onSelectToolEvidence={onSelectToolEvidence}
         permissionDecision={permissionDecision}
@@ -179,6 +180,7 @@ function areWorkstreamItemsEqual(
   if (previous.type === "work_group" && next.type === "work_group") {
     return (
       previous.complete === next.complete &&
+      previous.completedAt === next.completedAt &&
       previous.events.length === next.events.length &&
       previous.events.every((event, index) => event === next.events[index])
     );
@@ -345,9 +347,9 @@ function EventCard({
 
   if (event.type === "tool_call") {
     return (
-      <ToolGroupCard
+      <ToolEventRow
         userId={userId}
-        events={[event]}
+        event={event}
         onSelectToolEvidence={onSelectToolEvidence}
         permissionDecision={permissionDecision}
       />
@@ -1073,204 +1075,147 @@ function ownerDisplayName(ownerInfo: AgentOwnerInfo | undefined) {
 
 function WorkGroupCard({
   complete,
+  completedAt,
   events,
   onSelectToolEvidence,
   permissionDecision,
   userId,
 }: {
   complete: boolean;
+  completedAt?: string;
   events: WorkActivityEvent[];
   onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
   permissionDecision: PermissionDecisionState;
   userId?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const pendingPermissionCount = events.reduce(
-    (count, event) =>
-      event.type === "tool_call"
-        ? count +
-          (event.permissions?.filter(
-            (permission) =>
-              !permissionDecisionForPermission(permission, permissionDecision),
-          ).length ?? 0)
-        : count,
-    0,
+  const tools = events.filter(
+    (event): event is ToolCallEvent => event.type === "tool_call",
   );
-  const isWorking =
-    !complete &&
-    (events.some(
-      (event) =>
-        (event.type === "progress" && event.streaming) ||
-        (event.type === "tool_call" &&
-          ["called", "queued", "running"].includes(event.status)),
-    ) ||
-      pendingPermissionCount > 0);
-  const segments = workGroupSegments(events);
+  const pendingPermissions = [
+    ...new Map(
+      tools
+        .flatMap((event) => event.permissions ?? [])
+        .filter(
+          (permission) =>
+            !permissionDecisionForPermission(permission, permissionDecision),
+        )
+        .map((permission) => [
+          permission.approvalId ?? permission.requestId,
+          permission,
+        ]),
+    ).values(),
+  ];
+  const needsApproval = pendingPermissions.length > 0;
+  const start = Date.parse(events[0]?.createdAt ?? "");
+  const end = Date.parse(completedAt ?? "");
+  const elapsedSeconds =
+    complete && Number.isFinite(start) && Number.isFinite(end) && end >= start
+      ? Math.round((end - start) / 1000)
+      : undefined;
+  const durationLabel =
+    elapsedSeconds === undefined
+      ? undefined
+      : elapsedSeconds < 60
+        ? `${elapsedSeconds}s`
+        : `${Math.floor(elapsedSeconds / 60)}m ${elapsedSeconds % 60}s`;
+  const currentTool = tools.findLast((event) =>
+    ["called", "queued", "running"].includes(event.status),
+  );
+  // A tool error is evidence for the agent, not a terminal error for the turn.
+  // Do not infer "retrying" until another tool invocation actually arrives.
+  const label = needsApproval
+    ? "Waiting for approval"
+    : complete
+      ? tools.length
+        ? `Finished ${tools.length} operation${tools.length === 1 ? "" : "s"}`
+        : "Activity complete"
+      : currentTool
+        ? `${currentTool.status === "queued" ? "Queued" : "Running"} ${currentTool.name.replace(/^Run\s+/i, "")}`
+        : "Agent is working";
 
   return (
-    <details
-      className="group/work min-w-0 py-0"
-      onToggle={(event) => setExpanded(event.currentTarget.open)}
-    >
-      <summary className="flex min-w-0 cursor-pointer list-none items-center gap-2 text-sm text-ink-muted outline-none transition hover:text-ink [&::-webkit-details-marker]:hidden">
-        {isWorking ? (
-          <LoaderCircle className="h-4 w-4 animate-spin text-primary-hover" />
-        ) : (
-          <span className="h-2 w-2 rounded-full bg-ink-tertiary" />
-        )}
-        <span className="shrink-0">
-          {isWorking ? "Working" : "Work process"}
-        </span>
-        {pendingPermissionCount > 0 && (
-          <Badge className="shrink-0" tone="warning">
-            {pendingPermissionCount} approval
-            {pendingPermissionCount === 1 ? "" : "s"}
-          </Badge>
-        )}
-        <ChevronDown className="ml-auto h-3.5 w-3.5 shrink-0 -rotate-90 text-ink-tertiary transition group-open/work:rotate-0" />
-      </summary>
-      {expanded && (
-        <div className="mt-2 grid gap-2 border-l border-hairline pl-4">
-          {segments.map((segment) =>
-            segment.type === "thought" ? (
-              <ThoughtCard event={segment.event} key={segment.event.id} />
-            ) : (
-              <ToolGroupCard
-                userId={userId}
-                events={segment.events}
-                key={segment.id}
-                onSelectToolEvidence={onSelectToolEvidence}
-                permissionDecision={permissionDecision}
-              />
-            ),
+    <section aria-label="Agent activity" className="min-w-0">
+      <details
+        className="group/work min-w-0 py-0"
+        onToggle={(event) => setExpanded(event.currentTarget.open)}
+      >
+        <summary className="flex min-h-11 min-w-0 cursor-pointer list-none items-center gap-2 text-sm text-ink-muted transition hover:text-ink focus-visible:outline-2 focus-visible:outline-primary-focus [&::-webkit-details-marker]:hidden">
+          {needsApproval ? (
+            <ShieldCheck
+              aria-hidden="true"
+              className="h-4 w-4 shrink-0 text-warning"
+            />
+          ) : !complete ? (
+            <LoaderCircle
+              aria-hidden="true"
+              className="h-4 w-4 shrink-0 animate-spin text-primary-hover motion-reduce:animate-none"
+            />
+          ) : (
+            <Check
+              aria-hidden="true"
+              className="h-4 w-4 shrink-0 text-ink-tertiary"
+            />
           )}
-        </div>
-      )}
-    </details>
-  );
-}
-
-type WorkGroupSegment =
-  | {
-      type: "thought";
-      event: Extract<SessionEvent, { type: "progress" }>;
-    }
-  | {
-      type: "tools";
-      id: string;
-      events: ToolCallEvent[];
-    };
-
-function workGroupSegments(events: WorkActivityEvent[]): WorkGroupSegment[] {
-  const segments: WorkGroupSegment[] = [];
-  let toolSegment: Extract<WorkGroupSegment, { type: "tools" }> | undefined;
-
-  for (const event of events) {
-    if (event.type === "progress") {
-      toolSegment = undefined;
-      segments.push({ type: "thought", event });
-      continue;
-    }
-
-    if (!toolSegment) {
-      toolSegment = {
-        type: "tools",
-        id: `tools:${event.id}`,
-        events: [],
-      };
-      segments.push(toolSegment);
-    }
-    toolSegment.events.push(event);
-  }
-
-  return segments;
-}
-
-function ToolGroupCard({
-  events,
-  onSelectToolEvidence,
-  permissionDecision,
-  userId,
-}: {
-  events: ToolCallEvent[];
-  onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
-  permissionDecision: PermissionDecisionState;
-  userId?: string;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const runningCount = events.filter(
-    (event) => event.status === "running",
-  ).length;
-  const runningPreview = runningToolGroupPreview(events);
-  const pendingPermissionCount = events.reduce(
-    (count, event) =>
-      count +
-      (event.permissions?.filter(
-        (permission) =>
-          !permissionDecisionForPermission(permission, permissionDecision),
-      ).length ?? 0),
-    0,
-  );
-
-  return (
-    <details
-      className="group min-w-0 py-0"
-      onToggle={(event) => setExpanded(event.currentTarget.open)}
-    >
-      <summary className="flex min-w-0 cursor-pointer list-none items-center gap-2 text-sm text-ink-muted outline-none transition hover:text-ink [&::-webkit-details-marker]:hidden">
-        {runningCount > 0 ? (
-          <LoaderCircle className="h-4 w-4 animate-spin text-primary-hover" />
-        ) : (
-          <span className="h-2 w-2 rounded-full bg-ink-tertiary" />
-        )}
-        <span className="shrink-0">Tool calls</span>
-        <Badge className="font-mono">{String(events.length)}</Badge>
-        {runningPreview && (
-          <TruncatedText
-            className="min-w-0 flex-1 text-xs text-ink-subtle group-open:hidden"
-            tooltip={runningPreview}
-          >
-            {runningPreview}
+          <TruncatedText className="min-w-0 flex-1" tooltip={label}>
+            {label}
           </TruncatedText>
+          {durationLabel && (
+            <span className="shrink-0 text-xs tabular-nums text-ink-tertiary">
+              {durationLabel}
+            </span>
+          )}
+          <ChevronDown
+            aria-hidden="true"
+            className="h-3.5 w-3.5 shrink-0 -rotate-90 text-ink-tertiary transition group-open/work:rotate-0 motion-reduce:transition-none"
+          />
+        </summary>
+        {expanded && (
+          <div className="ml-2 mt-1 grid min-w-0 gap-1 border-l border-hairline pl-4">
+            {events.map((event) =>
+              event.type === "progress" ? (
+                <ThoughtCard
+                  event={complete ? { ...event, streaming: false } : event}
+                  key={event.id}
+                />
+              ) : (
+                <ToolEventRow
+                  compact
+                  event={event}
+                  key={event.id}
+                  onSelectToolEvidence={onSelectToolEvidence}
+                  permissionDecision={permissionDecision}
+                  userId={userId}
+                />
+              ),
+            )}
+          </div>
         )}
-        <span className="ml-auto flex shrink-0 items-center gap-1.5">
-          {pendingPermissionCount > 0 && (
-            <Badge tone="warning">
-              {pendingPermissionCount} approval
-              {pendingPermissionCount === 1 ? "" : "s"}
-            </Badge>
-          )}
-          {runningCount > 0 && (
-            <Badge className="font-mono" tooltip={`${runningCount} running`}>
-              {runningCount} running
-            </Badge>
-          )}
-          <ChevronDown className="h-3.5 w-3.5 -rotate-90 text-ink-tertiary transition group-open:rotate-0" />
-        </span>
-      </summary>
-      {expanded && (
-        <div className="mt-2 overflow-hidden rounded-lg border border-hairline bg-surface-1">
-          {events.map((event) => (
-            <ToolEventRow
-              userId={userId}
-              event={event}
-              key={event.id}
+      </details>
+      {pendingPermissions.length > 0 && (
+        <div className="ml-6 mt-2 grid min-w-0 gap-2">
+          {pendingPermissions.map((permission) => (
+            <PermissionRequestCard
+              event={permission}
+              key={permission.approvalId ?? permission.requestId}
               onSelectToolEvidence={onSelectToolEvidence}
               permissionDecision={permissionDecision}
             />
           ))}
         </div>
       )}
-    </details>
+    </section>
   );
 }
 
 function ToolEventRow({
+  compact = false,
   event,
   onSelectToolEvidence,
   permissionDecision,
   userId,
 }: {
+  compact?: boolean;
   event: ToolCallEvent;
   onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
   permissionDecision: PermissionDecisionState;
@@ -1285,19 +1230,21 @@ function ToolEventRow({
   const approvalBadgeLabel = approvalSummaryBadgeLabel(approvedDecisions);
   const hasApprovedPermission = Boolean(approvalBadgeLabel);
   const approvedPermissionLabel = approvalBadgeLabel ?? "approved";
-  const hasPendingPermission = event.permissions?.some((permission) => {
-    const decision = permissionDecisionForPermission(
-      permission,
-      permissionDecision,
-    );
-    return !decision;
-  });
+  const hasPendingPermission =
+    !compact &&
+    event.permissions?.some((permission) => {
+      const decision = permissionDecisionForPermission(
+        permission,
+        permissionDecision,
+      );
+      return !decision;
+    });
   const appliedPatches = toolCallAppliedPatches(event);
   const proposedPatches = toolCallProposedPatches(event);
   const codePatches =
     appliedPatches.length > 0 ? appliedPatches : proposedPatches;
 
-  if (codePatches.length > 0) {
+  if (codePatches.length > 0 && !compact) {
     return (
       <PatchToolEventRow
         codePatches={codePatches}
@@ -1311,23 +1258,36 @@ function ToolEventRow({
 
   return (
     <details
-      className="group/tool min-w-0 border-b border-hairline last:border-b-0"
+      className={cn(
+        "group/tool min-w-0",
+        !compact && "border-b border-hairline last:border-b-0",
+      )}
       open={expanded || hasPendingPermission}
       onToggle={(event) => setExpanded(event.currentTarget.open)}
     >
       <summary
-        className="grid min-h-9 cursor-pointer list-none grid-cols-[16px_minmax(0,1fr)_auto_auto] items-center gap-2 px-3 py-1.5 outline-none transition hover:bg-canvas/70 [&::-webkit-details-marker]:hidden"
+        className="grid min-h-11 cursor-pointer list-none grid-cols-[16px_minmax(0,1fr)_auto_auto] items-center gap-2 px-3 py-1.5 outline-none transition hover:bg-canvas/70 [&::-webkit-details-marker]:hidden"
         onClick={() => onSelectToolEvidence?.({ type: "tool", event })}
       >
         <ToolStatusMark status={event.status} />
-        <TruncatedText
-          className="font-mono text-xs text-ink-muted"
-          tooltip={event.name}
-        >
-          {event.name}
-        </TruncatedText>
+        <span className="min-w-0">
+          <TruncatedText
+            className="text-xs text-ink-muted"
+            tooltip={event.name}
+          >
+            {event.name}
+          </TruncatedText>
+          {compactToolInputPreview(event.input) && (
+            <TruncatedText
+              className="mt-1 font-mono text-xs text-ink-tertiary"
+              tooltip={compactToolInputPreview(event.input)}
+            >
+              {compactToolInputPreview(event.input)}
+            </TruncatedText>
+          )}
+        </span>
         <div className="flex shrink-0 items-center gap-1.5">
-          <ToolStatusBadge status={event.status} />
+          <span className="text-xs text-ink-tertiary">{event.status}</span>
           {hasApprovedPermission && (
             <Badge tone="success">{approvedPermissionLabel}</Badge>
           )}
@@ -1337,9 +1297,13 @@ function ToolEventRow({
       <div className="grid gap-3 border-t border-hairline bg-canvas/60 p-3">
         <ToolPermissionsSection
           event={event}
+          hidePending={compact}
           onSelectToolEvidence={onSelectToolEvidence}
           permissionDecision={permissionDecision}
         />
+        {compact && codePatches.length > 0 && (
+          <ToolPatchSection patches={codePatches} />
+        )}
         {event.historyDetails?.length ? (
           (expanded || hasPendingPermission) && (
             <ToolMessageDetails event={event} userId={userId} />
@@ -1500,14 +1464,22 @@ function compactPatchLabel(patches: CodePatch[]) {
 
 function ToolPermissionsSection({
   event,
+  hidePending = false,
   onSelectToolEvidence,
   permissionDecision,
 }: {
   event: ToolCallEvent;
+  hidePending?: boolean;
   onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
   permissionDecision: PermissionDecisionState;
 }) {
-  if (!event.permissions || event.permissions.length === 0) {
+  const permissions =
+    event.permissions?.filter(
+      (permission) =>
+        !hidePending ||
+        permissionDecisionForPermission(permission, permissionDecision),
+    ) ?? [];
+  if (permissions.length === 0) {
     return null;
   }
 
@@ -1516,7 +1488,7 @@ function ToolPermissionsSection({
       <div className="text-xs uppercase tracking-wide text-ink-tertiary">
         Approval request
       </div>
-      {event.permissions.map((permission) => (
+      {permissions.map((permission) => (
         <PermissionRequestCard
           compactApproved={false}
           event={permission}
@@ -2552,23 +2524,6 @@ function textFromPayload(value: unknown): string | undefined {
   }
 
   return undefined;
-}
-
-function runningToolGroupPreview(events: ToolCallEvent[]) {
-  const runningEvents = events.filter((event) => event.status === "running");
-  const current = runningEvents[0];
-  if (!current) {
-    return undefined;
-  }
-
-  const inputPreview = compactToolInputPreview(current.input);
-  const additional = runningEvents.length - 1;
-  return [
-    inputPreview ? `${current.name} · ${inputPreview}` : current.name,
-    additional > 0 ? `+${additional} more` : undefined,
-  ]
-    .filter(Boolean)
-    .join(" · ");
 }
 
 function compactToolInputPreview(value: unknown) {

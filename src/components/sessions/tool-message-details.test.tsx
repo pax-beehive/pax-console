@@ -77,11 +77,7 @@ describe("tool details", () => {
       { wrapper },
     );
     expect(apiFetch).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByText("Tool calls"));
-    await waitFor(() =>
-      expect(screen.getByText("Run tests")).toBeInTheDocument(),
-    );
-    expect(apiFetch).not.toHaveBeenCalled();
+    expect(screen.getByText("Run tests")).toBeVisible();
     fireEvent.click(screen.getByText("Run tests"));
     await screen.findByText("first page");
     expect(apiFetch).toHaveBeenCalledTimes(2);

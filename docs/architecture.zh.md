@@ -342,11 +342,15 @@ src/components/sessions/
   Knowledge、未接通的语音输入等实验入口只对 admin 展示，并受
   `Preview as user` 开关控制。
 
-  连续的 thought/progress 与 tool call 达到 2 个时，按原顺序聚合为一个默认折叠的
-  work block；单独一个 thought 或 tool call 直接展示。子事件仍在运行时标题只显示
-  「工作中」，全部完成后显示「工作过程」，不展示思考/工具数量。pending approval
-  仍在外层提示；展开后可查看各段思考和相邻 tool group。普通消息或独立 actionable
-  event 会结束当前 work block。时间线 block 使用 8px
+  连续的 thought/progress 与 tool call 达到 2 个时，按原顺序聚合为默认折叠的
+  活动行。执行中显示当前工具名称，工具间隙显示 Agent is working；活动段结束后
+  显示工具操作数量，有真实结束边界时间时才显示耗时。单个工具直接展开；活动段
+  展开后直接显示各项思考和工具记录，去掉中间的 Tool calls 分组。
+  工具失败只保留在操作详情，由 agent 处理，不提供用户重试按钮、不改变 session
+  runtime status，也不由前端自动重跑工具。待授权请求在折叠行外始终可操作，
+  段内不重复显示同一待授权控件。原有授权范围、提交锁、diff 和 Tool evidence 保留。
+  completedAt 仅由结束当前活动段的消息或 turn_done 时间生成，属于视图投影元数据，
+  不写回后端。时间线 block 使用 8px
   间距；agent 与 user 正文使用 14px 字号、20px 行高，Markdown H1/H2/H3
   分别使用 18px/16px/15px 字号，引用使用 13px 字号；Session 与 Home composer
   桌面输入框和正文一致，使用 14px 字号、20px 行高。小于 640px 的手机布局中，输入和 agent/user 正文统一使用 16px/24px，

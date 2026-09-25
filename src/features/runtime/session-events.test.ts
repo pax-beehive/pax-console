@@ -293,6 +293,7 @@ describe("groupWorkstreamEvents", () => {
         type: "work_group",
         id: "work_group:thought-1",
         complete: true,
+        completedAt: "2026-06-26T12:00:02Z",
         events: [{ id: "thought-1" }, { id: "tool-1" }],
       },
     ]);

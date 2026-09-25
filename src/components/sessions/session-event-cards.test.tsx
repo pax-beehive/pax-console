@@ -273,86 +273,111 @@ describe("session event cards", () => {
     expect(screen.getByRole("button", { name: "Allow once" })).toBeDisabled();
   });
 
-  it("collapses a work group containing thoughts and tool calls", () => {
-    const thought: Extract<SessionEvent, { type: "progress" }> = {
-      type: "progress",
-      id: "thought-1",
-      sessionId: "sess-1",
-      content: "Checking the relevant files",
-      streaming: true,
-      createdAt: "2026-07-17T19:59:59Z",
-    };
-    const runningTool: Extract<SessionEvent, { type: "tool_call" }> = {
-      type: "tool_call",
-      id: "tool-event-1",
-      sessionId: "sess-1",
-      name: "shell",
-      status: "running",
-      input: { command: "pnpm test" },
-      permissions: [
-        {
-          type: "permission_request",
-          id: "permission-1",
-          sessionId: "sess-1",
-          requestId: "permission-1",
-          title: "Run pnpm test",
-          options: [],
-          createdAt: "2026-07-17T20:00:00Z",
-        },
-      ],
-      createdAt: "2026-07-17T20:00:00Z",
-    };
-    const { container } = renderItem({
-      type: "work_group",
-      id: "work-group-1",
-      sessionId: "sess-1",
-      createdAt: thought.createdAt,
-      complete: false,
-      events: [thought, runningTool],
-    });
-
-    expect(container.querySelector("details")).not.toHaveAttribute("open");
-    expect(container.querySelector("details")).toHaveClass("py-0");
-    expect(screen.getByText("Working")).toBeInTheDocument();
-    expect(
-      container.querySelector(":scope > details > summary"),
-    ).toHaveTextContent("1 approval");
-    expect(screen.queryByText(thought.content)).not.toBeInTheDocument();
-    expect(container).not.toHaveTextContent("shell · pnpm test");
-    expect(screen.queryByText("1 running")).not.toBeInTheDocument();
-
-    const details = container.querySelector("details")!;
-    details.open = true;
-    fireEvent(details, new Event("toggle"));
-    expect(screen.queryByText(thought.content)).not.toBeInTheDocument();
-    expect(screen.getByText("shell · pnpm test")).toBeInTheDocument();
-    expect(screen.getByText("1 running")).toBeInTheDocument();
-
-    const thoughtDetails = container.querySelectorAll("details")[1];
-    thoughtDetails.open = true;
-    fireEvent(thoughtDetails, new Event("toggle"));
-    expect(screen.getByText(thought.content)).toBeInTheDocument();
+  it("shows the current operation and opens a flat activity list", () => {
+    const { container } = renderItem(activityGroup(false));
+    expect(screen.getByText("Running shell")).toBeVisible();
+    expect(screen.queryByText("Tool calls")).not.toBeInTheDocument();
+    expect(screen.queryByText("Checking files")).not.toBeInTheDocument();
+    const group = container.querySelector("details")!;
+    group.open = true;
+    fireEvent(group, new Event("toggle"));
+    expect(screen.getByText("shell")).toBeVisible();
+    expect(screen.queryByText("Tool calls")).not.toBeInTheDocument();
+    expect(container.querySelectorAll("details")).toHaveLength(3);
   });
 
-  it("renders a standalone tool call without a work-process wrapper", () => {
-    const completedTool: Extract<SessionEvent, { type: "tool_call" }> = {
-      type: "tool_call",
-      id: "tool-event-complete",
-      sessionId: "sess-1",
-      name: "read",
-      status: "done",
-      createdAt: "2026-07-17T20:00:00Z",
-    };
+  it("keeps an actionable approval outside the collapsed activity list without duplicating it", () => {
+    const item = activityGroup(false);
+    const tool = item.events[1] as Extract<SessionEvent, { type: "tool_call" }>;
+    tool.permissions = [
+      {
+        type: "permission_request",
+        id: "permission-1",
+        requestId: "request-1",
+        approvalId: "approval-1",
+        sessionId: "sess-1",
+        title: "Install dependencies",
+        options: [],
+        createdAt: tool.createdAt,
+      },
+    ];
+    const onDecision = vi.fn();
+    const { container } = renderItem(item, {
+      ...permissionDecision,
+      onDecision,
+    });
+    expect(screen.getByText("Waiting for approval")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Allow once" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Allow once" }));
+    expect(onDecision).toHaveBeenCalledWith("approval-1", "allow_once");
+    const group = container.querySelector("details")!;
+    group.open = true;
+    fireEvent(group, new Event("toggle"));
+    expect(screen.getAllByRole("button", { name: "Allow once" })).toHaveLength(
+      1,
+    );
+  });
+
+  it("does not escalate a failed tool or ask the user to retry while the agent continues", () => {
+    const item = activityGroup(false);
+    (item.events[1] as Extract<SessionEvent, { type: "tool_call" }>).status =
+      "error";
+    const { container } = renderItem(item);
+    expect(screen.getByText("Agent is working")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: /retry/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByText("error")).not.toBeInTheDocument();
+    const group = container.querySelector("details")!;
+    group.open = true;
+    fireEvent(group, new Event("toggle"));
+    expect(screen.getByText("error")).toBeVisible();
+  });
+
+  it("summarizes completed operations without counting thought chunks as operations", () => {
+    const item = activityGroup(true);
+    const { container } = renderItem(item);
+    expect(screen.getByText("Finished 1 operation")).toBeVisible();
+    expect(container.querySelector("details")).not.toHaveAttribute("open");
+    expect(container.querySelector(".animate-spin")).not.toBeInTheDocument();
+  });
+
+  it("shows elapsed time from the real completed activity boundary", () => {
+    renderItem({ ...activityGroup(true), completedAt: "2026-09-25T00:00:24Z" });
+    expect(screen.getByText("24s")).toBeVisible();
+  });
+
+  it("does not invent elapsed time for activity without a valid boundary", () => {
+    renderItem({ ...activityGroup(true), completedAt: "invalid" });
+    expect(screen.queryByText(/\d+s$/)).not.toBeInTheDocument();
+  });
+
+  it("shows a new running operation after a failed attempt without reporting the session as failed", () => {
+    const item = activityGroup(false);
+    const tool = item.events[1] as Extract<SessionEvent, { type: "tool_call" }>;
+    tool.status = "error";
+    item.events.push({
+      ...tool,
+      id: "retry",
+      name: "Read upload handler",
+      status: "running",
+    });
+    renderItem(item);
+    expect(screen.getByText("Running Read upload handler")).toBeVisible();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("renders a standalone tool directly without a Tool calls group", () => {
+    const tool = activityGroup(true).events[1];
     const { container } = renderItem({
       type: "event",
-      id: completedTool.id,
-      event: completedTool,
+      id: tool.id,
+      event: tool,
     });
-
-    expect(container).toHaveTextContent("Tool calls");
-    expect(container).toHaveTextContent("1");
-    expect(container).not.toHaveTextContent("Work process");
-    expect(container).not.toHaveTextContent("Working");
+    expect(screen.getByText("shell")).toBeVisible();
+    expect(container.querySelectorAll("details")).toHaveLength(1);
+    expect(screen.queryByText("Tool calls")).not.toBeInTheDocument();
   });
 
   it("collapses thought content by default", () => {
@@ -475,3 +500,34 @@ describe("session event cards", () => {
     ).toBeInTheDocument();
   });
 });
+
+function activityGroup(
+  complete: boolean,
+): Extract<WorkstreamItem, { type: "work_group" }> {
+  return {
+    type: "work_group",
+    id: "activity-1",
+    sessionId: "sess-1",
+    createdAt: "2026-09-25T00:00:00Z",
+    complete,
+    events: [
+      {
+        type: "progress",
+        id: "thought-1",
+        sessionId: "sess-1",
+        content: "Checking files",
+        streaming: true,
+        createdAt: "2026-09-25T00:00:00Z",
+      },
+      {
+        type: "tool_call",
+        id: "tool-1",
+        sessionId: "sess-1",
+        name: "shell",
+        status: complete ? "done" : "running",
+        input: { command: "pnpm test" },
+        createdAt: "2026-09-25T00:00:01Z",
+      },
+    ],
+  };
+}
