@@ -424,6 +424,11 @@ Collaboration and knowledge resources are normal user-scoped REST resources:
   The Session Artifacts panel reads artifacts through TanStack Query and lets
   every session user preview or download content through manager-issued signed
   URLs. The Console no longer exposes the legacy browser upload flow.
+  SessionArtifactsPanel owns local list/preview navigation. Selecting a row
+  replaces the list with an auto-loading shared viewer; Back to artifacts
+  restores the list scroll position and focused row. Do not append the preview
+  below the full list. Resource panel headings, tabs, and close controls stay
+  fixed while content scrolls independently.
 ```
 
 ## Conversation Runtime Rules
