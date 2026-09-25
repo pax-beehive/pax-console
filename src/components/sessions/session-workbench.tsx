@@ -42,6 +42,7 @@ import {
   ToolEvidenceSelection,
   WorkstreamItemCard,
 } from "@/components/sessions/session-event-cards";
+import { showPendingActivity } from "./activity-label";
 import { SessionBrowserApprovals } from "./session-browser-approvals";
 import { SessionBrowserWindow } from "./session-browser-window";
 import { WorkspacePicker } from "./workspace-picker";
@@ -192,18 +193,6 @@ export type ComposerAttachment = {
   sizeBytes?: number;
 };
 
-// Event types that count as visible agent output in the timeline. Meta events
-// (run_status, token_usage, context_usage, turn_done, ...) must not dismiss the pending
-// indicator, and the optimistic user_message must not either.
-const AGENT_OUTPUT_EVENT_TYPES: ReadonlySet<SessionEvent["type"]> = new Set([
-  "agent_message",
-  "artifact_publication",
-  "file_change",
-  "invocation",
-  "permission_request",
-  "progress",
-  "tool_call",
-]);
 const emptyAgentOwnerInfos = {};
 
 export function SessionWorkbench({
@@ -1473,20 +1462,6 @@ export function SessionWorkbench({
     [historyMessages],
   );
 
-  const mergedRuntimeEvents = useMemo(
-    () =>
-      mergeEvents(
-        usesEncryptedTransport
-          ? encryptedRuntime.events
-          : [...conversationRun.events, ...sessionObserver.events],
-      ),
-    [
-      conversationRun.events,
-      encryptedRuntime.events,
-      usesEncryptedTransport,
-      sessionObserver.events,
-    ],
-  );
   const reconciledTimeline = useMemo(
     () =>
       reconcileSessionTimeline(
@@ -1543,20 +1518,10 @@ export function SessionWorkbench({
     () => groupWorkstreamEvents(timeline),
     [timeline],
   );
-  const currentRuntimeTurnId = latestRuntimeTurnId(mergedRuntimeEvents);
-  const currentTurnHasAgentOutput = mergedRuntimeEvents.some(
-    (event) =>
-      (!currentRuntimeTurnId || event.turnId === currentRuntimeTurnId) &&
-      AGENT_OUTPUT_EVENT_TYPES.has(event.type),
+  const isAgentResponsePending = showPendingActivity(
+    displayedRunStatus,
+    workstreamItems,
   );
-  const isAgentResponsePending =
-    ((usesEncryptedTransport && encryptedRuntime.status === "streaming") ||
-      (!usesEncryptedTransport &&
-        (conversationRun.status === "streaming" ||
-          conversationRun.status === "waiting_approval" ||
-          (shouldObserveSessionTurn &&
-            sessionObserver.status === "observing")))) &&
-    !currentTurnHasAgentOutput;
   const mutateSessionApprovalMode = updateSessionApprovalMode.mutate;
   const mutateSessionPermission = updateSessionPermission.mutate;
   const selectPermissionChoice = useCallback(

@@ -253,15 +253,19 @@ describe("groupWorkstreamEvents", () => {
         createdAt: "2026-06-26T12:00:00Z",
       },
     },
-  ])("exposes a single $event.type event without a work block", ({ event }) => {
-    expect(groupWorkstreamEvents([event])).toMatchObject([
-      {
-        type: "event",
-        id: event.id,
-        event: { id: event.id, type: event.type },
-      },
-    ]);
-  });
+  ])(
+    "keeps a single $event.type in the same collapsed activity structure",
+    ({ event }) => {
+      expect(groupWorkstreamEvents([event])).toMatchObject([
+        {
+          type: "work_group",
+          id: `work_group:${event.id}`,
+          complete: false,
+          events: [{ id: event.id, type: event.type }],
+        },
+      ]);
+    },
+  );
 
   it("groups a run as soon as it contains two work events", () => {
     const events: SessionEvent[] = [
@@ -451,9 +455,9 @@ describe("groupWorkstreamEvents", () => {
 
     expect(grouped.map((item) => item.type)).toEqual([
       "event",
+      "work_group",
       "event",
-      "event",
-      "event",
+      "work_group",
     ]);
   });
 
@@ -579,7 +583,11 @@ describe("groupWorkstreamEvents", () => {
     expect(grouped).toMatchObject([
       { type: "event", id: "user-1" },
       { type: "event", id: "agent-1" },
-      { type: "event", id: "tool-1" },
+      {
+        type: "work_group",
+        id: "work_group:tool-1",
+        events: [{ id: "tool-1" }],
+      },
       { type: "event", id: "agent-2" },
       {
         type: "turn_footer",
@@ -643,7 +651,11 @@ describe("groupWorkstreamEvents", () => {
     expect(grouped).toMatchObject([
       { type: "event", id: "user-1" },
       { type: "event", id: "agent-1" },
-      { type: "event", id: "tool-1" },
+      {
+        type: "work_group",
+        id: "work_group:tool-1",
+        events: [{ id: "tool-1" }],
+      },
       { type: "event", id: "agent-2" },
       {
         type: "turn_footer",
@@ -1188,7 +1200,11 @@ describe("groupWorkstreamEvents", () => {
 
     expect(grouped).toMatchObject([
       { type: "event", id: "agent-1" },
-      { type: "event", id: "tool-1" },
+      {
+        type: "work_group",
+        id: "work_group:tool-1",
+        events: [{ id: "tool-1" }],
+      },
       {
         type: "turn_footer",
         id: "turn_footer:agent-1",

@@ -10,7 +10,6 @@ import {
 } from "react";
 import { ContextUsageGauge } from "./context-usage-gauge";
 import { createPortal } from "react-dom";
-import { motion } from "motion/react";
 import {
   ArrowDown,
   ArrowUp,
@@ -60,6 +59,7 @@ import {
 } from "@/features/runtime/tool-patches";
 import { cn } from "@/lib/utils";
 import { MessageAttachment } from "./message-attachment";
+import { liveActivityLabel } from "./activity-label";
 
 export type PermissionDecisionOption =
   | "deny"
@@ -399,34 +399,26 @@ function FileChangeCard({
   );
 }
 
-// Shown after the user sends a prompt until the first agent output streams
-// in. Keep it quiet: a breathing PAX mark plus three pulsing dots.
+// A quiet wait indicator for an active turn without an animated activity row.
 export function AgentPendingIndicator() {
   return (
     <div
-      aria-live="polite"
+      aria-label="Waiting for agent"
       className="flex items-center gap-2 py-1"
       role="status"
     >
-      <motion.span
-        animate={{ opacity: [0.35, 1, 0.35], scale: [0.88, 1, 0.88] }}
-        className="flex shrink-0"
-        transition={{ duration: 1.6, ease: "easeInOut", repeat: Infinity }}
+      <span
+        aria-hidden="true"
+        className="flex shrink-0 animate-pulse motion-reduce:animate-none"
       >
         <PaxLogo className="h-4 w-4 text-accent-bright" />
-      </motion.span>
-      <span className="flex items-center gap-1">
+      </span>
+      <span aria-hidden="true" className="flex items-center gap-1">
         {[0, 1, 2].map((index) => (
-          <motion.span
-            animate={{ opacity: [0.25, 1, 0.25] }}
-            className="h-1 w-1 rounded-full bg-ink-tertiary"
+          <span
             key={index}
-            transition={{
-              delay: index * 0.2,
-              duration: 1.2,
-              ease: "easeInOut",
-              repeat: Infinity,
-            }}
+            className="h-1 w-1 animate-pulse rounded-full bg-ink-tertiary motion-reduce:animate-none"
+            style={{ animationDelay: `${index * 200}ms` }}
           />
         ))}
       </span>
@@ -1123,9 +1115,6 @@ function WorkGroupCard({
       : elapsedSeconds < 60
         ? `${elapsedSeconds}s`
         : `${Math.floor(elapsedSeconds / 60)}m ${elapsedSeconds % 60}s`;
-  const currentTool = tools.findLast((event) =>
-    ["called", "queued", "running"].includes(event.status),
-  );
   // A tool error is evidence for the agent, not a terminal error for the turn.
   // Do not infer "retrying" until another tool invocation actually arrives.
   const label = needsApproval
@@ -1134,9 +1123,7 @@ function WorkGroupCard({
       ? tools.length
         ? `Finished ${tools.length} operation${tools.length === 1 ? "" : "s"}`
         : "Activity complete"
-      : currentTool
-        ? `${currentTool.status === "queued" ? "Queued" : "Running"} ${currentTool.name.replace(/^Run\s+/i, "")}`
-        : "Agent is working";
+      : liveActivityLabel(events);
 
   return (
     <section aria-label="Agent activity" className="min-w-0">

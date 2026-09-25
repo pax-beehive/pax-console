@@ -211,8 +211,9 @@ export const SessionComposer = memo(function SessionComposer({
 
   function submit(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
-    const content =
-      useConsoleStore.getState().composerDrafts[draftKey]?.trim() ?? "";
+    const submittedDraft =
+      useConsoleStore.getState().composerDrafts[draftKey] ?? "";
+    const content = submittedDraft.trim();
     const emptyCreation = !content && !hasAttachments && canCreateEmptySession;
     if (!emptyCreation && !canSend && !canQueueTurn) return;
     const guard =
@@ -224,18 +225,36 @@ export const SessionComposer = memo(function SessionComposer({
       return;
     guard.pending = true;
     guard.lastStartedAt = now;
+    clearDraft();
+    let draftEdited = false;
+    let accepted = false;
+    // Watch only until acceptance; even typing and deleting creates a new draft
+    // that a failed request must not overwrite. This does not rerender React.
+    const unsubscribe = useConsoleStore.subscribe((state, previous) => {
+      if (
+        state.composerDrafts[draftKey] !== previous.composerDrafts[draftKey]
+      ) {
+        draftEdited = true;
+      }
+    });
+    const onAccepted = () => {
+      accepted = true;
+      unsubscribe();
+    };
     void (async () => {
       try {
-        let acknowledged = false;
-        const onAccepted = () => {
-          if (!acknowledged) clearSubmittedDraft(content);
-          acknowledged = true;
-        };
-        const accepted = emptyCreation
+        const result = emptyCreation
           ? await onCreateEmptySession!()
           : await onSubmitDraft(content, onAccepted);
-        if (accepted && !acknowledged) onAccepted();
+        if (result) onAccepted();
+      } catch {
+        // The submit handler owns error presentation. Restore an unaccepted
+        // draft below for both a rejected promise and a false result.
       } finally {
+        unsubscribe();
+        if (!accepted && !draftEdited && submittedDraft) {
+          setComposerDraft(draftKey, submittedDraft);
+        }
         guard.pending = false;
       }
     })();

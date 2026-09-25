@@ -526,7 +526,11 @@ Project and permission fields; it must not manufacture a prompt or turn. E2EE
 uses its normal encrypted native bootstrap with an empty initial prompt and
 skips session/prompt. Preserve native-assignment ordering and transport safety.
 Home passes a one-shot initialInitializeOnly intent to the shared workbench.
-Retain drafts on rejected sends, and leave work typed during submission intact.
+Clear the session composer synchronously when submission starts, before waiting
+for `turn_started` or the send promise. Restore the exact draft on rejection only
+if it has not been edited since submission. Acceptance and completion must not
+clear later input, even identical text; a stream failure after acceptance must
+not restore the already-sent prompt. Keep the repeat and in-flight guards intact.
 After a plaintext session is assigned, the same permission selector remains
 available. Selecting a choice posts to the session-scoped permission endpoint;
 the UI only accepts the returned effective session config after Manager has
@@ -812,12 +816,23 @@ AuthGate-protected full-width preview at
 `/artifacts/files/[artifactId]?ref=...`; those pages reuse the same renderer,
 auto-load a short-lived URL, and do not expose public artifact links.
 
-Runs of two or more contiguous thought/progress and tool-call events render as
-one collapsed activity row, preserving event order. The summary names the latest
-active tool, or says `Agent is working` between calls. A closed block shows
+Contiguous thought/progress and tool calls use the same collapsed activity row
+from the first event. An explicit streaming thought displays `Thinking…`;
+recognized running tools use concise actions such as `Reading files…` or
+`Running tests…`, and unknown tools use `Using tools…`. Multiple running tools
+show `Using tools · N running`; queued or mixed activity is labeled accurately.
+With no active tool or latest live thought, use `Working…` without inferring
+thinking or retries. Raw tool names and payloads stay inside expanded details.
+During streaming, retain the lightweight pending indicator after commentary
+unless the last item is an active activity row with its own feedback. Do not
+gate it on whether the turn has ever produced output. Idle, terminal, unknown,
+and waiting-approval states hide the indicator; it does not infer tool progress
+or alter runtime status. The CSS animation respects reduced-motion preferences.
+
+A closed block shows
 `Finished N operations` (tool calls only) and elapsed time only when its actual
 closing event supplies a valid timestamp. This is activity-block timing, not
-session runtime status. A single tool call is a direct expandable row. Expanding
+session runtime status. A single tool uses the same collapsed row. Expanding
 a block reveals individual thought/tool rows without an intermediate Tool calls
 group. Tool errors stay in the expanded evidence; never turn them into a terminal
 session error, an automatic frontend retry, or a user-facing Retry action. Only

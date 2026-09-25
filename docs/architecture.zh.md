@@ -362,9 +362,14 @@ src/components/sessions/
   Knowledge、未接通的语音输入等实验入口只对 admin 展示，并受
   `Preview as user` 开关控制。
 
-  连续的 thought/progress 与 tool call 达到 2 个时，按原顺序聚合为默认折叠的
-  活动行。执行中显示当前工具名称，工具间隙显示 Agent is working；活动段结束后
-  显示工具操作数量，有真实结束边界时间时才显示耗时。单个工具直接展开；活动段
+  连续的 thought/progress 与 tool call 从第 1 个事件起按原顺序聚合为默认折叠的
+  活动行。明确的最新流式思考显示 Thinking…；可识别的运行工具显示 Reading files…
+  等动作，未知工具显示 Using tools…，并行工具显示数量，排队不冒充执行。
+  没有活跃工具和最新流式思考时显示 Working…，不推断正在思考或重试。
+  执行中的消息尾部若没有活跃活动行，则保留呼吸灯/三点等待动画；不能因本轮曾有
+  输出就永久隐藏。已有活动行动画时不重复展示，结束、取消、失败或待授权时收起。
+  原始工具名称与内容保留在展开详情中。活动段结束后显示工具操作数量，只有真实
+  结束边界时间才显示耗时。单个工具也使用同一活动行；活动段
   展开后直接显示各项思考和工具记录，去掉中间的 Tool calls 分组。
   工具失败只保留在操作详情，由 agent 处理，不提供用户重试按钮、不改变 session
   runtime status，也不由前端自动重跑工具。待授权请求在折叠行外始终可操作，
@@ -871,7 +876,9 @@ SSE 开始后的失败通过 `type=error` envelope 返回 `status_code` 与
 不产生消息。普通 transport 使用 `{"initialize_only":true}`，不创建 prompt 或 turn；
 E2EE 复用加密 native bootstrap，初始 prompt 为空时不调用 session/prompt。
 Home 通过一次性的 initialInitializeOnly 挂载 Workbench，保留原有 permission refresh、
-native assignment 和错误恢复链路。失败保留草稿，提交期间新输入的内容不被清除。
+native assignment 和错误恢复链路。Session composer 在提交开始时同步清空，不等待
+`turn_started` 或发送 Promise；接受前失败且用户尚未编辑时恢复原始草稿。后续输入即使
+与已发送文本相同也不被迟到的确认或完成清除；接受后流失败不恢复已发送消息。
 明文 session 创建后继续显示相同的 permission selector。修改 choice 时前端调用
 session-scoped permission endpoint；Manager 成功执行 live ACP `set_mode` 或
 `set_config_option` 并返回有效 session config 后，前端才确认新的选择。
