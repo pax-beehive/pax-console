@@ -16,7 +16,6 @@ import type {
 
 type SessionConfigSelectorProps = {
   configuration?: SessionConfiguration;
-  inline?: boolean;
   disabled?: boolean;
   errorMessage?: string;
   loading?: boolean;
@@ -143,6 +142,7 @@ function SessionConfigFields({
               key={candidate.value}
               label={candidate.name}
               description={candidate.group}
+              tooltip={candidate.description}
               selected={candidate.value === option.current_value}
               disabled={locked}
               onClick={() => {
@@ -201,6 +201,7 @@ function SessionConfigFields({
             <SettingsToggle
               key={option.id}
               label={option.name}
+              tooltip={option.description}
               checked={Boolean(option.current_value)}
               disabled={locked}
               onChange={(checked) => onChange(option.id, checked)}
@@ -210,6 +211,7 @@ function SessionConfigFields({
               key={option.id}
               label={option.name}
               value={optionValueLabel(option)}
+              tooltip={option.description}
               ariaLabel={`${option.name}: ${optionValueLabel(option)}`}
               disabled={locked}
               onClick={() =>
@@ -232,6 +234,21 @@ function SessionConfigFields({
               disabled
               onClick={() => {}}
             />
+            <SettingsChoices label="Legacy models">
+              {configuration?.legacy_models?.available?.map((candidate) => (
+                <SettingsChoice
+                  key={candidate.id}
+                  label={candidate.name}
+                  description={candidate.description}
+                  selected={
+                    configuration?.legacy_models?.current_model_id ===
+                    candidate.id
+                  }
+                  disabled
+                  onClick={() => {}}
+                />
+              ))}
+            </SettingsChoices>
             <p className="px-3 pb-3 text-xs leading-5 text-ink-tertiary">
               Legacy agent model list; switching is not standardized.
             </p>

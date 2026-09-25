@@ -2549,7 +2549,6 @@ export function SessionWorkbench({
             currentSessionId &&
             !usesEncryptedTransport && (
               <SessionConfigSelector
-                inline
                 configuration={sessionConfigurationQuery.data}
                 errorMessage={
                   sessionConfigurationQuery.error instanceof Error

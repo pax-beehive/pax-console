@@ -17,7 +17,6 @@ function setup(disabled = false) {
         <span>Creation-only option</span>
       </SessionSettingsHome>
       <SessionConfigSelector
-        inline
         configuration={{
           session_id: "s",
           can_set: true,

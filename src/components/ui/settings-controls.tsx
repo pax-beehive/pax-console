@@ -3,6 +3,7 @@
 import { Check, ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 import { Switch } from "./switch";
+import { Tooltip } from "./tooltip";
 import { cn } from "@/lib/utils";
 
 const rowClass =
@@ -14,28 +15,32 @@ export function SettingsRow({
   disabled,
   onClick,
   ariaLabel,
+  tooltip,
 }: {
   label: string;
   value?: ReactNode;
   disabled?: boolean;
   onClick: () => void;
   ariaLabel?: string;
+  tooltip?: string;
 }) {
   return (
-    <button
-      type="button"
-      aria-label={ariaLabel}
-      disabled={disabled}
-      onClick={onClick}
-      className={rowClass}
-    >
-      <span className="min-w-0 flex-1 text-ink">{label}</span>
-      <span className="max-w-[55%] truncate text-ink-muted">{value}</span>
-      <ChevronRight
-        aria-hidden="true"
-        className="h-4 w-4 shrink-0 text-ink-tertiary"
-      />
-    </button>
+    <Tooltip content={tooltip}>
+      <button
+        type="button"
+        aria-label={ariaLabel}
+        disabled={disabled}
+        onClick={onClick}
+        className={rowClass}
+      >
+        <span className="min-w-0 flex-1 text-ink">{label}</span>
+        <span className="max-w-[55%] truncate text-ink-muted">{value}</span>
+        <ChevronRight
+          aria-hidden="true"
+          className="h-4 w-4 shrink-0 text-ink-tertiary"
+        />
+      </button>
+    </Tooltip>
   );
 }
 
@@ -82,47 +87,52 @@ export function SettingsChoices({
 export function SettingsChoice({
   label,
   description,
+  tooltip,
   selected,
   disabled,
   onClick,
 }: {
   label: string;
   description?: string;
+  tooltip?: string;
   selected: boolean;
   disabled?: boolean;
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      disabled={disabled}
-      onClick={onClick}
-      className={cn(rowClass, "items-start", selected && "bg-surface-3")}
-    >
-      <span className="min-w-0 flex-1">
-        <span className="block break-words text-ink">{label}</span>
-        {description && (
-          <span className="mt-1.5 block text-xs leading-5 text-ink-muted">
-            {description}
-          </span>
-        )}
-      </span>
-      <Check
-        aria-hidden="true"
-        className={cn(
-          "mt-0.5 h-4 w-4 shrink-0 text-primary-hover",
-          !selected && "invisible",
-        )}
-      />
-    </button>
+    <Tooltip content={tooltip}>
+      <button
+        type="button"
+        role="radio"
+        aria-checked={selected}
+        disabled={disabled}
+        onClick={onClick}
+        className={cn(rowClass, "items-start", selected && "bg-surface-3")}
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block break-words text-ink">{label}</span>
+          {description && (
+            <span className="mt-1.5 block text-xs leading-5 text-ink-muted">
+              {description}
+            </span>
+          )}
+        </span>
+        <Check
+          aria-hidden="true"
+          className={cn(
+            "mt-0.5 h-4 w-4 shrink-0 text-primary-hover",
+            !selected && "invisible",
+          )}
+        />
+      </button>
+    </Tooltip>
   );
 }
 
 export function SettingsToggle({
   label,
   description,
+  tooltip,
   ariaLabel,
   checked,
   disabled,
@@ -130,27 +140,30 @@ export function SettingsToggle({
 }: {
   label: string;
   description?: string;
+  tooltip?: string;
   ariaLabel?: string;
   checked: boolean;
   disabled?: boolean;
   onChange: (value: boolean) => void;
 }) {
   return (
-    <label className="flex min-h-12 cursor-pointer items-center justify-between gap-4 rounded-xl px-3 py-3.5 text-sm">
-      <span className="min-w-0">
-        <span className="block text-ink">{label}</span>
-        {description && (
-          <span className="mt-1.5 block text-xs leading-5 text-ink-muted">
-            {description}
-          </span>
-        )}
-      </span>
-      <Switch
-        aria-label={ariaLabel ?? label}
-        checked={checked}
-        disabled={disabled}
-        onCheckedChange={onChange}
-      />
-    </label>
+    <Tooltip content={tooltip}>
+      <label className="flex min-h-12 cursor-pointer items-center justify-between gap-4 rounded-xl px-3 py-3.5 text-sm">
+        <span className="min-w-0">
+          <span className="block text-ink">{label}</span>
+          {description && (
+            <span className="mt-1.5 block text-xs leading-5 text-ink-muted">
+              {description}
+            </span>
+          )}
+        </span>
+        <Switch
+          aria-label={ariaLabel ?? label}
+          checked={checked}
+          disabled={disabled}
+          onCheckedChange={onChange}
+        />
+      </label>
+    </Tooltip>
   );
 }
