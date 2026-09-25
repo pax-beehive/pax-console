@@ -868,7 +868,9 @@ SSE 开始后的失败通过 `type=error` envelope 返回 `status_code` 与
 不产生消息。普通 transport 使用 `{"initialize_only":true}`，不创建 prompt 或 turn；
 E2EE 复用加密 native bootstrap，初始 prompt 为空时不调用 session/prompt。
 Home 通过一次性的 initialInitializeOnly 挂载 Workbench，保留原有 permission refresh、
-native assignment 和错误恢复链路。失败保留草稿，提交期间新输入的内容不被清除。
+native assignment 和错误恢复链路。Session composer 在提交开始时同步清空，不等待
+`turn_started` 或发送 Promise；接受前失败且用户尚未编辑时恢复原始草稿。后续输入即使
+与已发送文本相同也不被迟到的确认或完成清除；接受后流失败不恢复已发送消息。
 明文 session 创建后继续显示相同的 permission selector。修改 choice 时前端调用
 session-scoped permission endpoint；Manager 成功执行 live ACP `set_mode` 或
 `set_config_option` 并返回有效 session config 后，前端才确认新的选择。

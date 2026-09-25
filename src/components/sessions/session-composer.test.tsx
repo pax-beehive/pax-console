@@ -664,6 +664,113 @@ it("does not initialize or send an empty prompt to an existing session", () => {
   expect(create).not.toHaveBeenCalled();
 });
 
+it.each([
+  { isNewSession: true, isTurnRunning: false, secure: false },
+  { isNewSession: false, isTurnRunning: false, secure: false },
+  { isNewSession: false, isTurnRunning: true, secure: false },
+  { isNewSession: false, isTurnRunning: false, secure: true },
+])("clears immediately before acceptance with %j", async (mode) => {
+  let acknowledge!: () => void;
+  let finish!: (accepted: boolean) => void;
+  const submit = vi.fn((_content: string, onAccepted?: () => void) => {
+    acknowledge = onAccepted!;
+    return new Promise<boolean>((resolve) => {
+      finish = resolve;
+    });
+  });
+  useConsoleStore.getState().setComposerDraft("new", "First turn");
+  render(
+    <TooltipProvider>
+      <SessionComposer
+        {...creationProps}
+        {...mode}
+        currentSessionId={mode.isNewSession ? undefined : "existing"}
+        onSubmitDraft={submit}
+      />
+    </TooltipProvider>,
+  );
+  const input = screen.getByRole("textbox");
+  fireEvent.keyDown(input, { key: "Enter" });
+  expect(submit).toHaveBeenCalledWith("First turn", expect.any(Function));
+  expect(input).toHaveValue("");
+  // Even identical new text belongs to the next draft, not the pending send.
+  fireEvent.change(input, { target: { value: "First turn" } });
+  act(() => acknowledge());
+  expect(input).toHaveValue("First turn");
+  await act(async () => finish(true));
+  expect(input).toHaveValue("First turn");
+});
+
+it.each(["rejected", "thrown"])(
+  "restores the exact draft after a %s send before acceptance",
+  async (failure) => {
+    let fail!: () => void;
+    const submit = () =>
+      new Promise<boolean>((resolve, reject) => {
+        fail = () =>
+          failure === "thrown"
+            ? reject(new Error("Send failed"))
+            : resolve(false);
+      });
+    const draft = "  Keep my work\n";
+    useConsoleStore.getState().setComposerDraft("new", draft);
+    render(
+      <TooltipProvider>
+        <SessionComposer {...creationProps} onSubmitDraft={submit} />
+      </TooltipProvider>,
+    );
+    const input = screen.getByRole("textbox");
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(input).toHaveValue("");
+    await act(async () => fail());
+    expect(input).toHaveValue(draft);
+  },
+);
+
+it.each(["New draft", ""])(
+  "does not replace an edited draft (%j) when the earlier send fails",
+  async (nextDraft) => {
+    let finish!: (accepted: boolean) => void;
+    const submit = () =>
+      new Promise<boolean>((resolve) => {
+        finish = resolve;
+      });
+    useConsoleStore.getState().setComposerDraft("new", "First turn");
+    render(
+      <TooltipProvider>
+        <SessionComposer {...creationProps} onSubmitDraft={submit} />
+      </TooltipProvider>,
+    );
+    const input = screen.getByRole("textbox");
+    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.change(input, { target: { value: "New draft" } });
+    fireEvent.change(input, { target: { value: nextDraft } });
+    await act(async () => finish(false));
+    expect(input).toHaveValue(nextDraft);
+  },
+);
+
+it("does not restore a sent prompt when the stream fails after acceptance", async () => {
+  let acknowledge!: () => void;
+  let finish!: (accepted: boolean) => void;
+  const submit = (_content: string, onAccepted?: () => void) => {
+    acknowledge = onAccepted!;
+    return new Promise<boolean>((resolve) => {
+      finish = resolve;
+    });
+  };
+  useConsoleStore.getState().setComposerDraft("new", "First turn");
+  render(
+    <TooltipProvider>
+      <SessionComposer {...creationProps} onSubmitDraft={submit} />
+    </TooltipProvider>,
+  );
+  fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" });
+  act(() => acknowledge());
+  await act(async () => finish(false));
+  expect(screen.getByRole("textbox")).toHaveValue("");
+});
+
 it("clears an acknowledged prompt before completion and still allows queueing the next turn", async () => {
   let finish!: (accepted: boolean) => void;
   const submit = vi.fn((_content: string, onAccepted?: () => void) => {

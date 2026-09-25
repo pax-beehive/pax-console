@@ -514,7 +514,11 @@ Project and permission fields; it must not manufacture a prompt or turn. E2EE
 uses its normal encrypted native bootstrap with an empty initial prompt and
 skips session/prompt. Preserve native-assignment ordering and transport safety.
 Home passes a one-shot initialInitializeOnly intent to the shared workbench.
-Retain drafts on rejected sends, and leave work typed during submission intact.
+Clear the session composer synchronously when submission starts, before waiting
+for `turn_started` or the send promise. Restore the exact draft on rejection only
+if it has not been edited since submission. Acceptance and completion must not
+clear later input, even identical text; a stream failure after acceptance must
+not restore the already-sent prompt. Keep the repeat and in-flight guards intact.
 After a plaintext session is assigned, the same permission selector remains
 available. Selecting a choice posts to the session-scoped permission endpoint;
 the UI only accepts the returned effective session config after Manager has
