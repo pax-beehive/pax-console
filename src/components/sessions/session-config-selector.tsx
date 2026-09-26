@@ -141,8 +141,7 @@ function SessionConfigFields({
             <SettingsChoice
               key={candidate.value}
               label={candidate.name}
-              description={candidate.group}
-              tooltip={candidate.description}
+              description={candidate.description}
               selected={candidate.value === option.current_value}
               disabled={locked}
               onClick={() => {
@@ -201,7 +200,7 @@ function SessionConfigFields({
             <SettingsToggle
               key={option.id}
               label={option.name}
-              tooltip={option.description}
+              description={option.description}
               checked={Boolean(option.current_value)}
               disabled={locked}
               onChange={(checked) => onChange(option.id, checked)}

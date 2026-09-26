@@ -136,7 +136,7 @@ describe("SessionConfigSelector", () => {
     expect(screen.getByText(/switching is not standardized/i)).toBeVisible();
   });
 
-  it("reveals a model option's description on hover", async () => {
+  it("shows a model option's description inline without the group", async () => {
     renderWithTooltip(
       <SessionConfigSelector
         configuration={{
@@ -154,17 +154,19 @@ describe("SessionConfigSelector", () => {
                   name: "Sonnet",
                   value: "claude-sonnet",
                   description: "Balanced everyday model",
+                  group: "Anthropic",
                 },
                 {
                   name: "Opus",
                   value: "claude-opus",
                   description: "Most capable model",
+                  group: "Anthropic",
                 },
               ],
               type: "select",
             },
           ],
-          session_id: "sess_hover",
+          session_id: "sess_inline",
         }}
         onChange={vi.fn()}
         onRefresh={vi.fn()}
@@ -188,14 +190,8 @@ describe("SessionConfigSelector", () => {
       screen.getByRole("button", { name: "Model: Sonnet" }),
     );
 
-    expect(screen.queryByText("Most capable model")).not.toBeInTheDocument();
-
-    await userEvent.hover(screen.getByRole("radio", { name: "Opus" }));
-
-    await waitFor(() =>
-      expect(screen.getByRole("tooltip")).toHaveTextContent(
-        "Most capable model",
-      ),
-    );
+    expect(screen.getByText("Balanced everyday model")).toBeVisible();
+    expect(screen.getByText("Most capable model")).toBeVisible();
+    expect(screen.queryByText("Anthropic")).not.toBeInTheDocument();
   });
 });
