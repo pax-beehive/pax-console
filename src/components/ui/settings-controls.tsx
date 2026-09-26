@@ -87,52 +87,55 @@ export function SettingsChoices({
 export function SettingsChoice({
   label,
   description,
-  tooltip,
+  truncateDescription,
   selected,
   disabled,
   onClick,
 }: {
   label: string;
   description?: string;
-  tooltip?: string;
+  truncateDescription?: boolean;
   selected: boolean;
   disabled?: boolean;
   onClick: () => void;
 }) {
   return (
-    <Tooltip content={tooltip}>
-      <button
-        type="button"
-        role="radio"
-        aria-checked={selected}
-        disabled={disabled}
-        onClick={onClick}
-        className={cn(rowClass, "items-start", selected && "bg-surface-3")}
-      >
-        <span className="min-w-0 flex-1">
-          <span className="block break-words text-ink">{label}</span>
-          {description && (
-            <span className="mt-1.5 block text-xs leading-5 text-ink-muted">
-              {description}
-            </span>
-          )}
-        </span>
-        <Check
-          aria-hidden="true"
-          className={cn(
-            "mt-0.5 h-4 w-4 shrink-0 text-primary-hover",
-            !selected && "invisible",
-          )}
-        />
-      </button>
-    </Tooltip>
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(rowClass, "items-start", selected && "bg-surface-3")}
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block break-words text-ink">{label}</span>
+        {description && (
+          <span
+            className={cn(
+              "mt-1.5 block text-xs leading-5 text-ink-muted",
+              truncateDescription && "truncate",
+            )}
+          >
+            {description}
+          </span>
+        )}
+      </span>
+      <Check
+        aria-hidden="true"
+        className={cn(
+          "mt-0.5 h-4 w-4 shrink-0 text-primary-hover",
+          !selected && "invisible",
+        )}
+      />
+    </button>
   );
 }
 
 export function SettingsToggle({
   label,
   description,
-  tooltip,
+  truncateDescription,
   ariaLabel,
   checked,
   disabled,
@@ -140,30 +143,33 @@ export function SettingsToggle({
 }: {
   label: string;
   description?: string;
-  tooltip?: string;
+  truncateDescription?: boolean;
   ariaLabel?: string;
   checked: boolean;
   disabled?: boolean;
   onChange: (value: boolean) => void;
 }) {
   return (
-    <Tooltip content={tooltip}>
-      <label className="flex min-h-12 cursor-pointer items-center justify-between gap-4 rounded-xl px-3 py-3.5 text-sm">
-        <span className="min-w-0">
-          <span className="block text-ink">{label}</span>
-          {description && (
-            <span className="mt-1.5 block text-xs leading-5 text-ink-muted">
-              {description}
-            </span>
-          )}
-        </span>
-        <Switch
-          aria-label={ariaLabel ?? label}
-          checked={checked}
-          disabled={disabled}
-          onCheckedChange={onChange}
-        />
-      </label>
-    </Tooltip>
+    <label className="flex min-h-12 cursor-pointer items-center justify-between gap-4 rounded-xl px-3 py-3.5 text-sm">
+      <span className="min-w-0">
+        <span className="block text-ink">{label}</span>
+        {description && (
+          <span
+            className={cn(
+              "mt-1.5 block text-xs leading-5 text-ink-muted",
+              truncateDescription && "truncate",
+            )}
+          >
+            {description}
+          </span>
+        )}
+      </span>
+      <Switch
+        aria-label={ariaLabel ?? label}
+        checked={checked}
+        disabled={disabled}
+        onCheckedChange={onChange}
+      />
+    </label>
   );
 }
