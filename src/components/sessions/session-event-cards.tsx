@@ -1120,9 +1120,9 @@ function WorkGroupCard({
   const label = needsApproval
     ? "Waiting for approval"
     : complete
-      ? tools.length
-        ? `Finished ${tools.length} operation${tools.length === 1 ? "" : "s"}`
-        : "Activity complete"
+      ? durationLabel
+        ? `Worked for ${durationLabel}`
+        : "Worked"
       : liveActivityLabel(events);
 
   return (
@@ -1143,23 +1143,20 @@ function WorkGroupCard({
               className="h-4 w-4 shrink-0 animate-spin text-primary-hover motion-reduce:animate-none"
             />
           ) : (
-            <Check
+            <ChevronDown
               aria-hidden="true"
-              className="h-4 w-4 shrink-0 text-ink-tertiary"
+              className="h-3.5 w-3.5 shrink-0 -rotate-90 text-ink-tertiary transition group-open/work:rotate-0 motion-reduce:transition-none"
             />
           )}
           <TruncatedText className="min-w-0 flex-1" tooltip={label}>
             {label}
           </TruncatedText>
-          {durationLabel && (
-            <span className="shrink-0 text-xs tabular-nums text-ink-tertiary">
-              {durationLabel}
-            </span>
+          {(needsApproval || !complete) && (
+            <ChevronDown
+              aria-hidden="true"
+              className="h-3.5 w-3.5 shrink-0 -rotate-90 text-ink-tertiary transition group-open/work:rotate-0 motion-reduce:transition-none"
+            />
           )}
-          <ChevronDown
-            aria-hidden="true"
-            className="h-3.5 w-3.5 shrink-0 -rotate-90 text-ink-tertiary transition group-open/work:rotate-0 motion-reduce:transition-none"
-          />
         </summary>
         {expanded && (
           <div className="ml-2 mt-1 grid min-w-0 gap-1 border-l border-hairline pl-4">

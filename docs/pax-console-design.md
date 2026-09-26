@@ -207,7 +207,8 @@ Gaps after commentary keep the quiet breathing mark and three dots while the
 turn is running. An active activity row replaces this indicator; completion
 and approval waits remove it. It carries no invented progress percentage.
 
-Completed blocks summarize their tool operation count and elapsed time when a valid closing timestamp is available.
+Completed blocks use a quiet `› Worked for 18s` disclosure with no operation count
+or completion checkmark. Use `Worked` when no valid duration is available.
 Expand once to see individual operations, then expand an operation for its
 input/output. Avoid nested Tool calls groups and status-badge stacks. Single
 tools use the same collapsed summary. Pending approvals remain actionable
