@@ -87,12 +87,14 @@ export function SettingsChoices({
 export function SettingsChoice({
   label,
   description,
+  truncateDescription,
   selected,
   disabled,
   onClick,
 }: {
   label: string;
   description?: string;
+  truncateDescription?: boolean;
   selected: boolean;
   disabled?: boolean;
   onClick: () => void;
@@ -109,7 +111,12 @@ export function SettingsChoice({
       <span className="min-w-0 flex-1">
         <span className="block break-words text-ink">{label}</span>
         {description && (
-          <span className="mt-1.5 block text-xs leading-5 text-ink-muted">
+          <span
+            className={cn(
+              "mt-1.5 block text-xs leading-5 text-ink-muted",
+              truncateDescription && "truncate",
+            )}
+          >
             {description}
           </span>
         )}
@@ -128,6 +135,7 @@ export function SettingsChoice({
 export function SettingsToggle({
   label,
   description,
+  truncateDescription,
   ariaLabel,
   checked,
   disabled,
@@ -135,6 +143,7 @@ export function SettingsToggle({
 }: {
   label: string;
   description?: string;
+  truncateDescription?: boolean;
   ariaLabel?: string;
   checked: boolean;
   disabled?: boolean;
@@ -145,7 +154,12 @@ export function SettingsToggle({
       <span className="min-w-0">
         <span className="block text-ink">{label}</span>
         {description && (
-          <span className="mt-1.5 block text-xs leading-5 text-ink-muted">
+          <span
+            className={cn(
+              "mt-1.5 block text-xs leading-5 text-ink-muted",
+              truncateDescription && "truncate",
+            )}
+          >
             {description}
           </span>
         )}

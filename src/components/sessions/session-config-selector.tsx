@@ -142,6 +142,7 @@ function SessionConfigFields({
               key={candidate.value}
               label={candidate.name}
               description={candidate.description}
+              truncateDescription
               selected={candidate.value === option.current_value}
               disabled={locked}
               onClick={() => {
@@ -201,6 +202,7 @@ function SessionConfigFields({
               key={option.id}
               label={option.name}
               description={option.description}
+              truncateDescription
               checked={Boolean(option.current_value)}
               disabled={locked}
               onChange={(checked) => onChange(option.id, checked)}
