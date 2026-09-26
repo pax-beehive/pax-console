@@ -168,6 +168,11 @@ apply. Keep scroll pagination and a Load more sessions button for short lists.
 Changing the Project filter preserves the open workbench instance and does not
 change creation context. Identity/workspace headers share 20px mobile and 24px
 desktop horizontal padding; rail text uses 24px left padding.
+Touch rows support swipe-left and long-press to reveal an explicit Archive or
+Restore button; gestures never submit the mutation. Only one row opens at a time.
+Swipe-right, tapping the row/outside, or Escape closes the action. Preserve
+vertical scrolling and desktop hover/keyboard actions, and suppress navigation
+from the synthetic click after a swipe or long press.
 Projects are logical, owner-scoped, nestable
 work groups. Targets bind an Agent to a directory intent. Creation has two
 header rows: Project / Agent, then Workspace. Resolve only enabled targets for

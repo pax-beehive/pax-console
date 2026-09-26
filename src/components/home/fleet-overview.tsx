@@ -1,6 +1,7 @@
 "use client";
 
 import { SessionDraftInput } from "@/components/sessions/session-draft-input";
+import { SessionRowSwipe } from "./session-row-swipe";
 import { ComposerDropZone } from "@/components/sessions/composer-drop-zone";
 import { ComposerAttachmentStatus } from "@/components/sessions/composer-attachment-status";
 import Link from "next/link";
@@ -1394,6 +1395,9 @@ function ProjectSessionRail({
   projectFilter: string;
   sessions: WorkItem[];
 }) {
+  const [revealedSessionId, setRevealedSessionId] = useState<string | null>(
+    null,
+  );
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const groups = ["Today", "Yesterday", "Previous 7 days", "Earlier"];
@@ -1444,6 +1448,10 @@ function ProjectSessionRail({
                 {items.map((session) => (
                   <HomeSessionRow
                     key={session.id}
+                    swipeOpen={revealedSessionId === session.id}
+                    onSwipeOpenChange={(open) =>
+                      setRevealedSessionId(open ? session.id : null)
+                    }
                     active={session.sessionId === activeSessionId}
                     archivePending={archivePendingId === session.id}
                     depth={0}
@@ -1506,6 +1514,8 @@ function HomeSessionRow({
   onSelect,
   onSetArchived,
   session,
+  swipeOpen,
+  onSwipeOpenChange,
 }: {
   active: boolean;
   archivePending: boolean;
@@ -1513,83 +1523,114 @@ function HomeSessionRow({
   onSelect: () => void;
   onSetArchived: () => void;
   session: WorkItem;
+  swipeOpen: boolean;
+  onSwipeOpenChange: (open: boolean) => void;
 }) {
   return (
-    <div
-      className={cn(
-        "group flex min-w-0 items-center pr-3 transition-colors duration-200",
-        session.transport === "e2ee"
-          ? active
-            ? "bg-emerald-400/[0.07] shadow-[inset_2px_0_0_rgba(52,211,153,0.9)]"
-            : "text-ink-muted hover:bg-emerald-400/[0.04]"
-          : active
-            ? "bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)]"
-            : "text-ink-muted hover:bg-surface-2",
-      )}
-      style={{ paddingLeft: `${24 + depth * 16}px` }}
-    >
-      <Link
-        className="grid min-w-0 flex-1 gap-0.5 py-2 text-left"
-        href={session.href}
-        onClick={(event) => {
-          if (
-            event.button !== 0 ||
-            event.metaKey ||
-            event.ctrlKey ||
-            event.shiftKey ||
-            event.altKey
-          ) {
-            return;
+    <SessionRowSwipe
+      open={swipeOpen}
+      onOpenChange={onSwipeOpenChange}
+      action={
+        <Button
+          aria-label={`${session.archivedAt ? "Restore" : "Archive"} ${session.title}`}
+          className="h-full w-full flex-col justify-center gap-1 rounded-none px-2 text-xs"
+          disabled={archivePending}
+          icon={
+            session.archivedAt ? (
+              <ArchiveRestore className="h-4 w-4" />
+            ) : (
+              <Archive className="h-4 w-4" />
+            )
           }
-          event.preventDefault();
-          onSelect();
-        }}
+          onClick={() => {
+            onSwipeOpenChange(false);
+            onSetArchived();
+          }}
+          type="button"
+          variant="secondary"
+        >
+          {session.archivedAt ? "Restore" : "Archive"}
+        </Button>
+      }
+    >
+      <div
+        className={cn(
+          "group flex min-w-0 items-center pr-3 transition-colors duration-200",
+          session.transport === "e2ee"
+            ? active
+              ? "bg-emerald-400/[0.07] shadow-[inset_2px_0_0_rgba(52,211,153,0.9)]"
+              : "text-ink-muted hover:bg-emerald-400/[0.04]"
+            : active
+              ? "bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)]"
+              : "text-ink-muted hover:bg-surface-2",
+        )}
+        style={{ paddingLeft: `${24 + depth * 16}px` }}
       >
-        <span className="flex min-w-0 items-center gap-1.5 text-sm text-ink">
-          <span className="truncate">{session.title}</span>
-          {session.transport === "e2ee" && (
-            <Tooltip content="End-to-end encrypted">
-              <span
-                aria-label="End-to-end encrypted"
-                className="grid h-4 w-4 shrink-0 place-items-center rounded-full border border-emerald-400/25 bg-emerald-400/10 text-emerald-400 shadow-[0_0_0_rgba(52,211,153,0)] transition-all duration-200 group-hover:border-emerald-300/40 group-hover:bg-emerald-400/15 group-hover:shadow-[0_0_12px_rgba(52,211,153,0.16)]"
-                role="img"
-              >
-                <LockKeyhole className="h-2.5 w-2.5" />
-              </span>
-            </Tooltip>
-          )}
-        </span>
-        <span className="flex min-w-0 items-center gap-1 text-xs text-ink-tertiary">
-          <span className="truncate">{session.context}</span>
-          <span aria-hidden="true" className="shrink-0 text-ink-tertiary/50">
-            ·
+        <Link
+          className="grid min-w-0 flex-1 gap-0.5 py-2 text-left"
+          href={session.href}
+          onClick={(event) => {
+            if (
+              event.button !== 0 ||
+              event.metaKey ||
+              event.ctrlKey ||
+              event.shiftKey ||
+              event.altKey
+            ) {
+              return;
+            }
+            event.preventDefault();
+            onSelect();
+          }}
+        >
+          <span className="flex min-w-0 items-center gap-1.5 text-sm text-ink">
+            <span className="truncate">{session.title}</span>
+            {session.transport === "e2ee" && (
+              <Tooltip content="End-to-end encrypted">
+                <span
+                  aria-label="End-to-end encrypted"
+                  className="grid h-4 w-4 shrink-0 place-items-center rounded-full border border-emerald-400/25 bg-emerald-400/10 text-emerald-400 shadow-[0_0_0_rgba(52,211,153,0)] transition-all duration-200 group-hover:border-emerald-300/40 group-hover:bg-emerald-400/15 group-hover:shadow-[0_0_12px_rgba(52,211,153,0.16)]"
+                  role="img"
+                >
+                  <LockKeyhole className="h-2.5 w-2.5" />
+                </span>
+              </Tooltip>
+            )}
           </span>
-          <span className="shrink-0">{relativeTime(session.createdAt)}</span>
-          {session.archivedAt && (
-            <span className="shrink-0 text-warning">· Archived</span>
-          )}
-        </span>
-      </Link>
-      <Button
-        aria-label={`${session.archivedAt ? "Restore" : "Archive"} ${session.title}`}
-        className="opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
-        disabled={archivePending}
-        icon={
-          archivePending ? (
-            <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-          ) : session.archivedAt ? (
-            <ArchiveRestore className="h-3.5 w-3.5" />
-          ) : (
-            <Archive className="h-3.5 w-3.5" />
-          )
-        }
-        onClick={onSetArchived}
-        size="icon"
-        tooltip={session.archivedAt ? "Restore session" : "Archive session"}
-        type="button"
-        variant="ghost"
-      />
-    </div>
+          <span className="flex min-w-0 items-center gap-1 text-xs text-ink-tertiary">
+            <span className="truncate">{session.context}</span>
+            <span aria-hidden="true" className="shrink-0 text-ink-tertiary/50">
+              ·
+            </span>
+            <span className="shrink-0">{relativeTime(session.createdAt)}</span>
+            {session.archivedAt && (
+              <span className="shrink-0 text-warning">· Archived</span>
+            )}
+          </span>
+        </Link>
+        {!swipeOpen && (
+          <Button
+            aria-label={`${session.archivedAt ? "Restore" : "Archive"} ${session.title}`}
+            className="opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
+            disabled={archivePending}
+            icon={
+              archivePending ? (
+                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+              ) : session.archivedAt ? (
+                <ArchiveRestore className="h-3.5 w-3.5" />
+              ) : (
+                <Archive className="h-3.5 w-3.5" />
+              )
+            }
+            onClick={onSetArchived}
+            size="icon"
+            tooltip={session.archivedAt ? "Restore session" : "Archive session"}
+            type="button"
+            variant="ghost"
+          />
+        )}
+      </div>
+    </SessionRowSwipe>
   );
 }
 
