@@ -837,9 +837,10 @@ gate it on whether the turn has ever produced output. Idle, terminal, unknown,
 and waiting-approval states hide the indicator; it does not infer tool progress
 or alter runtime status. The CSS animation respects reduced-motion preferences.
 
-A closed block shows
-`Finished N operations` (tool calls only) and elapsed time only when its actual
-closing event supplies a valid timestamp. This is activity-block timing, not
+A completed block shows a leading disclosure arrow and `Worked for 18s` (or
+`Worked for 1m 18s`), without an operation count or a separate duration badge.
+Use `Worked` when the actual closing boundary has no valid timestamp.
+This is activity-block timing, not
 session runtime status. A single tool uses the same collapsed row. Expanding
 a block reveals individual thought/tool rows without an intermediate Tool calls
 group. Tool errors stay in the expanded evidence; never turn them into a terminal
