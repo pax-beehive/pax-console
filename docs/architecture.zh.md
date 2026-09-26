@@ -646,6 +646,9 @@ Project 筛选按 session 的 `primary_project_id` 传入后端分页查询，�
 Node 条件继续叠加。保留滚动加载，并提供 Load more sessions 作为无滚动条时的入口。
 切换筛选保留已打开 workbench 的身份和实例；标题及 workspace 共用左右留白，
 手机 20px、桌面 24px，左侧列表文字从边缘内缩 24px。
+触屏列表行左划或长按只展开 Archive / Restore 按钮，必须再次点击才提交修改；
+同一时间只展开一行。右划、点行本身、点外部或 Escape 收起，纵向滚动不触发操作。
+桌面 hover / 键盘焦点归档入口保留。手势不改变 session 导航与后端归档语义。
 底部 Home / Collaboration / Settings 保留既有权限规则。
 
 ## 当前 Shell / UI 状态
