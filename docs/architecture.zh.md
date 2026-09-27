@@ -1520,8 +1520,10 @@ latest_message_id / latest_message_seq / latest_turn_id 只代表顺序，不代
 
 完整分页的 idle turn history 即使没有 turn_done 也应展示。snapshotTurnIds
 记录已读完的快照，calibratedTurnIds 仍只记录含 turn_done 的完成历史。
-工作台仅在 session idle 且本地 conversation 未 streaming / waiting_approval 时，
-让快照优先于内存里保留的旧 conversation / observer 片段；不得据此结束仍在运行的 turn。
+快照展示权按 turn 保留：开始下一轮不能让上一轮完整历史退回旧 conversation / observer
+片段。只有当前活动 turn 的快照让位给实时内容；本地发送的 turn ID（含 pending ID）
+优先于可能滞后的元数据 turn ID。远端活动且没有本地发送时使用报告的 turn ID；活动
+turn ID 未知时保守沿用实时合并。快照本身不证明完成，不得据此结束仍在运行的 turn。
 读取失败或未完成的空结果保留旧快照。无需刷新页面或清空运行时对象才能展示最新正文。
 
 ## Runtime release configuration

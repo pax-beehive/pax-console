@@ -113,6 +113,7 @@ import {
 import { normalizeHistoryMessages } from "@/features/runtime/normalize-history-message";
 import { mergeEvents } from "@/features/runtime/merge-session-events";
 import {
+  historySnapshotsForTimeline,
   latestRuntimeTurnId,
   reconcileSessionTimeline,
 } from "@/features/runtime/reconcile-session-timeline";
@@ -1482,12 +1483,14 @@ export function SessionWorkbench({
         usesEncryptedTransport ? [] : sessionObserver.events,
         usesEncryptedTransport ? [] : sessionObserver.snapshotTurnIds,
         usesEncryptedTransport ? undefined : historySync.calibratedTurnIds,
-        !usesEncryptedTransport &&
-          activeSession?.runtime_status === "idle" &&
-          conversationRun.status !== "streaming" &&
-          conversationRun.status !== "waiting_approval"
-          ? historySync.snapshotTurnIds
-          : undefined,
+        usesEncryptedTransport
+          ? []
+          : historySnapshotsForTimeline(historySync.snapshotTurnIds, {
+              sessionStatus: activeSession?.runtime_status,
+              sessionTurnId: observedTurnId,
+              localStatus: conversationRun.status,
+              localTurnId: conversationRun.activeTurnId,
+            }),
       ),
     [
       conversationRun.events,
@@ -1500,6 +1503,8 @@ export function SessionWorkbench({
       historySync.snapshotTurnIds,
       activeSession?.runtime_status,
       conversationRun.status,
+      conversationRun.activeTurnId,
+      observedTurnId,
     ],
   );
   const { timeline } = reconciledTimeline;

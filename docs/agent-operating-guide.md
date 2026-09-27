@@ -1508,9 +1508,12 @@ on timeline rows. Foreground recovery never resubmits prompts or cancels turns.
 Keep fully paginated history snapshots separate from turn completion. An idle
 turn snapshot can update the display even without a synthetic turn_done row.
 Only turn_done adds a calibrated/completed turn; snapshotTurnIds record full
-history reads independently. The workbench gives these snapshots priority over
-retained conversation/observer fragments only while metadata is idle and no
-local conversation is streaming or waiting for approval. Do not stop a running
+history reads independently. Snapshot ownership is per turn: starting a new
+prompt must not replace previous durable replies with retained partial streams.
+Only the active turn's snapshot yields to live events. Prefer the local active
+turn ID (including a pending ID) over lagging metadata; otherwise use the reported
+active turn ID. When an active turn cannot be identified, retain conservative
+live reconciliation. Do not stop a running
 conversation merely because a history snapshot was fetched. Failed or empty
 incomplete reads retain the prior snapshot.
 
