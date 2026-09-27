@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
 import {
@@ -46,7 +45,6 @@ import { queryKeys } from "@/features/api/query-keys";
 import {
   Agent,
   AgentApproval,
-  AgentSession,
   Node,
   User,
 } from "@/features/api/types";
@@ -72,6 +70,11 @@ import {
   sessionUpdatedAt,
   SessionRow,
 } from "./resource-models";
+import { ServiceStatusPanel } from "@/components/settings/service-status-panel";
+import {
+  SettingsBack,
+  settingsLinks,
+} from "@/components/settings/settings-navigation";
 import { NodeMaintenanceActions } from "./node-maintenance-actions";
 
 type ResourceKind =
@@ -80,6 +83,8 @@ type ResourceKind =
   | "sessions"
   | "approvals"
   | "security"
+  | "grants"
+  | "encryption"
   | "monitor"
   | "api-keys"
   | "node-registration";
@@ -94,8 +99,8 @@ const copy: Record<
   { title: string; eyebrow: string; icon: ReactNode }
 > = {
   nodes: {
-    title: "Nodes",
-    eyebrow: "paxd fleet",
+    title: "Devices",
+    eyebrow: "computers and servers",
     icon: <Server className="h-4 w-4" />,
   },
   agents: {
@@ -118,18 +123,28 @@ const copy: Record<
     eyebrow: "persistent agent grants",
     icon: <ShieldCheck className="h-4 w-4" />,
   },
+  grants: {
+    title: "Allowed actions",
+    eyebrow: "permissions previously given to agents",
+    icon: <ShieldCheck className="h-4 w-4" />,
+  },
+  encryption: {
+    title: "Encrypted chats",
+    eyebrow: "browser access and encryption keys",
+    icon: <ShieldCheck className="h-4 w-4" />,
+  },
   monitor: {
-    title: "Monitor",
-    eyebrow: "live health",
+    title: "Service status",
+    eyebrow: "service and resource connections",
     icon: <Radio className="h-4 w-4" />,
   },
   "api-keys": {
-    title: "API Keys",
+    title: "API keys",
     eyebrow: "access management",
     icon: <KeyRound className="h-4 w-4" />,
   },
   "node-registration": {
-    title: "Node Registration",
+    title: "Manual device registration",
     eyebrow: "bootstrap access",
     icon: <Settings2 className="h-4 w-4" />,
   },
@@ -142,15 +157,30 @@ const sessionPageSize = 50;
 export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
   const [showAllResources, setShowAllResources] = useState(false);
   const [sessionPage, setSessionPage] = useState(1);
-  const nodesQuery = useNodes(user.user_id);
+  const nodesQuery = useNodes(
+    [
+      "nodes",
+      "agents",
+      "sessions",
+      "monitor",
+      "security",
+      "encryption",
+    ].includes(kind)
+      ? user.user_id
+      : undefined,
+  );
   const shouldLoadAgents =
     kind === "agents" ||
     kind === "sessions" ||
     kind === "monitor" ||
-    kind === "security";
+    kind === "security" ||
+    kind === "encryption";
   const agentsQuery = useAgents(
     shouldLoadAgents ? user.user_id : undefined,
-    kind === "agents" || kind === "security" ? "owned" : "accessible",
+    kind === "agents" || kind === "security" || kind === "encryption"
+      ? "owned"
+      : "accessible",
+    kind === "monitor" ? 30_000 : undefined,
   );
   const allNodes = nodesQuery.data?.nodes ?? emptyNodes;
   const sortedNodes = useMemo(
@@ -239,7 +269,9 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
     kind === "approvals" ? user.user_id : undefined,
   );
   const approvalGrantsQuery = useApprovalGrants(
-    kind === "approvals" || kind === "security" ? user.user_id : undefined,
+    kind === "approvals" || kind === "security" || kind === "grants"
+      ? user.user_id
+      : undefined,
   );
   const meta = copy[kind];
   const apiError =
@@ -261,6 +293,30 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
     <ConsoleLayout user={user}>
       <div className="flex min-h-0 flex-1 flex-col">
         <header className="border-b border-hairline px-4 py-4 sm:px-5">
+          <SettingsBack
+            href={
+              [
+                "api-keys",
+                "node-registration",
+                "security",
+                "grants",
+                "encryption",
+              ].includes(kind)
+                ? settingsLinks.advanced
+                : settingsLinks.home
+            }
+            label={
+              [
+                "api-keys",
+                "node-registration",
+                "security",
+                "grants",
+                "encryption",
+              ].includes(kind)
+                ? "Advanced settings"
+                : "Settings"
+            }
+          />
           <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">
               <div className="flex items-center gap-2 text-xs text-ink-tertiary">
@@ -271,6 +327,15 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
             </div>
             <div className="flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
               <ResourceSectionTabs kind={kind} />
+              {kind === "nodes" && (
+                <Button
+                  asChild
+                  icon={<Plus className="h-4 w-4" />}
+                  variant="primary"
+                >
+                  <Link href={settingsLinks.addDevice}>Add device</Link>
+                </Button>
+              )}
               {supportsActiveFilter(kind) && (
                 <ActiveFilterToggle
                   checked={showAllResources}
@@ -280,22 +345,6 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
             </div>
           </div>
         </header>
-
-        {kind !== "approvals" && kind !== "sessions" && kind !== "monitor" && (
-          <nav
-            aria-label="Settings sections"
-            className="flex gap-2 overflow-x-auto border-b border-hairline px-4 py-2 sm:px-5 lg:hidden"
-          >
-            <SettingsSectionLink href="/settings/projects" label="Projects" />
-            <SettingsSectionLink href="/settings/devices" label="Devices" />
-            <SettingsSectionLink href="/settings/security" label="Security" />
-            <SettingsSectionLink href="/settings/developer" label="Developer" />
-            <SettingsSectionLink
-              href="/settings/diagnostics"
-              label="Diagnostics"
-            />
-          </nav>
-        )}
 
         {apiError && (
           <div className="px-5 pt-4">
@@ -334,29 +383,60 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
               totalCount={sortedSessionRows.length}
             />
           )}
-          {(kind === "approvals" || kind === "security") && (
+          {(kind === "approvals" ||
+            kind === "security" ||
+            kind === "grants" ||
+            kind === "encryption") && (
             <div className="grid gap-4">
-              {kind === "security" && (
+              {(kind === "security" || kind === "encryption") && (
                 <E2EEKeysPanel agents={sortedAgents} nodes={sortedNodes} />
               )}
-              <ApprovalsPanel
-                approvals={approvalsQuery.data?.approvals ?? []}
-                grants={approvalGrantsQuery.data?.grants ?? []}
-                isLoading={
-                  approvalsQuery.isLoading || approvalGrantsQuery.isLoading
-                }
-                showPending={kind === "approvals"}
-                userId={user.user_id}
-              />
+              {kind !== "encryption" && (
+                <ApprovalsPanel
+                  approvals={approvalsQuery.data?.approvals ?? []}
+                  grants={approvalGrantsQuery.data?.grants ?? []}
+                  isLoading={
+                    approvalsQuery.isLoading || approvalGrantsQuery.isLoading
+                  }
+                  showPending={kind === "approvals"}
+                  userId={user.user_id}
+                />
+              )}
             </div>
           )}
           {kind === "monitor" && (
-            <MonitorPanel
-              agents={agents}
+            <ServiceStatusPanel
+              nodes={nodesQuery.data?.nodes}
+              agents={agentsQuery.data?.agents}
               health={healthQuery.data}
-              isHealthLoading={healthQuery.isLoading}
-              nodes={nodes}
-              sessions={sessionRows}
+              loading={
+                nodesQuery.isLoading ||
+                agentsQuery.isLoading ||
+                healthQuery.isLoading
+              }
+              error={Boolean(
+                nodesQuery.error || agentsQuery.error || healthQuery.error,
+              )}
+              recentSessions={
+                agentsQuery.error ||
+                sessionsLoading ||
+                firstQueryError(sessionQueries)
+                  ? undefined
+                  : allSessions.length
+              }
+              refreshing={
+                nodesQuery.isFetching ||
+                agentsQuery.isFetching ||
+                healthQuery.isFetching
+              }
+              refresh={() => {
+                void nodesQuery.refetch();
+                void agentsQuery.refetch();
+                void healthQuery.refetch();
+                sessionQueries.forEach((query) => {
+                  void query.refetch();
+                });
+              }}
             />
           )}
           {kind === "api-keys" && (
@@ -381,7 +461,7 @@ function ResourceSectionTabs({ kind }: { kind: ResourceKind }) {
       ? [
           {
             href: "/settings/devices?view=nodes",
-            label: "Nodes",
+            label: "Devices",
             value: "nodes",
           },
           {
@@ -390,20 +470,7 @@ function ResourceSectionTabs({ kind }: { kind: ResourceKind }) {
             value: "agents",
           },
         ]
-      : kind === "api-keys" || kind === "node-registration"
-        ? [
-            {
-              href: "/settings/developer?view=api-keys",
-              label: "API keys",
-              value: "api-keys",
-            },
-            {
-              href: "/settings/developer?view=node-registration",
-              label: "Node registration",
-              value: "node-registration",
-            },
-          ]
-        : [];
+      : [];
 
   if (!tabs.length) {
     return null;
@@ -806,40 +873,6 @@ function SessionGrid({
   );
 }
 
-function MonitorPanel({
-  agents,
-  health,
-  isHealthLoading,
-  nodes,
-  sessions,
-}: {
-  agents: Agent[];
-  health?: { status?: string };
-  isHealthLoading: boolean;
-  nodes: Node[];
-  sessions: AgentSession[];
-}) {
-  const onlineNodes = nodes.filter((node) => node.online).length;
-  const activeAgents = agents.filter(
-    (agent) => agent.online || agent.status === "online",
-  ).length;
-
-  return (
-    <div className="grid min-w-0 overflow-hidden rounded-lg border border-hairline sm:grid-cols-2 lg:grid-cols-4">
-      <Metric
-        label="PAX Manager"
-        value={isHealthLoading ? "..." : (health?.status ?? "unknown")}
-      />
-      <Metric label="Online nodes" value={`${onlineNodes}/${nodes.length}`} />
-      <Metric
-        label="Active agents"
-        value={`${activeAgents}/${agents.length}`}
-      />
-      <Metric label="Recent sessions" value={String(sessions.length)} />
-    </div>
-  );
-}
-
 function NodeRegistrationPanel({ userId }: { userId: string }) {
   const [ttl, setTtl] = useState(3600);
   const [copied, setCopied] = useState(false);
@@ -1146,25 +1179,6 @@ function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
 function agentNodeLabel(agent: Agent, nodes: Node[]) {
   const node = nodes.find((item) => item.node_id === agent.node_id);
   return node ? nodeLabel(node) : agent.node_id || "Unknown node";
-}
-
-function SettingsSectionLink({ href, label }: { href: string; label: string }) {
-  const pathname = usePathname();
-  const active = pathname === href || pathname.startsWith(`${href}/`);
-
-  return (
-    <Link
-      aria-current={active ? "page" : undefined}
-      className={`shrink-0 rounded-md border px-3 py-2 text-sm transition ${
-        active
-          ? "border-accent/40 bg-accent/10 text-ink"
-          : "border-hairline bg-surface-1 text-ink-muted hover:bg-surface-2 hover:text-ink"
-      }`}
-      href={href}
-    >
-      {label}
-    </Link>
-  );
 }
 
 function ApprovalsPanel({
@@ -1547,17 +1561,6 @@ function approvalOptions(approval: AgentApproval) {
     { label: "Approve", option_id: "approve" },
     { label: "Deny", option_id: "deny" },
   ];
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0 border-r border-hairline bg-surface-1 px-3 py-2 last:border-r-0">
-      <div className="text-xs text-ink-tertiary">{label}</div>
-      <TruncatedText className="mt-1 font-mono text-xl text-ink">
-        {value}
-      </TruncatedText>
-    </div>
-  );
 }
 
 function EmptyState({ label }: { label: string }) {

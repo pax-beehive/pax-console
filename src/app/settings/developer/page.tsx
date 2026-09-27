@@ -1,16 +1,14 @@
-import { ResourceRoute } from "@/components/resources/resource-route";
+import { redirect } from "next/navigation";
 
-type DeveloperPageProps = {
-  searchParams: Promise<{ view?: string }>;
-};
-
-export default async function DeveloperPage({
+export default async function Page({
   searchParams,
-}: DeveloperPageProps) {
+}: {
+  searchParams: Promise<{ view?: string }>;
+}) {
   const { view } = await searchParams;
-  return (
-    <ResourceRoute
-      kind={view === "node-registration" ? "node-registration" : "api-keys"}
-    />
+  redirect(
+    view === "node-registration"
+      ? "/settings/advanced/node-registration"
+      : "/settings/advanced/api-keys",
   );
 }

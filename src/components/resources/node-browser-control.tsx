@@ -480,7 +480,8 @@ function BrowserPanel({
             )}
             {viewerOnly && (
               <p className="text-xs text-ink-muted">
-                自动跟随最近操作的浏览器；接管期间保持当前画面。
+                Follows the most recently active browser. Taking control keeps
+                the current view.
               </p>
             )}
             {!state.workers.length && (
@@ -530,7 +531,7 @@ function BrowserPanel({
             <div role="status" className="text-xs text-ink-tertiary">
               {!session
                 ? viewerOnly
-                  ? "等待浏览器活动…"
+                  ? "Waiting for browser activity..."
                   : "Select a browser to watch."
                 : !connected
                   ? "Waiting for the browser to reconnect..."

@@ -10,12 +10,10 @@ import {
   ChevronRight,
   Inbox,
   FolderTree,
-  KeyRound,
   MailPlus,
   Radio,
   Server,
   Settings,
-  ShieldCheck,
   Users,
 } from "lucide-react";
 import { LucideIcon } from "lucide-react";
@@ -54,16 +52,32 @@ const primaryNavItems: readonly NavItem[] = [
 ] as const;
 
 const settingsNavItem: NavItem = {
-  href: "/settings/devices",
+  href: "/settings",
   icon: Settings,
   label: "Settings",
-  matches: ["/settings", "/nodes", "/agents", "/approvals", "/monitor"],
+  matches: [
+    "/settings",
+    "/nodes",
+    "/agents",
+    "/approvals",
+    "/monitor",
+    "/e2ee/pairing",
+  ],
   children: [
+    {
+      href: "/settings/devices",
+      icon: Server,
+      label: "Devices",
+      matches: ["/settings/devices", "/nodes", "/agents"],
+    },
     { href: "/settings/projects", icon: FolderTree, label: "Projects" },
-    { href: "/settings/devices", icon: Server, label: "Devices" },
-    { href: "/settings/security", icon: ShieldCheck, label: "Security" },
-    { href: "/settings/developer", icon: KeyRound, label: "Developer" },
-    { href: "/settings/diagnostics", icon: Radio, label: "Diagnostics" },
+    { href: "/settings/service-status", icon: Radio, label: "Service status" },
+    {
+      href: "/settings/advanced",
+      icon: Settings,
+      label: "Advanced settings",
+      matches: ["/settings/advanced", "/e2ee/pairing"],
+    },
   ],
 };
 
@@ -195,12 +209,20 @@ function NavEntry({ collapsed, item }: { collapsed: boolean; item: NavItem }) {
           {item.children.map((child) => (
             <Link
               aria-current={
-                isActiveChild(pathname, queryString, child.href)
+                (
+                  child.matches
+                    ? isActiveNavItem(pathname, child)
+                    : isActiveChild(pathname, queryString, child.href)
+                )
                   ? "page"
                   : undefined
               }
               className={`flex min-h-8 items-center gap-2 rounded-md px-2 text-xs transition ${
-                isActiveChild(pathname, queryString, child.href)
+                (
+                  child.matches
+                    ? isActiveNavItem(pathname, child)
+                    : isActiveChild(pathname, queryString, child.href)
+                )
                   ? "bg-accent/10 text-ink shadow-[inset_2px_0_0_var(--color-accent)] hover:bg-accent/15"
                   : "text-ink-tertiary hover:bg-surface-2 hover:text-ink"
               }`}
@@ -209,7 +231,11 @@ function NavEntry({ collapsed, item }: { collapsed: boolean; item: NavItem }) {
             >
               <child.icon
                 className={`h-3.5 w-3.5 shrink-0 ${
-                  isActiveChild(pathname, queryString, child.href)
+                  (
+                    child.matches
+                      ? isActiveNavItem(pathname, child)
+                      : isActiveChild(pathname, queryString, child.href)
+                  )
                     ? "text-accent-bright"
                     : ""
                 }`}
@@ -231,7 +257,7 @@ function isActiveNavItem(pathname: string, item: NavItem) {
 
 function isActiveChild(pathname: string, queryString: string, href: string) {
   const [hrefPath, hrefQuery = ""] = href.split("?");
-  if (pathname !== hrefPath) {
+  if (pathname !== hrefPath && !pathname.startsWith(`${hrefPath}/`)) {
     return false;
   }
 

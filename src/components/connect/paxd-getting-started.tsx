@@ -39,7 +39,8 @@ const agentSteps: GuideStep[] = [
     title: "Create a local daemon agent connection",
     description:
       "Use the harness you want to run. This is the paxl daemon command for creating the connection.",
-    command: "paxl daemon agent create --remote default --harness codex --name work",
+    command:
+      "paxl daemon agent create --remote default --harness codex --name work",
   },
   {
     title: "Verify the connection",
@@ -72,7 +73,7 @@ export function PaxdGettingStartedGuide({
           </div>
           <h2 className="mt-1 text-lg font-medium text-ink">
             {isNodeGuide
-              ? "No nodes connected yet"
+              ? "No devices connected yet"
               : "No agents created on this fleet yet"}
           </h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-muted">
@@ -125,12 +126,12 @@ export function PaxdGettingStartedGuide({
             </Button>
             <Button
               icon={<TerminalSquare className="h-4 w-4" />}
-              onClick={() => router.push("/settings/node-registration")}
+              onClick={() => router.push("/settings/devices/add")}
               size="sm"
               type="button"
               variant="secondary"
             >
-              Create registration token
+              Quick connect
             </Button>
           </>
         ) : (

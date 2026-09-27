@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, FolderTree } from "lucide-react";
+import { SettingsBack } from "@/components/settings/settings-navigation";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -23,8 +24,7 @@ export function ProjectSettingsPage({ user }: { user: User }) {
     [projectsQuery.data?.projects],
   );
   const requestedProjectId = searchParams.get("project") ?? "";
-  const [selectedProjectId, setSelectedProjectId] =
-    useState(requestedProjectId);
+  const selectedProjectId = requestedProjectId;
   const effectiveSelectedProjectId =
     projectsQuery.isLoading ||
     projects.some((project) => project.project_id === selectedProjectId)
@@ -35,9 +35,8 @@ export function ProjectSettingsPage({ user }: { user: User }) {
   );
 
   function selectProject(projectId: string) {
-    setSelectedProjectId(projectId);
     const query = projectId ? `?project=${encodeURIComponent(projectId)}` : "";
-    router.replace(`/settings/projects${query}`);
+    router.push(`/settings/projects${query}`);
   }
 
   return (
@@ -50,6 +49,7 @@ export function ProjectSettingsPage({ user }: { user: User }) {
           )}
         >
           <div className="sticky top-0 z-10 border-b border-hairline bg-surface-1 px-4 py-4">
+            <SettingsBack />
             <div className="flex items-center gap-2">
               <FolderTree className="h-4 w-4 text-accent-bright" />
               <h1 className="font-medium text-ink">Projects</h1>

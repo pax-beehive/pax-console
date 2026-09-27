@@ -1,5 +1,5 @@
-import { ResourceRoute } from "@/components/resources/resource-route";
+import { redirect } from "next/navigation";
 
-export default function DiagnosticsPage() {
-  return <ResourceRoute kind="monitor" />;
+export default function Page() {
+  redirect("/settings/service-status");
 }
