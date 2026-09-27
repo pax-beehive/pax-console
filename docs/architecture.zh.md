@@ -368,8 +368,8 @@ src/components/sessions/
   没有活跃工具和最新流式思考时显示 Working…，不推断正在思考或重试。
   执行中的消息尾部若没有活跃活动行，则保留呼吸灯/三点等待动画；不能因本轮曾有
   输出就永久隐藏。已有活动行动画时不重复展示，结束、取消、失败或待授权时收起。
-  原始工具名称与内容保留在展开详情中。活动段结束后显示工具操作数量，只有真实
-  结束边界时间才显示耗时。单个工具也使用同一活动行；活动段
+  原始工具名称与内容保留在展开详情中。活动段结束后显示轻量的 `› Worked for 18s`，
+  无有效结束边界时仅显示 `Worked`，不再统计操作数量或显示完成勾号。单个工具也使用同一活动行；活动段
   展开后直接显示各项思考和工具记录，去掉中间的 Tool calls 分组。
   工具失败只保留在操作详情，由 agent 处理，不提供用户重试按钮、不改变 session
   runtime status，也不由前端自动重跑工具。待授权请求在折叠行外始终可操作，
@@ -1525,8 +1525,10 @@ latest_message_id / latest_message_seq / latest_turn_id 只代表顺序，不代
 
 完整分页的 idle turn history 即使没有 turn_done 也应展示。snapshotTurnIds
 记录已读完的快照，calibratedTurnIds 仍只记录含 turn_done 的完成历史。
-工作台仅在 session idle 且本地 conversation 未 streaming / waiting_approval 时，
-让快照优先于内存里保留的旧 conversation / observer 片段；不得据此结束仍在运行的 turn。
+快照展示权按 turn 保留：开始下一轮不能让上一轮完整历史退回旧 conversation / observer
+片段。只有当前活动 turn 的快照让位给实时内容；本地发送的 turn ID（含 pending ID）
+优先于可能滞后的元数据 turn ID。远端活动且没有本地发送时使用报告的 turn ID；活动
+turn ID 未知时保守沿用实时合并。快照本身不证明完成，不得据此结束仍在运行的 turn。
 读取失败或未完成的空结果保留旧快照。无需刷新页面或清空运行时对象才能展示最新正文。
 
 ## Runtime release configuration

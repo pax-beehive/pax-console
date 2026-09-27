@@ -837,9 +837,10 @@ gate it on whether the turn has ever produced output. Idle, terminal, unknown,
 and waiting-approval states hide the indicator; it does not infer tool progress
 or alter runtime status. The CSS animation respects reduced-motion preferences.
 
-A closed block shows
-`Finished N operations` (tool calls only) and elapsed time only when its actual
-closing event supplies a valid timestamp. This is activity-block timing, not
+A completed block shows a leading disclosure arrow and `Worked for 18s` (or
+`Worked for 1m 18s`), without an operation count or a separate duration badge.
+Use `Worked` when the actual closing boundary has no valid timestamp.
+This is activity-block timing, not
 session runtime status. A single tool uses the same collapsed row. Expanding
 a block reveals individual thought/tool rows without an intermediate Tool calls
 group. Tool errors stay in the expanded evidence; never turn them into a terminal
@@ -1513,9 +1514,12 @@ on timeline rows. Foreground recovery never resubmits prompts or cancels turns.
 Keep fully paginated history snapshots separate from turn completion. An idle
 turn snapshot can update the display even without a synthetic turn_done row.
 Only turn_done adds a calibrated/completed turn; snapshotTurnIds record full
-history reads independently. The workbench gives these snapshots priority over
-retained conversation/observer fragments only while metadata is idle and no
-local conversation is streaming or waiting for approval. Do not stop a running
+history reads independently. Snapshot ownership is per turn: starting a new
+prompt must not replace previous durable replies with retained partial streams.
+Only the active turn's snapshot yields to live events. Prefer the local active
+turn ID (including a pending ID) over lagging metadata; otherwise use the reported
+active turn ID. When an active turn cannot be identified, retain conservative
+live reconciliation. Do not stop a running
 conversation merely because a history snapshot was fetched. Failed or empty
 incomplete reads retain the prior snapshot.
 

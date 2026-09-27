@@ -1,10 +1,156 @@
 import { describe, expect, it } from "vitest";
 import { SessionEvent } from "./session-events";
-import { reconcileSessionTimeline } from "./reconcile-session-timeline";
+import {
+  historySnapshotsForTimeline,
+  reconcileSessionTimeline,
+} from "./reconcile-session-timeline";
 
 const createdAt = "2026-08-04T00:00:00.000Z";
 
 describe("reconcileSessionTimeline", () => {
+  it("keeps unknown active turns conservative but retains snapshots after activity ends", () => {
+    expect(
+      historySnapshotsForTimeline(["turn_1"], {
+        localStatus: "streaming",
+        sessionStatus: "idle",
+      }),
+    ).toEqual([]);
+    expect(
+      historySnapshotsForTimeline(["turn_1"], {
+        localStatus: "idle",
+        sessionStatus: "running",
+      }),
+    ).toEqual([]);
+    expect(
+      historySnapshotsForTimeline(["turn_1"], {
+        localStatus: "done",
+        localTurnId: "turn_1",
+        sessionStatus: "idle",
+        sessionTurnId: "turn_1",
+      }),
+    ).toEqual(["turn_1"]);
+    expect(
+      historySnapshotsForTimeline(undefined, {
+        localStatus: "idle",
+        sessionStatus: "idle",
+      }),
+    ).toEqual([]);
+  });
+  it.each([
+    {
+      localStatus: "streaming",
+      localTurnId: "pending-turn:2",
+      sessionStatus: "idle",
+      sessionTurnId: "turn_1",
+    },
+    {
+      localStatus: "streaming",
+      localTurnId: "turn_2",
+      sessionStatus: "running",
+      sessionTurnId: "turn_1",
+    },
+    {
+      localStatus: "waiting_approval",
+      localTurnId: "turn_2",
+      sessionStatus: "running",
+      sessionTurnId: "turn_2",
+    },
+    {
+      localStatus: "done",
+      localTurnId: "turn_1",
+      sessionStatus: "running",
+      sessionTurnId: "turn_2",
+    },
+    {
+      localStatus: "idle",
+      sessionStatus: "cancelling",
+      sessionTurnId: "turn_2",
+    },
+  ])(
+    "retains the previous complete snapshot when another turn starts: %j",
+    (runtime) => {
+      const history = [
+        user("prompt-1", "turn_1", "First prompt"),
+        event("agent_message", "reply-1", "turn_1", "Complete previous reply"),
+      ];
+      const stale = [user("live-prompt-1", "turn_1", "First prompt")];
+      const oldSnapshot = ["turn_1"];
+      const before = reconcileSessionTimeline(
+        history,
+        stale,
+        [],
+        [],
+        [],
+        historySnapshotsForTimeline(oldSnapshot, {
+          localStatus: "done",
+          sessionStatus: "idle",
+        }),
+      );
+      const nextTurnId =
+        runtime.localStatus === "streaming" ||
+        runtime.localStatus === "waiting_approval"
+          ? runtime.localTurnId!
+          : "turn_2";
+      const conversation = [
+        ...stale,
+        user("prompt-2", nextTurnId, "Next prompt"),
+        event("agent_message", "reply-2", nextTurnId, "New reply"),
+      ];
+      const after = reconcileSessionTimeline(
+        history,
+        conversation,
+        [],
+        [],
+        [],
+        historySnapshotsForTimeline(oldSnapshot, runtime),
+      );
+      expect(before.timeline.map((e) => e.id)).toEqual(["prompt-1", "reply-1"]);
+      expect(after.timeline.map((e) => e.id)).toEqual([
+        "prompt-1",
+        "reply-1",
+        "prompt-2",
+        "reply-2",
+      ]);
+    },
+  );
+
+  it("lets the active turn stream while keeping other history snapshots authoritative", () => {
+    const snapshots = historySnapshotsForTimeline(["turn_1", "turn_2"], {
+      localStatus: "streaming",
+      localTurnId: "turn_2",
+      sessionStatus: "running",
+      sessionTurnId: "turn_2",
+    });
+    const history = [
+      event("agent_message", "old-final", "turn_1", "Complete previous reply"),
+      event(
+        "agent_message",
+        "current-snapshot",
+        "turn_2",
+        "Outdated current reply",
+      ),
+    ];
+    const live = [
+      event("agent_message", "old-partial", "turn_1", "Old partial"),
+      event(
+        "agent_message",
+        "current-live",
+        "turn_2",
+        "Current streaming reply",
+      ),
+    ];
+    expect(
+      reconcileSessionTimeline(
+        history,
+        live,
+        [],
+        [],
+        [],
+        snapshots,
+      ).timeline.map((e) => e.id),
+    ).toEqual(["old-final", "current-live"]);
+  });
+
   it("keeps one attachment-bearing user bubble when history replaces the live prompt", () => {
     const attachments = [
       { filename: "Screenshot.png", contentType: "image/png" },

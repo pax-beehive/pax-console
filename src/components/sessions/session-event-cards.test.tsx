@@ -402,21 +402,24 @@ describe("session event cards", () => {
     expect(screen.getByText("error")).toBeVisible();
   });
 
-  it("summarizes completed operations without counting thought chunks as operations", () => {
+  it("keeps completed work collapsed without an operation count", () => {
     const item = activityGroup(true);
     const { container } = renderItem(item);
-    expect(screen.getByText("Finished 1 operation")).toBeVisible();
+    expect(screen.getByText("Worked")).toBeVisible();
+    expect(screen.queryByText(/Finished|operations/)).not.toBeInTheDocument();
     expect(container.querySelector("details")).not.toHaveAttribute("open");
     expect(container.querySelector(".animate-spin")).not.toBeInTheDocument();
   });
 
   it("shows elapsed time from the real completed activity boundary", () => {
     renderItem({ ...activityGroup(true), completedAt: "2026-09-25T00:00:24Z" });
-    expect(screen.getByText("24s")).toBeVisible();
+    expect(screen.getByText("Worked for 24s")).toBeVisible();
+    expect(screen.queryByText("24s", { exact: true })).not.toBeInTheDocument();
   });
 
   it("does not invent elapsed time for activity without a valid boundary", () => {
     renderItem({ ...activityGroup(true), completedAt: "invalid" });
+    expect(screen.getByText("Worked")).toBeVisible();
     expect(screen.queryByText(/\d+s$/)).not.toBeInTheDocument();
   });
 
