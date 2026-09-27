@@ -9,6 +9,38 @@ export type ReconciledSessionTimeline = {
   timeline: SessionEvent[];
 };
 
+export function historySnapshotsForTimeline(
+  snapshotTurnIds: string[] | undefined,
+  runtime: {
+    sessionStatus?: string;
+    sessionTurnId?: string;
+    localStatus: string;
+    localTurnId?: string;
+  },
+) {
+  const localActive =
+    runtime.localStatus === "streaming" ||
+    runtime.localStatus === "waiting_approval";
+  const reportedActive = [
+    "running",
+    "waiting_approval",
+    "cancelling",
+    "canceling",
+  ].includes(runtime.sessionStatus ?? "");
+  // A newly submitted local turn (including its pending ID) takes precedence
+  // over metadata that may still point at the previous turn.
+  const activeTurnId = localActive
+    ? runtime.localTurnId
+    : reportedActive
+      ? runtime.sessionTurnId
+      : undefined;
+  // Without an identified active turn, do not let a snapshot silence its stream.
+  if ((localActive || reportedActive) && !activeTurnId) return [];
+  // Starting another turn must not hand previous complete history back to
+  // retained, potentially partial conversation/observer fragments.
+  return (snapshotTurnIds ?? []).filter((turnId) => turnId !== activeTurnId);
+}
+
 /**
  * A committed observer snapshot replaces the complete target turn, including
  * partial conversation output. Completed history takes ownership back. Older
