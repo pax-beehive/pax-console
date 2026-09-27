@@ -1065,9 +1065,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                         <div className="mt-3 flex flex-wrap gap-2">
                           <Link
                             className="inline-flex min-h-9 items-center rounded-md border border-primary bg-primary px-3 font-medium text-canvas hover:bg-primary-hover"
-                            href="/settings/developer?view=node-registration"
+                            href="/settings/devices/add"
                           >
-                            Register a node
+                            Add device
                           </Link>
                           <Link
                             className="inline-flex min-h-9 items-center rounded-md border border-hairline bg-surface-2 px-3 text-ink-muted hover:bg-surface-3 hover:text-ink"

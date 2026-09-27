@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function ApprovalsPage() {
-  redirect("/settings/security");
+  redirect("/settings/advanced/permissions");
 }

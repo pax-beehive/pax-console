@@ -18,10 +18,10 @@ const items = [
     matches: ["/collaboration"],
   },
   {
-    href: "/settings/devices",
+    href: "/settings",
     icon: Settings,
     label: "Settings",
-    matches: ["/settings"],
+    matches: ["/settings", "/nodes", "/agents", "/e2ee/pairing"],
   },
 ] as const;
 

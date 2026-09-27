@@ -192,7 +192,7 @@ function E2EEPairingPage({ user }: { user: User }) {
               </p>
             </div>
             <Button asChild icon={<ArrowLeft className="h-4 w-4" />}>
-              <Link href="/settings/security">Security settings</Link>
+              <Link href="/settings/advanced/encryption">Encrypted chats</Link>
             </Button>
           </header>
 
@@ -313,9 +313,9 @@ function E2EEPairingPage({ user }: { user: User }) {
                     </h2>
                     <p className="mt-2 text-xs leading-5 text-ink-tertiary">
                       On a device that can already open encrypted sessions, go
-                      to Settings → Security, select this agent, find this
-                      browser&apos;s request, enter the one-time code, and grant
-                      encryption access.
+                      to Settings → Advanced settings → Encrypted chats, select
+                      this agent, find this browser&apos;s request, enter the
+                      one-time code, and grant encryption access.
                     </p>
                     <div className="mt-3">
                       <SecretRow

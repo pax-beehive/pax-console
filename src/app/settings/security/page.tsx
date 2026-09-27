@@ -1,5 +1,5 @@
-import { ResourceRoute } from "@/components/resources/resource-route";
+import { redirect } from "next/navigation";
 
-export default function SecurityPage() {
-  return <ResourceRoute kind="security" />;
+export default function Page() {
+  redirect("/settings/advanced");
 }

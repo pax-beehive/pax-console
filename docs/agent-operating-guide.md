@@ -94,8 +94,8 @@ POST failure, retain the value returned by `prepareEncryptedCommand` and call
 `postEncryptedCommand` again with that exact envelope; re-encrypting the same
 business command would change its nonce/ciphertext and correctly conflict at the
 Manager. `root-key-store.ts` stores
-one development root key per agent in IndexedDB, surfaced under Settings /
-Security. Root keys must not be put in TanStack Query, localStorage, server
+one development root key per agent in IndexedDB, surfaced under Settings / Advanced settings /
+Encrypted chats. Root keys must not be put in TanStack Query, localStorage, server
 components, URL state, or the Manager API.
 
 Encrypted ACP event plaintext carries the paxd-projected `turn_id` beside its
@@ -1025,8 +1025,8 @@ accordion; multiple groups may stay open at the same time.
 Home             /
 Collaboration    /collaboration/teams
                  children: Teams, Friends, Envelopes, Knowledge
-Settings         bottom-pinned group; /settings/devices
-                 children: Devices, Security, Developer, Diagnostics
+Settings         bottom-pinned group; /settings
+                 children: Devices, Projects, Service status, Advanced settings
 ```
 
 These deep links should remain directly reachable:
@@ -1043,10 +1043,16 @@ These deep links should remain directly reachable:
 /collaboration/friends         Friends
 /collaboration/envelopes       Envelopes
 /collaboration/knowledge       Knowledge
-/settings/devices              Nodes / Agents local views
-/settings/security             Persistent approval grants
-/settings/developer            API keys / registration local views
-/settings/diagnostics          Monitor
+/settings                      Settings directory
+/settings/devices              Devices; ?view=agents selects Agents
+/settings/devices/add          Quick connect / Pair with code
+/settings/projects             Project hierarchy and launch Targets
+/settings/service-status       PAX health, devices and agents independently
+/settings/advanced             Advanced settings directory
+/settings/advanced/permissions Active approval grants
+/settings/advanced/encryption  Browser keys and encrypted-device pairing
+/settings/advanced/api-keys    API key management
+/settings/advanced/node-registration Manual registration tokens
 /nodes/[nodeId]                Node detail
 /agents/[agentId]?nodeId=...   Agent detail
 ```
@@ -1527,3 +1533,20 @@ Unset runtime configuration preserves the existing hosted/legacy defaults.
 Only wsBaseUrl, PAX_RELEASE_ID and PAX_COMMIT_SHA are exposed; never serialize
 process.env or PAX_MANAGER_URL/Cloudflare credentials into the browser. Inline
 JSON escapes `<` to prevent closing-script injection. REST remains /api/pax.
+
+### Settings organization and device setup
+
+`src/components/settings/` owns the English-first directory, health summary and
+Add device flow. Keep pending approvals in Home, device maintenance and secret
+transfer in device details, and technical profile fields in expandable advanced
+sections. Preserve existing resource and Project/Target CRUD components.
+Legacy Security, Developer, Diagnostics, API key and registration URLs redirect
+to their new destinations. Mobile pages provide a parent link.
+
+Quick connect uses the same-origin token API without an owner override (the
+authenticated user supplies ownership), then assembles an install command using
+the configured public runtime origin. Its one-use token stays in page state,
+expires after one hour, and can be regenerated. Never log it or store it in the
+query cache. Keep `paxl daemon setup` and `/connect` as the pairing alternative.
+Ship the paxd installer and binary supporting `--registration-token-env` before
+shipping this Console flow. See `settings-migration.md` for preservation checks.

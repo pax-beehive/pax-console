@@ -295,32 +295,18 @@ PAX Console
 |   +-- Knowledge
 |       +-- capsules
 |       +-- session injections
-+-- Settings (bottom-pinned sidebar group)
-    +-- Nodes
-    |   +-- node list
-    |   +-- node detail
-    |   +-- paxd status
-    |   +-- system metadata
-    |   +-- registration tokens
-    +-- Agents
-    |   +-- agent list
-    |   +-- agent detail
-    |   +-- capabilities
-    |   +-- sessions
-    |   +-- bootstrap agent
-    +-- Inquiries
-    +-- Conversations
-    +-- Approvals
-    |   +-- pending approval requests
-    |   +-- active approval grants
-    +-- Monitor
-    |   +-- mailbox timeline
-    |   +-- tool/message events
-    |   +-- token/cost metrics
-    |   +-- latency/error views
-    |   +-- node/agent heartbeat
-    +-- API keys
-    +-- node registration
+ +-- Settings (/settings; bottom-pinned sidebar group)
+    +-- Devices (Nodes / Agents)
+    |   +-- Add device: Quick connect / Pair with code
+    |   +-- Device detail: runtime, agents, browser control
+    |   +-- Advanced device settings: maintenance, secrets, deletion
+    +-- Projects (hierarchy and reusable launch Targets)
+    +-- Service status (PAX, devices, agents, recent sessions)
+    +-- Advanced settings
+        +-- Allowed actions (persistent approval grants)
+        +-- Encrypted chats (keys and pairing)
+        +-- API keys
+        +-- Manual device registration
 ```
 
 The sidebar keeps only Home and Collaboration as top-level entries; everything

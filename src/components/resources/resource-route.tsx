@@ -10,6 +10,8 @@ type ResourceRouteProps = {
     | "sessions"
     | "approvals"
     | "security"
+    | "grants"
+    | "encryption"
     | "monitor"
     | "api-keys"
     | "node-registration";

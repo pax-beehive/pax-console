@@ -82,7 +82,7 @@ Browser --encrypted command/HTTP--> 任意 Manager
   HTTP 结果不确定时必须重发 `prepareEncryptedCommand` 产生的同一个 envelope，
   不能用相同业务 ID 重新加密出不同 nonce/ciphertext。
 - `root-key-store.ts` 在浏览器 IndexedDB 中按 agent 保存开发阶段手工共享的
-  root key。Settings / Security 提供保存和删除入口，key 不经过 Manager API。
+  root key。Settings / Advanced settings / Encrypted chats 提供保存和删除入口，key 不经过 Manager API。
 
 paxd 在解密并接受 `session/prompt` 时按 prompt request 建立稳定 `turn_id`，并在
 encrypted event plaintext 中以 `{ turn_id, frames }` 返回；canonical encrypted
@@ -318,9 +318,9 @@ src/components/home/project-rail.tsx
   并在编辑父级时排除自身和 descendants。
 
 src/components/resources/
-  Settings 组下的资源页。Devices 聚合 Nodes / Agents，Security 只管理 active
-  approval grants（pending approvals 留在 Home Inbox），Developer 聚合 API Keys / Node Registration，
-  Diagnostics 承载 Monitor。Inquiries 和 Conversations 属于 Home action/deep-link，
+  Settings 组下的资源页。Devices 聚合 Nodes / Agents；Advanced settings 收纳 active
+  approval grants、Encrypted chats、API keys 和手动注册 token（pending approvals 留在 Home Inbox）。
+  Service status 公开服务、设备与 Agent 各自的状态。Inquiries 和 Conversations 属于 Home action/deep-link，
   不再伪装成系统设置。旧资源列表 URL 保留 redirect。
 
 src/components/artifacts/
@@ -461,8 +461,7 @@ Sidebar 折叠
   Sidebar 一级入口保持粗粒度：顶部只有 Home 和 Collaboration；
   其余入口收进钉在侧栏底部的 Settings 展开组。
   Collaboration / Settings 是彼此独立的 disclosure，不是 accordion；多个组可以同时保持展开。
-  Settings 展开时在 Sidebar 二级导航承载 Projects、Devices、Security、
-  Developer 和 Diagnostics。
+  Settings 展开时在 Sidebar 二级导航承载 Devices、Projects、Service status 和 Advanced settings。
   Collaboration 展开时在 Sidebar 二级导航承载 Teams、Friends、Envelopes、Knowledge。
   Team invites 属于 Teams 页面里的 team action queue，不作为 Collaboration 并列二级入口。
   不要把这些全局二级 tabs 放进具体页面 header 或页面组件内部。
@@ -724,10 +723,16 @@ Sidebar 一级入口是粗粒度工作区（顶部 Home / Collaboration，底部
 /collaboration/friends         Friends
 /collaboration/envelopes       Envelopes
 /collaboration/knowledge       Knowledge capsules
-/settings/devices              Nodes; ?view=agents selects Agents
-/settings/security             Active approval grants
-/settings/developer            API keys; ?view=node-registration selects registration
-/settings/diagnostics          Manager health + fleet summary
+/settings                      Settings directory
+/settings/devices              Devices; ?view=agents selects Agents
+/settings/devices/add          Quick connect / Pair with code
+/settings/projects             Project hierarchy and launch Targets
+/settings/service-status       PAX health, devices and agents independently
+/settings/advanced             Advanced settings directory
+/settings/advanced/permissions Active approval grants
+/settings/advanced/encryption  Browser keys and encrypted-device pairing
+/settings/advanced/api-keys    API key management
+/settings/advanced/node-registration Manual registration tokens
 /nodes/[id]                    Node detail deep-link
 /agents/[id]?nodeId=...        Agent detail deep-link
 ```
@@ -1536,3 +1541,17 @@ Unset runtime configuration preserves the existing hosted/legacy defaults.
 Only wsBaseUrl, PAX_RELEASE_ID and PAX_COMMIT_SHA are exposed; never serialize
 process.env or PAX_MANAGER_URL/Cloudflare credentials into the browser. Inline
 JSON escapes `<` to prevent closing-script injection. REST remains /api/pax.
+
+### Settings directory and quick device connection
+
+`src/components/settings/` 承载英文优先的设置目录、服务状态与 Add device。
+设备的维护、secret 传输和删除在设备详情的 Advanced device settings 内；
+运行控制、Agent 管理、浏览器控制保留。Project/Target CRUD 仍复用现有组件。
+旧 Security、Developer、Diagnostics 等入口保留重定向；手机页面提供返回上层入口。
+
+Quick connect 通过同源 API 创建当前用户的一次性注册 token，不传 admin-only
+owner override。命令使用配置的 public runtime origin，token 只保存在当前页面内存，
+一小时后可重新生成。paxd 安装脚本通过环境变量传递 token，setup 消费后立即清理环境，
+复用原有凭据持久化与 service 安装/启动流程。旧 pairing 与 `/connect` 完整保留。
+发布时必须先上线支持 `--registration-token-env` 的 paxd binary 和 installer。
+功能迁移与验证记录见 `settings-migration.md`。

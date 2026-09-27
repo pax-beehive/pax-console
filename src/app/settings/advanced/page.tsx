@@ -1,5 +1,5 @@
 import { SettingsPage } from "@/components/settings/settings-page-client";
 
 export default function Page() {
-  return <SettingsPage />;
+  return <SettingsPage advanced />;
 }

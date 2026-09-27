@@ -409,7 +409,7 @@ function E2EESessionLab({ user }: { user: User }) {
               </p>
             </div>
             <Button asChild icon={<ArrowLeft className="h-4 w-4" />}>
-              <Link href="/settings/security">Security settings</Link>
+              <Link href="/settings/advanced/encryption">Encrypted chats</Link>
             </Button>
           </header>
 

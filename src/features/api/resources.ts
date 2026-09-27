@@ -1434,8 +1434,6 @@ export function createNodeRegistrationToken(
     {
       body: JSON.stringify({
         expires_in_seconds: expiresInSeconds,
-        owner_user_id: userId,
-        user_id: userId,
       }),
       method: "POST",
     },
@@ -1948,8 +1946,10 @@ export function useLatestPaxdRelease(
 export function useAgents(
   userId?: string,
   scope: "accessible" | "owned" = "accessible",
+  refetchInterval?: number,
 ) {
   return useQuery({
+    refetchInterval,
     queryKey: queryKeys.userAgents(userId ?? "pending", scope),
     queryFn: () => listAgents(userId as string, scope),
     enabled: Boolean(userId),

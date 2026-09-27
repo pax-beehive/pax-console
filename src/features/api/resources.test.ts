@@ -14,6 +14,7 @@ const {
   archiveProject,
   cancelTeamInvite,
   createEnvelope,
+  createNodeRegistrationToken,
   createProject,
   createProjectTarget,
   createKnowledgeCapsule,
@@ -1402,5 +1403,14 @@ describe("collaboration resources", () => {
         method: "POST",
       },
     );
+  });
+});
+
+// The authenticated route assigns ownership; an owner override requires admin rights.
+it("creates a self-owned registration token without an admin-only owner override", async () => {
+  apiFetch.mockResolvedValueOnce({ token: "one-use" });
+  await createNodeRegistrationToken("user-1", 3600);
+  expect(apiFetch).toHaveBeenCalledWith("/api/v1/user/user-1/node-registration-tokens", {
+    method: "POST", body: JSON.stringify({ expires_in_seconds: 3600 }),
   });
 });

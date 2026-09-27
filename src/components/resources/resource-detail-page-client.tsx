@@ -32,6 +32,7 @@ import { queryKeys } from "@/features/api/query-keys";
 import { Agent, ApiRecord, Node, User } from "@/features/api/types";
 import { compactId } from "@/lib/format";
 import { nodeLabel } from "./resource-models";
+import { NodeMaintenanceActions } from "./node-maintenance-actions";
 import { NodeDaemonControl } from "./node-daemon-control";
 import { NodeBrowserControl } from "./node-browser-control";
 import { NodeSecretChannelPush } from "./node-secret-channel-push";
@@ -71,7 +72,7 @@ export function NodeDetailPageClient({
       <DetailShell
         backHref="/settings/devices?view=nodes"
         error={nodeQuery.error}
-        eyebrow="node detail"
+        eyebrow="device detail"
         icon={<Server className="h-4 w-4" />}
         title={node?.name ?? node?.hostname ?? nodeId}
       >
@@ -92,7 +93,12 @@ export function NodeDetailPageClient({
               ]}
               title="Runtime"
             />
-            <MetadataCard title="System metadata" value={node?.metadata} />
+            <details>
+              <summary className="cursor-pointer text-sm text-ink-tertiary">
+                System metadata
+              </summary>
+              <MetadataCard title="System metadata" value={node?.metadata} />
+            </details>
           </div>
         </div>
 
@@ -100,16 +106,37 @@ export function NodeDetailPageClient({
 
         <NodeBrowserControl nodeId={nodeId} userId={user.user_id} />
 
-        <NodeSecretChannelPush nodeId={nodeId} userId={user.user_id} />
+        <details className="rounded-lg border border-hairline bg-surface-1 p-4">
+          <summary className="cursor-pointer text-sm font-medium">
+            Advanced device settings
+          </summary>
+          <div className="mt-4 grid gap-4">
+            {node && (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-sm font-medium">Update or restart paxd</h2>
+                <NodeMaintenanceActions
+                  nodeId={nodeId}
+                  nodeLabel={nodeLabel(node)}
+                  currentVersion={node.paxd_version}
+                  nodeOS={node.os}
+                  nodeArch={node.arch}
+                  disabled={!node.online}
+                  userId={user.user_id}
+                />
+              </div>
+            )}
+            <NodeSecretChannelPush nodeId={nodeId} userId={user.user_id} />
 
-        <CleanupActionCard
-          actionLabel={removeNode.isPending ? "Deleting..." : "Delete node"}
-          description="This removes the node from the fleet view and cleans up agents hosted on this node."
-          disabled={!node || removeNode.isPending}
-          error={removeNode.error}
-          onDelete={() => setNodeDeleteOpen(true)}
-          title="Cleanup node"
-        />
+            <CleanupActionCard
+              actionLabel={removeNode.isPending ? "Deleting..." : "Delete node"}
+              description="This removes the node from the fleet view and cleans up agents hosted on this node."
+              disabled={!node || removeNode.isPending}
+              error={removeNode.error}
+              onDelete={() => setNodeDeleteOpen(true)}
+              title="Cleanup node"
+            />
+          </div>
+        </details>
         <ConfirmDialog
           confirmLabel={removeNode.isPending ? "Deleting..." : "Delete node"}
           description={
@@ -364,13 +391,18 @@ function NodeProfileForm({
         placeholder="Use this machine for local builds"
         value={notes}
       />
-      <TextField
-        disabled={!node || save.isPending}
-        label="Routing hint"
-        onChange={setRoutingHint}
-        placeholder="prefer for local tasks"
-        value={routingHint}
-      />
+      <details className="grid gap-3">
+        <summary className="mb-3 cursor-pointer text-sm text-ink-tertiary">
+          Advanced routing
+        </summary>
+        <TextField
+          disabled={!node || save.isPending}
+          label="Routing hint"
+          onChange={setRoutingHint}
+          placeholder="prefer for local tasks"
+          value={routingHint}
+        />
+      </details>
     </ProfileForm>
   );
 }
@@ -512,55 +544,62 @@ function AgentProfileForm({
         placeholder="Reviews risky changes"
         value={description}
       />
-      <TextField
-        disabled={!agent || save.isPending}
-        label="Routing tags"
-        onChange={setRoutingTags}
-        placeholder="review, backend"
-        value={routingTags}
-      />
-      <TextField
-        disabled={!agent || save.isPending}
-        label="Skills"
-        onChange={setSkills}
-        placeholder="review, tests"
-        value={skills}
-      />
-      <TextField
-        disabled={!agent || save.isPending}
-        label="Specialties"
-        onChange={setSpecialties}
-        placeholder="api, postgres"
-        value={specialties}
-      />
-      <TextAreaField
-        disabled={!agent || save.isPending}
-        label="Capability notes"
-        onChange={setCapabilityNotes}
-        placeholder="Strong at risky API and migration reviews"
-        value={capabilityNotes}
-      />
-      <TextField
-        disabled={!agent || save.isPending}
-        label="Labels"
-        onChange={setLabels}
-        placeholder="favorite, local"
-        value={labels}
-      />
-      <TextAreaField
-        disabled={!agent || save.isPending}
-        label="Notes"
-        onChange={setNotes}
-        placeholder="Use before merging backend changes"
-        value={notes}
-      />
-      <TextField
-        disabled={!agent || save.isPending}
-        label="Routing hint"
-        onChange={setRoutingHint}
-        placeholder="prefer for API changes"
-        value={routingHint}
-      />
+      <details>
+        <summary className="mb-3 cursor-pointer text-sm text-ink-tertiary">
+          Advanced profile and routing
+        </summary>
+        <div className="grid gap-3">
+          <TextField
+            disabled={!agent || save.isPending}
+            label="Routing tags"
+            onChange={setRoutingTags}
+            placeholder="review, backend"
+            value={routingTags}
+          />
+          <TextField
+            disabled={!agent || save.isPending}
+            label="Skills"
+            onChange={setSkills}
+            placeholder="review, tests"
+            value={skills}
+          />
+          <TextField
+            disabled={!agent || save.isPending}
+            label="Specialties"
+            onChange={setSpecialties}
+            placeholder="api, postgres"
+            value={specialties}
+          />
+          <TextAreaField
+            disabled={!agent || save.isPending}
+            label="Capability notes"
+            onChange={setCapabilityNotes}
+            placeholder="Strong at risky API and migration reviews"
+            value={capabilityNotes}
+          />
+          <TextField
+            disabled={!agent || save.isPending}
+            label="Labels"
+            onChange={setLabels}
+            placeholder="favorite, local"
+            value={labels}
+          />
+          <TextAreaField
+            disabled={!agent || save.isPending}
+            label="Notes"
+            onChange={setNotes}
+            placeholder="Use before merging backend changes"
+            value={notes}
+          />
+          <TextField
+            disabled={!agent || save.isPending}
+            label="Routing hint"
+            onChange={setRoutingHint}
+            placeholder="prefer for API changes"
+            value={routingHint}
+          />
+        </div>
+      </details>
     </ProfileForm>
   );
 }
