@@ -32,7 +32,7 @@ export function ConsoleLayout({ user, children }: ConsoleLayoutProps) {
       >
         <Sidebar showAdminFeatures={showAdminFeatures} />
       </div>
-      <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-16 lg:pb-0">
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-[var(--console-mobile-nav-height)] lg:pb-0">
         <Topbar user={user} />
         {children}
       </section>

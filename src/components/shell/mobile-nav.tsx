@@ -35,7 +35,7 @@ export function MobileNav({
   return (
     <nav
       aria-label="Primary"
-      className={`mobile-safe-bottom absolute inset-x-0 bottom-0 z-50 grid h-16 border-t border-hairline bg-surface-1/95 px-2 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden ${
+      className={`absolute inset-x-0 bottom-0 z-50 grid h-[var(--console-mobile-nav-height)] border-t border-hairline bg-surface-1/95 px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] backdrop-blur lg:hidden ${
         showAdminFeatures ? "grid-cols-3" : "grid-cols-2"
       }`}
     >

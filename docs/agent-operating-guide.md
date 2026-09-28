@@ -1583,3 +1583,9 @@ Narrow readers use a single content column and retain stored font preferences.
 Recent-session row timestamps occupy the trailing edge of the metadata line;
 agent/project/node context truncates in the flexible leading space. Archive
 status precedes the timestamp so every row keeps the same time alignment.
+
+Mobile composer attachment menus use continuous anchor positioning while open so
+keyboard dismissal and visual-viewport shell reflow cannot leave the menu behind.
+The mobile navigation reserves 4rem of content height plus the bottom safe area;
+its top padding and bottom content padding are independent of that safe area.
+ConsoleLayout reserves the same --console-mobile-nav-height to prevent overlap.
