@@ -150,6 +150,7 @@ button {
 }
 
 .console-shell {
+  --console-mobile-nav-height: calc(4rem + env(safe-area-inset-bottom, 0px));
   position: fixed;
   inset: var(--console-viewport-top, 0px) 0 auto;
   height: 100vh;

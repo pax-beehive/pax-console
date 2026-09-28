@@ -532,7 +532,12 @@ export const SessionComposer = memo(function SessionComposer({
                 variant="ghost"
               />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-64" side="top">
+            <DropdownMenuContent
+              align="start"
+              className="w-64"
+              side="top"
+              updatePositionStrategy="always"
+            >
               <DropdownMenuItem
                 disabled={attachmentUploadPending || secure}
                 onSelect={() => fileInputRef.current?.click()}

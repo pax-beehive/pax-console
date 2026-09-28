@@ -1257,6 +1257,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent
                           align="start"
+                          updatePositionStrategy="always"
                           className="w-36"
                           side="top"
                         >

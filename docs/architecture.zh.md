@@ -1581,3 +1581,9 @@ Markdown artifact 的嵌入预览不显示 Reader 栏；独立阅读页使用容
 保留已存的字体偏好，不再用全局 desktop breakpoint 挤压侧边预览。
 Recent session 列表时间固定在第二行文字区域右端；左侧 context 伸缩并截断，
 Archived 标记置于时间前，避免不同长度的 agent/node 信息改变时间的对齐位置。
+
+Mobile composer attachment menus use continuous anchor positioning while open so
+keyboard dismissal and visual-viewport shell reflow cannot leave the menu behind.
+The mobile navigation reserves 4rem of content height plus the bottom safe area;
+its top padding and bottom content padding are independent of that safe area.
+ConsoleLayout reserves the same --console-mobile-nav-height to prevent overlap.
