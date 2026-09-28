@@ -1564,3 +1564,5 @@ owner override。命令使用配置的 public runtime origin，token 只保存�
 Markdown artifact 的嵌入预览不显示 Reader 栏；独立阅读页使用容器查询，仅在
 阅读区域自身宽度至少 56rem（896px）时显示设置/目录列。窄区域正文占满宽度，
 保留已存的字体偏好，不再用全局 desktop breakpoint 挤压侧边预览。
+Recent session 列表时间固定在第二行文字区域右端；左侧 context 伸缩并截断，
+Archived 标记置于时间前，避免不同长度的 agent/node 信息改变时间的对齐位置。

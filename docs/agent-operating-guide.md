@@ -1563,3 +1563,6 @@ Markdown artifacts omit Reader controls in embedded previews. Standalone readers
 show the controls/contents column only when the reader container is at least
 56rem (896px), not when the browser viewport crosses a desktop breakpoint.
 Narrow readers use a single content column and retain stored font preferences.
+Recent-session row timestamps occupy the trailing edge of the metadata line;
+agent/project/node context truncates in the flexible leading space. Archive
+status precedes the timestamp so every row keeps the same time alignment.

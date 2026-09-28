@@ -1559,15 +1559,14 @@ function HomeSessionRow({
             </Tooltip>
           )}
         </span>
-        <span className="flex min-w-0 items-center gap-1 text-xs text-ink-tertiary">
-          <span className="truncate">{session.context}</span>
-          <span aria-hidden="true" className="shrink-0 text-ink-tertiary/50">
-            ·
-          </span>
-          <span className="shrink-0">{relativeTime(session.createdAt)}</span>
+        <span className="flex min-w-0 items-center gap-2 text-xs text-ink-tertiary">
+          <span className="min-w-0 flex-1 truncate">{session.context}</span>
           {session.archivedAt && (
-            <span className="shrink-0 text-warning">· Archived</span>
+            <span className="shrink-0 text-warning">Archived</span>
           )}
+          <span className="ml-auto shrink-0 whitespace-nowrap text-right">
+            {relativeTime(session.createdAt)}
+          </span>
         </span>
       </Link>
       <Button
