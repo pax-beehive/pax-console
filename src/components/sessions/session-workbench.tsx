@@ -34,7 +34,6 @@ import { Button } from "@/components/ui/button";
 import { MonoId, TruncatedText } from "@/components/ui/text";
 import { Tooltip } from "@/components/ui/tooltip";
 import {
-  AgentPendingIndicator,
   PermissionDecisionOption,
   PermissionDecisionResult,
   PermissionDecisionState,
@@ -43,6 +42,7 @@ import {
   WorkstreamItemCard,
 } from "@/components/sessions/session-event-cards";
 import { showPendingActivity } from "./activity-label";
+import { SessionPendingActivity } from "./session-pending-activity";
 import { SessionBrowserApprovals } from "./session-browser-approvals";
 import { SessionBrowserWindow } from "./session-browser-window";
 import { WorkspacePicker } from "./workspace-picker";
@@ -2478,7 +2478,14 @@ export function SessionWorkbench({
                 />
               </div>
             ))}
-            {isAgentResponsePending && <AgentPendingIndicator />}
+            <SessionPendingActivity
+              status={displayedRunStatus}
+              items={workstreamItems}
+              scopeKey={JSON.stringify([
+                currentSessionId,
+                latestRuntimeTurnId(timeline),
+              ])}
+            />
             {!historyQuery.isLoading &&
               workstreamItems.length === 0 &&
               !isAgentResponsePending && (

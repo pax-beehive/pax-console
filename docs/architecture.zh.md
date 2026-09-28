@@ -1555,3 +1555,12 @@ owner override。命令使用配置的 public runtime origin，token 只保存�
 复用原有凭据持久化与 service 安装/启动流程。旧 pairing 与 `/connect` 完整保留。
 发布时必须先上线支持 `--registration-token-env` 的 paxd binary 和 installer。
 功能迁移与验证记录见 `settings-migration.md`。
+
+## 输出空档与 artifact 阅读宽度
+
+等待动画仅填补输出空档：首个输出前立即显示；正文变化后等待 1.5 秒无新正文
+才显示。相同 history 快照不重置计时；运行中的工具/思考组和非 streaming 状态
+不重复显示。计时按 session/turn 隔离，只影响动画，不延迟消息渲染或发送。
+Markdown artifact 的嵌入预览不显示 Reader 栏；独立阅读页使用容器查询，仅在
+阅读区域自身宽度至少 56rem（896px）时显示设置/目录列。窄区域正文占满宽度，
+保留已存的字体偏好，不再用全局 desktop breakpoint 挤压侧边预览。
