@@ -6,6 +6,42 @@ import {
 } from "./normalize-history-message";
 
 describe("normalizeHistoryMessage", () => {
+  it("keeps replayed user prompts distinct, including repeated text in different rows", () => {
+    const history = ["First prompt", "Second prompt", "First prompt"].map(
+      (text, index) => ({
+        message_id: `replay_${index}`,
+        session_id: "sess_1",
+        turn_id: "turn_replay",
+        session_seq: index + 1,
+        role: "assistant", // Legacy replay rows may carry the transport default role.
+        message_type: "raw_frame",
+        created_at: "2026-09-28T00:00:00.000Z",
+        raw_json: {
+          method: "session/update",
+          params: {
+            sessionId: "sess_1",
+            update: {
+              sessionUpdate: "user_message_chunk",
+              content: { type: "text", text },
+            },
+          },
+        },
+      }),
+    );
+    const timeline = mergeEvents(normalizeHistoryMessages(history));
+    expect(timeline).toMatchObject(
+      history.map((row, index) => ({
+        type: "user_message",
+        id: row.message_id,
+        turnId: "turn_replay",
+        content: ["First prompt", "Second prompt", "First prompt"][index],
+      })),
+    );
+    // Reading the same durable rows again must not add duplicates.
+    expect(
+      mergeEvents([...timeline, ...normalizeHistoryMessages(history)]),
+    ).toEqual(timeline);
+  });
   it("restores prompt text when a summary contains only the raw prompt frame", () => {
     const message = {
       message_id: "prompt",

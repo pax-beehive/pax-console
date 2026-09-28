@@ -1457,6 +1457,18 @@ or overwrite it. Explicit deletion removes tracking, not an already received
 prompt. The observer remains read-only and waits across one periodic snapshot
 interval; it does not own queue dispatch. Deploy Manager before Console.
 
+The plaintext composer derives its running controls from the same resolved
+execution status as the header (streaming, waiting_approval, or unknown).
+Queue-follow observation does not itself make a turn active; preserve the queue
+card and background observer independently. Once a followed turn has started,
+either turn_done or no_running_turn releases follow-up tracking.
+
+History user_message_chunk frames are user messages even without a role field
+(or with a legacy transport default role). Give normalized durable user messages
+their message_id: separate rows, including equal text, must not overwrite one
+another through a shared chunk-stream ID. This display correction does not
+rewrite replay turn ownership or reorder persisted history.
+
 ## Discovering subsequent turns
 
 The open workbench polls session metadata every five seconds (other consumers

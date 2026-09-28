@@ -315,7 +315,10 @@ export async function streamSessionObserverWithQueuedReplay({
     } else if (terminalType === "no_running_turn" && followUpAvailable) {
       waitingForFollowUp = true;
     } else {
-      if (terminalType === "turn_done" && followUpStarted) {
+      if (
+        followUpStarted &&
+        (terminalType === "turn_done" || terminalType === "no_running_turn")
+      ) {
         onQueuedTurnFinished?.();
       }
       return;

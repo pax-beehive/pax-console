@@ -239,6 +239,37 @@ describe("streamSessionObserver", () => {
     ]);
   });
 
+  it("releases queued-follow-up tracking when the started turn is found idle", async () => {
+    const responses = [
+      'data: {"type":"turn_done","session_id":"sess_1","turn_id":"turn_1"}\n\n',
+      'data: {"type":"turn_start","session_id":"sess_1","turn_id":"turn_2"}\n\ndata: {"type":"no_running_turn","session_id":"sess_1","status":"idle"}\n\n',
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(streamFromChunks([responses.shift() ?? ""]), {
+            headers: { "content-type": "text/event-stream" },
+            status: 200,
+          }),
+      ),
+    );
+    const onQueuedTurnStarted = vi.fn();
+    const onQueuedTurnFinished = vi.fn();
+    await streamSessionObserverWithQueuedReplay({
+      agentId: "agent_1",
+      sessionId: "sess_1",
+      userId: "self",
+      followQueuedTurn: true,
+      onEnvelope: vi.fn(),
+      onQueuedTurnStarted,
+      onQueuedTurnFinished,
+      retryDelayMs: 0,
+    });
+    expect(onQueuedTurnStarted).toHaveBeenCalledOnce();
+    expect(onQueuedTurnFinished).toHaveBeenCalledOnce();
+  });
+
   it("reconnects through the idle gap and replays a queued follow-up turn", async () => {
     const responses = [
       'data: {"type":"turn_done","session_id":"sess_1","turn_id":"turn_1"}\n\n',

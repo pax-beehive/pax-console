@@ -1000,14 +1000,11 @@ export function SessionWorkbench({
     ? Boolean(pendingEncryptedBootstrap) ||
       activeSessionRuntimeBlocksPrompt ||
       encryptedRuntime.status === "streaming"
-    : shouldFollowQueuedTurn ||
-      (displayedRunStatus !== "done" &&
-        displayedRunStatus !== "cancelled" &&
-        displayedRunStatus !== "error" &&
-        (conversationRun.status === "streaming" ||
-          conversationRun.status === "waiting_approval" ||
-          shouldObserveSessionTurn ||
-          activeSession?.runtime_status === "unknown"));
+    : // Following a queue is background observation, not evidence of a running turn.
+      // Use the same resolved execution state as the header, including local sends.
+      displayedRunStatus === "streaming" ||
+      displayedRunStatus === "waiting_approval" ||
+      displayedRunStatus === "unknown";
   const [pendingSessionConfigOptionId, setPendingSessionConfigOptionId] =
     useState<string>();
   const updateSessionConfiguration = useMutation({

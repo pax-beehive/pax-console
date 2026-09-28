@@ -180,8 +180,14 @@ export function normalizeHistoryMessage(
   const attachments =
     message.role === "user" ? historyPromptAttachments(message) : [];
   const events = normalizeHistoryMessageWithoutTurn(message).map((event) =>
-    event.type === "user_message" && attachments.length > 0
-      ? { ...event, attachments }
+    event.type === "user_message"
+      ? {
+          ...event,
+          // Raw user_message_chunk frames have a shared stream ID, but each
+          // durable row is a distinct prompt (even when its text repeats).
+          id: message.message_id,
+          ...(attachments.length > 0 ? { attachments } : {}),
+        }
       : event,
   );
   if (message.raw_json?.text_layout === "segment") {
