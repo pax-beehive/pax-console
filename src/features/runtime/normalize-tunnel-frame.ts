@@ -228,7 +228,10 @@ export function normalizeTunnelFrame(
 
     return [
       {
-        type: frame.role === "user" ? "user_message" : "agent_message",
+        type:
+          kind === "user_message_chunk" || frame.role === "user"
+            ? "user_message"
+            : "agent_message",
         id,
         sessionId,
         content,

@@ -5,6 +5,11 @@ import { normalizeTunnelFrame } from "./normalize-tunnel-frame";
 import { SessionEvent } from "./session-events";
 
 describe("normalizeTunnelFrame", () => {
+  it("recognizes replayed user chunks without an explicit role", () => {
+    expect(
+      normalizeTunnelFrame(sessionUpdate("user_message_chunk", "User prompt")),
+    ).toMatchObject([{ type: "user_message", content: "User prompt" }]);
+  });
   it("normalizes ACP streaming thought and message chunks from session/update", () => {
     const streamId = "sess_1:turn:1";
     const firstThought = normalizeTunnelFrame(

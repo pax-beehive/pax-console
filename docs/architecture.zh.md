@@ -1555,3 +1555,15 @@ owner override。命令使用配置的 public runtime origin，token 只保存�
 复用原有凭据持久化与 service 安装/启动流程。旧 pairing 与 `/connect` 完整保留。
 发布时必须先上线支持 `--registration-token-env` 的 paxd binary 和 installer。
 功能迁移与验证记录见 `settings-migration.md`。
+
+## Composer 与队列观察状态
+
+普通会话 composer 的运行中按钮与顶部复用同一 resolved execution status：
+streaming / waiting_approval / unknown。队列跟踪仅控制后台 observer，不代表
+当前轮仍在运行；idle 时恢复 Send，保留独立的排队消息卡片。已观察到启动的
+queued turn 收到 turn_done 或 no_running_turn 时，释放 follow-up 标记。
+
+历史 user_message_chunk 即使未提供 role 或携带旧 transport 默认 role，也按
+用户消息渲染；durable user event 使用 message_id，防止共享 chunk stream ID
+覆盖不同 prompt（包括相同文本的独立消息）。此处不修改落库的 replay turn 归属
+或消息顺序，恢复流程的重放边界仍需运行时层单独修正。
