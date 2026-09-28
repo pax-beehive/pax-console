@@ -708,87 +708,94 @@ function DocumentMarkdownRenderer({
   } as CSSProperties;
 
   return (
-    <div
-      className={cn(
-        "grid min-h-80 grid-cols-1 bg-[#11110f] lg:grid-cols-[minmax(0,1fr)_13rem]",
-        standalone && "min-h-full",
-      )}
-      style={readerStyle}
-    >
-      <article
-        className="mx-auto w-full max-w-4xl bg-[#f1eee6] px-6 py-8 text-[#25231f] shadow-sm sm:px-10"
-        ref={readerRef}
+    <div className="@container/artifact-reader min-w-0" style={readerStyle}>
+      <div
+        className={cn(
+          "grid min-h-80 grid-cols-1 bg-[#11110f]",
+          standalone &&
+            "min-h-full @min-[56rem]/artifact-reader:grid-cols-[minmax(0,1fr)_13rem]",
+        )}
       >
-        <MarkdownMessage
-          className="text-[length:var(--artifact-reader-font-size)] leading-[var(--artifact-reader-line-height)] text-[#37342e] [&_a]:text-[#3f478f] [&_blockquote]:text-[#625e55] [&_h1]:text-[#211f1b] [&_h2]:text-[#211f1b] [&_h3]:text-[#211f1b] [&_strong]:text-[#211f1b] [&_td]:border-[#d4cfc3] [&_th]:border-[#d4cfc3] [&_th]:bg-[#ded9cd]"
-          content={content}
-        />
-      </article>
-      <aside className="border-t border-hairline bg-surface-1 p-3 lg:border-l lg:border-t-0">
-        <div className="sticky top-3">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-medium uppercase tracking-wide text-ink-tertiary">
-              Reader
-            </span>
-            <div className="flex items-center gap-1">
-              <Button
-                aria-label="Decrease artifact reader font size"
-                disabled={fontSize <= 13}
-                icon={<Minus className="h-3.5 w-3.5" />}
-                onClick={() => setFontSize(fontSize - 1)}
-                size="icon"
-                tooltip="Decrease font size"
-                type="button"
-                variant="ghost"
-              />
-              <Button
-                aria-label="Increase artifact reader font size"
-                disabled={fontSize >= 20}
-                icon={<Plus className="h-3.5 w-3.5" />}
-                onClick={() => setFontSize(fontSize + 1)}
-                size="icon"
-                tooltip="Increase font size"
-                type="button"
-                variant="ghost"
-              />
+        <article
+          className="mx-auto min-w-0 w-full max-w-4xl bg-[#f1eee6] px-6 py-8 text-[#25231f] shadow-sm @min-[40rem]/artifact-reader:px-10"
+          ref={readerRef}
+        >
+          <MarkdownMessage
+            className="text-[length:var(--artifact-reader-font-size)] leading-[var(--artifact-reader-line-height)] text-[#37342e] [&_a]:text-[#3f478f] [&_blockquote]:text-[#625e55] [&_h1]:text-[#211f1b] [&_h2]:text-[#211f1b] [&_h3]:text-[#211f1b] [&_strong]:text-[#211f1b] [&_td]:border-[#d4cfc3] [&_th]:border-[#d4cfc3] [&_th]:bg-[#ded9cd]"
+            content={content}
+          />
+        </article>
+        {standalone && (
+          <aside
+            aria-label="Reader settings"
+            className="hidden border-l border-hairline bg-surface-1 p-3 @min-[56rem]/artifact-reader:block"
+          >
+            <div className="sticky top-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium uppercase tracking-wide text-ink-tertiary">
+                  Reader
+                </span>
+                <div className="flex items-center gap-1">
+                  <Button
+                    aria-label="Decrease artifact reader font size"
+                    disabled={fontSize <= 13}
+                    icon={<Minus className="h-3.5 w-3.5" />}
+                    onClick={() => setFontSize(fontSize - 1)}
+                    size="icon"
+                    tooltip="Decrease font size"
+                    type="button"
+                    variant="ghost"
+                  />
+                  <Button
+                    aria-label="Increase artifact reader font size"
+                    disabled={fontSize >= 20}
+                    icon={<Plus className="h-3.5 w-3.5" />}
+                    onClick={() => setFontSize(fontSize + 1)}
+                    size="icon"
+                    tooltip="Increase font size"
+                    type="button"
+                    variant="ghost"
+                  />
+                </div>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-2 text-xs text-ink-tertiary">
+                <span>Line height</span>
+                <button
+                  className="rounded px-1.5 py-1 font-mono hover:bg-surface-2 hover:text-ink"
+                  onClick={() =>
+                    setLineHeight(lineHeight >= 1.95 ? 1.4 : lineHeight + 0.1)
+                  }
+                  type="button"
+                >
+                  {lineHeight.toFixed(1)}
+                </button>
+              </div>
+              {headings.length > 0 && (
+                <nav aria-label="Artifact table of contents" className="mt-5">
+                  <div className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-tertiary">
+                    Contents
+                  </div>
+                  <div className="grid gap-1">
+                    {headings.map((heading, index) => (
+                      <a
+                        className={cn(
+                          "truncate rounded px-2 py-1 text-xs text-ink-subtle transition hover:bg-surface-2 hover:text-ink",
+                          heading.level === 3 && "pl-4",
+                        )}
+                        href={`#${heading.id}`}
+                        key={`${heading.id}:${index}`}
+                        title={heading.label}
+                      >
+                        {heading.label}
+                      </a>
+                    ))}
+                  </div>
+                </nav>
+              )}
             </div>
-          </div>
-          <div className="mt-2 flex items-center justify-between gap-2 text-xs text-ink-tertiary">
-            <span>Line height</span>
-            <button
-              className="rounded px-1.5 py-1 font-mono hover:bg-surface-2 hover:text-ink"
-              onClick={() =>
-                setLineHeight(lineHeight >= 1.95 ? 1.4 : lineHeight + 0.1)
-              }
-              type="button"
-            >
-              {lineHeight.toFixed(1)}
-            </button>
-          </div>
-          {headings.length > 0 && (
-            <nav aria-label="Artifact table of contents" className="mt-5">
-              <div className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-tertiary">
-                Contents
-              </div>
-              <div className="grid gap-1">
-                {headings.map((heading, index) => (
-                  <a
-                    className={cn(
-                      "truncate rounded px-2 py-1 text-xs text-ink-subtle transition hover:bg-surface-2 hover:text-ink",
-                      heading.level === 3 && "pl-4",
-                    )}
-                    href={`#${heading.id}`}
-                    key={`${heading.id}:${index}`}
-                    title={heading.label}
-                  >
-                    {heading.label}
-                  </a>
-                ))}
-              </div>
-            </nav>
-          )}
-        </div>
-      </aside>
+          </aside>
+        )}
+      </div>
     </div>
   );
 }

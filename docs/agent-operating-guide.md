@@ -1550,3 +1550,19 @@ expires after one hour, and can be regenerated. Never log it or store it in the
 query cache. Keep `paxl daemon setup` and `/connect` as the pairing alternative.
 Ship the paxd installer and binary supporting `--registration-token-env` before
 shipping this Console flow. See `settings-migration.md` for preservation checks.
+
+## Output-gap feedback and artifact reader width
+
+The pending-agent dots acknowledge an initial send immediately. After visible
+output, they appear only after a 1.5-second quiet gap; each new reply content
+resets the timer. Identical history snapshots do not reset it. Active work groups
+and non-streaming statuses suppress the dots, and session/turn changes reset the
+local timer. This is display-only and never delays events or sends.
+
+Markdown artifacts omit Reader controls in embedded previews. Standalone readers
+show the controls/contents column only when the reader container is at least
+56rem (896px), not when the browser viewport crosses a desktop breakpoint.
+Narrow readers use a single content column and retain stored font preferences.
+Recent-session row timestamps occupy the trailing edge of the metadata line;
+agent/project/node context truncates in the flexible leading space. Archive
+status precedes the timestamp so every row keeps the same time alignment.
