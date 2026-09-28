@@ -1551,7 +1551,9 @@ JSON escapes `<` to prevent closing-script injection. REST remains /api/pax.
 
 Quick connect 通过同源 API 创建当前用户的一次性注册 token，不传 admin-only
 owner override。命令使用配置的 public runtime origin，token 只保存在当前页面内存，
-一小时后可重新生成。paxd 安装脚本通过环境变量传递 token，setup 消费后立即清理环境，
+一小时后可重新生成。同一命令先安装 paxl，再安装并配置 paxd；两个 installer
+使用当前 public origin 下载，各自通过 bash pipefail 执行，以 && 串联，下载或
+安装失败时停止。生成的 token 仅传入 paxd 步骤，setup 消费后立即清理环境，
 复用原有凭据持久化与 service 安装/启动流程。旧 pairing 与 `/connect` 完整保留。
 发布时必须先上线支持 `--registration-token-env` 的 paxd binary 和 installer。
 功能迁移与验证记录见 `settings-migration.md`。

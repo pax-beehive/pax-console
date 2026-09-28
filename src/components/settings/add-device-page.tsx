@@ -137,9 +137,9 @@ export function AddDeviceContent({ user }: { user: User }) {
             <section className="grid gap-4 rounded-xl border border-hairline bg-surface-1 p-5">
               <h2 className="font-medium">1. Generate your command</h2>
               <p className="text-sm text-ink-tertiary">
-                Install paxd, connect to this account, and start the background
-                service with one command. No additional pairing approval is
-                needed.
+                Install paxl and paxd, connect to this account, and start the
+                background service with one command. No additional pairing
+                approval is needed.
               </p>
               {command && !expired && (
                 <>
