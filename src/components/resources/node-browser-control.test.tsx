@@ -13,7 +13,140 @@ vi.mock("./node-browser-vnc", () => ({ NodeBrowserVNC: () => null }));
 vi.mock("./node-secret-channel-push", () => ({
   NodeSecretChannelPush: () => null,
 }));
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
+it.each(["approval", "closed"])(
+  "stops capture and hides stale images while %s, then resumes",
+  async (reason) => {
+    mocks.control.mockReset();
+    const openState = {
+      policy: { paused: false, origins: [] },
+      pending: [],
+      grants: [],
+      sensitiveSessions: [],
+      operator: null,
+      workers: [{ session: "browser", seen: 1, pageOpen: true }],
+      audit: [],
+    };
+    let state = {
+      ...openState,
+      pending: [] as {
+        id: string;
+        session: string;
+        origin: string;
+        decision: string;
+      }[],
+    };
+    mocks.control.mockImplementation(async (_user, _node, operation) => {
+      if (operation === "state") return state;
+      return { frame: "", image: "aW1hZ2U=", width: 800, height: 600 };
+    });
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NodeBrowserViewer userId="user" nodeId="node" />
+      </QueryClientProvider>,
+    );
+    await screen.findByRole("img");
+    state =
+      reason === "approval"
+        ? {
+            ...state,
+            pending: [
+              {
+                id: "request",
+                session: "browser",
+                origin: "https://example.com",
+                decision: "pending",
+              },
+            ],
+          }
+        : {
+            ...state,
+            workers: [{ session: "browser", seen: 2, pageOpen: false }],
+          };
+    await act(async () => {
+      client.setQueryData(
+        ["user", "user", "node", "node", "browser-control"],
+        state,
+      );
+    });
+    expect(
+      await screen.findByText(
+        reason === "approval"
+          ? "Waiting for browser approval…"
+          : "Browser window is closed. Waiting for new browser activity…",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Error:/)).not.toBeInTheDocument();
+    const captures = () =>
+      mocks.control.mock.calls.filter((call) => call[2] === "view").length;
+    const count = captures();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 2200));
+    });
+    expect(captures()).toBe(count);
+    state = openState;
+    await act(async () => {
+      client.setQueryData(
+        ["user", "user", "node", "node", "browser-control"],
+        state,
+      );
+    });
+    await waitFor(() => expect(captures()).toBeGreaterThan(count));
+    expect(await screen.findByRole("img")).toBeVisible();
+    client.clear();
+  },
+);
+
+it.each([
+  [
+    "Viewer operation timed out; inspect before retrying",
+    "Browser is busy. Waiting for the next live image…",
+    false,
+  ],
+  [
+    "Browser image unavailable or page changed; waiting for the next live image",
+    "Waiting for the browser’s next live image…",
+    false,
+  ],
+  ["Access denied", "Preview interrupted. Reconnecting automatically...", true],
+])(
+  "classifies capture status without hiding unexpected failures: %s",
+  async (message, status, isError) => {
+    mocks.control.mockReset();
+    const state = {
+      policy: { paused: false, origins: [] },
+      pending: [],
+      grants: [],
+      sensitiveSessions: [],
+      operator: null,
+      workers: [{ session: "browser", seen: 1 }],
+      audit: [],
+    };
+    mocks.control.mockImplementation(async (_user, _node, operation) => {
+      if (operation === "state") return state;
+      throw new Error(message);
+    });
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NodeBrowserViewer userId="user" nodeId="node" />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText(status)).toBeVisible();
+    expect(Boolean(screen.queryByText(`Error: ${message}`))).toBe(isError);
+    client.clear();
+  },
+);
+
 it("continuously previews without takeover, pauses on request, and keeps input disabled", async () => {
   const user = userEvent.setup();
   const state = {
@@ -70,7 +203,7 @@ it("continuously previews without takeover, pauses on request, and keeps input d
   client.clear();
 }, 10000);
 
-it("automatically recovers a failed capture and reports the interruption beside the viewer", async () => {
+it("automatically recovers a busy capture with a neutral waiting status", async () => {
   mocks.control.mockClear();
   const user = userEvent.setup();
   const state = {
@@ -102,10 +235,10 @@ it("automatically recovers a failed capture and reports the interruption beside 
   );
   expect(
     await screen.findByText(
-      "Preview interrupted. Reconnecting automatically...",
+      "Browser is busy. Waiting for the next live image…",
     ),
   ).toBeVisible();
-  expect(screen.getByText(/Browser worker is busy/)).toBeVisible();
+  expect(screen.queryByText(/Error:/)).not.toBeInTheDocument();
   expect(
     screen.queryByRole("button", { name: "Refresh image" }),
   ).not.toBeInTheDocument();
@@ -347,5 +480,51 @@ it("releases native takeover when the page blurs, including pending acquisition"
     screen.queryByRole("button", { name: "Browser image; click to interact" }),
   ).not.toBeInTheDocument();
   view.unmount();
+  client.clear();
+});
+
+it("keeps an ambiguous input failure visible and never retries the input", async () => {
+  mocks.control.mockReset();
+  const user = userEvent.setup();
+  const state = {
+    policy: { paused: false, origins: [] },
+    pending: [],
+    grants: [],
+    sensitiveSessions: [],
+    workers: [{ session: "native", seen: 1 }],
+    operator: null as string | null,
+    audit: [],
+  };
+  const message = "Viewer operation timed out; inspect before retrying";
+  mocks.control.mockImplementation(async (_user, _node, operation, payload) => {
+    if (operation === "state") return { ...state };
+    if (payload.action.type === "takeover") {
+      state.operator = "native";
+      return {};
+    }
+    if (payload.action.type === "click") throw new Error(message);
+    return { frame: "frame", image: "aW1hZ2U=", width: 800, height: 600 };
+  });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={client}>
+      <NodeBrowserViewer userId="user" nodeId="node" />
+    </QueryClientProvider>,
+  );
+  await screen.findByRole("img");
+  await user.click(screen.getByRole("button", { name: "Take control" }));
+  await user.click(
+    await screen.findByRole("button", {
+      name: "Browser image; click to interact",
+    }),
+  );
+  expect(await screen.findByText(`Error: ${message}`)).toBeVisible();
+  expect(
+    mocks.control.mock.calls.filter(
+      (call) => call[3]?.action?.type === "click",
+    ),
+  ).toHaveLength(1);
   client.clear();
 });

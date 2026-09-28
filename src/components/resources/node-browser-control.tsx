@@ -6,6 +6,7 @@ import { BrowserPreviewImage } from "./browser-preview-image";
 import { usePreviewFocus } from "@/features/browser-control/use-preview-focus";
 import { useBrowserState } from "@/features/browser-control/use-browser-state";
 import { followBrowser } from "@/features/browser-control/follow-browser";
+import { previewWaitingMessage } from "@/features/browser-control/preview-status";
 import { Button } from "@/components/ui/button";
 import { InlineError } from "@/components/ui/inline-error";
 import { MonoId } from "@/components/ui/text";
@@ -82,6 +83,7 @@ function BrowserPanel({
     at: number;
   }>();
   const [previewError, setPreviewError] = useState<Error>();
+  const previewWaiting = previewWaitingMessage(previewError);
   const [grant, setGrant] = useState<{ secret_ref: string; expires: number }>();
   const query = useBrowserState(userId, nodeId);
   const state = query.data;
@@ -111,22 +113,41 @@ function BrowserPanel({
     : selectedSession ||
       state?.operator ||
       (state?.workers.length === 1 ? state.workers[0].session : "");
+  const waitingApproval = Boolean(
+    state?.pending.some(
+      (request) =>
+        request.session === session && request.decision === "pending",
+    ),
+  );
+  const windowClosed =
+    state?.workers.find((worker) => worker.session === session)?.pageOpen ===
+    false;
   useEffect(() => {
     selectionVersion.current++;
-  }, [session]);
+  }, [session, waitingApproval, windowClosed]);
   const frame =
-    captured?.session === session && captured.tabID === tabID
+    !waitingApproval &&
+    !windowClosed &&
+    captured?.session === session &&
+    captured.tabID === tabID
       ? captured.frame
       : undefined;
   const connected = Boolean(
     state?.workers.some((worker) => worker.session === session),
   );
   const refreshLiveFrame = useEffectEvent(async () => {
-    if (busyRef.current || !connected || state?.policy.paused) return false;
+    if (
+      busyRef.current ||
+      !connected ||
+      state?.policy.paused ||
+      waitingApproval ||
+      windowClosed
+    )
+      return false;
     return await view({ type: "screenshot" });
   });
   useEffect(() => {
-    if (!live || !session) return;
+    if (!live || !session || waitingApproval || windowClosed) return;
     let stopped = false;
     let refreshing = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -154,7 +175,7 @@ function BrowserPanel({
       if (timer) clearTimeout(timer);
       document.removeEventListener("visibilitychange", visibilityChanged);
     };
-  }, [live, session, tabID]);
+  }, [live, session, tabID, waitingApproval, windowClosed]);
   async function run(operation: BrowserOperation, payload: unknown) {
     if (busyRef.current) return;
     busyRef.current = true;
@@ -191,6 +212,7 @@ function BrowserPanel({
     setActing(action.type !== "screenshot");
     const version = selectionVersion.current;
     const oldFrame = frame;
+    let readingPreview = action.type === "screenshot";
     try {
       if (action.type === "screenshot" && !viewerOnly) {
         const inventory = await browserControl<BrowserTabs>(
@@ -219,6 +241,7 @@ function BrowserPanel({
             frame: oldFrame?.frame,
           },
         });
+      readingPreview = true;
       const next = await browserControl<BrowserFrame>(userId, nodeId, "view", {
         session,
         action: { type: "screenshot", tabID: tabID || undefined },
@@ -229,9 +252,12 @@ function BrowserPanel({
       return true;
     } catch (e) {
       if (version !== selectionVersion.current) return false;
-      setPreviewError(
-        e instanceof Error ? e : new Error("Browser preview unavailable"),
-      );
+      const failure =
+        e instanceof Error ? e : new Error("Browser preview unavailable");
+      if (readingPreview) {
+        setPreviewError(failure);
+        if (failure.message === "VIEWER_TAB_CLOSED") setCaptured(undefined);
+      } else setError(failure);
       return false;
     } finally {
       busyRef.current = false;
@@ -499,7 +525,7 @@ function BrowserPanel({
                 {live ? "Pause live view" : "Resume live view"}
               </Button>
               <Button
-                disabled={busy || !session}
+                disabled={busy || !session || waitingApproval || windowClosed}
                 onClick={() =>
                   void run("view", { session, action: { type: "takeover" } })
                 }
@@ -537,15 +563,20 @@ function BrowserPanel({
                   ? "Waiting for the browser to reconnect..."
                   : state.policy.paused
                     ? "Browser access is paused."
-                    : !live
-                      ? "Live view paused."
-                      : previewError
-                        ? "Preview interrupted. Reconnecting automatically..."
-                        : !frame
-                          ? "Connecting to the browser..."
-                          : busy
-                            ? "Updating live image..."
-                            : "Live view is updating automatically."}
+                    : waitingApproval
+                      ? "Waiting for browser approval…"
+                      : windowClosed
+                        ? "Browser window is closed. Waiting for new browser activity…"
+                        : !live
+                          ? "Live view paused."
+                          : previewError
+                            ? (previewWaiting ??
+                              "Preview interrupted. Reconnecting automatically...")
+                            : !frame
+                              ? "Connecting to the browser..."
+                              : busy
+                                ? "Updating live image..."
+                                : "Live view is updating automatically."}
               {frame && captured && (
                 <span>
                   {" "}
@@ -553,7 +584,10 @@ function BrowserPanel({
                 </span>
               )}
             </div>
-            {previewError && <InlineError error={previewError} />}
+            {previewError &&
+              !previewWaiting &&
+              !waitingApproval &&
+              !windowClosed && <InlineError error={previewError} />}
             {!viewerOnly && !frame && (
               <p className="text-xs text-ink-tertiary">
                 Select the browser used by your agent to watch its current page.

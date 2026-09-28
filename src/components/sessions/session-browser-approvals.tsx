@@ -15,7 +15,11 @@ export function SessionBrowserApprovals({
   nodeId: string;
 }) {
   const query = useBrowserState(userId, nodeId);
-  const [busy, setBusy] = useState(false);
+  const [pendingDecision, setPendingDecision] = useState<{
+    id: string;
+    decision: "allow" | "deny";
+  }>();
+  const busy = Boolean(pendingDecision);
   const busyRef = useRef(false);
   const [error, setError] = useState<Error>();
   const [resolved, setResolved] = useState<string[]>([]);
@@ -28,7 +32,7 @@ export function SessionBrowserApprovals({
   async function decide(id: string, decision: "allow" | "deny") {
     if (busyRef.current) return;
     busyRef.current = true;
-    setBusy(true);
+    setPendingDecision({ id, decision });
     setError(undefined);
     try {
       await browserControl(userId, nodeId, "decide", {
@@ -37,12 +41,12 @@ export function SessionBrowserApprovals({
         scope: "session",
       });
       setResolved((previous) => [...previous, id]);
-      await query.refetch();
+      void query.refetch();
     } catch (cause) {
       setError(cause instanceof Error ? cause : new Error(String(cause)));
     } finally {
       busyRef.current = false;
-      setBusy(false);
+      setPendingDecision(undefined);
     }
   }
 
@@ -76,14 +80,25 @@ export function SessionBrowserApprovals({
             disabled={busy || query.data?.policy.paused}
             onClick={() => void decide(request.id, "allow")}
           >
-            Allow browser session
+            {pendingDecision?.id === request.id &&
+            pendingDecision.decision === "allow"
+              ? "Allowing…"
+              : "Allow browser session"}
           </Button>
           <Button
             disabled={busy}
             onClick={() => void decide(request.id, "deny")}
           >
-            Deny
+            {pendingDecision?.id === request.id &&
+            pendingDecision.decision === "deny"
+              ? "Denying…"
+              : "Deny"}
           </Button>
+          {pendingDecision?.id === request.id && (
+            <span role="status" className="text-ink-muted">
+              Sending your decision…
+            </span>
+          )}
         </div>
       ))}
       {query.data?.policy.paused && (
