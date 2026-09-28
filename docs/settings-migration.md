@@ -41,7 +41,11 @@ browser control, daemon management or encryption protocols.
 Console posts `{expires_in_seconds: 3600}` to the same-origin authenticated token
 endpoint. It omits the admin-only owner override, so ordinary users can create
 tokens for themselves. The generated shell command uses the configured public
-runtime origin and quotes interpolated values. Token and command stay in page
+runtime origin and quotes interpolated values. It installs paxl first, then
+installs and configures paxd through the existing public installer endpoints.
+Both download origins match this deployment; bash pipefail and && prevent a
+failed download or installation from continuing into device registration. Only
+the paxd step receives the generated token. Token and command stay in page
 memory, outside the query cache. Detection lists devices registered since command
 generation; it does not claim to correlate a specific token with a device.
 
@@ -80,3 +84,8 @@ SETTINGS_CHECK_URL=http://localhost:3017 node scripts/settings-browser-check.cjs
 
 The script uses the installed Chrome channel and intercepts all `/api/pax/**`
 requests. Keep the Console API base at its default same-origin proxy.
+
+Quick-connect command regression tests execute mocked installers in bash: both
+tools install in order, each download/install failure stops the command, and
+shell metacharacters remain literal in the token. No real downloads, installs,
+or registrations are performed by these tests.

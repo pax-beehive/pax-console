@@ -1558,7 +1558,11 @@ to their new destinations. Mobile pages provide a parent link.
 
 Quick connect uses the same-origin token API without an owner override (the
 authenticated user supplies ownership), then assembles an install command using
-the configured public runtime origin. Its one-use token stays in page state,
+the configured public runtime origin. It installs paxl first, then installs and
+sets up paxd, using each public installer with its matching download-origin
+variable. Each pipeline runs under bash pipefail and the steps use &&, so a
+failed download/install stops setup. Only the paxd step receives the generated
+registration token. Its one-use token stays in page state,
 expires after one hour, and can be regenerated. Never log it or store it in the
 query cache. Keep `paxl daemon setup` and `/connect` as the pairing alternative.
 Ship the paxd installer and binary supporting `--registration-token-env` before

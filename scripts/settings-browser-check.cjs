@@ -99,6 +99,13 @@ const assert = require("node:assert/strict");
       await page.locator("pre").innerText(),
       /PAX_REGISTRATION_TOKEN='test-token-not-real'/,
     );
+    const installCommand = await page.locator("pre").innerText();
+    assert.match(installCommand, /\/api\/v1\/public\/paxl\/install\.sh/);
+    assert.match(installCommand, /\/api\/v1\/public\/paxd\/install\.sh/);
+    assert.ok(
+      installCommand.indexOf("paxl/install.sh") <
+        installCommand.indexOf("paxd/install.sh"),
+    );
     await page
       .getByRole("button", { name: "Pair with code", exact: true })
       .click();
