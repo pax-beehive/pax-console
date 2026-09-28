@@ -5,7 +5,7 @@ export type BrowserState = {
   pending: { id: string; origin: string; session: string; decision: string }[];
   grants: { session: string; origin: string; expires: number }[];
   sensitiveSessions: string[];
-  workers: { session: string; seen: number }[];
+  workers: { session: string; seen: number; pageOpen?: boolean }[];
   operator: string | null;
   audit: {
     at: string;

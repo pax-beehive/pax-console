@@ -2,6 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import {
   cleanup,
+  act,
   render,
   screen,
   within,
@@ -107,6 +108,47 @@ it("retains a failed decision for retry and permits denial while paused", async 
   await user.click(row.getByRole("button", { name: "Deny" }));
   await waitFor(() =>
     expect(screen.queryByText("https://example.com")).not.toBeInTheDocument(),
+  );
+  client.clear();
+});
+
+it("shows immediate feedback and unlocks the next request before the refresh finishes", async () => {
+  const client = setup();
+  const user = userEvent.setup();
+  const origin = await screen.findByText("https://example.com");
+  let acknowledge!: (value: unknown) => void;
+  mocks.control.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        acknowledge = resolve;
+      }),
+  );
+  await user.click(
+    within(origin.parentElement!).getByRole("button", {
+      name: "Allow browser session",
+    }),
+  );
+  expect(screen.getByRole("button", { name: "Allowing…" })).toBeDisabled();
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "Sending your decision…",
+  );
+  let finishRefresh!: (value: unknown) => void;
+  mocks.control.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finishRefresh = resolve;
+      }),
+  );
+  await act(async () => acknowledge({}));
+  await waitFor(() =>
+    expect(screen.queryByText("https://example.com")).not.toBeInTheDocument(),
+  );
+  expect(
+    screen.getByRole("button", { name: "Allow browser session" }),
+  ).toBeEnabled();
+  expect(finishRefresh).toBeDefined();
+  await act(async () =>
+    finishRefresh({ policy: { paused: false }, pending: [], workers: [] }),
   );
   client.clear();
 });

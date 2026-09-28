@@ -1314,10 +1314,19 @@ Native Chrome Watch browser is a read-only preview available without takeover.
 Selecting a worker starts sequential refreshes with a two-second delay between
 requests. Hidden pages suspend capture; closing the panel stops polling.
 Preview failures retry after five seconds and preserve the last valid frame,
-with the error and last-capture time shown beside the viewer. Browser inventory
+with the last-capture time shown beside the viewer. Known busy, capture-timeout,
+page-change and disconnected-worker states use neutral waiting text; unknown
+failures and failed operator inputs retain errors. Browser inventory
 refreshes automatically. Captures are serialized; input is never replayed.
 Runtime heartbeats continue while capture waits for an agent operation, and
-expired queued operations are discarded before execution.
+expired queued operations are discarded before execution. Worker heartbeats
+include optional `pageOpen`; a connected worker can have no open window. The
+viewer suspends captures while this worker has a pending site approval or
+`pageOpen` is false, hides the previous frame, and shows neutral approval/closed
+status. State polling continues so capture resumes when authorization completes
+or a new page opens. Preview reads only inspect existing tabs and never create
+a browser window. Deploy the native runtime and Console together for closed-window
+status; older workers without `pageOpen` retain the existing polling behavior.
 A single connected worker is selected automatically; multiple workers require
 selection unless a current operator already identifies the worker. It retains page approval checks and the global pause switch;
 it neither changes operator ownership nor releases sensitive observation holds.
@@ -1348,7 +1357,11 @@ query (five-second foreground polling); closing the viewer stops image capture,
 not approval discovery. Requests explicitly show their originating browser and
 are node-scoped until a PAX-session-to-worker mapping exists. Allow grants only
 the requesting browser session; deny remains available while globally paused.
-Acknowledged decisions disappear immediately and refresh the shared state.
+Decision buttons immediately show Allowing / Denying and a sending status.
+Acknowledged decisions disappear immediately; shared-state refresh runs in the
+background and does not keep the next approval disabled. While an agent action
+(including site approval) is active, the native runtime returns a transient busy
+result for preview reads instead of blocking the node control tunnel behind it.
 
 The Session floating browser window defaults to preview for both Native Chrome
 and Docker. Both use BrowserPreviewImage with ephemeral complete JPEG frames.
