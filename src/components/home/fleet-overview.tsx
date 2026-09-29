@@ -112,6 +112,7 @@ import {
   defaultPermissionChoiceId,
   permissionChoicesFromCatalog,
 } from "@/features/permissions/permission-catalog";
+import { useEncryptionAccess } from "@/features/e2ee/use-encryption-access";
 import { useSessionDeck } from "@/features/session-deck/use-session-deck";
 import { useConsoleStore } from "@/stores/console-store";
 
@@ -359,6 +360,32 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   );
   const activeAgent =
     agents.find((agent) => agent.agent_id === selectedAgentId) ?? agents[0];
+  const encryptionAccess = useEncryptionAccess(activeAgent?.agent_id);
+  const encryptionReady = encryptionAccess === "ready";
+  const encryptionBlocked = newSessionTransport === "e2ee" && !encryptionReady;
+  const encryptionDescription = !activeAgent
+    ? "Select an agent to configure encryption"
+    : encryptionAccess === "checking"
+      ? "Checking encryption access…"
+      : encryptionAccess === "missing"
+        ? "This browser has no encryption key for this agent. Pair E2EE before starting an encrypted session."
+        : encryptionAccess === "error"
+          ? "Could not read this browser's encryption key. Open E2EE pairing to check access."
+          : undefined;
+  const encryptionGuidance = encryptionDescription && (
+    <div className="space-y-2 px-3 py-2 text-sm text-ink-muted" role="status">
+      <p>{encryptionDescription}</p>
+      {activeAgent && encryptionAccess !== "checking" && (
+        <Button asChild size="sm">
+          <Link
+            href={`/e2ee/pairing?agentId=${encodeURIComponent(activeAgent.agent_id)}`}
+          >
+            Pair E2EE
+          </Link>
+        </Button>
+      )}
+    </div>
+  );
   const permissionCatalogQuery = useAgentPermissionCatalog(
     user.user_id,
     activeAgent?.agent_id,
@@ -548,7 +575,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   );
   const mobilePaneOpen = mobileDetailOpen || mobileComposerOpen;
   const secureComposerActive =
-    !activeSessionTarget && newSessionTransport === "e2ee";
+    !activeSessionTarget && newSessionTransport === "e2ee" && encryptionReady;
 
   useEffect(() => {
     if (!canonicalUrlSessionId && legacyUrlSessionId) {
@@ -648,6 +675,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       !activeAgent?.agent_id ||
       !activeAgent.node_id ||
       (selectedProjectId && !normalizedNewSessionCwd) ||
+      encryptionBlocked ||
       workspaceLoading ||
       newSessionCwdInvalid ||
       composerAttachmentUploadPending
@@ -1140,6 +1168,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                   )}
                   onSubmit={submit}
                 >
+                  {encryptionBlocked && encryptionGuidance}
                   <ComposerDropZone
                     disabledReason={
                       secureComposerActive
@@ -1273,7 +1302,11 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                       </DropdownMenu>
                       <SessionSettings
                         summary={[
-                          secureComposerActive ? "Encrypted" : undefined,
+                          newSessionTransport === "e2ee"
+                            ? encryptionReady
+                              ? "Encrypted"
+                              : "Encryption setup required"
+                            : undefined,
                           newSessionPermissionChoices.find(
                             (choice) =>
                               choice.choice_id ===
@@ -1289,6 +1322,8 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                             ariaLabel="Use end-to-end encryption"
                             checked={newSessionTransport === "e2ee"}
                             disabled={
+                              (newSessionTransport !== "e2ee" &&
+                                !encryptionReady) ||
                               composerAttachments.length > 0 ||
                               composerAttachmentUploadPending
                             }
@@ -1305,6 +1340,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                               )
                             }
                           />
+                          {encryptionGuidance}
                         </SessionSettingsHome>
                         <SessionPermissionSelector
                           field
@@ -1343,6 +1379,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                             !activeAgent?.agent_id ||
                             (Boolean(selectedProjectId) &&
                               !normalizedNewSessionCwd) ||
+                            encryptionBlocked ||
                             workspaceLoading ||
                             newSessionCwdInvalid ||
                             composerAttachmentUploadPending

@@ -55,6 +55,11 @@ WebSocket runtime 管 live agent tunnel。
 
 ## E2EE durable transport
 
+Home 在允许开启 E2EE 前检查当前 agent 的浏览器 root key。缺少密钥或读取失败时，
+显示说明和带 agentId 的 Pair E2EE 入口；检查中不可开启。切换 agent 保留加密意图，
+但未就绪时阻止提交，不降级为普通会话。窗口重新获得焦点时刷新本地密钥可用状态。
+React 只保留就绪状态，不保留密钥；创建时仍由 runtime 校验。
+
 新的 encrypted transport 保留 paxd 到 Manager 的可靠 WebSocket，把 PostgreSQL
 作为跨实例路由和恢复的 durable truth。Manager 只读取经过 AES-GCM AAD 认证的
 最小路由 metadata，不解密 ACP payload：

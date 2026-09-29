@@ -75,6 +75,13 @@ Inline code may move as a unit, but long tokens must still wrap within the viewp
 
 ## Encrypted transport boundary
 
+Home checks the selected agent's browser root-key availability before enabling
+E2EE. Missing or unreadable keys show an agent-scoped Pair E2EE link; pending
+checks cannot enable encryption. Agent changes preserve encrypted intent but
+block submission until the selected agent has a key, without plaintext fallback.
+Recheck local availability when the window regains focus after pairing. Store
+only readiness in React state; the runtime still validates keys at creation.
+
 The Browser-to-paxd E2EE implementation lives in `src/features/e2ee`.
 Keep envelope construction, HKDF/AES-GCM, SSE parsing, and IndexedDB key access
 out of React components. The Manager must receive only the serialized encrypted
