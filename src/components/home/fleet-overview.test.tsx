@@ -42,6 +42,7 @@ const mocks = vi.hoisted(() => ({
   completeUserAttachment: vi.fn(),
   createProjectTarget: vi.fn(),
   createUserAttachment: vi.fn(),
+  loadRootKey: vi.fn(),
   listAgents: vi.fn(),
   listUserSessions: vi.fn(),
   updateAgentSession: vi.fn(),
@@ -72,6 +73,10 @@ beforeAll(() => {
 afterAll(() => {
   vi.unstubAllGlobals();
 });
+
+vi.mock("@/features/e2ee/root-key-store", () => ({
+  loadRootKey: mocks.loadRootKey,
+}));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mocks.routerPush }),
@@ -168,6 +173,7 @@ vi.mock("@/features/api/resources", async (importOriginal) => {
 });
 
 beforeEach(() => {
+  mocks.loadRootKey.mockReset().mockResolvedValue(new Uint8Array(32));
   useConsoleStore.setState({ composerDrafts: {} });
   localStorageValues.clear();
   window.history.replaceState(null, "", "/");
@@ -959,6 +965,101 @@ describe("FleetOverview session rail", () => {
       "pax:manual",
     );
     expect(window.location.search).toBe("");
+  });
+
+  it("guides an unpaired agent to pairing without enabling encryption", async () => {
+    mocks.loadRootKey.mockResolvedValue(undefined);
+    renderOverview();
+    await openSettings();
+    const link = await screen.findByRole("link", { name: "Pair E2EE" });
+    expect(link).toHaveAttribute("href", "/e2ee/pairing?agentId=agent_1");
+    const toggle = screen.getByRole("switch", {
+      name: "Use end-to-end encryption",
+    });
+    expect(toggle).toBeDisabled();
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+    expect(
+      screen.queryByRole("status", { name: "Encryption enabled" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows recovery guidance when browser key storage cannot be read", async () => {
+    mocks.loadRootKey.mockRejectedValue(new Error("Storage unavailable"));
+    renderOverview();
+    await openSettings();
+    expect(
+      await screen.findByText(/Could not read this browser's encryption key/),
+    ).toBeVisible();
+    expect(screen.getByRole("link", { name: "Pair E2EE" })).toHaveAttribute(
+      "href",
+      "/e2ee/pairing?agentId=agent_1",
+    );
+    expect(
+      screen.getByRole("switch", { name: "Use end-to-end encryption" }),
+    ).toBeDisabled();
+  });
+
+  it("blocks encrypted creation after switching to an unpaired agent and refreshes on return", async () => {
+    mocks.listAgents.mockResolvedValue({
+      agents: [
+        {
+          agent_id: "agent_1",
+          name: "Pi agent",
+          node_id: "node_1",
+          online: true,
+        },
+        {
+          agent_id: "agent_2",
+          name: "Second agent",
+          node_id: "node_1",
+          online: true,
+        },
+      ],
+    });
+    mocks.loadRootKey.mockImplementation(async (agentId: string) =>
+      agentId === "agent_1" ? new Uint8Array(32) : undefined,
+    );
+    renderOverview();
+    await screen.findByRole("button", { name: "Pi agent" });
+    await openSettings();
+    await userEvent.click(
+      screen.getByRole("switch", { name: "Use end-to-end encryption" }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Close settings" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Pi agent" }));
+    await userEvent.click(
+      within(screen.getByRole("dialog", { name: "Choose agent" })).getByRole(
+        "button",
+        { name: "Second agent" },
+      ),
+    );
+    expect(
+      await screen.findByRole("link", { name: "Pair E2EE" }),
+    ).toHaveAttribute("href", "/e2ee/pairing?agentId=agent_2");
+    expect(
+      screen.getByRole("button", { name: "Start session" }),
+    ).toBeDisabled();
+    const composer = screen.getByPlaceholderText(
+      "Ask an agent to do something",
+    );
+    await userEvent.type(composer, "Keep this private");
+    fireEvent.submit(composer.closest("form")!);
+    expect(screen.queryByTestId("session-workbench")).not.toBeInTheDocument();
+    mocks.loadRootKey.mockResolvedValue(new Uint8Array(32));
+    fireEvent.focus(window);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Start session" }),
+      ).toBeEnabled(),
+    );
+    fireEvent.submit(composer.closest("form")!);
+    expect(await screen.findByTestId("session-workbench")).toHaveAttribute(
+      "data-initial-transport",
+      "e2ee",
+    );
   });
 
   it("starts an encrypted session from the normal Home composer", async () => {
