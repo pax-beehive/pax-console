@@ -1612,9 +1612,7 @@ function HomeSessionRow({
         className="opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
         disabled={archivePending}
         icon={
-          archivePending ? (
-            <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-          ) : session.archivedAt ? (
+          session.archivedAt ? (
             <ArchiveRestore className="h-3.5 w-3.5" />
           ) : (
             <Archive className="h-3.5 w-3.5" />
