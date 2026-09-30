@@ -305,7 +305,7 @@ export const SessionComposer = memo(function SessionComposer({
     >
       <input
         className="sr-only"
-        disabled={secure || attachmentUploadPending}
+        disabled={attachmentUploadPending}
         multiple
         onChange={(event) => {
           const files = [...(event.currentTarget.files ?? [])];
@@ -319,13 +319,11 @@ export const SessionComposer = memo(function SessionComposer({
       />
       <ComposerDropZone
         disabledReason={
-          secure
-            ? "Attachments aren’t available in encrypted sessions yet"
-            : attachmentUploadPending
-              ? "Upload in progress"
-              : !activeAgentId
-                ? "Select an agent to upload files"
-                : undefined
+          attachmentUploadPending
+            ? "Upload in progress"
+            : !activeAgentId
+              ? "Select an agent to upload files"
+              : undefined
         }
         onFiles={onAddAttachments}
         className={cn(
@@ -510,7 +508,7 @@ export const SessionComposer = memo(function SessionComposer({
                     : "Upload files"
                 }
                 disabled={
-                  (attachmentUploadPending || secure) &&
+                  attachmentUploadPending &&
                   !(userId && activeNodeId && currentSessionId)
                 }
                 icon={
@@ -524,9 +522,7 @@ export const SessionComposer = memo(function SessionComposer({
                 tooltip={
                   userId && activeNodeId && currentSessionId
                     ? "Add files or securely send a secret"
-                    : secure
-                      ? "Attachments are not supported in encrypted sessions yet"
-                      : "Upload files"
+                    : "Upload files"
                 }
                 type="button"
                 variant="ghost"
@@ -539,7 +535,7 @@ export const SessionComposer = memo(function SessionComposer({
               updatePositionStrategy="always"
             >
               <DropdownMenuItem
-                disabled={attachmentUploadPending || secure}
+                disabled={attachmentUploadPending}
                 onSelect={() => fileInputRef.current?.click()}
               >
                 <Paperclip className="h-4 w-4" />
