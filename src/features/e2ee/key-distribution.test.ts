@@ -6,6 +6,7 @@ import {
   completeE2EEPairingRequest,
   createE2EEPairingRequest,
   getE2EEKeyPackage,
+  getE2EEPairingStatus,
   listE2EEPairingRequests,
 } from "./key-distribution";
 import type { PendingPairing } from "./device-key-store";
@@ -78,6 +79,20 @@ describe("E2EE key distribution API", () => {
     );
   });
 
+  it("reads a request's current terminal status without caching", async () => {
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({ pairing_id: "pair_1", status: "expired" }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    expect(
+      (await getE2EEPairingStatus("self", "agent_1", "pair_1")).status,
+    ).toBe("expired");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/pax/api/v1/user/self/agents/agent_1/e2ee/pairings/pair_1",
+      expect.objectContaining({ cache: "no-store" }),
+    );
+  });
+
   it("rebuilds the local confirmation command after a page reload", () => {
     const pending = {
       pairingId: "pair_reload_1",
@@ -95,9 +110,7 @@ describe("E2EE key distribution API", () => {
       "/v1/e2ee/pairings/pair_reload_1/complete",
     );
     expect(instructions.localCommand).toContain('"agent_id":"agent_1"');
-    expect(instructions.localCommand).toContain(
-      '"pairing_secret":"AQIDBA=="',
-    );
+    expect(instructions.localCommand).toContain('"pairing_secret":"AQIDBA=="');
   });
 });
 
