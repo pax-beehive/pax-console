@@ -22,7 +22,7 @@ store. Never debounce draft writes or subscribe Home/the timeline to raw draft
 text. Completion scrolls its own list and focuses the input with preventScroll.
 
 Existing sessions expose secure secret delivery in the composer + menu, including
-E2EE sessions where uploads remain disabled. Reuse NodeSecretChannelPush and the
+E2EE sessions. Reuse NodeSecretChannelPush and the
 node-level channel API; never store plaintext in chat drafts or query caches.
 Only a successful file receipt is appended to the originating draft (preserving
 existing text); the user reviews/sends it. Keep the node-detail entry available.
@@ -145,7 +145,7 @@ initial encrypted prompt. Do not save a Project Target before `session/new`
 succeeds. The normal toggle-off path must remain on `/conversation`.
 
 The E2EE workbench currently supports durable history, live frames, prompt, and
-cancel. Queue, steer, attachments, and Manager-projected permission decisions
+cancel and encrypted attachments. Queue, steer, and Manager-projected permission decisions
 remain disabled on encrypted turns until their payloads have encrypted ACP
 equivalents. `/e2ee` remains a diagnostic lab rather than the product entry.
 
@@ -1617,3 +1617,57 @@ keyboard dismissal and visual-viewport shell reflow cannot leave the menu behind
 The mobile navigation reserves 4rem of content height plus the bottom safe area;
 its top padding and bottom content padding are independent of that safe area.
 ConsoleLayout reserves the same --console-mobile-nav-height to prevent overlap.
+
+## Encrypted attachment uploads
+
+Encrypted composers stage File objects in browser memory. Creation waits for
+session/new before encrypting and uploading. `features/e2ee/attachments.ts`
+derives an attachment-specific AES-GCM key from the existing root key, agent,
+session, key epoch, and a fresh random attachment ID. Files use 4 MiB authenticated
+chunks; the first version caps each file at 512 MiB and each prompt at 16 files.
+Only binary ciphertext and opaque filenames reach the attachment REST API/storage.
+The owner-only content endpoint with `?ticket=1` returns a signed download URL.
+Send private descriptors through encrypted ACP `params.paxEncryptedAttachments`;
+never send them through ordinary conversation or node control APIs. paxd consumes
+these descriptors, authenticates/decrypts locally, and substitutes resource_link
+blocks before dispatch/history projection. Upload progress and cancellation are
+browser-local; failed uploads can be retried and completed uploads reuse their
+object with a refreshed download ticket. Session-local plaintext files remain on
+paxd for agent access; encrypted attachments currently render as file references,
+without browser preview. Ciphertext is assembled as a Blob for single PUT;
+resumable upload and disk-backed browser staging are not implemented.
+Deploy Manager and paxd before enabling the Console upload UI.
+
+## Encrypted history prompt context
+
+E2EE history keeps the original 500-row base page and its cursor. After decrypting
+it, `history-context.ts` scans older encrypted pages until it finds the user
+prompt for each bound turn present on that base page, or reaches the beginning.
+Only matching prompts are added; scanned tool rows remain available through the
+unchanged older-page cursor. Turn/role matching stays in the browser. Manager
+continues to receive only ordinary pagination parameters and stores ciphertext.
+The session runtime retains at most 64 authenticated, content-bearing prompts
+and replaces that cache on route/root-key changes. Never cache an empty header
+while its parts are still arriving. Reuse avoids rescanning a long turn during
+history polling. Cancellation propagates through TanStack Query's signal to
+all page fetches; corrupt context ciphertext fails validation like base rows.
+This fixes existing canonical history without a backend migration. Legacy rows
+without a bound turn cannot be assigned to an unrelated nearby prompt.
+
+E2EE text ordering follows Manager's segmented history contract. paxd closes the
+active text segment at non-text ACP frames, responses, or text-type/turn changes.
+Each new segment has a distinct message ID and encrypted `raw_json.text_layout`
+set to `segment`. Partial checkpoints and transport batches do not split it.
+Console preserves these rows around tools instead of applying legacy aggregate
+reordering. Previously aggregated rows lack the original boundaries and cannot
+be reliably split retroactively. Deploy the paxd change to affect new history.
+
+E2EE timeline reconciliation is isolated in `features/e2ee/reconcile-history.ts`.
+Normalize each durable row in stored order without the ordinary adapter's legacy
+text reordering. Match live overlap record by record within the same turn,
+prefer exact matches before partial text, and retain unmatched live events;
+`turn_done` alone must never discard a whole live turn. Preserve durable row
+positions as parts catch up. Normalize ACP/native session IDs to the PAX route
+before matching. Live events are retained for the mounted session rather than
+blindly truncating at 500; future pruning must prove durable coverage first.
+The ordinary session reconciliation and history normalization are unchanged.

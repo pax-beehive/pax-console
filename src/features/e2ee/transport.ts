@@ -1,3 +1,7 @@
+import {
+  withEncryptedPromptContext,
+  type EncryptedPromptCache,
+} from "./history-context";
 import { API_BASE_URL, userPath } from "../api/client";
 import { ApiError, AuthError } from "../api/errors";
 import type { HistoryMessage, MessagePart } from "../api/types";
@@ -46,6 +50,8 @@ export type StreamEncryptedEventsOptions = {
 };
 
 export type LoadEncryptedHistoryOptions = {
+  signal?: AbortSignal;
+  promptCache?: EncryptedPromptCache;
   agentId: string;
   beforeId?: number;
   keyEpoch?: number;
@@ -223,9 +229,21 @@ export async function postEncryptedCommand({
   return body;
 }
 
-export async function loadEncryptedSessionHistory({
+export async function loadEncryptedSessionHistory(
+  options: LoadEncryptedHistoryOptions,
+): Promise<EncryptedHistoryPage> {
+  const base = await loadEncryptedHistoryPage(options);
+  return withEncryptedPromptContext(
+    base,
+    (beforeId) => loadEncryptedHistoryPage({ ...options, beforeId }),
+    options.promptCache,
+  );
+}
+
+async function loadEncryptedHistoryPage({
   agentId,
   beforeId = 0,
+  signal,
   keyEpoch,
   limit = 500,
   rootKey,
@@ -252,6 +270,7 @@ export async function loadEncryptedSessionHistory({
       )}?${params}`,
       {
         credentials: "include",
+        signal,
         method: "GET",
         redirect: "manual",
       },

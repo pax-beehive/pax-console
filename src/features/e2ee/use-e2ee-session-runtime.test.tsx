@@ -10,8 +10,13 @@ import { useE2EESessionRuntime } from "./use-e2ee-session-runtime";
 const mocks = vi.hoisted(() => ({
   loadEncryptedSessionHistory: vi.fn(),
   loadRootKey: vi.fn(),
+  uploadEncryptedAttachment: vi.fn(),
   observeEncryptedEvents: vi.fn(),
   sendEncryptedCommand: vi.fn(),
+}));
+
+vi.mock("./attachments", () => ({
+  uploadEncryptedAttachment: mocks.uploadEncryptedAttachment,
 }));
 
 vi.mock("./root-key-store", () => ({ loadRootKey: mocks.loadRootKey }));
@@ -62,6 +67,47 @@ describe("useE2EESessionRuntime", () => {
     });
   });
 
+  it("isolates prompt context caches when switching sessions", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    const { result, rerender } = renderHook(
+      ({ sessionId }) =>
+        useE2EESessionRuntime({
+          agentId: "agent_1",
+          enabled: true,
+          sessionId,
+          userId: "user_1",
+        }),
+      { wrapper, initialProps: { sessionId: "first" } },
+    );
+    await waitFor(() => expect(result.current.rootKeyAvailable).toBe(true));
+    await waitFor(() =>
+      expect(mocks.loadEncryptedSessionHistory).toHaveBeenCalled(),
+    );
+    const first = mocks.loadEncryptedSessionHistory.mock.calls.find(
+      ([options]) => options.sessionId === "first",
+    )?.[0];
+    expect(first.promptCache).toBeDefined();
+    expect(first.signal).toBeInstanceOf(AbortSignal);
+    rerender({ sessionId: "second" });
+    await waitFor(() =>
+      expect(
+        mocks.loadEncryptedSessionHistory.mock.calls.some(
+          ([options]) => options.sessionId === "second",
+        ),
+      ).toBe(true),
+    );
+    const second = mocks.loadEncryptedSessionHistory.mock.calls.find(
+      ([options]) => options.sessionId === "second",
+    )?.[0];
+    expect(second.promptCache).toBeDefined();
+    expect(second.promptCache).not.toBe(first.promptCache);
+  });
+
   it("waits for the encrypted session/new response before completing bootstrap", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
@@ -107,6 +153,124 @@ describe("useE2EESessionRuntime", () => {
       await bootstrap;
     });
     expect(result.current.status).toBe("done");
+  });
+
+  it("sends attachment-only encrypted prompts and restores files after a download failure", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(
+      () =>
+        useE2EESessionRuntime({
+          agentId: "agent_1",
+          enabled: true,
+          sessionId: "session_1",
+          userId: "user_1",
+        }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.rootKeyAvailable).toBe(true));
+    const file = new File(["private"], "private.txt");
+    const attachment = {
+      attachmentId: "local_1",
+      filename: file.name,
+      encryptedFile: file,
+    };
+    const descriptor = {
+      version: 1,
+      object_id: "att_cipher",
+      download_url: "https://storage.test/cipher",
+    };
+    mocks.uploadEncryptedAttachment.mockResolvedValue(descriptor);
+    await act(async () => {
+      await result.current.sendMessage("", [attachment]);
+    });
+    expect(mocks.uploadEncryptedAttachment).toHaveBeenCalledWith(
+      file,
+      expect.any(Uint8Array),
+      { agent_id: "agent_1", session_id: "session_1", key_epoch: 1 },
+      "user_1",
+      expect.any(AbortSignal),
+      expect.any(Function),
+    );
+    const command = mocks.sendEncryptedCommand.mock.calls[0][0];
+    expect(command.frame.params).toMatchObject({
+      prompt: [],
+      paxEncryptedAttachments: [descriptor],
+    });
+    await act(async () => {
+      await observerOptions?.onFrame(
+        {
+          jsonrpc: "2.0",
+          id: command.frame.id,
+          error: {
+            code: -32000,
+            message: "encrypted attachment authentication failed",
+          },
+        },
+        {},
+      );
+    });
+    expect(result.current.status).toBe("error");
+    expect(result.current.failedAttachments).toEqual([attachment]);
+    mocks.sendEncryptedCommand.mockImplementationOnce(async ({ frame }) => {
+      await observerOptions?.onFrame(
+        {
+          jsonrpc: "2.0",
+          id: frame.id,
+          error: {
+            code: -32000,
+            message: "download rejected before POST returned",
+          },
+        },
+        {},
+      );
+      return { command_id: "cmd_2", created: true, status: "pending" };
+    });
+    await act(async () => {
+      await expect(
+        result.current.sendMessage("retry", [attachment]),
+      ).rejects.toThrow("download rejected before POST returned");
+    });
+  });
+
+  it("does not send a prompt if attachment encryption or upload fails", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(
+      () =>
+        useE2EESessionRuntime({
+          agentId: "agent_1",
+          enabled: true,
+          sessionId: "session_1",
+          userId: "user_1",
+        }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.rootKeyAvailable).toBe(true));
+    mocks.uploadEncryptedAttachment.mockRejectedValue(
+      new Error("upload failed"),
+    );
+    await act(async () => {
+      await expect(
+        result.current.sendMessage("private", [
+          {
+            attachmentId: "local",
+            filename: "private.txt",
+            encryptedFile: new File(["private"], "private.txt"),
+          },
+        ]),
+      ).rejects.toThrow("upload failed");
+    });
+    expect(mocks.sendEncryptedCommand).not.toHaveBeenCalled();
+    expect(result.current.uploadProgress).toBeNull();
   });
 
   it("loads the agent key and sends a prompt through encrypted transport", async () => {
@@ -314,5 +478,72 @@ describe("useE2EESessionRuntime", () => {
       "does not have the root key",
     );
     expect(mocks.sendEncryptedCommand).not.toHaveBeenCalled();
+  });
+  it("retains the prompt through 510 tool events and a batched completion", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    const { result, unmount } = renderHook(
+      () =>
+        useE2EESessionRuntime({
+          agentId: "agent_1",
+          enabled: true,
+          sessionId: "session_1",
+          userId: "user_1",
+        }),
+      { wrapper },
+    );
+    await waitFor(() => expect(observerOptions).toBeDefined());
+    await act(async () => {
+      await result.current.sendMessage("Keep this prompt");
+    });
+    const requestId =
+      mocks.sendEncryptedCommand.mock.calls.at(-1)?.[0].frame.id;
+    await act(async () => {
+      for (let i = 0; i < 510; i++) {
+        void observerOptions?.onFrame(
+          {
+            jsonrpc: "2.0",
+            method: "session/update",
+            params: {
+              sessionId: "native_1",
+              update: {
+                sessionUpdate: "tool_call",
+                toolCallId: `tool_${i}`,
+                title: "Read",
+              },
+            },
+          },
+          { turnId: "turn_long" },
+        );
+      }
+      void observerOptions?.onFrame(
+        { jsonrpc: "2.0", id: requestId, result: { stopReason: "end_turn" } },
+        { turnId: "turn_long" },
+      );
+    });
+    expect(result.current.events[0]).toMatchObject({
+      type: "user_message",
+      content: "Keep this prompt",
+      turnId: "turn_long",
+    });
+    expect(
+      result.current.events.filter((event) => event.type === "tool_call"),
+    ).toHaveLength(510);
+    expect(
+      result.current.events.every((event) => event.sessionId === "session_1"),
+    ).toBe(true);
+    await act(async () => {
+      await result.current.historyQuery.refetch();
+    });
+    expect(result.current.events[0]).toMatchObject({
+      type: "user_message",
+      turnId: "turn_long",
+    });
+    unmount();
+    queryClient.clear();
   });
 });

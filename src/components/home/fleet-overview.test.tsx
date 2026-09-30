@@ -1111,6 +1111,32 @@ describe("FleetOverview session rail", () => {
     );
   });
 
+  it("stages encrypted files locally and forwards an attachment-only draft", async () => {
+    renderOverview();
+    await userEvent.click(screen.getByRole("link", { name: "New session" }));
+    await openSettings();
+    await userEvent.click(
+      screen.getByRole("switch", { name: "Use end-to-end encryption" }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Close settings" }),
+    );
+    const composer = screen.getByPlaceholderText(
+      "Send an end-to-end encrypted message",
+    );
+    const file = new File(["private"], "private.txt", { type: "text/plain" });
+    fireEvent.drop(composer, {
+      dataTransfer: { types: ["Files"], files: [file] },
+    });
+    expect(await screen.findByText("private.txt")).toBeVisible();
+    expect(mocks.createUserAttachment).not.toHaveBeenCalled();
+    expect(mocks.uploadUserAttachmentFile).not.toHaveBeenCalled();
+    fireEvent.submit(composer.closest("form")!);
+    const workbench = await screen.findByTestId("session-workbench");
+    expect(workbench).toHaveAttribute("data-initial-transport", "e2ee");
+    expect(workbench.getAttribute("data-initial-attachments")).toBeTruthy();
+  });
+
   it("keeps encrypted intent when changing the agent before creating a session", async () => {
     mocks.listAgents.mockResolvedValue({
       agents: [

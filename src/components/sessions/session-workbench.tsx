@@ -1,6 +1,13 @@
 "use client";
 
 import {
+  normalizeEncryptedHistory,
+  reconcileEncryptedTimeline,
+} from "@/features/e2ee/reconcile-history";
+
+import { stageEncryptedAttachment } from "@/features/e2ee/attachments";
+
+import {
   FormEvent,
   ReactNode,
   useCallback,
@@ -182,12 +189,14 @@ type SessionSidePanel = {
 };
 
 type PendingEncryptedBootstrap = {
+  attachments: ComposerAttachment[];
   cwd: string;
   prompt: string;
   sessionId: string;
 };
 
 export type ComposerAttachment = {
+  encryptedFile?: File;
   attachmentId: string;
   contentType?: string;
   filename: string;
@@ -446,7 +455,20 @@ export function SessionWorkbench({
     user.user_id,
     activeSession && !usesEncryptedTransport ? currentSessionId : undefined,
   );
+  const restoreEncryptedAttachments = useCallback(
+    (files: ComposerAttachment[]) => {
+      setComposerAttachments((current) => {
+        const ids = new Set(current.map((item) => item.attachmentId));
+        return [
+          ...current,
+          ...files.filter((item) => !ids.has(item.attachmentId)),
+        ];
+      });
+    },
+    [],
+  );
   const encryptedRuntime = useE2EESessionRuntime({
+    onAttachmentFailure: restoreEncryptedAttachments,
     agentId: activeAgentId,
     enabled: usesEncryptedTransport,
     sessionId: currentSessionId,
@@ -458,11 +480,6 @@ export function SessionWorkbench({
     async (prompt: string) => {
       if (!activeAgentId || !activeNodeId) {
         throw new Error("Select a node and agent before starting a session");
-      }
-      if (composerAttachments.length > 0) {
-        throw new Error(
-          "Encrypted session attachments are not supported yet. Remove the files before starting.",
-        );
       }
       if (encryptedRuntime.keyLoading) {
         throw new Error(
@@ -489,6 +506,7 @@ export function SessionWorkbench({
       setPendingEncryptedBootstrap({
         cwd: normalizedNewSessionCwd || "/tmp",
         prompt,
+        attachments: [...composerAttachments],
         sessionId: session.session_id,
       });
       handleSessionAssigned(session.session_id, false);
@@ -496,7 +514,7 @@ export function SessionWorkbench({
     [
       activeAgentId,
       activeNodeId,
-      composerAttachments.length,
+      composerAttachments,
       encryptedRuntime.keyLoading,
       encryptedRuntime.rootKeyAvailable,
       handleSessionAssigned,
@@ -534,8 +552,8 @@ export function SessionWorkbench({
     void startEncryptedNativeSession(pending.cwd)
       .then(() => {
         handleSessionAssigned(pending.sessionId);
-        return pending.prompt
-          ? sendEncryptedMessage(pending.prompt)
+        return pending.prompt || pending.attachments.length
+          ? sendEncryptedMessage(pending.prompt, pending.attachments)
           : undefined;
       })
       .then(() => {
@@ -652,14 +670,22 @@ export function SessionWorkbench({
   };
   const handleAddComposerAttachments = useCallback(
     async (files: File[]) => {
-      if (
-        files.length === 0 ||
-        attachmentUploadRef.current ||
-        usesEncryptedTransport
-      ) {
+      if (files.length === 0 || attachmentUploadRef.current) {
         return;
       }
 
+      if (usesEncryptedTransport) {
+        try {
+          const staged = files.map(stageEncryptedAttachment);
+          setComposerAttachments((current) => [...current, ...staged]);
+          setComposerAttachmentError(null);
+        } catch (error) {
+          setComposerAttachmentError(
+            error instanceof Error ? error : new Error(String(error)),
+          );
+        }
+        return;
+      }
       attachmentUploadRef.current = true;
       setComposerAttachmentError(null);
       setComposerAttachmentUploadPending(true);
@@ -1469,29 +1495,34 @@ export function SessionWorkbench({
   // The timeline merges durable REST history with live conversation events.
   // REST gives refresh/resume safety; the run stream gives low-latency updates.
   const historyEvents = useMemo(
-    () => mergeEvents(normalizeHistoryMessages(historyMessages)),
-    [historyMessages],
+    () =>
+      usesEncryptedTransport
+        ? normalizeEncryptedHistory(historyMessages)
+        : mergeEvents(normalizeHistoryMessages(historyMessages)),
+    [historyMessages, usesEncryptedTransport],
   );
 
   const reconciledTimeline = useMemo(
     () =>
-      reconcileSessionTimeline(
-        historyEvents,
-        usesEncryptedTransport
-          ? encryptedRuntime.events
-          : conversationRun.events,
-        usesEncryptedTransport ? [] : sessionObserver.events,
-        usesEncryptedTransport ? [] : sessionObserver.snapshotTurnIds,
-        usesEncryptedTransport ? undefined : historySync.calibratedTurnIds,
-        usesEncryptedTransport
-          ? []
-          : historySnapshotsForTimeline(historySync.snapshotTurnIds, {
-              sessionStatus: activeSession?.runtime_status,
-              sessionTurnId: observedTurnId,
-              localStatus: conversationRun.status,
-              localTurnId: conversationRun.activeTurnId,
-            }),
-      ),
+      usesEncryptedTransport
+        ? reconcileEncryptedTimeline(historyEvents, encryptedRuntime.events)
+        : reconcileSessionTimeline(
+            historyEvents,
+            usesEncryptedTransport
+              ? encryptedRuntime.events
+              : conversationRun.events,
+            usesEncryptedTransport ? [] : sessionObserver.events,
+            usesEncryptedTransport ? [] : sessionObserver.snapshotTurnIds,
+            usesEncryptedTransport ? undefined : historySync.calibratedTurnIds,
+            usesEncryptedTransport
+              ? []
+              : historySnapshotsForTimeline(historySync.snapshotTurnIds, {
+                  sessionStatus: activeSession?.runtime_status,
+                  sessionTurnId: observedTurnId,
+                  localStatus: conversationRun.status,
+                  localTurnId: conversationRun.activeTurnId,
+                }),
+          ),
     [
       conversationRun.events,
       encryptedRuntime.events,
@@ -1755,14 +1786,6 @@ export function SessionWorkbench({
             setComposerAttachmentError(null);
             return true;
           }
-          if (attachmentIds.length > 0) {
-            setComposerAttachmentError(
-              new Error(
-                "Encrypted session attachments are not supported yet. Remove the files before sending.",
-              ),
-            );
-            return false;
-          }
           if (isTurnRunning) {
             setSendError(
               new Error(
@@ -1771,7 +1794,13 @@ export function SessionWorkbench({
             );
             return false;
           }
-          await sendEncryptedMessage(content);
+          setComposerAttachmentUploadPending(composerAttachments.length > 0);
+          try {
+            await sendEncryptedMessage(content, composerAttachments);
+            clearSentAttachments(attachmentIds);
+          } finally {
+            setComposerAttachmentUploadPending(false);
+          }
           setComposerAttachmentError(null);
           return true;
         }
@@ -2509,6 +2538,22 @@ export function SessionWorkbench({
           </div>
         )}
 
+        {encryptedRuntime.uploadProgress && (
+          <div
+            role="status"
+            className="flex items-center justify-center gap-3 p-2 text-xs text-ink-muted"
+          >
+            <span>{encryptedRuntime.uploadProgress}</span>
+            <Button
+              onClick={encryptedRuntime.cancelUpload}
+              type="button"
+              variant="ghost"
+              size="sm"
+            >
+              Cancel upload
+            </Button>
+          </div>
+        )}
         <SessionComposer
           userId={user.user_id}
           availableCommands={
@@ -2522,7 +2567,11 @@ export function SessionWorkbench({
             updateSessionPermission.isPending
           }
           attachmentError={composerAttachmentError}
-          attachmentUploadPending={composerAttachmentUploadPending}
+          attachmentUploadPending={
+            composerAttachmentUploadPending ||
+            Boolean(encryptedRuntime.uploadProgress) ||
+            Boolean(pendingEncryptedBootstrap)
+          }
           attachments={composerAttachments}
           currentSessionId={currentSessionId}
           createEmptySessionPending={

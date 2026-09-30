@@ -1,11 +1,17 @@
 "use client";
 
+import {
+  uploadEncryptedAttachment,
+  type PendingEncryptedAttachment,
+} from "./attachments";
+
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { queryKeys } from "@/features/api/query-keys";
 import { mergeEvents } from "@/features/runtime/merge-session-events";
 import { normalizeTunnelFrame } from "@/features/runtime/normalize-tunnel-frame";
 import type { SessionEvent } from "@/features/runtime/session-events";
+import { EncryptedPromptCache } from "./history-context";
 import { loadRootKey } from "./root-key-store";
 import {
   buildE2EECancelFrame,
@@ -32,6 +38,7 @@ type UseE2EESessionRuntimeOptions = {
   keyEpoch?: number;
   sessionId?: string;
   userId: string;
+  onAttachmentFailure?: (attachments: PendingEncryptedAttachment[]) => void;
 };
 
 export function useE2EESessionRuntime({
@@ -40,6 +47,7 @@ export function useE2EESessionRuntime({
   keyEpoch = 1,
   sessionId,
   userId,
+  onAttachmentFailure,
 }: UseE2EESessionRuntimeOptions) {
   const [rootKeyState, setRootKeyState] = useState<{
     agentId: string;
@@ -52,6 +60,21 @@ export function useE2EESessionRuntime({
   }>({ events: [], sessionId });
   const events = eventState.sessionId === sessionId ? eventState.events : [];
   const [status, setStatus] = useState<E2EESessionRuntimeStatus>("idle");
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
+  const uploadController = useRef<AbortController | null>(null);
+  const sentAttachments = useRef(
+    new Map<string, PendingEncryptedAttachment[]>(),
+  );
+  const [failedAttachments, setFailedAttachments] = useState<{
+    sessionId?: string;
+    files: PendingEncryptedAttachment[];
+  }>({ files: [] });
+  useEffect(
+    () => () => uploadController.current?.abort(),
+    [agentId, sessionId],
+  );
+  const postingRequests = useRef(new Set<string>());
+  const postingErrors = useRef(new Map<string, Error>());
   const cursorRef = useRef(0);
   const pendingTurnIdRef = useRef<string | undefined>(undefined);
   const pendingRequestIdsRef = useRef(new Set<string>());
@@ -99,9 +122,17 @@ export function useE2EESessionRuntime({
     cursorRef.current = 0;
     pendingTurnIdRef.current = undefined;
     pendingRequestIdsRef.current.clear();
+    sentAttachments.current.clear();
     pendingLifecycleRequestsRef.current.clear();
   }, [sessionId]);
 
+  const promptCache = useMemo(
+    () =>
+      rootKey && agentId && sessionId && userId
+        ? new EncryptedPromptCache()
+        : undefined,
+    [agentId, sessionId, userId, rootKey],
+  );
   const historyQuery = useInfiniteQuery({
     queryKey: queryKeys.encryptedSessionHistory(
       userId,
@@ -109,8 +140,10 @@ export function useE2EESessionRuntime({
       sessionId ?? "pending",
       keyEpoch,
     ),
-    queryFn: ({ pageParam }) =>
+    queryFn: ({ pageParam, signal }) =>
       loadEncryptedSessionHistory({
+        signal,
+        promptCache,
         agentId: agentId as string,
         beforeId: pageParam,
         keyEpoch,
@@ -151,27 +184,30 @@ export function useE2EESessionRuntime({
         const normalized = normalizeTunnelFrame(frame, {
           createdAt: receivedAt,
           streamId: `e2ee:${sessionId}:${context.turnId ?? "legacy"}`,
-        }).map((event) =>
-          context.turnId
-            ? ({ ...event, turnId: context.turnId } as SessionEvent)
-            : event,
+        }).map(
+          (event) =>
+            ({
+              ...event,
+              sessionId,
+              ...(context.turnId ? { turnId: context.turnId } : {}),
+            }) as SessionEvent,
         );
         if (normalized.length > 0) {
+          const pendingTurnId = pendingTurnIdRef.current;
           setEventState((current) => {
             const remappedCurrentEvents =
               current.sessionId === sessionId
                 ? current.events.map((event) =>
-                    context.turnId && event.turnId === pendingTurnIdRef.current
+                    context.turnId &&
+                    pendingTurnId &&
+                    event.turnId === pendingTurnId
                       ? ({ ...event, turnId: context.turnId } as SessionEvent)
                       : event,
                   )
                 : [];
 
             return {
-              events: mergeEvents([
-                ...remappedCurrentEvents,
-                ...normalized,
-              ]).slice(-500),
+              events: mergeEvents([...remappedCurrentEvents, ...normalized]),
               sessionId,
             };
           });
@@ -200,12 +236,21 @@ export function useE2EESessionRuntime({
         ) {
           pendingTurnIdRef.current = undefined;
           if (response.error) {
+            if (postingRequests.current.has(response.requestId))
+              postingErrors.current.set(
+                response.requestId,
+                new Error(response.error),
+              );
+            const files = sentAttachments.current.get(response.requestId) ?? [];
+            setFailedAttachments({ sessionId, files });
+            if (files.length) onAttachmentFailure?.(files);
             setError(new Error(response.error));
             setStatus("error");
           } else {
             setStatus("done");
             void refetchHistory();
           }
+          sentAttachments.current.delete(response.requestId);
         }
       },
     }).catch((caught) => {
@@ -215,11 +260,22 @@ export function useE2EESessionRuntime({
       }
     });
     return () => controller.abort();
-  }, [agentId, enabled, keyEpoch, refetchHistory, rootKey, sessionId, userId]);
+  }, [
+    agentId,
+    enabled,
+    keyEpoch,
+    refetchHistory,
+    rootKey,
+    sessionId,
+    userId,
+    onAttachmentFailure,
+  ]);
 
   const sendMessage = useCallback(
-    async (content: string) => {
+    async (content: string, attachments: PendingEncryptedAttachment[] = []) => {
       const normalized = content.trim();
+      if (attachments.length > 16)
+        throw new Error("Attach at most 16 files per message");
       if (!enabled || !agentId || !sessionId || !rootKey) {
         throw new Error(
           rootKey
@@ -227,11 +283,48 @@ export function useE2EESessionRuntime({
             : "This browser does not have the root key for this encrypted session",
         );
       }
-      if (!normalized) {
+      if (!normalized && attachments.length === 0) {
         throw new Error("Prompt cannot be empty");
       }
 
+      if (attachments.some((attachment) => !attachment.encryptedFile)) {
+        throw new Error(
+          "Remove previously uploaded plaintext attachments and add them again in encrypted mode",
+        );
+      }
+      if (uploadController.current)
+        throw new Error("An attachment upload is already in progress");
+      const controller = new AbortController();
+      uploadController.current = controller;
+      const encryptedAttachments = [];
+      try {
+        for (const attachment of attachments) {
+          encryptedAttachments.push(
+            await uploadEncryptedAttachment(
+              attachment.encryptedFile!,
+              rootKey,
+              {
+                agent_id: agentId,
+                session_id: sessionId,
+                key_epoch: keyEpoch,
+              },
+              userId,
+              controller.signal,
+              (phase, percent) =>
+                setUploadProgress(
+                  `${phase} ${attachment.filename}: ${percent}%`,
+                ),
+            ),
+          );
+        }
+        controller.signal.throwIfAborted();
+      } finally {
+        uploadController.current = null;
+        setUploadProgress(null);
+      }
       const requestId = `e2ee_prompt_${crypto.randomUUID()}`;
+      if (attachments.length)
+        sentAttachments.current.set(requestId, attachments);
       const pendingTurnId = `pending-turn:${requestId}`;
       pendingRequestIdsRef.current.add(requestId);
       pendingTurnIdRef.current = pendingTurnId;
@@ -246,27 +339,47 @@ export function useE2EESessionRuntime({
             sessionId,
             turnId: pendingTurnId,
             content: normalized,
+            attachments: attachments.map(
+              ({ filename, contentType, sizeBytes }) => ({
+                filename,
+                contentType,
+                sizeBytes,
+              }),
+            ),
             createdAt: new Date().toISOString(),
           },
         ],
         sessionId,
       }));
       try {
-        return await sendEncryptedCommand({
+        postingRequests.current.add(requestId);
+        const posted = await sendEncryptedCommand({
           agentId,
-          frame: buildE2EEPromptFrame(requestId, sessionId, normalized),
+          frame: buildE2EEPromptFrame(
+            requestId,
+            sessionId,
+            normalized,
+            encryptedAttachments,
+          ),
           keyEpoch,
           rootKey,
           sessionId,
           userId,
         });
+        const rejected = postingErrors.current.get(requestId);
+        if (rejected) throw rejected;
+        return posted;
       } catch (caught) {
         pendingRequestIdsRef.current.delete(requestId);
+        sentAttachments.current.delete(requestId);
         pendingTurnIdRef.current = undefined;
         const nextError = asError(caught);
         setError(nextError);
         setStatus("error");
         throw nextError;
+      } finally {
+        postingRequests.current.delete(requestId);
+        postingErrors.current.delete(requestId);
       }
     },
     [agentId, enabled, keyEpoch, rootKey, sessionId, userId],
@@ -331,6 +444,10 @@ export function useE2EESessionRuntime({
   }, [agentId, enabled, keyEpoch, rootKey, sessionId, userId]);
 
   return {
+    uploadProgress,
+    cancelUpload: () => uploadController.current?.abort(),
+    failedAttachments:
+      failedAttachments.sessionId === sessionId ? failedAttachments.files : [],
     error,
     events,
     historyQuery,

@@ -1,5 +1,7 @@
 "use client";
 
+import { stageEncryptedAttachment } from "@/features/e2ee/attachments";
+
 import { SessionDraftInput } from "@/components/sessions/session-draft-input";
 import { ComposerDropZone } from "@/components/sessions/composer-drop-zone";
 import { ComposerAttachmentStatus } from "@/components/sessions/composer-attachment-status";
@@ -723,14 +725,22 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   }
 
   async function addComposerAttachments(files: File[]) {
-    if (
-      files.length === 0 ||
-      attachmentUploadRef.current ||
-      newSessionTransport === "e2ee"
-    ) {
+    if (files.length === 0 || attachmentUploadRef.current) {
       return;
     }
 
+    if (newSessionTransport === "e2ee") {
+      try {
+        const staged = files.map(stageEncryptedAttachment);
+        setComposerAttachments((current) => [...current, ...staged]);
+        setComposerAttachmentError(null);
+      } catch (error) {
+        setComposerAttachmentError(
+          error instanceof Error ? error : new Error(String(error)),
+        );
+      }
+      return;
+    }
     attachmentUploadRef.current = true;
     setComposerAttachmentError(null);
     setComposerAttachmentUploadPending(true);
@@ -1171,11 +1181,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                   {encryptionBlocked && encryptionGuidance}
                   <ComposerDropZone
                     disabledReason={
-                      secureComposerActive
-                        ? "Attachments aren’t available in encrypted sessions yet"
-                        : composerAttachmentUploadPending
-                          ? "Upload in progress"
-                          : undefined
+                      composerAttachmentUploadPending
+                        ? "Upload in progress"
+                        : undefined
                     }
                     onFiles={addComposerAttachments}
                     className={cn(
@@ -1195,9 +1203,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                     />
                     <input
                       className="sr-only"
-                      disabled={
-                        secureComposerActive || composerAttachmentUploadPending
-                      }
+                      disabled={composerAttachmentUploadPending}
                       multiple
                       onChange={(event) => {
                         const files = [...(event.currentTarget.files ?? [])];
@@ -1263,10 +1269,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                         <DropdownMenuTrigger asChild>
                           <Button
                             aria-label="Upload files"
-                            disabled={
-                              composerAttachmentUploadPending ||
-                              newSessionTransport === "e2ee"
-                            }
+                            disabled={composerAttachmentUploadPending}
                             icon={
                               composerAttachmentUploadPending ? (
                                 <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -1275,11 +1278,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                               )
                             }
                             size="icon"
-                            tooltip={
-                              newSessionTransport === "e2ee"
-                                ? "Attachments are not supported in encrypted sessions yet"
-                                : "Upload files"
-                            }
+                            tooltip={"Upload files"}
                             type="button"
                             variant="ghost"
                           />

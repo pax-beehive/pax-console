@@ -1,3 +1,4 @@
+import type { EncryptedAttachment } from "./attachments";
 export type E2EEPromptFrame = {
   jsonrpc: "2.0";
   id: string;
@@ -5,6 +6,7 @@ export type E2EEPromptFrame = {
   params: {
     sessionId: string;
     prompt: Array<{ type: "text"; text: string }>;
+    paxEncryptedAttachments?: EncryptedAttachment[];
   };
 };
 
@@ -48,10 +50,13 @@ export function buildE2EEPromptFrame(
   requestId: string,
   sessionId: string,
   prompt: string,
+  attachments: EncryptedAttachment[] = [],
 ): E2EEPromptFrame {
   const normalizedRequestId = requireValue(requestId, "Request ID");
   const normalizedSessionId = requireValue(sessionId, "Session ID");
-  const normalizedPrompt = requireValue(prompt, "Prompt");
+  const normalizedPrompt = attachments.length
+    ? prompt.trim()
+    : requireValue(prompt, "Prompt");
 
   return {
     jsonrpc: "2.0",
@@ -59,7 +64,10 @@ export function buildE2EEPromptFrame(
     method: "session/prompt",
     params: {
       sessionId: normalizedSessionId,
-      prompt: [{ type: "text", text: normalizedPrompt }],
+      prompt: normalizedPrompt
+        ? [{ type: "text", text: normalizedPrompt }]
+        : [],
+      ...(attachments.length ? { paxEncryptedAttachments: attachments } : {}),
     },
   };
 }
