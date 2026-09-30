@@ -407,6 +407,12 @@ agent connection inventory until the requested generation, restart nonce, and
 runtime phase have converged. The command ACK is not the runtime completion
 signal.
 
+Agent detail also mounts `NodeDaemonControl`, scoped by exact `cloud_agent_id`.
+Its Edit settings action exposes the shared Slots/runtime form; discovery,
+creation, and harness inventory remain node-only. Never infer a connection from
+its name or pick the first connection when an agent has no matching binding.
+Both entry points use the same node query cache and command reconciliation.
+
 Collaboration and knowledge resources are normal user-scoped REST resources:
 
 ```txt

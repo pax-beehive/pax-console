@@ -1612,9 +1612,7 @@ function HomeSessionRow({
         className="opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
         disabled={archivePending}
         icon={
-          archivePending ? (
-            <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-          ) : session.archivedAt ? (
+          session.archivedAt ? (
             <ArchiveRestore className="h-3.5 w-3.5" />
           ) : (
             <Archive className="h-3.5 w-3.5" />
@@ -1729,7 +1727,12 @@ function SessionFilterOptionGroup({
       role="group"
     >
       <div className="mb-1.5 flex items-center justify-between gap-2">
-        <div className="text-xs text-ink-tertiary">{label}</div>
+        <div className="flex items-center gap-1.5 text-xs text-ink-muted">
+          <span>{label}</span>
+          <span className="rounded bg-surface-3 px-1.5 tabular-nums">
+            {options.length}
+          </span>
+        </div>
         {selectedValues.length > 0 && (
           <button
             className="shrink-0 text-xs text-accent hover:underline"
@@ -1740,7 +1743,13 @@ function SessionFilterOptionGroup({
           </button>
         )}
       </div>
-      <div className="max-h-36 min-w-0 overflow-y-auto rounded-md border border-hairline bg-surface-2 p-1">
+      {/* Four full 32px rows and half of the next row hint that more can be scrolled. */}
+      <div
+        aria-label={`${label} options`}
+        className="max-h-[9.375rem] min-w-0 overflow-y-auto overscroll-contain rounded-md border border-hairline bg-surface-2 p-1"
+        role="region"
+        tabIndex={options.length > 4 ? 0 : undefined}
+      >
         {options.length === 0 ? (
           <div className="px-2 py-1.5 text-xs text-ink-tertiary">
             No {label.toLowerCase()}s available
@@ -1753,7 +1762,7 @@ function SessionFilterOptionGroup({
                 aria-label={`${label} ${option.label}`}
                 aria-pressed={selected}
                 className={cn(
-                  "flex w-full min-w-0 items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition",
+                  "flex h-8 w-full min-w-0 items-center gap-2 rounded px-2 py-1.5 text-left text-sm leading-5 transition",
                   selected
                     ? "bg-accent/10 text-ink hover:bg-accent/15"
                     : "text-ink-muted hover:bg-surface-3",
