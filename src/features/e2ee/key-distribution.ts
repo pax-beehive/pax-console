@@ -1,3 +1,4 @@
+import { ApiError } from "@/features/api/errors";
 import { apiFetch, userPath } from "@/features/api/client";
 import { encodeRootKey } from "./envelope";
 import {
@@ -74,6 +75,26 @@ export async function listE2EEPairingRequests(userId: string, agentId: string) {
   return apiFetch<E2EEPairingRequest[]>(pairingPath(userId, agentId));
 }
 
+export async function getE2EEPairingStatus(
+  userId: string,
+  agentId: string,
+  pairingId: string,
+) {
+  return apiFetch<
+    E2EEPairingRequest & {
+      status: "pending" | "approved" | "expired" | "superseded";
+    }
+  >(`${pairingPath(userId, agentId)}/${encodeURIComponent(pairingId)}`, {
+    cache: "no-store",
+  });
+}
+
+export class PairingPackageMismatchError extends Error {
+  constructor() {
+    super("Wrapped root key route does not match this browser");
+  }
+}
+
 export async function completeE2EEPairingRequest(
   userId: string,
   agentId: string,
@@ -145,9 +166,17 @@ export async function beginBrowserPairing(
       secret_commitment: encodePairingValue(commitment),
     });
   } catch (error) {
-    await deletePendingPairing(context.pairingId);
+    // A lost response or 5xx can follow a committed POST. Keep the recovery
+    // material; the user can create a different request instead of retrying it.
+    if (
+      error instanceof ApiError &&
+      [400, 403, 404, 409, 422, 429].includes(error.status)
+    ) {
+      await deletePendingPairing(context.pairingId);
+    }
     throw error;
   }
+  await savePendingPairing({ ...pending, expiresAt: request.expires_at });
   return {
     request,
     ...browserPairingInstructions(pending),
@@ -194,7 +223,7 @@ export async function finishBrowserPairing(
       pending.publicKey,
     )
   ) {
-    throw new Error("Wrapped root key route does not match this browser");
+    throw new PairingPackageMismatchError();
   }
   const rootKey = await unwrapAgentRootKey(
     pending.privateKey,

@@ -75,6 +75,21 @@ Inline code may move as a unit, but long tokens must still wrap within the viewp
 
 ## Encrypted transport boundary
 
+Pairing lifecycle is owned by `pairing-lifecycle.ts` and `use-browser-pairing.ts`.
+The owner-only GET `/agents/{agent_id}/e2ee/pairings/{pairing_id}` reports pending,
+approved, expired, or superseded. Try retrieving a matching approved package
+before interpreting a terminal request; approval deadlines do not expire packages.
+Definitive rejected creations drop only their local pending record. Lost responses
+and 5xx keep recovery material, and Create new request always sends a fresh ID.
+Expired/superseded requests stop approval polling and never disable regeneration.
+Unknown/network errors allow checking again and regeneration; automatic retries
+are bounded by the known server deadline or the legacy ten-minute estimate.
+An explicit check, focus return, or reload may recover an approved package later.
+Terminal browser recovery records and server rows are retained, not bulk-deleted.
+Deploy the Manager lifecycle/supersession changes before this Console update.
+BDD acceptance scenarios live in `docs/e2ee-pairing-lifecycle.feature` and are
+covered by lifecycle, transport-recovery, hook-race, and pairing-page Vitest suites.
+
 Home checks the selected agent's browser root-key availability before enabling
 E2EE. Missing or unreadable keys show an agent-scoped Pair E2EE link; pending
 checks cannot enable encryption. Agent changes preserve encrypted intent but

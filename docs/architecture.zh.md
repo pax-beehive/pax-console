@@ -55,6 +55,16 @@ WebSocket runtime 管 live agent tunnel。
 
 ## E2EE durable transport
 
+Pairing 生命周期由 `pairing-lifecycle.ts` 和 `use-browser-pairing.ts` 管理。
+新增 owner-only `GET /agents/{agent_id}/e2ee/pairings/{pairing_id}` 返回 pending、
+approved、expired 或 superseded。前端先尝试取回匹配的已批准密钥包，再解释请求终态，
+避免把“已批准但未取回”当成过期。创建明确失败只删除本次本地 pending；响应丢失或
+5xx 保留恢复材料，用户可创建新的 request ID，不要求复用旧请求。过期和被替代结束
+轮询并允许新建。网络异常进入结果待确认，自动重试以服务器期限（旧记录回退为十分钟）
+为界；手动检查、窗口重新获得焦点、重新进入页面仍可取回已批准密钥。保留历史行和本地
+恢复材料，不做批量删除或 root key 轮换。Manager 的状态查询和 supersession 改动须
+先于 Console 部署。BDD 场景见 `docs/e2ee-pairing-lifecycle.feature`。
+
 Home 在允许开启 E2EE 前检查当前 agent 的浏览器 root key。缺少密钥或读取失败时，
 显示说明和带 agentId 的 Pair E2EE 入口；检查中不可开启。切换 agent 保留加密意图，
 但未就绪时阻止提交，不降级为普通会话。窗口重新获得焦点时刷新本地密钥可用状态。

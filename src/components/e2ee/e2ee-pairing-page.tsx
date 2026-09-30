@@ -12,15 +12,10 @@ import type { Agent, Node, User } from "@/features/api/types";
 import { AuthGate } from "@/features/auth/auth-gate";
 import {
   approveBrowserPairing,
-  beginBrowserPairing,
-  browserPairingInstructions,
-  finishBrowserPairing,
   listE2EEPairingRequests,
-  listPendingPairings,
-  type BrowserPairingInstructions,
   type E2EEPairingRequest,
 } from "@/features/e2ee/key-distribution";
-import { loadRootKey } from "@/features/e2ee/root-key-store";
+import { useBrowserPairing } from "@/features/e2ee/use-browser-pairing";
 import { compactId } from "@/lib/format";
 
 export function E2EEPairingRoute() {
@@ -40,9 +35,9 @@ function E2EEPairingPage({ user }: { user: User }) {
   const selectedAgentId = agents.some((agent) => agent.agent_id === agentId)
     ? agentId
     : (agents[0]?.agent_id ?? "");
-  const [configured, setConfigured] = useState(false);
-  const [instructions, setInstructions] =
-    useState<BrowserPairingInstructions>();
+  const pairing = useBrowserPairing(user.user_id, selectedAgentId);
+  const configured = pairing.state.phase === "ready";
+  const instructions = pairing.state.instructions;
   const [accessMethod, setAccessMethod] = useState<AccessMethod>();
   const [requests, setRequests] = useState<E2EEPairingRequest[]>([]);
   const [approvalSecrets, setApprovalSecrets] = useState<
@@ -56,90 +51,15 @@ function E2EEPairingPage({ user }: { user: User }) {
       return;
     }
     let active = true;
-    void Promise.all([
-      loadRootKey(selectedAgentId),
-      listE2EEPairingRequests(user.user_id, selectedAgentId),
-      listPendingPairings(selectedAgentId),
-    ])
-      .then(([rootKey, pending, localPending]) => {
-        if (active) {
-          setConfigured(Boolean(rootKey));
-          setRequests(pending);
-          setInstructions(
-            !rootKey && localPending.length > 0
-              ? browserPairingInstructions(localPending[0])
-              : undefined,
-          );
-          setAccessMethod(undefined);
-        }
+    void listE2EEPairingRequests(user.user_id, selectedAgentId)
+      .then((pending) => {
+        if (active) setRequests(pending);
       })
       .catch((error) => active && setStatus(errorMessage(error)));
     return () => {
       active = false;
     };
   }, [selectedAgentId, user.user_id]);
-
-  async function startPairing() {
-    setBusy(true);
-    setStatus("");
-    try {
-      const result = await beginBrowserPairing(
-        user.user_id,
-        selectedAgentId,
-        browserDeviceName(),
-      );
-      setInstructions({
-        pairingId: result.request.pairing_id,
-        pairingSecret: result.pairingSecret,
-        localCommand: result.localCommand,
-      });
-      setStatus(
-        "Encryption access requested. Choose how to grant access to this browser.",
-      );
-    } catch (error) {
-      setStatus(errorMessage(error));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  useEffect(() => {
-    if (!accessMethod || !instructions || configured) {
-      return;
-    }
-    let active = true;
-    let checking = false;
-    const poll = async () => {
-      if (checking) return;
-      checking = true;
-      try {
-        await finishBrowserPairing(
-          user.user_id,
-          selectedAgentId,
-          instructions.pairingId,
-        );
-        if (active) {
-          setConfigured(true);
-          setInstructions(undefined);
-          setAccessMethod(undefined);
-          setStatus(
-            "Encryption access granted. This browser can now open encrypted sessions.",
-          );
-        }
-      } catch {
-        // The key package is expected to be unavailable until either approval
-        // method completes. Keep waiting without turning that state into an error.
-      } finally {
-        checking = false;
-      }
-    };
-    void poll();
-    const interval = window.setInterval(() => void poll(), 2500);
-    return () => {
-      active = false;
-      window.clearInterval(interval);
-    };
-  }, [accessMethod, configured, instructions, selectedAgentId, user.user_id]);
 
   async function refreshRequests() {
     setBusy(true);
@@ -204,7 +124,6 @@ function E2EEPairingPage({ user }: { user: User }) {
                   className="h-9 rounded-md border border-hairline bg-canvas px-3 text-sm text-ink"
                   onChange={(event) => {
                     setAgentId(event.target.value);
-                    setInstructions(undefined);
                     setAccessMethod(undefined);
                     setStatus("");
                   }}
@@ -224,17 +143,37 @@ function E2EEPairingPage({ user }: { user: User }) {
                 <Button
                   disabled={
                     busy ||
+                    pairing.busy ||
                     !selectedAgentId ||
                     configured ||
-                    Boolean(instructions)
+                    pairing.state.phase === "loading"
                   }
-                  onClick={() => void startPairing()}
+                  onClick={() => {
+                    setAccessMethod(undefined);
+                    setStatus("");
+                    void pairing.start(browserDeviceName());
+                  }}
                   variant="primary"
                 >
-                  {configured ? "This browser is ready" : "Add this browser"}
+                  {configured
+                    ? "This browser is ready"
+                    : instructions || pairing.state.phase === "unconfirmed"
+                      ? "Create new request"
+                      : "Add this browser"}
+                </Button>
+                <Button
+                  disabled={pairing.busy || !selectedAgentId}
+                  onClick={() => void pairing.refresh()}
+                >
+                  Check again
                 </Button>
               </div>
             </div>
+            {pairing.state.message && (
+              <p role="status" className="text-sm text-ink-muted">
+                {pairing.state.message}
+              </p>
+            )}
 
             {instructions && (
               <div className="grid gap-3 rounded-lg border border-accent/40 bg-canvas p-4">

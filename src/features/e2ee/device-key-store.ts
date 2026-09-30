@@ -16,6 +16,7 @@ export type PendingPairing = PairingContext & {
   publicKey: Uint8Array;
   secret: Uint8Array;
   createdAt: string;
+  expiresAt?: string;
 };
 
 export async function loadOrCreatePairingDevice() {
