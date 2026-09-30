@@ -225,6 +225,15 @@ export function AgentDetailPageClient({
           </div>
         </div>
 
+        {activeNodeId && (
+          <NodeDaemonControl
+            agentId={agentId}
+            key={`${activeNodeId}:${agentId}`}
+            nodeId={activeNodeId}
+            userId={user.user_id}
+          />
+        )}
+
         <section className="grid gap-3">
           <SectionHeader count={sessions.length} title="Recent sessions" />
           <div className="grid min-w-0 overflow-hidden rounded-lg border border-hairline">

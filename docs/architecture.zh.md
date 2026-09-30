@@ -809,6 +809,10 @@ paxd 已接收请求，不作为运行完成状态。
 
 agent connection 创建和编辑支持 `desired_slots`（范围 1–16），新建默认值为
 `2`；connection 列表展示的是期望 slot 数，不代表当前已 running 的 slot 数。
+Agent 详情页也复用 `NodeDaemonControl`，按 `cloud_agent_id` 精确筛选当前 agent，
+通过 Agent runtime settings → Edit settings 编辑 Slots 和运行配置。两处共用
+节点 query cache、PATCH 接口及运行状态收敛逻辑；Agent 入口不展示节点级发现、
+新建或 harness inventory。无匹配连接时明确提示不可配置，不按名称或列表顺序猜测。
 停止后的 connection 显示 Start 按钮，通过 PATCH `desired_state: "running"`
 重新启用，并等待新的 generation 收敛到 running。
 

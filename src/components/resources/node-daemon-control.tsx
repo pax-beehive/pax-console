@@ -43,6 +43,7 @@ import {
 } from "./resource-models";
 
 type NodeDaemonControlProps = {
+  agentId?: string;
   nodeId: string;
   userId: string;
 };
@@ -61,7 +62,11 @@ type DiscoverFeedback = {
   total: number;
 };
 
-export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
+export function NodeDaemonControl({
+  agentId,
+  nodeId,
+  userId,
+}: NodeDaemonControlProps) {
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<NodeDaemonAgentConnection>();
@@ -86,7 +91,12 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
       ? (connections) => !nodeDaemonRuntimeOutcome(runtimeTarget, connections)
       : undefined,
   );
-  const connections = connectionsQuery.data?.agent_connections?.items ?? [];
+  const allConnections = connectionsQuery.data?.agent_connections?.items ?? [];
+  const connections = agentId
+    ? allConnections.filter(
+        (connection) => connection.cloud_agent_id === agentId,
+      )
+    : allConnections;
   const runtimeOutcome = runtimeTarget
     ? nodeDaemonRuntimeOutcome(runtimeTarget, connections)
     : undefined;
@@ -260,7 +270,9 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
     <section className="grid min-w-0 gap-3 rounded-lg border border-hairline bg-surface-1 p-3">
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <h2 className="text-base font-medium">paxd agent control</h2>
+          <h2 className="text-base font-medium">
+            {agentId ? "Agent runtime settings" : "paxd agent control"}
+          </h2>
           <Badge tone={phase === "running" ? "success" : "neutral"}>
             {phase ?? (statusQuery.isLoading ? "checking" : "unavailable")}
           </Badge>
@@ -278,56 +290,67 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
             type="button"
             variant="ghost"
           />
-          <Button
-            disabled={
-              discover.isPending || controlQueryBusy || runtimeReconciling
-            }
-            icon={<ScanSearch className="h-4 w-4" />}
-            onClick={() => discover.mutate()}
-            size="sm"
-            tooltip="Probe this node for installed agent harnesses"
-            type="button"
-          >
-            {discover.isPending ? "Discovering..." : "Discover"}
-          </Button>
-          <Button
-            disabled={
-              !canCreateAgent ||
-              runtimeReconciling ||
-              controlQueryBusy ||
-              discover.isPending
-            }
-            icon={<Plus className="h-4 w-4" />}
-            onClick={() => setCreateOpen((open) => !open)}
-            size="sm"
-            tooltip={
-              canCreateAgent
-                ? "Create a new agent from an available harness"
-                : "Run Discover and make sure at least one harness is available before creating an agent"
-            }
-            type="button"
-            variant="primary"
-          >
-            New agent
-          </Button>
+          {!agentId && (
+            <>
+              <Button
+                disabled={
+                  discover.isPending || controlQueryBusy || runtimeReconciling
+                }
+                icon={<ScanSearch className="h-4 w-4" />}
+                onClick={() => discover.mutate()}
+                size="sm"
+                tooltip="Probe this node for installed agent harnesses"
+                type="button"
+              >
+                {discover.isPending ? "Discovering..." : "Discover"}
+              </Button>
+              <Button
+                disabled={
+                  !canCreateAgent ||
+                  runtimeReconciling ||
+                  controlQueryBusy ||
+                  discover.isPending
+                }
+                icon={<Plus className="h-4 w-4" />}
+                onClick={() => setCreateOpen((open) => !open)}
+                size="sm"
+                tooltip={
+                  canCreateAgent
+                    ? "Create a new agent from an available harness"
+                    : "Run Discover and make sure at least one harness is available before creating an agent"
+                }
+                type="button"
+                variant="primary"
+              >
+                New agent
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
-      <div className="grid gap-2 rounded-md border border-hairline bg-canvas px-3 py-2.5">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <Badge tone={discoverStatusTone}>{discoverStatusLabel}</Badge>
-          <span className="text-sm text-ink-muted">{discoverMessage}</span>
+      {agentId ? (
+        <p className="text-sm text-ink-muted">
+          Edit this agent’s Slots and runtime configuration. Changes also appear
+          in the node’s settings.
+        </p>
+      ) : (
+        <div className="grid gap-2 rounded-md border border-hairline bg-canvas px-3 py-2.5">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <Badge tone={discoverStatusTone}>{discoverStatusLabel}</Badge>
+            <span className="text-sm text-ink-muted">{discoverMessage}</span>
+          </div>
+          <div className="flex min-w-0 flex-wrap gap-x-3 gap-y-1 text-xs text-ink-tertiary">
+            <span>
+              {availableHarnesses.length}/{harnesses.length} harnesses available
+            </span>
+            <span>{connections.length} current connections</span>
+            <span>
+              New agents inherit their agent type from the selected harness.
+            </span>
+          </div>
         </div>
-        <div className="flex min-w-0 flex-wrap gap-x-3 gap-y-1 text-xs text-ink-tertiary">
-          <span>
-            {availableHarnesses.length}/{harnesses.length} harnesses available
-          </span>
-          <span>{connections.length} current connections</span>
-          <span>
-            New agents inherit their agent type from the selected harness.
-          </span>
-        </div>
-      </div>
+      )}
 
       {(queryError || controlError || mutationError) && (
         <div className="rounded-md border border-warning bg-canvas px-3 py-2 text-xs text-ink-muted">
@@ -379,6 +402,7 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
             <ConnectionRow
               busy={action.isPending || runtimeReconciling || controlQueryBusy}
               connection={connection}
+              editLabel={agentId ? "Edit settings" : undefined}
               key={connection.id}
               onEdit={() => setEditing(connection)}
               onRemove={() => setRemoveTarget(connection)}
@@ -388,11 +412,15 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
             />
           ),
         )}
-        {!connectionsQuery.isLoading && connections.length === 0 && (
-          <div className="bg-canvas px-3 py-5 text-center text-sm text-ink-tertiary">
-            No paxd-managed agent connections.
-          </div>
-        )}
+        {connectionsQuery.isSuccess &&
+          !controlError &&
+          connections.length === 0 && (
+            <div className="bg-canvas px-3 py-5 text-center text-sm text-ink-tertiary">
+              {agentId
+                ? "No paxd-managed connection is linked to this agent. Runtime settings are unavailable."
+                : "No paxd-managed agent connections."}
+            </div>
+          )}
         {connectionsQuery.isLoading && (
           <div className="bg-canvas px-3 py-5 text-center text-sm text-ink-tertiary">
             Loading daemon connections…
@@ -400,11 +428,13 @@ export function NodeDaemonControl({ nodeId, userId }: NodeDaemonControlProps) {
         )}
       </div>
 
-      <HarnessInventory
-        harnesses={harnesses}
-        isLoading={harnessesQuery.isLoading}
-        lastDiscoveredAt={discoverFeedback?.discoveredAt}
-      />
+      {!agentId && (
+        <HarnessInventory
+          harnesses={harnesses}
+          isLoading={harnessesQuery.isLoading}
+          lastDiscoveredAt={discoverFeedback?.discoveredAt}
+        />
+      )}
 
       <ConfirmDialog
         confirmLabel={action.isPending ? "Removing..." : "Remove connection"}
@@ -518,6 +548,7 @@ function HarnessInventory({
 function ConnectionRow({
   busy,
   connection,
+  editLabel,
   onEdit,
   onRemove,
   onRestart,
@@ -526,6 +557,7 @@ function ConnectionRow({
 }: {
   busy: boolean;
   connection: NodeDaemonAgentConnection;
+  editLabel?: string;
   onEdit: () => void;
   onRemove: () => void;
   onRestart: () => void;
@@ -568,14 +600,17 @@ function ConnectionRow({
       </div>
       <div className="flex items-start justify-end gap-1">
         <Button
+          aria-label={editLabel ?? "Edit connection"}
           disabled={busy}
           icon={<Pencil className="h-4 w-4" />}
           onClick={onEdit}
-          size="icon"
+          size={editLabel ? "sm" : "icon"}
           tooltip="Edit connection"
           type="button"
           variant="ghost"
-        />
+        >
+          {editLabel}
+        </Button>
         {connection.desired_state === "stopped" ? (
           <Button
             disabled={busy}
