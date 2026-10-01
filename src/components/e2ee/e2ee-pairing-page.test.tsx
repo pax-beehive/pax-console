@@ -145,7 +145,7 @@ describe("pairing recovery and orphan request diagnostics", () => {
   it("allows a browser with no pending request to start pairing", async () => {
     await openPage();
     expect(
-      screen.getByRole("button", { name: "Add this browser" }),
+      screen.getByRole("button", { name: "Authorize this device" }),
     ).toBeEnabled();
   });
 
@@ -161,7 +161,7 @@ describe("pairing recovery and orphan request diagnostics", () => {
       "pair_expired",
     );
     expect(
-      screen.getByRole("button", { name: "Add this browser" }),
+      screen.getByRole("button", { name: "Authorize this device" }),
     ).toBeEnabled();
   });
 
@@ -200,7 +200,7 @@ describe("pairing recovery and orphan request diagnostics", () => {
     mocks.finishBrowserPairing.mockResolvedValue(new Uint8Array(32));
     await openPage();
     expect(
-      screen.getByRole("button", { name: "This browser is ready" }),
+      screen.getByRole("button", { name: "This device is ready" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByText("Waiting for encryption access…"),
@@ -223,7 +223,7 @@ describe("pairing recovery and orphan request diagnostics", () => {
       await vi.advanceTimersByTimeAsync(2500);
     });
     expect(
-      screen.getByRole("button", { name: "This browser is ready" }),
+      screen.getByRole("button", { name: "This device is ready" }),
     ).toBeInTheDocument();
     expect(mocks.finishBrowserPairing).toHaveBeenCalledTimes(2);
   });
@@ -235,7 +235,7 @@ describe("pairing recovery and orphan request diagnostics", () => {
       throw new TypeError("Lost response");
     });
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Add this browser" }));
+      fireEvent.click(screen.getByRole("button", { name: "Authorize this device" }));
     });
     expect(screen.getByRole("status")).toHaveTextContent(
       "creation result is unknown",
@@ -269,7 +269,7 @@ describe("pairing recovery and orphan request diagnostics", () => {
     });
     expect(mocks.finishBrowserPairing).toHaveBeenCalledTimes(calls);
     expect(
-      screen.getByRole("button", { name: "Add this browser" }),
+      screen.getByRole("button", { name: "Authorize this device" }),
     ).toBeEnabled();
   });
 
@@ -290,7 +290,7 @@ describe("pairing recovery and orphan request diagnostics", () => {
       fireEvent.click(screen.getByRole("button", { name: "Check again" }));
     });
     expect(
-      screen.getByRole("button", { name: "This browser is ready" }),
+      screen.getByRole("button", { name: "This device is ready" }),
     ).toBeInTheDocument();
   });
 });

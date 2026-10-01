@@ -130,7 +130,7 @@ const copy: Record<
   },
   encryption: {
     title: "Encrypted chats",
-    eyebrow: "browser access and encryption keys",
+    eyebrow: "device access and encryption keys",
     icon: <ShieldCheck className="h-4 w-4" />,
   },
   monitor: {
@@ -1028,7 +1028,7 @@ function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
       await saveRootKey(selectedAgentId, encodedKey);
       setEncodedKey("");
       setConfigured(true);
-      setStatus("Root key saved in this browser.");
+      setStatus("Root key saved on this device.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
     } finally {
@@ -1043,7 +1043,7 @@ function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
       await deleteRootKey(selectedAgentId);
       setConfigured(false);
       setEncodedKey("");
-      setStatus("Root key removed from this browser.");
+      setStatus("Root key removed from this device.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
     } finally {
@@ -1074,7 +1074,7 @@ function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
           <h2 className="text-sm font-medium">Encrypted session access</h2>
           <p className="mt-1 text-xs text-ink-tertiary">
             Pair this device to open end-to-end encrypted sessions. Encryption
-            keys remain in this browser and are never sent to PAX Manager.
+            keys stay locally and are never sent to PAX Manager.
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
