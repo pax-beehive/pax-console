@@ -740,7 +740,8 @@ Sidebar 一级入口是粗粒度工作区（顶部 Home / Collaboration，底部
 /collaboration/knowledge       Knowledge capsules
 /settings                      Settings directory
 /settings/devices              Devices; ?view=agents selects Agents
-/settings/devices/add          Quick connect / Pair with code
+/settings/devices/add          Quick connect / Browser sign-in
+/settings/devices/agents/add   Agent setup; optional nodeId selects a computer
 /settings/projects             Project hierarchy and launch Targets
 /settings/service-status       PAX health, devices and agents independently
 /settings/advanced             Advanced settings directory
@@ -1581,14 +1582,35 @@ JSON escapes `<` to prevent closing-script injection. REST remains /api/pax.
 运行控制、Agent 管理、浏览器控制保留。Project/Target CRUD 仍复用现有组件。
 旧 Security、Developer、Diagnostics 等入口保留重定向；手机页面提供返回上层入口。
 
-Quick connect 通过同源 API 创建当前用户的一次性注册 token，不传 admin-only
-owner override。命令使用配置的 public runtime origin，token 只保存在当前页面内存，
-一小时后可重新生成。同一命令先安装 paxl，再安装并配置 paxd；两个 installer
-使用当前 public origin 下载，各自通过 bash pipefail 执行，以 && 串联，下载或
-安装失败时停止。生成的 token 仅传入 paxd 步骤，setup 消费后立即清理环境，
-复用原有凭据持久化与 service 安装/启动流程。旧 pairing 与 `/connect` 完整保留。
-发布时必须先上线支持 `--registration-token-env` 的 paxd binary 和 installer。
-功能迁移与验证记录见 `settings-migration.md`。
+`components/connect/connection-onboarding.tsx` 统一首页和资源空态、Settings
+新增设备/Agent 的两步引导：连接电脑，再选择 Agent。节点详情通过 `nodeId`
+预选电脑，多电脑时由用户选择。空态开始引导后保持挂载，避免新设备/Agent
+进入 query cache 时把进行中的流程卸载。
+
+Quick connect 通过同源 API 创建当前用户的一次性注册 token，不传 owner override。
+命令使用 public runtime origin，只调用一次 paxd installer，设置
+`PAX_SETUP_AFTER_INSTALL=1`，由新版 installer 统一安装 paxl、paxd 并 setup。
+通过 bash pipefail 返回下载/安装错误。Browser sign-in 使用相同的完整安装命令，
+显式清空环境中可能残留的 `PAX_REGISTRATION_TOKEN`，继续使用终端登录链接和
+`/connect` 原有配对流程，无需预装 CLI。
+
+Token 只保存在已挂载组件的临时状态，不进 URL、日志或 Query/mutation cache。
+按服务器期限过期（无有效期限时回退一小时）并允许重新生成。两种模式均先记录
+已在线电脑，再轮询新上线设备。现有 API 无 token 与 node 的关联，因此需要用户
+选择自己的在线电脑，不把其他新上线设备直接判定为本次 token 注册成功。
+
+Agent 选择提供 Codex、Claude Code 和电脑报告的其他类型。缺少 adapter 时给出
+对应 npm 安装命令；仅找到 npx 时说明首次连接会下载 adapter，不宣称已安装。
+现有 API 不能单独检查 Agent 本体或登录状态，页面明确显示未检查，不能用 adapter
+发现结果推断本体缺失或已登录。runtime running 只表示连接已启动，不证明认证或
+ACP prompt 成功。
+
+发现和连接状态查询串行，遵守 paxd 每节点只有一个在途查询的限制。创建 ACK 后
+按 connection ID、observed generation/restart nonce 和 running phase 确认，成功后
+才显示 Start a conversation。离线时阻止操作；runtime 失败重试同一个 connection；
+创建响应不确定时引导到设备设置检查，避免重复创建。自动轮询超过 90 秒停止并
+提供手动检查。部署 Console 前需先上线支持组合安装与 `--registration-token-env`
+的 paxd installer/binary。功能迁移记录见 `settings-migration.md`。
 
 ## 输出空档与 artifact 阅读宽度
 

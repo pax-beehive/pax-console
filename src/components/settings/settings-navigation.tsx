@@ -15,6 +15,7 @@ export const settingsLinks = {
   apiKeys: "/settings/advanced/api-keys",
   registration: "/settings/advanced/node-registration",
   addDevice: "/settings/devices/add",
+  addAgent: "/settings/devices/agents/add",
 } as const;
 
 export function SettingsBack({
