@@ -22,6 +22,8 @@ import {
 import { loadRootKey, saveRootKey } from "./root-key-store";
 
 export type E2EEPairingRequest = {
+  protocol_version?: "legacy-v1" | "short-code-v2";
+  server_time?: string;
   pairing_id: string;
   node_id: string;
   agent_id: string;
@@ -63,7 +65,10 @@ export type BrowserPairingInstructions = {
 export async function createE2EEPairingRequest(
   userId: string,
   agentId: string,
-  input: CreatePairingInput,
+  input: CreatePairingInput & {
+    protocol_version?: string;
+    recipient_capability?: string;
+  },
 ) {
   return apiFetch<E2EEPairingRequest>(pairingPath(userId, agentId), {
     method: "POST",
@@ -82,7 +87,13 @@ export async function getE2EEPairingStatus(
 ) {
   return apiFetch<
     E2EEPairingRequest & {
-      status: "pending" | "approved" | "expired" | "superseded";
+      status:
+        | "pending"
+        | "approved"
+        | "expired"
+        | "superseded"
+        | "cancelled"
+        | "rejected";
     }
   >(`${pairingPath(userId, agentId)}/${encodeURIComponent(pairingId)}`, {
     cache: "no-store",
@@ -100,12 +111,17 @@ export async function completeE2EEPairingRequest(
   agentId: string,
   pairingId: string,
   wrapped: WrappedAgentRootKey,
+  approval?: { attemptId: string; capability: string },
 ) {
   return apiFetch<E2EEKeyPackage>(
     `${pairingPath(userId, agentId)}/${encodeURIComponent(pairingId)}/package`,
     {
       method: "POST",
+      ...(approval
+        ? { headers: { "X-Pax-Pairing-Capability": approval.capability } }
+        : {}),
       body: JSON.stringify({
+        ...(approval ? { attempt_id: approval.attemptId } : {}),
         sender_ephemeral_public_key: wrapped.sender_ephemeral_public_key,
         nonce: wrapped.nonce,
         ciphertext: wrapped.ciphertext,
@@ -133,6 +149,7 @@ export async function beginBrowserPairing(
   agentId: string,
   deviceName: string,
   keyEpoch = 1,
+  shortCode = false,
 ) {
   const device = await loadOrCreatePairingDevice();
   const secret = createPairingSecret();
@@ -148,6 +165,19 @@ export async function beginBrowserPairing(
     device.publicKey,
   );
   const pending: PendingPairing = {
+    ...(shortCode
+      ? {
+          shortCode: {
+            ownerUserId: userId,
+            seed: encodePairingValue(
+              crypto.getRandomValues(new Uint8Array(32)),
+            ),
+            capability: encodePairingValue(
+              crypto.getRandomValues(new Uint8Array(32)),
+            ),
+          },
+        }
+      : {}),
     ...context,
     privateKey: device.privateKey,
     publicKey: device.publicKey,
@@ -158,6 +188,12 @@ export async function beginBrowserPairing(
   let request: E2EEPairingRequest;
   try {
     request = await createE2EEPairingRequest(userId, agentId, {
+      ...(pending.shortCode
+        ? {
+            protocol_version: "short-code-v2",
+            recipient_capability: pending.shortCode.capability,
+          }
+        : {}),
       pairing_id: context.pairingId,
       device_id: context.deviceId,
       device_name: deviceName,
@@ -175,6 +211,13 @@ export async function beginBrowserPairing(
       await deletePendingPairing(context.pairingId);
     }
     throw error;
+  }
+  if (pending.shortCode) {
+    if (request.protocol_version !== "short-code-v2" || !request.server_time)
+      throw new Error("Manager does not support short-code pairing");
+    pending.shortCode.serverCreatedAt = request.created_at;
+    pending.shortCode.clockOffsetMs =
+      Date.parse(request.server_time) - Date.now();
   }
   await savePendingPairing({ ...pending, expiresAt: request.expires_at });
   return {
@@ -240,6 +283,7 @@ export async function approveBrowserPairing(
   userId: string,
   request: E2EEPairingRequest,
   encodedSecret: string,
+  approval?: { attemptId: string; capability: string },
 ) {
   const rootKey = await loadRootKey(request.agent_id);
   if (!rootKey) {
@@ -267,6 +311,7 @@ export async function approveBrowserPairing(
     request.agent_id,
     request.pairing_id,
     wrapped,
+    approval,
   );
 }
 

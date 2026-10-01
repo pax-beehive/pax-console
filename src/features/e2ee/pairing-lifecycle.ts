@@ -9,7 +9,14 @@ import {
 } from "./key-distribution";
 
 export type BrowserPairingState = {
-  phase: "pending" | "unconfirmed" | "expired" | "superseded" | "ready";
+  phase:
+    | "pending"
+    | "unconfirmed"
+    | "expired"
+    | "superseded"
+    | "cancelled"
+    | "rejected"
+    | "ready";
   pending: PendingPairing;
   instructions?: BrowserPairingInstructions;
   message?: string;
@@ -51,8 +58,23 @@ export async function inspectBrowserPairing(
       pending.pairingId,
     );
     if (request.status === "pending") {
-      const confirmed = { ...pending, expiresAt: request.expires_at };
-      if (confirmed.expiresAt !== pending.expiresAt)
+      const confirmed = {
+        ...pending,
+        expiresAt: request.expires_at,
+        ...(pending.shortCode && request.server_time
+          ? {
+              shortCode: {
+                ...pending.shortCode,
+                serverCreatedAt: request.created_at,
+                clockOffsetMs: Date.parse(request.server_time) - Date.now(),
+              },
+            }
+          : {}),
+      };
+      if (
+        confirmed.expiresAt !== pending.expiresAt ||
+        (confirmed.shortCode && !pending.shortCode?.serverCreatedAt)
+      )
         await savePendingPairing(confirmed);
       return {
         phase: "pending",
@@ -68,7 +90,12 @@ export async function inspectBrowserPairing(
         "Access was approved, but the key package could not be retrieved. Check again or create a new request.",
       );
     }
-    if (request.status === "expired" || request.status === "superseded") {
+    if (
+      request.status === "expired" ||
+      request.status === "superseded" ||
+      request.status === "cancelled" ||
+      request.status === "rejected"
+    ) {
       return terminal(pending, request.status);
     }
     return uncertain(
@@ -101,14 +128,18 @@ function uncertain(
 
 function terminal(
   pending: PendingPairing,
-  phase: "expired" | "superseded",
+  phase: "expired" | "superseded" | "cancelled" | "rejected",
 ): BrowserPairingState {
   return {
     phase,
     pending,
     message:
-      phase === "expired"
-        ? "This pairing request expired. Create a new request to continue."
-        : "This pairing request was replaced. Use the latest request or create a new one.",
+      phase === "cancelled"
+        ? "This pairing request was cancelled."
+        : phase === "rejected"
+          ? "This pairing request was declined."
+          : phase === "expired"
+            ? "This pairing request expired. Create a new request to continue."
+            : "This pairing request was replaced. Use the latest request or create a new one.",
   };
 }

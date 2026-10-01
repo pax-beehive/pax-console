@@ -12,6 +12,13 @@ const BROWSER_DEVICE_ID = "browser-device";
 type StoredDeviceKey = PairingDeviceKey & { id: string; createdAt: string };
 
 export type PendingPairing = PairingContext & {
+  shortCode?: {
+    ownerUserId: string;
+    seed: string;
+    capability: string;
+    serverCreatedAt?: string;
+    clockOffsetMs?: number;
+  };
   privateKey: CryptoKey;
   publicKey: Uint8Array;
   secret: Uint8Array;
