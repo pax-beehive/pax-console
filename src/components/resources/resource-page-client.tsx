@@ -1068,7 +1068,7 @@ function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
   }
 
   return (
-    <section className="grid gap-4 rounded-lg border border-hairline bg-surface-1 p-4">
+    <section className="grid min-w-0 gap-4 rounded-lg border border-hairline bg-surface-1 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-medium">Encrypted session access</h2>
@@ -1095,11 +1095,11 @@ function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
         </div>
       </div>
       {agents.length > 0 ? (
-        <div className="grid gap-3 sm:max-w-md">
-          <label className="grid gap-1 text-xs text-ink-tertiary">
+        <div className="grid min-w-0 gap-3 sm:max-w-md">
+          <label className="grid min-w-0 gap-1 text-xs text-ink-tertiary">
             Agent
             <select
-              className="h-9 rounded-md border border-hairline bg-canvas px-3 text-base text-ink outline-none focus:border-accent sm:text-sm"
+              className="h-9 w-full min-w-0 rounded-md border border-hairline bg-canvas px-3 text-base text-ink outline-none focus:border-accent sm:text-sm"
               onChange={(event) => setAgentId(event.target.value)}
               value={selectedAgentId}
             >
@@ -1110,7 +1110,7 @@ function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
               ))}
             </select>
           </label>
-          <details className="rounded-lg border border-hairline bg-canvas p-3">
+          <details className="min-w-0 rounded-lg border border-hairline bg-canvas p-3">
             <summary className="cursor-pointer text-sm font-medium text-ink-muted">
               Advanced: manually manage root key
             </summary>
@@ -1118,11 +1118,11 @@ function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
               Development use only. Generating a different key from paxd will
               make encrypted sessions unreadable on this device.
             </p>
-            <label className="mt-3 grid gap-1 text-xs text-ink-tertiary">
+            <label className="mt-3 grid min-w-0 gap-1 text-xs text-ink-tertiary">
               Base64 root key
               <input
                 autoComplete="off"
-                className="h-9 rounded-md border border-hairline bg-surface-1 px-3 font-mono text-base text-ink outline-none focus:border-accent sm:text-sm"
+                className="h-9 w-full min-w-0 rounded-md border border-hairline bg-surface-1 px-3 font-mono text-base text-ink outline-none focus:border-accent sm:text-sm"
                 onChange={(event) => setEncodedKey(event.target.value)}
                 placeholder="32-byte base64 value"
                 type="password"

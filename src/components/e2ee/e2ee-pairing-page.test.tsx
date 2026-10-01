@@ -252,6 +252,7 @@ describe("pairing recovery and orphan request diagnostics", () => {
       );
     });
     await chooseMethod();
+    fireEvent.click(screen.getByRole("button", { name: "Show code" }));
     expect(screen.getByText(/pair_fresh\/complete/)).toBeInTheDocument();
     expect(mocks.beginBrowserPairing).toHaveBeenCalledTimes(2);
   });

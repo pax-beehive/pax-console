@@ -1671,3 +1671,46 @@ positions as parts catch up. Normalize ACP/native session IDs to the PAX route
 before matching. Live events are retained for the mounted session rather than
 blindly truncating at 500; future pruning must prove durable coverage first.
 The ordinary session reconciliation and history normalization are unchanged.
+
+E2EE device authorization uses `short-code-v2` for the eight-digit browser flow.
+A new browser keeps a random code seed, the original high-entropy pairing secret,
+and a recipient capability in IndexedDB v3. The code rotates every 60 seconds;
+the previous generation has a 30-second grace period. A request lasts 10 minutes.
+An authorized browser matches the code automatically, then explicitly approves
+within 30 seconds. Neither matching nor displaying the code transfers the root
+key. Device names are descriptive labels, not independently verified identities.
+
+`short-code-crypto.ts` runs both OPAQUE roles using pinned
+`@serenity-kit/opaque@1.1.0`; `short-code.worker.ts` keeps WASM work off the UI
+thread. Registration/setup remain local. The relay receives login messages and
+an authenticated encrypted copy of the original pairing secret, never an
+8-digit-code commitment/verifier. OPAQUE identities and AES-GCM AAD bind account,
+agent, request, recipient public key, device, epoch, attempt, and generation.
+The existing root-key wrapping protocol is reused after explicit approval.
+The library has a published security review; this application protocol has not
+had an independent cryptographic audit.
+
+Manager must be deployed first with its additive schema and short-code routes.
+All requests still use the same-origin proxy. `X-Pax-Pairing-Capability` contains
+a random 32-byte capability (not the short code); Manager persists only its hash.
+The authorized browser tries at most three pending v2 requests and two valid code
+generations per request. Every handshake, including successful ones, consumes
+one of 30 attempts per account and account/agent in a fixed 10-minute window.
+Manager stores counters transactionally across instances; the receiving browser
+also persists a local budget against a dishonest relay. Rotation, regeneration,
+and reload do not reset that budget. Multiple successful matches fail closed.
+
+Where available, a browser Web Lock serializes recipient work across tabs.
+The recipient saves each handshake answer before posting it so lost responses
+and reloads can resume it. Expired/failed handshakes cannot deliver keys. Request
+terminal states include approved, expired, superseded, cancelled, and rejected.
+The existing approved-package recovery remains available after request expiry.
+The paxd command option creates a fresh legacy request; it never passes a short
+code to the legacy verifier. No paxd upgrade is needed for that option.
+
+Validation: `pnpm test run src/features/e2ee src/components/e2ee` covers lifecycle,
+crypto, timing and UI. `node scripts/e2ee-short-code-browser-check.mjs` against a
+local production build (default port 3028, override `E2EE_CHECK_URL`) uses two
+isolated Chrome contexts and mocked API traffic to verify both device directions,
+wrong codes, refresh recovery, explicit consent, actual key decryption, and mobile
+overflow. It requires locally installed Chrome and does not access real accounts.
