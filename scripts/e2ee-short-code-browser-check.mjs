@@ -231,13 +231,13 @@ async function scenario(browser, recipientWidth, approverWidth) {
   const path = base + "/e2ee/pairing?agentId=a1";
   await Promise.all([recipient.goto(path), approver.goto(path)]);
   await approver
-    .getByRole("button", { name: "Add this browser", exact: true })
+    .getByRole("button", { name: "Authorize this device", exact: true })
     .waitFor();
   await grantFixture(approver);
   await approver.reload();
   await approver.getByLabel("Code from the new device").waitFor();
   await recipient
-    .getByRole("button", { name: "Add this browser", exact: true })
+    .getByRole("button", { name: "Authorize this device", exact: true })
     .click();
   await recipient
     .getByRole("button", { name: "Show code", exact: true })

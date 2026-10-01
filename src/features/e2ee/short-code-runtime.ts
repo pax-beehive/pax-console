@@ -267,7 +267,7 @@ export async function matchShortCode(
 ): Promise<ShortCodeGrant> {
   const code = normalizeShortCode(input);
   if (!(await loadRootKey(agentId)))
-    throw new Error("This browser is not authorized");
+    throw new Error("This device is not authorized");
   const requests = (await listE2EEPairingRequests(userId, agentId)).filter(
     (r) => r.protocol_version === "short-code-v2",
   );

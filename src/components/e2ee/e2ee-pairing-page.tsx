@@ -109,7 +109,7 @@ function DeviceAccess({
       )}
       {ready ? (
         <>
-          <Button disabled>This browser is ready</Button>
+          <Button disabled>This device is ready</Button>
           <ShortCodeApprover userId={userId} agentId={agentId} />
           <LegacyRequests userId={userId} agentId={agentId} />
         </>
@@ -143,19 +143,19 @@ function DeviceAccess({
             disabled={pairing.busy || pairing.state.phase === "loading"}
             onClick={() => {
               setCommandOpen(false);
-              void pairing.start(browserDeviceName(), true);
+              void pairing.start(pairingDeviceName(), true);
             }}
           >
             {instructions || pairing.state.phase === "unconfirmed"
               ? "Create new request"
-              : "Add this browser"}
+              : "Authorize this device"}
           </Button>
           {(!instructions || activeShort) && (
             <Button
               disabled={pairing.busy || pairing.state.phase === "loading"}
               onClick={() => {
                 setCommandOpen(true);
-                void pairing.start(browserDeviceName());
+                void pairing.start(pairingDeviceName());
               }}
             >
               Use paxd command instead
@@ -259,11 +259,11 @@ function LegacyRequests({
   );
 }
 
-function browserDeviceName() {
+function pairingDeviceName() {
   const platform =
     (navigator as Navigator & { userAgentData?: { platform?: string } })
       .userAgentData?.platform || navigator.platform;
-  return `${navigator.userAgent.includes("Chrome") ? "Chrome" : "Browser"} on ${platform || "device"}`;
+  return platform ? `Device on ${platform}` : "This device";
 }
 
 function agentLabel(agent: Agent, nodes: Node[]) {

@@ -102,7 +102,7 @@ export async function getE2EEPairingStatus(
 
 export class PairingPackageMismatchError extends Error {
   constructor() {
-    super("Wrapped root key route does not match this browser");
+    super("Wrapped root key route does not match this device");
   }
 }
 
@@ -248,7 +248,7 @@ export async function finishBrowserPairing(
 ) {
   const pending = await loadPendingPairing(pairingId);
   if (!pending || pending.agentId !== agentId) {
-    throw new Error("This browser has no pending device key for the pairing");
+    throw new Error("This device has no pending device key for the pairing");
   }
   const keyPackage = await getE2EEKeyPackage(
     userId,
@@ -287,7 +287,7 @@ export async function approveBrowserPairing(
 ) {
   const rootKey = await loadRootKey(request.agent_id);
   if (!rootKey) {
-    throw new Error("This browser does not hold the agent root key");
+    throw new Error("This device does not hold the agent root key");
   }
   const secret = decodePairingValue(encodedSecret.trim());
   const recipientPublicKey = decodePairingValue(request.recipient_public_key);
@@ -298,7 +298,7 @@ export async function approveBrowserPairing(
     recipientPublicKey,
   );
   if (!equalBytes(commitment, decodePairingValue(request.secret_commitment))) {
-    throw new Error("Pairing secret does not match the new browser request");
+    throw new Error("Pairing secret does not match the new device request");
   }
   const wrapped = await wrapAgentRootKey(
     rootKey,
