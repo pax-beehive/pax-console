@@ -1,10 +1,5 @@
 "use client";
 
-import {
-  normalizeEncryptedHistory,
-  reconcileEncryptedTimeline,
-} from "@/features/e2ee/reconcile-history";
-
 import { stageEncryptedAttachment } from "@/features/e2ee/attachments";
 
 import {
@@ -1497,15 +1492,20 @@ export function SessionWorkbench({
   const historyEvents = useMemo(
     () =>
       usesEncryptedTransport
-        ? normalizeEncryptedHistory(historyMessages)
+        ? encryptedRuntime.historyEvents
         : mergeEvents(normalizeHistoryMessages(historyMessages)),
-    [historyMessages, usesEncryptedTransport],
+    [historyMessages, usesEncryptedTransport, encryptedRuntime.historyEvents],
   );
 
   const reconciledTimeline = useMemo(
     () =>
       usesEncryptedTransport
-        ? reconcileEncryptedTimeline(historyEvents, encryptedRuntime.events)
+        ? {
+            timeline: mergeEvents([
+              ...historyEvents,
+              ...encryptedRuntime.events,
+            ]),
+          }
         : reconcileSessionTimeline(
             historyEvents,
             usesEncryptedTransport

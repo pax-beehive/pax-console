@@ -1,14 +1,14 @@
 /* @vitest-environment jsdom */
 
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EncryptedEventContext } from "./transport";
 import { useE2EESessionRuntime } from "./use-e2ee-session-runtime";
 
 const mocks = vi.hoisted(() => ({
-  loadEncryptedSessionHistory: vi.fn(),
+  loadEncryptedTurn: vi.fn(),
   loadRootKey: vi.fn(),
   uploadEncryptedAttachment: vi.fn(),
   observeEncryptedEvents: vi.fn(),
@@ -21,12 +21,17 @@ vi.mock("./attachments", () => ({
 
 vi.mock("./root-key-store", () => ({ loadRootKey: mocks.loadRootKey }));
 vi.mock("./transport", () => ({
-  loadEncryptedSessionHistory: mocks.loadEncryptedSessionHistory,
   observeEncryptedEvents: mocks.observeEncryptedEvents,
   sendEncryptedCommand: mocks.sendEncryptedCommand,
 }));
 
+vi.mock("./replay", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./replay")>()),
+  loadEncryptedTurn: mocks.loadEncryptedTurn,
+}));
+
 describe("useE2EESessionRuntime", () => {
+  afterEach(() => cleanup());
   let observerOptions:
     | {
         onFrame: (
@@ -41,7 +46,10 @@ describe("useE2EESessionRuntime", () => {
     vi.clearAllMocks();
     observerOptions = undefined;
     mocks.loadRootKey.mockResolvedValue(new Uint8Array(32).fill(7));
-    mocks.loadEncryptedSessionHistory.mockResolvedValue({
+    mocks.loadEncryptedTurn.mockResolvedValue({
+      headCursor: 0,
+      replayEvents: [],
+      turnRef: "turn",
       messages: [],
       pagination: { has_more: false, next_before_id: 0 },
     });
@@ -67,7 +75,7 @@ describe("useE2EESessionRuntime", () => {
     });
   });
 
-  it("isolates prompt context caches when switching sessions", async () => {
+  it("isolates replay requests and cancellation when switching sessions", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
@@ -85,27 +93,71 @@ describe("useE2EESessionRuntime", () => {
       { wrapper, initialProps: { sessionId: "first" } },
     );
     await waitFor(() => expect(result.current.rootKeyAvailable).toBe(true));
-    await waitFor(() =>
-      expect(mocks.loadEncryptedSessionHistory).toHaveBeenCalled(),
-    );
-    const first = mocks.loadEncryptedSessionHistory.mock.calls.find(
+    await waitFor(() => expect(mocks.loadEncryptedTurn).toHaveBeenCalled());
+    const first = mocks.loadEncryptedTurn.mock.calls.find(
       ([options]) => options.sessionId === "first",
     )?.[0];
-    expect(first.promptCache).toBeDefined();
+    expect(first.beforeId).toBe(0);
     expect(first.signal).toBeInstanceOf(AbortSignal);
     rerender({ sessionId: "second" });
     await waitFor(() =>
       expect(
-        mocks.loadEncryptedSessionHistory.mock.calls.some(
+        mocks.loadEncryptedTurn.mock.calls.some(
           ([options]) => options.sessionId === "second",
         ),
       ).toBe(true),
     );
-    const second = mocks.loadEncryptedSessionHistory.mock.calls.find(
+    const second = mocks.loadEncryptedTurn.mock.calls.find(
       ([options]) => options.sessionId === "second",
     )?.[0];
-    expect(second.promptCache).toBeDefined();
-    expect(second.promptCache).not.toBe(first.promptCache);
+    expect(second.beforeId).toBe(0);
+    expect(second.signal).not.toBe(first.signal);
+  });
+
+  it("given replay in progress then waits for its head before following live frames", async () => {
+    let complete!: (value: unknown) => void;
+    mocks.loadEncryptedTurn.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    );
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { unmount } = renderHook(
+      () =>
+        useE2EESessionRuntime({
+          agentId: "agent",
+          sessionId: "session",
+          userId: "user",
+          enabled: true,
+        }),
+      { wrapper },
+    );
+    await waitFor(() => expect(complete).toBeDefined());
+    expect(mocks.observeEncryptedEvents).not.toHaveBeenCalled();
+    await act(async () =>
+      complete({
+        messages: [],
+        replayEvents: [],
+        headCursor: 123,
+        turnRef: "turn",
+        pagination: { has_more: false, next_before_id: 0 },
+      }),
+    );
+    await waitFor(() =>
+      expect(mocks.observeEncryptedEvents).toHaveBeenCalled(),
+    );
+    expect(mocks.observeEncryptedEvents.mock.calls[0][0].afterCursor).toBe(123);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1600));
+    });
+    expect(mocks.loadEncryptedTurn).toHaveBeenCalledTimes(1);
+    unmount();
   });
 
   it("waits for the encrypted session/new response before completing bootstrap", async () => {
@@ -478,6 +530,67 @@ describe("useE2EESessionRuntime", () => {
       "does not have the root key",
     );
     expect(mocks.sendEncryptedCommand).not.toHaveBeenCalled();
+  });
+  it("waits for the replay boundary before posting session/new so its response cannot be skipped", async () => {
+    let finishReplay!: (value: unknown) => void;
+    mocks.loadEncryptedTurn.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishReplay = resolve;
+        }),
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(
+      () =>
+        useE2EESessionRuntime({
+          agentId: "agent",
+          sessionId: "session",
+          userId: "user",
+          enabled: true,
+        }),
+      { wrapper },
+    );
+    await waitFor(() => expect(finishReplay).toBeDefined());
+    let started!: Promise<void>;
+    const sendFirstPrompt = result.current.sendMessage;
+    act(() => {
+      started = result.current.startSession("/tmp");
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(mocks.sendEncryptedCommand).not.toHaveBeenCalled();
+    await act(async () => {
+      finishReplay({
+        headCursor: 123,
+        replayEvents: [],
+        turnRef: "turn",
+        messages: [],
+        pagination: { has_more: false, next_before_id: 0 },
+      });
+    });
+    await waitFor(() =>
+      expect(mocks.sendEncryptedCommand).toHaveBeenCalledTimes(1),
+    );
+    await waitFor(() => expect(observerOptions).toBeDefined());
+    const requestId = mocks.sendEncryptedCommand.mock.calls[0][0].frame.id;
+    await act(async () => {
+      await observerOptions!.onFrame(
+        { id: requestId, result: { sessionId: "native" } },
+        {},
+      );
+      await started;
+    });
+    expect(result.current.status).toBe("done");
+    await act(async () => {
+      await sendFirstPrompt("first prompt");
+    });
+    expect(mocks.loadEncryptedTurn).toHaveBeenCalledTimes(1);
   });
   it("retains the prompt through 510 tool events and a batched completion", async () => {
     const queryClient = new QueryClient({
