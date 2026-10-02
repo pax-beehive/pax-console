@@ -1543,7 +1543,7 @@ pages succeed; turn_done confirms completion, while an idle snapshot can be
 displayed without that marker. Removed rows disappear and failures retain
 the previous snapshot. Without latest_turn_id, idle polls re-read the tail.
 A turn_done in an ordinary page alone does not
-transfer ownership. E2EE retains its existing history flow.
+transfer ownership. E2EE uses the whole-turn encrypted replay flow described below.
 
 Older history pages do not refetch on focus. Prepending captures the visible
 row ID and pixel offset and restores it in a layout effect before paint; bottom
@@ -1638,39 +1638,48 @@ without browser preview. Ciphertext is assembled as a Blob for single PUT;
 resumable upload and disk-backed browser staging are not implemented.
 Deploy Manager and paxd before enabling the Console upload UI.
 
-## Encrypted history prompt context
+## Encrypted whole-turn replay
 
-E2EE history keeps the original 500-row base page and its cursor. After decrypting
-it, `history-context.ts` scans older encrypted pages until it finds the user
-prompt for each bound turn present on that base page, or reaches the beginning.
-Only matching prompts are added; scanned tool rows remain available through the
-unchanged older-page cursor. Turn/role matching stays in the browser. Manager
-continues to receive only ordinary pagination parameters and stores ciphertext.
-The session runtime retains at most 64 authenticated, content-bearing prompts
-and replaces that cache on route/root-key changes. Never cache an empty header
-while its parts are still arriving. Reuse avoids rescanning a long turn during
-history polling. Cancellation propagates through TanStack Query's signal to
-all page fetches; corrupt context ciphertext fails validation like base rows.
-This fixes existing canonical history without a backend migration. Legacy rows
-without a bound turn cannot be assigned to an unrelated nearby prompt.
+`features/e2ee/replay.ts` restores the latest whole turn from the existing
+`encrypted-events?view=replay` endpoint. HTTP pages contain at most 100 encrypted
+batches by default; the loader freezes the first response's head_cursor and
+continues with turn_ref/through_cursor/after_cursor until that turn is complete.
+It validates route, key epoch, authenticated inner turn ID, and monotonic cursors,
+merges normalized events per page, and yields between pages. Earlier whole turns
+load on scroll using before_turn, the newer turn's exclusive start cursor.
 
-E2EE text ordering follows Manager's segmented history contract. paxd closes the
-active text segment at non-text ACP frames, responses, or text-type/turn changes.
-Each new segment has a distinct message ID and encrypted `raw_json.text_layout`
-set to `segment`. Partial checkpoints and transport batches do not split it.
-Console preserves these rows around tools instead of applying legacy aggregate
-reordering. Previously aggregated rows lack the original boundaries and cannot
-be reliably split retroactively. Deploy the paxd change to affect new history.
+Paxd journals the original user prompt as an encrypted event before ACP dispatch.
+Its opaque outer turn_ref matches the encrypted turn_id. Manager indexes and
+returns ciphertext without parsing ACP or waiting for canonical message/part
+projection. The reference exposes grouping only, not prompt content. Prompt
+normalization uses the optimistic request identity so the live echo does not
+create a second user bubble. Original attachment references survive replay.
 
-E2EE timeline reconciliation is isolated in `features/e2ee/reconcile-history.ts`.
-Normalize each durable row in stored order without the ordinary adapter's legacy
-text reordering. Match live overlap record by record within the same turn,
-prefer exact matches before partial text, and retain unmatched live events;
-`turn_done` alone must never discard a whole live turn. Preserve durable row
-positions as parts catch up. Normalize ACP/native session IDs to the PAX route
-before matching. Live events are retained for the mounted session rather than
-blindly truncating at 500; future pruning must prove durable coverage first.
-The ordinary session reconciliation and history normalization are unchanged.
+`use-e2ee-session-runtime.ts` waits for initial replay, then subscribes to SSE
+at the frozen session head. Arrivals during replay are recovered through SSE;
+reconnects retain the latest authenticated event cursor. Replay and live events
+use the same normalizer and text stream identity. The primary timeline merges
+the complete replay prefix with its live suffix. There is no 1.5-second history
+poll, focus refetch, or completion refetch. Decrypted replay is held in TanStack
+Query only while observed (gcTime 0); root keys remain outside the query cache.
+A mounted session still retains loaded turns and live events, with no blind cap.
+Outbound commands wait for the initial replay boundary, joining its in-flight
+query once. This prevents a fast session/new response from entering the snapshot
+and bypassing the live RPC resolver. Bootstrap callbacks reuse the completed
+query even when captured before replay finished.
+
+Legacy events without an outer turn reference form one unindexed replay bucket.
+For that bucket only, the loader reads a 100-row canonical history page and the
+existing browser-side prompt-context completion once, filters it to replayed
+turns, and uses `reconcile-history.ts`. It does not guarantee all old prompts are
+recovered or turn-bounded loading for old ciphertext. New indexed turns do not
+use canonical history. Old segmented/aggregate canonical history contracts remain
+supported by the compatibility adapter. Ordinary session behavior is unchanged.
+
+Deploy Manager's schema/API, then paxd's prompt echo/turn metadata, then Console.
+A pre-replay Manager returns SSE to the JSON query; Console cancels that body and
+reports the unsupported API instead of waiting indefinitely. No plaintext fallback
+is allowed. See replay.test.ts and use-e2ee-session-runtime.test.tsx for BDD cases.
 
 E2EE device authorization uses `short-code-v2` for the eight-digit browser flow.
 A new browser keeps a random code seed, the original high-entropy pairing secret,

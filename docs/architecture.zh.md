@@ -120,7 +120,7 @@ GET  /api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/encrypted-ev
 
 Workbench 只能按服务端 session marker 切换，不能因为浏览器恰好保存了某 agent 的
 root key 就切换，因为同一个 agent 可以同时拥有普通和 E2EE session。E2EE session
-使用 `encrypted-history`、encrypted event SSE 和 encrypted command；浏览器缺 key
+使用 encrypted turn replay、encrypted event SSE 和 encrypted command；浏览器缺 key
 时显示 locked notice，绝不能静默回退到 Manager 明文 `/conversation`。当前已支持
 history、live frame、prompt、cancel 和加密附件；queue、steer 及 Manager 明文
 permission projection 在有对应的 encrypted ACP 语义前保持禁用。`/e2ee` 页面继续
@@ -1526,7 +1526,7 @@ history?view=summary&turn_id=...，按 before_seq 读到 has_older=false。只�
 全部读取成功且包含 turn_done，才一次性提交校准结果，移交该轮正文的展示权。
 失败保留当前画面并在后续状态轮询重试。校准结果放在按用户和 session 隔离的
 TanStack Query 缓存；结束的 turn 不再接受迟到实时片段覆盖。普通分页中出现
-turn_done 不等于已拿全整轮。E2EE 继续沿用原来的加密历史流程。
+turn_done 不等于已拿全整轮。E2EE 使用下文的按整轮加密回放流程。
 
 向上翻页不在 focus 时重读全部历史。分页前记录可见行 ID 和相对视口的偏移，
 在 useLayoutEffect 中恢复，避免列表尾部同时增长造成跳动；移除行上的
@@ -1620,30 +1620,34 @@ paxd 完整认证后发布本地文件，替换成 ACP resource_link；描述及
 历史里的文件引用仍然加密。目前每文件上限 512 MiB、每消息 16 个文件；支持上传进度、
 取消及手动重试，尚无浏览器附件预览和跨刷新断点续传。先部署 Manager/paxd，再部署 Console。
 
-## E2EE 长会话的用户 prompt 补全
+## E2EE 按整轮回放
 
-普通 history 在服务端为基础分页补回同回合上下文；E2EE 的 turn_id 和 role 位于密文内，
-因此由浏览器完成关联。浏览器解密最近 500 条基础记录后，向前读取加密分页，找到基础页
-各回合的用户 prompt，或读到历史起点。只合并匹配的用户消息，分页游标仍来自基础页，
-不会跳过中间工具记录；不同页的重复消息沿用 message_id/revision 合并。
+首次进入会话时，通过同源 `encrypted-events?view=replay` 读取最近一整轮。
+每个 HTTP 分页默认最多 100 个加密 batch；第一页面固定 `head_cursor`，后续页面
+携带 `turn_ref / through_cursor / after_cursor`，直到本轮完整。加载过程中逐页合并
+事件并让出事件循环；向上滚动用 `before_turn` 读取更早的一整轮。
 
-每个会话最多缓存 64 条已经验证且有内容的 prompt，避免轮询重复扫描；切换用户、agent、
-session 或根密钥即更换缓存。只有 header、parts 尚未到达的记录不能缓存。补取同样执行
-密文认证和元数据校验，并支持查询取消。已有历史无需迁移；没有 turn_id 的旧记录不猜测
-其所属 prompt。第一次打开长回合可能需要额外读取旧分页。
+paxd 保持原有实时 frame 流和 75 ms / 16 KiB 分批，在 dispatch 前把原始用户 prompt
+也作为加密 event 写入同一可靠日志。外层 `turn_ref` 是不含内容的轮次引用，与密文中
+的 `turn_id` 相同。Manager 仅索引、分页、返回密文，不解析 ACP；新轮次回放不再
+依赖 paxd 二次写入的 canonical history。附件保留本地路径替换前的原始加密引用。
 
-E2EE 文本历史与普通历史共用分段契约：paxd 在非文本 ACP 事件、响应、
-文本类型或 turn 切换时结束当前段，为下一段分配独立 message ID，
-并在加密内容中设置 `raw_json.text_layout = "segment"`。定时 checkpoint
-与传输分批不改变段边界。Console 保留文本与工具的原始交错顺序；
-旧版已聚合记录缺少边界，无法可靠地反向拆分。
+浏览器完成最近一轮后，从快照 `head_cursor` 接 SSE；回放过程中到达的新 frame
+由 SSE 补齐，重连沿用已认证的最后 cursor。回放和实时事件使用同一规范化与流标识，
+完整前缀与实时后缀可连续拼接，prompt 回显与乐观消息按请求 ID 去重。
+新命令先等待初始回放边界，复用正在进行的查询；避免快速返回的 session/new 响应
+进入历史快照，导致实时 RPC 一直等待。首次 prompt 复用已完成的回放，不重复加载。
+移除 1.5 秒 history 轮询、窗口聚焦重读和完成后重读。解密后的分页仅在组件持有时
+留在 Query cache（gcTime 0），根密钥不进 cache；当前挂载会话仍保留已加载轮次与
+实时事件，因此单轮极大或持续运行很久仍可能占用较多内存。
 
-E2EE 使用独立的历史规范化与时间线合并模块 `features/e2ee/reconcile-history.ts`，
-按历史行顺序逐条显示，不使用普通路径的旧版文本重排或整轮替换。
-实时事件在同一 turn 内逐条匹配，未被历史覆盖的内容保留；`turn_done`
-不能作为丢弃整轮实时内容的依据。ACP native session ID 统一映射到页面的
-PAX session ID。取消实时事件的 500 条盲截断；后续回收须先确认持久化覆盖。
-普通 session 路径不变。
+旧 frame 没有外层轮次引用，Manager 无法在不解密的情况下准确分轮。它们保留为
+一个兼容 bucket，可能较大；仅此路径一次读取最近 100 条 canonical history 与现有
+prompt 上下文补全，筛选属于回放轮次的消息，再使用 `reconcile-history.ts` 合并。
+这不保证恢复全部旧 prompt，也不回填旧密文的轮次索引。普通 session 路径不变。
+
+部署顺序为 Manager 的 schema/API、paxd、Console。旧 Manager 对 replay 查询返回
+SSE 时，Console 取消响应并提示接口不支持，避免一直等待；不会降级明文。
 
 设备授权新增 `short-code-v2`：新设备显示 8 位数字，每 60 秒轮换，上一代
 额外保留 30 秒。授权设备输入后自动匹配，再明确点击授权；确认窗口 30 秒，

@@ -5,13 +5,17 @@ import {
   type PendingEncryptedAttachment,
 } from "./attachments";
 
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { queryKeys } from "@/features/api/query-keys";
 import { mergeEvents } from "@/features/runtime/merge-session-events";
-import { normalizeTunnelFrame } from "@/features/runtime/normalize-tunnel-frame";
+import {
+  loadEncryptedTurn,
+  normalizeReplayFrame,
+  replayHistoryEvents,
+} from "./replay";
 import type { SessionEvent } from "@/features/runtime/session-events";
-import { EncryptedPromptCache } from "./history-context";
+
 import { loadRootKey } from "./root-key-store";
 import {
   buildE2EECancelFrame,
@@ -19,11 +23,7 @@ import {
   buildE2EESessionNewFrame,
   parseE2EERPCResponse,
 } from "./session-lab";
-import {
-  loadEncryptedSessionHistory,
-  observeEncryptedEvents,
-  sendEncryptedCommand,
-} from "./transport";
+import { observeEncryptedEvents, sendEncryptedCommand } from "./transport";
 
 export type E2EESessionRuntimeStatus =
   | "idle"
@@ -126,28 +126,27 @@ export function useE2EESessionRuntime({
     pendingLifecycleRequestsRef.current.clear();
   }, [sessionId]);
 
-  const promptCache = useMemo(
-    () =>
-      rootKey && agentId && sessionId && userId
-        ? new EncryptedPromptCache()
-        : undefined,
-    [agentId, sessionId, userId, rootKey],
+  const queryClient = useQueryClient();
+  const replayQueryKey = useMemo(
+    () => [
+      ...queryKeys.encryptedSessionHistory(
+        userId,
+        agentId ?? "pending",
+        sessionId ?? "pending",
+        keyEpoch,
+      ),
+      "turn-replay",
+    ],
+    [userId, agentId, sessionId, keyEpoch],
   );
   const historyQuery = useInfiniteQuery({
-    queryKey: queryKeys.encryptedSessionHistory(
-      userId,
-      agentId ?? "pending",
-      sessionId ?? "pending",
-      keyEpoch,
-    ),
+    queryKey: replayQueryKey,
     queryFn: ({ pageParam, signal }) =>
-      loadEncryptedSessionHistory({
+      loadEncryptedTurn({
         signal,
-        promptCache,
         agentId: agentId as string,
         beforeId: pageParam,
         keyEpoch,
-        limit: 500,
         rootKey: rootKey as Uint8Array,
         sessionId: sessionId as string,
         userId,
@@ -158,15 +157,38 @@ export function useE2EESessionRuntime({
         ? lastPage.pagination.next_before_id
         : undefined,
     initialPageParam: 0,
-    refetchInterval: 1_500,
-    refetchOnWindowFocus: true,
+    staleTime: Infinity,
+    gcTime: 0,
+    refetchOnWindowFocus: false,
   });
-  const refetchHistory = historyQuery.refetch;
+  const replayHead = historyQuery.data?.pages[0]?.headCursor;
+  const refetchReplay = historyQuery.refetch;
+  const waitForReplay = useCallback(async () => {
+    if (queryClient.getQueryData(replayQueryKey)) return;
+    // Join the initial read before posting commands. Otherwise their responses
+    // could enter the replay snapshot and be skipped by the live RPC observer.
+    const result = await refetchReplay({
+      cancelRefetch: false,
+      throwOnError: true,
+    });
+    if (!result.data) throw new Error("Encrypted replay did not complete");
+  }, [queryClient, replayQueryKey, refetchReplay]);
+  const historyEvents = useMemo(
+    () => replayHistoryEvents(historyQuery.data?.pages),
+    [historyQuery.data?.pages],
+  );
 
   useEffect(() => {
-    if (!enabled || !agentId || !sessionId || !rootKey) {
+    if (
+      !enabled ||
+      !agentId ||
+      !sessionId ||
+      !rootKey ||
+      replayHead === undefined
+    ) {
       return;
     }
+    cursorRef.current = Math.max(cursorRef.current, replayHead);
     const controller = new AbortController();
     void observeEncryptedEvents({
       agentId,
@@ -181,16 +203,11 @@ export function useE2EESessionRuntime({
       },
       onFrame(frame, context) {
         const receivedAt = new Date().toISOString();
-        const normalized = normalizeTunnelFrame(frame, {
-          createdAt: receivedAt,
-          streamId: `e2ee:${sessionId}:${context.turnId ?? "legacy"}`,
-        }).map(
-          (event) =>
-            ({
-              ...event,
-              sessionId,
-              ...(context.turnId ? { turnId: context.turnId } : {}),
-            }) as SessionEvent,
+        const normalized = normalizeReplayFrame(
+          frame,
+          sessionId,
+          context,
+          receivedAt,
         );
         if (normalized.length > 0) {
           const pendingTurnId = pendingTurnIdRef.current;
@@ -248,7 +265,6 @@ export function useE2EESessionRuntime({
             setStatus("error");
           } else {
             setStatus("done");
-            void refetchHistory();
           }
           sentAttachments.current.delete(response.requestId);
         }
@@ -264,7 +280,7 @@ export function useE2EESessionRuntime({
     agentId,
     enabled,
     keyEpoch,
-    refetchHistory,
+    replayHead,
     rootKey,
     sessionId,
     userId,
@@ -292,6 +308,7 @@ export function useE2EESessionRuntime({
           "Remove previously uploaded plaintext attachments and add them again in encrypted mode",
         );
       }
+      await waitForReplay();
       if (uploadController.current)
         throw new Error("An attachment upload is already in progress");
       const controller = new AbortController();
@@ -382,7 +399,7 @@ export function useE2EESessionRuntime({
         postingErrors.current.delete(requestId);
       }
     },
-    [agentId, enabled, keyEpoch, rootKey, sessionId, userId],
+    [agentId, enabled, keyEpoch, rootKey, sessionId, userId, waitForReplay],
   );
 
   const startSession = useCallback(
@@ -394,6 +411,7 @@ export function useE2EESessionRuntime({
             : "This browser does not have the root key for this encrypted session",
         );
       }
+      await waitForReplay();
       const requestId = `e2ee_new_${crypto.randomUUID()}`;
       const response = new Promise<void>((resolve, reject) => {
         pendingLifecycleRequestsRef.current.set(requestId, { reject, resolve });
@@ -418,7 +436,7 @@ export function useE2EESessionRuntime({
         throw nextError;
       }
     },
-    [agentId, enabled, keyEpoch, rootKey, sessionId, userId],
+    [agentId, enabled, keyEpoch, rootKey, sessionId, userId, waitForReplay],
   );
 
   const stop = useCallback(async () => {
@@ -427,6 +445,7 @@ export function useE2EESessionRuntime({
     }
     setError(null);
     try {
+      await waitForReplay();
       return await sendEncryptedCommand({
         agentId,
         frame: buildE2EECancelFrame(sessionId),
@@ -441,7 +460,7 @@ export function useE2EESessionRuntime({
       setStatus("error");
       throw nextError;
     }
-  }, [agentId, enabled, keyEpoch, rootKey, sessionId, userId]);
+  }, [agentId, enabled, keyEpoch, rootKey, sessionId, userId, waitForReplay]);
 
   return {
     uploadProgress,
@@ -451,6 +470,7 @@ export function useE2EESessionRuntime({
     error,
     events,
     historyQuery,
+    historyEvents,
     keyLoading,
     rootKeyAvailable: Boolean(rootKey),
     sendMessage,

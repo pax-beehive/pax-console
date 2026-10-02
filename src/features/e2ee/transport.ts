@@ -502,7 +502,7 @@ function parseSSEBlock(block: string) {
   return id && data.length > 0 ? { id, data: data.join("\n") } : undefined;
 }
 
-function encryptedSessionPath(
+export function encryptedSessionPath(
   userId: string,
   agentId: string,
   sessionId: string,
@@ -535,7 +535,7 @@ function decodeJSON<T>(plaintext: Uint8Array) {
   return JSON.parse(new TextDecoder().decode(plaintext)) as T;
 }
 
-async function checkedJSONResponse<T>(response: Response) {
+export async function checkedJSONResponse<T>(response: Response) {
   await checkedResponseStatus(response);
   const body = (await response.json()) as {
     code: number;
