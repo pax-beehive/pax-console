@@ -3,7 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { InlineError } from "@/components/ui/inline-error";
-import { nodeLabel } from "@/components/resources/resource-models";
+import {
+  isDeviceNode,
+  nodeLabel,
+} from "@/components/resources/resource-models";
 import { buildDeviceInstallCommand } from "@/components/settings/add-device-command";
 import {
   createNodeRegistrationToken,
@@ -36,7 +39,9 @@ export function DeviceConnectStep({
   const candidates = attempt
     ? (nodes.data?.nodes ?? []).filter(
         (node) =>
-          node.online === true && !attempt.onlineBefore.includes(node.node_id),
+          isDeviceNode(node) &&
+          node.online === true &&
+          !attempt.onlineBefore.includes(node.node_id),
       )
     : [];
 

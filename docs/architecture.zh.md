@@ -1577,6 +1577,10 @@ JSON escapes `<` to prevent closing-script injection. REST remains /api/pax.
 
 ### Settings directory and quick device connection
 
+设备列表、引导中的电脑选择和设备健康统计通过 `isDeviceNode` 排除
+`kind: "paxl"` 的 CLI 登录身份。完整节点数据仍保留在 query cache 中供身份和
+Agent 关联使用；缺少 kind 的旧节点继续显示，不通过名称或在线状态猜测节点类型。
+
 `src/components/settings/` 承载英文优先的设置目录、服务状态与 Add device。
 设备的维护、secret 传输和删除在设备详情的 Advanced device settings 内；
 运行控制、Agent 管理、浏览器控制保留。Project/Target CRUD 仍复用现有组件。

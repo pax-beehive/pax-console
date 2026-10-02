@@ -137,6 +137,17 @@ async function refresh(client: QueryClient, key: readonly string[]) {
 }
 
 describe("device connection", () => {
+  it("offers device setup when the account only has CLI login identities", async () => {
+    nodes = [
+      { node_id: "cli", kind: "paxl", name: "CLI identity", online: false },
+    ];
+    setup();
+    expect(
+      await screen.findByRole("button", { name: "Generate command" }),
+    ).toBeVisible();
+    expect(screen.queryByText("CLI identity")).not.toBeInTheDocument();
+  });
+
   it("keeps the command visible when a device appears and continues only with the chosen online computer", async () => {
     const { user, client } = setup();
     await user.click(
@@ -145,7 +156,15 @@ describe("device connection", () => {
     expect(
       await screen.findByText(/PAX_REGISTRATION_TOKEN='one-use-secret'/),
     ).toBeVisible();
-    nodes = [{ ...mac, online: false }];
+    nodes = [
+      { ...mac, online: false },
+      {
+        node_id: "cli-online",
+        kind: "paxl",
+        name: "CLI identity",
+        online: true,
+      },
+    ];
     await refresh(client, queryKeys.nodes("user"));
     expect(
       screen.queryByRole("button", { name: /Continue with/ }),

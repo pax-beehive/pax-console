@@ -13,6 +13,7 @@ export type User = {
 
 export type Node = {
   node_id: string;
+  kind?: string;
   name?: string;
   description?: string;
   hostname?: string;
