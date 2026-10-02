@@ -1681,6 +1681,12 @@ continues with turn_ref/through_cursor/after_cursor until that turn is complete.
 It validates route, key epoch, authenticated inner turn ID, and monotonic cursors,
 merges normalized events per page, and yields between pages. Earlier whole turns
 load on scroll using before_turn, the newer turn's exclusive start cursor.
+The shared history pager also offers Load earlier messages. If the latest turn
+does not fill the viewport, it automatically loads older pages until scrolling
+is possible or history is exhausted, including after viewport resizing. Failed
+loads stop automatic pagination and offer an explicit retry; prepend anchoring
+preserves the current reading position. Older-page reads do not reset the live
+SSE cursor or discard already loaded turns.
 
 Paxd journals the original user prompt as an encrypted event before ACP dispatch.
 Its opaque outer turn_ref matches the encrypted turn_id. Manager indexes and
