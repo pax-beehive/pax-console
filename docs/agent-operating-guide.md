@@ -1578,6 +1578,12 @@ JSON escapes `<` to prevent closing-script injection. REST remains /api/pax.
 
 ### Settings organization and device setup
 
+Device lists, onboarding computer choices, and device health/counts exclude
+nodes with `kind: "paxl"` using `isDeviceNode`. These are CLI login identities,
+not runtime devices. Preserve the complete node query cache for identity and
+agent associations. Nodes without a kind remain visible for compatibility;
+never infer node kind from its display name or connection state.
+
 `src/components/settings/` owns the English-first directory, health summary and
 Add device flow. Keep pending approvals in Home, device maintenance and secret
 transfer in device details, and technical profile fields in expandable advanced

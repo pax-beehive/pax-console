@@ -59,6 +59,7 @@ import {
   isActiveAgent,
   isActiveNode,
   isActiveSession,
+  isDeviceNode,
   nodeLabel,
   paginateItems,
   resourceLastActiveAt,
@@ -180,8 +181,10 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
   const allNodes = nodesQuery.data?.nodes ?? emptyNodes;
   const sortedNodes = useMemo(
     () =>
-      byLastActiveDesc(allNodes, resourceLastActiveAt, (node) =>
-        nodeLabel(node),
+      byLastActiveDesc(
+        allNodes.filter(isDeviceNode),
+        resourceLastActiveAt,
+        (node) => nodeLabel(node),
       ),
     [allNodes],
   );

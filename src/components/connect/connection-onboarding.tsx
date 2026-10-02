@@ -4,7 +4,10 @@ import { useState } from "react";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { InlineError } from "@/components/ui/inline-error";
-import { nodeLabel } from "@/components/resources/resource-models";
+import {
+  isDeviceNode,
+  nodeLabel,
+} from "@/components/resources/resource-models";
 import { useNodes } from "@/features/api/resources";
 import { AgentConnectStep } from "./agent-connect-step";
 import { DeviceConnectStep } from "./device-connect-step";
@@ -21,7 +24,7 @@ export function ConnectionOnboarding({
   onStart?: () => void;
 }) {
   const nodesQuery = useNodes(userId, 3000);
-  const nodes = nodesQuery.data?.nodes ?? [];
+  const nodes = nodesQuery.data?.nodes.filter(isDeviceNode) ?? [];
   const [selectedId, setSelectedId] = useState(initialNodeId ?? "");
   const [addingDevice, setAddingDevice] = useState(intent === "device");
   const effectiveId =

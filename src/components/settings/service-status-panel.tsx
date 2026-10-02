@@ -6,7 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TruncatedText } from "@/components/ui/text";
 import type { Agent, Health, Node } from "@/features/api/types";
-import { agentLabel, nodeLabel } from "@/components/resources/resource-models";
+import {
+  agentLabel,
+  isDeviceNode,
+  nodeLabel,
+} from "@/components/resources/resource-models";
 import { connectionState, serviceHealth } from "./service-health";
 
 export function ServiceStatusPanel({
@@ -28,6 +32,7 @@ export function ServiceStatusPanel({
   refresh: () => void;
   refreshing: boolean;
 }) {
+  const devices = nodes?.filter(isDeviceNode);
   const summary = serviceHealth({ nodes, agents, health, loading, error });
   return (
     <div className="mx-auto grid max-w-3xl gap-6">
@@ -53,8 +58,8 @@ export function ServiceStatusPanel({
           <div>
             <dt className="text-xs text-ink-tertiary">Online devices</dt>
             <dd className="mt-1">
-              {nodes
-                ? `${nodes.filter((n) => connectionState(n) === "Online").length} / ${nodes.length}`
+              {devices
+                ? `${devices.filter((n) => connectionState(n) === "Online").length} / ${devices.length}`
                 : "Unknown"}
             </dd>
           </div>
@@ -79,7 +84,7 @@ export function ServiceStatusPanel({
       <StatusList
         title="Devices"
         empty="No devices connected yet."
-        items={nodes?.map((node) => ({
+        items={devices?.map((node) => ({
           id: node.node_id,
           name: nodeLabel(node),
           state: connectionState(node),
@@ -101,7 +106,7 @@ export function ServiceStatusPanel({
             "Device not reported",
         }))}
       />
-      {nodes?.some((n) => connectionState(n) === "Offline") && (
+      {devices?.some((n) => connectionState(n) === "Offline") && (
         <p className="rounded-lg border border-hairline p-4 text-sm text-ink-muted">
           For an offline device, check that it is powered on and connected to
           the internet. Open its details to inspect the last heartbeat and

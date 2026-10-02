@@ -1,4 +1,5 @@
 import type { Agent, Health, Node } from "@/features/api/types";
+import { isDeviceNode } from "@/components/resources/resource-models";
 
 export type ConnectionState = "Online" | "Offline" | "Unknown";
 
@@ -54,7 +55,8 @@ export function serviceHealth({
       description: `PAX reports: ${health?.status}`,
       tone: "warning",
     };
-  const offlineNodes = nodes.filter(
+  const devices = nodes.filter(isDeviceNode);
+  const offlineNodes = devices.filter(
     (n) => connectionState(n) === "Offline",
   ).length;
   const offlineAgents = agents.filter(
@@ -66,7 +68,7 @@ export function serviceHealth({
       description: `${offlineNodes} device(s) and ${offlineAgents} agent(s) offline. PAX is responding.`,
       tone: "warning",
     };
-  if ([...nodes, ...agents].some((r) => connectionState(r) === "Unknown"))
+  if ([...devices, ...agents].some((r) => connectionState(r) === "Unknown"))
     return {
       title: "Some status is unknown",
       description:
@@ -75,10 +77,10 @@ export function serviceHealth({
     };
   return {
     title:
-      nodes.length || agents.length
+      devices.length || agents.length
         ? "All systems operational"
         : "PAX is operational",
-    description: `${nodes.length} device(s) and ${agents.length} agent(s) online.`,
+    description: `${devices.length} device(s) and ${agents.length} agent(s) online.`,
     tone: "success",
   };
 }
