@@ -1757,3 +1757,42 @@ local production build (default port 3028, override `E2EE_CHECK_URL`) uses two
 isolated Chrome contexts and mocked API traffic to verify both device directions,
 wrong codes, refresh recovery, explicit consent, actual key decryption, and mobile
 overflow. It requires locally installed Chrome and does not access real accounts.
+
+## Browser region bootstrap and edge routing
+
+Production regional mode is runtime-configured with
+`PAX_BROWSER_REGIONS_ENABLED=true` and
+`PAX_REGION_PUBLIC_ORIGIN=https://paxworkspace.net`. `/api/region-config` is
+no-store and publishes only the mode and canonical origin. RegionGate runs
+inside QueryProvider before any AuthGate/account requests. Alternate Console
+hostnames navigate to the canonical host while preserving path/query/hash.
+
+The gate calls POST `/api/v1/region/bootstrap` with an empty JSON body to restore
+existing users. Only new users see the region choice. Real no-store origin probes
+run concurrently through `/api/v1/region/probe/us|hk`, with echoed random nonces;
+unavailable regions are disabled. The fastest reachable region is recommended,
+then the user confirms. No client region preference can override an existing
+D1 assignment. Only a ready result mounts account components and `/me`.
+
+REST and SSE continue through same-origin `/api/pax`; WebSockets use the same
+origin after bootstrap. The Cloudflare Worker verifies Access plus its HttpOnly
+route cookie and forwards to the fixed regional Manager. Browser code never reads
+the cookies or chooses an API host from user input. The bootstrap result is
+TanStack Query state, refreshed every 20 minutes and on stale focus; the signed
+route cookie expires after one hour and the Worker can recover an existing
+assignment from D1. Failures remain visible without switching regions.
+
+When regional mode is enabled, the Next `/api/pax` fallback returns 503. The
+active edge routes must be installed before enabling the Console flag. In legacy
+mode the existing Next proxy and configured direct WebSocket behavior remain.
+HTML/static assets use the common Console origin; business traffic is regional.
+The production rollout also requires regional Manager read-only identity mode,
+matching provisioning secrets, and a final legacy inventory reconciliation.
+Machine tickets, paxd routing and automatic installer changes remain separate.
+
+Validation: `NODE_OPTIONS=--no-experimental-webstorage pnpm exec vitest run`
+avoids the Node 24.19 global webstorage/jsdom collision in existing tests.
+`pnpm exec vitest run src/app/api/region-config --coverage
+--coverage.include=src/app/api/region-config/route.ts` verifies the new backend
+handler, which has 100% coverage. Region gate, recovery, probe failure and tunnel
+selection have focused tests; lint, typecheck and production build are required.
