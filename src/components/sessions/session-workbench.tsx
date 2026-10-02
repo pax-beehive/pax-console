@@ -45,6 +45,7 @@ import {
 } from "@/components/sessions/session-event-cards";
 import { showPendingActivity } from "./activity-label";
 import { SessionPendingActivity } from "./session-pending-activity";
+import { SessionHistoryPagination } from "./session-history-pagination";
 import { SessionBrowserApprovals } from "./session-browser-approvals";
 import { SessionBrowserWindow } from "./session-browser-window";
 import { WorkspacePicker } from "./workspace-picker";
@@ -617,7 +618,7 @@ export function SessionWorkbench({
   const {
     fetchNextPage: fetchNextHistoryPage,
     hasNextPage: hasNextHistoryPage,
-    isFetchingNextPage: isFetchingNextHistoryPage,
+    isFetching: isFetchingHistory,
   } = historyQuery;
   const capsulesQuery = useKnowledgeCapsules(
     showAdminFeatures ? user.user_id : undefined,
@@ -1631,42 +1632,53 @@ export function SessionWorkbench({
       scrollElement.clientHeight;
     shouldStickToBottomRef.current = distanceFromBottom < 96;
   }, []);
-  const loadEarlierHistory = useCallback(() => {
-    const scrollElement = timelineScrollRef.current;
-    if (
-      !scrollElement ||
-      pendingHistoryPrependRef.current ||
-      !shouldLoadEarlierHistory({
-        hasNextPage: Boolean(hasNextHistoryPage),
-        isFetchingNextPage: isFetchingNextHistoryPage,
-        scrollTop: scrollElement.scrollTop,
-      })
-    ) {
-      return;
-    }
-
-    pendingHistoryPrependRef.current = {
-      anchor: captureTimelineAnchor(scrollElement),
-      expectedPageCount: historyPageCount + 1,
-      scrollHeight: scrollElement.scrollHeight,
-      scrollTop: scrollElement.scrollTop,
-    };
-    shouldStickToBottomRef.current = false;
-    void fetchNextHistoryPage().then((result) => {
-      if (result.isError) {
-        pendingHistoryPrependRef.current = null;
+  const loadEarlierHistory = useCallback(
+    (explicit = false) => {
+      const scrollElement = timelineScrollRef.current;
+      if (
+        !scrollElement ||
+        pendingHistoryPrependRef.current ||
+        !shouldLoadEarlierHistory({
+          hasNextPage: Boolean(hasNextHistoryPage),
+          isFetchingNextPage: isFetchingHistory,
+          scrollTop: explicit ? 0 : scrollElement.scrollTop,
+        })
+      ) {
+        return;
       }
-    });
-  }, [
-    fetchNextHistoryPage,
-    hasNextHistoryPage,
-    historyPageCount,
-    isFetchingNextHistoryPage,
-  ]);
+
+      const pendingPrepend = {
+        anchor: captureTimelineAnchor(scrollElement),
+        expectedPageCount: historyPageCount + 1,
+        scrollHeight: scrollElement.scrollHeight,
+        scrollTop: scrollElement.scrollTop,
+      };
+      pendingHistoryPrependRef.current = pendingPrepend;
+      shouldStickToBottomRef.current = false;
+      const clearPending = () => {
+        if (pendingHistoryPrependRef.current === pendingPrepend) {
+          pendingHistoryPrependRef.current = null;
+        }
+      };
+      void fetchNextHistoryPage({ cancelRefetch: false }).then((result) => {
+        if (result.isError) clearPending();
+      }, clearPending);
+    },
+    [
+      fetchNextHistoryPage,
+      hasNextHistoryPage,
+      historyPageCount,
+      isFetchingHistory,
+    ],
+  );
+  const requestEarlierHistory = useCallback(
+    () => loadEarlierHistory(true),
+    [loadEarlierHistory],
+  );
   const handleTimelineScroll = useCallback(() => {
     updateTimelineStickiness();
-    loadEarlierHistory();
-  }, [loadEarlierHistory, updateTimelineStickiness]);
+    if (!historyQuery.isError) loadEarlierHistory();
+  }, [historyQuery.isError, loadEarlierHistory, updateTimelineStickiness]);
 
   const queueDraft = queueTurn.mutateAsync;
   const sendConversationMessage = conversationRun.sendMessage;
@@ -2479,12 +2491,13 @@ export function SessionWorkbench({
           ref={timelineScrollRef}
         >
           <div className="mx-auto grid w-full max-w-4xl gap-2">
-            <div
-              className="h-6 text-center text-xs text-ink-tertiary"
-              role="status"
-            >
-              {isFetchingNextHistoryPage ? "Loading earlier messages" : null}
-            </div>
+            <SessionHistoryPagination
+              scrollRef={timelineScrollRef}
+              hasMore={Boolean(hasNextHistoryPage)}
+              isLoading={isFetchingHistory}
+              hasError={historyQuery.isError}
+              onLoadEarlier={requestEarlierHistory}
+            />
             <SessionErrors
               messagesError={historyQuery.error ?? historySync.error}
               missingRouteState={!activeNodeId || !activeAgentId}

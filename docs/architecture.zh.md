@@ -1652,6 +1652,9 @@ paxd 完整认证后发布本地文件，替换成 ACP resource_link；描述及
 每个 HTTP 分页默认最多 100 个加密 batch；第一页面固定 `head_cursor`，后续页面
 携带 `turn_ref / through_cursor / after_cursor`，直到本轮完整。加载过程中逐页合并
 事件并让出事件循环；向上滚动用 `before_turn` 读取更早的一整轮。
+历史顶部同时提供“Load earlier messages”入口。最近一轮不足一屏时自动补读，
+直到内容可滚动或已无更早历史；窗口尺寸变化时也检查。失败后停止自动请求，
+允许手动重试。前插旧消息保持阅读锚点，不重置实时 SSE 游标或移除已加载轮次。
 
 paxd 保持原有实时 frame 流和 75 ms / 16 KiB 分批，在 dispatch 前把原始用户 prompt
 也作为加密 event 写入同一可靠日志。外层 `turn_ref` 是不含内容的轮次引用，与密文中

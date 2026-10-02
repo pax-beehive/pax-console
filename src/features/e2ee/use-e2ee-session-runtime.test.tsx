@@ -160,6 +160,86 @@ describe("useE2EESessionRuntime", () => {
     unmount();
   });
 
+  it("prepends older turns in order without restarting live observation or losing current output", async () => {
+    mocks.loadEncryptedTurn.mockImplementation(async ({ beforeId }) => {
+      const turn = beforeId === 30 ? 2 : beforeId === 20 ? 1 : 3;
+      return {
+        headCursor: turn === 3 ? 35 : 40,
+        turnRef: `turn-${turn}`,
+        messages: [],
+        replayEvents: [
+          {
+            type: "user_message",
+            id: `prompt-${turn}`,
+            sessionId: "session",
+            turnId: `turn-${turn}`,
+            content: `Question ${turn}`,
+            createdAt: `2026-10-02T00:00:0${turn}Z`,
+          },
+        ],
+        pagination: { has_more: turn > 1, next_before_id: turn * 10 },
+      };
+    });
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(
+      () =>
+        useE2EESessionRuntime({
+          agentId: "agent",
+          sessionId: "session",
+          userId: "user",
+          enabled: true,
+        }),
+      { wrapper },
+    );
+    await waitFor(() =>
+      expect(result.current.historyQuery.hasNextPage).toBe(true),
+    );
+    await waitFor(() => expect(observerOptions).toBeDefined());
+    await act(async () => {
+      await observerOptions?.onFrame(
+        {
+          method: "session/update",
+          params: {
+            sessionId: "native",
+            update: {
+              sessionUpdate: "agent_message_chunk",
+              content: { type: "text", text: "Live reply" },
+            },
+          },
+        },
+        { turnId: "turn-3" },
+      );
+      await result.current.historyQuery.fetchNextPage();
+    });
+    await waitFor(() =>
+      expect(result.current.historyQuery.data?.pages).toHaveLength(2),
+    );
+    await act(async () => {
+      await result.current.historyQuery.fetchNextPage();
+    });
+    await waitFor(() =>
+      expect(result.current.historyQuery.hasNextPage).toBe(false),
+    );
+    expect(
+      result.current.historyEvents.map((event) =>
+        "content" in event ? event.content : "",
+      ),
+    ).toEqual(["Question 1", "Question 2", "Question 3"]);
+    expect(result.current.events).toEqual([
+      expect.objectContaining({ content: "Live reply" }),
+    ]);
+    expect(
+      mocks.loadEncryptedTurn.mock.calls.map(([options]) => options.beforeId),
+    ).toEqual([0, 30, 20]);
+    expect(mocks.observeEncryptedEvents).toHaveBeenCalledTimes(1);
+    expect(mocks.observeEncryptedEvents.mock.calls[0][0].afterCursor).toBe(35);
+  });
+
   it("waits for the encrypted session/new response before completing bootstrap", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
