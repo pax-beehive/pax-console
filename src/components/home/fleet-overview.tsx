@@ -257,6 +257,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
         : null,
     );
   const [selectedWorkItemId, setSelectedWorkItemId] = useState("");
+  const [setupStarted, setSetupStarted] = useState(false);
 
   const nodesQuery = useNodes(user.user_id);
   const nodes = sortOnlineFirst(
@@ -1011,10 +1012,22 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 sessionId={activeSessionTarget.sessionId}
                 user={user}
               />
-            ) : fleetSetupGuideKind ? (
+            ) : setupStarted || fleetSetupGuideKind ? (
               <div className="flex min-h-0 flex-1 items-center overflow-auto p-3 sm:p-5">
                 <div className="mx-auto w-full max-w-4xl">
-                  <PaxdGettingStartedGuide kind={fleetSetupGuideKind} />
+                  {setupStarted ||
+                  (nodesQuery.isSuccess && agentsQuery.isSuccess) ? (
+                    <PaxdGettingStartedGuide
+                      userId={user.user_id}
+                      onStart={() => setSetupStarted(true)}
+                    />
+                  ) : (
+                    <p role="status" className="text-sm text-ink-muted">
+                      {nodesQuery.error || agentsQuery.error
+                        ? "Your devices couldn't be loaded. Refresh to try again."
+                        : "Loading your devices…"}
+                    </p>
+                  )}
                 </div>
               </div>
             ) : (

@@ -19,7 +19,7 @@ and presentation while retaining the existing resource operations.
 | Developer / API keys | Advanced settings → API keys | Create, one-time secret display/copy, revoke |
 | Developer / Node registration | Advanced settings → Manual device registration | Existing manual token and lifetime controls |
 | Diagnostics | Settings → Service status | PAX health, online device count, active agent count, recent sessions; adds separate connection states and detail links |
-| Existing pairing | Devices → Add device → Pair with code | `paxl daemon setup`, pairing URL/code, original `/connect` review and approval |
+| Existing pairing | Devices → Add device → Browser sign-in | Complete installer command, terminal sign-in link, original `/connect` review and approval |
 | New quick registration | Devices → Add device → Quick connect | Generate/copy installer command; one-use token; expiry/regeneration; newly registered device detection |
 
 Technical metadata and profile routing fields are expandable. Existing business
@@ -41,13 +41,13 @@ browser control, daemon management or encryption protocols.
 Console posts `{expires_in_seconds: 3600}` to the same-origin authenticated token
 endpoint. It omits the admin-only owner override, so ordinary users can create
 tokens for themselves. The generated shell command uses the configured public
-runtime origin and quotes interpolated values. It installs paxl first, then
-installs and configures paxd through the existing public installer endpoints.
-Both download origins match this deployment; bash pipefail and && prevent a
-failed download or installation from continuing into device registration. Only
-the paxd step receives the generated token. Token and command stay in page
-memory, outside the query cache. Detection lists devices registered since command
-generation; it does not claim to correlate a specific token with a device.
+runtime origin and quotes interpolated values. It invokes the paxd public installer
+once with `PAX_SETUP_AFTER_INSTALL=1`; that installer installs both paxl and paxd
+before setup. Bash pipefail propagates download/install failures. Browser sign-in
+uses the same full command but explicitly clears any inherited token. Token and
+command stay in component memory, outside Query/mutation caches. Detection lists
+newly online computers since command generation; users choose their computer,
+and the UI does not claim to correlate a specific token with a device.
 
 The paxd installer forwards `--registration-token-env`. Setup clears the token
 environment before starting the service, exchanges the token using the existing
@@ -85,7 +85,32 @@ SETTINGS_CHECK_URL=http://localhost:3017 node scripts/settings-browser-check.cjs
 The script uses the installed Chrome channel and intercepts all `/api/pax/**`
 requests. Keep the Console API base at its default same-origin proxy.
 
-Quick-connect command regression tests execute mocked installers in bash: both
-tools install in order, each download/install failure stops the command, and
-shell metacharacters remain literal in the token. No real downloads, installs,
-or registrations are performed by these tests.
+Quick-connect command regression tests execute a mocked installer in bash: one
+installer is called, download/install failures propagate, shell metacharacters
+remain literal, and browser sign-in clears an inherited token. No real downloads,
+installs, or registrations are performed by these tests.
+
+## Two-step onboarding verification
+
+The shared flow now serves Home/resource empty states, Add device, Add agent,
+and the node-specific Connect an agent link. Agent discovery distinguishes a
+missing adapter from npx fallback and leaves agent installation/sign-in explicitly
+unverified. Creation polls the matching runtime generation, retries an existing
+failed connection, and offers Start a conversation only once connected.
+
+- 63 tests passed and one existing test skipped across onboarding, command shell
+  execution, daemon controls, and Home regressions.
+- Production Next.js build, TypeScript and scoped ESLint passed.
+- Mocked browser checks cover desktop/mobile layout, both device connection
+  methods, ACP installation help, refresh, runtime success, node preselection,
+  and retaining Home's completion screen when the new agent enters the cache.
+
+Reproduce against a local server (screenshots go to `/tmp/pax-onboarding-*.png`):
+
+```sh
+ONBOARDING_CHECK_URL=http://127.0.0.1:3013 node scripts/onboarding-browser-check.cjs
+```
+
+The script defaults to installed Chrome. Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`
+to use another local Chromium binary. These fixtures do not test a live Agent
+account or install software on a fresh machine.

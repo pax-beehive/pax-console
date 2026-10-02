@@ -1,10 +1,15 @@
 // Start the Console locally, then run: node scripts/settings-browser-check.cjs
 // All PAX API requests are intercepted; this never creates real credentials.
 const baseURL = process.env.SETTINGS_CHECK_URL || "http://localhost:3017";
-const { chromium } = require("playwright");
-const assert = require("node:assert/strict");
 (async () => {
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const { chromium } = await import("playwright");
+  const { default: assert } = await import("node:assert/strict");
+  const browser = await chromium.launch({
+    headless: true,
+    ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
+      ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH }
+      : { channel: "chrome" }),
+  });
   const context = await browser.newContext();
   const errors = [];
   const mutations = [];
@@ -100,17 +105,23 @@ const assert = require("node:assert/strict");
       /PAX_REGISTRATION_TOKEN='test-token-not-real'/,
     );
     const installCommand = await page.locator("pre").innerText();
-    assert.match(installCommand, /\/api\/v1\/public\/paxl\/install\.sh/);
+    assert.doesNotMatch(installCommand, /\/api\/v1\/public\/paxl\/install\.sh/);
     assert.match(installCommand, /\/api\/v1\/public\/paxd\/install\.sh/);
-    assert.ok(
-      installCommand.indexOf("paxl/install.sh") <
-        installCommand.indexOf("paxd/install.sh"),
-    );
+    assert.match(installCommand, /PAX_SETUP_AFTER_INSTALL=1/);
     await page
-      .getByRole("button", { name: "Pair with code", exact: true })
+      .getByRole("button", { name: "Browser sign-in", exact: true })
       .click();
-    await page.getByRole("link", { name: "Open pairing page" }).waitFor();
-    assert.match(await page.locator("pre").innerText(), /paxl daemon setup/);
+    await page
+      .getByRole("button", { name: "Copy command", exact: true })
+      .waitFor();
+    assert.match(
+      await page.locator("pre").innerText(),
+      /PAX_REGISTRATION_TOKEN=''/,
+    );
+    assert.match(
+      await page.locator("pre").innerText(),
+      /\/api\/v1\/public\/paxd\/install\.sh/,
+    );
     await page.goto(baseURL + "/settings/projects");
     await page
       .getByRole("heading", { name: "Projects", exact: true })

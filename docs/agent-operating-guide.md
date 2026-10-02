@@ -1073,7 +1073,8 @@ These deep links should remain directly reachable:
 /collaboration/knowledge       Knowledge
 /settings                      Settings directory
 /settings/devices              Devices; ?view=agents selects Agents
-/settings/devices/add          Quick connect / Pair with code
+/settings/devices/add          Quick connect / Browser sign-in
+/settings/devices/agents/add   Agent setup; optional nodeId selects a computer
 /settings/projects             Project hierarchy and launch Targets
 /settings/service-status       PAX health, devices and agents independently
 /settings/advanced             Advanced settings directory
@@ -1584,17 +1585,44 @@ sections. Preserve existing resource and Project/Target CRUD components.
 Legacy Security, Developer, Diagnostics, API key and registration URLs redirect
 to their new destinations. Mobile pages provide a parent link.
 
-Quick connect uses the same-origin token API without an owner override (the
-authenticated user supplies ownership), then assembles an install command using
-the configured public runtime origin. It installs paxl first, then installs and
-sets up paxd, using each public installer with its matching download-origin
-variable. Each pipeline runs under bash pipefail and the steps use &&, so a
-failed download/install stops setup. Only the paxd step receives the generated
-registration token. Its one-use token stays in page state,
-expires after one hour, and can be regenerated. Never log it or store it in the
-query cache. Keep `paxl daemon setup` and `/connect` as the pairing alternative.
-Ship the paxd installer and binary supporting `--registration-token-env` before
-shipping this Console flow. See `settings-migration.md` for preservation checks.
+`components/connect/connection-onboarding.tsx` is the shared two-step flow for
+Home/resource empty states and Settings Add device/Add agent. Node detail links
+to Add agent with `nodeId`; multiple computers require a selection. Keep an
+in-progress empty-state flow mounted when the new node/agent enters the query
+cache, so users can finish setup and reach Start a conversation.
+
+Quick connect uses the same-origin token API without an owner override. The
+copied command uses the configured public runtime origin and invokes only the
+paxd public installer, with `PAX_SETUP_AFTER_INSTALL=1`; that installer installs
+both paxl and paxd before setup. Bash pipefail propagates download/install
+failures. Browser sign-in uses the same complete installer command, explicitly
+clears any inherited `PAX_REGISTRATION_TOKEN`, and retains paxd's terminal login
+link and `/connect` pairing flow. It needs no preinstalled CLI.
+
+The one-use token stays only in mounted component state, expires at the server's
+expiry (one-hour fallback), and can be regenerated. Never log it, put it in a
+URL, or store it in Query/mutation caches. Both methods snapshot online devices
+before exposing a command and poll for newly online computers. The API does not
+correlate token and node, so users choose their online computer explicitly;
+do not assert a detected computer consumed this token.
+
+Agent setup checks the daemon inventory, offers Codex/Claude Code plus the
+other reported types, and shows adapter-specific installation help. An
+`available` npx command means the adapter can be downloaded on connection, not
+that it is installed. The current API cannot independently verify agent CLI
+installation or sign-in; keep this limitation visible, and never render those
+checks as passed or missing based on adapter discovery alone. Runtime `running`
+means connected, not proof of authentication or a successful ACP prompt.
+
+Sequence discovery and connection polling: paxd permits one outstanding query
+per node. Creation ACKs only start polling; require the matching connection ID,
+observed generation/restart nonce, and running phase before offering the new
+conversation link. Offline nodes block actions. Runtime failures retry the same
+connection, and ambiguous create errors direct users to its device settings
+rather than blindly creating duplicates. Automatic polling stops after 90
+seconds with a manual check action. Ship the combined paxd installer with
+`--registration-token-env` support before shipping this Console flow. See
+`settings-migration.md` for preservation checks.
 
 ## Output-gap feedback and artifact reader width
 

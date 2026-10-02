@@ -42,12 +42,7 @@ import {
   useNodes,
 } from "@/features/api/resources";
 import { queryKeys } from "@/features/api/query-keys";
-import {
-  Agent,
-  AgentApproval,
-  Node,
-  User,
-} from "@/features/api/types";
+import { Agent, AgentApproval, Node, User } from "@/features/api/types";
 import { compactId } from "@/lib/format";
 import {
   deleteRootKey,
@@ -336,6 +331,15 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
                   <Link href={settingsLinks.addDevice}>Add device</Link>
                 </Button>
               )}
+              {kind === "agents" && (
+                <Button
+                  asChild
+                  icon={<Plus className="h-4 w-4" />}
+                  variant="primary"
+                >
+                  <Link href={settingsLinks.addAgent}>Add agent</Link>
+                </Button>
+              )}
               {supportsActiveFilter(kind) && (
                 <ActiveFilterToggle
                   checked={showAllResources}
@@ -510,6 +514,7 @@ function NodeGrid({
   const queryClient = useQueryClient();
   const [deleteError, setDeleteError] = useState<Error | null>(null);
   const [nodeToDelete, setNodeToDelete] = useState<Node | null>(null);
+  const [setupStarted, setSetupStarted] = useState(false);
   const removeNode = useMutation({
     mutationFn: (node: Node) => deleteNode(userId, node.node_id),
     onError: (error) => setDeleteError(error),
@@ -529,7 +534,12 @@ function NodeGrid({
   return (
     <div className="grid gap-3">
       {deleteError && <ApiNotice error={deleteError} />}
-      {nodes.length > 0 ? (
+      {setupStarted ? (
+        <PaxdGettingStartedGuide
+          userId={userId}
+          onStart={() => setSetupStarted(true)}
+        />
+      ) : nodes.length > 0 ? (
         <div className="grid min-w-0 overflow-hidden rounded-lg border border-hairline">
           {nodes.map((node) => (
             <article
@@ -618,7 +628,10 @@ function NodeGrid({
       ) : totalCount > 0 ? (
         <EmptyState label="No active nodes" />
       ) : (
-        <PaxdGettingStartedGuide kind="node" />
+        <PaxdGettingStartedGuide
+          userId={userId}
+          onStart={() => setSetupStarted(true)}
+        />
       )}
     </div>
   );
@@ -640,6 +653,7 @@ function AgentGrid({
   const queryClient = useQueryClient();
   const [deleteError, setDeleteError] = useState<Error | null>(null);
   const [agentToDelete, setAgentToDelete] = useState<AgentRow | null>(null);
+  const [setupStarted, setSetupStarted] = useState(false);
   const removeAgent = useMutation({
     mutationFn: (agent: AgentRow) => deleteAgent(userId, agent.agent_id),
     onError: (error) => setDeleteError(error),
@@ -663,7 +677,12 @@ function AgentGrid({
         <span className="shrink-0">Scope:&nbsp;</span>
         <TruncatedText>{nodeLabel ?? "No node selected"}</TruncatedText>
       </div>
-      {agents.length > 0 ? (
+      {setupStarted ? (
+        <PaxdGettingStartedGuide
+          userId={userId}
+          onStart={() => setSetupStarted(true)}
+        />
+      ) : agents.length > 0 ? (
         <div className="grid min-w-0 overflow-hidden rounded-lg border border-hairline">
           {agents.map((agent) => (
             <article
@@ -756,7 +775,10 @@ function AgentGrid({
       ) : totalCount > 0 ? (
         <EmptyState label="No active agents" />
       ) : (
-        <PaxdGettingStartedGuide kind="agent" />
+        <PaxdGettingStartedGuide
+          userId={userId}
+          onStart={() => setSetupStarted(true)}
+        />
       )}
     </div>
   );

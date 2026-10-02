@@ -126,7 +126,7 @@ describe("agent-scoped runtime settings", () => {
       screen.queryByRole("button", { name: "Discover" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "New agent" }),
+      screen.queryByRole("button", { name: "Advanced setup" }),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("Harness inventory")).not.toBeInTheDocument();
 
@@ -167,7 +167,9 @@ describe("agent-scoped runtime settings", () => {
     expect(await screen.findByText("Other agent")).toBeVisible();
     expect(screen.getByText("Current agent")).toBeVisible();
     expect(screen.getByRole("button", { name: "Discover" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "New agent" })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Advanced setup" }),
+    ).toBeVisible();
     expect(screen.getByText("Harness inventory")).toBeVisible();
   });
 

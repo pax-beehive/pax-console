@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { settingsLinks } from "@/components/settings/settings-navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Pencil,
@@ -280,7 +282,7 @@ export function NodeDaemonControl({
             {connections.length} connections
           </span>
         </div>
-        <div className="flex shrink-0 gap-2">
+        <div className="flex min-w-0 flex-wrap gap-2">
           <Button
             disabled={controlQueryBusy}
             icon={<RefreshCw className="h-4 w-4" />}
@@ -292,6 +294,18 @@ export function NodeDaemonControl({
           />
           {!agentId && (
             <>
+              <Button
+                asChild
+                variant="primary"
+                size="sm"
+                icon={<Plus className="h-4 w-4" />}
+              >
+                <Link
+                  href={`${settingsLinks.addAgent}?nodeId=${encodeURIComponent(nodeId)}`}
+                >
+                  Connect an agent
+                </Link>
+              </Button>
               <Button
                 disabled={
                   discover.isPending || controlQueryBusy || runtimeReconciling
@@ -320,9 +334,9 @@ export function NodeDaemonControl({
                     : "Run Discover and make sure at least one harness is available before creating an agent"
                 }
                 type="button"
-                variant="primary"
+                variant="secondary"
               >
-                New agent
+                Advanced setup
               </Button>
             </>
           )}
