@@ -1328,3 +1328,13 @@ Workspace selection separates saved locations from typed paths. Use this path
 only selects; Save as workspace target is optional and unchecked by default.
 Persistence waits for successful native assignment and reuses matching targets.
 Both path and save intent are scoped to the selected Project / Agent.
+
+## Regional account entry
+
+When browser regional mode is enabled, restore the D1 account assignment before
+loading user resources. New users choose between reachable regions after actual
+origin probes; highlight the lowest observed latency without silently assigning.
+Keep this a focused first-account screen. Existing users never see a region
+picker. Failed bootstrap or region availability displays a retry action and must
+not create an account elsewhere. All business transport stays on the canonical
+same-origin entrypoint; the trusted Worker owns regional routing.

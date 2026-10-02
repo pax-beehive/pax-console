@@ -93,3 +93,22 @@ describe("PAX API proxy route", () => {
     );
   });
 });
+it("does not fall back to a single-region origin when regional routing is enabled", async () => {
+  vi.stubEnv("PAX_BROWSER_REGIONS_ENABLED", "true");
+  const fetch = vi.fn();
+  vi.stubGlobal("fetch", fetch);
+  try {
+    const { GET } = await import("./route");
+    const response = await GET(
+      new NextRequest("https://paxworkspace.net/api/pax/api/v1/user/self/me"),
+      {
+        params: Promise.resolve({ path: ["api", "v1", "user", "self", "me"] }),
+      },
+    );
+    expect(response.status).toBe(503);
+    expect(fetch).not.toHaveBeenCalled();
+  } finally {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  }
+});

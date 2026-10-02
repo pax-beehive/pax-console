@@ -1,3 +1,4 @@
+import { getRegionalOrigin } from "../region/bootstrap";
 import { API_BASE_URL } from "../api/client";
 import { getPublicRuntimeConfig } from "./public-runtime-config";
 
@@ -17,6 +18,7 @@ export function resolveHostedWsBaseUrl(hostname?: string) {
 export function getAgentTunnelUrl(agentId: string, sessionId?: string) {
   const wsBaseUrl =
     getPublicRuntimeConfig()?.wsBaseUrl ??
+    getRegionalOrigin() ??
     process.env.NEXT_PUBLIC_PAX_WS_BASE_URL ??
     (API_BASE_URL.startsWith("http") ? API_BASE_URL : resolveHostedWsBaseUrl());
   const baseUrl = new URL(wsBaseUrl);

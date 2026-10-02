@@ -30,6 +30,13 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 }
 
 async function proxyPaxRequest(request: NextRequest, context: RouteContext) {
+  // Production regional requests must be intercepted by the edge Worker.
+  // Missing edge routing must never fall back to this single-region origin.
+  if (process.env.PAX_BROWSER_REGIONS_ENABLED === "true")
+    return NextResponse.json(
+      { code: 503, message: "Regional routing is unavailable.", data: {} },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
   const { path } = await context.params;
   const targetUrl = new URL(`/${path.join("/")}`, PAX_MANAGER_URL);
   targetUrl.search = request.nextUrl.search;
