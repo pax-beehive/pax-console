@@ -10,7 +10,6 @@ import {
   useState,
 } from "react";
 import {
-  Ellipsis,
   ArrowUp,
   LoaderCircle,
   Mic,
@@ -624,7 +623,6 @@ export const SessionComposer = memo(function SessionComposer({
                 variant="primary"
               />
               <Button
-                className="hidden sm:inline-flex"
                 aria-label={
                   currentSessionId
                     ? "Steer with this prompt"
@@ -648,27 +646,6 @@ export const SessionComposer = memo(function SessionComposer({
                 type="button"
                 variant="ghost"
               />
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    aria-label="More turn actions"
-                    className="sm:hidden"
-                    icon={<Ellipsis className="h-4 w-4" />}
-                    size="icon"
-                    type="button"
-                    variant="ghost"
-                  />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" side="top">
-                  <DropdownMenuItem
-                    disabled={!canSteerTurn}
-                    onSelect={() => void steer()}
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                    Steer with this prompt
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
               <Button
                 aria-label={
                   currentSessionId

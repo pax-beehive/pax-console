@@ -346,8 +346,6 @@ export function SessionWorkbench({
   const activeSessionReportedRunning = isActiveSessionRunStatus(
     activeSession?.runtime_status,
   );
-  const activeSessionRuntimeBlocksPrompt =
-    activeSessionReportedRunning || activeSession?.runtime_status === "unknown";
   const isExternallyCreatedSession = Boolean(
     !usesEncryptedTransport &&
     currentSessionId &&
@@ -1018,18 +1016,13 @@ export function SessionWorkbench({
         : conversationRun.status,
     },
   );
-  const isTurnRunning = usesEncryptedTransport
-    ? Boolean(pendingEncryptedBootstrap) ||
-      activeSessionRuntimeBlocksPrompt ||
-      encryptedRuntime.status === "streaming"
-    : shouldFollowQueuedTurn ||
-      (displayedRunStatus !== "done" &&
-        displayedRunStatus !== "cancelled" &&
-        displayedRunStatus !== "error" &&
-        (conversationRun.status === "streaming" ||
-          conversationRun.status === "waiting_approval" ||
-          shouldObserveSessionTurn ||
-          activeSession?.runtime_status === "unknown"));
+  // Queue/observer subscriptions can outlive a turn. Use the same resolved
+  // state as the badge so those subscriptions cannot keep the composer busy.
+  const isTurnRunning =
+    (usesEncryptedTransport && Boolean(pendingEncryptedBootstrap)) ||
+    displayedRunStatus === "streaming" ||
+    displayedRunStatus === "waiting_approval" ||
+    displayedRunStatus === "unknown";
   const [pendingSessionConfigOptionId, setPendingSessionConfigOptionId] =
     useState<string>();
   const updateSessionConfiguration = useMutation({

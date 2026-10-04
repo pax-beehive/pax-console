@@ -64,8 +64,8 @@ The turn-footer gauge represents context used/window (not per-turn tokens).
 Its needle and colored arc share a clamped continuous ratio and green-to-red
 hue; absent/invalid capacity is neutral and does not imply zero usage.
 
-Mobile layout: keep Queue/Stop directly accessible; Steer is available in the
-mobile turn overflow menu and as a desktop shortcut. Bound the permission
+Mobile layout: keep Queue/Steer/Stop directly accessible on both mobile and
+desktop; Steer has its own button beside Queue. Bound the permission
 trigger width without shortening its accessible name or menu labels. Do not
 show the unavailable voice action on mobile. Project selects use a visible
 custom chevron and dark surface while retaining native selection. RunBadge
@@ -495,6 +495,10 @@ Use `runtime_turn_instance_id` to distinguish a newer live turn from a local
 terminal overlay. Match observer/history completions to the owned turn and
 ignore callbacks from aborted streams. A terminal overlay controls both the
 header and composer, and cannot mask a newer server-owned turn.
+The composer derives its busy state from the same resolved status as RunBadge
+for both Manager and E2EE sessions. Queue-following and observer subscriptions
+may remain active after completion; they do not themselves block a fresh prompt.
+Encrypted session bootstrap continues to block prompts until initialization finishes.
 paxd snapshots are the only durable runtime writer. A node-control disconnect
 preserves the last execution state and timestamp; it does not turn it into
 `unknown`. The workbench badge shows `paxd offline` when the node API reports
