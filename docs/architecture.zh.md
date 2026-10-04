@@ -42,7 +42,7 @@ SessionSettings 统一承载新建/已有会话的配置和权限：手机为带
 
 
 
-移动端 composer 的权限按钮限制宽度，完整权限名称保留在菜单和无障碍标签中。运行中 Queue/Stop 保持直接可见，Steer 放在移动端更多菜单（桌面仍保留快捷按钮），未实现的语音按钮不占用手机工具栏。Project 原生选择保留系统交互，但用自定义箭头和明确的深色背景/边框；RunBadge 内部图标与文字保持同行。移动端顶部栏为 44px 最小高度加安全区，刷新入口移至用户菜单。短行内代码作为整体换行，超长内容仍允许断行，避免横向溢出。
+移动端 composer 的权限按钮限制宽度，完整权限名称保留在菜单和无障碍标签中。运行中 Queue/Steer/Stop 在手机和桌面均直接可见，Steer 以独立按钮放在 Queue 旁，未实现的语音按钮不占用手机工具栏。Project 原生选择保留系统交互，但用自定义箭头和明确的深色背景/边框；RunBadge 内部图标与文字保持同行。移动端顶部栏为 44px 最小高度加安全区，刷新入口移至用户菜单。短行内代码作为整体换行，超长内容仍允许断行，避免横向溢出。
 
 ```txt
 Cloudflare Access 负责入口身份。
@@ -1017,6 +1017,9 @@ ACP `end_turn` 和 observer 回放的结束记录会立即刷新 session 状态�
 发送前的缓存和在途请求不能结束新任务。用实时 `runtime_turn_instance_id` 识别
 服务端新一轮运行，避免旧的 done 覆盖它。observer/history 结束通知必须匹配
 当前轮，已中止流的迟到回调忽略。顶部状态和停止按钮使用同一结束状态。
+Manager 和 E2EE composer 均从 RunBadge 使用的同一份展示状态判断是否忙碌；
+queue-following 和 observer 订阅在 turn 结束后可以继续存在，本身不阻止发送新 prompt。
+加密会话初始化完成前仍阻止重复提交。
 paxd snapshot 是持久化运行状态的唯一写入来源。node-control 断开时保留最后一次
 执行状态和时间，不再将其改成 `unknown`。node API 返回 `online: false` 时，
 workbench badge 显示 `paxd offline`，不修改底层执行状态。历史 `unknown` 仍等待
