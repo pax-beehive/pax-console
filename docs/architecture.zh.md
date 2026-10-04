@@ -1737,3 +1737,11 @@ avoids the Node 24.19 global webstorage/jsdom collision in existing tests.
 --coverage.include=src/app/api/region-config/route.ts` verifies the new backend
 handler, which has 100% coverage. Region gate, recovery, probe failure and tunnel
 selection have focused tests; lint, typecheck and production build are required.
+
+## Image publication
+
+The main branch image workflow builds the existing Dockerfile, verifies its
+immutable GHCR digest and registers it in PAX Release. It does not deploy
+production or inject runtime environment files into the image. See
+[image-release.md](image-release.md) for credentials, failure recovery and
+manual runs.
