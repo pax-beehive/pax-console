@@ -1748,3 +1748,9 @@ immutable GHCR digest and registers it in PAX Release. It does not deploy
 production or inject runtime environment files into the image. See
 [image-release.md](image-release.md) for credentials, failure recovery and
 manual runs.
+
+
+Release image registration can additionally authenticate to Cloudflare with the
+per-repository `PAX_RELEASE_CF_CLIENT_ID` / `PAX_RELEASE_CF_CLIENT_SECRET` Actions
+Secrets. They stay in publication steps and never enter the Console runtime or
+browser bundle. See [image-release.md](image-release.md) for migration and checks.
