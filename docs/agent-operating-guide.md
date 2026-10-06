@@ -1820,3 +1820,28 @@ Release image registration can additionally authenticate to Cloudflare with the
 per-repository `PAX_RELEASE_CF_CLIENT_ID` / `PAX_RELEASE_CF_CLIENT_SECRET` Actions
 Secrets. They stay in publication steps and never enter the Console runtime or
 browser bundle. See [image-release.md](image-release.md) for migration and checks.
+
+## Regional paxl login approval
+
+`/paxl-login.html` accepts a single `code` with optional explicit `region`, or
+regional `us_code`/`hk_code` values. Duplicate or mixed parameters fail before
+approval. With regional mode enabled, Console submits through the same-origin
+`POST /api/v1/region/paxl-login/approve`; the Worker reads the existing assignment
+and forwards only the home code with signed identity proof. An unavailable home
+request is an error and never falls back to another region. The login route does
+not provision accounts or add D1 state. Existing AuthGate/RegionGate handles
+normal account bootstrap before approval.
+
+Browser approval confirms identity only for the versioned CLI protocol. The CLI
+pins one identity and region durably, commits there, saves the credential, then
+acknowledges receipt. The page may close after confirmation; CLI completion is
+separate. Explicit `admin=1&region=hk` displays the administrator destination and
+requires administrator permission from the existing target Manager account.
+Ordinary login cannot override the directory assignment. Regional parameters
+fail closed on legacy Console; simple single-code legacy mode remains supported.
+
+Roll out Worker and Console before regional Managers start requiring signed
+proof, then release the new CLI after both Managers support `client_commit_v1`.
+Cached old Console code must be refreshed. Validate with `vitest run
+src/features/auth/paxl-login.test.ts
+src/components/connect/paxl-login-page-client.test.tsx`, typecheck, lint and build.
