@@ -4,6 +4,19 @@
 
 如果你改了关键架构、认证链路、目录结构、REST/WebSocket 协议、UI primitives 或 shell 布局，请同时更新本文和 `docs/agent-operating-guide.md`。
 
+## 公开产品介绍与搜索索引
+
+`/overview` 是 PaxWorkspace 的公开产品介绍页，主域名 `/` 仍为工作台。
+AppProviders 仅对精确的 `/overview` 路径跳过 RegionGate；介绍正文由服务端
+渲染，不挂载账号请求，进入工作台后仍运行原有区域与身份检查。
+根 metadata 默认 noindex, follow，介绍页单独设置 index, follow、canonical、
+分享卡片和 WebPage/SoftwareApplication JSON-LD。静态 robots.txt 指向 sitemap，
+sitemap 只包含介绍页。侧栏提供 About PaxWorkspace 入口。
+生产 Cloudflare Access 还需按路径公开介绍页与必要静态资源，不能解除整站或
+API 身份检查。具体路径、无登录验收与 Search Console 提交流程见
+`docs/public-overview.md`。域名、cookie 与浏览器加密密钥存储不迁移。
+
+
 ## 一句话模型
 
 ConsoleLayout 通过 `useConsoleViewport` 统一按 visual viewport 调整 shell 高度和
