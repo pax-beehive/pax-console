@@ -14,8 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PAX Console",
+  title: "PaxWorkspace | PAX Console",
   description: "Fleet control plane and agent workbench for PAX.",
+  robots: { index: false, follow: true },
   manifest: "/manifest.webmanifest",
   icons: {
     apple: [{ url: "/pax-app-icon.png", type: "image/png" }],

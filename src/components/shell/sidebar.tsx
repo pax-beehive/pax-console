@@ -9,6 +9,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Inbox,
+  Info,
   FolderTree,
   MailPlus,
   Radio,
@@ -138,6 +139,14 @@ export function Sidebar({ showAdminFeatures }: { showAdminFeatures: boolean }) {
             ))}
         </div>
         <div className="mt-2 border-t border-hairline pt-2">
+          <NavEntry
+            collapsed={collapsed}
+            item={{
+              href: "/overview",
+              icon: Info,
+              label: "About PaxWorkspace",
+            }}
+          />
           <NavEntry collapsed={collapsed} item={settingsNavItem} />
         </div>
       </nav>
