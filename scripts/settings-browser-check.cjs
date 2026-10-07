@@ -95,7 +95,7 @@ const baseURL = process.env.SETTINGS_CHECK_URL || "http://localhost:3017";
 
     await page.goto(baseURL + "/settings/devices/add");
     await page
-      .getByRole("button", { name: "Generate command", exact: true })
+      .getByRole("button", { name: "Quick connect (Recommended)", exact: true })
       .click();
     await page
       .getByRole("button", { name: "Copy command", exact: true })
