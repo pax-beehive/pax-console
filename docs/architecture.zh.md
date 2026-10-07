@@ -6,15 +6,16 @@
 
 ## 公开产品介绍与搜索索引
 
-`/overview` 是 PaxWorkspace 的公开产品介绍页，主域名 `/` 仍为工作台。
-AppProviders 仅对精确的 `/overview` 路径跳过 RegionGate；介绍正文由服务端
-渲染，不挂载账号请求，进入工作台后仍运行原有区域与身份检查。
-根 metadata 默认 noindex, follow，介绍页单独设置 index, follow、canonical、
-分享卡片和 WebPage/SoftwareApplication JSON-LD。静态 robots.txt 指向 sitemap，
-sitemap 只包含介绍页。侧栏提供 About PaxWorkspace 入口。
-生产 Cloudflare Access 还需按路径公开介绍页与必要静态资源，不能解除整站或
-API 身份检查。具体路径、无登录验收与 Search Console 提交流程见
-`docs/public-overview.md`。域名、cookie 与浏览器加密密钥存储不迁移。
+`/overview` 是英文产品介绍，`/zh/overview` 是简体中文版，主域名 `/` 仍为工作台。
+两版共用 `src/app/overview/` 下的服务端页面、架构图和文案字典，通过普通链接切换，
+不依赖 cookie 或浏览器语言跳转。内容容器分别设置 en / zh-CN，工作台和根文档仍为英文。
+AppProviders 仅对这两个精确路径跳过 RegionGate；不挂载账号请求，进入工作台后仍
+运行原有区域与身份检查。根 metadata 默认 noindex, follow，介绍页单独设置 index,
+follow、自引用 canonical、本地化分享信息和 JSON-LD，并以 hreflang 关联中英版本
+及英文 x-default。静态 sitemap 包含两个介绍页，侧栏 About 入口进入默认英文页。
+生产 Cloudflare Access 需精确公开 `/zh/overview`，不能以 `/zh/*` 或整站替代。
+路径、无登录验收与 Search Console 流程见 `docs/public-overview.md`。
+域名、cookie 与浏览器加密密钥存储不迁移。
 
 
 ## 一句话模型

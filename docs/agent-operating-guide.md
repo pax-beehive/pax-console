@@ -4,14 +4,17 @@ This file is for coding agents working on PAX Console. Keep it short, factual, a
 
 ## Public product overview
 
-`/overview` is a public Server Component product page for PaxWorkspace. Only
-this exact pathname bypasses RegionGate in AppProviders; it mounts no account
-queries. All workbench routes keep their existing region/auth flow. Root
-metadata defaults to noindex, follow; the overview explicitly opts into indexing
-and owns its canonical, share metadata, and WebPage/SoftwareApplication JSON-LD.
-Static robots.txt and sitemap.xml expose only the overview in the sitemap.
-The sidebar links to it. See `docs/public-overview.md` for the required narrow
-Cloudflare Access public-path configuration and Search Console rollout checks.
+`/overview` (English) and `/zh/overview` (Simplified Chinese) are public
+Server Component product pages for PaxWorkspace. Only those exact paths bypass
+RegionGate in AppProviders; neither mounts account queries. Both share the
+layout, diagram, and typed copy in `src/app/overview/`. All workbench routes
+keep their existing region/auth flow. Root metadata defaults to noindex, follow;
+each overview opts into indexing, has a self-canonical and localized share/JSON-LD
+metadata, and links both languages plus English x-default through hreflang.
+The static sitemap lists both pages. Language switches are ordinary links, with
+no browser-language redirects or cookies. Each page's content wrapper declares
+its language; the workbench and root document retain English. See
+`docs/public-overview.md` for narrow Cloudflare Access paths and rollout checks.
 Do not treat a local 200 as proof of public production access.
 
 
