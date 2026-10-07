@@ -1867,3 +1867,20 @@ proof, then release the new CLI after both Managers support `client_commit_v1`.
 Cached old Console code must be refreshed. Validate with `vitest run
 src/features/auth/paxl-login.test.ts
 src/components/connect/paxl-login-page-client.test.tsx`, typecheck, lint and build.
+
+## Paxl remote upgrades
+
+Node rows and advanced node settings show `metadata.paxl` as the last daemon
+observation (installed/missing/probe_failed, version, real path and probe time).
+Offline observations are explicitly labeled. `NodePaxlUpgrade` resolves the
+stable paxl artifact, submits an explicit version through the same-origin
+`POST /api/v1/user/{user_id}/nodes/{node_id}/paxl/upgrade`, then polls the existing
+daemon command endpoint. Received is pending; only applied means the daemon
+verified the actual installed executable. This action does not restart paxd.
+
+The user/node-scoped localStorage entry retains only command ID and target
+version so reloads and uncertain network responses can recover or retry the
+same command. Server results remain in TanStack Query. Install the compatible
+Manager and paxd before enabling the action. The opt-in cross-repository browser
+fixture is `scripts/paxl-upgrade-e2e.mjs`; its runner lives in Manager's
+`TestPaxlBrowserUpgrade` and uses the production paxd control runner and installer.

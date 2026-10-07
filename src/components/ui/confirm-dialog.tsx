@@ -9,6 +9,7 @@ type ConfirmDialogProps = {
   cancelLabel?: string;
   children?: ReactNode;
   confirmLabel: string;
+  confirmDisabled?: boolean;
   description: ReactNode;
   disabled?: boolean;
   onConfirm: () => void;
@@ -21,6 +22,7 @@ export function ConfirmDialog({
   cancelLabel = "Cancel",
   children,
   confirmLabel,
+  confirmDisabled,
   description,
   disabled,
   onConfirm,
@@ -56,7 +58,7 @@ export function ConfirmDialog({
               </Button>
             </Dialog.Close>
             <Button
-              disabled={disabled}
+              disabled={disabled || confirmDisabled}
               onClick={onConfirm}
               type="button"
               variant="danger"

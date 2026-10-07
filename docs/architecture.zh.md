@@ -1797,3 +1797,15 @@ proof, then release the new CLI after both Managers support `client_commit_v1`.
 Cached old Console code must be refreshed. Validate with `vitest run
 src/features/auth/paxl-login.test.ts
 src/components/connect/paxl-login-page-client.test.tsx`, typecheck, lint and build.
+
+## paxl 版本与远程升级
+
+节点列表和节点高级设置展示 `metadata.paxl` 中最近一次实际可执行文件的观测；
+离线时标注 last observed。升级先解析稳定版，再通过同源代理提交明确版本到
+`POST /api/v1/user/{user_id}/nodes/{node_id}/paxl/upgrade`。继续复用 daemon command
+查询接口；received 仅代表已接收，applied 表示替换后实际版本验证成功，不重启 paxd。
+
+localStorage 按用户和节点保存 command_id 与目标版本，刷新或网络响应不确定后查询、
+重试同一个 command。服务端数据仍由 TanStack Query 管理。先部署对应 Manager 与
+paxd，再部署 Console。跨仓库浏览器 fixture 为 `scripts/paxl-upgrade-e2e.mjs`，
+由 Manager 的 `TestPaxlBrowserUpgrade` 启动真实前端、API 与 paxd control runner。
