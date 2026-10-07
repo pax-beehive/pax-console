@@ -25,38 +25,45 @@ afterEach(() => {
 });
 
 describe("public overview and account boundary", () => {
-  it("serves readable overview HTML before JavaScript or account requests", () => {
-    route.pathname = "/overview";
-    expect(
-      renderToString(
+  it.each(["/overview", "/zh/overview"])(
+    "serves %s before JavaScript or account requests",
+    (pathname) => {
+      route.pathname = pathname;
+      expect(
+        renderToString(
+          <AppProviders>
+            <h1>PaxWorkspace</h1>
+          </AppProviders>,
+        ),
+      ).toContain("<h1>PaxWorkspace</h1>");
+      render(
         <AppProviders>
           <h1>PaxWorkspace</h1>
         </AppProviders>,
-      ),
-    ).toContain("<h1>PaxWorkspace</h1>");
-    render(
-      <AppProviders>
-        <h1>PaxWorkspace</h1>
-      </AppProviders>,
-    );
-    expect(screen.getByRole("heading").textContent).toBe("PaxWorkspace");
-    expect(loadRegionConfig).not.toHaveBeenCalled();
-  });
-
-  it.each(["/", "/sessions/example", "/overview/private"])(
-    "keeps %s behind the region gate",
-    async (pathname) => {
-      route.pathname = pathname;
-      render(
-        <AppProviders>
-          <h1>Account content</h1>
-        </AppProviders>,
       );
-      expect(screen.queryByRole("heading")).toBeNull();
-      await screen.findByRole("heading");
-      expect(loadRegionConfig).toHaveBeenCalledOnce();
+      expect(screen.getByRole("heading").textContent).toBe("PaxWorkspace");
+      expect(loadRegionConfig).not.toHaveBeenCalled();
     },
   );
+
+  it.each([
+    "/",
+    "/sessions/example",
+    "/overview/private",
+    "/zh/overview/private",
+    "/zh",
+    "/zh/sessions/example",
+  ])("keeps %s behind the region gate", async (pathname) => {
+    route.pathname = pathname;
+    render(
+      <AppProviders>
+        <h1>Account content</h1>
+      </AppProviders>,
+    );
+    expect(screen.queryByRole("heading")).toBeNull();
+    await screen.findByRole("heading");
+    expect(loadRegionConfig).toHaveBeenCalledOnce();
+  });
 
   it("starts the account gate when navigating from the overview to the workbench", async () => {
     route.pathname = "/overview";
