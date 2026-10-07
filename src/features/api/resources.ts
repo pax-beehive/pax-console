@@ -400,6 +400,27 @@ export function restartNodeDaemon(userId: string, nodeId: string) {
   );
 }
 
+export function upgradeNodePaxl(
+  userId: string,
+  nodeId: string,
+  input: { command_id: string; version: string },
+) {
+  return apiFetch<NodeDaemonCommandData>(
+    userPath(userId, `/nodes/${nodeId}/paxl/upgrade`),
+    {
+      method: "POST",
+      body: JSON.stringify({ ...input, tag: "stable" }),
+    },
+  );
+}
+
+export function getLatestPaxlRelease(os: string, arch: string) {
+  const platform = `${os.trim()}/${arch.trim()}`.toLowerCase();
+  return apiFetch<PaxdRelease>(
+    `/api/v1/public/artifacts/download?product=paxl&platform=${encodeURIComponent(platform)}&tags=stable`,
+  );
+}
+
 export function upgradeNodeDaemon(
   userId: string,
   nodeId: string,

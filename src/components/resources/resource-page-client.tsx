@@ -71,6 +71,7 @@ import {
   SettingsBack,
   settingsLinks,
 } from "@/components/settings/settings-navigation";
+import { NodePaxlUpgrade } from "./node-paxl-upgrade";
 import { NodeMaintenanceActions } from "./node-maintenance-actions";
 
 type ResourceKind =
@@ -575,15 +576,18 @@ function NodeGrid({
                 </div>
               </Link>
               <div className="flex items-start justify-end gap-1">
-                <NodeMaintenanceActions
-                  currentVersion={node.paxd_version}
-                  disabled={!node.online || removeNode.isPending}
-                  nodeArch={node.arch}
-                  nodeId={node.node_id}
-                  nodeLabel={node.name ?? node.hostname ?? node.node_id}
-                  nodeOS={node.os}
-                  userId={userId}
-                />
+                <div className="grid gap-2">
+                  <NodePaxlUpgrade node={node} userId={userId} />
+                  <NodeMaintenanceActions
+                    currentVersion={node.paxd_version}
+                    disabled={!node.online || removeNode.isPending}
+                    nodeArch={node.arch}
+                    nodeId={node.node_id}
+                    nodeLabel={node.name ?? node.hostname ?? node.node_id}
+                    nodeOS={node.os}
+                    userId={userId}
+                  />
+                </div>
                 <ConfirmDialog
                   confirmLabel={
                     removeNode.isPending ? "Deleting..." : "Delete node"

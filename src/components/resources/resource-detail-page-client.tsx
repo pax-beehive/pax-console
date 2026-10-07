@@ -32,6 +32,7 @@ import { queryKeys } from "@/features/api/query-keys";
 import { Agent, ApiRecord, Node, User } from "@/features/api/types";
 import { compactId } from "@/lib/format";
 import { nodeLabel } from "./resource-models";
+import { NodePaxlUpgrade } from "./node-paxl-upgrade";
 import { NodeMaintenanceActions } from "./node-maintenance-actions";
 import { NodeDaemonControl } from "./node-daemon-control";
 import { NodeBrowserControl } from "./node-browser-control";
@@ -124,6 +125,13 @@ export function NodeDetailPageClient({
                   userId={user.user_id}
                 />
               </div>
+            )}
+            {node && (
+              <NodePaxlUpgrade
+                key={node.node_id}
+                node={node}
+                userId={user.user_id}
+              />
             )}
             <NodeSecretChannelPush nodeId={nodeId} userId={user.user_id} />
 

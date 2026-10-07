@@ -124,6 +124,7 @@ export type NodeDaemonAgentConnection = {
 };
 
 export type NodeDaemonCommand = {
+  result?: { phase?: string; paxl?: PaxlObservation };
   applied_at?: string;
   command_id: string;
   desired_generation?: number;
@@ -955,4 +956,13 @@ export type Envelope = {
   created_at?: string;
   accepted_at?: string;
   archived_at?: string;
+};
+
+export type PaxlObservation = {
+  status: string;
+  version?: string;
+  commit?: string;
+  path?: string;
+  checked_at?: string;
+  error?: string;
 };
