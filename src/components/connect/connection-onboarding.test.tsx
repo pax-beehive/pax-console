@@ -137,13 +137,60 @@ async function refresh(client: QueryClient, key: readonly string[]) {
 }
 
 describe("device connection", () => {
+  it("starts quick connect directly and reuses its displayed command on repeat clicks", async () => {
+    const { user } = setup();
+    const quick = await screen.findByRole("button", {
+      name: "Quick connect (Recommended)",
+    });
+    expect(quick).not.toHaveAttribute("aria-pressed");
+    expect(
+      screen.queryByRole("button", { name: "Generate command" }),
+    ).not.toBeInTheDocument();
+    expect(
+      requests.filter((request) =>
+        request.path.endsWith("/node-registration-tokens"),
+      ),
+    ).toHaveLength(0);
+    await user.dblClick(quick);
+    expect(
+      await screen.findByText(/PAX_REGISTRATION_TOKEN='one-use-secret'/),
+    ).toBeVisible();
+    await user.click(quick);
+    expect(
+      requests.filter((request) =>
+        request.path.endsWith("/node-registration-tokens"),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("generates the recommended command when switching back from browser sign-in", async () => {
+    const { user } = setup();
+    await user.click(
+      await screen.findByRole("button", { name: "Browser sign-in" }),
+    );
+    expect(await screen.findByText(/PAX_REGISTRATION_TOKEN=''/)).toBeVisible();
+    await user.click(
+      screen.getByRole("button", { name: "Quick connect (Recommended)" }),
+    );
+    expect(
+      await screen.findByText(/PAX_REGISTRATION_TOKEN='one-use-secret'/),
+    ).toBeVisible();
+    expect(
+      requests.filter((request) =>
+        request.path.endsWith("/node-registration-tokens"),
+      ),
+    ).toHaveLength(1);
+  });
+
   it("offers device setup when the account only has CLI login identities", async () => {
     nodes = [
       { node_id: "cli", kind: "paxl", name: "CLI identity", online: false },
     ];
     setup();
     expect(
-      await screen.findByRole("button", { name: "Generate command" }),
+      await screen.findByRole("button", {
+        name: "Quick connect (Recommended)",
+      }),
     ).toBeVisible();
     expect(screen.queryByText("CLI identity")).not.toBeInTheDocument();
   });
@@ -151,7 +198,9 @@ describe("device connection", () => {
   it("keeps the command visible when a device appears and continues only with the chosen online computer", async () => {
     const { user, client } = setup();
     await user.click(
-      await screen.findByRole("button", { name: "Generate command" }),
+      await screen.findByRole("button", {
+        name: "Quick connect (Recommended)",
+      }),
     );
     expect(
       await screen.findByText(/PAX_REGISTRATION_TOKEN='one-use-secret'/),
@@ -221,7 +270,9 @@ describe("device connection", () => {
     expiresAt = new Date(Date.now() - 1000).toISOString();
     const { user } = setup();
     await user.click(
-      await screen.findByRole("button", { name: "Generate command" }),
+      await screen.findByRole("button", {
+        name: "Quick connect (Recommended)",
+      }),
     );
     expect(await screen.findByText(/This command has expired/)).toBeVisible();
     expect(screen.queryByText(/one-use-secret/)).not.toBeInTheDocument();

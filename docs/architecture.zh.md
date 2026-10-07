@@ -1608,6 +1608,10 @@ Agent 关联使用；缺少 kind 的旧节点继续显示，不通过名称或�
 预选电脑，多电脑时由用户选择。空态开始引导后保持挂载，避免新设备/Agent
 进入 query cache 时把进行中的流程卸载。
 
+Quick connect 和 Browser sign-in 是操作按钮，点击即生成对应命令；初始页面不再
+额外显示 Generate command，也不使用选中状态按钮语义。生成时显示进度并阻止
+并发重复请求；已有有效命令时再次点击同一操作复用该命令。
+
 Quick connect 通过同源 API 创建当前用户的一次性注册 token，不传 owner override。
 命令使用 public runtime origin，只调用一次 paxd installer，设置
 `PAX_SETUP_AFTER_INSTALL=1`，由新版 installer 统一安装 paxl、paxd 并 setup。

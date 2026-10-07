@@ -115,19 +115,19 @@ export function DeviceConnectStep({
         ).map(([value, label]) => (
           <Button
             key={value}
-            aria-pressed={method === value}
             disabled={busy}
-            variant={method === value ? "primary" : "secondary"}
+            variant={value === "quick" ? "primary" : "secondary"}
             onClick={() => {
-              if (method === value) return;
+              if (busyRef.current || (method === value && attempt && !expired))
+                return;
               setMethod(value);
               setAttempt(undefined);
               setExpired(false);
               setError(undefined);
-              if (value === "browser") void prepare(value);
+              void prepare(value);
             }}
           >
-            {label}
+            {busy && method === value ? "Generating…" : label}
           </Button>
         ))}
       </div>
@@ -148,18 +148,14 @@ export function DeviceConnectStep({
           This command has expired. Generate a new command to continue.
         </p>
       )}
-      {(!attempt || expired) && (
+      {expired && (
         <div>
           <Button
             variant="primary"
             disabled={busy}
             onClick={() => void prepare(method)}
           >
-            {busy
-              ? "Generating…"
-              : expired
-                ? "Generate new command"
-                : "Generate command"}
+            {busy ? "Generating…" : "Generate new command"}
           </Button>
         </div>
       )}

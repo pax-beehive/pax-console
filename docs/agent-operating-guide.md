@@ -1617,6 +1617,12 @@ to Add agent with `nodeId`; multiple computers require a selection. Keep an
 in-progress empty-state flow mounted when the new node/agent enters the query
 cache, so users can finish setup and reach Start a conversation.
 
+Quick connect and Browser sign-in are action buttons: clicking either prepares
+its command immediately, including Quick connect on first render. Do not render
+them as pressed-state selectors or require a separate initial Generate command
+action. Show generation progress, prevent duplicate in-flight requests, and reuse
+a valid displayed command when the same action is clicked again.
+
 Quick connect uses the same-origin token API without an owner override. The
 copied command uses the configured public runtime origin and invokes only the
 paxd public installer, with `PAX_SETUP_AFTER_INSTALL=1`; that installer installs

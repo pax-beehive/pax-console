@@ -111,7 +111,7 @@ const baseURL = process.env.ONBOARDING_CHECK_URL || "http://127.0.0.1:3013";
     .getByRole("heading", { name: "Connect a device", exact: true })
     .waitFor();
   await page
-    .getByRole("button", { name: "Generate command", exact: true })
+    .getByRole("button", { name: "Quick connect (Recommended)", exact: true })
     .click();
   await page.getByText(/PAX_REGISTRATION_TOKEN='preview-token/).waitFor();
   await page.screenshot({ path: "/tmp/pax-onboarding-device-desktop.png" });
@@ -165,7 +165,7 @@ const baseURL = process.env.ONBOARDING_CHECK_URL || "http://127.0.0.1:3013";
     .waitFor();
   await page.screenshot({ path: "/tmp/pax-onboarding-home-mobile.png" });
   await page
-    .getByRole("button", { name: "Generate command", exact: true })
+    .getByRole("button", { name: "Quick connect (Recommended)", exact: true })
     .click();
   await page.getByText(/PAX_REGISTRATION_TOKEN='preview-token/).waitFor();
   nodes = [{ node_id: "mac", name: "Kevin’s Mac", online: true }];
