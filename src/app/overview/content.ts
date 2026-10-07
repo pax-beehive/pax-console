@@ -82,6 +82,10 @@ export const overviewContent = {
       relay: "Connect & relay",
       hosts: ["Server A", "Server B", "Work computer"],
       agent: "Runs agents",
+      sourceTitle: "Public device-side code, open to inspection.",
+      sourceDescription:
+        "Explore and review the source code of paxd, the daemon running on your computers and servers.",
+      sourceLink: "View paxd source",
       encryption: "End-to-end encryption · E2EE",
       caption:
         "When enabled, session content is encrypted between your browser and the device running the agent. PAX cloud relays ciphertext.",
@@ -169,6 +173,10 @@ export const overviewContent = {
       relay: "连接与转发",
       hosts: ["服务器 A", "服务器 B", "工作电脑"],
       agent: "运行 Agent",
+      sourceTitle: "设备端代码公开，可自行审查。",
+      sourceDescription:
+        "运行在你电脑或服务器上的 paxd 源码公开，欢迎查看实现与审查代码。",
+      sourceLink: "查看 paxd 源码",
       encryption: "支持端到端加密 · E2EE",
       caption:
         "开启后，会话内容在你的浏览器与运行 Agent 的设备之间加密传输，PAX 云转发密文。",
