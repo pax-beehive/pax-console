@@ -1,5 +1,17 @@
 # PAX Console 代码结构与接入说明
 
+## Harness 与 ACP adapter 升级
+
+节点详情的高级设置通过 `NodeHarnessUpgrade` 分别升级 Claude/Codex/Pi CLI 和 ACP adapter。
+前端提交精确版本；ACP 更新需要选择运行中的 daemon connection，CLI 更新不传 connection。
+Claude/Codex 的受管理 ACP 绑定明确的原生 executable，CLI 更新后验证新进程的 runtime 版本。
+Pi CLI 暂不影响 Pi ACP 内置 SDK，界面会说明两者的区别。请求经过同源 API proxy，
+调用 `POST /api/v1/user/:user_id/nodes/:node_id/harness/upgrade`，复用现有 command 查询与
+`received → applied/failed` 状态。收到 ACK 只表示已接收；只有 paxd 完成安装验证及所需的
+ACP 新进程握手后才显示成功。command_id 在提交前写入浏览器存储，刷新后继续查询，重试沿用
+同一个 ID。paxl 负责本地安装，paxd 负责等待任务结束、重建进程和失败恢复；Manager 负责鉴权及转发。
+首版支持直接 symlink 入口的 npm 全局安装，原生安装器、Homebrew、npx wrapper 暂不支持。
+
 这份文档给人读，目标是让新加入的人能快速理解：项目为什么这样分层、Cloudflare 本地开发为什么这样接、REST 和 WebSocket 后续应该怎么演进。
 
 如果你改了关键架构、认证链路、目录结构、REST/WebSocket 协议、UI primitives 或 shell 布局，请同时更新本文和 `docs/agent-operating-guide.md`。

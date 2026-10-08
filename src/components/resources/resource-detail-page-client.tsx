@@ -33,6 +33,7 @@ import { Agent, ApiRecord, Node, User } from "@/features/api/types";
 import { compactId } from "@/lib/format";
 import { nodeLabel } from "./resource-models";
 import { NodePaxlUpgrade } from "./node-paxl-upgrade";
+import { NodeHarnessUpgrade } from "./node-harness-upgrade";
 import { NodeMaintenanceActions } from "./node-maintenance-actions";
 import { NodeDaemonControl } from "./node-daemon-control";
 import { NodeBrowserControl } from "./node-browser-control";
@@ -134,6 +135,14 @@ export function NodeDetailPageClient({
               />
             )}
             <NodeSecretChannelPush nodeId={nodeId} userId={user.user_id} />
+
+            {node && (
+              <NodeHarnessUpgrade
+                key={`harness-${node.node_id}`}
+                node={node}
+                userId={user.user_id}
+              />
+            )}
 
             <CleanupActionCard
               actionLabel={removeNode.isPending ? "Deleting..." : "Delete node"}
