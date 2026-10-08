@@ -5,7 +5,7 @@
 Node detail's advanced settings expose Claude/Codex/Pi CLI and ACP adapter upgrades. `NodeHarnessUpgrade` sends an exact version through the same-origin
 `POST /api/v1/user/:user_id/nodes/:node_id/harness/upgrade` proxy route. ACP upgrades select a running daemon connection; native CLI upgrades omit it. Store the request ID before dispatch and
 recover it after reload; retries reuse that ID. The component selector distinguishes
-native CLI and ACP adapter updates. Pi CLI updates do not change Pi ACP SDKs. A received ACK is pending, and
+native CLI and ACP adapter updates. With Pi ACP >=0.7.0, paxd binds the SDK from the connection's Pi CLI installation and verifies its runtime version after restart. Explicit PI_ACP_SDK_ROOT connections retain their separate SDK installation. A received ACK is pending, and
 only the daemon command's applied result is displayed as verified. Poll progress
 with the existing command query; keep server state in TanStack Query. The first
 installation backend supports npm global packages with direct symlink launchers.

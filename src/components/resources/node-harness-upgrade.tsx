@@ -179,8 +179,9 @@ export function NodeHarnessUpgrade({
       </p>
       {harness === "pi" && component === "cli" && (
         <p className="text-ink-muted">
-          Pi ACP uses its own SDK. Updating the Pi CLI does not update the SDK
-          inside Pi ACP.
+          Requires Pi ACP 0.7.0 or newer. Connected Pi agents restart with the
+          updated Pi SDK. Connections configured with a separate SDK stay on
+          that installation.
         </p>
       )}
       <div className="grid gap-3 sm:grid-cols-2">
