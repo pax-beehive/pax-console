@@ -1,4 +1,5 @@
 import {
+  ArrowUpRight,
   Cloud,
   Laptop,
   LockKeyhole,
@@ -121,6 +122,19 @@ export function ArchitectureDiagram({
           {copy.encryption}
         </p>
         <p className="mt-2 text-xs leading-6 text-ink-subtle">{copy.caption}</p>
+        <div className="mt-5 border-t border-hairline pt-5">
+          <p className="text-sm font-medium text-ink">{copy.sourceTitle}</p>
+          <p className="mt-2 text-xs leading-6 text-ink-subtle">
+            {copy.sourceDescription}
+          </p>
+          <a
+            href="https://github.com/pax-beehive/paxd"
+            className="mt-3 inline-flex min-h-11 items-center gap-1 text-sm text-ink-muted underline decoration-hairline-strong underline-offset-4 hover:text-ink"
+          >
+            {copy.sourceLink}
+            <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" />
+          </a>
+        </div>
       </figcaption>
     </figure>
   );
