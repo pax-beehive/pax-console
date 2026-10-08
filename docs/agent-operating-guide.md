@@ -1,5 +1,16 @@
 # Agent Operating Guide
 
+## Harness and ACP adapter upgrades
+
+Node detail's advanced settings expose Claude/Codex/Pi CLI and ACP adapter upgrades. `NodeHarnessUpgrade` sends an exact version through the same-origin
+`POST /api/v1/user/:user_id/nodes/:node_id/harness/upgrade` proxy route. ACP upgrades select a running daemon connection; native CLI upgrades omit it. Store the request ID before dispatch and
+recover it after reload; retries reuse that ID. The component selector distinguishes
+native CLI and ACP adapter updates. Pi CLI updates do not change Pi ACP SDKs. A received ACK is pending, and
+only the daemon command's applied result is displayed as verified. Poll progress
+with the existing command query; keep server state in TanStack Query. The first
+installation backend supports npm global packages with direct symlink launchers.
+Native installers, Homebrew and npx wrappers are explicitly unsupported.
+
 This file is for coding agents working on PAX Console. Keep it short, factual, and current. When architecture or integration behavior changes, update this file together with `docs/architecture.zh.md`.
 
 ## Public product overview

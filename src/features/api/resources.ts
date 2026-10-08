@@ -414,6 +414,25 @@ export function upgradeNodePaxl(
   );
 }
 
+export type HarnessUpgradeInput = {
+  command_id: string;
+  harness: "claude-code" | "codex" | "pi";
+  component: "cli" | "acp";
+  version: string;
+  connection_id?: string;
+};
+
+export function upgradeNodeHarness(
+  userId: string,
+  nodeId: string,
+  input: HarnessUpgradeInput,
+) {
+  return apiFetch<NodeDaemonCommandData>(
+    userPath(userId, `/nodes/${nodeId}/harness/upgrade`),
+    { method: "POST", body: JSON.stringify(input) },
+  );
+}
+
 export function getLatestPaxlRelease(os: string, arch: string) {
   const platform = `${os.trim()}/${arch.trim()}`.toLowerCase();
   return apiFetch<PaxdRelease>(
