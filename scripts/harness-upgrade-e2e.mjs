@@ -63,14 +63,19 @@ try {
       console.log(`${message}; command recovered after reload.`);
     }
   }
-  for (const component of ["acp", "cli"]) {
+  for (const [harness, component] of [
+    ["codex", "acp"],
+    ["codex", "cli"],
+    ["pi", "acp"],
+    ["pi", "cli"],
+  ]) {
     const form = page.getByRole("region", { name: "Harness upgrades" });
-    await form.getByLabel("Harness", { exact: true }).selectOption("codex");
+    await form.getByLabel("Harness", { exact: true }).selectOption(harness);
     await form.getByLabel("Component", { exact: true }).selectOption(component);
     if (component === "acp") {
       await form
         .getByLabel("ACP connection", { exact: true })
-        .selectOption("fixture-codex");
+        .selectOption(`fixture-${harness}`);
     }
     await form.getByLabel("Target version").fill("1.2.4");
     await form
@@ -84,7 +89,7 @@ try {
       .filter({ hasText: "previous installation and processes restored" })
       .waitFor({ timeout: 80000 });
     console.log(
-      `${component} version mismatch rejected; previous installation and processes restored.`,
+      `${harness} ${component} version mismatch rejected; previous installation and processes restored.`,
     );
   }
 } finally {

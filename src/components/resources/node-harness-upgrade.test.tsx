@@ -137,7 +137,7 @@ it("submits a native CLI upgrade without an ACP connection", async () => {
   mount();
   await user.selectOptions(screen.getByLabelText("Component"), "cli");
   await user.selectOptions(screen.getByLabelText("Harness"), "pi");
-  await screen.findByText(/Updating the Pi CLI does not update the SDK/);
+  await screen.findByText(/Requires Pi ACP 0.7.0 or newer/);
   expect(screen.queryByLabelText("ACP connection")).not.toBeInTheDocument();
   await user.type(screen.getByLabelText("Target version"), "1.2.3");
   await user.click(
