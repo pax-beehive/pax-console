@@ -8,6 +8,7 @@ import { canSeeAdminFeatures } from "@/features/auth/admin-view";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { MobileNav } from "./mobile-nav";
+import { CustomerVisitTracker } from "@/features/analytics/use-customer-analytics";
 
 type ConsoleLayoutProps = {
   user: User;
@@ -26,6 +27,7 @@ export function ConsoleLayout({ user, children }: ConsoleLayoutProps) {
       ref={shellRef}
       className="console-shell flex overflow-hidden bg-canvas text-ink"
     >
+      <CustomerVisitTracker userId={user.user_id} />
       <div
         className="hidden shrink-0 overflow-hidden transition-[width] duration-200 lg:block"
         style={{ width: sidebarCollapsed ? 76 : 248 }}

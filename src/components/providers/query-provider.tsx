@@ -1,9 +1,11 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ReactNode, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
+import { installQueryFocus } from "@/features/analytics/query-focus";
 
 export function QueryProvider({ children }: { children: ReactNode }) {
+  useEffect(installQueryFocus, []);
   const [queryClient] = useState(
     () =>
       new QueryClient({
