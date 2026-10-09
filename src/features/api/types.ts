@@ -124,7 +124,11 @@ export type NodeDaemonAgentConnection = {
 };
 
 export type NodeDaemonCommand = {
-  result?: { phase?: string; paxl?: PaxlObservation };
+  result?: {
+    phase?: string;
+    paxl?: PaxlObservation;
+    harness?: { target_version?: string; installation?: { version?: string } };
+  };
   applied_at?: string;
   command_id: string;
   desired_generation?: number;

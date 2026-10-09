@@ -15,6 +15,7 @@ import type { Node } from "@/features/api/types";
 
 const changed = "harness-upgrade-command";
 const phases: Record<string, string> = {
+  resolving_version: "Finding latest version",
   inspecting: "Checking installation",
   waiting_idle: "Waiting for active tasks to finish",
   installing: "Installing selected version",
@@ -44,7 +45,7 @@ function parse(raw: string | null): SavedUpgrade | undefined {
     const v = JSON.parse(raw ?? "null");
     if (
       typeof v?.command_id === "string" &&
-      typeof v.version === "string" &&
+      (v.version === undefined || typeof v.version === "string") &&
       ["claude-code", "codex", "pi"].includes(v.harness) &&
       ((v.component === "cli" && !v.connection_id) ||
         (v.component === "acp" &&
@@ -137,10 +138,12 @@ export function NodeHarnessUpgrade({
       });
     },
   });
+  const requestedVersion = version.trim() || "latest";
   const valid =
-    /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$/.test(
-      version.trim(),
-    ) &&
+    (requestedVersion === "latest" ||
+      /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$/.test(
+        requestedVersion,
+      )) &&
     (component === "cli" || eligible.some((c) => c.id === connection));
   const disabled =
     !node.online || mutation.isPending || Boolean(pending && !terminal);
@@ -150,7 +153,7 @@ export function NodeHarnessUpgrade({
       command_id: crypto.randomUUID(),
       harness,
       component,
-      version: version.trim(),
+      version: requestedVersion,
       ...(component === "acp" ? { connection_id: connection } : {}),
     };
     try {
@@ -170,12 +173,17 @@ export function NodeHarnessUpgrade({
     mutation.error?.message ||
     command.data?.command?.error_message;
   const phase = command.data?.command?.result?.phase;
+  const installedVersion =
+    command.data?.command?.result?.harness?.installation?.version ??
+    command.data?.command?.result?.harness?.target_version;
+  const displayedVersion = installedVersion ?? pending?.version ?? "latest";
   return (
     <section className="grid gap-3 text-sm" aria-label="Harness upgrades">
       <h2 className="font-medium">Harness and ACP updates</h2>
       <p className="text-ink-muted">
-        Choose an exact version. Active tasks finish before the update; new
-        tasks wait. Supports npm installations with a direct launcher.
+        Leave the version blank to install the latest release. Active tasks
+        finish before the update; new tasks wait. Supports npm installations
+        with a direct launcher.
       </p>
       {harness === "pi" && component === "cli" && (
         <p className="text-ink-muted">
@@ -237,12 +245,13 @@ export function NodeHarnessUpgrade({
           </label>
         )}
         <label className="grid gap-1">
-          Target version
+          Target version (optional)
           <input
             className="rounded border border-hairline bg-surface-2 p-2"
             value={version}
             disabled={disabled}
-            placeholder="1.2.3"
+            aria-label="Target version"
+            placeholder="Latest"
             onChange={(e) => setVersion(e.target.value)}
           />
         </label>
@@ -258,8 +267,8 @@ export function NodeHarnessUpgrade({
       {pending && (
         <div role="status">
           {status === "applied"
-            ? `${pending.harness === "claude-code" ? "Claude" : pending.harness === "pi" ? "Pi" : "Codex"} ${pending.component === "cli" ? "CLI" : "ACP adapter"} ${pending.version} verified`
-            : `${phases[phase ?? ""] ?? status ?? "Result pending"} · ${pending.version}`}
+            ? `${pending.harness === "claude-code" ? "Claude" : pending.harness === "pi" ? "Pi" : "Codex"} ${pending.component === "cli" ? "CLI" : "ACP adapter"} ${displayedVersion} verified`
+            : `${phases[phase ?? ""] ?? status ?? "Result pending"} · ${displayedVersion}`}
           {!terminal && !mutation.isPending && (
             <Button
               size="sm"
@@ -281,7 +290,7 @@ export function NodeHarnessUpgrade({
         open={open}
         onOpenChange={setOpen}
         title="Upgrade selected component"
-        description={`Install ${harness === "claude-code" ? "Claude" : harness === "pi" ? "Pi" : "Codex"} ${component === "cli" ? "CLI" : "ACP adapter"} ${version.trim()}? Existing installation files are retained for recovery. Affected ACP processes restart and are verified before completion.`}
+        description={`Install ${harness === "claude-code" ? "Claude" : harness === "pi" ? "Pi" : "Codex"} ${component === "cli" ? "CLI" : "ACP adapter"} ${requestedVersion}? Existing installation files are retained for recovery. Affected ACP processes restart and are verified before completion.`}
         confirmLabel="Install update"
         confirmDisabled={!valid || disabled}
         onConfirm={submit}
