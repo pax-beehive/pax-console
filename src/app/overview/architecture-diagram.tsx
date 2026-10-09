@@ -128,7 +128,7 @@ export function ArchitectureDiagram({
             {copy.sourceDescription}
           </p>
           <a
-            href="https://github.com/pax-beehive/paxd"
+            href="https://github.com/pax-beehive"
             className="mt-3 inline-flex min-h-11 items-center gap-1 text-sm text-ink-muted underline decoration-hairline-strong underline-offset-4 hover:text-ink"
           >
             {copy.sourceLink}
