@@ -2,7 +2,7 @@
 
 ## Harness and ACP adapter upgrades
 
-Node detail's advanced settings expose Claude/Codex/Pi CLI and ACP adapter upgrades. `NodeHarnessUpgrade` sends an exact version through the same-origin
+Node detail's advanced settings expose Claude/Codex/Pi CLI and ACP adapter upgrades. `NodeHarnessUpgrade` accepts an optional version (blank means latest) and displays the resolved installed version from the command result, including after reload. It sends upgrades through the same-origin
 `POST /api/v1/user/:user_id/nodes/:node_id/harness/upgrade` proxy route. ACP upgrades select a running daemon connection; native CLI upgrades omit it. Store the request ID before dispatch and
 recover it after reload; retries reuse that ID. The component selector distinguishes
 native CLI and ACP adapter updates. With Pi ACP >=0.7.0, paxd binds the SDK from the connection's Pi CLI installation and verifies its runtime version after restart. Explicit PI_ACP_SDK_ROOT connections retain their separate SDK installation. A received ACK is pending, and

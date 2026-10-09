@@ -154,3 +154,44 @@ it("submits a native CLI upgrade without an ACP connection", async () => {
     "connection_id",
   );
 });
+
+it("defaults a blank version to latest and recovers the resolved version", async () => {
+  const user = userEvent.setup();
+  const first = mount();
+  await user.selectOptions(screen.getByLabelText("Component"), "cli");
+  expect(screen.getByLabelText("Target version")).toHaveValue("");
+  await user.click(
+    screen.getByRole("button", { name: "Upgrade selected component" }),
+  );
+  await screen.findByText(/Install Claude CLI latest/);
+  await user.click(screen.getByRole("button", { name: "Install update" }));
+  await waitFor(() => expect(mocks.upgradeNodeHarness).toHaveBeenCalledOnce());
+  expect(mocks.upgradeNodeHarness.mock.calls[0][2].version).toBe("latest");
+  first.unmount();
+  mocks.getNodeDaemonCommand.mockResolvedValue({
+    command: {
+      status: "applied",
+      result: {
+        phase: "verified",
+        harness: {
+          target_version: "2.3.4",
+          installation: { version: "2.3.4" },
+        },
+      },
+    },
+  });
+  mount();
+  await screen.findByText("Claude CLI 2.3.4 verified");
+  expect(mocks.upgradeNodeHarness).toHaveBeenCalledOnce();
+});
+
+it("rejects a version range without dispatching an upgrade", async () => {
+  const user = userEvent.setup();
+  mount();
+  await user.selectOptions(screen.getByLabelText("Component"), "cli");
+  await user.type(screen.getByLabelText("Target version"), "^1.2.3");
+  expect(
+    screen.getByRole("button", { name: "Upgrade selected component" }),
+  ).toBeDisabled();
+  expect(mocks.upgradeNodeHarness).not.toHaveBeenCalled();
+});

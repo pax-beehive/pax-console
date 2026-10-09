@@ -418,7 +418,7 @@ export type HarnessUpgradeInput = {
   command_id: string;
   harness: "claude-code" | "codex" | "pi";
   component: "cli" | "acp";
-  version: string;
+  version?: string;
   connection_id?: string;
 };
 

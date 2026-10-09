@@ -2,8 +2,9 @@
 
 ## Harness 与 ACP adapter 升级
 
+目标版本可留空，默认 latest；paxd 通过 paxl 解析一次后固定版本，前端从命令结果展示实际安装版本，刷新后可恢复。
 节点详情的高级设置通过 `NodeHarnessUpgrade` 分别升级 Claude/Codex/Pi CLI 和 ACP adapter。
-前端提交精确版本；ACP 更新需要选择运行中的 daemon connection，CLI 更新不传 connection。
+前端提交 latest 或指定的精确版本；ACP 更新需要选择运行中的 daemon connection，CLI 更新不传 connection。
 Claude/Codex 的受管理 ACP 绑定明确的原生 executable，CLI 更新后验证新进程的 runtime 版本。
 Pi ACP 0.7.0 起由 paxd 绑定 Pi CLI 所在 SDK，CLI 升级后重启并验证实际 SDK 版本；显式指定 PI_ACP_SDK_ROOT 的连接保持独立安装。请求经过同源 API proxy，
 调用 `POST /api/v1/user/:user_id/nodes/:node_id/harness/upgrade`，复用现有 command 查询与

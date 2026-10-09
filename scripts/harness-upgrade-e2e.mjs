@@ -30,7 +30,7 @@ try {
           .getByLabel("ACP connection", { exact: true })
           .selectOption(`fixture-${harness}`, { timeout: 15000 });
       }
-      await form.getByLabel("Target version").fill("1.2.3");
+      await form.getByLabel("Target version").fill("");
       await form
         .getByRole("button", {
           name: "Upgrade selected component",
