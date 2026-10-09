@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   Activity,
+  ChartNoAxesCombined,
   Brain,
   ChevronDown,
   ChevronLeft,
@@ -32,6 +33,7 @@ type NavItem = {
 };
 
 const primaryNavItems: readonly NavItem[] = [
+  { href: "/admin/customers", icon: ChartNoAxesCombined, label: "Customers" },
   {
     href: "/",
     icon: Activity,
@@ -132,7 +134,9 @@ export function Sidebar({ showAdminFeatures }: { showAdminFeatures: boolean }) {
         <div className="grid flex-1 content-start gap-0.5 overflow-y-auto">
           {primaryNavItems
             .filter(
-              (item) => showAdminFeatures || item.label !== "Collaboration",
+              (item) =>
+                showAdminFeatures ||
+                !["Collaboration", "Customers"].includes(item.label),
             )
             .map((item) => (
               <NavEntry collapsed={collapsed} item={item} key={item.label} />

@@ -1,10 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { Activity, Settings, Users } from "lucide-react";
+import { Activity, Settings, Users, ChartNoAxesCombined } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 const items = [
+  {
+    href: "/admin/customers",
+    icon: ChartNoAxesCombined,
+    label: "Customers",
+    matches: ["/admin/customers"],
+  },
   {
     href: "/",
     icon: Activity,
@@ -36,11 +42,15 @@ export function MobileNav({
     <nav
       aria-label="Primary"
       className={`absolute inset-x-0 bottom-0 z-50 grid h-[var(--console-mobile-nav-height)] border-t border-hairline bg-surface-1/95 px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] backdrop-blur lg:hidden ${
-        showAdminFeatures ? "grid-cols-3" : "grid-cols-2"
+        showAdminFeatures ? "grid-cols-4" : "grid-cols-2"
       }`}
     >
       {items
-        .filter((item) => showAdminFeatures || item.label !== "Collaboration")
+        .filter(
+          (item) =>
+            showAdminFeatures ||
+            !["Collaboration", "Customers"].includes(item.label),
+        )
         .map((item) => {
           const active = item.matches.some((path) =>
             path === "/"

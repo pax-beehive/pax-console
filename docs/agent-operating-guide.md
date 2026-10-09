@@ -11,6 +11,38 @@ with the existing command query; keep server state in TanStack Query. The first
 installation backend supports npm global packages with direct symlink launchers.
 Native installers, Homebrew and npx wrappers are explicitly unsupported.
 
+## Customer analytics and focus-only polling
+
+`/admin/customers` is an administrator-only metadata dashboard. Both navigation
+surfaces and the page honor preview-as-user; the Manager independently checks
+the current administrator policy. The Worker fans a single same-origin request
+out to the fixed US/HK origins, without D1 lookups or provisioning. A regional
+authorization denial fails the whole request; outages retain explicitly stale
+regional data. Never turn a missing region into a successful zero count.
+
+`features/analytics/use-focused-query.ts` keeps its TanStack observers disabled
+and uses `focused-polling.ts` as the sole automatic request scheduler. Fetch only
+when visible, `document.hasFocus()` is true, online, and mounted. Blur, hidden,
+pagehide, offline and unmount clear timers and cancel in-flight fetches. There
+is one request at a time, no catch-up loop, a freshness cooldown on focus, and
+exponential error backoff capped at five minutes. Authentication failures stop
+the scheduler. Do not add TanStack mount/focus/reconnect/retry triggers to these
+queries. QueryProvider's focus listener also pauses existing shell intervals
+when a visible window loses OS focus.
+
+Analytics refreshes every 15 seconds while focused. CustomerVisitTracker posts
+at most once per minute while a signed-in Console is focused. Neither uses
+background beacons, service workers or scheduled backend jobs. Filters and
+details use the loaded snapshot. Visit timestamps begin with this release;
+legacy `users.last_seen_at` is not reliable visit evidence. Encrypted records
+are shown as activity, never counted as confirmed user sends. Non-admin is an
+explicit permission filter, not an inferred external-customer classification.
+
+Local browser check: start Next on port 3349, then run
+`node scripts/customer-analytics-browser.mjs`. It intercepts API calls with
+fictional accounts, verifies two minutes without focus produce zero requests,
+and captures desktop/mobile screenshots under `/tmp/pax-customer-audit/`.
+
 This file is for coding agents working on PAX Console. Keep it short, factual, and current. When architecture or integration behavior changes, update this file together with `docs/architecture.zh.md`.
 
 ## Public product overview

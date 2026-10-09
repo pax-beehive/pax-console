@@ -13,6 +13,25 @@ ACP 新进程握手后才显示成功。command_id 在提交前写入浏览器�
 同一个 ID。paxl 负责本地安装，paxd 负责等待任务结束、重建进程和失败恢复；Manager 负责鉴权及转发。
 首版支持直接 symlink 入口的 npm 全局安装，原生安装器、Homebrew、npx wrapper 暂不支持。
 
+## 用户分析看板与焦点轮询
+
+`/admin/customers` 展示美国、香港两区的账号、访问记录、真实 agent 绑定和消息使用情况。
+仅管理员可见，预览普通用户时隐藏；Manager 在服务端再次校验管理员权限。
+浏览器只请求同源 `/api/pax/api/v1/user/self/customer-analytics`，Worker 使用原始身份
+并发读取两个固定区域，不进行 D1 查询或账号创建。任一区拒绝授权则整次请求失败；
+区域故障时保留该区旧值和更新时间，不把故障当成零用户。账号按规范化邮箱去重。
+
+看板每 15 秒刷新一次，但必须同时满足页面可见、窗口获得焦点、在线且组件仍挂载。
+失焦、隐藏、pagehide、离线或卸载立即清除定时器并取消请求。恢复焦点按新鲜度
+最多请求一次，不补发历史轮次。错误指数退避，鉴权错误停止。筛选、搜索和详情不发请求。
+TanStack observer 禁用自动 mount/focus/reconnect/retry，调度器是唯一请求入口。
+全局 QueryProvider 的 focus listener 也包含窗口焦点，避免已有 shell 轮询在失焦窗口继续。
+
+已登录 Console 的访问记录每分钟最多上报一次，同样只在前台有焦点时执行。
+新表 `customer_visits` 记录首次和最近访问；旧的 `last_seen_at` 不用于推断访问时间。
+历史未知值保留为 Unknown。加密消息只能确认存在活动，不推算用户发送条数。
+普通账号筛选表示排除管理员，不把权限角色当成内外部客户分类。
+
 这份文档给人读，目标是让新加入的人能快速理解：项目为什么这样分层、Cloudflare 本地开发为什么这样接、REST 和 WebSocket 后续应该怎么演进。
 
 如果你改了关键架构、认证链路、目录结构、REST/WebSocket 协议、UI primitives 或 shell 布局，请同时更新本文和 `docs/agent-operating-guide.md`。
