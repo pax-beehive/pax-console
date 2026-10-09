@@ -15,7 +15,7 @@ export const overviewContent = {
     desktop: "Desktop",
     mobile: "Mobile",
     ownership: "Your devices. Your projects.",
-    featuresHeading: "You choose who does the work.",
+    featuresHeading: "Your agents. Your devices. Stay connected.",
     startHeading: "Start with your own project.",
     faqHeading: "Common questions",
     languageLabel: "Choose language",
@@ -40,6 +40,16 @@ export const overviewContent = {
         number: "03",
         title: "Keep up from anywhere",
         body: "Open the same workspace on your phone to follow sessions, send the next instruction, handle pending approvals, and review delivered files.",
+      },
+      {
+        number: "04",
+        title: "No VPN. No jump hosts. No open ports.",
+        body: "Your devices initiate outbound connections to PAX cloud. Reach your agents without setting up a VPN, jump host, or port forwarding. No inbound ports to open, and no need to expose your device’s IP address as a public access point.",
+      },
+      {
+        number: "05",
+        title: "Live streaming, smooth responses",
+        body: "Agent output flows continuously to your browser as a stream of frames. Follow each response as it unfolds, without waiting for the full reply. Low-latency delivery keeps you close to your agent’s progress.",
       },
     ],
     questions: [
@@ -82,10 +92,10 @@ export const overviewContent = {
       relay: "Connect & relay",
       hosts: ["Server A", "Server B", "Work computer"],
       agent: "Runs agents",
-      sourceTitle: "Public device-side code, open to inspection.",
+      sourceTitle: "Fully open source. Transparent and auditable.",
       sourceDescription:
-        "Explore and review the source code of paxd, the daemon running on your computers and servers.",
-      sourceLink: "View paxd source",
+        "All PAX code is open source, from the browser workspace and cloud services to the software on your devices. Inspect how data flows, permissions are enforced, and encryption works, so you can verify the implementation for yourself.",
+      sourceLink: "Explore the source",
       encryption: "End-to-end encryption · E2EE",
       caption:
         "When enabled, session content is encrypted between your browser and the device running the agent. PAX cloud relays ciphertext.",
@@ -107,7 +117,7 @@ export const overviewContent = {
     desktop: "电脑",
     mobile: "手机",
     ownership: "你的设备 · 你的项目",
-    featuresHeading: "选谁来做，由你决定。",
+    featuresHeading: "自由选 Agent，安心连接，流畅交互。",
     startHeading: "从自己的项目开始。",
     faqHeading: "常见问题",
     languageLabel: "选择语言",
@@ -132,6 +142,16 @@ export const overviewContent = {
         number: "03",
         title: "离开电脑，也能接着看",
         body: "用手机打开同一个工作台，查看会话进展、发送下一条指令、处理待授权操作，查看 Agent 交付的文件。",
+      },
+      {
+        number: "04",
+        title: "无需 VPN，无需跳板，无需开端口",
+        body: "设备主动向 PAX 云建立出站连接，即可通过工作台远程使用 Agent。无需搭建 VPN、配置跳板机或端口映射，无需开放入站端口，也无需将设备 IP 暴露为公网访问入口。",
+      },
+      {
+        number: "05",
+        title: "实时流式，顺滑吐字",
+        body: "Agent 输出以实时帧流持续传递到浏览器，生成过程边看边跟进，无需等待完整回复。以低延迟传输，让每一段输出及时呈现，交互自然连贯。",
       },
     ],
     questions: [
@@ -173,10 +193,10 @@ export const overviewContent = {
       relay: "连接与转发",
       hosts: ["服务器 A", "服务器 B", "工作电脑"],
       agent: "运行 Agent",
-      sourceTitle: "设备端代码公开，可自行审查。",
+      sourceTitle: "全栈开源，透明可审计。",
       sourceDescription:
-        "运行在你电脑或服务器上的 paxd 源码公开，欢迎查看实现与审查代码。",
-      sourceLink: "查看 paxd 源码",
+        "从前端工作台、云端服务到设备端程序，PAX 全部代码开源。你可以自行审查数据流转、权限控制与加密实现，让信任有据可查。",
+      sourceLink: "探索开源代码",
       encryption: "支持端到端加密 · E2EE",
       caption:
         "开启后，会话内容在你的浏览器与运行 Agent 的设备之间加密传输，PAX 云转发密文。",
