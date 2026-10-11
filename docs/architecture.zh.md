@@ -1841,3 +1841,13 @@ localStorage 按用户和节点保存 command_id 与目标版本，刷新或网�
 重试同一个 command。服务端数据仍由 TanStack Query 管理。先部署对应 Manager 与
 paxd，再部署 Console。跨仓库浏览器 fixture 为 `scripts/paxl-upgrade-e2e.mjs`，
 由 Manager 的 `TestPaxlBrowserUpgrade` 启动真实前端、API 与 paxd control runner。
+
+## Paxl upgrade release lookup recovery
+
+The upgrade dialog reads stable metadata through the same-origin regional proxy
+`/api/pax/api/v1/public/artifacts/download`. The Worker must allow this exact
+read route and retain identity and account-region checks. Worker error envelopes
+use `error`; apiFetch maps known routing errors to actionable messages with HTTP
+status and keeps Manager `message` errors. Unknown Worker details remain hidden.
+A failed lookup displays a release-check failure and a read-only retry action.
+Install stays disabled during lookup or after failure, including cached versions.

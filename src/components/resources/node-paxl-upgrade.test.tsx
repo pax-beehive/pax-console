@@ -79,3 +79,26 @@ it("shows offline versions as last observations and disables upgrade", () => {
   expect(screen.getByText(/last observed/)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Upgrade paxl" })).toBeDisabled();
 });
+it("shows a failed release check and lets the user retry without issuing an upgrade", async () => {
+  mocks.getLatestPaxlRelease.mockRejectedValueOnce(
+    new Error("Requested API endpoint was not found (HTTP 404)."),
+  );
+  const user = userEvent.setup();
+  mount();
+  await user.click(screen.getByRole("button", { name: "Upgrade paxl" }));
+  await screen.findByText(/Release check failed/);
+  expect(
+    screen.queryByText("Checking stable release…"),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Install paxl update" }),
+  ).toBeDisabled();
+  await user.click(screen.getByRole("button", { name: "Retry release check" }));
+  await waitFor(() =>
+    expect(
+      screen.getByRole("button", { name: "Install paxl update" }),
+    ).toBeEnabled(),
+  );
+  expect(mocks.getLatestPaxlRelease).toHaveBeenCalledTimes(2);
+  expect(mocks.upgradeNodePaxl).not.toHaveBeenCalled();
+});
