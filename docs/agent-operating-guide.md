@@ -7,9 +7,12 @@ Node detail's advanced settings expose Claude/Codex/Pi CLI and ACP adapter upgra
 recover it after reload; retries reuse that ID. The component selector distinguishes
 native CLI and ACP adapter updates. With Pi ACP >=0.7.0, paxd binds the SDK from the connection's Pi CLI installation and verifies its runtime version after restart. Explicit PI_ACP_SDK_ROOT connections retain their separate SDK installation. A received ACK is pending, and
 only the daemon command's applied result is displayed as verified. Poll progress
-with the existing command query; keep server state in TanStack Query. The first
-installation backend supports npm global packages with direct symlink launchers.
-Native installers, Homebrew and npx wrappers are explicitly unsupported.
+with the existing command query; keep server state in TanStack Query. The
+installation backend supports npm global packages and official native Claude
+installations with direct symlink launchers. Native Claude requires the updated
+paxl backend; it verifies official downloads and retains an independent rollback
+binary. The existing command, restart and runtime verification flow is shared.
+Homebrew and npx wrappers remain unsupported.
 
 ## Customer analytics and focus-only polling
 

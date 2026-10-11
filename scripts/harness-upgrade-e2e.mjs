@@ -84,10 +84,15 @@ try {
     await page
       .getByRole("button", { name: "Install update", exact: true })
       .click();
-    await form
-      .getByRole("alert")
-      .filter({ hasText: "previous installation and processes restored" })
-      .waitFor({ timeout: 80000 });
+    try {
+      await form
+        .getByRole("alert")
+        .filter({ hasText: "previous installation and processes restored" })
+        .waitFor({ timeout: 80000 });
+    } catch (error) {
+      console.error(`${harness} ${component} rollback:`, await form.innerText());
+      throw error;
+    }
     console.log(
       `${harness} ${component} version mismatch rejected; previous installation and processes restored.`,
     );
