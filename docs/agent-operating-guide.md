@@ -1588,8 +1588,11 @@ Quick connect uses the same-origin token API without an owner override (the
 authenticated user supplies ownership), then assembles an install command using
 the configured public runtime origin. It installs paxl first, then installs and
 sets up paxd, using each public installer with its matching download-origin
-variable. Each pipeline runs under bash pipefail and the steps use &&, so a
-failed download/install stops setup. Only the paxd step receives the generated
+variable. Known production, staging, and legacy Console origins map to their
+Manager API origins; custom origins and local ports remain unchanged. Each
+installer is fully downloaded and checked for a shell shebang before execution;
+HTML, empty responses, and partial downloads stop with an error. The steps use
+&&, so a failed download/install stops setup. Only the paxd step receives the generated
 registration token. Its one-use token stays in page state,
 expires after one hour, and can be regenerated. Never log it or store it in the
 query cache. Keep `paxl daemon setup` and `/connect` as the pairing alternative.
