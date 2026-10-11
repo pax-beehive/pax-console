@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import { normalizeStreamingMarkdown } from "./streaming-markdown";
 
 describe("normalizeStreamingMarkdown", () => {
+  it("treats backslashes literally inside code spans, including before a closing delimiter", () => {
+    const content = "路径 `C:\\`，继续。";
+    expect(normalizeStreamingMarkdown(content)).toBe(content);
+    const template = "模板 ``String.raw`C:\\` ``，继续。";
+    expect(normalizeStreamingMarkdown(template)).toBe(template);
+  });
   it("virtually closes an unfinished inline code span", () => {
     expect(normalizeStreamingMarkdown("路径是 `/home/kevin")).toBe(
       "路径是 `/home/kevin`",

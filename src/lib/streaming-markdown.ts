@@ -100,7 +100,10 @@ function findOpenInlineCodeRunLength(content: string) {
   let index = 0;
 
   while (index < content.length) {
-    if (content[index] !== "`" || isEscaped(content, index)) {
+    if (
+      content[index] !== "`" ||
+      (openRunLength === 0 && isEscaped(content, index))
+    ) {
       index += 1;
       continue;
     }

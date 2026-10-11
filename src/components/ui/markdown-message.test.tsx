@@ -53,6 +53,32 @@ describe("MarkdownMessage links", () => {
 });
 
 describe("MarkdownMessage GFM syntax", () => {
+  it("preserves literal template backticks and backslashes in streaming and final text", () => {
+    const content = "代码 `` String.raw`C:\\temp` ``，然后继续。";
+    const { container, rerender } = render(
+      <MarkdownMessage content={content} streaming />,
+    );
+    expect(container.querySelector("code")?.textContent).toBe(
+      "String.raw`C:\\temp`",
+    );
+    rerender(<MarkdownMessage content={content} />);
+    expect(container.querySelector("code")?.textContent).toBe(
+      "String.raw`C:\\temp`",
+    );
+    expect(container).toHaveTextContent("，然后继续。");
+  });
+
+  it("lets long inline paths flow with surrounding text instead of forming a block", () => {
+    const path =
+      "/Users/example/项目/" + "long-directory/".repeat(12) + "file.ts";
+    const { container } = render(
+      <MarkdownMessage content={`修改 \`${path}\`，然后测试。`} />,
+    );
+    const code = container.querySelector("p > code");
+    expect(code?.textContent).toBe(path);
+    expect(code).toHaveClass("inline", "[overflow-wrap:anywhere]");
+    expect(code).not.toHaveClass("inline-block");
+  });
   it("does not treat home-directory tildes as strikethrough delimiters", () => {
     const content =
       "Copy ~/pax_workspace/pax-nexus into ~/pax_workspace/backup.";
