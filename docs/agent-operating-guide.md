@@ -133,7 +133,7 @@ show the unavailable voice action on mobile. Project selects use a visible
 custom chevron and dark surface while retaining native selection. RunBadge
 icon/text must share a no-wrap inline flex container. The mobile topbar has a
 44px minimum height plus safe-area padding; reload lives in the user menu.
-Inline code may move as a unit, but long tokens must still wrap within the viewport.
+Inline code flows with surrounding prose; use inline layout with overflow-wrap:anywhere and cloned box decoration, not inline-block. Preserve literal backslashes inside code spans during streaming; they do not escape a closing backtick.
 
 ## Encrypted transport boundary
 

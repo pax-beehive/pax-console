@@ -1,11 +1,49 @@
 import { describe, expect, it } from "vitest";
 import { mergeEvents } from "./merge-session-events";
+import { normalizeTunnelFrame } from "./normalize-tunnel-frame";
 import {
   normalizeHistoryMessage,
   normalizeHistoryMessages,
 } from "./normalize-history-message";
 
 describe("normalizeHistoryMessage", () => {
+  it("retains the DSCODE failure notice in live output and restored history", () => {
+    const text =
+      "\n\n**DSCODE — Request failed (TRANSPORT)**\n\nThe model connection failed. This request did not complete. You can retry.";
+    const frame = {
+      jsonrpc: "2.0",
+      method: "session/update",
+      params: {
+        sessionId: "sess_1",
+        update: {
+          sessionUpdate: "agent_message_chunk",
+          messageId: "dscode-error-1",
+          content: { type: "text", text },
+          _meta: { "dscode.dev/status": "error" },
+        },
+      },
+    };
+    expect(normalizeTunnelFrame(frame)).toMatchObject([
+      { type: "agent_message", content: text },
+    ]);
+    for (const representation of [
+      { raw_json: frame },
+      { parts: [{ part_index: 0, part_type: "text", text }] },
+    ]) {
+      expect(
+        normalizeHistoryMessage({
+          message_id: "failure",
+          session_id: "sess_1",
+          turn_id: "turn_1",
+          message_type: "agent_message_chunk",
+          role: "assistant",
+          ...representation,
+        }),
+      ).toMatchObject([
+        { type: "agent_message", content: text, turnId: "turn_1" },
+      ]);
+    }
+  });
   it("restores prompt text when a summary contains only the raw prompt frame", () => {
     const message = {
       message_id: "prompt",
