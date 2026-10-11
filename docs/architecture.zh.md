@@ -11,7 +11,7 @@ Pi ACP 0.7.0 起由 paxd 绑定 Pi CLI 所在 SDK，CLI 升级后重启并验证
 `received → applied/failed` 状态。收到 ACK 只表示已接收；只有 paxd 完成安装验证及所需的
 ACP 新进程握手后才显示成功。command_id 在提交前写入浏览器存储，刷新后继续查询，重试沿用
 同一个 ID。paxl 负责本地安装，paxd 负责等待任务结束、重建进程和失败恢复；Manager 负责鉴权及转发。
-首版支持直接 symlink 入口的 npm 全局安装，原生安装器、Homebrew、npx wrapper 暂不支持。
+支持直接 symlink 入口的 npm 全局安装和 Claude 官方原生安装。原生 Claude 需要更新后的 paxl：校验官方下载的大小和 SHA-256，并独立保存旧 binary 供回滚；继续复用现有 command、重启和 runtime 版本验证。Homebrew、npx wrapper 暂不支持。
 
 ## 用户分析看板与焦点轮询
 

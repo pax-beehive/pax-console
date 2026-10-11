@@ -182,8 +182,8 @@ export function NodeHarnessUpgrade({
       <h2 className="font-medium">Harness and ACP updates</h2>
       <p className="text-ink-muted">
         Leave the version blank to install the latest release. Active tasks
-        finish before the update; new tasks wait. Supports npm installations
-        with a direct launcher.
+        finish before the update; new tasks wait. Supports npm installations and
+        native Claude installations with a direct launcher.
       </p>
       {harness === "pi" && component === "cli" && (
         <p className="text-ink-muted">
