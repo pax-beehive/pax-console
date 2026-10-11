@@ -190,6 +190,8 @@ export function NodePaxlUpgrade({
         onConfirm={submit}
         disabled={mutation.isPending}
         confirmDisabled={
+          latest.isError ||
+          latest.isFetching ||
           !latest.data?.version ||
           latest.data.version.replace(/^v/, "") ===
             installed?.version?.replace(/^v/, "")
@@ -198,13 +200,27 @@ export function NodePaxlUpgrade({
           <div>
             <p>
               {installed?.version ?? "Unknown"} →{" "}
-              {latest.data?.version ?? "Checking stable release…"}
+              {latest.isError
+                ? "Release check failed"
+                : (latest.data?.version ?? "Checking stable release…")}
             </p>
             <p>
               New paxl invocations will use this version. Running processes
               continue; paxd stays connected.
             </p>
-            {latest.error && <p role="alert">{latest.error.message}</p>}
+            {latest.error && (
+              <>
+                <p role="alert">{latest.error.message}</p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={latest.isFetching}
+                  onClick={() => void latest.refetch()}
+                >
+                  Retry release check
+                </Button>
+              </>
+            )}
           </div>
         }
       />

@@ -3,8 +3,7 @@ import { ApiError, AuthError } from "./errors";
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_PAX_API_BASE_URL ?? "/api/pax";
 
-export const API_USER_SCOPE =
-  process.env.NEXT_PUBLIC_PAX_USER_SCOPE ?? "self";
+export const API_USER_SCOPE = process.env.NEXT_PUBLIC_PAX_USER_SCOPE ?? "self";
 
 // Signing out means ending the Cloudflare Access session for this origin.
 // `/cdn-cgi/access/logout` is Cloudflare's standard same-origin logout
@@ -16,6 +15,15 @@ type ApiEnvelope<T> = {
   code: number;
   data: T;
   message?: string;
+  error?: string;
+};
+
+const routingErrors: Record<string, string> = {
+  not_found: "Requested API endpoint was not found",
+  region_unavailable: "Your region is temporarily unavailable. Retry shortly",
+  directory_unavailable:
+    "Region lookup is temporarily unavailable. Retry shortly",
+  region_selection_required: "Choose your account region before continuing",
 };
 
 export async function apiFetch<T>(
@@ -67,7 +75,8 @@ export async function apiFetch<T>(
 
   if (!response.ok || body.code >= 400) {
     throw new ApiError(
-      body.message ?? "PAX API request failed",
+      body.message ??
+        `${Object.hasOwn(routingErrors, body.error ?? "") ? routingErrors[body.error!] : "PAX API request failed"} (HTTP ${response.status}).`,
       response.status,
       body,
     );

@@ -1927,3 +1927,13 @@ same command. Server results remain in TanStack Query. Install the compatible
 Manager and paxd before enabling the action. The opt-in cross-repository browser
 fixture is `scripts/paxl-upgrade-e2e.mjs`; its runner lives in Manager's
 `TestPaxlBrowserUpgrade` and uses the production paxd control runner and installer.
+
+## Paxl upgrade release lookup recovery
+
+The upgrade dialog reads stable metadata through the same-origin regional proxy
+`/api/pax/api/v1/public/artifacts/download`. The Worker must allow this exact
+read route and retain identity and account-region checks. Worker error envelopes
+use `error`; apiFetch maps known routing errors to actionable messages with HTTP
+status and keeps Manager `message` errors. Unknown Worker details remain hidden.
+A failed lookup displays a release-check failure and a read-only retry action.
+Install stays disabled during lookup or after failure, including cached versions.
