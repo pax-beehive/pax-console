@@ -6,12 +6,6 @@ import { usePathname } from "next/navigation";
 
 const items = [
   {
-    href: "/admin/customers",
-    icon: ChartNoAxesCombined,
-    label: "Customers",
-    matches: ["/admin/customers"],
-  },
-  {
     href: "/",
     icon: Activity,
     label: "Home",
@@ -22,6 +16,12 @@ const items = [
     icon: Users,
     label: "Collaboration",
     matches: ["/collaboration"],
+  },
+  {
+    href: "/admin/customers",
+    icon: ChartNoAxesCombined,
+    label: "Customers",
+    matches: ["/admin/customers"],
   },
   {
     href: "/settings",

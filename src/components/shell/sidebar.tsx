@@ -33,7 +33,6 @@ type NavItem = {
 };
 
 const primaryNavItems: readonly NavItem[] = [
-  { href: "/admin/customers", icon: ChartNoAxesCombined, label: "Customers" },
   {
     href: "/",
     icon: Activity,
@@ -134,9 +133,7 @@ export function Sidebar({ showAdminFeatures }: { showAdminFeatures: boolean }) {
         <div className="grid flex-1 content-start gap-0.5 overflow-y-auto">
           {primaryNavItems
             .filter(
-              (item) =>
-                showAdminFeatures ||
-                !["Collaboration", "Customers"].includes(item.label),
+              (item) => showAdminFeatures || item.label !== "Collaboration",
             )
             .map((item) => (
               <NavEntry collapsed={collapsed} item={item} key={item.label} />
@@ -151,6 +148,16 @@ export function Sidebar({ showAdminFeatures }: { showAdminFeatures: boolean }) {
               label: "About PaxWorkspace",
             }}
           />
+          {showAdminFeatures && (
+            <NavEntry
+              collapsed={collapsed}
+              item={{
+                href: "/admin/customers",
+                icon: ChartNoAxesCombined,
+                label: "Customers",
+              }}
+            />
+          )}
           <NavEntry collapsed={collapsed} item={settingsNavItem} />
         </div>
       </nav>
