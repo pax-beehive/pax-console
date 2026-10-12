@@ -21,6 +21,7 @@ let connection: NodeDaemonAgentConnection | undefined;
 let expiresAt: string;
 let discoveryError: boolean;
 let createError: boolean;
+let setupError: boolean;
 let requests: {
   path: string;
   method: string;
@@ -41,6 +42,7 @@ beforeEach(() => {
   expiresAt = new Date(Date.now() + 3600_000).toISOString();
   discoveryError = false;
   createError = false;
+  setupError = false;
   requests = [];
   clients = [];
   vi.stubGlobal(
@@ -51,7 +53,17 @@ beforeEach(() => {
       const body = init?.body ? JSON.parse(String(init.body)) : undefined;
       requests.push({ path, method, body });
       let data;
-      if (path.endsWith("/node-registration-tokens")) {
+      if (path.endsWith("/device-setup")) {
+        if (setupError)
+          return Response.json(
+            { message: "Device setup unavailable" },
+            { status: 503 },
+          );
+        data = {
+          script_url: "https://setup.example.test/install.sh?setup=1",
+          machine_url: "https://machine.example.test",
+        };
+      } else if (path.endsWith("/node-registration-tokens")) {
         data = { token: "one-use-secret", expires_at: expiresAt };
       } else if (path.endsWith("/nodes")) {
         data = { nodes };
@@ -137,6 +149,25 @@ async function refresh(client: QueryClient, key: readonly string[]) {
 }
 
 describe("device connection", () => {
+  it("does not mint a token or guess an origin when regional setup is unavailable", async () => {
+    setupError = true;
+    const { user } = setup();
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Quick connect (Recommended)",
+      }),
+    );
+    expect(await screen.findByText(/Device setup unavailable/)).toBeVisible();
+    expect(
+      requests.some((request) =>
+        request.path.endsWith("/node-registration-tokens"),
+      ),
+    ).toBe(false);
+    expect(
+      screen.queryByText(/PAX_REGISTRATION_TOKEN=/),
+    ).not.toBeInTheDocument();
+  });
+
   it("starts quick connect directly and reuses its displayed command on repeat clicks", async () => {
     const { user } = setup();
     const quick = await screen.findByRole("button", {
@@ -282,7 +313,7 @@ describe("device connection", () => {
     );
     expect(
       await screen.findByText(/PAX_REGISTRATION_TOKEN=''/),
-    ).toHaveTextContent("PAX_SETUP_AFTER_INSTALL=1");
+    ).toHaveTextContent("https://setup.example.test/install.sh?setup=1");
     expect(
       requests.some((request) =>
         request.path.endsWith("/node-registration-tokens"),

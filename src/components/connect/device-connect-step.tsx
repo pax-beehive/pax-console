@@ -10,9 +10,11 @@ import {
 import {
   buildDeviceInstallCommand,
   buildDeviceSetupCommand,
+  validateDeviceSetup,
 } from "@/components/settings/add-device-command";
 import {
   createNodeRegistrationToken,
+  getDeviceSetup,
   useNodes,
 } from "@/features/api/resources";
 import type { Node } from "@/features/api/types";
@@ -75,6 +77,7 @@ export function DeviceConnectStep({
         throw (
           baseline.error ?? new Error("Device list is unavailable. Try again.")
         );
+      const setup = validateDeviceSetup(await getDeviceSetup(userId));
       const registration =
         nextMethod === "quick"
           ? await createNodeRegistrationToken(userId, 3600)
@@ -83,8 +86,8 @@ export function DeviceConnectStep({
         ? Date.parse(registration.expires_at)
         : NaN;
       setAttempt({
-        command: buildDeviceInstallCommand(registration?.token),
-        setupCommand: buildDeviceSetupCommand(registration?.token),
+        command: buildDeviceInstallCommand(setup, registration?.token),
+        setupCommand: buildDeviceSetupCommand(setup, registration?.token),
         expiresAt: registration
           ? Number.isFinite(parsedExpiry)
             ? parsedExpiry

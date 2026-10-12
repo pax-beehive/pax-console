@@ -1644,17 +1644,17 @@ Quick connect 和 Browser sign-in 是操作按钮，点击即生成对应命令�
 额外显示 Generate command，也不使用选中状态按钮语义。生成时显示进度并阻止
 并发重复请求；已有有效命令时再次点击同一操作复用该命令。
 
-Quick connect 通过同源 API 创建当前用户的一次性注册 token，不传 owner override。
-命令使用 public runtime origin，只调用一次 paxd installer，设置
-`PAX_SETUP_AFTER_INSTALL=1`，由新版 installer 统一安装 paxl、paxd 并 setup。
-已知 Console 域名映射到下载 API；设备注册单独使用 wsapi 机器入口，不能使用浏览器 API。
-生产 US/HK 下载及注册地址按已认证 bootstrap 的账号分区选择，不被 WebSocket 配置覆盖。
-自定义域名及本地端口保留。已安装设备可切换到短 paxd setup 命令，复用同一 token，
-不重新下载工具；完整安装命令使用多行 quoted heredoc，避免嵌套引号。
-完整下载并检查 Shell shebang 后执行；HTML、空响应及中断下载停止且不执行。
-返回下载/安装错误。Browser sign-in 使用相同的完整安装命令，
-显式清空环境中可能残留的 `PAX_REGISTRATION_TOKEN`，继续使用终端登录链接和
-`/connect` 原有配对流程，无需预装 CLI。
+Quick connect 先通过同源代理请求 `/api/v1/user/self/device-setup`，由现有账号
+分区路由选中区域 Manager；服务端部署配置返回 `script_url` 和 `machine_url`。
+前端不再维护 HK/US 域名表，也不根据 IP、浏览器域名或 WebSocket override 推断区域。
+配置获取和校验通过后才创建一次性注册 token；配置缺失直接报错，不猜测默认区域。
+
+复制命令仅下载 setup 脚本并向 Bash 传入正确引用的 token，使用 pipefail 传播错误。
+服务端脚本完整下载安装器，检查 shebang 和语法，再安装 paxl、paxd 并注册。
+已安装设备使用返回的 machine_url 执行短 paxd setup 命令；浏览器登录显式清空
+继承的 token，保留终端登录链接及 `/connect` 流程。上线顺序为各区 Manager 配置
+与代码先行、Console 后行。跨仓库测试见 `scripts/device-setup/README.md`。
+
 
 Token 只保存在已挂载组件的临时状态，不进 URL、日志或 Query/mutation cache。
 按服务器期限过期（无有效期限时回退一小时）并允许重新生成。两种模式均先记录
