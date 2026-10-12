@@ -1669,22 +1669,21 @@ them as pressed-state selectors or require a separate initial Generate command
 action. Show generation progress, prevent duplicate in-flight requests, and reuse
 a valid displayed command when the same action is clicked again.
 
-Quick connect first fetches authenticated `/api/v1/user/self/device-setup`
-through the same-origin proxy. Existing account routing selects the regional
-Manager, which returns `script_url` and `machine_url` from deployment config.
-Do not derive setup endpoints from browser location, IP, or tunnel overrides.
-Validate metadata before creating a one-time registration token; unavailable
-configuration must fail without minting a token or guessing a region.
-
-The copied command pipes the public setup script into Bash with pipefail and a
-shell-quoted token environment variable. The server script downloads the full
-installer, validates its shebang and syntax, then installs paxl and paxd before
-setup. Download and install failures propagate. The existing-installs option
-uses the returned machine URL directly with paxd setup. Browser sign-in explicitly
-clears inherited registration tokens and retains the terminal login and /connect
-flow. Deploy configured Managers in all regions before this Console change.
-See `scripts/device-setup/README.md` for the cross-repository installer test.
-
+Quick connect uses the same-origin token API without an owner override. The
+copied command uses the configured public runtime origin and invokes only the
+paxd public installer, with `PAX_SETUP_AFTER_INSTALL=1`; that installer installs
+both paxl and paxd before setup. Known production, staging, and legacy Console
+origins map to download API origins; machine registration uses wsapi, never the
+browser API. Use the authenticated bootstrap account region for production US/HK
+install and setup commands even when a browser tunnel override is configured.
+Custom origins and local ports are preserved. The "PAX is already installed"
+option reuses the same token in a short paxd setup command without reinstalling.
+The full command uses a quoted heredoc rather than nested shell quoting.
+Fully download and check the shell shebang before executing: HTML, empty bodies,
+and partial downloads must stop without execution. Propagate download/install
+failures. Browser sign-in uses the same complete installer command, explicitly
+clears any inherited `PAX_REGISTRATION_TOKEN`, and retains paxd's terminal login
+link and `/connect` pairing flow. It needs no preinstalled CLI.
 
 The one-use token stays only in mounted component state, expires at the server's
 expiry (one-hour fallback), and can be regenerated. Never log it, put it in a
