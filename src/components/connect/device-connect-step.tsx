@@ -7,7 +7,10 @@ import {
   isDeviceNode,
   nodeLabel,
 } from "@/components/resources/resource-models";
-import { buildDeviceInstallCommand } from "@/components/settings/add-device-command";
+import {
+  buildDeviceInstallCommand,
+  buildDeviceSetupCommand,
+} from "@/components/settings/add-device-command";
 import {
   createNodeRegistrationToken,
   useNodes,
@@ -16,7 +19,12 @@ import type { Node } from "@/features/api/types";
 import { CommandBlock } from "./command-block";
 
 type Method = "quick" | "browser";
-type Attempt = { command: string; expiresAt?: number; onlineBefore: string[] };
+type Attempt = {
+  command: string;
+  setupCommand: string;
+  expiresAt?: number;
+  onlineBefore: string[];
+};
 
 export function DeviceConnectStep({
   userId,
@@ -27,6 +35,7 @@ export function DeviceConnectStep({
   onConnected: (node: Node) => void;
   onStart?: () => void;
 }) {
+  const [installed, setInstalled] = useState(false);
   const [method, setMethod] = useState<Method>("quick");
   // Registration tokens live only in this mounted component, never in a URL,
   // persistent storage, or TanStack Query's cache.
@@ -75,6 +84,7 @@ export function DeviceConnectStep({
         : NaN;
       setAttempt({
         command: buildDeviceInstallCommand(registration?.token),
+        setupCommand: buildDeviceSetupCommand(registration?.token),
         expiresAt: registration
           ? Number.isFinite(parsedExpiry)
             ? parsedExpiry
@@ -141,7 +151,20 @@ export function DeviceConnectStep({
         service.
       </p>
       {attempt && !expired && (
-        <CommandBlock key={attempt.command} command={attempt.command} />
+        <div className="grid gap-3">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={installed}
+              onChange={(event) => setInstalled(event.target.checked)}
+            />
+            PAX is already installed on this computer
+          </label>
+          <CommandBlock
+            key={installed ? attempt.setupCommand : attempt.command}
+            command={installed ? attempt.setupCommand : attempt.command}
+          />
+        </div>
       )}
       {expired && (
         <p role="status" className="text-sm text-warning">

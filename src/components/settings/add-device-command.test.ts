@@ -4,7 +4,11 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { buildDeviceInstallCommand, shellQuote } from "./add-device-command";
+import {
+  buildDeviceInstallCommand,
+  buildDeviceSetupCommand,
+  shellQuote,
+} from "./add-device-command";
 
 afterEach(() => vi.unstubAllGlobals());
 describe("device install command", () => {
@@ -23,15 +27,32 @@ describe("device install command", () => {
     expect(command).toContain("PAX_REGISTRATION_TOKEN='one-time-token'");
   });
   it.each([
-    ["wss://paxworkspace.net", "https://api.paxworkspace.net"],
-    ["wss://stage.paxworkspace.net", "https://stage-api.paxworkspace.net"],
-    ["wss://ws.lakeward.net", "https://api.lakeward.net"],
-    ["ws://localhost:9879", "http://localhost:9879"],
-  ])("generates a Manager install URL for %s", (wsBaseUrl, origin) => {
+    [
+      "wss://paxworkspace.net",
+      "https://api.paxworkspace.net",
+      "https://wsapi.paxworkspace.net",
+    ],
+    [
+      "wss://stage.paxworkspace.net",
+      "https://stage-api.paxworkspace.net",
+      "https://stage-wsapi.paxworkspace.net",
+    ],
+    [
+      "wss://ws.lakeward.net",
+      "https://api.lakeward.net",
+      "https://api.lakeward.net",
+    ],
+    ["ws://localhost:9879", "http://localhost:9879", "http://localhost:9879"],
+    [
+      "wss://hk-api.paxworkspace.net",
+      "https://hk-api.paxworkspace.net",
+      "https://hk-wsapi.paxworkspace.net",
+    ],
+  ])("generates a Manager install URL for %s", (wsBaseUrl, origin, cloud) => {
     vi.stubGlobal("__PAX_RUNTIME_CONFIG__", { wsBaseUrl });
     const command = buildDeviceInstallCommand("fake-token");
     expect(command).toContain(`PAX_DOWNLOAD_URL='${origin}'`);
-    expect(command).toContain(`PAX_CLOUD_URL='${origin}'`);
+    expect(command).toContain(`PAX_CLOUD_URL='${cloud}'`);
   });
   it("quotes shell metacharacters as data", () => {
     expect(shellQuote("abc'$(whoami)\n`id`")).toBe(
@@ -206,3 +227,83 @@ describe("quick-connect HTTP execution", () => {
     },
   );
 });
+
+describe("regional registration commands", () => {
+  it.each(["hk", "us"])(
+    "uses the token's %s region despite a US browser override",
+    async (region) => {
+      const { bootstrapRegion, loadRegionConfig } =
+        await import("@/features/region/bootstrap");
+      vi.stubGlobal("window", {
+        location: { origin: "https://paxworkspace.net" },
+      });
+      vi.stubGlobal("__PAX_RUNTIME_CONFIG__", {
+        wsBaseUrl: "wss://api.paxworkspace.net",
+      });
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () =>
+          Response.json({ status: "ready", region, user_id: "usr_test" }),
+        ),
+      );
+      try {
+        await bootstrapRegion();
+        const prefix = region === "hk" ? "hk-" : "";
+        const install = buildDeviceInstallCommand("fake-token");
+        expect(install).toContain(
+          `PAX_DOWNLOAD_URL='https://${prefix}api.paxworkspace.net'`,
+        );
+        expect(install).toContain(
+          `PAX_CLOUD_URL='https://${prefix}wsapi.paxworkspace.net'`,
+        );
+        expect(buildDeviceSetupCommand("fake-token")).toBe(
+          `PAX_REGISTRATION_TOKEN='fake-token' paxd setup --cloud-url 'https://${prefix}wsapi.paxworkspace.net' --registration-token-env`,
+        );
+        expect(buildDeviceSetupCommand()).toBe(
+          `PAX_REGISTRATION_TOKEN='' paxd setup --cloud-url 'https://${prefix}wsapi.paxworkspace.net'`,
+        );
+      } finally {
+        vi.stubGlobal(
+          "fetch",
+          vi.fn(async () => Response.json({ enabled: false })),
+        );
+        await loadRegionConfig();
+      }
+    },
+  );
+});
+
+it.each(["", "fake'$(exit 81)\n`exit 82`"])(
+  "executes the short command with a literal token",
+  (token) => {
+    const dir = mkdtempSync(join(tmpdir(), "pax-setup-command-"));
+    try {
+      writeFileSync(
+        join(dir, "paxd"),
+        '#!/bin/bash\n[ "$PAX_REGISTRATION_TOKEN" = "$EXPECTED_TOKEN" ] || exit 90\nprintf "%s\\n" "$@"\n',
+        { mode: 0o755 },
+      );
+      vi.stubGlobal("__PAX_RUNTIME_CONFIG__", {
+        wsBaseUrl: "wss://api.paxworkspace.net",
+      });
+      const result = spawnSync("bash", ["-c", buildDeviceSetupCommand(token)], {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          PATH: `${dir}:${process.env.PATH}`,
+          EXPECTED_TOKEN: token,
+          PAX_REGISTRATION_TOKEN: "stale-token",
+        },
+      });
+      expect(result.status).toBe(0);
+      expect(result.stdout.trim().split("\n")).toEqual([
+        "setup",
+        "--cloud-url",
+        "https://wsapi.paxworkspace.net",
+        ...(token ? ["--registration-token-env"] : []),
+      ]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);

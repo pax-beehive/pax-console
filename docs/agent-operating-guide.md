@@ -1673,7 +1673,12 @@ Quick connect uses the same-origin token API without an owner override. The
 copied command uses the configured public runtime origin and invokes only the
 paxd public installer, with `PAX_SETUP_AFTER_INSTALL=1`; that installer installs
 both paxl and paxd before setup. Known production, staging, and legacy Console
-origins map to Manager API origins; custom origins and local ports are preserved.
+origins map to download API origins; machine registration uses wsapi, never the
+browser API. Use the authenticated bootstrap account region for production US/HK
+install and setup commands even when a browser tunnel override is configured.
+Custom origins and local ports are preserved. The "PAX is already installed"
+option reuses the same token in a short paxd setup command without reinstalling.
+The full command uses a quoted heredoc rather than nested shell quoting.
 Fully download and check the shell shebang before executing: HTML, empty bodies,
 and partial downloads must stop without execution. Propagate download/install
 failures. Browser sign-in uses the same complete installer command, explicitly

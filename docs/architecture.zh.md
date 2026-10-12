@@ -1647,7 +1647,10 @@ Quick connect 和 Browser sign-in 是操作按钮，点击即生成对应命令�
 Quick connect 通过同源 API 创建当前用户的一次性注册 token，不传 owner override。
 命令使用 public runtime origin，只调用一次 paxd installer，设置
 `PAX_SETUP_AFTER_INSTALL=1`，由新版 installer 统一安装 paxl、paxd 并 setup。
-已知生产、预发布和旧 Console 域名映射到对应 Manager API，自定义域名及本地端口保留。
+已知 Console 域名映射到下载 API；设备注册单独使用 wsapi 机器入口，不能使用浏览器 API。
+生产 US/HK 下载及注册地址按已认证 bootstrap 的账号分区选择，不被 WebSocket 配置覆盖。
+自定义域名及本地端口保留。已安装设备可切换到短 paxd setup 命令，复用同一 token，
+不重新下载工具；完整安装命令使用多行 quoted heredoc，避免嵌套引号。
 完整下载并检查 Shell shebang 后执行；HTML、空响应及中断下载停止且不执行。
 返回下载/安装错误。Browser sign-in 使用相同的完整安装命令，
 显式清空环境中可能残留的 `PAX_REGISTRATION_TOKEN`，继续使用终端登录链接和
