@@ -1,67 +1,38 @@
-import {
-  getAssignedRegion,
-  getRegionalOrigin,
-} from "@/features/region/bootstrap";
-import { getAgentTunnelUrl } from "@/features/runtime/tunnel-url";
+export type DeviceSetup = { script_url: string; machine_url: string };
 
 export function shellQuote(value: string) {
   return `'${value.replace(/'/g, `'"'"'`)}'`;
 }
 
-// Hosted Console pages do not serve the public Manager installer endpoints.
-const hostedManagerOrigins: Record<string, string> = {
-  "https://paxworkspace.net": "https://api.paxworkspace.net",
-  "https://stage.paxworkspace.net": "https://stage-api.paxworkspace.net",
-  "https://ws.lakeward.net": "https://api.lakeward.net",
-};
-
-const machineOrigins: Record<string, string> = {
-  "https://api.paxworkspace.net": "https://wsapi.paxworkspace.net",
-  "https://hk-api.paxworkspace.net": "https://hk-wsapi.paxworkspace.net",
-  "https://stage-api.paxworkspace.net": "https://stage-wsapi.paxworkspace.net",
-};
-
-function installerScript(product: "paxl" | "paxd", variable: string) {
-  // Buffer the entire response: a failed/partial download must never execute.
-  return [
-    `url="$${variable}/api/v1/public/${product}/install.sh"`,
-    'script=$(curl -fsSL --max-redirs 1 "$url") || exit $?',
-    'case "${script%%$\'\\n\'*}" in "#!/usr/bin/env bash"|"#!/bin/bash"|"#!/bin/sh") ;; *) printf "Expected a shell installer from %s; check the API URL or login redirect.\\n" "$url" >&2; exit 1 ;; esac',
-    'bash <<< "$script"',
-  ].join("\n");
+function publicURL(value: string) {
+  const url = new URL(value);
+  const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+  if (
+    (url.protocol !== "https:" && !(local && url.protocol === "http:")) ||
+    url.username ||
+    url.password ||
+    url.hash
+  )
+    throw new Error("Device setup requires a public HTTPS URL.");
+  return url;
 }
 
-function deviceOrigins() {
-  const endpoint = new URL(getAgentTunnelUrl("setup"));
-  endpoint.protocol = endpoint.protocol === "ws:" ? "http:" : "https:";
-  if (endpoint.username || endpoint.password)
-    throw new Error("The public API origin must not contain credentials.");
-  let origin = hostedManagerOrigins[endpoint.origin] ?? endpoint.origin;
-  // The token is created in the authenticated account's region, independently
-  // of the browser WebSocket origin or a deployment-wide override.
-  if (getRegionalOrigin() === "https://paxworkspace.net") {
-    origin =
-      getAssignedRegion() === "hk"
-        ? "https://hk-api.paxworkspace.net"
-        : "https://api.paxworkspace.net";
-  }
-  return { download: origin, cloud: machineOrigins[origin] ?? origin };
+export function validateDeviceSetup(setup: DeviceSetup): DeviceSetup {
+  publicURL(setup.script_url);
+  const machine = publicURL(setup.machine_url);
+  if (machine.pathname !== "/" || machine.search)
+    throw new Error("Device setup requires a machine API origin.");
+  return setup;
 }
 
-export function buildDeviceSetupCommand(token = "") {
-  const { cloud } = deviceOrigins();
-  return `PAX_REGISTRATION_TOKEN=${shellQuote(token)} paxd setup --cloud-url ${shellQuote(cloud)}${token ? " --registration-token-env" : ""}`;
+export function buildDeviceSetupCommand(setup: DeviceSetup, token = "") {
+  validateDeviceSetup(setup);
+  return `PAX_REGISTRATION_TOKEN=${shellQuote(token)} paxd setup --cloud-url ${shellQuote(setup.machine_url)}${token ? " --registration-token-env" : ""}`;
 }
 
-export function buildDeviceInstallCommand(token = "") {
-  const { download: origin, cloud } = deviceOrigins();
-  const paxdScript = installerScript("paxd", "PAX_DOWNLOAD_URL");
-  // Setup installs both paxl and paxd. Explicitly clear an inherited token for
-  // browser sign-in so that choice cannot silently register another account.
-  return `PAX_DOWNLOAD_URL=${shellQuote(origin)} \\
-PAX_CLOUD_URL=${shellQuote(cloud)} \\
-PAX_SETUP_AFTER_INSTALL=1 \\
-PAX_REGISTRATION_TOKEN=${shellQuote(token)} bash <<'PAX_INSTALL'
-${paxdScript}
-PAX_INSTALL`;
+export function buildDeviceInstallCommand(setup: DeviceSetup, token = "") {
+  validateDeviceSetup(setup);
+  // Keep pipefail local to the pasted command and explicitly clear old tokens
+  // for browser sign-in. Bootstrap logic belongs to the regional setup script.
+  return `(set -o pipefail; curl -fsSL --max-redirs 1 ${shellQuote(setup.script_url)} |\n  PAX_REGISTRATION_TOKEN=${shellQuote(token)} bash)`;
 }

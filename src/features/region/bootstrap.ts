@@ -6,8 +6,6 @@ export type RegionConfig =
   | { enabled: false }
   | { enabled: true; origin: string };
 let regionalOrigin: string | undefined;
-let assignedRegion: Region | undefined;
-export const getAssignedRegion = () => assignedRegion;
 export const getRegionalOrigin = () => regionalOrigin;
 async function json(url: string, init?: RequestInit) {
   const response = await fetch(url, {
@@ -29,7 +27,6 @@ export async function loadRegionConfig(): Promise<RegionConfig> {
   const data = await json("/api/region-config");
   if (data.enabled === false) {
     regionalOrigin = undefined;
-    assignedRegion = undefined;
     return { enabled: false };
   }
   if (data.enabled !== true || typeof data.origin !== "string")
@@ -60,7 +57,6 @@ export async function bootstrapRegion(region?: Region): Promise<Bootstrap> {
     !/^usr_[A-Za-z0-9_-]+$/.test(data.user_id)
   )
     throw new Error("Unable to restore your account region.");
-  assignedRegion = data.region;
   regionalOrigin = window.location.origin;
   return data;
 }
