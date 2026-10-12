@@ -7,6 +7,33 @@ import {
 } from "./normalize-history-message";
 
 describe("normalizeHistoryMessage", () => {
+  it("keeps durable completion and usage rows distinct when ACP request IDs are reused", () => {
+    const messages = ["turn_1", "turn_2", "turn_2"].map((turnId, index) => ({
+      message_id: `completion-${index}`,
+      session_id: "sess_1",
+      turn_id: turnId,
+      created_at: `2026-10-12T10:00:0${index}.000Z`,
+      raw_json: {
+        id: 0,
+        jsonrpc: "2.0",
+        result: { stopReason: "end_turn", usage: { totalTokens: index + 1 } },
+      },
+    }));
+    const events = normalizeHistoryMessages(messages);
+    const merged = mergeEvents(events);
+
+    expect(new Set(events.map((event) => event.id)).size).toBe(6);
+    expect(merged).toEqual(events);
+    expect(
+      merged
+        .filter((event) => event.type === "turn_done")
+        .map((event) => event.turnId),
+    ).toEqual(["turn_1", "turn_2", "turn_2"]);
+    expect(
+      mergeEvents([...events, ...normalizeHistoryMessages(messages)]),
+    ).toEqual(events);
+  });
+
   it("retains the DSCODE failure notice in live output and restored history", () => {
     const text =
       "\n\n**DSCODE — Request failed (TRANSPORT)**\n\nThe model connection failed. This request did not complete. You can retry.";
@@ -947,7 +974,7 @@ describe("normalizeHistoryMessage", () => {
     expect(merged).toHaveLength(1);
     expect(merged[0]).toMatchObject({
       type: "tool_call",
-      id: "sess_history:tool:tc-history",
+      id: "msg_tool_start:sess_history:tool:tc-history",
       sessionId: "sess_history",
       name: "terminal: sleep 5",
       status: "done",
@@ -1128,7 +1155,7 @@ describe("normalizeHistoryMessage", () => {
     expect(events).toMatchObject([
       {
         type: "tool_call",
-        id: "sess_history:tool:write_file__ujao7t88",
+        id: "msg_gemini_tool_update:sess_history:tool:write_file__ujao7t88",
         name: "Writing to ../private/tmp/weather.py",
         patches: [
           {
@@ -1182,7 +1209,7 @@ describe("normalizeHistoryMessage", () => {
     expect(events).toMatchObject([
       {
         type: "tool_call",
-        id: "sess_history:tool:call_1",
+        id: "msg_terminal_output:sess_history:tool:call_1",
         toolCallId: "call_1",
         output: " M first.go\n M second.go\n",
         outputMode: "replace",

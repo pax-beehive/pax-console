@@ -1581,6 +1581,9 @@ turn_done 不等于已拿全整轮。E2EE 使用下文的按整轮加密回放�
 向上翻页不在 focus 时重读全部历史。分页前记录可见行 ID 和相对视口的偏移，
 在 useLayoutEffect 中恢复，避免列表尾部同时增长造成跳动；移除行上的
 content-visibility 估算高度，并为加载提示保留固定空间。
+历史 ACP frame 生成的事件 ID 以持久化 message_id 为命名空间。ACP request/stream ID
+可能跨 turn 或恢复请求复用，不能单独作为历史合并键，否则加载旧页会把最新实时 turn
+锚定到旧事件的位置。requestId/toolCallId 保持原值，继续用于权限决策与工具更新匹配。
 
 ### 节点在线状态与切回 idle session 的同步
 

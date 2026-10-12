@@ -537,17 +537,18 @@ function normalizeHistoryFrames(
       { createdAt },
     );
     events.push(
-      ...candidateEvents.map((event) =>
-        aggregatedTerminalOutput &&
+      ...candidateEvents.map((event) => ({
+        ...event,
+        // ACP request/stream IDs can repeat across turns and resumed requests.
+        // Anchor durable events to their stored row so merging another history
+        // page cannot replace an older event with a newer turn at that position.
+        id: `${message.message_id}:${event.id}`,
+        ...(aggregatedTerminalOutput &&
         event.type === "tool_call" &&
         event.outputMode === "append"
-          ? {
-              ...event,
-              output: aggregatedTerminalOutput,
-              outputMode: "replace" as const,
-            }
-          : event,
-      ),
+          ? { output: aggregatedTerminalOutput, outputMode: "replace" as const }
+          : {}),
+      })),
     );
   }
 

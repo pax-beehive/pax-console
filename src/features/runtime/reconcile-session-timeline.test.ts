@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { SessionEvent } from "./session-events";
+import type { HistoryMessage } from "../api/types";
+import { flattenSessionHistoryPages } from "../api/resources";
+import { normalizeHistoryMessages } from "./normalize-history-message";
 import {
   historySnapshotsForTimeline,
   reconcileSessionTimeline,
@@ -8,6 +11,70 @@ import {
 const createdAt = "2026-08-04T00:00:00.000Z";
 
 describe("reconcileSessionTimeline", () => {
+  it.each(["conversation", "observer", "history"] as const)(
+    "keeps the latest %s turn at the bottom after loading earlier history with reused ACP IDs",
+    (owner) => {
+      const historyTurn = (turnId: string, seq: number): HistoryMessage[] => [
+        {
+          message_id: `${turnId}-status`,
+          session_id: "sess_1",
+          session_seq: seq,
+          turn_id: turnId,
+          created_at: createdAt,
+          raw_json: { id: 7, result: { stopReason: "max_tokens" } },
+        },
+        {
+          message_id: `${turnId}-prompt`,
+          session_id: "sess_1",
+          session_seq: seq + 1,
+          turn_id: turnId,
+          role: "user",
+          created_at: createdAt,
+          parts: [
+            { part_index: 0, part_type: "text", text: `${turnId} prompt` },
+          ],
+        },
+        {
+          message_id: `${turnId}-reply`,
+          session_id: "sess_1",
+          session_seq: seq + 2,
+          turn_id: turnId,
+          created_at: createdAt,
+          role: "assistant",
+          parts: [
+            { part_index: 0, part_type: "text", text: `${turnId} reply` },
+          ],
+        },
+      ];
+      const latestPage = { messages: historyTurn("latest", 100) };
+      const olderPage = { messages: historyTurn("older", 1) };
+      const live = [
+        user("live-prompt", "latest", "latest prompt"),
+        event("agent_message", "live-reply", "latest", "latest reply"),
+      ];
+      const render = (pages: (typeof latestPage)[]) =>
+        reconcileSessionTimeline(
+          normalizeHistoryMessages(flattenSessionHistoryPages(pages)),
+          owner === "conversation" ? live : [],
+          owner === "observer" ? live : [],
+          owner === "observer" ? ["latest"] : [],
+          [],
+        )
+          .timeline.filter(
+            (event) =>
+              event.type === "user_message" || event.type === "agent_message",
+          )
+          .map((event) => event.content);
+
+      expect(render([latestPage])).toEqual(["latest prompt", "latest reply"]);
+      expect(render([latestPage, olderPage])).toEqual([
+        "older prompt",
+        "older reply",
+        "latest prompt",
+        "latest reply",
+      ]);
+    },
+  );
   it("keeps unknown active turns conservative but retains snapshots after activity ends", () => {
     expect(
       historySnapshotsForTimeline(["turn_1"], {
