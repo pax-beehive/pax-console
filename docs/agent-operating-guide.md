@@ -1672,7 +1672,10 @@ a valid displayed command when the same action is clicked again.
 Quick connect uses the same-origin token API without an owner override. The
 copied command uses the configured public runtime origin and invokes only the
 paxd public installer, with `PAX_SETUP_AFTER_INSTALL=1`; that installer installs
-both paxl and paxd before setup. Bash pipefail propagates download/install
+both paxl and paxd before setup. Known production, staging, and legacy Console
+origins map to Manager API origins; custom origins and local ports are preserved.
+Fully download and check the shell shebang before executing: HTML, empty bodies,
+and partial downloads must stop without execution. Propagate download/install
 failures. Browser sign-in uses the same complete installer command, explicitly
 clears any inherited `PAX_REGISTRATION_TOKEN`, and retains paxd's terminal login
 link and `/connect` pairing flow. It needs no preinstalled CLI.
