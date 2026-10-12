@@ -2645,9 +2645,3 @@ export function useMessageDetail(
     retry: false,
   });
 }
-
-export function getDeviceSetup(userId: string) {
-  return apiFetch<{ script_url: string; machine_url: string }>(
-    userPath(userId, "/device-setup"),
-  );
-}
