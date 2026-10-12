@@ -1,3 +1,7 @@
+import {
+  getAssignedRegion,
+  getRegionalOrigin,
+} from "@/features/region/bootstrap";
 import { getAgentTunnelUrl } from "@/features/runtime/tunnel-url";
 
 export function shellQuote(value: string) {
@@ -11,6 +15,12 @@ const hostedManagerOrigins: Record<string, string> = {
   "https://ws.lakeward.net": "https://api.lakeward.net",
 };
 
+const machineOrigins: Record<string, string> = {
+  "https://api.paxworkspace.net": "https://wsapi.paxworkspace.net",
+  "https://hk-api.paxworkspace.net": "https://hk-wsapi.paxworkspace.net",
+  "https://stage-api.paxworkspace.net": "https://stage-wsapi.paxworkspace.net",
+};
+
 function installerScript(product: "paxl" | "paxd", variable: string) {
   // Buffer the entire response: a failed/partial download must never execute.
   return [
@@ -18,17 +28,40 @@ function installerScript(product: "paxl" | "paxd", variable: string) {
     'script=$(curl -fsSL --max-redirs 1 "$url") || exit $?',
     'case "${script%%$\'\\n\'*}" in "#!/usr/bin/env bash"|"#!/bin/bash"|"#!/bin/sh") ;; *) printf "Expected a shell installer from %s; check the API URL or login redirect.\\n" "$url" >&2; exit 1 ;; esac',
     'bash <<< "$script"',
-  ].join("; ");
+  ].join("\n");
 }
 
-export function buildDeviceInstallCommand(token = "") {
+function deviceOrigins() {
   const endpoint = new URL(getAgentTunnelUrl("setup"));
   endpoint.protocol = endpoint.protocol === "ws:" ? "http:" : "https:";
   if (endpoint.username || endpoint.password)
     throw new Error("The public API origin must not contain credentials.");
-  const origin = hostedManagerOrigins[endpoint.origin] ?? endpoint.origin;
+  let origin = hostedManagerOrigins[endpoint.origin] ?? endpoint.origin;
+  // The token is created in the authenticated account's region, independently
+  // of the browser WebSocket origin or a deployment-wide override.
+  if (getRegionalOrigin() === "https://paxworkspace.net") {
+    origin =
+      getAssignedRegion() === "hk"
+        ? "https://hk-api.paxworkspace.net"
+        : "https://api.paxworkspace.net";
+  }
+  return { download: origin, cloud: machineOrigins[origin] ?? origin };
+}
+
+export function buildDeviceSetupCommand(token = "") {
+  const { cloud } = deviceOrigins();
+  return `PAX_REGISTRATION_TOKEN=${shellQuote(token)} paxd setup --cloud-url ${shellQuote(cloud)}${token ? " --registration-token-env" : ""}`;
+}
+
+export function buildDeviceInstallCommand(token = "") {
+  const { download: origin, cloud } = deviceOrigins();
   const paxdScript = installerScript("paxd", "PAX_DOWNLOAD_URL");
   // Setup installs both paxl and paxd. Explicitly clear an inherited token for
   // browser sign-in so that choice cannot silently register another account.
-  return `PAX_DOWNLOAD_URL=${shellQuote(origin)} PAX_CLOUD_URL=${shellQuote(origin)} PAX_SETUP_AFTER_INSTALL=1 PAX_REGISTRATION_TOKEN=${shellQuote(token)} bash -o pipefail -c ${shellQuote(paxdScript)}`;
+  return `PAX_DOWNLOAD_URL=${shellQuote(origin)} \\
+PAX_CLOUD_URL=${shellQuote(cloud)} \\
+PAX_SETUP_AFTER_INSTALL=1 \\
+PAX_REGISTRATION_TOKEN=${shellQuote(token)} bash <<'PAX_INSTALL'
+${paxdScript}
+PAX_INSTALL`;
 }

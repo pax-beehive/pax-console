@@ -243,6 +243,38 @@ describe("device connection", () => {
     );
   });
 
+  it("offers a short setup command without regenerating the token", async () => {
+    const { user } = setup();
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Quick connect (Recommended)",
+      }),
+    );
+    await screen.findByText(/PAX_REGISTRATION_TOKEN='one-use-secret'/);
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: "PAX is already installed on this computer",
+      }),
+    );
+    const command = screen.getByText(/PAX_REGISTRATION_TOKEN='one-use-secret'/);
+    expect(command).toHaveTextContent("paxd setup --cloud-url");
+    expect(command).toHaveTextContent("--registration-token-env");
+    expect(command).not.toHaveTextContent("curl");
+    expect(
+      requests.filter((request) =>
+        request.path.endsWith("/node-registration-tokens"),
+      ),
+    ).toHaveLength(1);
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: "PAX is already installed on this computer",
+      }),
+    );
+    expect(
+      screen.getByText(/PAX_REGISTRATION_TOKEN='one-use-secret'/),
+    ).toHaveTextContent("curl");
+  });
+
   it("supports browser sign-in from a fresh computer without generating a registration token", async () => {
     const { user, client } = setup();
     await user.click(
