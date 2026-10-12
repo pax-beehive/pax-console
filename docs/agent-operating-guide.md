@@ -808,8 +808,14 @@ turn projections with `turn_id` and ends the turn with a
 keeps history, the owned conversation stream, and observer replay as separate
 ordered sources; it must not timestamp-sort them because replayed ACP frames
 receive client arrival timestamps. A locally owned conversation replaces only
-that turn's agent projection while retaining the durable user prompt at the
-turn's original history position. A committed observer snapshot replaces the full target turn; message identity,
+that turn's agent projection while retaining the durable user prompt. The
+identified current active turn (including its prompt and tools) is pinned after
+all other events, preserving its internal order even when pagination exposes an
+earlier history anchor. Use local active ownership before reported runtime
+ownership, including pending IDs. Retained previous streams keep their history
+positions; calibrated/snapshot-owned turns are never moved by stale runtime
+metadata. Unknown active IDs keep the existing conservative ordering.
+A committed observer snapshot replaces the full target turn; message identity,
 not repeated-text filtering, determines the resulting projection. Once all pages of the completed turn have been calibrated, durable history owns the turn.
 Durable storage may aggregate every `agent_message_chunk` in that turn into a
 single row anchored at the first chunk. History normalization therefore places

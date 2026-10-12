@@ -116,6 +116,7 @@ import {
 import { normalizeHistoryMessages } from "@/features/runtime/normalize-history-message";
 import { mergeEvents } from "@/features/runtime/merge-session-events";
 import {
+  activeTimelineTurnId,
   historySnapshotsForTimeline,
   latestRuntimeTurnId,
   reconcileSessionTimeline,
@@ -1491,47 +1492,41 @@ export function SessionWorkbench({
     [historyMessages, usesEncryptedTransport, encryptedRuntime.historyEvents],
   );
 
-  const reconciledTimeline = useMemo(
-    () =>
-      usesEncryptedTransport
-        ? {
-            timeline: mergeEvents([
-              ...historyEvents,
-              ...encryptedRuntime.events,
-            ]),
-          }
-        : reconcileSessionTimeline(
-            historyEvents,
-            usesEncryptedTransport
-              ? encryptedRuntime.events
-              : conversationRun.events,
-            usesEncryptedTransport ? [] : sessionObserver.events,
-            usesEncryptedTransport ? [] : sessionObserver.snapshotTurnIds,
-            usesEncryptedTransport ? undefined : historySync.calibratedTurnIds,
-            usesEncryptedTransport
-              ? []
-              : historySnapshotsForTimeline(historySync.snapshotTurnIds, {
-                  sessionStatus: activeSession?.runtime_status,
-                  sessionTurnId: observedTurnId,
-                  localStatus: conversationRun.status,
-                  localTurnId: conversationRun.activeTurnId,
-                }),
-          ),
-    [
-      conversationRun.events,
-      encryptedRuntime.events,
+  const reconciledTimeline = useMemo(() => {
+    if (usesEncryptedTransport) {
+      return {
+        timeline: mergeEvents([...historyEvents, ...encryptedRuntime.events]),
+      };
+    }
+    const runtime = {
+      sessionStatus: activeSession?.runtime_status,
+      sessionTurnId: observedTurnId,
+      localStatus: conversationRun.status,
+      localTurnId: conversationRun.activeTurnId,
+    };
+    return reconcileSessionTimeline(
       historyEvents,
-      usesEncryptedTransport,
+      conversationRun.events,
       sessionObserver.events,
       sessionObserver.snapshotTurnIds,
       historySync.calibratedTurnIds,
-      historySync.snapshotTurnIds,
-      activeSession?.runtime_status,
-      conversationRun.status,
-      conversationRun.activeTurnId,
-      observedTurnId,
-    ],
-  );
+      historySnapshotsForTimeline(historySync.snapshotTurnIds, runtime),
+      activeTimelineTurnId(runtime),
+    );
+  }, [
+    conversationRun.events,
+    encryptedRuntime.events,
+    historyEvents,
+    usesEncryptedTransport,
+    sessionObserver.events,
+    sessionObserver.snapshotTurnIds,
+    historySync.calibratedTurnIds,
+    historySync.snapshotTurnIds,
+    activeSession?.runtime_status,
+    conversationRun.status,
+    conversationRun.activeTurnId,
+    observedTurnId,
+  ]);
   const { timeline } = reconciledTimeline;
   const currentToolEvidence =
     selectedToolEvidence?.type === "tool"

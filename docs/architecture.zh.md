@@ -1029,8 +1029,12 @@ resume 复用同一个 turn ID，queued follow-up 使用新的 ID。durable hist
 turn 投影都带 `turn_id`，并以 `message_type=turn_done`、`status=complete` marker
 结束。timeline 必须把 history、当前窗口拥有的 conversation stream、observer replay
 作为三条独立有序流协调，不能按 `createdAt` 重排（observer 重放帧使用客户端接收时间）。
-本地 conversation 只接管该 turn 的 agent 输出，同时保留 durable user prompt，并把
-该 turn 留在原 history 位置；新版 observer 在 `head` 提交完整 snapshot 后替换
+本地 conversation 只接管该 turn 的 agent 输出，同时保留 durable user prompt。
+已确认的当前活动 turn（含用户消息和工具事件）整体置于其他事件之后，保留轮内顺序，
+不受旧历史分页带入的早期锚点影响。本地活动 turn ID（含 pending ID）优先于服务端
+运行状态中的 ID；旧流残留保留历史位置，已校准或由完整历史快照接管的轮次不因
+滞后的运行状态移到末尾。活动 ID 未知时保留原有保守排序。
+新版 observer 在 `head` 提交完整 snapshot 后替换
 目标 turn 的旧投影，不再依赖重放文本过滤。只有 completion marker 出现在 history 后，
 durable history 才完整接管该 turn。
 durable history 可能把同一 turn 的全部 `agent_message_chunk` 聚合进第一条 chunk
