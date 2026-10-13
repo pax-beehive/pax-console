@@ -1,23 +1,23 @@
 <!-- BEGIN:nextjs-agent-rules -->
 # This is NOT the Next.js you know
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
+When changing Next.js-specific behavior, consult the relevant documentation for the installed version. Prefer `node_modules/next/dist/docs/` when present; otherwise use matching official versioned documentation. Heed applicable deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
 # PAX Console Agent Memory
 
-Before making changes, read:
+Consult the sections relevant to the change:
 
-```txt
-docs/agent-operating-guide.md
-docs/architecture.zh.md
-docs/pax-console-design.md
-```
+- `docs/agent-operating-guide.md`: auth, proxy, runtime operations, and setup.
+- `docs/architecture.zh.md`: module responsibilities, state ownership, and interfaces.
+- `docs/pax-console-design.md`: visual design and design-system changes.
+
+A small edit does not require reading all three documents.
 
 Project facts:
 
 ```txt
-Project root              /Users/jiahangzhang/code-base/project/pax-console
+Project root              Current checkout (paths below are repository-relative)
 Local browser hostname    https://console.paxtech.net
 PAX Manager upstream      https://app.paxtech.net
 Browser API base          /api/pax
@@ -43,4 +43,4 @@ docs/architecture.zh.md
 docs/agent-operating-guide.md
 ```
 
-If a change does not require documentation updates, say so explicitly in the final response.
+Explain documentation changes when they matter to the result; do not add a routine no-documentation disclaimer.
