@@ -1,5 +1,18 @@
 # Agent Operating Guide
 
+## Public company and policy documents
+
+`workers/public-pages/` independently serves `/about`, `/privacy`, and `/terms`
+through the `pax-public-pages` Cloudflare Worker. `/about` is the OAuth homepage;
+it links the policy documents and the existing Next.js product overviews.
+These are static documents, with no application credentials, account fetches,
+or data bindings. The Worker permits only exact GET/HEAD document paths and
+rejects prefix siblings; it never proxies to the application. Do not expand its
+three route prefixes to root, API, or workbench paths. The Console image
+workflow does not deploy this Worker. See its README for deployment and
+anonymous access checks. AppProviders' existing public overview paths remain
+unchanged because these documents do not pass through Next.js.
+
 ## Harness and ACP adapter upgrades
 
 Node detail's advanced settings expose Claude/Codex/Pi CLI and ACP adapter upgrades. `NodeHarnessUpgrade` accepts an optional version (blank means latest) and displays the resolved installed version from the command result, including after reload. It sends upgrades through the same-origin

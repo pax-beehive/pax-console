@@ -1,5 +1,15 @@
 # PAX Console 代码结构与接入说明
 
+## 公开公司说明与政策页面
+
+`workers/public-pages/` 是独立的 `pax-public-pages` Cloudflare Worker，提供
+`/about`、`/privacy`、`/terms`。`/about` 用作 OAuth 应用主页，链接两份政策和现有
+中英文产品介绍页。页面是无脚本、无账号请求、无数据库绑定的静态 HTML；不进入
+Next.js 的 RegionGate。路由配置仅覆盖这三个前缀，handler 再限制精确路径与
+GET/HEAD，不识别的相邻路径返回 404，不转发到 Console 或 Manager。
+工作台、API、现有 regional Worker 和 Access 策略不由该模块修改。
+Console 镜像发布不更新此 Worker；部署、回滚和无登录验收见该目录 README。
+
 ## Harness 与 ACP adapter 升级
 
 目标版本可留空，默认 latest；paxd 通过 paxl 解析一次后固定版本，前端从命令结果展示实际安装版本，刷新后可恢复。
