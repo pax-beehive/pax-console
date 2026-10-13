@@ -16,6 +16,18 @@ other paths with 404, accepts GET/HEAD only, and never forwards requests to an
 origin. Root, `/api/*`, the regional Worker, and existing Access policies are
 not part of this deployment. Do not broaden routes to the whole hostname.
 
+Cloudflare Access must also permit these documents before the Worker can run.
+The production application `PAX Public Company and Policies`
+(`c169afad-b909-4dce-b4a7-ef549c9e2925`) contains only the three exact destinations
+`paxworkspace.net/about`, `paxworkspace.net/privacy`, and `paxworkspace.net/terms`.
+It reuses `PAX Public Assets Bypass`
+(`41b1b194-a894-46d7-806d-1e3ed37131af`, everyone/bypass), without changing that
+policy or the broader authenticated PAX application. Access path matching can
+include descendants; the Worker's exact-path check remains necessary. A more
+specific application does not inherit the broader application's policies.
+Remove this dedicated Access application as well as the Worker routes if
+retiring the public surface, so future origin routes do not inherit a bypass.
+
 ## Validate and deploy
 
 From this directory, using the authenticated Cloudflare account:
