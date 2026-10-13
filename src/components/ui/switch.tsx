@@ -15,7 +15,7 @@ export function Switch({
       )}
       {...props}
     >
-      <Primitive.Thumb className="pointer-events-none block h-4 w-4 translate-x-0.5 rounded-full bg-ink shadow-sm transition-transform data-[state=checked]:translate-x-4" />
+      <Primitive.Thumb className="pointer-events-none block h-4 w-4 translate-x-0.5 rounded-full bg-ink shadow-sm transition-transform data-[state=checked]:translate-x-4 data-[state=checked]:bg-canvas" />
     </Primitive.Root>
   );
 }

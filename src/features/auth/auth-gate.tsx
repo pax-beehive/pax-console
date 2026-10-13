@@ -5,6 +5,7 @@ import { API_BASE_URL, LOGIN_URL } from "@/features/api/client";
 import { AuthError } from "@/features/api/errors";
 import { User } from "@/features/api/types";
 import { useCurrentUser } from "./use-current-user";
+import { SignInRedirect } from "./sign-in-redirect";
 
 type AuthGateProps = {
   children: (user: User) => ReactNode;
@@ -12,6 +13,8 @@ type AuthGateProps = {
 
 export function AuthGate({ children }: AuthGateProps) {
   const currentUser = useCurrentUser();
+
+  if (currentUser.error instanceof AuthError) return <SignInRedirect />;
 
   if (currentUser.isLoading) {
     return (

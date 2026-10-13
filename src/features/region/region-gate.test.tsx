@@ -10,6 +10,11 @@ import {
 } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RegionGate } from "./region-gate";
+import { startSignIn } from "@/features/auth/sign-in";
+vi.mock("@/features/auth/sign-in", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/features/auth/sign-in")>()),
+  startSignIn: vi.fn(),
+}));
 import { AuthError } from "@/features/api/errors";
 import { bootstrapRegion, loadRegionConfig, measureRegions } from "./bootstrap";
 vi.mock("./bootstrap", () => ({
@@ -102,15 +107,19 @@ it("keeps failures visible and retries the authoritative bootstrap", async () =>
     });
   mount();
   await screen.findByRole("alert");
+  expect(startSignIn).not.toHaveBeenCalled();
   expect(screen.queryByText("Account content")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Retry" }));
   await screen.findByText("Account content");
 });
-it("offers sign-in to unauthenticated visitors before any account requests", async () => {
+it("redirects unauthenticated visitors to sign-in before any account requests", async () => {
   vi.mocked(bootstrapRegion).mockRejectedValue(new AuthError());
   mount();
-  const login = await screen.findByRole("link", { name: "Sign in" });
-  expect(login.getAttribute("href")).toBe("/auth/login");
+  const login = await screen.findByRole("link", {
+    name: "Continue to sign in",
+  });
+  expect(login.getAttribute("href")).toBe("/auth/login?returnTo=%2F");
+  expect(startSignIn).toHaveBeenCalledTimes(1);
   expect(screen.queryByRole("alert")).toBeNull();
   expect(screen.queryByText("Account content")).toBeNull();
   expect(measureRegions).not.toHaveBeenCalled();

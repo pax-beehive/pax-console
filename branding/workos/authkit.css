@@ -1,0 +1,124 @@
+.ak-Background {
+  background: #252724;
+  color: #e8e7e1;
+}
+.ak-Content {
+  width: min(100%, 400px);
+  padding-left: 12px;
+  padding-right: 12px;
+}
+.ak-Header {
+  gap: 14px;
+  padding-bottom: 8px;
+}
+.ak-Header::before {
+  content: "";
+  display: block;
+  width: 64px;
+  height: 64px;
+  background: url("https://paxworkspace.net/pax-icon.svg") center / contain
+    no-repeat;
+  filter: invert(0.88) sepia(0.12) saturate(0.55);
+}
+.ak-Heading {
+  color: #e8e7e1;
+  font-size: 25px;
+  font-weight: 550;
+  letter-spacing: -0.035em;
+}
+.ak-Card {
+  background: transparent;
+  box-shadow: none;
+  border: 0;
+  overflow: visible;
+  padding: 12px 0;
+}
+.ak-Card::before,
+.ak-Card::after {
+  background: transparent;
+  box-shadow: none;
+  border: 0;
+}
+.ak-Label {
+  color: #c1c4ba;
+  font-weight: 500;
+  font-size: 13px;
+}
+.ak-TextField {
+  background: #2b2e29;
+  color: #e8e7e1;
+  box-shadow: inset 0 0 0 1px #626b59;
+  border-radius: 9px;
+  min-height: 46px;
+}
+.ak-TextField:focus-within {
+  box-shadow: inset 0 0 0 2px #bdcfae;
+}
+.ak-TextField input {
+  color: #e8e7e1;
+  font-size: 15px;
+}
+.ak-TextField input::placeholder {
+  color: #a3a79c;
+  opacity: 1;
+}
+.ak-PrimaryButton {
+  min-height: 46px;
+  border-radius: 9px;
+  font-weight: 550;
+  box-shadow: none;
+}
+.ak-AuthButton {
+  min-height: 46px;
+  border-radius: 9px;
+  color: #e0e3d9;
+  background: #30342d;
+  box-shadow: inset 0 0 0 1px #565e4e;
+  transition: background-color 140ms ease;
+}
+.ak-AuthButton:hover {
+  background: #3a4134;
+}
+.ak-AuthButtonLabel {
+  font-size: 14px;
+}
+.ak-TextSeparator {
+  color: #a3a79c;
+}
+.ak-Footer {
+  color: #a3a79c;
+  font-size: 11px;
+  line-height: 1.8;
+}
+.ak-Footer a {
+  color: #bec9b4;
+}
+.ak-Card a:not(.ak-AuthButton) {
+  color: #c8d7bf;
+}
+.ak-Card .rt-Text {
+  color: #c1c4ba;
+}
+.ak-PrimaryButton .rt-Text {
+  color: #252d22;
+}
+@media (max-width: 767px) {
+  .ak-Content {
+    width: min(100%, 380px);
+    padding: 24px 12px;
+  }
+  .ak-Header {
+    padding-bottom: 16px;
+  }
+  .ak-Heading {
+    font-size: 25px;
+  }
+  .ak-TextField input {
+    font-size: 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ak-AuthButton {
+    transition: none;
+  }
+}

@@ -16,8 +16,18 @@ validates the regional gateway assertion and existing resource permissions.
 Deploy this UI after the gateway and both Managers support WorkOS; publishing
 source alone is not an authentication cutover.
 
-A bootstrap 401 is a normal signed-out state. RegionGate offers the WorkOS
-sign-in entry before mounting account queries; outages retain retry controls.
+A bootstrap 401 is a normal signed-out state. RegionGate and AuthGate automatically
+replace the current page with `/auth/login?returnTo=...` before mounting account
+queries. Preserve the relative path, query and hash. A tab-scoped 15-second
+redirect guard prevents rapid callback loops; the visible sign-in link remains
+available. Successful bootstrap clears the guard. Outages retain retry controls.
+
+Production AuthKit branding is versioned in `branding/workos/`. Build its non-secret
+`updateAppBranding` payload with `node scripts/workos-branding-payload.mjs`; this
+only prints JSON and does not publish. Publish explicitly to the production
+branding ID and verify desktop/mobile, English/Chinese, and sign-up screens.
+The desktop content panel uses sanitized HTML/CSS; mobile hides it. Authentication
+providers, email verification and MFA policy are independent of branding.
 
 
 ## Harness and ACP adapter upgrades
@@ -1114,7 +1124,7 @@ one React element, such as an anchor, as the delegated child.
 
 The UI direction is Codex-like dark workbench, not a generic dashboard. Prefer split panes, compact rows, timelines, and evidence panels over large hero sections, KPI-card grids, and floating card sections. Cards are reserved for selectable entities, modals, and isolated tools. Ordinary metadata should be muted text or monospace text; use `Badge` for states that need scanning or action, such as connected, running, failed, approval required, revoked, or offline.
 
-The signature accent (`--color-accent` #5e6ad2, with `--color-accent-bright` #96a0ff for small text/icons) is reserved for small interactive signals: selected-state tinted backgrounds (bg-accent/10, hover bg-accent/15; bg-accent/15 with accent-bright text for segmented tabs), left indicator bars, focus rings and glows, and hover emphasis. Do not use accent fills or gradients as large-area brand decoration. The body carries a very subtle accent radial gradient for depth, and `::selection` uses the accent color. Entrance micro-animations use the `motion` package (`motion/react`); keep them short (~200ms) and subtle.
+The signature accent (`--color-accent` #aabfa1, with `--color-accent-bright` #c8d7bf for small text/icons) is reserved for small interactive signals: selected-state tinted backgrounds (bg-accent/10, hover bg-accent/15; bg-accent/15 with accent-bright text for segmented tabs), left indicator bars, focus rings and glows, and hover emphasis. Do not use accent fills or gradients as large-area brand decoration. The body uses a solid matte graphite canvas (#252724), with warm off-white text and sage selection highlights; avoid glossy gradients. Entrance micro-animations use the `motion` package (`motion/react`); keep them short (~200ms) and subtle.
 
 Sidebar collapsed state is client-only UI state and belongs in `useConsoleStore().sidebarCollapsed`.
 
