@@ -1,4 +1,5 @@
 "use client";
+import { LOGIN_URL } from "@/features/api/client";
 import { ReactNode, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -151,7 +152,7 @@ function RegionFailure({
       <div className="mt-5 flex gap-3">
         <Button onClick={retry}>Retry</Button>
         <Button asChild>
-          <a href="/cdn-cgi/access/logout">Sign in again</a>
+          <a href={LOGIN_URL}>Sign in again</a>
         </Button>
       </div>
     </RegionMessage>

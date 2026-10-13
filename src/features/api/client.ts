@@ -5,11 +5,23 @@ export const API_BASE_URL =
 
 export const API_USER_SCOPE = process.env.NEXT_PUBLIC_PAX_USER_SCOPE ?? "self";
 
-// Signing out means ending the Cloudflare Access session for this origin.
-// `/cdn-cgi/access/logout` is Cloudflare's standard same-origin logout
-// endpoint; override it when the console is fronted by a different host.
+// AuthKit sessions are terminated with a same-origin POST, then the gateway
+// redirects to WorkOS to revoke the provider session.
+export const LOGIN_URL = "/auth/login";
 export const LOGOUT_URL =
-  process.env.NEXT_PUBLIC_PAX_LOGOUT_URL ?? "/cdn-cgi/access/logout";
+  process.env.NEXT_PUBLIC_PAX_LOGOUT_URL ?? "/auth/logout";
+
+export function signOut() {
+  if (LOGOUT_URL !== "/auth/logout") {
+    window.location.assign(LOGOUT_URL);
+    return;
+  }
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = LOGOUT_URL;
+  document.body.appendChild(form);
+  form.submit();
+}
 
 type ApiEnvelope<T> = {
   code: number;
