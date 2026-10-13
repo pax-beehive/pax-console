@@ -6,8 +6,8 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  background: #2c302b;
-  color: #e8e7e1;
+  background: #2f2f2f;
+  color: #e7e7e7;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
 }
 .pax-brand-panel * {
@@ -18,7 +18,7 @@
   align-items: center;
   gap: 7px;
   width: fit-content;
-  color: #e8e7e1;
+  color: #e7e7e7;
   text-decoration: none;
   font-size: 22px;
   font-weight: 650;
@@ -26,14 +26,14 @@
 }
 .pax-wordmark img,
 .pax-network-center img {
-  filter: invert(0.88) sepia(0.12) saturate(0.55);
+  filter: invert(0.88) grayscale(1);
 }
 .pax-wordmark img {
   margin-left: -12px;
 }
 .pax-wordmark-detail {
   display: block;
-  color: #aab3a4;
+  color: #b0b0b0;
   font-size: 8px;
   font-weight: 500;
   letter-spacing: 0.24em;
@@ -45,7 +45,7 @@
   margin: 64px auto;
 }
 .pax-eyebrow {
-  color: #b2bfaa;
+  color: #bbbbbb;
   font-size: 10px;
   font-weight: 500;
   letter-spacing: 0.2em;
@@ -60,10 +60,10 @@
 }
 .pax-brand-story h2 em {
   font-style: normal;
-  color: #b8c4b0;
+  color: #c0c0c0;
 }
 .pax-description {
-  color: #b9c0b4;
+  color: #bebebe;
   font-size: 14px;
   line-height: 1.9;
   max-width: 380px;
@@ -79,7 +79,7 @@
   position: absolute;
   width: 172px;
   height: 172px;
-  border: 1px solid #444d40;
+  border: 1px solid #4a4a4a;
   border-radius: 50%;
   left: 49%;
   top: 50%;
@@ -89,9 +89,9 @@
   position: absolute;
   width: 78px;
   height: 84px;
-  border: 1px solid #788b6c;
+  border: 1px solid #858585;
   border-radius: 20px;
-  background: #3a4435;
+  background: #414141;
   left: 49%;
   top: 50%;
   transform: translate(-50%, -50%);
@@ -108,7 +108,7 @@
 .pax-network-center span {
   font-size: 9px;
   letter-spacing: 0.2em;
-  color: #c8d7bf;
+  color: #d2d2d2;
   margin-top: -4px;
 }
 .pax-device,
@@ -118,10 +118,10 @@
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
-  border: 1px solid #4a5244;
+  border: 1px solid #4f4f4f;
   border-radius: 10px;
-  background: #30352e;
-  color: #c6cec0;
+  background: #333333;
+  color: #cbcbcb;
   font-size: 11px;
   white-space: nowrap;
 }
@@ -144,23 +144,23 @@
 .pax-node-icon {
   font-size: 17px;
   line-height: 1;
-  color: #a8b89d;
+  color: #b3b3b3;
 }
 .pax-dot {
   width: 7px;
   height: 7px;
-  background: #b4c8a4;
+  background: #c1c1c1;
   border-radius: 50%;
 }
 .pax-session-icon {
   font-size: 18px;
   line-height: 1;
-  color: #a8b89d;
+  color: #b3b3b3;
 }
 .pax-network-line {
   position: absolute;
   height: 1px;
-  background: #59674f;
+  background: #626262;
   width: 32%;
   transform-origin: left;
   left: 18%;
@@ -186,12 +186,12 @@
   width: 33%;
 }
 .pax-caption {
-  border-top: 1px solid #454c40;
+  border-top: 1px solid #4a4a4a;
   display: flex;
   justify-content: space-between;
   gap: 12px;
   padding-top: 18px;
-  color: #a5af9d;
+  color: #acacac;
   font-size: 9px;
   letter-spacing: 0.08em;
 }
@@ -201,18 +201,18 @@
   align-items: center;
   gap: 24px;
   font-size: 11px;
-  color: #aab2a3;
+  color: #afafaf;
 }
 .pax-brand-footer a {
-  color: #c4cebb;
+  color: #cbcbcb;
   text-decoration: none;
 }
 .pax-brand-footer a:hover {
-  color: #e8e7e1;
+  color: #e7e7e7;
 }
 .pax-wordmark:focus-visible,
 .pax-brand-footer a:focus-visible {
-  outline: 2px solid #bdcfae;
+  outline: 2px solid #c9c9c9;
   outline-offset: 6px;
   border-radius: 4px;
 }
