@@ -16,6 +16,9 @@ validates the regional gateway assertion and existing resource permissions.
 Deploy this UI after the gateway and both Managers support WorkOS; publishing
 source alone is not an authentication cutover.
 
+A bootstrap 401 is a normal signed-out state. RegionGate offers the WorkOS
+sign-in entry before mounting account queries; outages retain retry controls.
+
 
 ## Harness and ACP adapter upgrades
 

@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
+import { AuthError } from "@/features/api/errors";
 import {
   bootstrapRegion,
   measureRegions,
@@ -6,6 +7,18 @@ import {
   loadRegionConfig,
 } from "./bootstrap";
 afterEach(() => vi.unstubAllGlobals());
+it("distinguishes a missing session from a regional outage", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => new Response(null, { status: 401 })),
+  );
+  await expect(bootstrapRegion()).rejects.toBeInstanceOf(AuthError);
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => new Response(null, { status: 503 })),
+  );
+  await expect(bootstrapRegion()).rejects.not.toBeInstanceOf(AuthError);
+});
 it("restores an existing assignment with no preference and keeps browser traffic same-origin", async () => {
   const fetch = vi.fn(async () =>
     Response.json({ status: "ready", region: "hk", user_id: "usr_hk" }),

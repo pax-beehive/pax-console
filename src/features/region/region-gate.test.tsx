@@ -10,6 +10,7 @@ import {
 } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RegionGate } from "./region-gate";
+import { AuthError } from "@/features/api/errors";
 import { bootstrapRegion, loadRegionConfig, measureRegions } from "./bootstrap";
 vi.mock("./bootstrap", () => ({
   bootstrapRegion: vi.fn(),
@@ -104,6 +105,15 @@ it("keeps failures visible and retries the authoritative bootstrap", async () =>
   expect(screen.queryByText("Account content")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Retry" }));
   await screen.findByText("Account content");
+});
+it("offers sign-in to unauthenticated visitors before any account requests", async () => {
+  vi.mocked(bootstrapRegion).mockRejectedValue(new AuthError());
+  mount();
+  const login = await screen.findByRole("link", { name: "Sign in" });
+  expect(login.getAttribute("href")).toBe("/auth/login");
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(screen.queryByText("Account content")).toBeNull();
+  expect(measureRegions).not.toHaveBeenCalled();
 });
 it("retains legacy mode when explicitly disabled and blocks invalid configuration", async () => {
   vi.mocked(loadRegionConfig).mockResolvedValue({ enabled: false });
