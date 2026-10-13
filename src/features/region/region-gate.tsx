@@ -1,5 +1,6 @@
 "use client";
 import { LOGIN_URL } from "@/features/api/client";
+import { AuthError } from "@/features/api/errors";
 import { ReactNode, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -66,6 +67,18 @@ function RegionBootstrap({ children }: { children: ReactNode }) {
   });
   if (bootstrap.isPending)
     return <RegionMessage>Restoring your account...</RegionMessage>;
+  if (bootstrap.isError && bootstrap.error instanceof AuthError)
+    return (
+      <RegionMessage>
+        <h1 className="text-2xl font-semibold">Sign in to PaxWorkspace</h1>
+        <p className="mt-3 text-sm leading-6 text-ink-muted">
+          Continue with your email, Google, or GitHub account.
+        </p>
+        <Button asChild className="mt-5">
+          <a href={LOGIN_URL}>Sign in</a>
+        </Button>
+      </RegionMessage>
+    );
   if (bootstrap.isError)
     return (
       <RegionFailure

@@ -28,7 +28,7 @@ ACP frame batch. Live normalized events and canonical encrypted history share
 that ID so the normal turn reconciliation path suppresses overlapping history
 snapshots while a turn is streaming.
 The UI renders normalized agent events.
-Cloudflare Access owns identity.
+WorkOS owns browser identity; Cloudflare Access protects regional origins.
 PAX Manager owns permissions and resources.
 ```
 

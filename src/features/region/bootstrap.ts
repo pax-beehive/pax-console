@@ -1,3 +1,5 @@
+import { AuthError } from "@/features/api/errors";
+
 export type Region = "us" | "hk";
 export type Bootstrap =
   | { status: "ready"; region: Region; user_id: string }
@@ -17,9 +19,10 @@ async function json(url: string, init?: RequestInit) {
     redirect: "error",
     signal: AbortSignal.timeout(12000),
   });
+  if (response.status === 401) throw new AuthError();
   if (!response.ok)
     throw new Error(
-      response.status === 401 || response.status === 403
+      response.status === 403
         ? "Your sign-in has expired. Sign in again to continue."
         : "Your region is temporarily unavailable. Please retry.",
     );
