@@ -29,6 +29,18 @@ branding ID and verify desktop/mobile, English/Chinese, and sign-up screens.
 The desktop content panel uses sanitized HTML/CSS; mobile hides it. Authentication
 providers, email verification and MFA policy are independent of branding.
 
+## Public company and policy documents
+
+`workers/public-pages/` independently serves `/about`, `/privacy`, and `/terms`
+through the `pax-public-pages` Cloudflare Worker. `/about` is the OAuth homepage;
+it links the policy documents and the existing Next.js product overviews.
+These are static documents, with no application credentials, account fetches,
+or data bindings. The Worker permits only exact GET/HEAD document paths and
+rejects prefix siblings; it never proxies to the application. Do not expand its
+three route prefixes to root, API, or workbench paths. The Console image
+workflow does not deploy this Worker. See its README for deployment and
+anonymous access checks. AppProviders' existing public overview paths remain
+unchanged because these documents do not pass through Next.js.
 
 ## Harness and ACP adapter upgrades
 

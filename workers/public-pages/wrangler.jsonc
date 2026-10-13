@@ -1,0 +1,23 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "pax-public-pages",
+  "main": "index.mjs",
+  "account_id": "221784d24eb2a95d148bc96b6f06d6be",
+  "compatibility_date": "2026-10-12",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [
+    {
+      "pattern": "paxworkspace.net/about*",
+      "zone_id": "6e7d305a2050525b513b76c9c2102f89",
+    },
+    {
+      "pattern": "paxworkspace.net/privacy*",
+      "zone_id": "6e7d305a2050525b513b76c9c2102f89",
+    },
+    {
+      "pattern": "paxworkspace.net/terms*",
+      "zone_id": "6e7d305a2050525b513b76c9c2102f89",
+    },
+  ],
+}

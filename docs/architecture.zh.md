@@ -23,6 +23,15 @@ AuthKit 生产品牌源文件位于 `branding/workos/`，通过
 桌面使用品牌介绍与表单双栏，手机隐藏介绍栏。全站使用中性雾面炭灰、柔和灰白和中性灰强调色。
 品牌配置不修改登录提供商、邮箱验证或 MFA 策略。
 
+## 公开公司说明与政策页面
+
+`workers/public-pages/` 是独立的 `pax-public-pages` Cloudflare Worker，提供
+`/about`、`/privacy`、`/terms`。`/about` 用作 OAuth 应用主页，链接两份政策和现有
+中英文产品介绍页。页面是无脚本、无账号请求、无数据库绑定的静态 HTML；不进入
+Next.js 的 RegionGate。路由配置仅覆盖这三个前缀，handler 再限制精确路径与
+GET/HEAD，不识别的相邻路径返回 404，不转发到 Console 或 Manager。
+工作台、API、现有 regional Worker 和 Access 策略不由该模块修改。
+Console 镜像发布不更新此 Worker；部署、回滚和无登录验收见该目录 README。
 
 ## Harness 与 ACP adapter 升级
 

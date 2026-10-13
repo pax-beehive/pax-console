@@ -1,5 +1,11 @@
 # Public product overview and search indexing
 
+The separate `workers/public-pages/` Worker provides `/about`, `/privacy`, and
+`/terms`. `/about` is the OAuth application's public company/product homepage,
+links both policies, and links these detailed overview pages. It does not
+replace either Next.js overview or change its account-gate behavior. Legal-page
+deployment is independent of the Console image; see the Worker's README.
+
 `https://paxworkspace.net/overview` is the English product introduction;
 `https://paxworkspace.net/zh/overview` is its Simplified Chinese counterpart.
 The root remains the existing workbench. No domain, cookie, or browser key
