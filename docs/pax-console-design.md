@@ -243,27 +243,27 @@ Current token shape:
 
 ```css
 :root {
-  --primary: #deded4;
-  --primary-hover: #eeede5;
-  --primary-focus: #bdcfae;
-  --accent: #aabfa1;
-  --accent-bright: #c8d7bf;
-  --ink: #e8e7e1;
-  --ink-muted: #c1c4ba;
-  --ink-subtle: #a3a79c;
-  --ink-tertiary: #80857a;
-  --canvas: #252724;
-  --surface-1: #2b2e29;
-  --surface-2: #32362f;
-  --surface-3: #3a3e36;
-  --surface-4: #43483e;
-  --hairline: #40453b;
-  --hairline-strong: #565d4f;
-  --hairline-tertiary: #69725f;
+  --primary: #dddddd;
+  --primary-hover: #ededed;
+  --primary-focus: #c9c9c9;
+  --accent: #b8b8b8;
+  --accent-bright: #d2d2d2;
+  --ink: #e7e7e7;
+  --ink-muted: #c3c3c3;
+  --ink-subtle: #a5a5a5;
+  --ink-tertiary: #838383;
+  --canvas: #262626;
+  --surface-1: #2d2d2d;
+  --surface-2: #353535;
+  --surface-3: #3d3d3d;
+  --surface-4: #464646;
+  --hairline: #434343;
+  --hairline-strong: #5b5b5b;
+  --hairline-tertiary: #6f6f6f;
   --success: #52b788;
   --warning: #d6a84f;
   --danger: #f87171;
-  --overlay: rgb(18 20 18 / 64%);
+  --overlay: rgb(19 19 19 / 64%);
   --radius-xs: 4px;
   --radius-sm: 6px;
   --radius-md: 8px;
@@ -289,8 +289,8 @@ for headings or strong hierarchy. The global 14px/1.5 baseline keeps compact UI
 copy readable; session content uses 16px/24px below 640px and 14px/20px above.
 
 The accent stays sparse: selected-state left indicator bars, focus rings and
-glows, hover emphasis, and `::selection`. The canvas is solid matte graphite;
-text and primary actions use warm off-white; do not turn the accent into a large-area
+glows, hover emphasis, and `::selection`. The canvas is solid neutral matte charcoal;
+text and primary actions use soft off-white; do not turn the accent into a large-area
 brand fill. Entrance micro-animations use `motion/react` and stay short and
 subtle (~200ms).
 

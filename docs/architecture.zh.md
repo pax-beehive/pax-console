@@ -20,7 +20,7 @@ Worker，Manager 验证区域网关签名和原有资源权限。前端切换应
 AuthKit 生产品牌源文件位于 `branding/workos/`，通过
 `node scripts/workos-branding-payload.mjs` 构建无密钥的 updateAppBranding JSON，
 脚本不自动发布。显式发布到生产 branding ID 后检查中英文、桌面、手机和注册页。
-桌面使用品牌介绍与表单双栏，手机隐藏介绍栏。全站使用雾面石墨灰、柔和米白和灰绿强调色。
+桌面使用品牌介绍与表单双栏，手机隐藏介绍栏。全站使用中性雾面炭灰、柔和灰白和中性灰强调色。
 品牌配置不修改登录提供商、邮箱验证或 MFA 策略。
 
 
@@ -528,12 +528,12 @@ status / count pill
   走 Codex-like dark workbench，而不是通用 dashboard。
   优先使用 split panes、compact rows、timeline、evidence panel。
   避免大 hero、KPI-card grid、每个 section 都套 rounded card。
-  签名 accent 色为 --accent #aabfa1（小字/图标用更亮的 --accent-bright #c8d7bf），
+  签名 accent 色为 --accent #b8b8b8（小字/图标用更亮的 --accent-bright #d2d2d2），
   只用于小面积交互信号：选中态底色（bg-accent/10，hover 加深到 /15；
   segmented tab 用 bg-accent/15 + accent-bright 文字）、左侧指示条、
   聚焦环/光晕、hover 强调；
-  不要把 accent 或渐变用作大面积品牌装饰。body 使用纯色雾面石墨灰 #252724，
-  正文使用柔和米白，::selection 使用灰绿 accent 色。
+  不要把 accent 或渐变用作大面积品牌装饰。body 使用纯色中性雾面炭灰 #262626，
+  正文使用柔和灰白，::selection 使用中性灰 accent 色。
   Cards 只用于可选择实体、modal、独立工具或确实需要框住的复杂内容。
 
 Sidebar 折叠

@@ -1,6 +1,6 @@
 .ak-Background {
-  background: #252724;
-  color: #e8e7e1;
+  background: #262626;
+  color: #e7e7e7;
 }
 .ak-Content {
   width: min(100%, 400px);
@@ -18,10 +18,10 @@
   height: 64px;
   background: url("https://paxworkspace.net/pax-icon.svg") center / contain
     no-repeat;
-  filter: invert(0.88) sepia(0.12) saturate(0.55);
+  filter: invert(0.88) grayscale(1);
 }
 .ak-Heading {
-  color: #e8e7e1;
+  color: #e7e7e7;
   font-size: 25px;
   font-weight: 550;
   letter-spacing: -0.035em;
@@ -40,26 +40,26 @@
   border: 0;
 }
 .ak-Label {
-  color: #c1c4ba;
+  color: #c3c3c3;
   font-weight: 500;
   font-size: 13px;
 }
 .ak-TextField {
-  background: #2b2e29;
-  color: #e8e7e1;
-  box-shadow: inset 0 0 0 1px #626b59;
+  background: #2d2d2d;
+  color: #e7e7e7;
+  box-shadow: inset 0 0 0 1px #686868;
   border-radius: 9px;
   min-height: 46px;
 }
 .ak-TextField:focus-within {
-  box-shadow: inset 0 0 0 2px #bdcfae;
+  box-shadow: inset 0 0 0 2px #c9c9c9;
 }
 .ak-TextField input {
-  color: #e8e7e1;
+  color: #e7e7e7;
   font-size: 15px;
 }
 .ak-TextField input::placeholder {
-  color: #a3a79c;
+  color: #a5a5a5;
   opacity: 1;
 }
 .ak-PrimaryButton {
@@ -71,36 +71,36 @@
 .ak-AuthButton {
   min-height: 46px;
   border-radius: 9px;
-  color: #e0e3d9;
-  background: #30342d;
-  box-shadow: inset 0 0 0 1px #565e4e;
+  color: #e2e2e2;
+  background: #333333;
+  box-shadow: inset 0 0 0 1px #5b5b5b;
   transition: background-color 140ms ease;
 }
 .ak-AuthButton:hover {
-  background: #3a4134;
+  background: #3f3f3f;
 }
 .ak-AuthButtonLabel {
   font-size: 14px;
 }
 .ak-TextSeparator {
-  color: #a3a79c;
+  color: #a5a5a5;
 }
 .ak-Footer {
-  color: #a3a79c;
+  color: #a5a5a5;
   font-size: 11px;
   line-height: 1.8;
 }
 .ak-Footer a {
-  color: #bec9b4;
+  color: #c5c5c5;
 }
 .ak-Card a:not(.ak-AuthButton) {
-  color: #c8d7bf;
+  color: #d2d2d2;
 }
 .ak-Card .rt-Text {
-  color: #c1c4ba;
+  color: #c3c3c3;
 }
 .ak-PrimaryButton .rt-Text {
-  color: #252d22;
+  color: #2b2b2b;
 }
 @media (max-width: 767px) {
   .ak-Content {
