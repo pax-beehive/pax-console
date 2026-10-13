@@ -1,5 +1,22 @@
 # Agent Operating Guide
 
+## WorkOS authentication
+
+Production login starts at `/auth/login`. The region-directory Worker owns
+PKCE callbacks, encrypted HttpOnly session cookies, refresh and logout; no
+WorkOS secrets belong in Next.js or browser storage. Logout is a native
+same-origin POST to `/auth/logout`, allowing the server to revoke the WorkOS
+session through its redirect. `NEXT_PUBLIC_PAX_LOGOUT_URL` remains a legacy
+GET override for installations using a different authentication gateway.
+
+The Worker binds a verified WorkOS subject to the original directory identity.
+Existing user IDs, regions and resources remain unchanged. Browser REST and
+WebSocket traffic stay on the canonical same-origin Worker. Manager independently
+validates the regional gateway assertion and existing resource permissions.
+Deploy this UI after the gateway and both Managers support WorkOS; publishing
+source alone is not an authentication cutover.
+
+
 ## Harness and ACP adapter upgrades
 
 Node detail's advanced settings expose Claude/Codex/Pi CLI and ACP adapter upgrades. `NodeHarnessUpgrade` accepts an optional version (blank means latest) and displays the resolved installed version from the command result, including after reload. It sends upgrades through the same-origin

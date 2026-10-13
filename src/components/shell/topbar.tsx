@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SearchBox } from "@/components/ui/search-box";
 import { TruncatedText } from "@/components/ui/text";
-import { LOGOUT_URL } from "@/features/api/client";
+import { signOut } from "@/features/api/client";
 import { User } from "@/features/api/types";
 import { isAdminUser } from "@/features/auth/admin-view";
 import { useConsoleStore } from "@/stores/console-store";
@@ -75,7 +75,7 @@ export function Topbar({ user }: TopbarProps) {
             )}
             <DropdownMenuItem
               onSelect={() => {
-                window.location.assign(LOGOUT_URL);
+                signOut();
               }}
             >
               <LogOut className="h-4 w-4 shrink-0" />

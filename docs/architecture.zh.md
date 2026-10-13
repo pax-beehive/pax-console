@@ -1,5 +1,18 @@
 # PAX Console 代码结构与接入说明
 
+## WorkOS 登录
+
+生产登录入口是 `/auth/login`。区域路由 Worker 负责 PKCE 回调、加密的 HttpOnly
+会话 cookie、续期及退出；Next.js 和浏览器存储不保存 WorkOS 密钥。退出使用同源
+表单 POST `/auth/logout`，由 Worker 清理 cookie 并重定向至 WorkOS 注销会话。
+已有 `NEXT_PUBLIC_PAX_LOGOUT_URL` 仅作为旧部署的 GET 退出覆盖配置。
+
+首次登录只允许经过 WorkOS 验证的邮箱绑定原有目录身份；绑定后以 WorkOS 用户 ID
+识别账号，保持原 PAX 用户 ID、区域和资源归属。REST 和 WebSocket 继续经过主域名
+Worker，Manager 验证区域网关签名和原有资源权限。前端切换应在 Worker 与两区 Manager
+部署并验证后进行；源代码发布不代表生产认证已切换。
+
+
 ## Harness 与 ACP adapter 升级
 
 目标版本可留空，默认 latest；paxd 通过 paxl 解析一次后固定版本，前端从命令结果展示实际安装版本，刷新后可恢复。
