@@ -12,8 +12,16 @@
 Worker，Manager 验证区域网关签名和原有资源权限。前端切换应在 Worker 与两区 Manager
 部署并验证后进行；源代码发布不代表生产认证已切换。
 
-区域初始化返回 401 时展示正常登录入口，不作为区域故障显示；登录前不挂载账号请求。
+区域初始化或 AuthGate 返回 401 时，自动 replace 到 `/auth/login?returnTo=...`，
+保留相对路径、查询串和 hash，登录前不挂载账号请求。sessionStorage 中仅存储跳转时间戳，
+15 秒内避免自动重复跳转；手动登录链接始终可用。区域初始化成功后清除该标记。
 区域服务故障仍保留错误信息和重试按钮。
+
+AuthKit 生产品牌源文件位于 `branding/workos/`，通过
+`node scripts/workos-branding-payload.mjs` 构建无密钥的 updateAppBranding JSON，
+脚本不自动发布。显式发布到生产 branding ID 后检查中英文、桌面、手机和注册页。
+桌面使用品牌介绍与表单双栏，手机隐藏介绍栏。全站使用雾面石墨灰、柔和米白和灰绿强调色。
+品牌配置不修改登录提供商、邮箱验证或 MFA 策略。
 
 
 ## Harness 与 ACP adapter 升级
@@ -520,12 +528,12 @@ status / count pill
   走 Codex-like dark workbench，而不是通用 dashboard。
   优先使用 split panes、compact rows、timeline、evidence panel。
   避免大 hero、KPI-card grid、每个 section 都套 rounded card。
-  签名 accent 色为 --accent #5e6ad2（小字/图标用更亮的 --accent-bright #96a0ff），
+  签名 accent 色为 --accent #aabfa1（小字/图标用更亮的 --accent-bright #c8d7bf），
   只用于小面积交互信号：选中态底色（bg-accent/10，hover 加深到 /15；
   segmented tab 用 bg-accent/15 + accent-bright 文字）、左侧指示条、
   聚焦环/光晕、hover 强调；
-  不要把 accent 或渐变用作大面积品牌装饰。body 自带一层极淡的 accent
-  径向渐变增加纵深，::selection 使用 accent 色。
+  不要把 accent 或渐变用作大面积品牌装饰。body 使用纯色雾面石墨灰 #252724，
+  正文使用柔和米白，::selection 使用灰绿 accent 色。
   Cards 只用于可选择实体、modal、独立工具或确实需要框住的复杂内容。
 
 Sidebar 折叠

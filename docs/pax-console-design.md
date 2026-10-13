@@ -243,21 +243,42 @@ Current token shape:
 
 ```css
 :root {
-  --primary: #f4f4f5;
-  --primary-hover: #ffffff;
-  --accent: #5e6ad2;
-  --accent-bright: #96a0ff;
-  --ink: #f4f4f5;
-  --ink-muted: #c9cbd1;
-  --ink-subtle: #8f929a;
-  --ink-tertiary: #656870;
-  --canvas: #070708;
-  --surface-1: #0d0d0f;
-  --surface-2: #141416;
-  --surface-3: #1a1a1d;
-  --hairline: #222327;
-  --hairline-strong: #35363c;
+  --primary: #deded4;
+  --primary-hover: #eeede5;
+  --primary-focus: #bdcfae;
+  --accent: #aabfa1;
+  --accent-bright: #c8d7bf;
+  --ink: #e8e7e1;
+  --ink-muted: #c1c4ba;
+  --ink-subtle: #a3a79c;
+  --ink-tertiary: #80857a;
+  --canvas: #252724;
+  --surface-1: #2b2e29;
+  --surface-2: #32362f;
+  --surface-3: #3a3e36;
+  --surface-4: #43483e;
+  --hairline: #40453b;
+  --hairline-strong: #565d4f;
+  --hairline-tertiary: #69725f;
   --success: #52b788;
+  --warning: #d6a84f;
+  --danger: #f87171;
+  --overlay: rgb(18 20 18 / 64%);
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --topbar-h: 48px;
+  --sidebar-w: 248px;
+  --sidebar-collapsed-w: 76px;
+  --font-ui:
+    ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Noto Sans CJK SC", "Noto Sans SC", "Microsoft YaHei UI", "Microsoft YaHei",
+    sans-serif;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
 }
 ```
 
@@ -268,8 +289,8 @@ for headings or strong hierarchy. The global 14px/1.5 baseline keeps compact UI
 copy readable; session content uses 16px/24px below 640px and 14px/20px above.
 
 The accent stays sparse: selected-state left indicator bars, focus rings and
-glows, hover emphasis, a subtle body radial gradient, and `::selection`.
-Primary actions remain near-white; do not turn the accent into a large-area
+glows, hover emphasis, and `::selection`. The canvas is solid matte graphite;
+text and primary actions use warm off-white; do not turn the accent into a large-area
 brand fill. Entrance micro-animations use `motion/react` and stay short and
 subtle (~200ms).
 
