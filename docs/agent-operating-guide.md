@@ -1602,6 +1602,14 @@ different from title), size, and creation date live in file details. Only
 loading, processing, and failure states appear beside the title; full errors
 remain in the viewer body. Do not show normal-status badges or renderer IDs.
 
+Both embedded and standalone artifact Download links use the native `download`
+attribute and `target="_self"` on the same-origin authenticated content endpoint.
+Do not open this endpoint in a new tab: on Android, a new browsing context can
+hand the URL to the installed TWA and change the request's navigation origin.
+Keep `rel="noreferrer"` and the existing attachment disposition and signed-storage
+redirect. The regional Worker's origin checks and Manager ownership checks still
+apply. Validate downloads in both Android Chrome and the installed TWA.
+
 ## Snapshot-driven queued turns
 
 Manager persists one queued draft per session (64 KiB maximum), dispatched by

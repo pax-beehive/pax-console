@@ -327,8 +327,9 @@ export function ArtifactViewerShell({
               <a
                 aria-label="Download"
                 href={artifact.downloadHref}
+                download
                 rel="noreferrer"
-                target="_blank"
+                target="_self"
               >
                 <Download className="h-4 w-4" />
                 <span className="hidden sm:inline">Download</span>
@@ -431,7 +432,12 @@ export function ArtifactViewerShell({
           )}
           {artifact.downloadHref && (
             <Button asChild size="sm" variant="ghost">
-              <a href={artifact.downloadHref} rel="noreferrer" target="_blank">
+              <a
+                href={artifact.downloadHref}
+                download
+                rel="noreferrer"
+                target="_self"
+              >
                 <Download className="h-4 w-4" />
                 <span className="min-w-0 truncate">Download</span>
               </a>

@@ -46,6 +46,36 @@ afterEach(() => {
 });
 
 describe("ArtifactViewerShell", () => {
+  it.each([
+    { standalone: false, sourceType: "session_artifact" as const },
+    { standalone: true, sourceType: "session_artifact" as const },
+    { standalone: false, sourceType: "publication" as const },
+    { standalone: true, sourceType: "publication" as const },
+  ])(
+    "keeps $sourceType downloads in the current browser context (standalone=$standalone)",
+    ({ standalone, sourceType }) => {
+      const collection =
+        sourceType === "session_artifact"
+          ? "artifacts"
+          : "artifact-publications";
+      const downloadHref = `/api/pax/api/v1/user/self/${collection}/artifact_1/content/main?disposition=attachment&redirect=true`;
+      render(
+        <TooltipProvider>
+          <ArtifactViewerShell
+            artifact={{ ...artifact, sourceType, downloadHref }}
+            standalone={standalone}
+          />
+        </TooltipProvider>,
+      );
+
+      const download = screen.getByRole("link", { name: "Download" });
+      expect(download).toHaveAttribute("href", downloadHref);
+      expect(download).toHaveAttribute("download");
+      expect(download).toHaveAttribute("target", "_self");
+      expect(download).toHaveAttribute("rel", "noreferrer");
+    },
+  );
+
   it("loads text previews through the resolved structured renderer", async () => {
     const fetchMock = vi.fn(async () => {
       return new Response('{"hello":"world"}', {

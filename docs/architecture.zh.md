@@ -428,6 +428,10 @@ src/components/artifacts/
   保留紧凑预览，同时链接到受 AuthGate 保护的全宽独立页
   /artifacts/publications/[publicationId] 与 /artifacts/files/[artifactId]；
   独立页复用同一 renderer，并自动取得短效 preview URL。
+  两处 Download 入口均通过原生 `download` 和 `target="_self"` 访问同源
+  content API，避免新窗口导航触发 Android App 链接接管；保留 noreferrer、
+  attachment disposition 与签名存储重定向。Worker 来源校验和 Manager
+  文件归属校验继续生效。Android Chrome 与已安装 TWA 均需验证下载。
 
 src/components/sessions/
   Session workbench。把 REST 历史消息和 WebSocket live events 合成时间线。
