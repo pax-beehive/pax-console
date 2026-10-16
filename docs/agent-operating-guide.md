@@ -2,16 +2,16 @@
 
 ## WorkOS authentication
 
-Production login starts at `/auth/login`. The region-directory Worker owns
+Production login starts at `/auth/login`. The region-directory gateway (Worker or direct regional service) owns
 PKCE callbacks, encrypted HttpOnly session cookies, refresh and logout; no
 WorkOS secrets belong in Next.js or browser storage. Logout is a native
 same-origin POST to `/auth/logout`, allowing the server to revoke the WorkOS
 session through its redirect. `NEXT_PUBLIC_PAX_LOGOUT_URL` remains a legacy
 GET override for installations using a different authentication gateway.
 
-The Worker binds a verified WorkOS subject to the original directory identity.
+The gateway binds a verified WorkOS subject to the original directory identity.
 Existing user IDs, regions and resources remain unchanged. Browser REST and
-WebSocket traffic stay on the canonical same-origin Worker. Manager independently
+WebSocket traffic stay on the configured same-origin gateway. Manager independently
 validates the regional gateway assertion and existing resource permissions.
 Deploy this UI after the gateway and both Managers support WorkOS; publishing
 source alone is not an authentication cutover.
@@ -105,7 +105,6 @@ its language; the workbench and root document retain English. See
 `docs/public-overview.md` for narrow Cloudflare Access paths and rollout checks.
 Do not treat a local 200 as proof of public production access.
 
-
 ## Mobile layout
 
 ConsoleLayout owns visual viewport sizing through `useConsoleViewport` at all
@@ -162,7 +161,6 @@ boundary arrows, and hide navigation for one image. Buttons and Left/Right
 keys update the title and position counter. Preview errors/retries belong to
 the current image independently of the message thumbnail; render only the
 selected image through the existing authenticated attachment endpoint.
-
 
 The turn-footer gauge represents context used/window (not per-turn tokens).
 Its needle and colored arc share a clamped continuous ratio and green-to-red
@@ -1904,7 +1902,44 @@ isolated Chrome contexts and mocked API traffic to verify both device directions
 wrong codes, refresh recovery, explicit consent, actual key decryption, and mobile
 overflow. It requires locally installed Chrome and does not access real accounts.
 
-## Browser region bootstrap and edge routing
+## Direct regional access and fixed account routing
+
+The opt-in Node gateway in pax-manager `workers/region-directory/src/regional`
+serves `/auth/*`, `/api/region-config`, bootstrap, `/api/pax` and WebSockets before
+Next.js. Its local PostgreSQL directory contains all US/HK account routes and
+WorkOS subject bindings; business data remains in the home Manager. One authority
+writes registrations and replicates committed records. Local hits need neither
+Cloudflare D1 nor cross-region discovery. Unknown accounts fail closed when the
+authority is unavailable. Deployment and D1 migration instructions live in
+pax-manager `workers/region-directory/regional/README.md`.
+
+`/api/region-config` returns `mode: "direct"`, the current `region`, both configured
+HTTPS `origins`, and an optional `entry` hint. RegionGate validates these origins
+before DirectRegionGate boots the account once. No probes, focus refresh or
+periodic bootstrap run in direct mode. Existing accounts keep their original ID
+and region; new accounts explicitly choose once. A verified foreign assignment
+navigates to that origin before any account queries mount, preserving the current
+path, query and hash. All subsequent REST/SSE calls stay on `/api/pax` and tunnels
+use the home origin even if an old public WebSocket override exists.
+
+Only `us` or `hk` is saved under localStorage `pax:account-region`. The hint may
+skip bootstrap on the designated entry origin; it is not authentication or an
+assignment. A new browser/device still recovers its account from the directory.
+An authoritative return adds the navigation-only `pax_region_return=1` flag; the
+destination consumes/removes it and ignores stale entry hints to avoid a redirect
+loop when changing accounts. Destination login and bootstrap remain mandatory.
+Host-only WorkOS cookies may require a sign-in round trip on a new regional host.
+No token, cookie, email or account ID is carried in the navigation URL.
+
+The direct gateway must intercept API paths before Next.js. Keep
+`PAX_BROWSER_REGIONS_ENABLED=true` as a fail-closed fallback and configure the
+regional canonical origin; an unavailable gateway must not cause a fallback to
+the old central proxy. Deploy the paired gateway and Console changes together,
+import and verify the old directory before admitting traffic, and keep only one
+registration authority. Native applications must persist the returned `api_url`;
+this Console change does not modify the Android client or production DNS/TLS.
+
+## Legacy Worker region bootstrap and edge routing
 
 Production regional mode is runtime-configured with
 `PAX_BROWSER_REGIONS_ENABLED=true` and
@@ -1950,7 +1985,6 @@ immutable GHCR digest and registers it in PAX Release. It does not deploy
 production or inject runtime environment files into the image. See
 [image-release.md](image-release.md) for credentials, failure recovery and
 manual runs.
-
 
 Release image registration can additionally authenticate to Cloudflare with the
 per-repository `PAX_RELEASE_CF_CLIENT_ID` / `PAX_RELEASE_CF_CLIENT_SECRET` Actions

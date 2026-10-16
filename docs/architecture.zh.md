@@ -2,14 +2,13 @@
 
 ## WorkOS 登录
 
-生产登录入口是 `/auth/login`。区域路由 Worker 负责 PKCE 回调、加密的 HttpOnly
+生产登录入口是 `/auth/login`。区域网关（Worker 或区域直连服务）负责 PKCE 回调、加密的 HttpOnly
 会话 cookie、续期及退出；Next.js 和浏览器存储不保存 WorkOS 密钥。退出使用同源
-表单 POST `/auth/logout`，由 Worker 清理 cookie 并重定向至 WorkOS 注销会话。
+表单 POST `/auth/logout`，由网关清理 cookie 并重定向至 WorkOS 注销会话。
 已有 `NEXT_PUBLIC_PAX_LOGOUT_URL` 仅作为旧部署的 GET 退出覆盖配置。
 
 首次登录只允许经过 WorkOS 验证的邮箱绑定原有目录身份；绑定后以 WorkOS 用户 ID
-识别账号，保持原 PAX 用户 ID、区域和资源归属。REST 和 WebSocket 继续经过主域名
-Worker，Manager 验证区域网关签名和原有资源权限。前端切换应在 Worker 与两区 Manager
+识别账号，保持原 PAX 用户 ID、区域和资源归属。REST 和 WebSocket 经过当前配置的同源网关，Manager 验证区域网关签名和原有资源权限。前端切换应在 Worker 与两区 Manager
 部署并验证后进行；源代码发布不代表生产认证已切换。
 
 区域初始化或 AuthGate 返回 401 时，自动 replace 到 `/auth/login?returnTo=...`，
@@ -82,7 +81,6 @@ follow、自引用 canonical、本地化分享信息和 JSON-LD，并以 hreflan
 路径、无登录验收与 Search Console 流程见 `docs/public-overview.md`。
 域名、cookie 与浏览器加密密钥存储不迁移。
 
-
 ## 一句话模型
 
 ConsoleLayout 通过 `useConsoleViewport` 统一按 visual viewport 调整 shell 高度和
@@ -118,8 +116,6 @@ SessionSettings 统一承载新建/已有会话的配置和权限：手机为带
 同一条消息的可预览图片按附件顺序组成 gallery，支持上一张/下一张、左右方向键
 和位置计数；首尾禁用对应按钮，单图隐藏导航，非图片和无 attachment ID 项跳过。
 预览仅请求当前图片，切换时独立重置错误/重试状态，不影响消息缩略图。
-
-
 
 移动端 composer 的权限按钮限制宽度，完整权限名称保留在菜单和无障碍标签中。运行中 Queue/Steer/Stop 在手机和桌面均直接可见，Steer 以独立按钮放在 Queue 旁，未实现的语音按钮不占用手机工具栏。Project 原生选择保留系统交互，但用自定义箭头和明确的深色背景/边框；RunBadge 内部图标与文字保持同行。移动端顶部栏为 44px 最小高度加安全区，刷新入口移至用户菜单。行内代码与正文一起换行，超长路径可在容器内断行，每行保留独立背景，不再使用 inline-block 形成整块灰底。流式 Markdown 将代码内反斜杠视为字面字符，避免错误补闭合符。
 
@@ -1801,7 +1797,31 @@ Manager 先升级，Console 后升级。paxd 命令入口新建 legacy 请求并
 原有长 secret，无需更新 paxd。请求取消、拒绝、过期或替换后不能继续授权；
 已批准的密钥包仍可在请求到期后恢复。现有本地密钥不会因 DB 升级被清除。
 
-## Browser region bootstrap and edge routing
+## 区域直连与固定账号归属
+
+直连模式由 pax-manager 的 `workers/region-directory/src/regional` Node 网关承接
+登录、区域初始化、REST、SSE 和 WebSocket，Next.js 提供页面。US、HK 各自保存完整的
+最小账号目录：WorkOS subject、原有身份、PAX user ID 和固定区域；项目和会话数据仍只在
+账号所属区域。单一主目录分配新账号，通过持久化日志复制；本地命中不查询 CF D1，也不
+跨区查找。本地缺失才向主目录恢复，主目录不可用时返回错误，不猜测区域或创建重复账号。
+
+`/api/region-config` 的 `mode: "direct"` 启用 `DirectRegionGate`。前端先验证两区
+HTTPS origin，再初始化当前账号；已有账号不测速、不定时重新选择区域，新账号只选择一次。
+若账号属于另一地区，在挂载业务请求前导航到该区并保留 path/query/hash。之后 REST/SSE
+使用同源 `/api/pax`，WebSocket 使用已确认的本区 origin，优先于旧的中央 WS 环境变量。
+
+localStorage 的 `pax:account-region` 仅记录 `us`/`hk`，用于入口站点的导航提示，不代表
+认证或账号归属。新设备仍可通过目录恢复。已有账号跳回入口时附带纯导航标记
+`pax_region_return=1`，入口消费并删除标记、忽略旧提示，避免切换账号后循环跳转。
+目的地始终重新校验登录和目录。Cookie 保持 host-only，新域名可能有一次 WorkOS 登录往返；
+URL 不携带 token、cookie、邮箱或账号 ID。
+
+部署必须让区域网关先于 Next.js 接管 API，并保留 `PAX_BROWSER_REGIONS_ENABLED=true`
+使 Next 代理在网关缺失时拒绝回退。旧 D1 数据需冻结写入、导入并核对两地记录，再切流；
+不能同时运行两套注册权威。详细步骤见 Manager 的 `workers/region-directory/regional/README.md`。
+本次 Console 修改不包含线上 DNS/证书切换或安卓客户端发布。
+
+## Legacy Worker region bootstrap and edge routing
 
 Production regional mode is runtime-configured with
 `PAX_BROWSER_REGIONS_ENABLED=true` and
@@ -1847,7 +1867,6 @@ immutable GHCR digest and registers it in PAX Release. It does not deploy
 production or inject runtime environment files into the image. See
 [image-release.md](image-release.md) for credentials, failure recovery and
 manual runs.
-
 
 Release image registration can additionally authenticate to Cloudflare with the
 per-repository `PAX_RELEASE_CF_CLIENT_ID` / `PAX_RELEASE_CF_CLIENT_SECRET` Actions
