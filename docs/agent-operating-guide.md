@@ -507,7 +507,10 @@ do not launch them with `Promise.all`. Commands are
 asynchronous: mutation responses acknowledge receipt, then the UI polls the
 agent connection inventory until the requested generation, restart nonce, and
 runtime phase have converged. The command ACK is not the runtime completion
-signal.
+signal. Connection inventories include disabled entries and may retain soft-deleted
+history. Hide `desired_state: deleted` rows from actionable lists and counts, and
+recognize them as completed removal even when an older runtime status remains.
+Stopped/disabled connections remain visible. Never wait for physical row deletion.
 
 Agent detail also mounts `NodeDaemonControl`, scoped by exact `cloud_agent_id`.
 Its Edit settings action exposes the shared Slots/runtime form; discovery,

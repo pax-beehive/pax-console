@@ -93,7 +93,9 @@ export function NodeDaemonControl({
       ? (connections) => !nodeDaemonRuntimeOutcome(runtimeTarget, connections)
       : undefined,
   );
-  const allConnections = connectionsQuery.data?.agent_connections?.items ?? [];
+  const allConnections = (
+    connectionsQuery.data?.agent_connections?.items ?? []
+  ).filter((connection) => connection.desired_state !== "deleted");
   const connections = agentId
     ? allConnections.filter(
         (connection) => connection.cloud_agent_id === agentId,
@@ -656,6 +658,7 @@ function ConnectionRow({
           variant="ghost"
         />
         <Button
+          aria-label="Remove daemon connection"
           disabled={busy}
           icon={<Trash2 className="h-4 w-4" />}
           onClick={onRemove}

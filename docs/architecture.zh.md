@@ -896,6 +896,10 @@ status → harnesses → agent connections 串行加载。mutation 收到 ACK �
 `command_id`，然后每秒查询 agent connections；generation、restart nonce 和
 runtime phase 收敛后停止轮询并刷新 agent 列表。command 的 `received` 只表示
 paxd 已接收请求，不作为运行完成状态。
+connection 查询包含 disabled 条目，也可能返回软删除历史。列表与计数过滤
+`desired_state: deleted`，删除收敛接受记录消失或进入 deleted 状态，不再等待
+历史行物理删除；旧 runtime phase 不能覆盖删除状态。正常 stopped/disabled 连接
+仍保留在列表中。
 
 agent connection 创建和编辑支持 `desired_slots`（范围 1–16），新建默认值为
 `2`；connection 列表展示的是期望 slot 数，不代表当前已 running 的 slot 数。

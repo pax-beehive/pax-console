@@ -73,6 +73,19 @@ describe("paxd runtime reconciliation", () => {
     ).toBeUndefined();
   });
 
+  it("treats a retained deleted row as completed removal", () => {
+    expect(
+      nodeDaemonRuntimeOutcome({ action: "remove", connectionId: "conn_1" }, [
+        { ...runningConnection, desired_state: "deleted", enabled: false },
+      ]),
+    ).toBe("removed");
+    expect(
+      nodeDaemonRuntimeOutcome({ action: "remove", connectionId: "conn_1" }, [
+        { ...runningConnection, desired_state: "stopped", enabled: false },
+      ]),
+    ).toBeUndefined();
+  });
+
   it("reports stop, removal, and terminal runtime failure", () => {
     expect(
       nodeDaemonRuntimeOutcome(
