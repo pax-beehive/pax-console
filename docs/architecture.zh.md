@@ -1923,3 +1923,32 @@ use `error`; apiFetch maps known routing errors to actionable messages with HTTP
 status and keeps Manager `message` errors. Unknown Worker details remain hidden.
 A failed lookup displays a release-check failure and a read-only retry action.
 Install stays disabled during lookup or after failure, including cached versions.
+
+## Harness authentication on a node
+
+Node advanced settings include Harness sign-in. Calls use same-origin
+`/api/pax/api/v1/user/:user_id/nodes/:node_id/harness/auth`; the Manager checks
+node access and supplies the verified actor identity before forwarding over
+node control. paxd owns an ephemeral paxl process; paxl delegates native auth.
+A request ACK is not authentication success. Only a final paxl result and
+successful child exit complete the attempt; configured/unknown remain metadata.
+
+TanStack Query owns current attempt state with gcTime zero. Browser storage
+keeps only the user/node-scoped harness, start command ID and optional attempt
+ID. Refresh or control reconnect recovers that handle without starting login.
+Transient network errors retain the handle; only an explicit terminal/not-found
+result offers a new start. Keys/codes are submitted once from local input state,
+never as mutation-cache variables or browser storage. Native links/codes remain
+ephemeral UI data; URL rendering allows only HTTP(S). Secret responses are
+no-store and never enter the durable daemon command journal.
+
+SDK prompts drive provider/method selection, including masked secret input.
+TTY-only native flows remain local until the separately tracked PTY fallback;
+the UI states that limitation. AGY API-key/ADC mode selects existing node
+environment credentials and does not persist a new key. Authentication uses the
+node OS account/default credential environment, not a selected ACP connection's
+custom environment. Signing in does not restart running ACP sessions.
+
+`harness-auth-e2e.mjs` is driven by pax-manager's opt-in browser test with the
+real four components and fixture vendor accounts. It verifies reconnect/reload,
+native code and SDK inputs, cancellation and secret non-persistence.
