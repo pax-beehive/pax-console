@@ -6,10 +6,12 @@ import { clearSignInAttempt } from "@/features/auth/sign-in";
 import { ReactNode, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { DirectRegionGate } from "./direct-region-gate";
 import {
   bootstrapRegion,
   loadRegionConfig,
   measureRegions,
+  rememberedRegionOrigin,
   type Region,
 } from "./bootstrap";
 const bootstrapKey = ["region", "bootstrap"];
@@ -20,7 +22,11 @@ export function RegionGate({ children }: { children: ReactNode }) {
     staleTime: Infinity,
     retry: false,
   });
-  const origin = config.data?.enabled ? config.data.origin : undefined;
+  const origin = config.data?.enabled
+    ? config.data.mode === "direct"
+      ? (rememberedRegionOrigin(config.data) ?? config.data.origin)
+      : config.data.origin
+    : undefined;
   const redirect =
     !!origin &&
     typeof window !== "undefined" &&
@@ -44,6 +50,8 @@ export function RegionGate({ children }: { children: ReactNode }) {
       />
     );
   if (!config.data.enabled) return children;
+  if (config.data.mode === "direct")
+    return <DirectRegionGate>{children}</DirectRegionGate>;
   return <RegionBootstrap>{children}</RegionBootstrap>;
 }
 function RegionBootstrap({ children }: { children: ReactNode }) {

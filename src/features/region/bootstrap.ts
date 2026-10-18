@@ -2,11 +2,50 @@ import { AuthError } from "@/features/api/errors";
 
 export type Region = "us" | "hk";
 export type Bootstrap =
-  | { status: "ready"; region: Region; user_id: string }
+  | { status: "ready"; region: Region; user_id: string; origin?: string }
   | { status: "selection_required"; regions: Region[] };
 export type RegionConfig =
   | { enabled: false }
-  | { enabled: true; origin: string };
+  | {
+      enabled: true;
+      origin: string;
+      mode?: "direct";
+      region?: Region;
+      origins?: Record<Region, string>;
+      entry?: boolean;
+    };
+let authoritativeReturn = false;
+let directOrigins: Record<Region, string> | undefined;
+export const isDirectRegion = () => directOrigins !== undefined;
+const rememberedRegionKey = "pax:account-region";
+export function rememberedRegionOrigin(
+  config: RegionConfig,
+): string | undefined {
+  if (
+    authoritativeReturn ||
+    !config.enabled ||
+    config.mode !== "direct" ||
+    !config.entry ||
+    !config.origins
+  )
+    return;
+  try {
+    const region = localStorage.getItem(rememberedRegionKey);
+    if (region === "us" || region === "hk") return config.origins[region];
+  } catch {
+    /* Browser storage is only a navigation hint. */
+  }
+}
+export function navigateToRegion(origin: string) {
+  const url = new URL(
+    window.location.pathname + window.location.search + window.location.hash,
+    origin,
+  );
+  // Bypass a stale entry-origin hint when another region has resolved the account.
+  // This flag grants no access: the destination still authenticates and bootstraps.
+  url.searchParams.set("pax_region_return", "1");
+  window.location.replace(url.href);
+}
 let regionalOrigin: string | undefined;
 let assignedRegion: Region | undefined;
 export const getAssignedRegion = () => assignedRegion;
@@ -29,6 +68,17 @@ async function json(url: string, init?: RequestInit) {
   return response.json();
 }
 export async function loadRegionConfig(): Promise<RegionConfig> {
+  directOrigins = undefined;
+  const returning =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("pax_region_return") ===
+      "1";
+  authoritativeReturn ||= returning;
+  if (returning) {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("pax_region_return");
+    window.history.replaceState(window.history.state, "", url);
+  }
   const data = await json("/api/region-config");
   if (data.enabled === false) {
     regionalOrigin = undefined;
@@ -40,6 +90,37 @@ export async function loadRegionConfig(): Promise<RegionConfig> {
   const origin = new URL(data.origin);
   if (origin.protocol !== "https:" || origin.origin !== data.origin)
     throw new Error("Region configuration is unavailable.");
+  if (data.mode === "direct") {
+    if (
+      !["us", "hk"].includes(data.region) ||
+      !data.origins ||
+      !["us", "hk"].every((region) => {
+        try {
+          const candidate = new URL(data.origins[region]);
+          return (
+            candidate.protocol === "https:" &&
+            candidate.origin === data.origins[region] &&
+            !candidate.username &&
+            !candidate.password
+          );
+        } catch {
+          return false;
+        }
+      }) ||
+      data.origins.us === data.origins.hk ||
+      data.origins[data.region] !== data.origin
+    )
+      throw new Error("Region configuration is unavailable.");
+    directOrigins = { us: data.origins.us, hk: data.origins.hk };
+    return {
+      enabled: true,
+      mode: "direct",
+      region: data.region,
+      origin: data.origin,
+      origins: directOrigins,
+      entry: data.entry === true,
+    };
+  }
   return { enabled: true, origin: data.origin };
 }
 export async function bootstrapRegion(region?: Region): Promise<Bootstrap> {
@@ -63,6 +144,24 @@ export async function bootstrapRegion(region?: Region): Promise<Bootstrap> {
     !/^usr_[A-Za-z0-9_-]+$/.test(data.user_id)
   )
     throw new Error("Unable to restore your account region.");
+  if (directOrigins) {
+    const origin = directOrigins[data.region as Region];
+    if (data.origin !== origin)
+      throw new Error("Invalid account region destination.");
+    assignedRegion = data.region;
+    try {
+      localStorage.setItem(rememberedRegionKey, data.region);
+    } catch {
+      /* Storage is optional. */
+    }
+    regionalOrigin = origin;
+    return {
+      status: "ready",
+      user_id: data.user_id,
+      region: data.region,
+      origin,
+    };
+  }
   assignedRegion = data.region;
   regionalOrigin = window.location.origin;
   return data;

@@ -107,3 +107,103 @@ it("loads explicit runtime mode; malformed config and transport failures stay bl
     await expect(loadRegionConfig()).rejects.toThrow();
   }
 });
+it("validates direct destinations and remembers only configured region names", async () => {
+  const { rememberedRegionOrigin, isDirectRegion, getAssignedRegion } =
+    await import("./bootstrap");
+  const config = {
+    enabled: true,
+    mode: "direct",
+    region: "us",
+    origin: "https://us.example",
+    origins: { us: "https://us.example", hk: "https://hk.example" },
+    entry: true,
+  };
+  const storage = { getItem: vi.fn(() => "hk"), setItem: vi.fn() };
+  vi.stubGlobal("localStorage", storage);
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => Response.json(config)),
+  );
+  const loaded = await loadRegionConfig();
+  expect(rememberedRegionOrigin(loaded)).toBe("https://hk.example");
+  expect(isDirectRegion()).toBe(true);
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      Response.json({
+        status: "ready",
+        user_id: "usr_old",
+        region: "hk",
+        origin: "https://hk.example",
+      }),
+    ),
+  );
+  expect(await bootstrapRegion()).toMatchObject({
+    origin: "https://hk.example",
+  });
+  expect(getRegionalOrigin()).toBe("https://hk.example");
+  expect(storage.setItem).toHaveBeenCalledWith("pax:account-region", "hk");
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      Response.json({
+        status: "ready",
+        user_id: "usr_old",
+        region: "us",
+        origin: "https://evil.example",
+      }),
+    ),
+  );
+  await expect(bootstrapRegion()).rejects.toThrow("destination");
+  expect(getAssignedRegion()).toBe("hk");
+  storage.getItem.mockReturnValue("https://evil.example");
+  expect(rememberedRegionOrigin(loaded)).toBeUndefined();
+  for (const patch of [
+    { region: "eu" },
+    { origins: { us: "https://us.example", hk: "http://hk.example" } },
+    { origins: { us: "https://hk.example", hk: "https://hk.example" } },
+    { origins: {} },
+  ]) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ ...config, ...patch })),
+    );
+    await expect(loadRegionConfig()).rejects.toThrow();
+  }
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => Response.json({ enabled: false })),
+  );
+  await loadRegionConfig();
+});
+it("bypasses a stale entry hint after an authoritative return to avoid a region loop", async () => {
+  const { rememberedRegionOrigin } = await import("./bootstrap");
+  const replaceState = vi.fn();
+  vi.stubGlobal("window", {
+    location: {
+      search: "?session_id=one&pax_region_return=1",
+      href: "https://us.example/?session_id=one&pax_region_return=1#turn",
+    },
+    history: { replaceState, state: null },
+  });
+  vi.stubGlobal("localStorage", { getItem: () => "hk" });
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      Response.json({
+        enabled: true,
+        mode: "direct",
+        region: "us",
+        origin: "https://us.example",
+        origins: { us: "https://us.example", hk: "https://hk.example" },
+        entry: true,
+      }),
+    ),
+  );
+  expect(rememberedRegionOrigin(await loadRegionConfig())).toBeUndefined();
+  expect(replaceState.mock.calls[0][2].href).toBe(
+    "https://us.example/?session_id=one#turn",
+  );
+  window.location.search = "?session_id=one";
+  expect(rememberedRegionOrigin(await loadRegionConfig())).toBeUndefined();
+});
