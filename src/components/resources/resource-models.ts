@@ -199,7 +199,9 @@ export function nodeDaemonRuntimeOutcome(
     (item) => item.id === target.connectionId,
   );
   if (target.action === "remove") {
-    return connection ? undefined : "removed";
+    return !connection || connection.desired_state === "deleted"
+      ? "removed"
+      : undefined;
   }
 
   const status = connection?.status;
