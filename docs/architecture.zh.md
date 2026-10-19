@@ -1013,9 +1013,13 @@ config），利用 `session/set_config_option` 必须返回完整 `configOptions
 session-control request 使用独立 admission key，可与同一 session 的 active prompt
 并行，但多个 config request 彼此串行。
 
-Hermes 等旧实现只返回 `models.currentModelId/availableModels` 时，Console 可以展示
-当前 model 和 model list，但不提供切换或强制刷新，因为旧 `session/set_model`
-从未标准化。E2EE session 的 payload 对 Manager 不可见，所以该 selector 和这些 REST
+Hermes 等旧实现返回 `models.currentModelId/availableModels` 且没有标准 model option 时，
+Manager 在 REST snapshot 中投影可编辑的 `model` option。Console 复用现有选择器和
+PATCH endpoint；Manager 通过旧 `session/set_model` 发送已广告的 model ID，收到成功确认后
+才持久化当前模型，并保留模型列表和其他配置。标准 model option 优先，失败时不回退到旧接口。
+Hermes 忙碌时拒绝切换，Console 保持原选择并展示错误。旧模型接口不用于强制刷新列表，
+也不推导 reasoning effort 配置；只返回 `legacy_models` 的旧 Manager 仍按只读展示。
+E2EE session 的 payload 对 Manager 不可见，所以该 selector 和这些 REST
 操作保持禁用。ACP client initialize 必须声明
 `clientCapabilities.session.configOptions.boolean={}`，否则 Agent 可以合法地省略
 boolean fast-mode 配置。

@@ -770,8 +770,12 @@ snapshot. The frontend polls Manager rather than parsing raw control frames.
 There is no standard ACP model-list query. Manual refresh deliberately
 re-applies the current standard model config value so the response returns the
 complete current `configOptions`; it is allowed during an active turn.
-Never-stabilized legacy `models` payloads are display-only, and encrypted
-sessions do not expose Manager-side configuration controls.
+Legacy model catalogs are selectable when Manager exposes a normalized model
+option. Selection uses the same settings page and updates only after the agent
+accepts the change; busy or failed switches preserve the current model. Legacy
+catalog refresh is unavailable. Older Manager snapshots without a normalized
+option remain read-only. Encrypted sessions do not expose Manager-side
+configuration controls.
 
 ## WebSocket Design
 
