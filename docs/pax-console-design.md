@@ -1326,7 +1326,9 @@ the panel-right entry opens Artifacts / Browser / Knowledge, a bottom sheet on
 mobile and a right panel on desktop. Tool evidence appears contextually.
 Home / Collaboration / Settings retain their existing access rules.
 
-One Session settings trigger summarizes model and permissions. Its compact
+One Session settings trigger summarizes model, reasoning effort, and permissions.
+Reasoning effort uses the agent-reported current option label and is omitted when
+the agent does not report it. Its compact
 rows include every reported ACP option, permission choices, and creation-only
 encryption. Mobile uses a full-width bottom sheet with a backdrop; desktop uses
 a centered panel. Selection rows consistently show label, current value, and

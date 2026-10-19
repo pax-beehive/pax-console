@@ -53,7 +53,7 @@ import { SessionWorkspaceDetails } from "./session-workspace-details";
 import { SessionComposer } from "@/components/sessions/session-composer";
 import {
   SessionConfigSelector,
-  configurationModel,
+  configurationSummary,
 } from "@/components/sessions/session-config-selector";
 import { SessionHeader } from "@/components/sessions/session-header";
 import { SecureModeActivation } from "@/components/sessions/secure-mode-activation";
@@ -2604,7 +2604,7 @@ export function SessionWorkbench({
           permissionChoices={permissionChoices}
           configurationSummary={
             !usesEncryptedTransport
-              ? configurationModel(sessionConfigurationQuery.data)
+              ? configurationSummary(sessionConfigurationQuery.data)
               : undefined
           }
           configurationControl={

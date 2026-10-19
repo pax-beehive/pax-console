@@ -65,6 +65,18 @@ export function configurationModel(configuration?: SessionConfiguration) {
   );
 }
 
+export function configurationSummary(configuration?: SessionConfiguration) {
+  const effort = configuration?.options.find(
+    (option) =>
+      option.type === "select" &&
+      (option.category?.toLowerCase() === "thought_level" ||
+        option.id.toLowerCase() === "reasoning_effort"),
+  );
+  return [configurationModel(configuration), effort && optionValueLabel(effort)]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 export function SessionConfigSelector(props: SessionConfigSelectorProps) {
   const settings = useSessionSettings();
   const model = configurationModel(props.configuration);
