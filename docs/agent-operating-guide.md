@@ -704,9 +704,15 @@ model option exists) through `session/set_config_option`; that method's
 response is the fresh complete `configOptions` snapshot. This request may run
 alongside an active prompt, but other config controls for the session are
 serialized. Treat refresh as a deliberate no-op write, not a read-only RPC.
-Legacy `models.currentModelId/availableModels` is displayed read-only because
-`session/set_model` never became standard. E2EE sessions do not expose this
-Manager-owned snapshot. Both paxd and any direct tunnel client must advertise
+When an agent reports legacy `models.currentModelId/availableModels` without a
+standard model option, Manager projects an editable `model` option into the REST
+snapshot. The existing selector submits advertised IDs through the same PATCH
+endpoint; Manager uses `session/set_model` and persists the selected ID only
+after acknowledgement. Standard model options take precedence. A rejected or
+busy-agent request leaves the displayed selection unchanged. Legacy model
+switching does not refresh the catalog or invent reasoning controls. Older
+Managers that expose only `legacy_models` remain display-only. E2EE sessions do
+not expose this Manager-owned snapshot. Both paxd and any direct tunnel client must advertise
 `clientCapabilities.session.configOptions.boolean={}` during initialize so
 agents can include boolean options such as fast mode.
 

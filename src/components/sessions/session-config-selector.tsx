@@ -261,7 +261,7 @@ function SessionConfigFields({
               ))}
             </SettingsChoices>
             <p className="px-3 pb-3 text-xs leading-5 text-ink-tertiary">
-              Legacy agent model list; switching is not standardized.
+              Model switching is unavailable for this session.
             </p>
           </div>
         )}
