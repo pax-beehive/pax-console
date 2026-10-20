@@ -22,7 +22,11 @@ export type RegionalCustomers = {
   error?: string;
 };
 export type CustomerSnapshot = { regions: RegionalCustomers[] };
-export type MergedCustomer = Customer & { regions: string[]; stale: boolean };
+export type MergedCustomer = Customer & {
+  regions: string[];
+  stale: boolean;
+  user_refs: { region: string; user_id: string }[];
+};
 
 export function retainRegionalSnapshots(
   previous: CustomerSnapshot | undefined,
@@ -65,11 +69,13 @@ export function mergeCustomers(
           ...row,
           email,
           regions: [source.region],
+          user_refs: [{ region: source.region, user_id: row.user_id }],
           stale: !source.available,
         });
         continue;
       }
       old.regions.push(source.region);
+      old.user_refs.push({ region: source.region, user_id: row.user_id });
       old.stale ||= !source.available;
       old.is_admin ||= row.is_admin;
       old.created_at = earliest(old.created_at, row.created_at)!;

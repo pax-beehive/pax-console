@@ -58,6 +58,27 @@ Homebrew and npx wrappers remain unsupported.
 
 ## Customer analytics and focus-only polling
 
+`/admin/notifications` is the adjacent Push subscriptions administrator page.
+Both pages share `AdminAnalyticsNav`; mobile keeps the Customers bottom item
+active for either page. The page honors the effective admin view and queries
+`/api/pax/api/v1/user/self/notification-subscriptions`. Manager authorization
+remains authoritative. The canonical Worker aggregates fixed US/HK origins;
+authorization denial hides cached protected data and outages stay explicitly
+partial. Keep regional receiver identities and pagination separate.
+
+`use-subscriptions.ts` reuses the focused scheduler below, with keys scoped to
+admin identity, filters and regional cursors. A filter change remounts the
+results observer and cancels the old request. Summary counts cover all filtered
+records, not just the page. Receiver details use the current snapshot. Never
+display endpoint URLs, subscription keys or provider bodies. Subscription
+state, last reported permission and latest delivery are distinct; no sending
+integration means `No delivery attempts`, not a fabricated success. Customer
+details link using the pre-merge `(region, user_id)` references.
+
+Browser QA: `node scripts/subscription-dashboard-browser.mjs` against a local
+Next server on 3354 (override `PAX_SUBSCRIPTIONS_PREVIEW_URL`). Fixtures stay in
+the test script and screenshots go to `/tmp/pax-notification-audit`.
+
 `/admin/customers` is an administrator-only metadata dashboard. Both navigation
 surfaces and the page honor preview-as-user; the Manager independently checks
 the current administrator policy. The Worker fans a single same-origin request

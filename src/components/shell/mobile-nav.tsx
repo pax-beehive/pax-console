@@ -21,7 +21,7 @@ const items = [
     href: "/admin/customers",
     icon: ChartNoAxesCombined,
     label: "Customers",
-    matches: ["/admin/customers"],
+    matches: ["/admin/customers", "/admin/notifications"],
   },
   {
     href: "/settings",

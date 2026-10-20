@@ -60,6 +60,10 @@ describe("customer analytics semantics", () => {
       encrypted_records: 99,
       is_admin: true,
       regions: ["us", "hk"],
+      user_refs: [
+        { region: "us", user_id: "ONE@example.invalid" },
+        { region: "hk", user_id: "one@example.invalid" },
+      ],
     });
     expect(mergeCustomers(snapshot, "hk")[0].agents).toBe(1);
     expect(customerStage(customer("encrypted", { encrypted_records: 3 }))).toBe(
