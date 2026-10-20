@@ -1,6 +1,23 @@
 # PAX Console 代码结构与接入说明
 
-## WorkOS 登录
+## 通知订阅管理看板
+
+`/admin/notifications` 与 Customers 位于同一管理员导航组，两页共享顶部切换。
+手机沿用 Customers 底部入口。前端继续使用有效管理员视图，Manager 独立鉴权。
+数据通过同源 `/api/pax/api/v1/user/self/notification-subscriptions` 获取，原有区域
+Worker 聚合 US/HK，并分别保留区域更新时间、故障状态和分页游标。
+
+看板展示筛选后的全量统计和设备订阅列表。订阅状态、客户端最后上报的通知权限、
+投递结果分开展示，不能把已启用订阅当成设备在线，也不能把服务商接受当成用户已读。
+没有投递记录时明确显示 No delivery attempts，不补造数据。用户详情跳转保留合并前的
+`(region, user_id)`；不同区域的 receiver 不按邮箱合并。列表和详情均不返回 endpoint、
+密钥或原始服务商响应。
+
+`features/analytics/use-subscriptions.ts` 复用有焦点才刷新的调度器。TanStack Query key
+包含管理员身份、筛选项和区域游标；筛选变更重挂结果组件并取消旧请求。区域故障可以
+保留明确标记为过期的快照，鉴权失败隐藏旧数据。订阅设置和真实推送在后续交付接入。
+
+## WorkOS 登录链路
 
 生产登录入口是 `/auth/login`。区域网关（Worker 或区域直连服务）负责 PKCE 回调、加密的 HttpOnly
 会话 cookie、续期及退出；Next.js 和浏览器存储不保存 WorkOS 密钥。退出使用同源

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   Activity,
+  Bell,
   ChartNoAxesCombined,
   Brain,
   ChevronDown,
@@ -149,14 +150,24 @@ export function Sidebar({ showAdminFeatures }: { showAdminFeatures: boolean }) {
             }}
           />
           {showAdminFeatures && (
-            <NavEntry
-              collapsed={collapsed}
-              item={{
-                href: "/admin/customers",
-                icon: ChartNoAxesCombined,
-                label: "Customers",
-              }}
-            />
+            <>
+              <NavEntry
+                collapsed={collapsed}
+                item={{
+                  href: "/admin/customers",
+                  icon: ChartNoAxesCombined,
+                  label: "Customers",
+                }}
+              />
+              <NavEntry
+                collapsed={collapsed}
+                item={{
+                  href: "/admin/notifications",
+                  icon: Bell,
+                  label: "Push subscriptions",
+                }}
+              />
+            </>
           )}
           <NavEntry collapsed={collapsed} item={settingsNavItem} />
         </div>

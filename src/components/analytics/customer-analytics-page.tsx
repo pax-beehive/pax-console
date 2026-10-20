@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { AdminAnalyticsNav } from "./admin-analytics-nav";
 import { AuthGate } from "@/features/auth/auth-gate";
 import { canSeeAdminFeatures } from "@/features/auth/admin-view";
 import { useConsoleStore } from "@/stores/console-store";
@@ -18,19 +20,29 @@ import {
 import type { User } from "@/features/api/types";
 import { AuthError } from "@/features/api/errors";
 
-export function CustomerAnalyticsPage() {
+export function CustomerAnalyticsPage({
+  initialSearch = "",
+}: {
+  initialSearch?: string;
+}) {
   return (
     <AuthGate>
       {(user) => (
         <ConsoleLayout user={user}>
-          <CustomerAnalyticsAccess user={user} />
+          <CustomerAnalyticsAccess user={user} initialSearch={initialSearch} />
         </ConsoleLayout>
       )}
     </AuthGate>
   );
 }
 
-export function CustomerAnalyticsAccess({ user }: { user: User }) {
+export function CustomerAnalyticsAccess({
+  user,
+  initialSearch = "",
+}: {
+  user: User;
+  initialSearch?: string;
+}) {
   const previewAsUser = useConsoleStore((state) => state.previewAsUser);
   if (!canSeeAdminFeatures(user, previewAsUser))
     return (
@@ -38,7 +50,12 @@ export function CustomerAnalyticsAccess({ user }: { user: User }) {
         Customer analytics is available to administrators.
       </div>
     );
-  return <CustomerAnalyticsDashboard userId={user.user_id} />;
+  return (
+    <CustomerAnalyticsDashboard
+      userId={user.user_id}
+      initialSearch={initialSearch}
+    />
+  );
 }
 
 const regionLabel = (region: string) =>
@@ -55,12 +72,18 @@ const stageLabel = (user: Customer) =>
 const selectClass =
   "min-h-9 rounded-md border border-hairline bg-surface-1 px-2 text-sm text-ink";
 
-export function CustomerAnalyticsDashboard({ userId }: { userId: string }) {
+export function CustomerAnalyticsDashboard({
+  userId,
+  initialSearch = "",
+}: {
+  userId: string;
+  initialSearch?: string;
+}) {
   const query = useCustomerAnalytics(userId);
-  const [audience, setAudience] = useState("regular");
+  const [audience, setAudience] = useState(initialSearch ? "all" : "regular");
   const [region, setRegion] = useState("all");
   const [stage, setStage] = useState("all");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialSearch);
   const [selected, setSelected] = useState<string | null>(null);
   const accessDenied = query.error instanceof AuthError;
   const sources = accessDenied ? [] : (query.data?.regions ?? []);
@@ -107,6 +130,7 @@ export function CustomerAnalyticsDashboard({ userId }: { userId: string }) {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
       <div className="mx-auto grid max-w-6xl gap-5">
+        <AdminAnalyticsNav />
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-xl font-semibold text-ink">
@@ -348,6 +372,17 @@ function CustomerDetail({
           </div>
         ))}
       </dl>
+      <div className="mt-4 flex flex-wrap gap-3 text-sm">
+        {user.user_refs.map((ref) => (
+          <Link
+            key={`${ref.region}:${ref.user_id}`}
+            className="text-accent-bright hover:underline"
+            href={`/admin/notifications?${new URLSearchParams({ region: ref.region, user_id: ref.user_id })}`}
+          >
+            View push subscriptions · {regionLabel(ref.region)}
+          </Link>
+        ))}
+      </div>
       {user.encrypted_records > 0 && (
         <p className="mt-3 text-xs text-ink-muted">
           Encrypted history is present. Message roles and exact send totals are
