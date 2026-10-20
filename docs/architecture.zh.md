@@ -486,7 +486,10 @@ src/components/sessions/
   runtime status，也不由前端自动重跑工具。待授权请求在折叠行外始终可操作，
   段内不重复显示同一待授权控件。原有授权范围、提交锁、diff 和 Tool evidence 保留。
   completedAt 仅由结束当前活动段的消息或 turn_done 时间生成，属于视图投影元数据，
-  不写回后端。时间线 block 使用 8px
+  不写回后端。投影时保留已完成 turn ID；迟到的 progress/tool 结果追加到原轮次最后的
+  已完成活动段，不修改当前 active turn 的归属，也不关闭新轮次的运行活动。原活动段
+  不在当前历史中时，使用无虚构时长的已完成 Worked 段保留结果。无 turn ID 的旧事件
+  在下一条用户 prompt 处重新开始分组。时间线 block 使用 8px
   间距；agent 与 user 正文使用 14px 字号、20px 行高，Markdown H1/H2/H3
   分别使用 18px/16px/15px 字号，引用使用 13px 字号；Session 与 Home composer
   桌面输入框和正文一致，使用 14px 字号、20px 行高。小于 640px 的手机布局中，输入和 agent/user 正文统一使用 16px/24px，

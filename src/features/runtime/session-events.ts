@@ -261,6 +261,11 @@ export function groupWorkstreamEvents(
   let workGroupTurnKey: string | undefined;
   let activeTurnId: string | undefined;
   const legacyTurnKey = "__legacy_turn__";
+  const completedTurnKeys = new Set<string>();
+  const lastWorkGroupByTurn = new Map<
+    string,
+    Extract<WorkstreamItem, { type: "work_group" }>
+  >();
   type TurnAccumulator = {
     lastAgentMessage?: Extract<SessionEvent, { type: "agent_message" }>;
     tokenUsage?: TurnTokenUsage;
@@ -343,6 +348,7 @@ export function groupWorkstreamEvents(
   for (const event of events) {
     if (event.type === "turn_done") {
       const turnKey = event.turnId ?? activeTurnId ?? legacyTurnKey;
+      completedTurnKeys.add(turnKey);
       if (workGroupTurnKey === turnKey) {
         endWorkGroup(event.createdAt);
       }
@@ -354,7 +360,36 @@ export function groupWorkstreamEvents(
     }
 
     const turnKey = event.turnId ?? activeTurnId ?? legacyTurnKey;
-    if (event.turnId) {
+    if (event.type === "user_message" && turnKey === legacyTurnKey) {
+      completedTurnKeys.delete(legacyTurnKey);
+      lastWorkGroupByTurn.delete(legacyTurnKey);
+    }
+
+    // Background command results can arrive after their turn has ended. Keep
+    // them as completed evidence without reopening work or changing the active
+    // turn used by subsequent events that have no explicit turn ID.
+    if (
+      completedTurnKeys.has(turnKey) &&
+      (event.type === "progress" || event.type === "tool_call")
+    ) {
+      let completedGroup = lastWorkGroupByTurn.get(turnKey);
+      if (!completedGroup) {
+        completedGroup = {
+          type: "work_group",
+          id: `work_group:${event.id}`,
+          sessionId: event.sessionId,
+          createdAt: event.createdAt,
+          complete: true,
+          events: [],
+        };
+        items.push(completedGroup);
+        lastWorkGroupByTurn.set(turnKey, completedGroup);
+      }
+      completedGroup.events.push(event);
+      continue;
+    }
+
+    if (event.turnId && !completedTurnKeys.has(turnKey)) {
       activeTurnId = event.turnId;
     }
 
@@ -438,6 +473,7 @@ export function groupWorkstreamEvents(
         };
         items.push(workGroup);
         workGroupTurnKey = turnKey;
+        lastWorkGroupByTurn.set(turnKey, workGroup);
       }
 
       workGroup.events.push(event);

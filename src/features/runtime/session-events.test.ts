@@ -69,6 +69,179 @@ describe("isVisibleTimelineEvent", () => {
 });
 
 describe("groupWorkstreamEvents", () => {
+  describe("late activity for completed turns", () => {
+    const tool = (
+      id: string,
+      turnId?: string,
+      status: "running" | "done" | "error" = "done",
+    ): SessionEvent => ({
+      type: "tool_call",
+      id,
+      sessionId: "sess_1",
+      turnId,
+      name: "exec_command",
+      status,
+      createdAt: "2026-10-20T23:04:30Z",
+    });
+    const done = (turnId?: string): SessionEvent => ({
+      type: "turn_done",
+      id: `done:${turnId ?? "legacy"}`,
+      sessionId: "sess_1",
+      turnId,
+      createdAt: "2026-10-20T23:03:02Z",
+    });
+
+    it.each(["done", "error"] as const)(
+      "keeps a late %s tool result in its original completed activity group",
+      (status) => {
+        const grouped = groupWorkstreamEvents([
+          { ...tool("original", "turn_1"), createdAt: "2026-10-20T23:02:00Z" },
+          done("turn_1"),
+          done("turn_2"),
+          tool("late", "turn_1", status),
+        ]);
+
+        expect(grouped).toMatchObject([
+          {
+            type: "work_group",
+            id: "work_group:original",
+            complete: true,
+            completedAt: "2026-10-20T23:03:02Z",
+            events: [{ id: "original" }, { id: "late", status }],
+          },
+        ]);
+      },
+    );
+
+    it("shows late results as completed evidence when their original work group is absent", () => {
+      const grouped = groupWorkstreamEvents([
+        done("turn_1"),
+        done("turn_2"),
+        tool("late-error", "turn_1", "error"),
+        tool("late-done", "turn_2"),
+        tool("another-late-result", "turn_1"),
+      ]);
+
+      expect(grouped).toMatchObject([
+        {
+          type: "work_group",
+          complete: true,
+          events: [{ id: "late-error" }, { id: "another-late-result" }],
+        },
+        {
+          type: "work_group",
+          complete: true,
+          events: [{ id: "late-done" }],
+        },
+      ]);
+      expect(
+        grouped.every(
+          (item) => item.type === "work_group" && !item.completedAt,
+        ),
+      ).toBe(true);
+    });
+
+    it("does not interrupt a newer active group or reassign its unscoped events", () => {
+      const grouped = groupWorkstreamEvents([
+        done("turn_1"),
+        tool("active", "turn_2", "running"),
+        tool("late", "turn_1"),
+        tool("active-unscoped", undefined, "running"),
+      ]);
+
+      expect(grouped).toMatchObject([
+        {
+          type: "work_group",
+          complete: false,
+          events: [{ id: "active" }, { id: "active-unscoped" }],
+        },
+        { type: "work_group", complete: true, events: [{ id: "late" }] },
+      ]);
+    });
+
+    it("keeps late streaming progress from reopening a completed turn", () => {
+      expect(
+        groupWorkstreamEvents([
+          done("turn_1"),
+          {
+            type: "progress",
+            id: "late-progress",
+            sessionId: "sess_1",
+            turnId: "turn_1",
+            content: "Earlier thought",
+            streaming: true,
+            createdAt: "2026-10-20T23:04:30Z",
+          },
+        ]),
+      ).toMatchObject([{ type: "work_group", complete: true }]);
+    });
+
+    it("does not let late usage metadata steal the active turn of unscoped work", () => {
+      expect(
+        groupWorkstreamEvents([
+          done("turn_1"),
+          tool("active", "turn_2", "running"),
+          {
+            type: "token_usage",
+            id: "late-usage",
+            sessionId: "sess_1",
+            turnId: "turn_1",
+            totalTokens: 100,
+            createdAt: "2026-10-20T23:04:30Z",
+          },
+          tool("active-unscoped", undefined, "running"),
+        ]),
+      ).toMatchObject([
+        {
+          type: "work_group",
+          complete: false,
+          events: [{ id: "active" }, { id: "active-unscoped" }],
+        },
+      ]);
+    });
+
+    it("starts a fresh legacy group at the next prompt after late unscoped results", () => {
+      expect(
+        groupWorkstreamEvents([
+          done(),
+          tool("late-unscoped"),
+          {
+            type: "user_message",
+            id: "next-prompt",
+            sessionId: "sess_1",
+            content: "Continue",
+            createdAt: "2026-10-20T23:05:00Z",
+          },
+          tool("next-tool", undefined, "running"),
+        ]),
+      ).toMatchObject([
+        {
+          type: "work_group",
+          complete: true,
+          events: [{ id: "late-unscoped" }],
+        },
+        { type: "event", id: "next-prompt" },
+        { type: "work_group", complete: false, events: [{ id: "next-tool" }] },
+      ]);
+    });
+
+    it("does not leave unscoped results working after an unscoped turn completion", () => {
+      expect(
+        groupWorkstreamEvents([
+          done(),
+          tool("late-error", undefined, "error"),
+          tool("late-done"),
+        ]),
+      ).toMatchObject([
+        {
+          type: "work_group",
+          complete: true,
+          events: [{ id: "late-error" }, { id: "late-done" }],
+        },
+      ]);
+    });
+  });
+
   it("closes a Working group when the business turn changes", () => {
     const progress = (id: string, turnId: string): SessionEvent => ({
       type: "progress",
