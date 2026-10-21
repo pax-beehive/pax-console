@@ -2160,3 +2160,22 @@ use `error`; apiFetch maps known routing errors to actionable messages with HTTP
 status and keeps Manager `message` errors. Unknown Worker details remain hidden.
 A failed lookup displays a release-check failure and a read-only retry action.
 Install stays disabled during lookup or after failure, including cached versions.
+
+## Scheduled session provenance
+
+paxd owns cron definitions, trigger execution, prompt/workspace snapshots, and
+native session bindings. paxl provides local CRUD. The node-authenticated Manager
+`POST /api/v1/node/agents/:agent_id/sessions/register` endpoint returns the normal
+Pax session ID, deduplicating the native ID and durable registration ID.
+
+Console reads `metadata.origin` from ordinary session queries. The parser lives
+in `src/features/sessions/session-origin.ts`; the shared `CronOriginBadge` shows
+the task name with cronjob and creation-run IDs in its tooltip. It appears in
+recent sessions and the workbench. Reused sessions retain the original creation
+run. Missing or unknown metadata leaves existing sessions unchanged.
+
+Messages and permission requests use the existing E2EE runtime/history paths.
+Deploy Manager support before enabling tasks in updated paxd, then update Console
+for provenance display. Offline execution can appear after registration and
+history synchronization recover. No browser scheduler or cron management page
+is introduced; use `paxl cron` for task management.

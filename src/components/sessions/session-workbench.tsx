@@ -1,5 +1,7 @@
 "use client";
 
+import { CronOriginBadge } from "@/components/sessions/cron-origin-badge";
+import { cronSessionOrigin } from "@/features/sessions/session-origin";
 import { stageEncryptedAttachment } from "@/features/e2ee/attachments";
 
 import {
@@ -2326,6 +2328,7 @@ export function SessionWorkbench({
             )}
             <div className="flex min-w-0 flex-1 flex-col">
               <div className="order-2 flex min-w-0 gap-1 text-xs text-ink-muted sm:max-w-[52vw] sm:text-sm">
+                <CronOriginBadge origin={cronSessionOrigin(activeSession)} />
                 <TruncatedText>
                   {projectQuery.data?.project.display_name ??
                     activeNode?.name ??
