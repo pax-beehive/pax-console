@@ -73,6 +73,8 @@ describe("push service worker", () => {
       "Pax Workspace",
       expect.objectContaining({
         body: "Your turn has finished.",
+        badge: "/pax-notification-badge.png",
+        icon: "/pax-app-icon.png",
         tag: `ntf_${"a".repeat(64)}`,
         renotify: false,
         data: { url: "/sessions/one?agentId=a&nodeId=n" },

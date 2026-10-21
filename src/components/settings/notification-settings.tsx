@@ -139,6 +139,12 @@ export function NotificationSettings({ userId }: { userId: string }) {
               turn alerts are not available yet.
             </p>
           )}
+          {!loading && config.data?.turn_completion_enabled && (
+            <p className="text-sm text-ink-tertiary">
+              Automatic notifications are enabled for standard sessions.
+              Encrypted sessions are not supported yet.
+            </p>
+          )}
           <div className="flex flex-wrap gap-2">
             {!enabled && supported && (
               <Button

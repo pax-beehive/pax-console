@@ -74,8 +74,18 @@ OS permission can still prevent display. Test pushes go to the real Manager
 queue, not an in-page Notification constructor. Managers need stable
 `PAX_WEB_PUSH_PUBLIC_KEY`, `PAX_WEB_PUSH_PRIVATE_KEY`, `PAX_WEB_PUSH_KEY_ID`, and
 `PAX_WEB_PUSH_SUBSCRIBER` values before `test_enabled` becomes true. Keep private
-material out of Next.js/browser configuration. Automatic turn-completion
-creation remains disabled (`turn_completion_enabled: false`).
+material out of Next.js/browser configuration. With the companion Manager
+completion integration, `turn_completion_enabled` becomes true when sending is
+configured. Automatic alerts cover correlated, successful standard-session
+turns, including completion after the app page closes. Encrypted-session
+completion remains unsupported and the settings page states that limit.
+
+Android's small status icon uses the dedicated transparent, monochrome
+`public/pax-notification-badge.png`. The full-background app image belongs only
+in the notification's `icon`; using it as `badge` produces a solid white block.
+Regenerate the badge from the original `pax-icon.svg` geometry with
+`node scripts/generate-notification-badge.mjs`; pass `--check` to validate the
+96x96 PNG, transparent margin and generated asset without writing it.
 
 `node scripts/notification-settings-browser.mjs` targets local port 3355 (override
 `PAX_PUSH_PREVIEW_URL`). It uses fictional API/permission/subscription fixtures,

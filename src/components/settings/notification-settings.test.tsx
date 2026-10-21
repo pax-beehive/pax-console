@@ -23,6 +23,7 @@ const f = vi.hoisted(() => ({
   state: "off" as PushState,
   configured: true,
   failRead: false,
+  automatic: false,
   enable: vi.fn(),
   disable: vi.fn(),
   test: vi.fn(),
@@ -51,6 +52,7 @@ beforeEach(() => {
   f.state = "off";
   f.configured = true;
   f.failRead = false;
+  f.automatic = false;
   f.fetch.mockImplementation(async (path: string) => {
     if (f.failRead) throw new Error("offline");
     if (path.endsWith("/config"))
@@ -60,7 +62,7 @@ beforeEach(() => {
         public_key: "public",
         key_id: "key",
         channel: "web_push",
-        turn_completion_enabled: false,
+        turn_completion_enabled: f.automatic,
       };
     return {
       regions: [
@@ -108,6 +110,19 @@ function mount() {
   );
 }
 describe("notification settings", () => {
+  it("explains the supported session scope when automatic notifications are available", async () => {
+    f.automatic = true;
+    mount();
+    await screen.findByText(
+      /Automatic notifications are enabled for standard sessions/,
+    );
+    expect(
+      screen.getByText(/Encrypted sessions are not supported yet/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Automatic turn alerts are not available/),
+    ).not.toBeInTheDocument();
+  });
   it("lets the user enable this device and queue a real test", async () => {
     mount();
     const enable = await screen.findByRole("button", {
