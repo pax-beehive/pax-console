@@ -104,6 +104,47 @@ function fixture() {
 }
 
 describe("device notification subscription", () => {
+  it("uses the installed worker for local disable without fetching its script again", async () => {
+    const f = fixture();
+    await f.client.enable(config);
+    const worker = await f.platform.registration();
+    f.platform.existingRegistration = vi.fn(async () => worker);
+    vi.mocked(f.platform.registration)
+      .mockClear()
+      .mockRejectedValue(new Error("offline script"));
+    f.request.mockRejectedValue(new Error("offline API"));
+    await expect(f.client.disable()).rejects.toThrow("offline API");
+    expect(f.platform.registration).not.toHaveBeenCalled();
+    expect(f.unsubscribe).toHaveBeenCalledOnce();
+    expect(f.binding()?.enabled).toBe(false);
+  });
+  it("unsubscribes immediately when logout interrupts an unfinished enable request", async () => {
+    const f = fixture();
+    let finish!: (value: unknown) => void;
+    f.request.mockImplementation(async (_path: string, init?: RequestInit) => {
+      if (init?.method === "PUT")
+        return new Promise((resolve) => {
+          finish = resolve;
+        });
+      return { revoked: true };
+    });
+    const enabling = f.client.enable(config);
+    const response = {
+      receiver: { receiver_id: "receiver", user_id: "user", status: "enabled" },
+    };
+    try {
+      await vi.waitFor(() => expect(f.request).toHaveBeenCalled());
+      const disabling = f.client.disable();
+      await vi.waitFor(() => expect(f.unsubscribe).toHaveBeenCalled());
+      finish(response);
+      expect(await enabling).toBe("off");
+      expect(await disabling).toBe("off");
+      expect(f.binding()).toBeNull();
+    } finally {
+      finish?.(response);
+      await enabling.catch(() => {});
+    }
+  });
   beforeEach(() => vi.clearAllMocks());
   it("requests permission only for an explicit enable action and registers the browser subscription", async () => {
     const f = fixture();

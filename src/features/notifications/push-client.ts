@@ -28,12 +28,15 @@ export type PushPlatform = {
   permission(): NotificationPermission;
   requestPermission(): Promise<NotificationPermission>;
   registration(): Promise<ServiceWorkerRegistration>;
+  existingRegistration?(): Promise<ServiceWorkerRegistration | undefined>;
   readBinding(): PushBinding | null;
   writeBinding(value: PushBinding | null): void;
   label(): string;
 };
 type PushRequest = <T>(path: string, init?: RequestInit) => Promise<T>;
 let operations: Promise<unknown> = Promise.resolve();
+let intent = 0;
+let pendingRegistrations = 0;
 
 export function pushSupported() {
   return (
@@ -102,6 +105,7 @@ function browserPlatform(): PushPlatform {
       }
     },
     readBinding: readPushBinding,
+    existingRegistration: () => navigator.serviceWorker.getRegistration("/"),
     writeBinding: (binding) =>
       binding
         ? localStorage.setItem(pushBindingKey, JSON.stringify(binding))
@@ -149,15 +153,22 @@ export class PushClient {
       return Promise.reject(error);
     }
     // Keep the permission request in the button's user activation, before any await.
+    const epoch = ++intent;
     const permission = this.platform.requestPermission();
+    pendingRegistrations++;
     return this.serial(async () => {
       const granted = await permission;
+      if (epoch !== intent) return "off";
       if (granted !== "granted") return granted;
-      return this.subscribe(config);
+      return this.subscribe(config, epoch);
+    }).finally(() => {
+      pendingRegistrations--;
     });
   }
   reconcile(config: PushConfig): Promise<PushState> {
+    pendingRegistrations++;
     return this.serial(async () => {
+      const epoch = intent;
       if (!this.platform.supported()) return "unsupported";
       const binding = this.platform.readBinding();
       if (binding && binding.owner !== this.owner) {
@@ -214,10 +225,16 @@ export class PushClient {
         await (await worker.pushManager.getSubscription())?.unsubscribe();
         this.platform.writeBinding(null);
       }
-      return this.subscribe(config);
+      return this.subscribe(config, epoch);
+    }).finally(() => {
+      pendingRegistrations--;
     });
   }
-  private async subscribe(config: PushConfig): Promise<PushState> {
+  private async subscribe(
+    config: PushConfig,
+    epoch: number,
+  ): Promise<PushState> {
+    if (epoch !== intent) return "off";
     const worker = await this.platform.registration();
     const key = decodePushKey(config.public_key);
     let subscription = await worker.pushManager.getSubscription();
@@ -247,6 +264,10 @@ export class PushClient {
       });
       created = true;
     }
+    if (epoch !== intent) {
+      await subscription.unsubscribe().catch(() => false);
+      return "off";
+    }
     try {
       const data = await this.request<{
         receiver: { receiver_id: string; status: string; user_id: string };
@@ -268,6 +289,13 @@ export class PushClient {
         throw new Error(
           "Your account changed. Reload PAX before enabling notifications.",
         );
+      if (epoch !== intent) {
+        await Promise.allSettled([
+          this.revoke(data.receiver.receiver_id),
+          subscription.unsubscribe(),
+        ]);
+        return "off";
+      }
       try {
         this.platform.writeBinding({
           owner: this.owner,
@@ -291,12 +319,15 @@ export class PushClient {
       { method: "DELETE", signal: AbortSignal.timeout(2500) },
     );
   }
-  private async disableBinding(binding: PushBinding): Promise<"off"> {
-    this.platform.writeBinding({ ...binding, enabled: false });
+  private async disableBinding(binding: PushBinding | null): Promise<"off"> {
+    if (binding) this.platform.writeBinding({ ...binding, enabled: false });
     const results = await Promise.allSettled([
-      this.revoke(binding.receiver_id),
-      this.platform.registration().then(async (worker) => {
-        await (await worker.pushManager.getSubscription())?.unsubscribe();
+      binding ? this.revoke(binding.receiver_id) : Promise.resolve(),
+      (this.platform.existingRegistration
+        ? this.platform.existingRegistration()
+        : this.platform.registration()
+      ).then(async (worker) => {
+        await (await worker?.pushManager.getSubscription())?.unsubscribe();
       }),
     ]);
     for (const result of results)
@@ -305,11 +336,17 @@ export class PushClient {
     return "off";
   }
   disable(): Promise<"off"> {
-    return this.serial(async () => {
-      const binding = this.platform.readBinding();
-      if (!binding || binding.owner !== this.owner) return "off";
-      return this.disableBinding(binding);
-    });
+    intent++;
+    const binding = this.platform.readBinding();
+    if (
+      (binding && binding.owner !== this.owner) ||
+      (!binding && pendingRegistrations === 0)
+    )
+      return Promise.resolve("off");
+    // Start local unsubscribe and revocation before waiting for an in-flight request.
+    const cleanup = this.disableBinding(binding);
+    void cleanup.catch(() => {});
+    return this.serial(() => cleanup);
   }
   test() {
     return this.serial(async () => {
