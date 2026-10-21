@@ -16,6 +16,7 @@ try {
   let registered = false;
   let tests = 0;
   let revoked = 0;
+  let confirmationGate = null;
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -65,6 +66,12 @@ try {
     const url = new URL(request.url());
     const ok = (data, status = 200) =>
       route.fulfill({ status, json: { code: status, data } });
+    if (
+      url.pathname.endsWith("/receivers") &&
+      url.searchParams.has("search") &&
+      confirmationGate
+    )
+      await confirmationGate;
     const receiver = {
       receiver_id: "nrecv_fictional",
       user_id: "user",
@@ -150,6 +157,67 @@ try {
     console.log("Page errors:", errors);
     throw error;
   });
+  await page
+    .getByRole("button", { name: "Send test notification", exact: true })
+    .waitFor();
+  await page
+    .getByRole("link", { name: "Settings", exact: true })
+    .first()
+    .click();
+  await page.getByRole("heading", { name: "Settings", exact: true }).waitFor();
+  let releaseConfirmation;
+  confirmationGate = new Promise((resolve) => {
+    releaseConfirmation = resolve;
+  });
+  await page.evaluate(() => {
+    window.__enabledActionFlashed = false;
+    window.__enableObserver = new MutationObserver(() => {
+      for (const button of document.querySelectorAll("button")) {
+        if (
+          button.textContent.trim() === "Enable notifications" &&
+          !button.disabled
+        )
+          window.__enabledActionFlashed = true;
+      }
+    });
+    window.__enableObserver.observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+    });
+  });
+  await page.locator('a[href="/settings/notifications"]').click();
+  await page.getByText("Checking notifications...", { exact: true }).waitFor();
+  assert.equal(
+    await page
+      .getByRole("button", { name: "Enable notifications", exact: true })
+      .count(),
+    0,
+  );
+  assert.equal(
+    await page
+      .getByText("Notifications are off on this device.", { exact: true })
+      .count(),
+    0,
+  );
+  await mkdir("/tmp/pax-webpush-audit", { recursive: true });
+  await page.screenshot({
+    path: "/tmp/pax-webpush-audit/subscription-checking.png",
+    fullPage: true,
+  });
+  releaseConfirmation();
+  confirmationGate = null;
+  await page
+    .getByText("Notifications are enabled on this device.", { exact: true })
+    .waitFor();
+  assert.equal(
+    await page.evaluate(() => {
+      window.__enableObserver.disconnect();
+      return window.__enabledActionFlashed;
+    }),
+    false,
+    "cached settings never expose an enabled Enable action during reconciliation",
+  );
   await page
     .getByRole("button", { name: "Send test notification", exact: true })
     .click();
@@ -306,6 +374,7 @@ try {
       workerHandledSyntheticPushWithoutAppPage: true,
       syntheticClickNavigatedExistingWindow: true,
       homeSessionTarget: sessionPath,
+      cachedStatusWaitedForConfirmation: true,
       replyPreviewVerified: true,
       windowFocusFixture: true,
       nativeNotificationClickTested: false,
