@@ -9,12 +9,27 @@ function notificationTarget(value) {
     )
       return "/settings/notifications";
     const url = new URL(value, self.location.origin);
+    if (url.origin !== self.location.origin) return "/settings/notifications";
+    if (url.pathname === "/settings/notifications")
+      return "/settings/notifications";
+    let sessionId;
     if (
-      url.origin !== self.location.origin ||
-      (!/^\/sessions\/[^/]+$/.test(url.pathname) &&
-        url.pathname !== "/settings/notifications")
+      url.pathname === "/" &&
+      url.searchParams.getAll("session_id").length === 1
+    )
+      sessionId = url.searchParams.get("session_id");
+    else if (/^\/sessions\/[^/]+$/.test(url.pathname))
+      sessionId = decodeURIComponent(url.pathname.slice("/sessions/".length));
+    if (
+      !sessionId ||
+      sessionId.length > 512 ||
+      sessionId.trim() !== sessionId ||
+      /[\x00-\x1f\x7f]/.test(sessionId)
     )
       return "/settings/notifications";
+    url.pathname = "/";
+    url.search = "";
+    url.searchParams.set("session_id", sessionId);
     return url.pathname + url.search;
   } catch {
     return "/settings/notifications";

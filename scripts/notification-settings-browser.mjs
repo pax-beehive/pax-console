@@ -233,8 +233,8 @@ try {
     },
   ]);
 
-  const sessionPath = "/sessions/click-fixture?agentId=agent&nodeId=node";
-  await context.route(origin + "/sessions/click-fixture?**", (route) =>
+  const sessionPath = "/?session_id=click-fixture";
+  await context.route(origin + sessionPath, (route) =>
     route.fulfill({
       contentType: "text/html",
       body: "<!doctype html><title>Fictional session</title><main>Notification navigation fixture</main>",
@@ -305,6 +305,7 @@ try {
       revoked,
       workerHandledSyntheticPushWithoutAppPage: true,
       syntheticClickNavigatedExistingWindow: true,
+      homeSessionTarget: sessionPath,
       replyPreviewVerified: true,
       windowFocusFixture: true,
       nativeNotificationClickTested: false,

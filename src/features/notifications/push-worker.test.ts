@@ -66,7 +66,7 @@ describe("push service worker", () => {
           notification_id: `ntf_${"a".repeat(64)}`,
           title: "ignored title",
           body: "Final reply\n\twith a preview.",
-          url: "/sessions/one?agentId=a&nodeId=n",
+          url: "/?session_id=one",
         }),
       },
     });
@@ -78,7 +78,7 @@ describe("push service worker", () => {
         icon: "/pax-app-icon.png",
         tag: `ntf_${"a".repeat(64)}`,
         renotify: false,
-        data: { url: "/sessions/one?agentId=a&nodeId=n" },
+        data: { url: "/?session_id=one" },
       }),
     );
     expect(JSON.stringify(f.showNotification.mock.calls)).not.toContain(
@@ -120,6 +120,13 @@ describe("push service worker", () => {
       "/\\attacker.invalid",
       "/sessions/one\n",
       "/%zz",
+      "/",
+      "/?session_id=",
+      "/?session_id=one&session_id=two",
+      "/?session_id=%00one",
+      "/?session_id=%20one",
+      "/?session_id=" + "a".repeat(513),
+      "/sessions/%zz",
     ]) {
       await f.fire("push", {
         data: { json: () => ({ version: 1, type: "notification.test", url }) },
@@ -143,15 +150,57 @@ describe("push service worker", () => {
     await f.fire("push", { data: { json: () => null } });
     await f.fire("push", {});
   });
+  it("normalizes older notification links into Home session links", async () => {
+    const f = fixture();
+    for (const url of [
+      "/sessions/one?agentId=a&nodeId=n",
+      "/?session_id=one&prompt=discarded",
+    ]) {
+      await f.fire("push", {
+        data: { json: () => ({ version: 1, type: "turn.completed", url }) },
+      });
+      expect(f.showNotification).toHaveBeenLastCalledWith(
+        "Pax Workspace",
+        expect.objectContaining({ data: { url: "/?session_id=one" } }),
+      );
+    }
+    await f.fire("notificationclick", {
+      notification: {
+        close: vi.fn(),
+        data: { url: "/sessions/one?agentId=a&nodeId=n" },
+      },
+    });
+    expect(f.client.navigate).toHaveBeenCalledWith(
+      "https://pax.example.invalid/?session_id=one",
+    );
+  });
+  it("preserves encoded opaque session IDs without changing the Home route", async () => {
+    const f = fixture();
+    await f.fire("push", {
+      data: {
+        json: () => ({
+          version: 1,
+          type: "turn.completed",
+          url: "/?session_id=one%2Ftwo%3Fquery%23fragment",
+        }),
+      },
+    });
+    expect(f.showNotification).toHaveBeenLastCalledWith(
+      "Pax Workspace",
+      expect.objectContaining({
+        data: { url: "/?session_id=one%2Ftwo%3Fquery%23fragment" },
+      }),
+    );
+  });
   it("focuses an existing window or opens a new authenticated route", async () => {
     const f = fixture();
     const close = vi.fn();
     await f.fire("notificationclick", {
-      notification: { close, data: { url: "/sessions/one" } },
+      notification: { close, data: { url: "/?session_id=one" } },
     });
     expect(close).toHaveBeenCalledOnce();
     expect(f.client.navigate).toHaveBeenCalledWith(
-      "https://pax.example.invalid/sessions/one",
+      "https://pax.example.invalid/?session_id=one",
     );
     expect(f.client.focus).toHaveBeenCalledOnce();
     expect(f.client.focus.mock.invocationCallOrder[0]).toBeLessThan(
@@ -169,7 +218,7 @@ describe("push service worker", () => {
     const f = fixture();
     const exact = {
       ...f.client,
-      url: "https://pax.example.invalid/sessions/one?agentId=a&nodeId=n",
+      url: "https://pax.example.invalid/?session_id=one",
       navigate: vi.fn(),
       focus: vi.fn(async () => exact),
     };
@@ -177,7 +226,7 @@ describe("push service worker", () => {
     await f.fire("notificationclick", {
       notification: {
         close: vi.fn(),
-        data: { url: "/sessions/one?agentId=a&nodeId=n" },
+        data: { url: "/?session_id=one" },
       },
     });
     expect(exact.focus).toHaveBeenCalledOnce();
@@ -203,11 +252,11 @@ describe("push service worker", () => {
     await f.fire("notificationclick", {
       notification: {
         close: vi.fn(),
-        data: { url: "/sessions/one?agentId=a&nodeId=n" },
+        data: { url: "/?session_id=one" },
       },
     });
     expect(f.clients.openWindow).toHaveBeenCalledWith(
-      "https://pax.example.invalid/sessions/one?agentId=a&nodeId=n",
+      "https://pax.example.invalid/?session_id=one",
     );
   });
   it("does not reuse an embedded window or a different origin", async () => {
@@ -217,11 +266,11 @@ describe("push service worker", () => {
       { ...f.client, url: "https://other.example.invalid/" },
     ]);
     await f.fire("notificationclick", {
-      notification: { close: vi.fn(), data: { url: "/sessions/one" } },
+      notification: { close: vi.fn(), data: { url: "/?session_id=one" } },
     });
     expect(f.client.navigate).not.toHaveBeenCalled();
     expect(f.clients.openWindow).toHaveBeenCalledWith(
-      "https://pax.example.invalid/sessions/one",
+      "https://pax.example.invalid/?session_id=one",
     );
   });
   it("claims clients on upgrade and asks open clients to reconcile changed subscriptions", async () => {

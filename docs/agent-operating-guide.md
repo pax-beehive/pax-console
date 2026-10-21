@@ -72,8 +72,11 @@ JavaScript content type, root scope and no-store headers. It displays the
 Manager's bounded reply preview for standard turns (200 Unicode code points),
 with a generic fallback for older Managers or missing replies. Clicks prefer
 the exact session window, focus before navigation, and open a new window if
-reuse fails. Only top-level, same-origin clients are reused; validated session
-links preserve node/agent context and pass through ordinary auth. It works
+reuse fails. Only top-level, same-origin clients are reused. Validated session
+links use Home's `/?session_id={encoded_id}` route; Home resolves node/agent
+context and applies ordinary auth. The worker also converts older `/sessions/{id}`
+notification links into this Home route. Deploy this compatible Console before
+the Manager starts generating Home links. It works
 without an open app page. Native
 OS permission can still prevent display. Test pushes go to the real Manager
 queue, not an in-page Notification constructor. Managers need stable
