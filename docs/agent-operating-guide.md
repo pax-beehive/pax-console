@@ -1021,6 +1021,12 @@ from its inner rows while pending to avoid duplicate decision controls. Existing
 approval scopes, pending locks, decisions, history detail loading, patches, and
 Tool evidence remain intact. Normal messages and standalone actionable events
 close the block; the closing timestamp is view-projection metadata only.
+Remember completed turn IDs during workstream projection. Late progress/tool
+results append to that turn's last completed activity block without changing
+the active-turn fallback or closing a newer live block. If the original block
+is absent, retain the result in a completed `Worked` block without inventing a
+duration. For legacy events without turn IDs, the next user prompt starts a
+fresh activity block.
 The timeline uses an 8px row gap; agent and user copy uses
 14px type with a 20px line height, while Markdown H1/H2/H3 use 18px/16px/15px
 type and blockquotes use 13px type. Session and Home composer input uses the
