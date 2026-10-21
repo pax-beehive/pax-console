@@ -1,7 +1,7 @@
 import { chromium } from "playwright";
 import assert from "node:assert/strict";
 import { createECDH } from "node:crypto";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 
 // Fictional API, permission and subscription fixtures. The installed worker runs in Chromium; native OS display is not claimed.
 const origin = process.env.PAX_PUSH_PREVIEW_URL ?? "http://127.0.0.1:3355";
@@ -90,7 +90,7 @@ try {
       return ok({
         enabled: true,
         test_enabled: true,
-        turn_completion_enabled: false,
+        turn_completion_enabled: true,
         public_key: key,
         key_id: "audit",
         channel: "web_push",
@@ -125,6 +125,9 @@ try {
     return route.fulfill({ status: 404, json: { code: 404 } });
   });
   await page.goto(origin + "/settings/notifications");
+  await page
+    .getByText(/Automatic notifications are enabled for standard sessions/)
+    .waitFor();
   const enable = page.getByRole("button", {
     name: "Enable notifications",
     exact: true,
@@ -163,6 +166,15 @@ try {
   assert.equal(response.status(), 200);
   assert.match(response.headers()["content-type"], /javascript/);
   assert.equal(response.headers()["service-worker-allowed"], "/");
+  const badge = await page.request.get(origin + "/pax-notification-badge.png");
+  assert.equal(badge.status(), 200);
+  assert.match(badge.headers()["content-type"], /image\/png/);
+  assert.deepEqual(
+    await badge.body(),
+    await readFile(
+      new URL("../public/pax-notification-badge.png", import.meta.url),
+    ),
+  );
   await mkdir("/tmp/pax-webpush-audit", { recursive: true });
   await page.screenshot({
     path: "/tmp/pax-webpush-audit/settings-mobile.png",
@@ -185,6 +197,8 @@ try {
         title,
         body: options.body,
         tag: options.tag,
+        badge: options.badge,
+        icon: options.icon,
       });
     };
   });
@@ -212,6 +226,8 @@ try {
       title: "Pax Workspace",
       body: "Notifications are working on this device.",
       tag: `ntf_${"b".repeat(64)}`,
+      badge: "/pax-notification-badge.png",
+      icon: "/pax-app-icon.png",
     },
   ]);
   await page.goto(origin + "/settings/notifications");

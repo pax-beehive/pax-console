@@ -49,7 +49,7 @@ self.addEventListener("push", (event) => {
           ? "Your turn has finished."
           : "You have a new notification.",
       icon: "/pax-app-icon.png",
-      badge: "/pax-app-icon.png",
+      badge: "/pax-notification-badge.png",
       tag,
       renotify: false,
       data: { url: notificationTarget(payload.url) },
