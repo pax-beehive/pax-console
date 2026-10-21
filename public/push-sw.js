@@ -69,7 +69,7 @@ async function openNotificationTarget(path) {
     try {
       // Focus while the notification click still supplies user activation.
       const focused = await client.focus();
-      if (client.url === target) return;
+      // Client.url is the document creation URL; Home may have switched sessions.
       if (await focused.navigate(target)) return;
     } catch {
       /* A closed or non-navigable client must not swallow the click. */

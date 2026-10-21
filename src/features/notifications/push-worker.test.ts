@@ -214,12 +214,12 @@ describe("push service worker", () => {
       "https://pax.example.invalid/settings/notifications",
     );
   });
-  it("prefers the exact session window without reloading it", async () => {
+  it("navigates even when the creation URL matches because Home may have switched sessions", async () => {
     const f = fixture();
     const exact = {
       ...f.client,
       url: "https://pax.example.invalid/?session_id=one",
-      navigate: vi.fn(),
+      navigate: vi.fn(async () => exact),
       focus: vi.fn(async () => exact),
     };
     f.clients.matchAll.mockResolvedValue([f.client, exact]);
@@ -230,7 +230,9 @@ describe("push service worker", () => {
       },
     });
     expect(exact.focus).toHaveBeenCalledOnce();
-    expect(exact.navigate).not.toHaveBeenCalled();
+    expect(exact.navigate).toHaveBeenCalledWith(
+      "https://pax.example.invalid/?session_id=one",
+    );
     expect(f.client.navigate).not.toHaveBeenCalled();
     expect(f.clients.openWindow).not.toHaveBeenCalled();
   });

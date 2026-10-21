@@ -71,8 +71,13 @@ seconds and then continues the normal gateway form submission.
 JavaScript content type, root scope and no-store headers. It displays the
 Manager's bounded reply preview for standard turns (200 Unicode code points),
 with a generic fallback for older Managers or missing replies. Clicks prefer
-the exact session window, focus before navigation, and open a new window if
-reuse fails. Only top-level, same-origin clients are reused. Validated session
+the window whose creation URL matches, focus before navigation, and open a new
+window if reuse fails. Always navigate to the notification target, even when
+Client.url matches: it is the document creation URL and remains stale after
+Home switches sessions with history.replaceState. Focusing alone can leave a
+different session on screen. This intentionally navigates/reloads an already
+open target rather than treating the creation URL as current application state.
+Only top-level, same-origin clients are reused. Validated session
 links use Home's `/?session_id={encoded_id}` route; Home resolves node/agent
 context and applies ordinary auth. The worker also converts older `/sessions/{id}`
 notification links into this Home route. Deploy this compatible Console before
@@ -102,6 +107,12 @@ the app page. It also checks reply preview rendering and actual WindowClient
 navigation to a fictional session page. Synthetic clicks lack browser user
 activation, so OS focus is an explicit fixture. It does not prove native OS
 display, native notification clicks, or real Android delivery.
+
+The audit also opens the target, changes the same document to another session
+via replaceState, and verifies that clicking the target notification actually
+returns to its URL and document content. The pre-fix worker fails this Chromium
+regression because its Client.url remains the document creation URL, as defined
+by the [Service Workers specification](https://www.w3.org/TR/service-workers/#client-url).
 
 `/admin/notifications` is the adjacent Push subscriptions administrator page.
 Both pages share `AdminAnalyticsNav`; mobile keeps the Customers bottom item
