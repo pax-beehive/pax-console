@@ -199,6 +199,7 @@ try {
         tag: options.tag,
         badge: options.badge,
         icon: options.icon,
+        data: options.data,
       });
     };
   });
@@ -228,8 +229,60 @@ try {
       tag: `ntf_${"b".repeat(64)}`,
       badge: "/pax-notification-badge.png",
       icon: "/pax-app-icon.png",
+      data: { url: "/settings/notifications" },
     },
   ]);
+
+  const sessionPath = "/sessions/click-fixture?agentId=agent&nodeId=node";
+  await context.route(origin + "/sessions/click-fixture?**", (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: "<!doctype html><title>Fictional session</title><main>Notification navigation fixture</main>",
+    }),
+  );
+  await page.goto(origin + "/settings/notifications");
+  const completion = await worker.evaluate(async (url) => {
+    const event = new Event("push");
+    let pending;
+    event.data = {
+      json: () => ({
+        version: 1,
+        type: "turn.completed",
+        body: "Final response.\nAll checks passed.",
+        url,
+      }),
+    };
+    event.waitUntil = (work) => {
+      pending = work;
+    };
+    self.dispatchEvent(event);
+    await pending;
+    return self.__shownNotifications.at(-1);
+  }, sessionPath);
+  assert.equal(completion.body, "Final response. All checks passed.");
+  assert.equal(completion.data.url, sessionPath);
+  await worker.evaluate(async (data) => {
+    // Synthetic events lack notification user activation. Fixture only OS focus;
+    // keep the real WindowClient navigation and observed document URL.
+    const originalFocus = WindowClient.prototype.focus;
+    WindowClient.prototype.focus = async function () {
+      return this;
+    };
+    const event = new Event("notificationclick");
+    let pending;
+    event.notification = { data, close() {} };
+    event.waitUntil = (work) => {
+      pending = work;
+    };
+    try {
+      self.dispatchEvent(event);
+      await pending;
+    } finally {
+      WindowClient.prototype.focus = originalFocus;
+    }
+  }, completion.data);
+  await page.waitForURL(origin + sessionPath);
+  assert.equal(await page.title(), "Fictional session");
   await page.goto(origin + "/settings/notifications");
   await page
     .getByRole("button", { name: "Turn off on this device", exact: true })
@@ -251,6 +304,10 @@ try {
       tests,
       revoked,
       workerHandledSyntheticPushWithoutAppPage: true,
+      syntheticClickNavigatedExistingWindow: true,
+      replyPreviewVerified: true,
+      windowFocusFixture: true,
+      nativeNotificationClickTested: false,
       nativeDisplayTested: false,
       screenshot: "/tmp/pax-webpush-audit/settings-mobile.png",
       fixtures: true,

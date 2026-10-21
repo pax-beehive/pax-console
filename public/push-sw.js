@@ -20,6 +20,48 @@ function notificationTarget(value) {
     return "/settings/notifications";
   }
 }
+function notificationBody(value) {
+  if (typeof value !== "string") return "Your turn has finished.";
+  const text = value
+    .replace(/[\x00-\x1f\x7f-\x9f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!text) return "Your turn has finished.";
+  const characters = Array.from(text);
+  return characters.length > 200
+    ? characters.slice(0, 199).join("") + "\u2026"
+    : text;
+}
+function appWindow(client) {
+  try {
+    return (
+      client.frameType === "top-level" &&
+      new URL(client.url).origin === self.location.origin
+    );
+  } catch {
+    return false;
+  }
+}
+async function openNotificationTarget(path) {
+  const target = new URL(path, self.location.origin).href;
+  const windows = await self.clients
+    .matchAll({ type: "window", includeUncontrolled: true })
+    .catch(() => []);
+  const appWindows = windows.filter(appWindow);
+  const client =
+    appWindows.find((window) => window.url === target) ?? appWindows[0];
+  if (client) {
+    try {
+      // Focus while the notification click still supplies user activation.
+      const focused = await client.focus();
+      if (client.url === target) return;
+      if (await focused.navigate(target)) return;
+    } catch {
+      /* A closed or non-navigable client must not swallow the click. */
+    }
+  }
+  await self.clients.openWindow(target);
+}
 self.addEventListener("install", (event) => {
   event.waitUntil(self.skipWaiting());
 });
@@ -46,7 +88,7 @@ self.addEventListener("push", (event) => {
       body: test
         ? "Notifications are working on this device."
         : payload.type === "turn.completed"
-          ? "Your turn has finished."
+          ? notificationBody(payload.body)
           : "You have a new notification.",
       icon: "/pax-app-icon.png",
       badge: "/pax-notification-badge.png",
@@ -59,21 +101,7 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const target = notificationTarget(event.notification.data?.url);
-  event.waitUntil(
-    (async () => {
-      const windows = await self.clients.matchAll({
-        type: "window",
-        includeUncontrolled: true,
-      });
-      const client = windows.find(
-        (window) => new URL(window.url).origin === self.location.origin,
-      );
-      if (client) {
-        await client.navigate(target);
-        await client.focus();
-      } else await self.clients.openWindow(target);
-    })(),
-  );
+  event.waitUntil(openNotificationTarget(target));
 });
 self.addEventListener("pushsubscriptionchange", (event) => {
   event.waitUntil(
