@@ -142,7 +142,8 @@ export function NotificationSettings({ userId }: { userId: string }) {
           {!loading && config.data?.turn_completion_enabled && (
             <p className="text-sm text-ink-tertiary">
               Automatic notifications are enabled for standard sessions.
-              Encrypted sessions are not supported yet.
+              Notifications include a short reply preview; tap one to open its
+              session. Encrypted sessions are not supported yet.
             </p>
           )}
           <div className="flex flex-wrap gap-2">

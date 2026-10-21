@@ -68,8 +68,16 @@ the returned owner before saving a binding. Logout cleanup is bounded to three
 seconds and then continues the normal gateway form submission.
 
 `public/push-sw.js` has no fetch handler or authenticated caching. Preserve its
-JavaScript content type, root scope and no-store headers. It displays generic
-text, validates click destinations, and works without an open app page. Native
+JavaScript content type, root scope and no-store headers. It displays the
+Manager's bounded reply preview for standard turns (200 Unicode code points),
+with a generic fallback for older Managers or missing replies. Clicks prefer
+the exact session window, focus before navigation, and open a new window if
+reuse fails. Only top-level, same-origin clients are reused. Validated session
+links use Home's `/?session_id={encoded_id}` route; Home resolves node/agent
+context and applies ordinary auth. The worker also converts older `/sessions/{id}`
+notification links into this Home route. Deploy this compatible Console before
+the Manager starts generating Home links. It works
+without an open app page. Native
 OS permission can still prevent display. Test pushes go to the real Manager
 queue, not an in-page Notification constructor. Managers need stable
 `PAX_WEB_PUSH_PUBLIC_KEY`, `PAX_WEB_PUSH_PRIVATE_KEY`, `PAX_WEB_PUSH_KEY_ID`, and
@@ -90,7 +98,10 @@ Regenerate the badge from the original `pax-icon.svg` geometry with
 `node scripts/notification-settings-browser.mjs` targets local port 3355 (override
 `PAX_PUSH_PREVIEW_URL`). It uses fictional API/permission/subscription fixtures,
 installs the real worker, and observes its showNotification call after leaving
-the app page. It does not prove native OS display or real Android delivery.
+the app page. It also checks reply preview rendering and actual WindowClient
+navigation to a fictional session page. Synthetic clicks lack browser user
+activation, so OS focus is an explicit fixture. It does not prove native OS
+display, native notification clicks, or real Android delivery.
 
 `/admin/notifications` is the adjacent Push subscriptions administrator page.
 Both pages share `AdminAnalyticsNav`; mobile keeps the Customers bottom item
