@@ -93,6 +93,31 @@ configured. Automatic alerts cover correlated, successful standard-session
 turns, including completion after the app page closes. Encrypted-session
 completion remains unsupported and the settings page states that limit.
 
+The session workbench dismisses read turn notifications on this device only.
+`completedReplyTargets` requires a durable `turn_done` and the final assistant
+reply matching the rendered timeline. An IntersectionObserver watches a marker
+after that reply, inside the timeline scroll root; only a visible, focused page
+acknowledges it. Opening the app, receiving a terminal signal, or seeing the top
+of a long reply is insufficient. Refocus, history updates and session changes
+re-evaluate the markers. No permission prompt or worker registration is added.
+The browser derives the existing version-1 Manager notification ID from SHA256
+of Go-JSON `[user_id, agent_id, session_id, turn_id]`; `read-turns.test.ts` pins
+Go-generated vectors, including HTML/Unicode escaping. Coordinate changes to
+Manager's stableID contract with this client. Only opaque IDs go to the worker.
+The push worker closes exact matching tags through getNotifications/close and
+stores at most 512 opaque ID/timestamp receipts in IndexedDB, expiring them
+lazily after 24 hours. This handles delayed pushes and worker restarts without
+conversation content or cross-device read state. Pushes still call
+showNotification before checking receipts; storage failures leave late alerts
+visible, while explicit reads still try to close already displayed alerts.
+
+`node scripts/notification-dismiss-browser.mjs` targets port 3356 (override
+`PAX_PUSH_PREVIEW_URL`). It exercises the actual Home workbench, real visibility
+observer, page/worker messaging and IndexedDB. Account/history and OS display
+are fictional fixtures. Loading, unfocused and offscreen replies preserve the
+alert; reading its end dismisses only that turn, including a late push after
+the app page closes. Other turns/sessions and manual tests remain visible.
+
 Android's small status icon uses the dedicated transparent, monochrome
 `public/pax-notification-badge.png`. The full-background app image belongs only
 in the notification's `icon`; using it as `badge` produces a solid white block.

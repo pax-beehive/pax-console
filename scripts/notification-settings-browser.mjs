@@ -19,7 +19,8 @@ try {
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.addInitScript(() => {
+  await page.addInitScript((appOrigin) => {
+    if (location.origin !== appOrigin) return;
     Object.defineProperty(document, "hasFocus", {
       configurable: true,
       value: () => true,
@@ -37,26 +38,39 @@ try {
       window.__pushAudit.permissionCalls++;
       return "granted";
     };
-    let subscription = null;
+    const subscriptionFixture = (options) => ({
+      options,
+      unsubscribe: async () => {
+        subscription = null;
+        localStorage.removeItem("audit:push-subscription");
+        window.__pushAudit.unsubscriptions++;
+        return true;
+      },
+      toJSON: () => ({
+        endpoint: "https://fcm.googleapis.com/wp/fictional-browser-test",
+        expirationTime: null,
+        keys: { auth: "fictional-auth", p256dh: "fictional-public-key" },
+      }),
+    });
+    // A browser subscription survives document navigation; the display fixture
+    // must do the same while exercising repeated notification clicks/reloads.
+    const storedKey = localStorage.getItem("audit:push-subscription");
+    let subscription = storedKey
+      ? subscriptionFixture({
+          applicationServerKey: new Uint8Array(JSON.parse(storedKey)),
+        })
+      : null;
     PushManager.prototype.getSubscription = async () => subscription;
     PushManager.prototype.subscribe = async function (options) {
       window.__pushAudit.subscriptions++;
-      subscription = {
-        options,
-        unsubscribe: async () => {
-          subscription = null;
-          window.__pushAudit.unsubscriptions++;
-          return true;
-        },
-        toJSON: () => ({
-          endpoint: "https://fcm.googleapis.com/wp/fictional-browser-test",
-          expirationTime: null,
-          keys: { auth: "fictional-auth", p256dh: "fictional-public-key" },
-        }),
-      };
+      localStorage.setItem(
+        "audit:push-subscription",
+        JSON.stringify([...new Uint8Array(options.applicationServerKey)]),
+      );
+      subscription = subscriptionFixture(options);
       return subscription;
     };
-  });
+  }, origin);
   await page.route("**/api/region-config", (route) =>
     route.fulfill({ json: { enabled: false } }),
   );
@@ -315,6 +329,8 @@ try {
     "Notification navigation fixture",
   );
   await page.goto(origin + "/settings/notifications");
+  // Finish foreground reconciliation before the ordinary disable assertion.
+  await page.waitForLoadState("networkidle");
   await page
     .getByRole("button", { name: "Turn off on this device", exact: true })
     .click();
