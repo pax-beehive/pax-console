@@ -202,7 +202,16 @@ export function SessionConfigSelector({
                       )}
                     <ConfigValueItem
                       checked={option.current_value === candidate.value}
-                      description={candidate.description}
+                      description={
+                        candidate.description ||
+                        (candidate.value.toLowerCase() === "default" &&
+                        (option.category === "thought_level" ||
+                          /^(effort|reasoning_effort|thinking_effort|thought_level)$/.test(
+                            option.id,
+                          ))
+                          ? "Uses the current model’s default reasoning effort, as determined by the agent. Default does not indicate a fixed effort level."
+                          : undefined)
+                      }
                       disabled={
                         !configuration?.can_set || Boolean(pendingOptionId)
                       }

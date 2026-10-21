@@ -90,6 +90,48 @@ describe("SessionConfigSelector", () => {
     expect(onChange).toHaveBeenCalledWith("reasoning_effort", "high");
   });
 
+  it.each([
+    ["effort", undefined, undefined, true],
+    ["reasoning_effort", "thought_level", "Uses High for this model.", true],
+    ["model", "model", undefined, false],
+  ])(
+    "explains Default for %s without replacing agent descriptions",
+    async (id, category, description, explainsDefault) => {
+      renderWithTooltip(
+        <SessionConfigSelector
+          configuration={{
+            can_set: true,
+            can_force_refresh: false,
+            session_id: "sess_effort",
+            options: [
+              {
+                id,
+                category,
+                name: "Setting",
+                type: "select",
+                current_value: "default",
+                options: [{ name: "Default", value: "default", description }],
+              },
+            ],
+          }}
+          onChange={vi.fn()}
+          onRefresh={vi.fn()}
+        />,
+      );
+      await userEvent.click(
+        screen.getByRole("button", { name: /^Session configuration/ }),
+      );
+      const explanation =
+        description ??
+        "Uses the current model’s default reasoning effort, as determined by the agent. Default does not indicate a fixed effort level.";
+      if (explainsDefault) {
+        expect(screen.getByText(explanation)).toBeVisible();
+      } else {
+        expect(screen.queryByText(explanation)).not.toBeInTheDocument();
+      }
+    },
+  );
+
   it("shows legacy model lists as read-only", async () => {
     renderWithTooltip(
       <SessionConfigSelector
