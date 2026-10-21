@@ -43,6 +43,19 @@ Worker 的 Client.url 是文档创建时的地址，Home 用 replaceState 切换
 SVG 生成并针对 24 dp 显示加粗；带背景的应用图仅用于通知大图标。需要 Manager 配置稳定的
 VAPID 公私钥和 contact，前端只读取公钥。浏览器检查使用明确的测试夹具，不代表安卓真机收包。
 
+普通会话的通知已读清理只作用于当前设备。工作台先确认持久化历史存在该 turn 的结束标记、
+最终回复与已渲染内容一致，再用时间线滚动容器内的 IntersectionObserver 观察回复末尾。
+只有页面可见且聚焦、末尾进入可见区时才清理；打开应用、收到结束信号或仅看见长回复开头都不算已读。
+页面按 Manager 现有 v1 规则计算通知 ID（Go JSON 的 user/agent/session/turn 数组经 SHA256），
+只把这个不透明 ID 发给 worker，不新增服务端接口。Go 生成的测试向量固定跨语言转义规则，
+后端 stableID 规则的变更需与 Console 协调。
+Worker 使用 getNotifications/close 精确关闭匹配 tag，在 IndexedDB 中保存最多 512 条 ID/已读时间，
+活动时淘汰超过 24 小时的记录，以处理通知晚到和 worker 重启；不保存回复内容，不同步其他设备。
+晚到通知仍先调用 showNotification，再检查已读记录并关闭。存储不可用时保留晚到通知；
+对明确已读的当前通知仍尝试关闭。其他会话、更新一轮和手动测试通知均保留。
+`scripts/notification-dismiss-browser.mjs` 用真实工作台、可见性判断、worker 通信及 IndexedDB
+覆盖这些路径，用户/历史/系统展示使用明确测试夹具，不宣称真机系统通知验收。
+
 ## WorkOS 登录链路
 
 生产登录入口是 `/auth/login`。区域网关（Worker 或区域直连服务）负责 PKCE 回调、加密的 HttpOnly

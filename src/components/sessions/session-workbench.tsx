@@ -132,6 +132,8 @@ import {
   type TimelineAnchor,
 } from "@/features/runtime/timeline-anchor";
 import { usePageResume } from "@/features/runtime/use-page-resume";
+import { completedReplyTargets } from "@/features/notifications/read-turns";
+import { useReadTurnNotifications } from "@/features/notifications/use-read-turn-notifications";
 import { useSessionObserver } from "@/features/runtime/session-observer";
 import { useSessionTurnObservation } from "@/features/runtime/use-session-turn-observation";
 import { sessionDisplayStatus } from "@/features/runtime/session-display-status";
@@ -1528,6 +1530,20 @@ export function SessionWorkbench({
     observedTurnId,
   ]);
   const { timeline } = reconciledTimeline;
+  const readNotificationTargets = useMemo(
+    () =>
+      usesEncryptedTransport || !currentSessionId
+        ? new Map<string, string>()
+        : completedReplyTargets(historyEvents, timeline, currentSessionId),
+    [usesEncryptedTransport, currentSessionId, historyEvents, timeline],
+  );
+  useReadTurnNotifications({
+    userId: user.user_id,
+    agentId: activeAgentId,
+    sessionId: currentSessionId,
+    targets: readNotificationTargets,
+    scrollRef: timelineScrollRef,
+  });
   const currentToolEvidence =
     selectedToolEvidence?.type === "tool"
       ? {
@@ -2506,6 +2522,15 @@ export function SessionWorkbench({
                   permissionDecision={permissionDecision}
                   userId={user.user_id}
                 />
+                {readNotificationTargets.has(item.id) && (
+                  <span
+                    aria-hidden="true"
+                    className="block h-px"
+                    data-notification-read-turn={readNotificationTargets.get(
+                      item.id,
+                    )}
+                  />
+                )}
               </div>
             ))}
             <SessionPendingActivity
