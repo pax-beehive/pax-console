@@ -261,28 +261,59 @@ try {
   }, sessionPath);
   assert.equal(completion.body, "Final response. All checks passed.");
   assert.equal(completion.data.url, sessionPath);
-  await worker.evaluate(async (data) => {
-    // Synthetic events lack notification user activation. Fixture only OS focus;
-    // keep the real WindowClient navigation and observed document URL.
-    const originalFocus = WindowClient.prototype.focus;
-    WindowClient.prototype.focus = async function () {
-      return this;
-    };
-    const event = new Event("notificationclick");
-    let pending;
-    event.notification = { data, close() {} };
-    event.waitUntil = (work) => {
-      pending = work;
-    };
-    try {
-      self.dispatchEvent(event);
-      await pending;
-    } finally {
-      WindowClient.prototype.focus = originalFocus;
-    }
-  }, completion.data);
+  const clickNotification = (data) =>
+    worker.evaluate(async (data) => {
+      // Synthetic events lack notification user activation. Fixture only OS focus;
+      // keep the real WindowClient navigation and observed document URL.
+      const originalFocus = WindowClient.prototype.focus;
+      WindowClient.prototype.focus = async function () {
+        return this;
+      };
+      const event = new Event("notificationclick");
+      let pending;
+      event.notification = { data, close() {} };
+      event.waitUntil = (work) => {
+        pending = work;
+      };
+      try {
+        self.dispatchEvent(event);
+        await pending;
+      } finally {
+        WindowClient.prototype.focus = originalFocus;
+      }
+    }, data);
+  await clickNotification(completion.data);
   await page.waitForURL(origin + sessionPath);
   assert.equal(await page.title(), "Fictional session");
+
+  const otherSessionPath = "/?session_id=another-session";
+  await page.evaluate((path) => {
+    history.replaceState(history.state, "", path);
+    document.querySelector("main").textContent = "Another active session";
+  }, otherSessionPath);
+  assert.equal(page.url(), origin + otherSessionPath);
+  const clientURLs = await worker.evaluate(async () =>
+    (await self.clients.matchAll({ type: "window" })).map(
+      (client) => client.url,
+    ),
+  );
+  console.log(
+    JSON.stringify({
+      case: "Home switched after document creation",
+      visibleURL: page.url(),
+      workerClientURLs: clientURLs,
+    }),
+  );
+  await clickNotification(completion.data);
+  assert.equal(
+    page.url(),
+    origin + sessionPath,
+    "notification must navigate back to its session after an in-page session switch",
+  );
+  assert.equal(
+    await page.locator("main").innerText(),
+    "Notification navigation fixture",
+  );
   await page.goto(origin + "/settings/notifications");
   await page
     .getByRole("button", { name: "Turn off on this device", exact: true })
@@ -301,6 +332,7 @@ try {
   console.log(
     JSON.stringify({
       result: "passed",
+      switchedAwayFromTargetBeforeClick: true,
       tests,
       revoked,
       workerHandledSyntheticPushWithoutAppPage: true,
