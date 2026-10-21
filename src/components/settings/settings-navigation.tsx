@@ -9,6 +9,7 @@ export const settingsLinks = {
   devices: "/settings/devices",
   projects: "/settings/projects",
   status: "/settings/service-status",
+  notifications: "/settings/notifications",
   advanced: "/settings/advanced",
   permissions: "/settings/advanced/permissions",
   encryption: "/settings/advanced/encryption",

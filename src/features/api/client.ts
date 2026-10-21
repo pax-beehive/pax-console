@@ -1,4 +1,5 @@
 import { ApiError, AuthError } from "./errors";
+import { runSignOutCleanups } from "./logout-cleanup";
 
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_PAX_API_BASE_URL ?? "/api/pax";
@@ -12,6 +13,15 @@ export const LOGOUT_URL =
   process.env.NEXT_PUBLIC_PAX_LOGOUT_URL ?? "/auth/logout";
 
 export function signOut() {
+  const cleanup = runSignOutCleanups();
+  if (cleanup) {
+    void cleanup.finally(submitSignOut);
+    return;
+  }
+  submitSignOut();
+}
+
+function submitSignOut() {
   if (LOGOUT_URL !== "/auth/logout") {
     window.location.assign(LOGOUT_URL);
     return;

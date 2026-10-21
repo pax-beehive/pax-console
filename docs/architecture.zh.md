@@ -15,7 +15,20 @@ Worker 聚合 US/HK，并分别保留区域更新时间、故障状态和分页�
 
 `features/analytics/use-subscriptions.ts` 复用有焦点才刷新的调度器。TanStack Query key
 包含管理员身份、筛选项和区域游标；筛选变更重挂结果组件并取消旧请求。区域故障可以
-保留明确标记为过期的快照，鉴权失败隐藏旧数据。订阅设置和真实推送在后续交付接入。
+保留明确标记为过期的快照，鉴权失败隐藏旧数据。排队但尚未尝试的任务显示 Not attempted yet。
+
+用户在 Settings → Notifications (`/settings/notifications`) 为当前浏览器或安卓壳单独开启
+通知。只有点击开启时申请系统权限；等待根作用域 `/push-sw.js` 激活后才调用 PushManager。
+公开配置和本人接收端元数据使用 TanStack Query；localStorage 只保留所属用户、receiver ID、
+key ID 和本地开关，不存 endpoint 或加密密钥。登录后的前台修复不会再次弹权限，尊重服务端撤销，
+失效订阅或公钥变更时重新订阅，跨账号先解除旧绑定。退出前执行有时限的撤销与取消订阅，随后
+继续原有网关表单退出流程。
+
+Service Worker 只处理推送、点击和订阅变更，不拦截 fetch 或缓存认证响应。通知内容固定为通用
+提示，点击地址仅允许同源会话或通知设置页，再次经过正常会话鉴权。测试按钮调用真实队列接口；
+排队、服务商接受和设备实际显示分别表述。自动 turn done 通知尚未接入，配置中的
+`turn_completion_enabled` 保持 false，设置页明确说明当前范围。需要 Manager 配置稳定的
+VAPID 公私钥和 contact，前端只读取公钥。浏览器检查使用明确的测试夹具，不代表安卓真机收包。
 
 ## WorkOS 登录链路
 

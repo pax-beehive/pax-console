@@ -2,6 +2,7 @@
 
 import {
   Activity,
+  Bell,
   FolderTree,
   KeyRound,
   Server,
@@ -77,6 +78,12 @@ export function SettingsPage({ advanced = false }: { advanced?: boolean }) {
               ) : (
                 <>
                   <SettingsGroup>
+                    <SettingsLink
+                      href={settingsLinks.notifications}
+                      icon={Bell}
+                      title="Notifications"
+                      description="Enable push notifications and test this device."
+                    />
                     <SettingsLink
                       href={settingsLinks.devices}
                       icon={Server}

@@ -420,7 +420,11 @@ function RegionalSubscriptionTable({
                               ? "Provider accepted"
                               : receiver.latest_delivery.status}
                           </span>
-                          <p>{date(receiver.latest_delivery.attempted_at)}</p>
+                          <p>
+                            {receiver.latest_delivery.attempts > 0
+                              ? date(receiver.latest_delivery.attempted_at)
+                              : "Not attempted yet"}
+                          </p>
                         </>
                       ) : (
                         "No delivery attempts"

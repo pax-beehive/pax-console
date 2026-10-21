@@ -58,6 +58,30 @@ Homebrew and npx wrappers remain unsupported.
 
 ## Customer analytics and focus-only polling
 
+Device opt-in is in Settings > Notifications (`/settings/notifications`).
+`features/notifications/push-client.ts` serializes browser operations, requests
+permission only from the enable action, waits for root worker activation, and
+registers through the authenticated same-origin API. localStorage stores only
+owner/receiver/key IDs and the local opt-in flag. Reconciliation never prompts,
+honors remote revocation, replaces expired/invalidated subscriptions, and checks
+the returned owner before saving a binding. Logout cleanup is bounded to three
+seconds and then continues the normal gateway form submission.
+
+`public/push-sw.js` has no fetch handler or authenticated caching. Preserve its
+JavaScript content type, root scope and no-store headers. It displays generic
+text, validates click destinations, and works without an open app page. Native
+OS permission can still prevent display. Test pushes go to the real Manager
+queue, not an in-page Notification constructor. Managers need stable
+`PAX_WEB_PUSH_PUBLIC_KEY`, `PAX_WEB_PUSH_PRIVATE_KEY`, `PAX_WEB_PUSH_KEY_ID`, and
+`PAX_WEB_PUSH_SUBSCRIBER` values before `test_enabled` becomes true. Keep private
+material out of Next.js/browser configuration. Automatic turn-completion
+creation remains disabled (`turn_completion_enabled: false`).
+
+`node scripts/notification-settings-browser.mjs` targets local port 3355 (override
+`PAX_PUSH_PREVIEW_URL`). It uses fictional API/permission/subscription fixtures,
+installs the real worker, and observes its showNotification call after leaving
+the app page. It does not prove native OS display or real Android delivery.
+
 `/admin/notifications` is the adjacent Push subscriptions administrator page.
 Both pages share `AdminAnalyticsNav`; mobile keeps the Customers bottom item
 active for either page. The page honors the effective admin view and queries
@@ -71,8 +95,9 @@ admin identity, filters and regional cursors. A filter change remounts the
 results observer and cancels the old request. Summary counts cover all filtered
 records, not just the page. Receiver details use the current snapshot. Never
 display endpoint URLs, subscription keys or provider bodies. Subscription
-state, last reported permission and latest delivery are distinct; no sending
-integration means `No delivery attempts`, not a fabricated success. Customer
+state, last reported permission and latest delivery are distinct. Missing
+attempt metadata means `No delivery attempts`; a pending task with zero attempts
+is `Not attempted yet`, and provider acceptance is not device display. Customer
 details link using the pre-merge `(region, user_id)` references.
 
 Browser QA: `node scripts/subscription-dashboard-browser.mjs` against a local
