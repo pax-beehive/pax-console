@@ -1986,3 +1986,17 @@ use `error`; apiFetch maps known routing errors to actionable messages with HTTP
 status and keeps Manager `message` errors. Unknown Worker details remain hidden.
 A failed lookup displays a release-check failure and a read-only retry action.
 Install stays disabled during lookup or after failure, including cached versions.
+
+## Cronjob 会话来源
+
+定时任务的 CRUD、调度、prompt/workspace 快照和原生会话绑定由 paxd SQLite 管理，
+paxl 通过本地 Unix socket 操作。paxd 使用现有 ACP pool 创建或恢复会话，再通过
+Manager 的节点鉴权接口 `POST /api/v1/node/agents/:agent_id/sessions/register` 登记
+普通 Pax session。Manager 返回的 `session_id` 才用于 REST、URL 和历史查询。
+
+Console 从普通 session 查询的 `metadata.origin` 读取 `kind=cronjob`、`cronjob_id`、
+`run_id` 和任务名称快照，在最近会话和工作台展示来源标记。解析集中在
+`features/sessions/session-origin.ts`，不新增前端调度器或独立会话状态。
+来源 run 是创建该会话的第一次执行；reuse 模式的后续运行不会改写它。
+paxd 先持久化消息，再经现有 E2EE 历史与实时事件通道同步，离线补登记后会出现在普通会话列表。
+当前仅提供来源展示，任务管理使用 `paxl cron`。
