@@ -6,6 +6,7 @@ export type PushConfig = {
   enabled: boolean;
   test_enabled: boolean;
   turn_completion_enabled: boolean;
+  approval_required_enabled?: boolean;
   public_key: string;
   key_id: string;
   channel: string;

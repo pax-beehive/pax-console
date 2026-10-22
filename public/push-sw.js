@@ -172,17 +172,20 @@ self.addEventListener("push", (event) => {
   if (!payload || typeof payload !== "object" || payload.version !== 1)
     payload = {};
   const test = payload.type === "notification.test";
+  const approval = payload.type === "approval.required";
   const tag = notificationId(payload.notification_id)
     ? payload.notification_id
     : undefined;
   event.waitUntil(
     self.registration
-      .showNotification("Pax Workspace", {
-        body: test
-          ? "Notifications are working on this device."
-          : payload.type === "turn.completed"
-            ? notificationBody(payload.body)
-            : "You have a new notification.",
+      .showNotification(approval ? "Approval needed" : "Pax Workspace", {
+        body: approval
+          ? "Your session is waiting for your approval. Tap to review the request."
+          : test
+            ? "Notifications are working on this device."
+            : payload.type === "turn.completed"
+              ? notificationBody(payload.body)
+              : "You have a new notification.",
         icon: "/pax-app-icon.png",
         badge: "/pax-notification-badge.png",
         tag,
