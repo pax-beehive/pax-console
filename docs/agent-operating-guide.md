@@ -58,13 +58,14 @@ Homebrew and npx wrappers remain unsupported.
 
 ## Settings workspace
 
-`/settings` opens the actual Notifications page. `settings/settings-catalog.ts`
-owns the four navigation groups, eight sections, descriptions, and legacy-route
-matching. Desktop Settings uses a dedicated 272px sidebar with a Back to workspace
+On desktop, `/settings` opens the actual Notifications page.
+`settings/settings-catalog.ts` owns the four desktop navigation groups, eight
+sections, descriptions, and legacy-route matching. Desktop Settings uses a dedicated 272px sidebar with a Back to workspace
 link; it replaces the ordinary app navigation rather than adding another rail.
 The workspace sidebar's persisted collapsed state is preserved and restored on
-exit. Narrow screens use a labeled native section selector with grouped options.
-Navigation retains the existing authenticated routes and query ownership.
+exit. Narrow screens retain the original Settings directory, Advanced settings
+list, page headings, and back links. Navigation retains the existing authenticated
+routes and query ownership.
 
 `SettingsPageHeader` gives each section a title and purpose description.
 Notification controls explain device scope and separate subscription actions
@@ -73,7 +74,8 @@ state remains unknown until device confirmation completes; switching sections
 must never expose an Enable action for an already enabled subscription.
 Projects retain their own project/target panes inside the Settings workspace.
 Devices retain their Devices/Agents segmented view and detail workflows.
-`/settings/advanced` redirects to Allowed actions; existing deep links continue
+`/settings/advanced` shows Allowed actions on desktop and the original Advanced
+settings directory on mobile; existing deep links continue
 to work. See `docs/settings-inventory.md` for the feature inventory.
 
 `node scripts/settings-workspace-browser.mjs` checks all eight sections at desktop
@@ -81,8 +83,8 @@ and mobile widths, active links, legacy Advanced navigation, and overflow. It
 uses fictional account/API data and saves screenshots under
 `PAX_SETTINGS_SCREENSHOTS` (default `/tmp/pax-settings-workspace`).
 `PAX_SETTINGS_PREVIEW_URL` defaults to `http://127.0.0.1:3375`.
-The push audit now switches through the mobile section selector while retaining
-warm query caches. Real push-provider and OS display claims remain excluded.
+The push audit retains its original mobile Settings list/back-link flow while
+keeping warm query caches. Real push-provider and OS display claims remain excluded.
 
 ## Customer analytics and focus-only polling
 
@@ -1342,13 +1344,16 @@ Collapsed tabs show icons only; labels must remain available via Tooltip.
 The ordinary workspace sidebar keeps Home and Collaboration at the top and a
 Settings entry at the bottom. Collaboration retains its secondary disclosure.
 Entering Settings replaces the ordinary sidebar with the grouped settings
-catalog; it does not add another navigation rail.
+catalog on desktop; it does not add another navigation rail. Mobile retains the
+original Settings and Advanced settings directories with per-page back links.
+The viewport subscription uses the shell's 1024px `lg` breakpoint; mobile landing
+pages do not mount desktop notification controls.
 
 ```txt
 Home             /
 Collaboration    /collaboration/teams
                  children: Teams, Friends, Envelopes, Knowledge
-Settings         bottom-pinned entry; /settings opens Notifications
+Settings         bottom-pinned entry; desktop /settings opens Notifications
                  dedicated grouped navigation replaces the workspace sidebar
 ```
 
@@ -1366,13 +1371,13 @@ These deep links should remain directly reachable:
 /collaboration/friends         Friends
 /collaboration/envelopes       Envelopes
 /collaboration/knowledge       Knowledge
-/settings                      Settings workspace; Notifications by default
+/settings                      Desktop Notifications; mobile Settings directory
 /settings/devices              Devices; ?view=agents selects Agents
 /settings/devices/add          Quick connect / Browser sign-in
 /settings/devices/agents/add   Agent setup; optional nodeId selects a computer
 /settings/projects             Project hierarchy and launch Targets
 /settings/service-status       PAX health, devices and agents independently
-/settings/advanced             Redirect to Allowed actions
+/settings/advanced             Desktop Allowed actions; mobile Advanced directory
 /settings/advanced/permissions Active approval grants
 /settings/advanced/encryption  Browser keys and encrypted-device pairing
 /settings/advanced/api-keys    API key management

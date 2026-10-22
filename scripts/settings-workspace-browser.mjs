@@ -84,28 +84,45 @@ try {
     });
     await page.goto(origin + "/settings");
     await page
-      .getByRole("heading", { name: "Notifications", exact: true })
+      .getByRole("heading", {
+        name: mobile ? "Settings" : "Notifications",
+        exact: true,
+      })
       .waitFor();
-    await page
-      .getByText("Notifications are off on this device.", { exact: true })
-      .waitFor();
+    if (!mobile)
+      await page
+        .getByText("Notifications are off on this device.", { exact: true })
+        .waitFor();
     await page.addStyleTag({ content: "nextjs-portal { display: none; }" });
     const navigation = page.getByRole("navigation", {
       name: "Settings",
       exact: true,
     });
-    if (mobile) await assert.equal(await navigation.isVisible(), false);
-    else {
+    if (mobile) {
+      assert.equal(await navigation.isVisible(), false);
+      assert.equal(
+        await page.getByRole("combobox", { name: "Settings section" }).count(),
+        0,
+      );
+      await page.screenshot({
+        path: `${output}/mobile-settings.png`,
+        fullPage: false,
+      });
+    } else {
       assert.equal(await navigation.getByRole("link").count(), 8);
       const bounds = await navigation.boundingBox();
       assert(bounds.width >= 250 && bounds.x === 0);
     }
     for (const [label, href, heading] of sections) {
-      if (mobile)
-        await page
-          .getByRole("combobox", { name: "Settings section" })
-          .selectOption(href);
-      else
+      if (mobile) {
+        if (href.startsWith("/settings/advanced/")) {
+          await page.getByRole("link", { name: /^Advanced settings/ }).click();
+          await page
+            .getByRole("heading", { name: "Advanced settings", exact: true })
+            .waitFor();
+        }
+        await page.locator(`a[href="${href}"]:visible`).click();
+      } else
         await navigation
           .getByRole("link", { name: label, exact: false })
           .click();
@@ -125,26 +142,86 @@ try {
         false,
         href,
       );
+      if (mobile) {
+        await page.waitForFunction(() => {
+          const nav = document.querySelector('nav[aria-label="Primary"]');
+          const box = nav?.getBoundingClientRect();
+          return (
+            box && box.height >= 64 && Math.abs(box.bottom - innerHeight) < 1
+          );
+        });
+      }
       if (label === "Notifications") {
-        await page
-          .getByRole("heading", { name: "Approval requests", exact: true })
-          .waitFor();
+        if (mobile)
+          await page
+            .getByText(/Get notified when a session needs your approval/)
+            .waitFor();
+        else
+          await page
+            .getByRole("heading", { name: "Approval requests", exact: true })
+            .waitFor();
         await page.screenshot({
           path: `${output}/${mobile ? "mobile" : "desktop"}-notifications.png`,
-          fullPage: true,
+          fullPage: false,
         });
       }
       if (label === "API keys" || label === "Projects")
         await page.screenshot({
           path: `${output}/${mobile ? "mobile" : "desktop"}-${label === "API keys" ? "api-keys" : "projects"}.png`,
-          fullPage: true,
+          fullPage: false,
         });
+      if (mobile) {
+        const advanced = href.startsWith("/settings/advanced/");
+        await page
+          .getByRole("link", {
+            name: advanced ? "Advanced settings" : "Settings",
+            exact: true,
+          })
+          .first()
+          .click();
+        if (advanced) {
+          await page.waitForURL(origin + "/settings/advanced");
+          await page
+            .getByRole("link", { name: "Settings", exact: true })
+            .first()
+            .click();
+        }
+        await page.waitForURL(origin + "/settings");
+        await page
+          .getByRole("heading", { name: "Settings", exact: true })
+          .waitFor();
+      }
     }
     await page.goto(origin + "/settings/advanced");
-    await page.waitForURL(origin + "/settings/advanced/permissions");
     await page
-      .getByRole("heading", { name: "Allowed actions", exact: true })
+      .getByRole("heading", {
+        name: mobile ? "Advanced settings" : "Allowed actions",
+        exact: true,
+      })
       .waitFor();
+    if (mobile) {
+      assert.equal(
+        await page.locator('a[href^="/settings/advanced/"]:visible').count(),
+        4,
+      );
+      await page.screenshot({
+        path: `${output}/mobile-advanced-settings.png`,
+        fullPage: false,
+      });
+    }
+    // Verify the JS landing view and CSS navigation use the same lg boundary.
+    await page.goto(origin + "/settings");
+    await page.setViewportSize({
+      width: mobile ? 1024 : 1023,
+      height: viewport.height,
+    });
+    await page
+      .getByRole("heading", {
+        name: mobile ? "Notifications" : "Settings",
+        exact: true,
+      })
+      .waitFor();
+    assert.equal(await navigation.isVisible(), mobile);
     assert.deepEqual(errors, []);
     await context.close();
   }
@@ -153,7 +230,7 @@ try {
       result: "passed",
       sections: sections.length,
       desktopAndMobile: true,
-      legacyAdvancedRedirect: true,
+      mobileDirectoryAndBackNavigation: true,
       noHorizontalOverflow: true,
       fixtures: true,
       screenshots: output,

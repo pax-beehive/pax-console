@@ -1,14 +1,8 @@
 /* @vitest-environment jsdom */
 import "@testing-library/jest-dom/vitest";
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  within,
-} from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { SettingsMobileNav, SettingsSidebar } from "./settings-navigation";
+import { SettingsSidebar } from "./settings-navigation";
 import { settingsSectionForPath } from "./settings-catalog";
 
 const route = vi.hoisted(() => ({ pathname: "/settings", push: vi.fn() }));
@@ -66,16 +60,5 @@ describe("settings navigation", () => {
     expect(
       screen.getByRole("link", { name: /Notifications/ }),
     ).not.toHaveAttribute("aria-current");
-  });
-
-  it("lets mobile users switch directly to a grouped settings section", () => {
-    route.pathname = "/settings/notifications";
-    render(<SettingsMobileNav />);
-    const picker = screen.getByRole("combobox", { name: "Settings section" });
-    expect(picker).toHaveValue("/settings/notifications");
-    fireEvent.change(picker, {
-      target: { value: "/settings/advanced/api-keys" },
-    });
-    expect(route.push).toHaveBeenCalledWith("/settings/advanced/api-keys");
   });
 });

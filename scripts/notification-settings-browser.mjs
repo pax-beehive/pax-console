@@ -107,8 +107,6 @@ try {
         },
       });
     if (url.pathname.endsWith("/customer-visit")) return ok({ recorded: true });
-    if (url.pathname.endsWith("/nodes")) return ok({ nodes: [] });
-    if (url.pathname.endsWith("/agents")) return ok({ agents: [] });
     if (url.pathname.endsWith("/notifications/config"))
       return ok({
         enabled: true,
@@ -177,9 +175,10 @@ try {
     .getByRole("button", { name: "Send test notification", exact: true })
     .waitFor();
   await page
-    .getByRole("combobox", { name: "Settings section" })
-    .selectOption("/settings/devices");
-  await page.getByRole("heading", { name: "Devices", exact: true }).waitFor();
+    .getByRole("link", { name: "Settings", exact: true })
+    .first()
+    .click();
+  await page.getByRole("heading", { name: "Settings", exact: true }).waitFor();
   let releaseConfirmation;
   confirmationGate = new Promise((resolve) => {
     releaseConfirmation = resolve;
@@ -201,9 +200,7 @@ try {
       attributes: true,
     });
   });
-  await page
-    .getByRole("combobox", { name: "Settings section" })
-    .selectOption("/settings/notifications");
+  await page.locator('a[href="/settings/notifications"]:visible').click();
   await page.getByText("Checking notifications...", { exact: true }).waitFor();
   assert.equal(
     await page

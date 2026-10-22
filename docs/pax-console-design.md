@@ -316,7 +316,7 @@ PAX Console
 |   +-- Knowledge
 |       +-- capsules
 |       +-- session injections
- +-- Settings (/settings; dedicated sidebar and content)
+ +-- Settings (desktop: dedicated sidebar and content)
     +-- Workspace
     |   +-- Notifications (default; subscription and alert descriptions)
     |   +-- Devices & agents (connection and device detail workflows)
@@ -337,13 +337,15 @@ rather than stacking a second navigation pane. Keep group headings quiet and
 show a short purpose below each item's label. The selected section has one
 active marker; nested device and pairing workflows retain their parent.
 A Back to workspace link restores the ordinary navigation and its prior
-collapsed state. On narrow screens, use a labeled native grouped selector.
+collapsed state. On narrow screens, retain the existing Settings directory,
+Advanced settings list, and per-page back links. Keep their original headings,
+spacing, notification explanation layout, and project navigation.
 
-Settings opens Notifications directly. Section headers explain purpose and scope;
+Desktop Settings opens Notifications directly. Section headers explain purpose and scope;
 content uses readable widths, aligned spacing, and restrained section borders.
 Use separate descriptive rows for completed replies and approval alerts. Keep
 subscription actions together and preserve the checking/unknown state while
-confirming notification status. Do not restore an intermediate directory list
+confirming notification status. Do not add an intermediate directory list on desktop
 or a generic Advanced group. Existing Advanced URLs remain compatible.
 
 Collaboration owns teams, friends, envelopes, and knowledge as secondary tabs;

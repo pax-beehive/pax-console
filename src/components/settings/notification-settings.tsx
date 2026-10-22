@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SettingsPageHeader } from "./settings-navigation";
+import { SettingsBack, SettingsPageHeader } from "./settings-navigation";
+import { useDesktopSettings } from "./use-desktop-settings";
 import { settingsSection } from "./settings-catalog";
 import { apiFetch } from "@/features/api/client";
 import type { SubscriptionSnapshot } from "@/features/analytics/subscription-data";
@@ -38,6 +39,7 @@ type DeviceConfirmation = {
 };
 
 export function NotificationSettings({ userId }: { userId: string }) {
+  const desktop = useDesktopSettings();
   const queries = useQueryClient();
   const client = useMemo(() => new PushClient(userId), [userId]);
   const supported = useSyncExternalStore(
@@ -157,20 +159,30 @@ export function NotificationSettings({ userId }: { userId: string }) {
   };
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <SettingsPageHeader
-        title="Notifications"
-        category="Workspace"
-        description={settingsSection("notifications").description}
-      />
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6 sm:px-8">
-        <div className="mx-auto w-full max-w-5xl">
-          <div className="grid max-w-3xl gap-5">
-            <section className="grid gap-4 rounded-xl border border-hairline bg-surface-1 p-5 sm:p-6">
+      <div className="hidden lg:block">
+        <SettingsPageHeader
+          title="Notifications"
+          category="Workspace"
+          description={settingsSection("notifications").description}
+        />
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6 lg:px-8 lg:py-6">
+        <div className="mx-auto w-full max-w-2xl lg:max-w-5xl">
+          <div className="grid gap-5 lg:max-w-3xl">
+            <header className="lg:hidden">
+              <SettingsBack />
+              <h1 className="text-2xl font-semibold">Notifications</h1>
+              <p className="mt-2 text-sm text-ink-tertiary">
+                Manage push notifications for this browser or Android app. Each
+                device is enabled separately.
+              </p>
+            </header>
+            <section className="grid gap-4 rounded-xl border border-hairline bg-surface-1 p-5 lg:p-6">
               <h2 className="flex items-center gap-2 font-medium">
                 <Bell className="h-4 w-4" />
                 This device
               </h2>
-              <p className="-mt-2 text-sm leading-6 text-ink-tertiary">
+              <p className="-mt-2 hidden text-sm leading-6 text-ink-tertiary lg:block">
                 Control alerts for this browser or Android app. Enabling another
                 device is a separate choice.
               </p>
@@ -187,6 +199,34 @@ export function NotificationSettings({ userId }: { userId: string }) {
                           ? descriptions[state]
                           : "Checking notifications..."}
               </p>
+              {!desktop && (
+                <>
+                  {!loading &&
+                    config.data &&
+                    !config.data.turn_completion_enabled && (
+                      <p className="text-sm text-ink-tertiary">
+                        You can enable this device and send a test notification.
+                        Automatic turn alerts are not available yet.
+                      </p>
+                    )}
+                  {!loading && config.data?.turn_completion_enabled && (
+                    <p className="text-sm text-ink-tertiary">
+                      Automatic notifications are enabled for standard sessions.
+                      Notifications include a short reply preview; tap one to
+                      open its session. Encrypted sessions are not supported
+                      yet.
+                    </p>
+                  )}
+                  {!loading && config.data?.approval_required_enabled && (
+                    <p className="text-sm text-ink-tertiary">
+                      Get notified when a session needs your approval. Tap a
+                      notification to open the session and review the request.
+                      Requests handled by Pax Auto Approve or a saved approval
+                      do not trigger notifications.
+                    </p>
+                  )}
+                </>
+              )}
               <div className="flex flex-wrap gap-2">
                 {supported &&
                   state !== null &&
@@ -267,7 +307,7 @@ export function NotificationSettings({ userId }: { userId: string }) {
                 </p>
               )}
             </section>
-            {!loading && config.data && (
+            {desktop && !loading && config.data && (
               <section aria-labelledby="notification-events-title">
                 <h2
                   id="notification-events-title"
@@ -315,8 +355,15 @@ export function NotificationSettings({ userId }: { userId: string }) {
                 </div>
               </section>
             )}
-            <p className="text-xs leading-5 text-ink-tertiary">
+            <p className="text-sm leading-6 text-ink-tertiary lg:text-xs lg:leading-5">
               System and browser settings control whether notifications appear.
+              {!desktop && (
+                <>
+                  {" "}
+                  Completed turn notifications include a short reply preview.
+                  Approval reminders contain no request details.
+                </>
+              )}{" "}
               Signing out removes this browser&apos;s subscription.
             </p>
           </div>

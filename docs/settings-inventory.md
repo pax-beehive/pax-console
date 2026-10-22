@@ -1,8 +1,9 @@
 # Settings inventory and organization
 
 Settings has eight primary sections. The desktop navigation shows all sections
-in four groups; `/settings` opens Notifications directly. Mobile uses the same
-catalog in a grouped section selector. Account reload/sign-out remain in the
+in four groups; `/settings` opens Notifications directly on desktop. Mobile keeps
+the original Settings directory, Advanced settings list, and per-page back links;
+it has no section selector. Account reload/sign-out remain in the
 user menu. Administrator customer and push-subscription analytics remain in
 the workspace administrator navigation.
 
@@ -23,7 +24,8 @@ These are contextual device actions, not additional top-level settings.
 Guided Add device/Add agent remains under Devices; manual registration stays
 under Developer tools to distinguish ordinary setup from custom integration.
 
-`/settings/advanced` now redirects to Allowed actions. Existing API-key,
+`/settings/advanced` opens Allowed actions on desktop and retains the Advanced
+settings directory on mobile. Existing API-key,
 registration, diagnostics, and security aliases retain their redirects. No
 resource API, permission boundary, notification subscription, or persisted
 workspace sidebar preference is changed by the navigation reorganization.

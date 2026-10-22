@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { SettingsPage } from "@/components/settings/settings-page-client";
 
 export default function Page() {
-  redirect("/settings/advanced/permissions");
+  return <SettingsPage advanced />;
 }

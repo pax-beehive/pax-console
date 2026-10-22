@@ -2,13 +2,16 @@
 
 ## Settings 设置工作区
 
-`/settings` 默认展示通知设置内容，不再展示入口大列表。`settings-catalog.ts` 统一维护
-四组、八项设置及用途说明，桌面使用专用侧栏与右侧内容区，手机使用分组选择器。
-设置页面复用 `SettingsPageHeader`，明确标题、用途与操作范围。设备/Agent 详情和加密配对
-旧路径仍保持所属分组高亮；`/settings/advanced` 兼容跳转到 Allowed actions。
+桌面 `/settings` 默认展示通知设置内容，使用专用侧栏与右侧内容区。
+`settings-catalog.ts` 统一维护桌面四组、八项设置及用途说明。手机保留原来的 Settings
+入口列表、Advanced settings 列表与逐页返回，不增加设置选择器。`useDesktopSettings`
+使用与 `lg` 一致的 1024px 媒体查询，按视口挂载入口内容，手机入口不会挂载通知设置控件。
+桌面设置页面复用 `SettingsPageHeader`，明确标题、用途与操作范围，手机保留原有标题布局。
+设备/Agent 详情和加密配对旧路径仍保持所属分组高亮；`/settings/advanced` 在桌面直接
+展示 Allowed actions，在手机展示原有高级设置目录。
 项目保留内部项目列表和工作目录目标面板，通知订阅的核对中状态保持原有防闪烁规则。
 设置项及子功能清单见 `docs/settings-inventory.md`；此调整不新增 API 或服务端状态。
-浏览器回归覆盖桌面/手机全部八项、当前入口、旧路径跳转以及横向溢出；数据使用明确夹具。
+浏览器回归覆盖桌面/手机全部八项、当前入口、手机逐页返回以及横向溢出；数据使用明确夹具。
 
 ## 通知订阅管理看板
 
@@ -913,13 +916,13 @@ Sidebar 一级入口是粗粒度工作区（顶部 Home / Collaboration，底部
 /collaboration/friends         Friends
 /collaboration/envelopes       Envelopes
 /collaboration/knowledge       Knowledge capsules
-/settings                      Settings workspace; Notifications by default
+/settings                      桌面 Notifications；手机 Settings 目录
 /settings/devices              Devices; ?view=agents selects Agents
 /settings/devices/add          Quick connect / Browser sign-in
 /settings/devices/agents/add   Agent setup; optional nodeId selects a computer
 /settings/projects             Project hierarchy and launch Targets
 /settings/service-status       PAX health, devices and agents independently
-/settings/advanced             Redirect to Allowed actions
+/settings/advanced             桌面 Allowed actions；手机 Advanced settings 目录
 /settings/advanced/permissions Active approval grants
 /settings/advanced/encryption  Browser keys and encrypted-device pairing
 /settings/advanced/api-keys    API key management

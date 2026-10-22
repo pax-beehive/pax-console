@@ -68,6 +68,7 @@ import {
 } from "./resource-models";
 import { ServiceStatusPanel } from "@/components/settings/service-status-panel";
 import {
+  SettingsBack,
   SettingsPageHeader,
   settingsLinks,
 } from "@/components/settings/settings-navigation";
@@ -286,6 +287,13 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
   );
   const meta = copy[kind];
   const sectionId = resourceSettingsSections[kind];
+  const advancedSettings = [
+    "api-keys",
+    "node-registration",
+    "security",
+    "grants",
+    "encryption",
+  ].includes(kind);
   const description = sectionId
     ? settingsSection(sectionId).description
     : meta.eyebrow;
@@ -310,6 +318,21 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
         <SettingsPageHeader
           title={meta.title}
           description={description}
+          mobileHeading={
+            <>
+              <SettingsBack
+                href={
+                  advancedSettings ? settingsLinks.advanced : settingsLinks.home
+                }
+                label={advancedSettings ? "Advanced settings" : "Settings"}
+              />
+              <div className="flex items-center gap-2 text-xs text-ink-tertiary">
+                {meta.icon}
+                {meta.eyebrow}
+              </div>
+              <h1 className="mt-2 text-2xl font-semibold">{meta.title}</h1>
+            </>
+          }
           category={
             sectionId ? settingsSection(sectionId).category : meta.eyebrow
           }
@@ -349,7 +372,7 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
           </div>
         )}
 
-        <div className="min-h-0 flex-1 overflow-auto px-5 py-6 sm:px-8">
+        <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-5 lg:px-8 lg:py-6">
           <div className="mx-auto w-full max-w-5xl">
             {kind === "nodes" && (
               <NodeGrid

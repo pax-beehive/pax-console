@@ -12,7 +12,6 @@ import { MobileNav } from "./mobile-nav";
 import { CustomerVisitTracker } from "@/features/analytics/use-customer-analytics";
 import { NotificationLifecycle } from "@/features/notifications/notification-lifecycle";
 import { isSettingsRoute } from "@/components/settings/settings-catalog";
-import { SettingsMobileNav } from "@/components/settings/settings-navigation";
 
 type ConsoleLayoutProps = {
   user: User;
@@ -42,7 +41,6 @@ export function ConsoleLayout({ user, children }: ConsoleLayoutProps) {
       </div>
       <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-[var(--console-mobile-nav-height)] lg:pb-0">
         <Topbar user={user} />
-        {settingsMode && <SettingsMobileNav />}
         {children}
       </section>
       <MobileNav showAdminFeatures={showAdminFeatures} />
