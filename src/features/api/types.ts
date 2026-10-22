@@ -388,6 +388,12 @@ export type HistoryMessage = {
     status: string;
     kind?: string;
     context_compaction?: boolean;
+    subagent?: {
+      background?: boolean;
+      description?: string;
+      agent_type?: string;
+    };
+    parent_tool_call_id?: string;
   };
   id?: number;
   revision?: number;
