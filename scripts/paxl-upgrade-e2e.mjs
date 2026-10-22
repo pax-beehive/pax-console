@@ -22,8 +22,11 @@ try {
     .getByRole("button", { name: "Install paxl update", exact: true })
     .click();
   await page
+    .getByRole("dialog")
     .getByText("paxl 1.2.3 verified", { exact: true })
     .waitFor({ timeout: 45000 });
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  // After a reload the result comes from Manager's recorded command.
   await page.reload();
   await page.getByText("Advanced device settings", { exact: true }).click();
   await page
