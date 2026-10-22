@@ -26,6 +26,11 @@ key ID 和本地开关，不存 endpoint 或加密密钥。登录后的前台修
 
 Service Worker 只处理推送、点击和订阅变更，不拦截 fetch 或缓存认证响应。普通会话通知展示
 Manager 提供的本轮最后一段回复短预览，最多 200 个 Unicode 字符；缺失时使用通用提示。
+新增 `approval.required` 类型用于等待用户审批的请求，标题为 `Approval needed`，
+正文为 `Your session is waiting for your approval. Tap to review the request.`。
+点击后进入对应会话查看请求，再由用户作出决定；推送点击不提交审批。Manager 在请求创建及
+投递前检查 Pax Auto Approve、待审批状态、到期时间和会话归属；已保存授权自动处理的请求
+不进入人工待审批路径。设置页只在 `approval_required_enabled` 为 true 时展示相关说明。
 通知统一跳到 Home 的 `/?session_id={encoded_id}`，由 Home 解析会话的 node/agent 并加载工作台，
 再次经过正常会话鉴权。Worker 把旧的 `/sessions/{id}` 通知链接也转换成 Home 地址；
 测试通知仍跳到通知设置页。先部署兼容两种链接的 Console，再部署生成 Home 链接的 Manager。

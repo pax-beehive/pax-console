@@ -146,6 +146,14 @@ export function NotificationSettings({ userId }: { userId: string }) {
               session. Encrypted sessions are not supported yet.
             </p>
           )}
+          {!loading && config.data?.approval_required_enabled && (
+            <p className="text-sm text-ink-tertiary">
+              Get notified when a session needs your approval. Tap a
+              notification to open the session and review the request. Requests
+              handled by Pax Auto Approve or a saved approval do not trigger
+              notifications.
+            </p>
+          )}
           <div className="flex flex-wrap gap-2">
             {!enabled && supported && (
               <Button
@@ -223,8 +231,9 @@ export function NotificationSettings({ userId }: { userId: string }) {
         </section>
         <p className="text-sm leading-6 text-ink-tertiary">
           System and browser settings control whether notifications appear.
-          Notification text contains no conversation content. Signing out
-          removes this browser&apos;s subscription.
+          Completed turn notifications include a short reply preview. Approval
+          reminders contain no request details. Signing out removes this
+          browser&apos;s subscription.
         </p>
       </div>
     </div>

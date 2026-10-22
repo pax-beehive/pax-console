@@ -108,6 +108,33 @@ function fixture(
   };
 }
 describe("push service worker", () => {
+  it("shows an approval reminder and opens the session for review", async () => {
+    const f = fixture();
+    await f.fire("push", {
+      data: {
+        json: () => ({
+          version: 1,
+          type: "approval.required",
+          notification_id: `ntf_${"4".repeat(64)}`,
+          body: "private command",
+          url: "/?session_id=waiting",
+        }),
+      },
+    });
+    expect(f.showNotification).toHaveBeenCalledWith(
+      "Approval needed",
+      expect.objectContaining({
+        body: "Your session is waiting for your approval. Tap to review the request.",
+        data: { url: "/?session_id=waiting" },
+      }),
+    );
+    await f.fire("notificationclick", {
+      notification: { close: vi.fn(), data: { url: "/?session_id=waiting" } },
+    });
+    expect(f.client.navigate).toHaveBeenCalledWith(
+      "https://pax.example.invalid/?session_id=waiting",
+    );
+  });
   const oldId = `ntf_${"1".repeat(64)}`;
   const newerId = `ntf_${"2".repeat(64)}`;
   const otherId = `ntf_${"3".repeat(64)}`;

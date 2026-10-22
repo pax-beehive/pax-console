@@ -93,6 +93,16 @@ configured. Automatic alerts cover correlated, successful standard-session
 turns, including completion after the app page closes. Encrypted-session
 completion remains unsupported and the settings page states that limit.
 
+When `approval_required_enabled` is true, the settings page also describes
+approval reminders. The worker displays `approval.required` with the fixed title
+`Approval needed` and body `Your session is waiting for your approval. Tap to
+review the request.` It opens the same Home session route for review; clicking
+the notification never submits an approval. Manager checks pending status,
+expiry, ownership, session access, and Pax Auto Approve before delivery. Requests
+covered by a saved approval bypass the pending-request path. Deploy this Console
+worker before enabling the companion Manager change. Older Managers omit the
+optional capability flag, so settings do not promise unsupported alerts.
+
 The session workbench dismisses read turn notifications on this device only.
 `completedReplyTargets` requires a durable `turn_done` and the final assistant
 reply matching the rendered timeline. An IntersectionObserver watches a marker
