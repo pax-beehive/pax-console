@@ -316,28 +316,38 @@ PAX Console
 |   +-- Knowledge
 |       +-- capsules
 |       +-- session injections
- +-- Settings (/settings; bottom-pinned sidebar group)
-    +-- Devices (Nodes / Agents)
-    |   +-- Add device: Quick connect / Pair with code
-    |   +-- Device detail: runtime, agents, browser control
-    |   +-- Advanced device settings: maintenance, secrets, deletion
-    +-- Projects (hierarchy and reusable launch Targets)
-    +-- Service status (PAX, devices, agents, recent sessions)
-    +-- Advanced settings
-        +-- Allowed actions (persistent approval grants)
-        +-- Encrypted chats (keys and pairing)
-        +-- API keys
-        +-- Manual device registration
+ +-- Settings (desktop: dedicated sidebar and content)
+    +-- Workspace
+    |   +-- Notifications (default; subscription and alert descriptions)
+    |   +-- Devices & agents (connection and device detail workflows)
+    |   +-- Projects (hierarchy and reusable workspace targets)
+    +-- Security & access
+    |   +-- Allowed actions (persistent approval grants)
+    |   +-- Encrypted chats (keys and pairing)
+    +-- Developer tools
+    |   +-- API keys
+    |   +-- Device registration (custom setup tokens)
+    +-- Status & support
+        +-- Service status (PAX, devices, agents, recent sessions)
 ```
 
-The sidebar keeps only Home and Collaboration as top-level entries; everything
-else lives in one Settings disclosure group pinned to the bottom of the
-sidebar. Home owns one recent-session rail with date groups and a secondary Project filter plus the
-embedded session workbench; do not add Sessions or Projects as separate
-first-level sidebar items.
-First-level groups are independent disclosures, not an accordion. Settings
-aggregates Projects (project/target CRUD), Devices (nodes/agents), Security
-(approval grants), Developer (API keys/node registration), and Diagnostics.
+The ordinary sidebar keeps Home and Collaboration at the top and a Settings
+entry at the bottom. Inside Settings, replace it with a 272px settings sidebar
+rather than stacking a second navigation pane. Keep group headings quiet and
+show a short purpose below each item's label. The selected section has one
+active marker; nested device and pairing workflows retain their parent.
+A Back to workspace link restores the ordinary navigation and its prior
+collapsed state. On narrow screens, retain the existing Settings directory,
+Advanced settings list, and per-page back links. Keep their original headings,
+spacing, notification explanation layout, and project navigation.
+
+Desktop Settings opens Notifications directly. Section headers explain purpose and scope;
+content uses readable widths, aligned spacing, and restrained section borders.
+Use separate descriptive rows for completed replies and approval alerts. Keep
+subscription actions together and preserve the checking/unknown state while
+confirming notification status. Do not add an intermediate directory list on desktop
+or a generic Advanced group. Existing Advanced URLs remain compatible.
+
 Collaboration owns teams, friends, envelopes, and knowledge as secondary tabs;
 team invites stay inside the Teams surface as a team action queue. Legacy deep
 links such as `/nodes`,

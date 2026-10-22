@@ -200,7 +200,7 @@ try {
       attributes: true,
     });
   });
-  await page.locator('a[href="/settings/notifications"]').click();
+  await page.locator('a[href="/settings/notifications"]:visible').click();
   await page.getByText("Checking notifications...", { exact: true }).waitFor();
   assert.equal(
     await page

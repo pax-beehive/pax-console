@@ -69,8 +69,10 @@ import {
 import { ServiceStatusPanel } from "@/components/settings/service-status-panel";
 import {
   SettingsBack,
+  SettingsPageHeader,
   settingsLinks,
 } from "@/components/settings/settings-navigation";
+import { settingsSection } from "@/components/settings/settings-catalog";
 import { NodeListRow } from "./node-list-row";
 
 type ResourceKind =
@@ -144,6 +146,17 @@ const copy: Record<
     eyebrow: "bootstrap access",
     icon: <Settings2 className="h-4 w-4" />,
   },
+};
+
+const resourceSettingsSections: Partial<Record<ResourceKind, string>> = {
+  nodes: "devices",
+  agents: "devices",
+  security: "permissions",
+  grants: "permissions",
+  encryption: "encryption",
+  monitor: "status",
+  "api-keys": "apiKeys",
+  "node-registration": "registration",
 };
 
 const emptyNodes: Node[] = [];
@@ -272,6 +285,17 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
       : undefined,
   );
   const meta = copy[kind];
+  const sectionId = resourceSettingsSections[kind];
+  const advancedSettings = [
+    "api-keys",
+    "node-registration",
+    "security",
+    "grants",
+    "encryption",
+  ].includes(kind);
+  const description = sectionId
+    ? settingsSection(sectionId).description
+    : meta.eyebrow;
   const apiError =
     nodesQuery.error ??
     agentsQuery.error ??
@@ -290,68 +314,56 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
   return (
     <ConsoleLayout user={user}>
       <div className="flex min-h-0 flex-1 flex-col">
-        <header className="border-b border-hairline px-4 py-4 sm:px-5">
-          <SettingsBack
-            href={
-              [
-                "api-keys",
-                "node-registration",
-                "security",
-                "grants",
-                "encryption",
-              ].includes(kind)
-                ? settingsLinks.advanced
-                : settingsLinks.home
-            }
-            label={
-              [
-                "api-keys",
-                "node-registration",
-                "security",
-                "grants",
-                "encryption",
-              ].includes(kind)
-                ? "Advanced settings"
-                : "Settings"
-            }
-          />
-          <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="min-w-0">
+        <SettingsPageHeader
+          title={meta.title}
+          description={description}
+          mobileHeading={
+            <>
+              <SettingsBack
+                href={
+                  advancedSettings ? settingsLinks.advanced : settingsLinks.home
+                }
+                label={advancedSettings ? "Advanced settings" : "Settings"}
+              />
               <div className="flex items-center gap-2 text-xs text-ink-tertiary">
                 {meta.icon}
                 {meta.eyebrow}
               </div>
               <h1 className="mt-2 text-2xl font-semibold">{meta.title}</h1>
-            </div>
-            <div className="flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
-              <ResourceSectionTabs kind={kind} />
-              {kind === "nodes" && (
-                <Button
-                  asChild
-                  icon={<Plus className="h-4 w-4" />}
-                  variant="primary"
-                >
-                  <Link href={settingsLinks.addDevice}>Add device</Link>
-                </Button>
-              )}
-              {kind === "agents" && (
-                <Button
-                  asChild
-                  icon={<Plus className="h-4 w-4" />}
-                  variant="primary"
-                >
-                  <Link href={settingsLinks.addAgent}>Add agent</Link>
-                </Button>
-              )}
-              {supportsActiveFilter(kind) && (
-                <ActiveFilterToggle
-                  checked={showAllResources}
-                  onChange={handleShowAllResourcesChange}
-                />
-              )}
-            </div>
+            </>
+          }
+          category={
+            sectionId ? settingsSection(sectionId).category : meta.eyebrow
+          }
+        >
+          <div className="flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+            <ResourceSectionTabs kind={kind} />
+            {kind === "nodes" && (
+              <Button
+                asChild
+                icon={<Plus className="h-4 w-4" />}
+                variant="primary"
+              >
+                <Link href={settingsLinks.addDevice}>Add device</Link>
+              </Button>
+            )}
+            {kind === "agents" && (
+              <Button
+                asChild
+                icon={<Plus className="h-4 w-4" />}
+                variant="primary"
+              >
+                <Link href={settingsLinks.addAgent}>Add agent</Link>
+              </Button>
+            )}
+            {supportsActiveFilter(kind) && (
+              <ActiveFilterToggle
+                checked={showAllResources}
+                onChange={handleShowAllResourcesChange}
+              />
+            )}
           </div>
-        </header>
+        </SettingsPageHeader>
 
         {apiError && (
           <div className="px-5 pt-4">
@@ -359,103 +371,105 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
           </div>
         )}
 
-        <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-5">
-          {kind === "nodes" && (
-            <NodeGrid
-              isLoading={nodesQuery.isLoading}
-              nodes={nodes}
-              totalCount={sortedNodes.length}
-              userId={user.user_id}
-            />
-          )}
-          {kind === "agents" && (
-            <AgentGrid
-              agents={agentRows}
-              isLoading={agentsLoading}
-              nodeLabel={`${nodes.length}/${sortedNodes.length} nodes in scope`}
-              totalCount={sortedAgents.length}
-              userId={user.user_id}
-            />
-          )}
-          {kind === "sessions" && (
-            <SessionGrid
-              filteredCount={sessionRows.length}
-              isLoading={sessionsLoading}
-              onPageChange={setSessionPage}
-              page={paginatedSessions.currentPage}
-              pageCount={paginatedSessions.pageCount}
-              pageEnd={paginatedSessions.endIndex}
-              pageStart={paginatedSessions.startIndex}
-              sessions={paginatedSessions.items}
-              totalCount={sortedSessionRows.length}
-            />
-          )}
-          {(kind === "approvals" ||
-            kind === "security" ||
-            kind === "grants" ||
-            kind === "encryption") && (
-            <div className="grid gap-4">
-              {(kind === "security" || kind === "encryption") && (
-                <E2EEKeysPanel agents={sortedAgents} nodes={sortedNodes} />
-              )}
-              {kind !== "encryption" && (
-                <ApprovalsPanel
-                  approvals={approvalsQuery.data?.approvals ?? []}
-                  grants={approvalGrantsQuery.data?.grants ?? []}
-                  isLoading={
-                    approvalsQuery.isLoading || approvalGrantsQuery.isLoading
-                  }
-                  showPending={kind === "approvals"}
-                  userId={user.user_id}
-                />
-              )}
-            </div>
-          )}
-          {kind === "monitor" && (
-            <ServiceStatusPanel
-              nodes={nodesQuery.data?.nodes}
-              agents={agentsQuery.data?.agents}
-              health={healthQuery.data}
-              loading={
-                nodesQuery.isLoading ||
-                agentsQuery.isLoading ||
-                healthQuery.isLoading
-              }
-              error={Boolean(
-                nodesQuery.error || agentsQuery.error || healthQuery.error,
-              )}
-              recentSessions={
-                agentsQuery.error ||
-                sessionsLoading ||
-                firstQueryError(sessionQueries)
-                  ? undefined
-                  : allSessions.length
-              }
-              refreshing={
-                nodesQuery.isFetching ||
-                agentsQuery.isFetching ||
-                healthQuery.isFetching
-              }
-              refresh={() => {
-                void nodesQuery.refetch();
-                void agentsQuery.refetch();
-                void healthQuery.refetch();
-                sessionQueries.forEach((query) => {
-                  void query.refetch();
-                });
-              }}
-            />
-          )}
-          {kind === "api-keys" && (
-            <ApiKeysPanel
-              apiKeys={apiKeysQuery.data?.api_keys ?? []}
-              isLoading={apiKeysQuery.isLoading}
-              userId={user.user_id}
-            />
-          )}
-          {kind === "node-registration" && (
-            <NodeRegistrationPanel userId={user.user_id} />
-          )}
+        <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-5 lg:px-8 lg:py-6">
+          <div className="mx-auto w-full max-w-5xl">
+            {kind === "nodes" && (
+              <NodeGrid
+                isLoading={nodesQuery.isLoading}
+                nodes={nodes}
+                totalCount={sortedNodes.length}
+                userId={user.user_id}
+              />
+            )}
+            {kind === "agents" && (
+              <AgentGrid
+                agents={agentRows}
+                isLoading={agentsLoading}
+                nodeLabel={`${nodes.length}/${sortedNodes.length} nodes in scope`}
+                totalCount={sortedAgents.length}
+                userId={user.user_id}
+              />
+            )}
+            {kind === "sessions" && (
+              <SessionGrid
+                filteredCount={sessionRows.length}
+                isLoading={sessionsLoading}
+                onPageChange={setSessionPage}
+                page={paginatedSessions.currentPage}
+                pageCount={paginatedSessions.pageCount}
+                pageEnd={paginatedSessions.endIndex}
+                pageStart={paginatedSessions.startIndex}
+                sessions={paginatedSessions.items}
+                totalCount={sortedSessionRows.length}
+              />
+            )}
+            {(kind === "approvals" ||
+              kind === "security" ||
+              kind === "grants" ||
+              kind === "encryption") && (
+              <div className="grid gap-4">
+                {(kind === "security" || kind === "encryption") && (
+                  <E2EEKeysPanel agents={sortedAgents} nodes={sortedNodes} />
+                )}
+                {kind !== "encryption" && (
+                  <ApprovalsPanel
+                    approvals={approvalsQuery.data?.approvals ?? []}
+                    grants={approvalGrantsQuery.data?.grants ?? []}
+                    isLoading={
+                      approvalsQuery.isLoading || approvalGrantsQuery.isLoading
+                    }
+                    showPending={kind === "approvals"}
+                    userId={user.user_id}
+                  />
+                )}
+              </div>
+            )}
+            {kind === "monitor" && (
+              <ServiceStatusPanel
+                nodes={nodesQuery.data?.nodes}
+                agents={agentsQuery.data?.agents}
+                health={healthQuery.data}
+                loading={
+                  nodesQuery.isLoading ||
+                  agentsQuery.isLoading ||
+                  healthQuery.isLoading
+                }
+                error={Boolean(
+                  nodesQuery.error || agentsQuery.error || healthQuery.error,
+                )}
+                recentSessions={
+                  agentsQuery.error ||
+                  sessionsLoading ||
+                  firstQueryError(sessionQueries)
+                    ? undefined
+                    : allSessions.length
+                }
+                refreshing={
+                  nodesQuery.isFetching ||
+                  agentsQuery.isFetching ||
+                  healthQuery.isFetching
+                }
+                refresh={() => {
+                  void nodesQuery.refetch();
+                  void agentsQuery.refetch();
+                  void healthQuery.refetch();
+                  sessionQueries.forEach((query) => {
+                    void query.refetch();
+                  });
+                }}
+              />
+            )}
+            {kind === "api-keys" && (
+              <ApiKeysPanel
+                apiKeys={apiKeysQuery.data?.api_keys ?? []}
+                isLoading={apiKeysQuery.isLoading}
+                userId={user.user_id}
+              />
+            )}
+            {kind === "node-registration" && (
+              <NodeRegistrationPanel userId={user.user_id} />
+            )}
+          </div>
         </div>
       </div>
     </ConsoleLayout>
