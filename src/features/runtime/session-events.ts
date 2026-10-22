@@ -57,6 +57,13 @@ export type PermissionRequestEvent = {
   createdAt: string;
 };
 
+/** An Agent or Task call of the main agent: the subagent it launched. */
+export type SubagentCall = {
+  background?: boolean;
+  description?: string;
+  agentType?: string;
+};
+
 export type SessionMessageAttachment = {
   attachmentId?: string;
   filename: string;
@@ -147,6 +154,8 @@ export type SessionEvent = (
       patches?: CodePatch[];
       durationMs?: number;
       contextCompaction?: boolean;
+      subagent?: SubagentCall;
+      parentToolCallId?: string;
       createdAt: string;
     }
   | {

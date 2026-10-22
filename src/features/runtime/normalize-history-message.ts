@@ -273,6 +273,22 @@ function normalizeHistoryMessageWithoutTurn(
         name: tool.title || tool.tool_call_id || "Tool",
         status: historyToolStatus(tool.status || message.status),
         ...(tool.context_compaction ? { contextCompaction: true } : {}),
+        ...(tool.subagent
+          ? {
+              subagent: {
+                ...(tool.subagent.background ? { background: true } : {}),
+                ...(tool.subagent.description
+                  ? { description: tool.subagent.description }
+                  : {}),
+                ...(tool.subagent.agent_type
+                  ? { agentType: tool.subagent.agent_type }
+                  : {}),
+              },
+            }
+          : {}),
+        ...(tool.parent_tool_call_id
+          ? { parentToolCallId: tool.parent_tool_call_id }
+          : {}),
         sessionUpdate: message.message_type,
         ...(message.has_detail
           ? {

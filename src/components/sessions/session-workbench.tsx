@@ -123,6 +123,7 @@ import {
   latestRuntimeTurnId,
   reconcileSessionTimeline,
 } from "@/features/runtime/reconcile-session-timeline";
+import { countRunningSubagents } from "@/features/runtime/running-subagents";
 import {
   groupWorkstreamEvents,
   SessionEvent,
@@ -1501,26 +1502,34 @@ export function SessionWorkbench({
     [historyMessages, usesEncryptedTransport, encryptedRuntime.historyEvents],
   );
 
+  const timelineRuntime = useMemo(
+    () => ({
+      sessionStatus: activeSession?.runtime_status,
+      sessionTurnId: observedTurnId,
+      localStatus: conversationRun.status,
+      localTurnId: conversationRun.activeTurnId,
+    }),
+    [
+      activeSession?.runtime_status,
+      observedTurnId,
+      conversationRun.status,
+      conversationRun.activeTurnId,
+    ],
+  );
   const reconciledTimeline = useMemo(() => {
     if (usesEncryptedTransport) {
       return {
         timeline: mergeEvents([...historyEvents, ...encryptedRuntime.events]),
       };
     }
-    const runtime = {
-      sessionStatus: activeSession?.runtime_status,
-      sessionTurnId: observedTurnId,
-      localStatus: conversationRun.status,
-      localTurnId: conversationRun.activeTurnId,
-    };
     return reconcileSessionTimeline(
       historyEvents,
       conversationRun.events,
       sessionObserver.events,
       sessionObserver.snapshotTurnIds,
       historySync.calibratedTurnIds,
-      historySnapshotsForTimeline(historySync.snapshotTurnIds, runtime),
-      activeTimelineTurnId(runtime),
+      historySnapshotsForTimeline(historySync.snapshotTurnIds, timelineRuntime),
+      activeTimelineTurnId(timelineRuntime),
     );
   }, [
     conversationRun.events,
@@ -1531,12 +1540,19 @@ export function SessionWorkbench({
     sessionObserver.snapshotTurnIds,
     historySync.calibratedTurnIds,
     historySync.snapshotTurnIds,
-    activeSession?.runtime_status,
-    conversationRun.status,
-    conversationRun.activeTurnId,
-    observedTurnId,
+    timelineRuntime,
   ]);
   const { timeline } = reconciledTimeline;
+  const runningSubagents = useMemo(
+    () =>
+      usesEncryptedTransport
+        ? 0
+        : countRunningSubagents(
+            timeline,
+            activeTimelineTurnId(timelineRuntime),
+          ),
+    [timeline, timelineRuntime, usesEncryptedTransport],
+  );
   const readNotificationTargets = useMemo(
     () =>
       usesEncryptedTransport || !currentSessionId
@@ -2502,6 +2518,24 @@ export function SessionWorkbench({
           data-viewport-scroll
           ref={timelineScrollRef}
         >
+          {runningSubagents > 0 && (
+            <div className="pointer-events-none sticky top-0 z-10 flex h-0 justify-center overflow-visible">
+              <Badge
+                aria-live="polite"
+                className="pointer-events-auto max-w-none shadow-lg shadow-black/30"
+                tone="accent"
+                tooltip="Subagents this turn launched that are still working"
+              >
+                <LoaderCircle
+                  aria-hidden="true"
+                  className="mr-1 inline h-3 w-3 animate-spin align-[-2px]"
+                />
+                {runningSubagents === 1
+                  ? "1 subagent running"
+                  : `${runningSubagents} subagents running`}
+              </Badge>
+            </div>
+          )}
           <div className="mx-auto grid w-full max-w-4xl gap-2">
             <SessionHistoryPagination
               scrollRef={timelineScrollRef}

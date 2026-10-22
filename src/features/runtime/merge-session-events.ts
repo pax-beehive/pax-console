@@ -229,7 +229,31 @@ function mergeToolCallEvent(
     permissions: mergePermissionLists(existing.permissions, event.permissions),
     sessionId: existing.sessionId,
     toolCallId: existing.toolCallId ?? event.toolCallId,
+    ...mergeSubagentFields(existing, event),
   } satisfies SessionEvent;
+}
+
+// Each frame of an Agent call carries only part of its subagent facts, so a
+// later frame must not drop what an earlier one reported.
+function mergeSubagentFields(
+  existing: Extract<SessionEvent, { type: "tool_call" }>,
+  event: Extract<SessionEvent, { type: "tool_call" }>,
+) {
+  const parentToolCallId = existing.parentToolCallId ?? event.parentToolCallId;
+  const subagent =
+    existing.subagent || event.subagent
+      ? { ...existing.subagent, ...event.subagent }
+      : undefined;
+  if (
+    subagent &&
+    (existing.subagent?.background || event.subagent?.background)
+  ) {
+    subagent.background = true;
+  }
+  return {
+    ...(subagent ? { subagent } : {}),
+    ...(parentToolCallId ? { parentToolCallId } : {}),
+  };
 }
 
 function mergeToolPayload(

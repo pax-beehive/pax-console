@@ -1,4 +1,4 @@
-import { SessionEvent } from "./session-events";
+import { SessionEvent, ToolCallEvent } from "./session-events";
 import {
   createInvocationEvent,
   invocationStateFromType,
@@ -280,6 +280,7 @@ function normalizeToolCall(
     valueFrom(frame._meta, "context_compaction") === true
       ? { contextCompaction: true }
       : {}),
+    ...subagentFields(frame),
     createdAt,
   };
 
@@ -315,6 +316,38 @@ function normalizeToolCall(
   }
 
   return [event] satisfies SessionEvent[];
+}
+
+// claude-agent-acp names the tool in `_meta.claudeCode`, and tags every call a
+// subagent makes with the id of the Agent or Task call that launched it. The
+// first frame of an Agent call carries an empty input; the background flag
+// arrives with a later update, or as the launch response of the tool.
+function subagentFields(
+  frame: TunnelFrame,
+): Pick<ToolCallEvent, "subagent" | "parentToolCallId"> {
+  const claudeCode = asRecord(valueFrom(frame._meta, "claudeCode"));
+  const parentToolCallId = stringFromValue(claudeCode, "parentToolUseId");
+  if (parentToolCallId) {
+    return { parentToolCallId };
+  }
+  const toolName = stringFromValue(claudeCode, "toolName");
+  if (toolName !== "Agent" && toolName !== "Task") {
+    return {};
+  }
+  const rawInput = valueFrom(frame, "rawInput");
+  const background =
+    valueFrom(rawInput, "run_in_background") === true ||
+    stringFromValue(valueFrom(claudeCode, "toolResponse"), "status") ===
+      "async_launched";
+  const description = stringFromValue(rawInput, "description");
+  const agentType = stringFromValue(rawInput, "subagent_type");
+  return {
+    subagent: {
+      ...(background ? { background } : {}),
+      ...(description ? { description } : {}),
+      ...(agentType ? { agentType } : {}),
+    },
+  };
 }
 
 function normalizeArtifactPublication(
