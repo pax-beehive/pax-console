@@ -9,6 +9,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { isDaemonCommandSettled } from "@/features/devices/daemon-commands";
 import { API_BASE_URL, apiFetch, userPath } from "./client";
 import { ApiError, AuthError } from "./errors";
 import { queryKeys } from "./query-keys";
@@ -1992,7 +1993,15 @@ export function useNodes(userId?: string, refetchInterval = 15_000) {
     queryKey: queryKeys.nodes(userId ?? "pending"),
     queryFn: () => listNodes(userId as string),
     enabled: Boolean(userId),
-    refetchInterval,
+    // Follow paxd maintenance closely while any device reports one running.
+    refetchInterval: (query) =>
+      query.state.data?.nodes?.some((node) =>
+        node.latest_daemon_commands?.some(
+          (command) => command.state === "in_progress",
+        ),
+      )
+        ? Math.min(refetchInterval, 3_000)
+        : refetchInterval,
     refetchOnWindowFocus: "always",
   });
 }
@@ -2095,6 +2104,7 @@ export function useNodeDaemonCommand(
   userId?: string,
   nodeId?: string,
   commandId?: string,
+  enabled = true,
 ) {
   return useQuery({
     queryKey: queryKeys.nodeDaemonCommand(
@@ -2108,15 +2118,15 @@ export function useNodeDaemonCommand(
         nodeId as string,
         commandId as string,
       ),
-    enabled: Boolean(userId && nodeId && commandId),
+    enabled: Boolean(userId && nodeId && commandId && enabled),
+    retry: false,
     refetchInterval: (query) => {
-      if (query.state.error || query.state.data?.error) {
+      if (isDaemonCommandSettled(query.state.data)) {
         return false;
       }
-      const status = query.state.data?.command?.status;
-      return status && ["applied", "failed", "rejected"].includes(status)
-        ? false
-        : 1_000;
+      // paxd restarts and upgrades drop the control tunnel on purpose; keep
+      // polling slowly until the node reconnects.
+      return query.state.error || query.state.data?.stale ? 3_000 : 1_000;
     },
   });
 }

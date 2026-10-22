@@ -1,57 +1,23 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { AlertCircle, Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   getLatestPaxlRelease,
-  getNodeDaemonCommand,
   upgradeNodePaxl,
 } from "@/features/api/resources";
-import { queryKeys } from "@/features/api/query-keys";
-import { Node, PaxlObservation } from "@/features/api/types";
+import { Node } from "@/features/api/types";
+import {
+  paxlObservation,
+  versionsEqual,
+} from "@/features/devices/daemon-commands";
+import { compactDateTime } from "@/lib/format";
+import { DaemonCommandDialog } from "./daemon-command-dialog";
+import { nodeLabel } from "./resource-models";
 
-const changed = "paxl-upgrade-command";
-function subscribe(listener: () => void) {
-  window.addEventListener(changed, listener);
-  window.addEventListener("storage", listener);
-  return () => {
-    window.removeEventListener(changed, listener);
-    window.removeEventListener("storage", listener);
-  };
-}
-function read(key: string) {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-function parse(
-  raw: string | null,
-): { command_id: string; version: string } | undefined {
-  try {
-    const value = JSON.parse(raw ?? "null");
-    return typeof value?.command_id === "string" &&
-      typeof value?.version === "string"
-      ? value
-      : undefined;
-  } catch {
-    return undefined;
-  }
-}
-function observation(value: unknown): PaxlObservation | undefined {
-  if (
-    !value ||
-    typeof value !== "object" ||
-    !("status" in value) ||
-    typeof value.status !== "string"
-  )
-    return undefined;
-  return value as PaxlObservation;
-}
-
+/** paxl status and upgrade entry for the node detail page. */
 export function NodePaxlUpgrade({
   node,
   userId,
@@ -60,170 +26,159 @@ export function NodePaxlUpgrade({
   userId: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [storageError, setStorageError] = useState("");
-  const client = useQueryClient();
-  const key = `paxl-upgrade:${userId}:${node.node_id}`;
-  const raw = useSyncExternalStore(
-    subscribe,
-    () => read(key),
-    () => null,
+  const installed = paxlObservation(node);
+  const latestUpgrade = node.latest_daemon_commands?.find(
+    (record) => record.type === "paxl.upgrade",
   );
-  const pending = parse(raw);
-  const command = useQuery({
-    queryKey: queryKeys.nodeDaemonCommand(
-      userId,
-      node.node_id,
-      pending?.command_id ?? "pending",
-    ),
-    queryFn: () =>
-      getNodeDaemonCommand(userId, node.node_id, pending!.command_id),
-    enabled: Boolean(pending && node.online),
-    retry: false,
-    refetchInterval: (q) =>
-      ["applied", "failed", "rejected"].includes(
-        q.state.data?.command?.status ?? "",
-      )
-        ? false
-        : 2000,
-  });
-  const status = command.data?.command?.status;
-  const terminal = status && ["applied", "failed", "rejected"].includes(status);
-  const reported = observation(node.metadata?.paxl);
-  const verified =
-    status === "applied" ? command.data?.command?.result?.paxl : undefined;
-  const installed =
-    verified &&
-    (!reported?.checked_at ||
-      Date.parse(verified.checked_at ?? "") > Date.parse(reported.checked_at))
-      ? verified
-      : reported;
-  const latest = useQuery({
-    queryKey: ["paxl-release", node.os, node.arch, "stable"],
-    queryFn: () => getLatestPaxlRelease(node.os!, node.arch!),
-    enabled: open && Boolean(node.os && node.arch),
-  });
-  const mutation = useMutation({
-    mutationFn: (request: { command_id: string; version: string }) =>
-      upgradeNodePaxl(userId, node.node_id, request),
-    onSuccess: () => {
-      setOpen(false);
-      void command.refetch();
-      void client.invalidateQueries({ queryKey: queryKeys.nodes(userId) });
-    },
-  });
-  function submit() {
-    if (!latest.data?.version) return;
-    const request = {
-      command_id: crypto.randomUUID(),
-      version: latest.data.version,
-    };
-    try {
-      localStorage.setItem(key, JSON.stringify(request));
-      window.dispatchEvent(new Event(changed));
-    } catch {
-      setStorageError(
-        "Could not save the command for recovery. Enable browser storage and retry.",
-      );
-      return;
-    }
-    mutation.mutate(request);
-  }
-  const error =
-    mutation.error?.message ??
-    command.data?.command?.error_message ??
-    storageError;
+  const running = latestUpgrade?.state === "in_progress";
+
   return (
     <div className="grid min-w-0 gap-2 text-xs">
       <div className="flex flex-wrap items-center gap-2">
         <span
-          title={[installed?.path, installed?.checked_at, installed?.error]
-            .filter(Boolean)
-            .join(" · ")}
+          title={
+            [installed?.path, installed?.checked_at, installed?.error]
+              .filter(Boolean)
+              .join(" · ") || undefined
+          }
         >
           paxl {installed?.version ?? installed?.status ?? "not reported"}
           {!node.online && installed ? " · last observed" : ""}
         </span>
         <Button
-          size="sm"
-          disabled={
-            !node.online ||
-            installed?.status !== "installed" ||
-            Boolean(pending && !terminal)
-          }
+          disabled={!node.online || installed?.status !== "installed"}
           onClick={() => setOpen(true)}
+          size="sm"
+          type="button"
         >
           Upgrade paxl
         </Button>
       </div>
-      {pending && (
-        <div role="status">
-          {status === "applied"
-            ? `paxl ${command.data?.command?.result?.paxl?.version ?? pending.version} verified`
-            : `${status ?? "Result pending"} · ${command.data?.command?.result?.phase ?? pending.version}`}
-          {!terminal && !mutation.isPending && (
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={!node.online}
-              onClick={() => mutation.mutate(pending)}
-            >
-              Retry same command
-            </Button>
+      {latestUpgrade && (
+        <p
+          className={
+            latestUpgrade.state === "failed" ? "text-warning" : "text-ink-muted"
+          }
+          role="status"
+        >
+          {running && (
+            <Loader2 className="mr-1.5 inline h-3 w-3 animate-spin" />
           )}
-        </div>
-      )}
-      {error && (
-        <p role="alert" className="text-warning">
-          {error}
+          {latestUpgrade.state === "failed" && (
+            <AlertCircle className="mr-1.5 inline h-3 w-3" />
+          )}
+          <span>
+            {latestUpgrade.state === "succeeded"
+              ? `paxl ${latestUpgrade.target_version} verified`
+              : latestUpgrade.state === "failed"
+                ? `paxl ${latestUpgrade.target_version} upgrade failed${latestUpgrade.error_message ? `: ${latestUpgrade.error_message}` : ""}`
+                : `Upgrading paxl to ${latestUpgrade.target_version}`}
+          </span>
+          <span className="text-ink-tertiary">
+            {" · "}
+            {compactDateTime(
+              latestUpgrade.completed_at ?? latestUpgrade.created_at,
+            )}
+          </span>
         </p>
       )}
-      {command.error && (
-        <p className="text-ink-muted">
-          Connection unavailable. The saved command will be checked again.
-        </p>
-      )}
-      <ConfirmDialog
-        title="Upgrade paxl?"
-        open={open}
+      <PaxlUpgradeDialog
+        node={node}
         onOpenChange={setOpen}
-        confirmLabel="Install paxl update"
-        onConfirm={submit}
-        disabled={mutation.isPending}
-        confirmDisabled={
-          latest.isError ||
-          latest.isFetching ||
-          !latest.data?.version ||
-          latest.data.version.replace(/^v/, "") ===
-            installed?.version?.replace(/^v/, "")
-        }
-        description={
-          <div>
-            <p>
+        open={open}
+        resumeCommandId={running ? latestUpgrade.command_id : undefined}
+        userId={userId}
+      />
+    </div>
+  );
+}
+
+export function PaxlUpgradeDialog({
+  node,
+  onOpenChange,
+  open,
+  resumeCommandId,
+  userId,
+}: {
+  node: Node;
+  onOpenChange: (open: boolean) => void;
+  open: boolean;
+  resumeCommandId?: string;
+  userId: string;
+}) {
+  const installed = paxlObservation(node);
+  const latest = useQuery({
+    queryKey: ["paxl-release", node.os, node.arch, "stable"],
+    queryFn: () => getLatestPaxlRelease(node.os!, node.arch!),
+    enabled: open && Boolean(node.os && node.arch),
+  });
+  const latestVersion = latest.data?.version;
+
+  return (
+    <DaemonCommandDialog
+      confirmBody={
+        <div className="grid gap-2">
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-hairline bg-canvas px-3 py-2.5">
+            <span className="font-mono text-sm text-ink">
               {installed?.version ?? "Unknown"} →{" "}
               {latest.isError
                 ? "Release check failed"
-                : (latest.data?.version ?? "Checking stable release…")}
-            </p>
-            <p>
-              New paxl invocations will use this version. Running processes
-              continue; paxd stays connected.
-            </p>
-            {latest.error && (
-              <>
-                <p role="alert">{latest.error.message}</p>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={latest.isFetching}
-                  onClick={() => void latest.refetch()}
-                >
-                  Retry release check
-                </Button>
-              </>
-            )}
+                : (latestVersion ?? "Checking stable release…")}
+            </span>
+            <span className="text-xs text-ink-tertiary">latest stable</span>
           </div>
+          <p className="text-xs leading-5 text-ink-tertiary">
+            New paxl invocations will use this version. Running processes
+            continue; paxd stays connected.
+          </p>
+          {latest.error && (
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-xs text-warning" role="alert">
+                {latest.error.message}
+              </p>
+              <Button
+                disabled={latest.isFetching}
+                onClick={() => void latest.refetch()}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                Retry release check
+              </Button>
+            </div>
+          )}
+        </div>
+      }
+      confirmDisabled={
+        latest.isError ||
+        latest.isFetching ||
+        !latestVersion ||
+        versionsEqual(latestVersion, installed?.version)
+      }
+      confirmLabel="Install paxl update"
+      description={nodeLabel(node)}
+      icon={<Download className="h-4 w-4" />}
+      kind="paxl.upgrade"
+      nodeId={node.node_id}
+      onOpenChange={onOpenChange}
+      open={open}
+      resumeCommandId={resumeCommandId}
+      submit={() => {
+        if (!latestVersion) {
+          return Promise.reject(
+            new Error("No stable paxl release is available."),
+          );
         }
-      />
-    </div>
+        return upgradeNodePaxl(userId, node.node_id, {
+          command_id: crypto.randomUUID(),
+          version: latestVersion,
+        });
+      }}
+      successText={(snapshot) =>
+        `paxl ${snapshot.expectedVersion ?? latestVersion} verified`
+      }
+      title="Upgrade paxl"
+      userId={userId}
+    />
   );
 }

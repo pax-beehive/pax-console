@@ -71,8 +71,7 @@ import {
   SettingsBack,
   settingsLinks,
 } from "@/components/settings/settings-navigation";
-import { NodePaxlUpgrade } from "./node-paxl-upgrade";
-import { NodeMaintenanceActions } from "./node-maintenance-actions";
+import { NodeListRow } from "./node-list-row";
 
 type ResourceKind =
   | "nodes"
@@ -546,90 +545,13 @@ function NodeGrid({
       ) : nodes.length > 0 ? (
         <div className="grid min-w-0 overflow-hidden rounded-lg border border-hairline">
           {nodes.map((node) => (
-            <article
-              className="grid min-w-0 gap-3 border-b border-hairline bg-surface-1 px-3 py-2.5 transition last:border-b-0 hover:bg-surface-2 sm:grid-cols-[minmax(0,1fr)_180px_120px_132px]"
+            <NodeListRow
+              deleting={removeNode.isPending}
               key={node.node_id}
-            >
-              <Link className="contents" href={`/nodes/${node.node_id}`}>
-                <div className="min-w-0">
-                  <TruncatedText className="text-sm font-medium">
-                    {node.name ?? node.hostname ?? node.node_id}
-                  </TruncatedText>
-                  {node.description && (
-                    <TruncatedText className="mt-1 text-xs text-ink-muted">
-                      {node.description}
-                    </TruncatedText>
-                  )}
-                </div>
-                <div className="grid min-w-0 gap-1">
-                  <MonoId>
-                    {node.os ?? "unknown os"} / {node.arch ?? "unknown arch"}
-                  </MonoId>
-                  <MonoId tooltip={node.node_id}>
-                    {compactId(node.node_id)}
-                  </MonoId>
-                </div>
-                <div className="flex items-start sm:justify-end">
-                  <Badge tone={node.online ? "success" : "neutral"}>
-                    {node.online ? "online" : "offline"}
-                  </Badge>
-                </div>
-              </Link>
-              <div className="flex items-start justify-end gap-1">
-                <div className="grid gap-2">
-                  <NodePaxlUpgrade node={node} userId={userId} />
-                  <NodeMaintenanceActions
-                    currentVersion={node.paxd_version}
-                    disabled={!node.online || removeNode.isPending}
-                    nodeArch={node.arch}
-                    nodeId={node.node_id}
-                    nodeLabel={node.name ?? node.hostname ?? node.node_id}
-                    nodeOS={node.os}
-                    userId={userId}
-                  />
-                </div>
-                <ConfirmDialog
-                  confirmLabel={
-                    removeNode.isPending ? "Deleting..." : "Delete node"
-                  }
-                  description={
-                    <>
-                      This removes{" "}
-                      <span className="font-medium text-ink">
-                        {nodeToDelete?.name ??
-                          nodeToDelete?.hostname ??
-                          nodeToDelete?.node_id}
-                      </span>{" "}
-                      from the fleet view. Agents hosted on this node will be
-                      cleaned up at the same time.
-                    </>
-                  }
-                  disabled={removeNode.isPending}
-                  onConfirm={() => {
-                    if (nodeToDelete) {
-                      removeNode.mutate(nodeToDelete);
-                    }
-                  }}
-                  onOpenChange={(open) => {
-                    if (!open) {
-                      setNodeToDelete(null);
-                    }
-                  }}
-                  open={nodeToDelete?.node_id === node.node_id}
-                  title="Delete node?"
-                >
-                  <Button
-                    disabled={removeNode.isPending}
-                    icon={<Trash2 className="h-4 w-4" />}
-                    onClick={() => setNodeToDelete(node)}
-                    size="icon"
-                    tooltip="Delete node"
-                    type="button"
-                    variant="danger"
-                  />
-                </ConfirmDialog>
-              </div>
-            </article>
+              node={node}
+              onDelete={setNodeToDelete}
+              userId={userId}
+            />
           ))}
         </div>
       ) : totalCount > 0 ? (
@@ -640,6 +562,32 @@ function NodeGrid({
           onStart={() => setSetupStarted(true)}
         />
       )}
+      <ConfirmDialog
+        confirmLabel={removeNode.isPending ? "Deleting..." : "Delete node"}
+        description={
+          <>
+            This removes{" "}
+            <span className="font-medium text-ink">
+              {nodeToDelete ? nodeLabel(nodeToDelete) : ""}
+            </span>{" "}
+            from the fleet view. Agents hosted on this node will be cleaned up
+            at the same time.
+          </>
+        }
+        disabled={removeNode.isPending}
+        onConfirm={() => {
+          if (nodeToDelete) {
+            removeNode.mutate(nodeToDelete);
+          }
+        }}
+        onOpenChange={(open) => {
+          if (!open) {
+            setNodeToDelete(null);
+          }
+        }}
+        open={nodeToDelete !== null}
+        title="Delete node?"
+      />
     </div>
   );
 }
