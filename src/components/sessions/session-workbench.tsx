@@ -124,6 +124,7 @@ import {
   reconcileSessionTimeline,
 } from "@/features/runtime/reconcile-session-timeline";
 import { countRunningSubagents } from "@/features/runtime/running-subagents";
+import { SubagentCountBadge } from "./subagent-count-badge";
 import {
   groupWorkstreamEvents,
   SessionEvent,
@@ -2470,6 +2471,7 @@ export function SessionWorkbench({
               }
               status={displayedRunStatus}
             />
+            <SubagentCountBadge count={runningSubagents} />
             <SessionRuntimeActions
               canReset={Boolean(
                 activeSession?.runtime_turn_instance_id &&
@@ -2518,24 +2520,6 @@ export function SessionWorkbench({
           data-viewport-scroll
           ref={timelineScrollRef}
         >
-          {runningSubagents > 0 && (
-            <div className="pointer-events-none sticky top-0 z-10 flex h-0 justify-center overflow-visible">
-              <Badge
-                aria-live="polite"
-                className="pointer-events-auto max-w-none shadow-lg shadow-black/30"
-                tone="accent"
-                tooltip="Subagents this turn launched that are still working"
-              >
-                <LoaderCircle
-                  aria-hidden="true"
-                  className="mr-1 inline h-3 w-3 animate-spin align-[-2px]"
-                />
-                {runningSubagents === 1
-                  ? "1 subagent running"
-                  : `${runningSubagents} subagents running`}
-              </Badge>
-            </div>
-          )}
           <div className="mx-auto grid w-full max-w-4xl gap-2">
             <SessionHistoryPagination
               scrollRef={timelineScrollRef}
