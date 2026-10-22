@@ -56,6 +56,34 @@ paxl backend; it verifies official downloads and retains an independent rollback
 binary. The existing command, restart and runtime verification flow is shared.
 Homebrew and npx wrappers remain unsupported.
 
+## Settings workspace
+
+`/settings` opens the actual Notifications page. `settings/settings-catalog.ts`
+owns the four navigation groups, eight sections, descriptions, and legacy-route
+matching. Desktop Settings uses a dedicated 272px sidebar with a Back to workspace
+link; it replaces the ordinary app navigation rather than adding another rail.
+The workspace sidebar's persisted collapsed state is preserved and restored on
+exit. Narrow screens use a labeled native section selector with grouped options.
+Navigation retains the existing authenticated routes and query ownership.
+
+`SettingsPageHeader` gives each section a title and purpose description.
+Notification controls explain device scope and separate subscription actions
+from completed-reply and approval-request descriptions. Unknown notification
+state remains unknown until device confirmation completes; switching sections
+must never expose an Enable action for an already enabled subscription.
+Projects retain their own project/target panes inside the Settings workspace.
+Devices retain their Devices/Agents segmented view and detail workflows.
+`/settings/advanced` redirects to Allowed actions; existing deep links continue
+to work. See `docs/settings-inventory.md` for the feature inventory.
+
+`node scripts/settings-workspace-browser.mjs` checks all eight sections at desktop
+and mobile widths, active links, legacy Advanced navigation, and overflow. It
+uses fictional account/API data and saves screenshots under
+`PAX_SETTINGS_SCREENSHOTS` (default `/tmp/pax-settings-workspace`).
+`PAX_SETTINGS_PREVIEW_URL` defaults to `http://127.0.0.1:3375`.
+The push audit now switches through the mobile section selector while retaining
+warm query caches. Real push-provider and OS display claims remain excluded.
+
 ## Customer analytics and focus-only polling
 
 Device opt-in is in Settings > Notifications (`/settings/notifications`).
@@ -341,7 +369,7 @@ POST failure, retain the value returned by `prepareEncryptedCommand` and call
 `postEncryptedCommand` again with that exact envelope; re-encrypting the same
 business command would change its nonce/ciphertext and correctly conflict at the
 Manager. `root-key-store.ts` stores
-one development root key per agent in IndexedDB, surfaced under Settings / Advanced settings /
+one development root key per agent in IndexedDB, surfaced under Settings / Security & access /
 Encrypted chats. Root keys must not be put in TanStack Query, localStorage, server
 components, URL state, or the Manager API.
 
@@ -1311,18 +1339,17 @@ Collapsed tabs show icons only; labels must remain available via Tooltip.
 
 ## Current Sidebar Routes
 
-The sidebar is intentionally hierarchical. Keep first-level nav coarse: only
-Home and Collaboration live at the top. Everything else (the former Runtime
-workspace and the settings pages) sits in one Settings group pinned to the
-bottom of the sidebar. First-level groups are independent disclosures, not an
-accordion; multiple groups may stay open at the same time.
+The ordinary workspace sidebar keeps Home and Collaboration at the top and a
+Settings entry at the bottom. Collaboration retains its secondary disclosure.
+Entering Settings replaces the ordinary sidebar with the grouped settings
+catalog; it does not add another navigation rail.
 
 ```txt
 Home             /
 Collaboration    /collaboration/teams
                  children: Teams, Friends, Envelopes, Knowledge
-Settings         bottom-pinned group; /settings
-                 children: Devices, Projects, Service status, Advanced settings
+Settings         bottom-pinned entry; /settings opens Notifications
+                 dedicated grouped navigation replaces the workspace sidebar
 ```
 
 These deep links should remain directly reachable:
@@ -1339,13 +1366,13 @@ These deep links should remain directly reachable:
 /collaboration/friends         Friends
 /collaboration/envelopes       Envelopes
 /collaboration/knowledge       Knowledge
-/settings                      Settings directory
+/settings                      Settings workspace; Notifications by default
 /settings/devices              Devices; ?view=agents selects Agents
 /settings/devices/add          Quick connect / Browser sign-in
 /settings/devices/agents/add   Agent setup; optional nodeId selects a computer
 /settings/projects             Project hierarchy and launch Targets
 /settings/service-status       PAX health, devices and agents independently
-/settings/advanced             Advanced settings directory
+/settings/advanced             Redirect to Allowed actions
 /settings/advanced/permissions Active approval grants
 /settings/advanced/encryption  Browser keys and encrypted-device pairing
 /settings/advanced/api-keys    API key management
@@ -1354,14 +1381,12 @@ These deep links should remain directly reachable:
 /agents/[agentId]?nodeId=...   Agent detail
 ```
 
-When adding a sidebar item, add both a real `src/app/**/page.tsx` route and an
-active-state mapping in `src/components/shell/sidebar.tsx`. Prefer adding a
-secondary tab to Collaboration or the bottom Settings group when the
-destination belongs to those workspaces. Settings is for low-frequency
-configuration and observability, not user work: inquiries and conversations
-remain Home deep-links. Devices and Developer may use page-local segmented
-views because they intentionally aggregate closely related resources. Home
-owns the user-facing Sessions tab; do not re-promote Sessions as a sidebar item.
+When adding a Settings section, add a real `src/app/**/page.tsx` route and its
+label, description, and active-route mapping in `settings/settings-catalog.ts`.
+Other workspace navigation remains in `shell/sidebar.tsx`. Settings is for
+configuration and observability; inquiries and conversations remain Home deep
+links. Devices keeps its page-local Devices/Agents segmented view. Home owns
+the user-facing Sessions tab; do not add Sessions as a separate sidebar item.
 
 PAX Manager exposes Home sessions through
 `GET /api/v1/user/{user_id}/sessions?page_size=20&page_num=...`, with optional

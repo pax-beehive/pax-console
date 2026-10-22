@@ -1,5 +1,15 @@
 # PAX Console 代码结构与接入说明
 
+## Settings 设置工作区
+
+`/settings` 默认展示通知设置内容，不再展示入口大列表。`settings-catalog.ts` 统一维护
+四组、八项设置及用途说明，桌面使用专用侧栏与右侧内容区，手机使用分组选择器。
+设置页面复用 `SettingsPageHeader`，明确标题、用途与操作范围。设备/Agent 详情和加密配对
+旧路径仍保持所属分组高亮；`/settings/advanced` 兼容跳转到 Allowed actions。
+项目保留内部项目列表和工作目录目标面板，通知订阅的核对中状态保持原有防闪烁规则。
+设置项及子功能清单见 `docs/settings-inventory.md`；此调整不新增 API 或服务端状态。
+浏览器回归覆盖桌面/手机全部八项、当前入口、旧路径跳转以及横向溢出；数据使用明确夹具。
+
 ## 通知订阅管理看板
 
 `/admin/notifications` 与 Customers 位于同一管理员导航组，两页共享顶部切换。
@@ -238,7 +248,7 @@ Browser --encrypted command/HTTP--> 任意 Manager
   HTTP 结果不确定时必须重发 `prepareEncryptedCommand` 产生的同一个 envelope，
   不能用相同业务 ID 重新加密出不同 nonce/ciphertext。
 - `root-key-store.ts` 在浏览器 IndexedDB 中按 agent 保存开发阶段手工共享的
-  root key。Settings / Advanced settings / Encrypted chats 提供保存和删除入口，key 不经过 Manager API。
+  root key。Settings / Security & access / Encrypted chats 提供保存和删除入口，key 不经过 Manager API。
 
 paxd 在解密并接受 `session/prompt` 时按 prompt request 建立稳定 `turn_id`，并在
 encrypted event plaintext 中以 `{ turn_id, frames }` 返回；canonical encrypted
@@ -474,8 +484,8 @@ src/components/home/project-rail.tsx
   并在编辑父级时排除自身和 descendants。
 
 src/components/resources/
-  Settings 组下的资源页。Devices 聚合 Nodes / Agents；Advanced settings 收纳 active
-  approval grants、Encrypted chats、API keys 和手动注册 token（pending approvals 留在 Home Inbox）。
+  Settings 下的资源页。Devices 聚合 Nodes / Agents；Security & access 收纳 active
+  approval grants 与 Encrypted chats，Developer tools 收纳 API keys 和手动注册 token（pending approvals 留在 Home Inbox）。
   Service status 公开服务、设备与 Agent 各自的状态。Inquiries 和 Conversations 属于 Home action/deep-link，
   不再伪装成系统设置。旧资源列表 URL 保留 redirect。
 
@@ -622,9 +632,10 @@ Sidebar 折叠
   手机宽度隐藏 Sidebar，保留 Topbar；Home 默认显示 clean composer，并用左侧抽屉承载 Project / Session rail。
   Sidebar 自身使用安静的 surface 和 compact nav rows，不保留固定的 Current node 区块。
   Sidebar 一级入口保持粗粒度：顶部只有 Home 和 Collaboration；
-  其余入口收进钉在侧栏底部的 Settings 展开组。
-  Collaboration / Settings 是彼此独立的 disclosure，不是 accordion；多个组可以同时保持展开。
-  Settings 展开时在 Sidebar 二级导航承载 Devices、Projects、Service status 和 Advanced settings。
+  Settings 作为侧栏底部的独立入口；进入后用 272px 设置侧栏替换普通工作区导航，
+  通过 Back to workspace 返回。工作区原有折叠状态保留，设置侧栏不受它影响。
+  Settings 按 Workspace、Security & access、Developer tools、Status & support 分组。
+  窄屏使用带分组的原生 select 切换设置，不增加第二层横向导航。
   Collaboration 展开时在 Sidebar 二级导航承载 Teams、Friends、Envelopes、Knowledge。
   Team invites 属于 Teams 页面里的 team action queue，不作为 Collaboration 并列二级入口。
   不要把这些全局二级 tabs 放进具体页面 header 或页面组件内部。
@@ -902,13 +913,13 @@ Sidebar 一级入口是粗粒度工作区（顶部 Home / Collaboration，底部
 /collaboration/friends         Friends
 /collaboration/envelopes       Envelopes
 /collaboration/knowledge       Knowledge capsules
-/settings                      Settings directory
+/settings                      Settings workspace; Notifications by default
 /settings/devices              Devices; ?view=agents selects Agents
 /settings/devices/add          Quick connect / Browser sign-in
 /settings/devices/agents/add   Agent setup; optional nodeId selects a computer
 /settings/projects             Project hierarchy and launch Targets
 /settings/service-status       PAX health, devices and agents independently
-/settings/advanced             Advanced settings directory
+/settings/advanced             Redirect to Allowed actions
 /settings/advanced/permissions Active approval grants
 /settings/advanced/encryption  Browser keys and encrypted-device pairing
 /settings/advanced/api-keys    API key management
@@ -1757,13 +1768,13 @@ Only wsBaseUrl, PAX_RELEASE_ID and PAX_COMMIT_SHA are exposed; never serialize
 process.env or PAX_MANAGER_URL/Cloudflare credentials into the browser. Inline
 JSON escapes `<` to prevent closing-script injection. REST remains /api/pax.
 
-### Settings directory and quick device connection
+### Settings workspace and quick device connection
 
 设备列表、引导中的电脑选择和设备健康统计通过 `isDeviceNode` 排除
 `kind: "paxl"` 的 CLI 登录身份。完整节点数据仍保留在 query cache 中供身份和
 Agent 关联使用；缺少 kind 的旧节点继续显示，不通过名称或在线状态猜测节点类型。
 
-`src/components/settings/` 承载英文优先的设置目录、服务状态与 Add device。
+`src/components/settings/` 承载英文优先的设置工作区、服务状态与 Add device。
 设备的维护、secret 传输和删除在设备详情的 Advanced device settings 内；
 运行控制、Agent 管理、浏览器控制保留。Project/Target CRUD 仍复用现有组件。
 旧 Security、Developer、Diagnostics 等入口保留重定向；手机页面提供返回上层入口。
