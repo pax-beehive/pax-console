@@ -36,6 +36,20 @@ describe("MarkdownMessage links", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows the real path and a copy button for local file links", () => {
+    render(
+      <MarkdownMessage content="See [main.ts](file:///Users/alice/project/main.ts:12)." />,
+    );
+
+    expect(screen.getByText("main.ts")).toHaveAttribute(
+      "title",
+      "/Users/alice/project/main.ts",
+    );
+    expect(
+      screen.getAllByRole("button", { name: "Copy path" }).length,
+    ).toBeGreaterThan(0);
+  });
+
   it("keeps console routes and web URLs clickable", () => {
     render(
       <MarkdownMessage content="[session](/sessions/sess_1) [docs](https://example.com/docs)" />,

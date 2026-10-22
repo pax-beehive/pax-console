@@ -658,11 +658,29 @@ Collaboration and knowledge resources are normal user-scoped REST resources:
 
 /artifact-publications/{publication_id} and
 /artifact-publications/{publication_id}/content/main
-  Agent publish_artifact output is output-only. The browser never creates these
-  uploads. The session timeline detects `message_type = "pax:artifact"`, polls
+  Agent publish_artifact output is output-only. The browser never uploads file
+  bytes itself; the only browser-initiated publications are local file fetches
+  below (`origin = "user_fetch"`), which paxd uploads. The session timeline
+  detects `message_type = "pax:artifact"`, polls
   publication state until `available` or `failed`, and uses the publication
   content endpoint for preview/download URLs. Treat publication ids as the UI
   card key; do not manage lifecycle by artifact id.
+
+/sessions/{session_id}/artifact-fetches/check?path= and
+/sessions/{session_id}/artifact-fetches
+  Local file links (`LocalFileLink`, used by MarkdownMessage local hrefs, tool
+  input paths, and diff headers) always show the real path as the tooltip and
+  copy only the clean absolute path. SessionWorkbench mounts
+  `LocalFileFetchProvider`; it is disabled for E2EE sessions, offline
+  nodes/agents, and unsaved sessions, and absent elsewhere (artifact viewer,
+  standalone pages), so those links stay copy-only. Clicking an enabled link
+  runs check (`{allowed, path, filename, size_bytes?, denial?}`), shows the
+  full path for confirmation, then POSTs `{path}`: `accepted: true` returns an
+  ArtifactPublication polled with `useArtifactPublication` and rendered with
+  `PublicationArtifactViewer`; `accepted: false` returns
+  `denial: {code, rule, message}`. HTTP 503 means the node is offline and 409
+  means an E2EE session. The "already fetched" map is client-only Zustand state
+  (`useLocalFileFetchStore`). Behavior scenarios: `docs/local-file-links.md`.
 
 /artifact-uploads, /artifacts, and /sessions/{session_id}/artifacts
   The Session Artifacts panel reads artifacts through TanStack Query and lets
