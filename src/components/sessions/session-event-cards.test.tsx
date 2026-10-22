@@ -522,6 +522,47 @@ describe("session event cards", () => {
     expect(screen.queryByText("Tool calls")).not.toBeInTheDocument();
   });
 
+  it("renders an absolute tool input path as a copyable local file link", () => {
+    const tool = activityGroup(true).events[1] as Extract<
+      SessionEvent,
+      { type: "tool_call" }
+    >;
+    renderItem({
+      type: "event",
+      id: tool.id,
+      event: {
+        ...tool,
+        name: "Read",
+        input: { file_path: "/Users/me/proj/src/app.ts" },
+      },
+    });
+
+    expect(screen.getByText("/Users/me/proj/src/app.ts")).toHaveAttribute(
+      "title",
+      "/Users/me/proj/src/app.ts",
+    );
+    expect(
+      screen.getByRole("button", { name: "Copy path" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps relative tool input paths as plain previews", () => {
+    const tool = activityGroup(true).events[1] as Extract<
+      SessionEvent,
+      { type: "tool_call" }
+    >;
+    renderItem({
+      type: "event",
+      id: tool.id,
+      event: { ...tool, name: "Read", input: { path: "src/app.ts" } },
+    });
+
+    expect(screen.getByText("src/app.ts")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Copy path" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("collapses thought content by default", () => {
     const thought: Extract<SessionEvent, { type: "progress" }> = {
       type: "progress",

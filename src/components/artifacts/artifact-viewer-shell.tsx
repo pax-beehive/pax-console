@@ -35,6 +35,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { MarkdownMessage } from "@/components/ui/markdown-message";
 import { TruncatedText } from "@/components/ui/text";
+import { LocalFileLinkContext } from "@/features/local-files/local-file-link-context";
 import { cn } from "@/lib/utils";
 import { compactDate } from "@/lib/format";
 import {
@@ -57,6 +58,8 @@ type LoadedArtifactPreview = ArtifactPreviewDescriptor &
   Partial<ArtifactPreviewText>;
 
 type ArtifactViewerShellProps = {
+  /** Hide fullscreen when the shell is already inside a modal dialog. */
+  allowFullscreen?: boolean;
   artifact: ArtifactDocument;
   autoLoad?: boolean;
   className?: string;
@@ -68,6 +71,7 @@ type ArtifactViewerShellProps = {
 };
 
 export function ArtifactViewerShell({
+  allowFullscreen = true,
   artifact,
   autoLoad = false,
   className,
@@ -452,25 +456,27 @@ export function ArtifactViewerShell({
             </Button>
           )}
           <div className="min-w-0 flex-1" />
-          <Button
-            aria-label={
-              fullscreen
-                ? "Exit artifact fullscreen"
-                : "Open artifact fullscreen"
-            }
-            icon={
-              fullscreen ? (
-                <Minimize2 className="h-4 w-4" />
-              ) : (
-                <Maximize2 className="h-4 w-4" />
-              )
-            }
-            onClick={() => setFullscreen((current) => !current)}
-            size="icon"
-            tooltip={fullscreen ? "Exit fullscreen" : "Open fullscreen"}
-            type="button"
-            variant="ghost"
-          />
+          {allowFullscreen && (
+            <Button
+              aria-label={
+                fullscreen
+                  ? "Exit artifact fullscreen"
+                  : "Open artifact fullscreen"
+              }
+              icon={
+                fullscreen ? (
+                  <Minimize2 className="h-4 w-4" />
+                ) : (
+                  <Maximize2 className="h-4 w-4" />
+                )
+              }
+              onClick={() => setFullscreen((current) => !current)}
+              size="icon"
+              tooltip={fullscreen ? "Exit fullscreen" : "Open fullscreen"}
+              type="button"
+              variant="ghost"
+            />
+          )}
           {fullscreen && (
             <Button
               aria-label="Close artifact fullscreen"
@@ -726,10 +732,14 @@ function DocumentMarkdownRenderer({
           className="mx-auto min-w-0 w-full max-w-4xl bg-[#f1eee6] px-6 py-8 text-[#25231f] shadow-sm @min-[40rem]/artifact-reader:px-10"
           ref={readerRef}
         >
-          <MarkdownMessage
-            className="text-[length:var(--artifact-reader-font-size)] leading-[var(--artifact-reader-line-height)] text-[#37342e] [&_a]:text-[#3f478f] [&_blockquote]:text-[#625e55] [&_h1]:text-[#211f1b] [&_h2]:text-[#211f1b] [&_h3]:text-[#211f1b] [&_strong]:text-[#211f1b] [&_td]:border-[#d4cfc3] [&_th]:border-[#d4cfc3] [&_th]:bg-[#ded9cd]"
-            content={content}
-          />
+          {/* Artifact documents are not session chat: their local file
+              links stay copy-only even when embedded in a session view. */}
+          <LocalFileLinkContext.Provider value={null}>
+            <MarkdownMessage
+              className="text-[length:var(--artifact-reader-font-size)] leading-[var(--artifact-reader-line-height)] text-[#37342e] [&_a]:text-[#3f478f] [&_blockquote]:text-[#625e55] [&_h1]:text-[#211f1b] [&_h2]:text-[#211f1b] [&_h3]:text-[#211f1b] [&_strong]:text-[#211f1b] [&_td]:border-[#d4cfc3] [&_th]:border-[#d4cfc3] [&_th]:bg-[#ded9cd]"
+              content={content}
+            />
+          </LocalFileLinkContext.Provider>
         </article>
         {standalone && (
           <aside

@@ -156,6 +156,11 @@ import { cn } from "@/lib/utils";
 import { canSeeAdminFeatures } from "@/features/auth/admin-view";
 import { useE2EESessionRuntime } from "@/features/e2ee/use-e2ee-session-runtime";
 import { flattenEncryptedHistoryPages } from "@/features/e2ee/transport";
+import {
+  E2EE_FETCH_UNAVAILABLE,
+  NODE_OFFLINE_MESSAGE,
+} from "@/features/local-files/local-file-fetch-messages";
+import { LocalFileFetchProvider } from "@/components/local-files/local-file-fetch-provider";
 import { useConsoleStore } from "@/stores/console-store";
 
 type SessionWorkbenchProps = {
@@ -2723,9 +2728,28 @@ export function SessionWorkbench({
     </div>
   );
 
+  // Local file links in this session can be fetched from the node only for
+  // manager-transport sessions on an online node; otherwise they stay
+  // copy-only. The provider is always mounted so assigning a session id
+  // does not remount the workbench.
+  const localFileFetchDisabledReason = !currentSessionId
+    ? "Start the session to fetch files from the agent's machine."
+    : usesEncryptedTransport
+      ? E2EE_FETCH_UNAVAILABLE
+      : activeNode?.online === false || activeAgent?.online === false
+        ? NODE_OFFLINE_MESSAGE
+        : undefined;
+
   return (
     <SessionWorkbenchFrame embedded={embedded} user={user}>
-      {workbench}
+      <LocalFileFetchProvider
+        disabledReason={localFileFetchDisabledReason}
+        enabled={!localFileFetchDisabledReason}
+        sessionId={currentSessionId ?? ""}
+        userId={user.user_id}
+      >
+        {workbench}
+      </LocalFileFetchProvider>
       {browserOpen && activeNodeId && (
         <SessionBrowserWindow
           nodeId={activeNodeId}

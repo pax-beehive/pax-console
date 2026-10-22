@@ -695,6 +695,22 @@ Attachments
   /attachments/{attachment_id}/complete 把状态变成 completed。真正发 prompt 时，
   前端把 attachment_id 放进 /conversation 的 content block；附件本身不绑定 agent。
 
+Local file links（本地文件链接）
+  agent 输出里指向其本机的路径（markdown 本地 href、工具输入的绝对路径、diff
+  文件头）统一渲染为 src/components/ui/local-file-link.tsx 的 LocalFileLink：
+  tooltip 为真实路径，复制按钮只写入不含 file:// 和行号后缀的绝对路径，复制在任何
+  场景都可用。解析在 src/features/local-files/local-file-href.ts。
+  SessionWorkbench 挂载 LocalFileFetchProvider（LocalFileLinkContext）；E2EE、
+  node/agent 离线或尚未创建的 session 下 enabled=false，artifact viewer 与独立页
+  没有 provider，只能复制。启用时点击链接：
+  GET /sessions/{session_id}/artifact-fetches/check?path= 预检并展示完整路径确认，
+  POST /sessions/{session_id}/artifact-fetches {path}：accepted=true 返回
+  ArtifactPublication（origin=user_fetch），复用 useArtifactPublication 轮询并在
+  对话框内嵌 PublicationArtifactViewer；accepted=false 返回 denial{code,rule,message}。
+  503 表示 node 离线，409 表示 E2EE。会话内"已获取"记录是纯客户端 UI 状态，放在
+  Zustand（useLocalFileFetchStore），publication 数据仍归 TanStack Query。
+  行为场景见 docs/local-file-links.md。
+
 Artifact publications
   Session timeline 识别 `message_type = "pax:artifact"`，从
   `parts[*].payload_json.publication_id` 或
