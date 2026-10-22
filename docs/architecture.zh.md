@@ -31,10 +31,19 @@ key ID 和本地开关，不存 endpoint 或加密密钥。登录后的前台修
 
 Service Worker 只处理推送、点击和订阅变更，不拦截 fetch 或缓存认证响应。普通会话通知展示
 Manager 提供的本轮最后一段回复短预览，最多 200 个 Unicode 字符；缺失时使用通用提示。
+新增 `approval.required` 类型用于等待用户审批的请求，标题为 `Approval needed`，
+正文为 `Your session is waiting for your approval. Tap to review the request.`。
+点击后进入对应会话查看请求，再由用户作出决定；推送点击不提交审批。Manager 在请求创建及
+投递前检查 Pax Auto Approve、待审批状态、到期时间和会话归属；已保存授权自动处理的请求
+不进入人工待审批路径。设置页只在 `approval_required_enabled` 为 true 时展示相关说明。
 通知统一跳到 Home 的 `/?session_id={encoded_id}`，由 Home 解析会话的 node/agent 并加载工作台，
 再次经过正常会话鉴权。Worker 把旧的 `/sessions/{id}` 通知链接也转换成 Home 地址；
 测试通知仍跳到通知设置页。先部署兼容两种链接的 Console，再部署生成 Home 链接的 Manager。
 优先复用已经打开的对应会话，先聚焦再导航；窗口关闭、导航失败或返回空值时打开对应地址。
+Worker 的 Client.url 是文档创建时的地址，Home 用 replaceState 切换会话后它仍可能保留旧值。
+因此点击通知始终实际导航到目标地址，即使 Client.url 看起来已匹配也不提前返回；
+这会重新导航/加载已打开的目标，避免只聚焦后仍停在另一个会话。浏览器回归覆盖打开 A、
+同文档切换到 B、再点 A 通知的场景，并核对实际 URL 和文档内容。
 只复用顶层同源窗口。浏览器审计使用真实 Worker 和窗口导航，但显式模拟 OS 聚焦权限，
 不代表系统通知点击验收。测试按钮调用真实队列接口；
 排队、服务商接受和设备实际显示分别表述。配套 Manager 在持久化普通会话的成功结束响应时，
@@ -43,6 +52,19 @@ Manager 提供的本轮最后一段回复短预览，最多 200 个 Unicode 字�
 安卓通知栏的 `badge` 单独使用透明底白色 PAX 标志 `pax-notification-badge.png`，由原始
 SVG 生成并针对 24 dp 显示加粗；带背景的应用图仅用于通知大图标。需要 Manager 配置稳定的
 VAPID 公私钥和 contact，前端只读取公钥。浏览器检查使用明确的测试夹具，不代表安卓真机收包。
+
+普通会话的通知已读清理只作用于当前设备。工作台先确认持久化历史存在该 turn 的结束标记、
+最终回复与已渲染内容一致，再用时间线滚动容器内的 IntersectionObserver 观察回复末尾。
+只有页面可见且聚焦、末尾进入可见区时才清理；打开应用、收到结束信号或仅看见长回复开头都不算已读。
+页面按 Manager 现有 v1 规则计算通知 ID（Go JSON 的 user/agent/session/turn 数组经 SHA256），
+只把这个不透明 ID 发给 worker，不新增服务端接口。Go 生成的测试向量固定跨语言转义规则，
+后端 stableID 规则的变更需与 Console 协调。
+Worker 使用 getNotifications/close 精确关闭匹配 tag，在 IndexedDB 中保存最多 512 条 ID/已读时间，
+活动时淘汰超过 24 小时的记录，以处理通知晚到和 worker 重启；不保存回复内容，不同步其他设备。
+晚到通知仍先调用 showNotification，再检查已读记录并关闭。存储不可用时保留晚到通知；
+对明确已读的当前通知仍尝试关闭。其他会话、更新一轮和手动测试通知均保留。
+`scripts/notification-dismiss-browser.mjs` 用真实工作台、可见性判断、worker 通信及 IndexedDB
+覆盖这些路径，用户/历史/系统展示使用明确测试夹具，不宣称真机系统通知验收。
 
 ## WorkOS 登录链路
 
@@ -682,6 +704,22 @@ Attachments
   旧的 initialize + session URL PUT 流程；未知协议在发请求前报错。成功后再调用
   /attachments/{attachment_id}/complete 把状态变成 completed。真正发 prompt 时，
   前端把 attachment_id 放进 /conversation 的 content block；附件本身不绑定 agent。
+
+Local file links（本地文件链接）
+  agent 输出里指向其本机的路径（markdown 本地 href、工具输入的绝对路径、diff
+  文件头）统一渲染为 src/components/ui/local-file-link.tsx 的 LocalFileLink：
+  tooltip 为真实路径，复制按钮只写入不含 file:// 和行号后缀的绝对路径，复制在任何
+  场景都可用。解析在 src/features/local-files/local-file-href.ts。
+  SessionWorkbench 挂载 LocalFileFetchProvider（LocalFileLinkContext）；E2EE、
+  node/agent 离线或尚未创建的 session 下 enabled=false，artifact viewer 与独立页
+  没有 provider，只能复制。启用时点击链接：
+  GET /sessions/{session_id}/artifact-fetches/check?path= 预检并展示完整路径确认，
+  POST /sessions/{session_id}/artifact-fetches {path}：accepted=true 返回
+  ArtifactPublication（origin=user_fetch），复用 useArtifactPublication 轮询并在
+  对话框内嵌 PublicationArtifactViewer；accepted=false 返回 denial{code,rule,message}。
+  503 表示 node 离线，409 表示 E2EE。会话内"已获取"记录是纯客户端 UI 状态，放在
+  Zustand（useLocalFileFetchStore），publication 数据仍归 TanStack Query。
+  行为场景见 docs/local-file-links.md。
 
 Artifact publications
   Session timeline 识别 `message_type = "pax:artifact"`，从
@@ -1974,3 +2012,17 @@ use `error`; apiFetch maps known routing errors to actionable messages with HTTP
 status and keeps Manager `message` errors. Unknown Worker details remain hidden.
 A failed lookup displays a release-check failure and a read-only retry action.
 Install stays disabled during lookup or after failure, including cached versions.
+
+## Cronjob 会话来源
+
+定时任务的 CRUD、调度、prompt/workspace 快照和原生会话绑定由 paxd SQLite 管理，
+paxl 通过本地 Unix socket 操作。paxd 使用现有 ACP pool 创建或恢复会话，再通过
+Manager 的节点鉴权接口 `POST /api/v1/node/agents/:agent_id/sessions/register` 登记
+普通 Pax session。Manager 返回的 `session_id` 才用于 REST、URL 和历史查询。
+
+Console 从普通 session 查询的 `metadata.origin` 读取 `kind=cronjob`、`cronjob_id`、
+`run_id` 和任务名称快照，在最近会话和工作台展示来源标记。解析集中在
+`features/sessions/session-origin.ts`，不新增前端调度器或独立会话状态。
+来源 run 是创建该会话的第一次执行；reuse 模式的后续运行不会改写它。
+paxd 先持久化消息，再经现有 E2EE 历史与实时事件通道同步，离线补登记后会出现在普通会话列表。
+当前仅提供来源展示，任务管理使用 `paxl cron`。

@@ -583,6 +583,8 @@ export type ArtifactPublication = {
   filename?: string;
   title?: string;
   status: "queued" | "uploading" | "available" | "failed" | string;
+  /** `user_fetch` publications were requested from a local file link. */
+  origin?: "agent" | "user_fetch";
   artifact_id?: string;
   error_code?: string;
   error_message?: string;
@@ -594,6 +596,36 @@ export type ArtifactPublicationState = {
   publication: ArtifactPublication;
   artifact?: SessionArtifact;
 };
+
+export type ArtifactFetchDenial = {
+  code:
+    | "hidden_path_denied"
+    | "credential_path_denied"
+    | "owner_only_denied"
+    | "not_found"
+    | "outside_home"
+    | "not_regular_file"
+    | "permission_denied"
+    | "too_large"
+    | "invalid_path"
+    | (string & {});
+  rule: string;
+  message: string;
+};
+
+/** GET /sessions/{session_id}/artifact-fetches/check?path= */
+export type ArtifactFetchCheck = {
+  allowed: boolean;
+  path: string;
+  filename: string;
+  size_bytes?: number;
+  denial?: ArtifactFetchDenial;
+};
+
+/** POST /sessions/{session_id}/artifact-fetches: 202 accepted, 200 denied. */
+export type ArtifactFetchResult =
+  | { accepted: true; publication: ArtifactPublication }
+  | { accepted: false; denial: ArtifactFetchDenial };
 
 export type ArtifactPreviewKind =
   | "image"

@@ -5,6 +5,7 @@ import type { MessageDetailPage } from "./types";
 import {
   type QueryClient,
   useInfiniteQuery,
+  useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
@@ -23,6 +24,8 @@ import {
   ApprovedNodeRegistration,
   ApprovedPaxlDeviceLogin,
   ArtifactContentURL,
+  ArtifactFetchCheck,
+  ArtifactFetchResult,
   ArtifactPublicationContentState,
   ArtifactPublicationState,
   ArtifactUploadTicket,
@@ -1271,6 +1274,31 @@ export async function uploadUserAttachmentFile(
 export function getArtifactPublication(userId: string, publicationId: string) {
   return apiFetch<ArtifactPublicationState>(
     userPath(userId, `/artifact-publications/${publicationId}`),
+  );
+}
+
+export function checkArtifactFetch(
+  userId: string,
+  sessionId: string,
+  path: string,
+) {
+  const params = new URLSearchParams({ path });
+  return apiFetch<ArtifactFetchCheck>(
+    `${userPath(userId, `/sessions/${sessionId}/artifact-fetches/check`)}?${params}`,
+  );
+}
+
+export function createArtifactFetch(
+  userId: string,
+  sessionId: string,
+  path: string,
+) {
+  return apiFetch<ArtifactFetchResult>(
+    userPath(userId, `/sessions/${sessionId}/artifact-fetches`),
+    {
+      body: JSON.stringify({ path }),
+      method: "POST",
+    },
   );
 }
 
@@ -2535,6 +2563,55 @@ export function useArtifactPublication(
       return status === "queued" || status === "uploading" ? 2_000 : false;
     },
     refetchOnWindowFocus: true,
+  });
+}
+
+export function useArtifactFetchCheck(
+  userId?: string,
+  sessionId?: string,
+  path?: string,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: queryKeys.artifactFetchCheck(
+      userId ?? "pending",
+      sessionId ?? "pending",
+      path ?? "pending",
+    ),
+    queryFn: () =>
+      checkArtifactFetch(userId as string, sessionId as string, path as string),
+    enabled: Boolean(enabled && userId && sessionId && path),
+    // The node's view of the file can change at any time; always re-check
+    // when the dialog opens instead of serving a cached verdict.
+    gcTime: 0,
+    refetchOnWindowFocus: false,
+    retry: false,
+    staleTime: 0,
+  });
+}
+
+export function useCreateArtifactFetch(userId?: string, sessionId?: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (path: string) =>
+      createArtifactFetch(userId as string, sessionId as string, path),
+    onSuccess: (result) => {
+      if (!result.accepted || !userId) {
+        return;
+      }
+      queryClient.setQueryData(
+        queryKeys.artifactPublication(
+          userId,
+          result.publication.publication_id,
+        ),
+        { publication: result.publication },
+      );
+      if (sessionId) {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.sessionArtifacts(userId, sessionId),
+        });
+      }
+    },
   });
 }
 

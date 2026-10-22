@@ -1,5 +1,7 @@
 "use client";
 
+import { CronOriginBadge } from "@/components/sessions/cron-origin-badge";
+import { cronSessionOrigin } from "@/features/sessions/session-origin";
 import { stageEncryptedAttachment } from "@/features/e2ee/attachments";
 
 import {
@@ -132,6 +134,8 @@ import {
   type TimelineAnchor,
 } from "@/features/runtime/timeline-anchor";
 import { usePageResume } from "@/features/runtime/use-page-resume";
+import { completedReplyTargets } from "@/features/notifications/read-turns";
+import { useReadTurnNotifications } from "@/features/notifications/use-read-turn-notifications";
 import { useSessionObserver } from "@/features/runtime/session-observer";
 import { useSessionTurnObservation } from "@/features/runtime/use-session-turn-observation";
 import { sessionDisplayStatus } from "@/features/runtime/session-display-status";
@@ -152,6 +156,11 @@ import { cn } from "@/lib/utils";
 import { canSeeAdminFeatures } from "@/features/auth/admin-view";
 import { useE2EESessionRuntime } from "@/features/e2ee/use-e2ee-session-runtime";
 import { flattenEncryptedHistoryPages } from "@/features/e2ee/transport";
+import {
+  E2EE_FETCH_UNAVAILABLE,
+  NODE_OFFLINE_MESSAGE,
+} from "@/features/local-files/local-file-fetch-messages";
+import { LocalFileFetchProvider } from "@/components/local-files/local-file-fetch-provider";
 import { useConsoleStore } from "@/stores/console-store";
 
 type SessionWorkbenchProps = {
@@ -1528,6 +1537,20 @@ export function SessionWorkbench({
     observedTurnId,
   ]);
   const { timeline } = reconciledTimeline;
+  const readNotificationTargets = useMemo(
+    () =>
+      usesEncryptedTransport || !currentSessionId
+        ? new Map<string, string>()
+        : completedReplyTargets(historyEvents, timeline, currentSessionId),
+    [usesEncryptedTransport, currentSessionId, historyEvents, timeline],
+  );
+  useReadTurnNotifications({
+    userId: user.user_id,
+    agentId: activeAgentId,
+    sessionId: currentSessionId,
+    targets: readNotificationTargets,
+    scrollRef: timelineScrollRef,
+  });
   const currentToolEvidence =
     selectedToolEvidence?.type === "tool"
       ? {
@@ -2310,6 +2333,7 @@ export function SessionWorkbench({
             )}
             <div className="flex min-w-0 flex-1 flex-col">
               <div className="order-2 flex min-w-0 gap-1 text-xs text-ink-muted sm:max-w-[52vw] sm:text-sm">
+                <CronOriginBadge origin={cronSessionOrigin(activeSession)} />
                 <TruncatedText>
                   {projectQuery.data?.project.display_name ??
                     activeNode?.name ??
@@ -2506,6 +2530,15 @@ export function SessionWorkbench({
                   permissionDecision={permissionDecision}
                   userId={user.user_id}
                 />
+                {readNotificationTargets.has(item.id) && (
+                  <span
+                    aria-hidden="true"
+                    className="block h-px"
+                    data-notification-read-turn={readNotificationTargets.get(
+                      item.id,
+                    )}
+                  />
+                )}
               </div>
             ))}
             <SessionPendingActivity
@@ -2695,9 +2728,28 @@ export function SessionWorkbench({
     </div>
   );
 
+  // Local file links in this session can be fetched from the node only for
+  // manager-transport sessions on an online node; otherwise they stay
+  // copy-only. The provider is always mounted so assigning a session id
+  // does not remount the workbench.
+  const localFileFetchDisabledReason = !currentSessionId
+    ? "Start the session to fetch files from the agent's machine."
+    : usesEncryptedTransport
+      ? E2EE_FETCH_UNAVAILABLE
+      : activeNode?.online === false || activeAgent?.online === false
+        ? NODE_OFFLINE_MESSAGE
+        : undefined;
+
   return (
     <SessionWorkbenchFrame embedded={embedded} user={user}>
-      {workbench}
+      <LocalFileFetchProvider
+        disabledReason={localFileFetchDisabledReason}
+        enabled={!localFileFetchDisabledReason}
+        sessionId={currentSessionId ?? ""}
+        userId={user.user_id}
+      >
+        {workbench}
+      </LocalFileFetchProvider>
       {browserOpen && activeNodeId && (
         <SessionBrowserWindow
           nodeId={activeNodeId}

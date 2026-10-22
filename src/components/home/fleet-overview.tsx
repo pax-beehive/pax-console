@@ -1,5 +1,10 @@
 "use client";
 
+import { CronOriginBadge } from "@/components/sessions/cron-origin-badge";
+import {
+  cronSessionOrigin,
+  type CronSessionOrigin,
+} from "@/features/sessions/session-origin";
 import { stageEncryptedAttachment } from "@/features/e2ee/attachments";
 
 import { SessionDraftInput } from "@/components/sessions/session-draft-input";
@@ -142,6 +147,7 @@ type WorkItem = {
   actionHref?: string;
   actionLabel: string;
   agentId?: string;
+  cronOrigin?: CronSessionOrigin;
   archivedAt?: string;
   background?: string;
   context: string;
@@ -1597,6 +1603,7 @@ function HomeSessionRow({
       >
         <span className="flex min-w-0 items-center gap-1.5 text-sm text-ink">
           <span className="truncate">{session.title}</span>
+          <CronOriginBadge origin={session.cronOrigin} />
           {session.transport === "e2ee" && (
             <Tooltip content="End-to-end encrypted">
               <span
@@ -2364,6 +2371,7 @@ function buildWorkItems({
           actionLabel: "Continue",
           agentId: session.agent_id,
           archivedAt: session.archived_at,
+          cronOrigin: cronSessionOrigin(session),
           context: [
             agent?.name ?? agent?.agent_type ?? session.agent_id,
             node?.name ?? node?.hostname ?? session.node_id,

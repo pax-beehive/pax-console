@@ -25,6 +25,7 @@ const f = vi.hoisted(() => ({
   configured: true,
   failRead: false,
   automatic: false,
+  approvals: false,
   enable: vi.fn(),
   disable: vi.fn(),
   test: vi.fn(),
@@ -57,6 +58,7 @@ beforeEach(() => {
   f.reconcile.mockImplementation(async (config: PushConfig) =>
     config.test_enabled ? f.state : "unconfigured",
   );
+  f.approvals = false;
   f.fetch.mockImplementation(async (path: string) => {
     if (f.failRead) throw new Error("offline");
     if (path.endsWith("/config"))
@@ -67,6 +69,7 @@ beforeEach(() => {
         key_id: "key",
         channel: "web_push",
         turn_completion_enabled: f.automatic,
+        approval_required_enabled: f.approvals,
       };
     return {
       regions: [
@@ -207,6 +210,22 @@ describe("notification settings", () => {
     ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Refresh status" }));
     await screen.findByText("Notifications are enabled on this device.");
+  });
+  it("explains that pending approvals notify while automatic approvals stay quiet", async () => {
+    f.approvals = true;
+    mount();
+    expect(
+      await screen.findByText(
+        /Get notified when a session needs your approval/,
+      ),
+    ).toHaveTextContent(
+      "Requests handled by Pax Auto Approve or a saved approval do not trigger notifications.",
+    );
+    expect(
+      screen.getByText(
+        /Tap a notification to open the session and review the request/,
+      ),
+    ).toBeInTheDocument();
   });
   it("explains the supported session scope when automatic notifications are available", async () => {
     f.automatic = true;

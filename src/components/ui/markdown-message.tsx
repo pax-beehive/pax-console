@@ -12,11 +12,13 @@ import {
   useState,
 } from "react";
 import { Check, Code2, Copy, Eye } from "lucide-react";
-import ReactMarkdown, { Components } from "react-markdown";
+import ReactMarkdown, { Components, defaultUrlTransform } from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
+import { isLocalFileHref } from "@/features/local-files/local-file-href";
 import { normalizeStreamingMarkdown } from "@/lib/streaming-markdown";
+import { LocalFileLink } from "./local-file-link";
 
 type MarkdownMessageProps = {
   className?: string;
@@ -25,20 +27,7 @@ type MarkdownMessageProps = {
   streaming?: boolean;
 };
 
-const localFileHrefPattern =
-  /^(?:file:\/+|[a-zA-Z]:[\\/]|\/(?:Users|home|private|tmp|var|opt|workspace|workspaces|mnt|Volumes)(?:\/|$))/;
-
-export function isLocalFileHref(href: string) {
-  let decodedHref = href;
-
-  try {
-    decodedHref = decodeURIComponent(href);
-  } catch {
-    // Keep malformed URLs inert only when their undecoded form is a local path.
-  }
-
-  return localFileHrefPattern.test(decodedHref);
-}
+export { isLocalFileHref } from "@/features/local-files/local-file-href";
 
 const markdownComponents: Components = {
   a({ children, href, ...props }) {
@@ -47,15 +36,9 @@ const markdownComponents: Components = {
     }
 
     if (isLocalFileHref(href)) {
-      return (
-        <span
-          className="break-words text-ink-subtle underline decoration-dotted underline-offset-4"
-          title="This local file is unavailable from the remote console"
-          {...props}
-        >
-          {children}
-        </span>
-      );
+      // LocalFileLink reads LocalFileLinkContext itself, so this static
+      // renderer gains session fetch support wherever a provider exists.
+      return <LocalFileLink href={href}>{children}</LocalFileLink>;
     }
 
     if (href.startsWith("/")) {
@@ -195,6 +178,13 @@ const markdownComponents: Components = {
     );
   },
 };
+
+// The default transform blanks `file:` and `C:` hrefs as unsafe protocols.
+// Local file hrefs never become navigable anchors (LocalFileLink renders a
+// span), so keep them intact for path display and copy.
+function markdownUrlTransform(url: string) {
+  return isLocalFileHref(url) ? url : defaultUrlTransform(url);
+}
 
 const highlightedMarkdownPlugins: NonNullable<
   ComponentProps<typeof ReactMarkdown>["rehypePlugins"]
@@ -644,6 +634,7 @@ export const MarkdownMessage = memo(function MarkdownMessage({
         components={markdownComponents}
         rehypePlugins={streaming ? [] : highlightedMarkdownPlugins}
         remarkPlugins={markdownRemarkPlugins}
+        urlTransform={markdownUrlTransform}
       >
         {renderedContent}
       </ReactMarkdown>

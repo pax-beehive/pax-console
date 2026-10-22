@@ -79,8 +79,13 @@ the receiver were confirmed off. Notification text may contain a short reply pre
 JavaScript content type, root scope and no-store headers. It displays the
 Manager's bounded reply preview for standard turns (200 Unicode code points),
 with a generic fallback for older Managers or missing replies. Clicks prefer
-the exact session window, focus before navigation, and open a new window if
-reuse fails. Only top-level, same-origin clients are reused. Validated session
+the window whose creation URL matches, focus before navigation, and open a new
+window if reuse fails. Always navigate to the notification target, even when
+Client.url matches: it is the document creation URL and remains stale after
+Home switches sessions with history.replaceState. Focusing alone can leave a
+different session on screen. This intentionally navigates/reloads an already
+open target rather than treating the creation URL as current application state.
+Only top-level, same-origin clients are reused. Validated session
 links use Home's `/?session_id={encoded_id}` route; Home resolves node/agent
 context and applies ordinary auth. The worker also converts older `/sessions/{id}`
 notification links into this Home route. Deploy this compatible Console before
@@ -95,6 +100,41 @@ completion integration, `turn_completion_enabled` becomes true when sending is
 configured. Automatic alerts cover correlated, successful standard-session
 turns, including completion after the app page closes. Encrypted-session
 completion remains unsupported and the settings page states that limit.
+
+When `approval_required_enabled` is true, the settings page also describes
+approval reminders. The worker displays `approval.required` with the fixed title
+`Approval needed` and body `Your session is waiting for your approval. Tap to
+review the request.` It opens the same Home session route for review; clicking
+the notification never submits an approval. Manager checks pending status,
+expiry, ownership, session access, and Pax Auto Approve before delivery. Requests
+covered by a saved approval bypass the pending-request path. Deploy this Console
+worker before enabling the companion Manager change. Older Managers omit the
+optional capability flag, so settings do not promise unsupported alerts.
+
+The session workbench dismisses read turn notifications on this device only.
+`completedReplyTargets` requires a durable `turn_done` and the final assistant
+reply matching the rendered timeline. An IntersectionObserver watches a marker
+after that reply, inside the timeline scroll root; only a visible, focused page
+acknowledges it. Opening the app, receiving a terminal signal, or seeing the top
+of a long reply is insufficient. Refocus, history updates and session changes
+re-evaluate the markers. No permission prompt or worker registration is added.
+The browser derives the existing version-1 Manager notification ID from SHA256
+of Go-JSON `[user_id, agent_id, session_id, turn_id]`; `read-turns.test.ts` pins
+Go-generated vectors, including HTML/Unicode escaping. Coordinate changes to
+Manager's stableID contract with this client. Only opaque IDs go to the worker.
+The push worker closes exact matching tags through getNotifications/close and
+stores at most 512 opaque ID/timestamp receipts in IndexedDB, expiring them
+lazily after 24 hours. This handles delayed pushes and worker restarts without
+conversation content or cross-device read state. Pushes still call
+showNotification before checking receipts; storage failures leave late alerts
+visible, while explicit reads still try to close already displayed alerts.
+
+`node scripts/notification-dismiss-browser.mjs` targets port 3356 (override
+`PAX_PUSH_PREVIEW_URL`). It exercises the actual Home workbench, real visibility
+observer, page/worker messaging and IndexedDB. Account/history and OS display
+are fictional fixtures. Loading, unfocused and offscreen replies preserve the
+alert; reading its end dismisses only that turn, including a late push after
+the app page closes. Other turns/sessions and manual tests remain visible.
 
 Android's small status icon uses the dedicated transparent, monochrome
 `public/pax-notification-badge.png`. The full-background app image belongs only
@@ -112,6 +152,12 @@ returning through client navigation with warm query caches, checks the checking
 state and observes DOM mutations for any actionable Enable flash. Synthetic clicks lack browser user
 activation, so OS focus is an explicit fixture. It does not prove native OS
 display, native notification clicks, or real Android delivery.
+
+The audit also opens the target, changes the same document to another session
+via replaceState, and verifies that clicking the target notification actually
+returns to its URL and document content. The pre-fix worker fails this Chromium
+regression because its Client.url remains the document creation URL, as defined
+by the [Service Workers specification](https://www.w3.org/TR/service-workers/#client-url).
 
 `/admin/notifications` is the adjacent Push subscriptions administrator page.
 Both pages share `AdminAnalyticsNav`; mobile keeps the Customers bottom item
@@ -632,11 +678,29 @@ Collaboration and knowledge resources are normal user-scoped REST resources:
 
 /artifact-publications/{publication_id} and
 /artifact-publications/{publication_id}/content/main
-  Agent publish_artifact output is output-only. The browser never creates these
-  uploads. The session timeline detects `message_type = "pax:artifact"`, polls
+  Agent publish_artifact output is output-only. The browser never uploads file
+  bytes itself; the only browser-initiated publications are local file fetches
+  below (`origin = "user_fetch"`), which paxd uploads. The session timeline
+  detects `message_type = "pax:artifact"`, polls
   publication state until `available` or `failed`, and uses the publication
   content endpoint for preview/download URLs. Treat publication ids as the UI
   card key; do not manage lifecycle by artifact id.
+
+/sessions/{session_id}/artifact-fetches/check?path= and
+/sessions/{session_id}/artifact-fetches
+  Local file links (`LocalFileLink`, used by MarkdownMessage local hrefs, tool
+  input paths, and diff headers) always show the real path as the tooltip and
+  copy only the clean absolute path. SessionWorkbench mounts
+  `LocalFileFetchProvider`; it is disabled for E2EE sessions, offline
+  nodes/agents, and unsaved sessions, and absent elsewhere (artifact viewer,
+  standalone pages), so those links stay copy-only. Clicking an enabled link
+  runs check (`{allowed, path, filename, size_bytes?, denial?}`), shows the
+  full path for confirmation, then POSTs `{path}`: `accepted: true` returns an
+  ArtifactPublication polled with `useArtifactPublication` and rendered with
+  `PublicationArtifactViewer`; `accepted: false` returns
+  `denial: {code, rule, message}`. HTTP 503 means the node is offline and 409
+  means an E2EE session. The "already fetched" map is client-only Zustand state
+  (`useLocalFileFetchStore`). Behavior scenarios: `docs/local-file-links.md`.
 
 /artifact-uploads, /artifacts, and /sessions/{session_id}/artifacts
   The Session Artifacts panel reads artifacts through TanStack Query and lets
@@ -2134,3 +2198,22 @@ use `error`; apiFetch maps known routing errors to actionable messages with HTTP
 status and keeps Manager `message` errors. Unknown Worker details remain hidden.
 A failed lookup displays a release-check failure and a read-only retry action.
 Install stays disabled during lookup or after failure, including cached versions.
+
+## Scheduled session provenance
+
+paxd owns cron definitions, trigger execution, prompt/workspace snapshots, and
+native session bindings. paxl provides local CRUD. The node-authenticated Manager
+`POST /api/v1/node/agents/:agent_id/sessions/register` endpoint returns the normal
+Pax session ID, deduplicating the native ID and durable registration ID.
+
+Console reads `metadata.origin` from ordinary session queries. The parser lives
+in `src/features/sessions/session-origin.ts`; the shared `CronOriginBadge` shows
+the task name with cronjob and creation-run IDs in its tooltip. It appears in
+recent sessions and the workbench. Reused sessions retain the original creation
+run. Missing or unknown metadata leaves existing sessions unchanged.
+
+Messages and permission requests use the existing E2EE runtime/history paths.
+Deploy Manager support before enabling tasks in updated paxd, then update Console
+for provenance display. Offline execution can appear after registration and
+history synchronization recover. No browser scheduler or cron management page
+is introduced; use `paxl cron` for task management.

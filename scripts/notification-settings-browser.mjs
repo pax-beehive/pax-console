@@ -20,7 +20,8 @@ try {
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.addInitScript(() => {
+  await page.addInitScript((appOrigin) => {
+    if (location.origin !== appOrigin) return;
     Object.defineProperty(document, "hasFocus", {
       configurable: true,
       value: () => true,
@@ -38,26 +39,39 @@ try {
       window.__pushAudit.permissionCalls++;
       return "granted";
     };
-    let subscription = null;
+    const subscriptionFixture = (options) => ({
+      options,
+      unsubscribe: async () => {
+        subscription = null;
+        localStorage.removeItem("audit:push-subscription");
+        window.__pushAudit.unsubscriptions++;
+        return true;
+      },
+      toJSON: () => ({
+        endpoint: "https://fcm.googleapis.com/wp/fictional-browser-test",
+        expirationTime: null,
+        keys: { auth: "fictional-auth", p256dh: "fictional-public-key" },
+      }),
+    });
+    // A browser subscription survives document navigation; the display fixture
+    // must do the same while exercising repeated notification clicks/reloads.
+    const storedKey = localStorage.getItem("audit:push-subscription");
+    let subscription = storedKey
+      ? subscriptionFixture({
+          applicationServerKey: new Uint8Array(JSON.parse(storedKey)),
+        })
+      : null;
     PushManager.prototype.getSubscription = async () => subscription;
     PushManager.prototype.subscribe = async function (options) {
       window.__pushAudit.subscriptions++;
-      subscription = {
-        options,
-        unsubscribe: async () => {
-          subscription = null;
-          window.__pushAudit.unsubscriptions++;
-          return true;
-        },
-        toJSON: () => ({
-          endpoint: "https://fcm.googleapis.com/wp/fictional-browser-test",
-          expirationTime: null,
-          keys: { auth: "fictional-auth", p256dh: "fictional-public-key" },
-        }),
-      };
+      localStorage.setItem(
+        "audit:push-subscription",
+        JSON.stringify([...new Uint8Array(options.applicationServerKey)]),
+      );
+      subscription = subscriptionFixture(options);
       return subscription;
     };
-  });
+  }, origin);
   await page.route("**/api/region-config", (route) =>
     route.fulfill({ json: { enabled: false } }),
   );
@@ -329,29 +343,62 @@ try {
   }, sessionPath);
   assert.equal(completion.body, "Final response. All checks passed.");
   assert.equal(completion.data.url, sessionPath);
-  await worker.evaluate(async (data) => {
-    // Synthetic events lack notification user activation. Fixture only OS focus;
-    // keep the real WindowClient navigation and observed document URL.
-    const originalFocus = WindowClient.prototype.focus;
-    WindowClient.prototype.focus = async function () {
-      return this;
-    };
-    const event = new Event("notificationclick");
-    let pending;
-    event.notification = { data, close() {} };
-    event.waitUntil = (work) => {
-      pending = work;
-    };
-    try {
-      self.dispatchEvent(event);
-      await pending;
-    } finally {
-      WindowClient.prototype.focus = originalFocus;
-    }
-  }, completion.data);
+  const clickNotification = (data) =>
+    worker.evaluate(async (data) => {
+      // Synthetic events lack notification user activation. Fixture only OS focus;
+      // keep the real WindowClient navigation and observed document URL.
+      const originalFocus = WindowClient.prototype.focus;
+      WindowClient.prototype.focus = async function () {
+        return this;
+      };
+      const event = new Event("notificationclick");
+      let pending;
+      event.notification = { data, close() {} };
+      event.waitUntil = (work) => {
+        pending = work;
+      };
+      try {
+        self.dispatchEvent(event);
+        await pending;
+      } finally {
+        WindowClient.prototype.focus = originalFocus;
+      }
+    }, data);
+  await clickNotification(completion.data);
   await page.waitForURL(origin + sessionPath);
   assert.equal(await page.title(), "Fictional session");
+
+  const otherSessionPath = "/?session_id=another-session";
+  await page.evaluate((path) => {
+    history.replaceState(history.state, "", path);
+    document.querySelector("main").textContent = "Another active session";
+  }, otherSessionPath);
+  assert.equal(page.url(), origin + otherSessionPath);
+  const clientURLs = await worker.evaluate(async () =>
+    (await self.clients.matchAll({ type: "window" })).map(
+      (client) => client.url,
+    ),
+  );
+  console.log(
+    JSON.stringify({
+      case: "Home switched after document creation",
+      visibleURL: page.url(),
+      workerClientURLs: clientURLs,
+    }),
+  );
+  await clickNotification(completion.data);
+  assert.equal(
+    page.url(),
+    origin + sessionPath,
+    "notification must navigate back to its session after an in-page session switch",
+  );
+  assert.equal(
+    await page.locator("main").innerText(),
+    "Notification navigation fixture",
+  );
   await page.goto(origin + "/settings/notifications");
+  // Finish foreground reconciliation before the ordinary disable assertion.
+  await page.waitForLoadState("networkidle");
   await page
     .getByRole("button", { name: "Turn off on this device", exact: true })
     .click();
@@ -369,6 +416,7 @@ try {
   console.log(
     JSON.stringify({
       result: "passed",
+      switchedAwayFromTargetBeforeClick: true,
       tests,
       revoked,
       workerHandledSyntheticPushWithoutAppPage: true,
