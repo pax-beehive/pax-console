@@ -67,6 +67,14 @@ honors remote revocation, replaces expired/invalidated subscriptions, and checks
 the returned owner before saving a binding. Logout cleanup is bounded to three
 seconds and then continues the normal gateway form submission.
 
+NotificationSettings keeps unknown/checking separate from confirmed off. A
+device confirmation belongs to the current owner/client and exact config
+snapshot/revision; cached queries alone cannot enable actions. Reconciliation
+failure retains an unknown status and an explicit refresh. A successful enabled
+confirmation refreshes receiver metadata before committing the visible state;
+temporarily missing local/server registration data never exposes Enable as if
+the receiver were confirmed off. Notification text may contain a short reply preview.
+
 `public/push-sw.js` has no fetch handler or authenticated caching. Preserve its
 JavaScript content type, root scope and no-store headers. It displays the
 Manager's bounded reply preview for standard turns (200 Unicode code points),
@@ -139,7 +147,9 @@ Regenerate the badge from the original `pax-icon.svg` geometry with
 `PAX_PUSH_PREVIEW_URL`). It uses fictional API/permission/subscription fixtures,
 installs the real worker, and observes its showNotification call after leaving
 the app page. It also checks reply preview rendering and actual WindowClient
-navigation to a fictional session page. Synthetic clicks lack browser user
+navigation to a fictional session page. It also holds reconciliation while
+returning through client navigation with warm query caches, checks the checking
+state and observes DOM mutations for any actionable Enable flash. Synthetic clicks lack browser user
 activation, so OS focus is an explicit fixture. It does not prove native OS
 display, native notification clicks, or real Android delivery.
 

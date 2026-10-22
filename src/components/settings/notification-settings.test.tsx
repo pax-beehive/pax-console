@@ -1,6 +1,7 @@
 /* @vitest-environment jsdom */
 import "@testing-library/jest-dom/vitest";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -29,14 +30,14 @@ const f = vi.hoisted(() => ({
   disable: vi.fn(),
   test: vi.fn(),
   fetch: vi.fn(),
+  reconcile: vi.fn(),
 }));
 vi.mock("@/features/notifications/push-client", () => ({
   notificationBase: "/api/v1/user/self/notifications",
   pushSupported: () => f.supported,
   readPushBinding: () => f.binding,
   PushClient: class {
-    reconcile = async (config: PushConfig) =>
-      config.test_enabled ? f.state : "unconfigured";
+    reconcile = f.reconcile;
     enable = f.enable;
     disable = f.disable;
     test = f.test;
@@ -54,6 +55,9 @@ beforeEach(() => {
   f.configured = true;
   f.failRead = false;
   f.automatic = false;
+  f.reconcile.mockImplementation(async (config: PushConfig) =>
+    config.test_enabled ? f.state : "unconfigured",
+  );
   f.approvals = false;
   f.fetch.mockImplementation(async (path: string) => {
     if (f.failRead) throw new Error("offline");
@@ -100,19 +104,113 @@ beforeEach(() => {
   });
   f.test.mockResolvedValue({ delivery: { status: "pending" } });
 });
-function mount() {
-  const client = new QueryClient({
+function queryClient() {
+  return new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   });
-  render(
+}
+function mount(client = queryClient()) {
+  const view = render(
     <QueryClientProvider client={client}>
       <TooltipProvider>
         <NotificationSettings userId="user" />
       </TooltipProvider>
     </QueryClientProvider>,
   );
+  return { ...view, client };
+}
+function enabledDevice() {
+  f.state = "enabled";
+  f.binding = {
+    owner: "user",
+    receiver_id: "receiver",
+    key_id: "key",
+    enabled: true,
+  };
+}
+function deferredState() {
+  let resolve!: (state: PushState) => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<PushState>((yes, no) => {
+    resolve = yes;
+    reject = no;
+  });
+  return { promise, resolve, reject };
 }
 describe("notification settings", () => {
+  it("does not offer Enable while cached queries await device confirmation", async () => {
+    enabledDevice();
+    const pending = deferredState();
+    f.reconcile.mockReturnValue(pending.promise);
+    const client = queryClient();
+    client.setQueryData(
+      ["notification-config", "user"],
+      await f.fetch("/config"),
+    );
+    client.setQueryData(
+      ["notification-receivers", "user"],
+      await f.fetch("/receivers"),
+    );
+    mount(client);
+    await waitFor(() => expect(f.reconcile).toHaveBeenCalled());
+    expect(
+      screen.queryByRole("button", { name: "Enable notifications" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Checking notifications...",
+    );
+    await act(async () => pending.resolve("enabled"));
+    await screen.findByText("Notifications are enabled on this device.");
+    expect(f.enable).not.toHaveBeenCalled();
+  });
+  it("waits for the refreshed config's confirmation before offering any Enable action", async () => {
+    enabledDevice();
+    const { client } = mount();
+    await screen.findByText("Notifications are enabled on this device.");
+    const pending = deferredState();
+    f.reconcile.mockReturnValue(pending.promise);
+    act(() => {
+      client.setQueryData(
+        ["notification-config", "user"],
+        client.getQueryData(["notification-config", "user"]),
+        { updatedAt: Date.now() + 1000 },
+      );
+    });
+    await waitFor(() => expect(f.reconcile).toHaveBeenCalledTimes(2));
+    expect(
+      screen.queryByRole("button", { name: "Enable notifications" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Checking notifications...",
+    );
+    await act(async () => pending.resolve("enabled"));
+    await screen.findByText("Notifications are enabled on this device.");
+  });
+  it("does not treat a temporarily missing registration snapshot as confirmed off", async () => {
+    enabledDevice();
+    const { client } = mount();
+    await screen.findByText("Notifications are enabled on this device.");
+    f.binding = null;
+    act(() => {
+      client.setQueryData(["notification-receivers", "user"], { regions: [] });
+    });
+    await screen.findByText("Confirming this device's server registration...");
+    expect(
+      screen.queryByRole("button", { name: "Enable notifications" }),
+    ).not.toBeInTheDocument();
+    expect(f.enable).not.toHaveBeenCalled();
+  });
+  it("keeps failed device confirmation unknown and allows an explicit refresh", async () => {
+    enabledDevice();
+    f.reconcile.mockRejectedValueOnce(new Error("subscription unavailable"));
+    mount();
+    await screen.findByText(/Could not confirm this device's subscription/);
+    expect(
+      screen.queryByRole("button", { name: "Enable notifications" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Refresh status" }));
+    await screen.findByText("Notifications are enabled on this device.");
+  });
   it("explains that pending approvals notify while automatic approvals stay quiet", async () => {
     f.approvals = true;
     mount();
@@ -193,8 +291,8 @@ describe("notification settings", () => {
     mount();
     await screen.findByText("Notification status is temporarily unavailable.");
     expect(
-      screen.getByRole("button", { name: "Enable notifications" }),
-    ).toBeDisabled();
+      screen.queryByRole("button", { name: "Enable notifications" }),
+    ).not.toBeInTheDocument();
     f.failRead = false;
     fireEvent.click(screen.getByRole("button", { name: "Refresh status" }));
     await screen.findByText("Notifications are off on this device.");

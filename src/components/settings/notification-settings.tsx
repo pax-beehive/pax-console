@@ -29,6 +29,13 @@ const descriptions: Record<PushState, string> = {
   enabled: "Notifications are enabled on this device.",
 };
 
+type DeviceConfirmation = {
+  client: PushClient;
+  config: PushConfig;
+  updatedAt: number;
+  state: PushState | null;
+};
+
 export function NotificationSettings({ userId }: { userId: string }) {
   const queries = useQueryClient();
   const client = useMemo(() => new PushClient(userId), [userId]);
@@ -37,7 +44,9 @@ export function NotificationSettings({ userId }: { userId: string }) {
     pushSupported,
     () => false,
   );
-  const [state, setState] = useState<PushState>("off");
+  const [confirmation, setConfirmation] = useState<DeviceConfirmation | null>(
+    null,
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -56,25 +65,52 @@ export function NotificationSettings({ userId }: { userId: string }) {
   });
   useEffect(() => {
     if (!supported || !config.data) return;
+    const checkedConfig = config.data;
+    const updatedAt = config.dataUpdatedAt;
     let active = true;
     client
-      .reconcile(config.data)
-      .then((value) => {
+      .reconcile(checkedConfig)
+      .then(async (value) => {
+        if (!active) return;
+        if (value === "enabled") {
+          await queries.invalidateQueries({
+            queryKey: ["notification-receivers", userId],
+          });
+        }
         if (active) {
-          setState(value);
+          setConfirmation({
+            client,
+            config: checkedConfig,
+            updatedAt,
+            state: value,
+          });
           setError("");
         }
       })
       .catch(() => {
-        if (active)
+        if (active) {
+          setConfirmation({
+            client,
+            config: checkedConfig,
+            updatedAt,
+            state: null,
+          });
           setError(
             "Could not confirm this device's subscription. Retry when you are online.",
           );
+        }
       });
     return () => {
       active = false;
     };
-  }, [client, config.data, config.dataUpdatedAt, supported]);
+  }, [client, config.data, config.dataUpdatedAt, queries, supported, userId]);
+  const current =
+    confirmation?.client === client &&
+    confirmation.config === config.data &&
+    confirmation.updatedAt === config.dataUpdatedAt
+      ? confirmation
+      : null;
+  const state = current?.state ?? null;
   const binding = supported ? readPushBinding() : null;
   const owned = binding?.owner === userId ? binding : null;
   const receiver = receivers.data?.regions
@@ -82,8 +118,12 @@ export function NotificationSettings({ userId }: { userId: string }) {
     .find((row) => row.receiver_id === owned?.receiver_id);
   const enabled =
     state === "enabled" && receiver?.status === "enabled" && owned?.enabled;
-  const loading = supported && (config.isLoading || receivers.isLoading);
-  const unavailable = config.isError || receivers.isError;
+  const checking = supported && Boolean(config.data) && !current;
+  const loading =
+    supported && (config.isLoading || receivers.isLoading || checking);
+  const refreshing = config.isFetching || receivers.isFetching;
+  const unavailable =
+    config.isError || receivers.isError || current?.state === null;
   const refresh = async () => {
     await Promise.all([config.refetch(), receivers.refetch()]);
   };
@@ -93,7 +133,13 @@ export function NotificationSettings({ userId }: { userId: string }) {
     setNotice("");
     try {
       const result = await action();
-      if (typeof result === "string") setState(result as PushState);
+      if (typeof result === "string" && config.data)
+        setConfirmation({
+          client,
+          config: config.data,
+          updatedAt: config.dataUpdatedAt,
+          state: result as PushState,
+        });
       if (success) setNotice(success);
       await queries.invalidateQueries({
         queryKey: ["notification-receivers", userId],
@@ -131,7 +177,11 @@ export function NotificationSettings({ userId }: { userId: string }) {
                 ? "Notification status is temporarily unavailable."
                 : state === "enabled" && !enabled
                   ? "Confirming this device's server registration..."
-                  : descriptions[supported ? state : "unsupported"]}
+                  : !supported
+                    ? descriptions.unsupported
+                    : state
+                      ? descriptions[state]
+                      : "Checking notifications..."}
           </p>
           {!loading && config.data && !config.data.turn_completion_enabled && (
             <p className="text-sm text-ink-tertiary">
@@ -155,24 +205,29 @@ export function NotificationSettings({ userId }: { userId: string }) {
             </p>
           )}
           <div className="flex flex-wrap gap-2">
-            {!enabled && supported && (
-              <Button
-                variant="primary"
-                disabled={
-                  busy ||
-                  loading ||
-                  unavailable ||
-                  !config.data?.enabled ||
-                  !config.data?.test_enabled ||
-                  state === "denied"
-                }
-                onClick={() => {
-                  if (config.data) void act(() => client.enable(config.data!));
-                }}
-              >
-                Enable notifications
-              </Button>
-            )}
+            {supported &&
+              state !== null &&
+              state !== "enabled" &&
+              state !== "unsupported" && (
+                <Button
+                  variant="primary"
+                  disabled={
+                    busy ||
+                    loading ||
+                    refreshing ||
+                    unavailable ||
+                    !config.data?.enabled ||
+                    !config.data?.test_enabled ||
+                    state === "denied"
+                  }
+                  onClick={() => {
+                    if (config.data)
+                      void act(() => client.enable(config.data!));
+                  }}
+                >
+                  Enable notifications
+                </Button>
+              )}
             {owned && (
               <Button
                 disabled={busy}
