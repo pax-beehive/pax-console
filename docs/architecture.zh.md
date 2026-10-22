@@ -982,13 +982,27 @@ AES-256-GCM，与 `paxd/internal/secretchannel/crypto.go` 字节级兼容）在�
 输入在开始发送时清空，发送使用直接 async handler，不把明文或捕获明文的函数放入
 TanStack Mutation 缓存。
 
-Settings / Devices / Nodes 的每个在线 node 行提供受确认保护的 paxd
-maintenance 操作。Restart 固定发送 `mode: immediate`；打开 Upgrade 弹窗后，前端按
-node 上报的 `os/arch` 调用 `GET /api/v1/public/paxd/download` 解析该平台最新的
-stable artifact，展示并提交其精确版本；当前版本相同时禁止重复升级。Upgrade 固定
-使用 `tag: stable` 和 `mode: immediate`。前端为每次请求生成唯一 `command_id`，并在
-ACK 后显示 command id、dispatch status 以及 upgrade 的新 boot 确认状态，便于与
-paxd 日志和 heartbeat 对照。
+Settings / Devices / Nodes 的每个 node 行（`NodeListRow`）展示在线状态、平台、paxd
+版本和 `metadata.paxl` 观测；离线行附带距最后一次 heartbeat 的时长。维护操作都在行
+末的操作菜单里：升级 paxd、重启 paxd、升级 paxl、删除设备。Restart 固定发送
+`mode: immediate`；打开 Upgrade 弹窗后，前端按 node 上报的 `os/arch` 调用
+`GET /api/v1/public/paxd/download` 解析该平台最新的 stable artifact，展示并提交其精确
+版本；当前版本相同时禁止重复升级。Upgrade 固定使用 `tag: stable` 和
+`mode: immediate`。
+
+三个维护弹窗共用 `DaemonCommandDialog`：确认、提交后不关闭，轮询
+`GET .../daemon/commands/{command_id}` 直到命令结束。paxl 的步骤对应 paxd 上报的
+`downloading`、`activating`、`verifying`；paxd 重启和升级在 paxd 本地会一直停在
+`received`，步骤以 Manager 基于 heartbeat 的 `maintenance_confirmation` 为准。paxd
+暂时不可达时（Manager 返回 `stale: true`，旧版 Manager 返回 503）显示为等待重连，
+不算失败。关闭弹窗不会取消命令。失败后的 Retry 使用新的 `command_id`，复用旧 ID
+只会拿到 paxd 已存的失败结果。
+
+Manager 会记录这些命令，并在每个 node 上返回每种类型最近一条的
+`latest_daemon_commands`。列表行展示进行中的命令，或尚未被已安装版本覆盖的最近一次
+失败，点击即可打开对应弹窗。有命令进行中时 `useNodes` 每 3 秒刷新。状态折叠逻辑在
+`src/features/devices/daemon-commands.ts`，与 Manager 的 `NodeDaemonCommandState`
+保持一致，响应里有 Manager 的 `state` 时以它为准。浏览器不再自行保存 command id。
 
 control tunnel 同一时刻只允许一组 query request/response，因此面板按
 status → harnesses → agent connections 串行加载。mutation 收到 ACK 后保存
@@ -2012,9 +2026,10 @@ src/components/connect/paxl-login-page-client.test.tsx`, typecheck, lint and bui
 `POST /api/v1/user/{user_id}/nodes/{node_id}/paxl/upgrade`。继续复用 daemon command
 查询接口；received 仅代表已接收，applied 表示替换后实际版本验证成功，不重启 paxd。
 
-localStorage 按用户和节点保存 command_id 与目标版本，刷新或网络响应不确定后查询、
-重试同一个 command。服务端数据仍由 TanStack Query 管理。先部署对应 Manager 与
-paxd，再部署 Console。跨仓库浏览器 fixture 为 `scripts/paxl-upgrade-e2e.mjs`，
+刷新、换浏览器或节点断线后的恢复依赖 Manager 记录的 `latest_daemon_commands`：
+节点详情页展示最近一次 paxl 升级结果，进行中的升级会在弹窗里继续显示进度，不再使用
+localStorage。服务端数据仍由 TanStack Query 管理。先部署对应 Manager 与 paxd，
+再部署 Console。跨仓库浏览器 fixture 为 `scripts/paxl-upgrade-e2e.mjs`，
 由 Manager 的 `TestPaxlBrowserUpgrade` 启动真实前端、API 与 paxd control runner。
 
 ## Paxl upgrade release lookup recovery

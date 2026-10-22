@@ -1518,13 +1518,31 @@ Inquiries route
 
 Do not regress these routes into placeholders.
 
-Settings / Devices / Nodes exposes guarded row actions for immediate paxd
-restart and upgrade. Restart requires confirmation. When the upgrade dialog
-opens, it resolves the newest stable artifact for the node's reported OS and
-architecture through `GET /api/v1/public/paxd/download`, shows that exact
-version, and disables redundant upgrades when the node already runs it. Both
-actions generate a client command id and display the acknowledged command so
-operators can correlate it with daemon logs and the new boot heartbeat.
+Settings / Devices / Nodes rows (`NodeListRow`) show presence, platform, the
+paxd version and the `metadata.paxl` observation; offline rows add the age of
+the last heartbeat. Maintenance lives in the row's actions menu: paxd upgrade,
+paxd restart, paxl upgrade and delete. When the paxd upgrade dialog opens, it
+resolves the newest stable artifact for the node's reported OS and architecture
+through `GET /api/v1/public/paxd/download`, shows that exact version, and
+disables redundant upgrades when the node already runs it.
+
+All three maintenance dialogs share `DaemonCommandDialog`: confirm, submit,
+then stay open and poll `GET .../daemon/commands/{command_id}` until the command
+settles. paxl steps follow paxd's `downloading`, `activating`, `verifying`
+phases; paxd restart and upgrade steps follow Manager's heartbeat-based
+`maintenance_confirmation`, because paxd keeps those records at `received`.
+Unreachable paxd (Manager returns `stale: true`, or older Managers return 503)
+is shown as reconnecting, not as a failure. Closing the dialog never cancels
+the command. Retry after a failure issues a new command id; reusing an id would
+only return paxd's stored failure.
+
+Manager records these commands and returns the newest one per type as
+`latest_daemon_commands` on every node. The row shows a running command, or the
+newest failure not already superseded by the installed version, and opens its
+dialog from that note. `useNodes` polls every 3 s while any node reports a
+running command. State folding lives in `src/features/devices/daemon-commands.ts`
+and mirrors Manager's `NodeDaemonCommandState`; the Manager `state` field wins
+when present. The browser keeps no command ids of its own.
 
 ## Documentation Maintenance Requirement
 
@@ -2206,17 +2224,19 @@ src/components/connect/paxl-login-page-client.test.tsx`, typecheck, lint and bui
 
 Node rows and advanced node settings show `metadata.paxl` as the last daemon
 observation (installed/missing/probe_failed, version, real path and probe time).
-Offline observations are explicitly labeled. `NodePaxlUpgrade` resolves the
+Offline observations are explicitly labeled. `PaxlUpgradeDialog` resolves the
 stable paxl artifact, submits an explicit version through the same-origin
-`POST /api/v1/user/{user_id}/nodes/{node_id}/paxl/upgrade`, then polls the existing
-daemon command endpoint. Received is pending; only applied means the daemon
-verified the actual installed executable. This action does not restart paxd.
+`POST /api/v1/user/{user_id}/nodes/{node_id}/paxl/upgrade`, then follows the
+daemon command endpoint (see the maintenance dialogs above). Received is
+pending; only applied means the daemon verified the actual installed
+executable. This action does not restart paxd.
 
-The user/node-scoped localStorage entry retains only command ID and target
-version so reloads and uncertain network responses can recover or retry the
-same command. Server results remain in TanStack Query. Install the compatible
-Manager and paxd before enabling the action. The opt-in cross-repository browser
-fixture is `scripts/paxl-upgrade-e2e.mjs`; its runner lives in Manager's
+Recovery after reloads, other browsers and node disconnects comes from
+Manager's recorded `latest_daemon_commands`; the node detail page shows the
+latest paxl upgrade and resumes a running one in the dialog. Nothing is kept in
+localStorage. Install the compatible Manager and paxd before enabling the
+action. The opt-in cross-repository browser fixture is
+`scripts/paxl-upgrade-e2e.mjs`; its runner lives in Manager's
 `TestPaxlBrowserUpgrade` and uses the production paxd control runner and installer.
 
 ## Paxl upgrade release lookup recovery

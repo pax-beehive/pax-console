@@ -31,6 +31,45 @@ export type Node = {
   registered_at?: string;
   metadata?: ApiRecord;
   user_metadata?: ApiRecord;
+  /** Newest Manager-recorded maintenance command per command type. */
+  latest_daemon_commands?: DaemonCommandRecord[];
+};
+
+export type DaemonCommandState = "in_progress" | "succeeded" | "failed";
+
+export type NodeDaemonMaintenanceConfirmation = {
+  command_id?: string;
+  expected_version?: string;
+  observed_boot_id?: string;
+  observed_version?: string;
+  requested_boot_id?: string;
+  /** awaiting_new_boot, awaiting_running, confirmed or version_mismatch. */
+  status: string;
+  updated_at?: string;
+};
+
+/**
+ * Manager-side record of a paxd maintenance command. paxd owns execution;
+ * status, phase and error mirror its last observed command state.
+ */
+export type DaemonCommandRecord = {
+  command_id: string;
+  completed_at?: string;
+  created_at: string;
+  error_code?: string;
+  error_message?: string;
+  maintenance_confirmation?: NodeDaemonMaintenanceConfirmation;
+  node_id: string;
+  observed_at?: string;
+  phase?: string;
+  requested_by_user_id?: string;
+  result?: ApiRecord;
+  state: DaemonCommandState;
+  status: string;
+  target?: ApiRecord;
+  target_version?: string;
+  type: string;
+  updated_at: string;
 };
 
 export type Health = {
@@ -156,7 +195,12 @@ export type NodeDaemonSecretChannel = {
 export type NodeDaemonQueryResult = {
   agent_connections?: { items: NodeDaemonAgentConnection[] };
   command?: NodeDaemonCommand;
+  /** Present for Manager-recorded commands on command.get. */
+  daemon_command?: DaemonCommandRecord;
   error?: NodeDaemonControlError;
+  maintenance_confirmation?: NodeDaemonMaintenanceConfirmation;
+  /** True when paxd was unreachable and Manager served its stored record. */
+  stale?: boolean;
   harnesses?: { items: NodeDaemonHarness[] };
   status?: NodeDaemonStatus;
   secret_channel_open?: NodeDaemonSecretChannel;
@@ -169,6 +213,7 @@ export type NodeDaemonCommandData = {
   command_status?: string;
   confirmation_status?: string;
   connection_id?: string;
+  daemon_command?: DaemonCommandRecord;
   desired_generation?: number;
   dispatch_error?: string;
   dispatch_status?: string;
