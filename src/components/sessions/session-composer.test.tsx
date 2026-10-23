@@ -171,7 +171,7 @@ describe("SessionComposer", () => {
     expect(
       screen.getByPlaceholderText("Send an end-to-end encrypted message"),
     ).toBeVisible();
-    expect(screen.getByRole("button", { name: "Upload files" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Upload files" })).toBeEnabled();
   });
 
   it("lets the shell resize for the keyboard without padding or document scrolling", async () => {
@@ -394,20 +394,20 @@ describe("SessionComposer", () => {
       screen.getByRole("button", { name: "Stop current turn" }),
     ).toBeEnabled();
     expect(
-      screen.getByRole("button", { name: "More turn actions" }),
-    ).toHaveClass("sm:hidden");
+      screen.queryByRole("button", { name: "More turn actions" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Steer with this prompt" }),
-    ).toHaveClass("hidden", "sm:inline-flex");
+    ).not.toHaveClass("hidden");
     expect(
       screen.queryByRole("button", { name: "Send prompt" }),
     ).not.toBeInTheDocument();
     await userEvent.click(
       screen.getByRole("button", { name: "Add to conversation" }),
     );
-    expect(screen.getByRole("menuitem", { name: "Upload" })).toHaveAttribute(
-      "data-disabled",
-    );
+    expect(
+      screen.getByRole("menuitem", { name: "Upload" }),
+    ).not.toHaveAttribute("data-disabled");
     await userEvent.click(
       screen.getByRole("menuitem", { name: "Securely send password / token" }),
     );
@@ -619,7 +619,7 @@ it("uploads multiple files dropped onto the composer without replacing its draft
   expect(screen.queryByText("Drop files to upload")).not.toBeInTheDocument();
 });
 
-it.each([{ secure: true }, { attachmentUploadPending: true }])(
+it.each([{ attachmentUploadPending: true }])(
   "blocks file drops when %j",
   (state) => {
     const add = vi.fn();
@@ -876,4 +876,18 @@ it("clears an acknowledged prompt before completion and still allows queueing th
     finish(true);
   });
   expect(screen.getByRole("textbox")).toHaveValue("Still writing");
+});
+
+it("allows file drops in encrypted sessions", () => {
+  const add = vi.fn();
+  render(
+    <TooltipProvider>
+      <SessionComposer {...creationProps} secure onAddAttachments={add} />
+    </TooltipProvider>,
+  );
+  const files = [new File(["private"], "secret.txt")];
+  fireEvent.drop(screen.getByRole("textbox"), {
+    dataTransfer: { types: ["Files"], files, dropEffect: "copy" },
+  });
+  expect(add).toHaveBeenCalledExactlyOnceWith(files);
 });

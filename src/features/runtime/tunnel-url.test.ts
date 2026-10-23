@@ -43,3 +43,74 @@ describe("getAgentTunnelUrl", () => {
     );
   });
 });
+it("uses the same-origin Worker after a verified regional bootstrap", async () => {
+  const { vi } = await import("vitest");
+  const { bootstrapRegion, loadRegionConfig } =
+    await import("../region/bootstrap");
+  vi.stubGlobal("window", { location: { origin: "https://paxworkspace.net" } });
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      Response.json({ status: "ready", user_id: "usr_original", region: "hk" }),
+    ),
+  );
+  try {
+    await bootstrapRegion();
+    expect(getAgentTunnelUrl("agent_one", "sess_one")).toBe(
+      "wss://paxworkspace.net/api/v1/user/self/agents/agent_one/tunnel?session_id=sess_one",
+    );
+  } finally {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ enabled: false })),
+    );
+    await loadRegionConfig();
+    vi.unstubAllGlobals();
+  }
+});
+it("uses the fixed direct region even when an old central WS override exists", async () => {
+  const { vi } = await import("vitest");
+  const { bootstrapRegion, loadRegionConfig } =
+    await import("../region/bootstrap");
+  const old = process.env.NEXT_PUBLIC_PAX_WS_BASE_URL;
+  process.env.NEXT_PUBLIC_PAX_WS_BASE_URL = "https://old-central.example";
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      Response.json({
+        enabled: true,
+        mode: "direct",
+        region: "hk",
+        origin: "https://hk.example",
+        origins: { us: "https://us.example", hk: "https://hk.example" },
+      }),
+    ),
+  );
+  try {
+    await loadRegionConfig();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          status: "ready",
+          region: "hk",
+          user_id: "usr_hk",
+          origin: "https://hk.example",
+        }),
+      ),
+    );
+    await bootstrapRegion();
+    expect(getAgentTunnelUrl("agent_hk")).toBe(
+      "wss://hk.example/api/v1/user/self/agents/agent_hk/tunnel",
+    );
+  } finally {
+    if (old === undefined) delete process.env.NEXT_PUBLIC_PAX_WS_BASE_URL;
+    else process.env.NEXT_PUBLIC_PAX_WS_BASE_URL = old;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ enabled: false })),
+    );
+    await loadRegionConfig();
+    vi.unstubAllGlobals();
+  }
+});

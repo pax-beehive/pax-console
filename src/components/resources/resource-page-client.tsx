@@ -42,12 +42,7 @@ import {
   useNodes,
 } from "@/features/api/resources";
 import { queryKeys } from "@/features/api/query-keys";
-import {
-  Agent,
-  AgentApproval,
-  Node,
-  User,
-} from "@/features/api/types";
+import { Agent, AgentApproval, Node, User } from "@/features/api/types";
 import { compactId } from "@/lib/format";
 import {
   deleteRootKey,
@@ -64,6 +59,7 @@ import {
   isActiveAgent,
   isActiveNode,
   isActiveSession,
+  isDeviceNode,
   nodeLabel,
   paginateItems,
   resourceLastActiveAt,
@@ -73,9 +69,11 @@ import {
 import { ServiceStatusPanel } from "@/components/settings/service-status-panel";
 import {
   SettingsBack,
+  SettingsPageHeader,
   settingsLinks,
 } from "@/components/settings/settings-navigation";
-import { NodeMaintenanceActions } from "./node-maintenance-actions";
+import { settingsSection } from "@/components/settings/settings-catalog";
+import { NodeListRow } from "./node-list-row";
 
 type ResourceKind =
   | "nodes"
@@ -130,7 +128,7 @@ const copy: Record<
   },
   encryption: {
     title: "Encrypted chats",
-    eyebrow: "browser access and encryption keys",
+    eyebrow: "device access and encryption keys",
     icon: <ShieldCheck className="h-4 w-4" />,
   },
   monitor: {
@@ -148,6 +146,17 @@ const copy: Record<
     eyebrow: "bootstrap access",
     icon: <Settings2 className="h-4 w-4" />,
   },
+};
+
+const resourceSettingsSections: Partial<Record<ResourceKind, string>> = {
+  nodes: "devices",
+  agents: "devices",
+  security: "permissions",
+  grants: "permissions",
+  encryption: "encryption",
+  monitor: "status",
+  "api-keys": "apiKeys",
+  "node-registration": "registration",
 };
 
 const emptyNodes: Node[] = [];
@@ -185,8 +194,10 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
   const allNodes = nodesQuery.data?.nodes ?? emptyNodes;
   const sortedNodes = useMemo(
     () =>
-      byLastActiveDesc(allNodes, resourceLastActiveAt, (node) =>
-        nodeLabel(node),
+      byLastActiveDesc(
+        allNodes.filter(isDeviceNode),
+        resourceLastActiveAt,
+        (node) => nodeLabel(node),
       ),
     [allNodes],
   );
@@ -274,6 +285,17 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
       : undefined,
   );
   const meta = copy[kind];
+  const sectionId = resourceSettingsSections[kind];
+  const advancedSettings = [
+    "api-keys",
+    "node-registration",
+    "security",
+    "grants",
+    "encryption",
+  ].includes(kind);
+  const description = sectionId
+    ? settingsSection(sectionId).description
+    : meta.eyebrow;
   const apiError =
     nodesQuery.error ??
     agentsQuery.error ??
@@ -292,59 +314,56 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
   return (
     <ConsoleLayout user={user}>
       <div className="flex min-h-0 flex-1 flex-col">
-        <header className="border-b border-hairline px-4 py-4 sm:px-5">
-          <SettingsBack
-            href={
-              [
-                "api-keys",
-                "node-registration",
-                "security",
-                "grants",
-                "encryption",
-              ].includes(kind)
-                ? settingsLinks.advanced
-                : settingsLinks.home
-            }
-            label={
-              [
-                "api-keys",
-                "node-registration",
-                "security",
-                "grants",
-                "encryption",
-              ].includes(kind)
-                ? "Advanced settings"
-                : "Settings"
-            }
-          />
-          <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="min-w-0">
+        <SettingsPageHeader
+          title={meta.title}
+          description={description}
+          mobileHeading={
+            <>
+              <SettingsBack
+                href={
+                  advancedSettings ? settingsLinks.advanced : settingsLinks.home
+                }
+                label={advancedSettings ? "Advanced settings" : "Settings"}
+              />
               <div className="flex items-center gap-2 text-xs text-ink-tertiary">
                 {meta.icon}
                 {meta.eyebrow}
               </div>
               <h1 className="mt-2 text-2xl font-semibold">{meta.title}</h1>
-            </div>
-            <div className="flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
-              <ResourceSectionTabs kind={kind} />
-              {kind === "nodes" && (
-                <Button
-                  asChild
-                  icon={<Plus className="h-4 w-4" />}
-                  variant="primary"
-                >
-                  <Link href={settingsLinks.addDevice}>Add device</Link>
-                </Button>
-              )}
-              {supportsActiveFilter(kind) && (
-                <ActiveFilterToggle
-                  checked={showAllResources}
-                  onChange={handleShowAllResourcesChange}
-                />
-              )}
-            </div>
+            </>
+          }
+          category={
+            sectionId ? settingsSection(sectionId).category : meta.eyebrow
+          }
+        >
+          <div className="flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+            <ResourceSectionTabs kind={kind} />
+            {kind === "nodes" && (
+              <Button
+                asChild
+                icon={<Plus className="h-4 w-4" />}
+                variant="primary"
+              >
+                <Link href={settingsLinks.addDevice}>Add device</Link>
+              </Button>
+            )}
+            {kind === "agents" && (
+              <Button
+                asChild
+                icon={<Plus className="h-4 w-4" />}
+                variant="primary"
+              >
+                <Link href={settingsLinks.addAgent}>Add agent</Link>
+              </Button>
+            )}
+            {supportsActiveFilter(kind) && (
+              <ActiveFilterToggle
+                checked={showAllResources}
+                onChange={handleShowAllResourcesChange}
+              />
+            )}
           </div>
-        </header>
+        </SettingsPageHeader>
 
         {apiError && (
           <div className="px-5 pt-4">
@@ -352,103 +371,105 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
           </div>
         )}
 
-        <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-5">
-          {kind === "nodes" && (
-            <NodeGrid
-              isLoading={nodesQuery.isLoading}
-              nodes={nodes}
-              totalCount={sortedNodes.length}
-              userId={user.user_id}
-            />
-          )}
-          {kind === "agents" && (
-            <AgentGrid
-              agents={agentRows}
-              isLoading={agentsLoading}
-              nodeLabel={`${nodes.length}/${sortedNodes.length} nodes in scope`}
-              totalCount={sortedAgents.length}
-              userId={user.user_id}
-            />
-          )}
-          {kind === "sessions" && (
-            <SessionGrid
-              filteredCount={sessionRows.length}
-              isLoading={sessionsLoading}
-              onPageChange={setSessionPage}
-              page={paginatedSessions.currentPage}
-              pageCount={paginatedSessions.pageCount}
-              pageEnd={paginatedSessions.endIndex}
-              pageStart={paginatedSessions.startIndex}
-              sessions={paginatedSessions.items}
-              totalCount={sortedSessionRows.length}
-            />
-          )}
-          {(kind === "approvals" ||
-            kind === "security" ||
-            kind === "grants" ||
-            kind === "encryption") && (
-            <div className="grid gap-4">
-              {(kind === "security" || kind === "encryption") && (
-                <E2EEKeysPanel agents={sortedAgents} nodes={sortedNodes} />
-              )}
-              {kind !== "encryption" && (
-                <ApprovalsPanel
-                  approvals={approvalsQuery.data?.approvals ?? []}
-                  grants={approvalGrantsQuery.data?.grants ?? []}
-                  isLoading={
-                    approvalsQuery.isLoading || approvalGrantsQuery.isLoading
-                  }
-                  showPending={kind === "approvals"}
-                  userId={user.user_id}
-                />
-              )}
-            </div>
-          )}
-          {kind === "monitor" && (
-            <ServiceStatusPanel
-              nodes={nodesQuery.data?.nodes}
-              agents={agentsQuery.data?.agents}
-              health={healthQuery.data}
-              loading={
-                nodesQuery.isLoading ||
-                agentsQuery.isLoading ||
-                healthQuery.isLoading
-              }
-              error={Boolean(
-                nodesQuery.error || agentsQuery.error || healthQuery.error,
-              )}
-              recentSessions={
-                agentsQuery.error ||
-                sessionsLoading ||
-                firstQueryError(sessionQueries)
-                  ? undefined
-                  : allSessions.length
-              }
-              refreshing={
-                nodesQuery.isFetching ||
-                agentsQuery.isFetching ||
-                healthQuery.isFetching
-              }
-              refresh={() => {
-                void nodesQuery.refetch();
-                void agentsQuery.refetch();
-                void healthQuery.refetch();
-                sessionQueries.forEach((query) => {
-                  void query.refetch();
-                });
-              }}
-            />
-          )}
-          {kind === "api-keys" && (
-            <ApiKeysPanel
-              apiKeys={apiKeysQuery.data?.api_keys ?? []}
-              isLoading={apiKeysQuery.isLoading}
-              userId={user.user_id}
-            />
-          )}
-          {kind === "node-registration" && (
-            <NodeRegistrationPanel userId={user.user_id} />
-          )}
+        <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-5 lg:px-8 lg:py-6">
+          <div className="mx-auto w-full max-w-5xl">
+            {kind === "nodes" && (
+              <NodeGrid
+                isLoading={nodesQuery.isLoading}
+                nodes={nodes}
+                totalCount={sortedNodes.length}
+                userId={user.user_id}
+              />
+            )}
+            {kind === "agents" && (
+              <AgentGrid
+                agents={agentRows}
+                isLoading={agentsLoading}
+                nodeLabel={`${nodes.length}/${sortedNodes.length} nodes in scope`}
+                totalCount={sortedAgents.length}
+                userId={user.user_id}
+              />
+            )}
+            {kind === "sessions" && (
+              <SessionGrid
+                filteredCount={sessionRows.length}
+                isLoading={sessionsLoading}
+                onPageChange={setSessionPage}
+                page={paginatedSessions.currentPage}
+                pageCount={paginatedSessions.pageCount}
+                pageEnd={paginatedSessions.endIndex}
+                pageStart={paginatedSessions.startIndex}
+                sessions={paginatedSessions.items}
+                totalCount={sortedSessionRows.length}
+              />
+            )}
+            {(kind === "approvals" ||
+              kind === "security" ||
+              kind === "grants" ||
+              kind === "encryption") && (
+              <div className="grid gap-4">
+                {(kind === "security" || kind === "encryption") && (
+                  <E2EEKeysPanel agents={sortedAgents} nodes={sortedNodes} />
+                )}
+                {kind !== "encryption" && (
+                  <ApprovalsPanel
+                    approvals={approvalsQuery.data?.approvals ?? []}
+                    grants={approvalGrantsQuery.data?.grants ?? []}
+                    isLoading={
+                      approvalsQuery.isLoading || approvalGrantsQuery.isLoading
+                    }
+                    showPending={kind === "approvals"}
+                    userId={user.user_id}
+                  />
+                )}
+              </div>
+            )}
+            {kind === "monitor" && (
+              <ServiceStatusPanel
+                nodes={nodesQuery.data?.nodes}
+                agents={agentsQuery.data?.agents}
+                health={healthQuery.data}
+                loading={
+                  nodesQuery.isLoading ||
+                  agentsQuery.isLoading ||
+                  healthQuery.isLoading
+                }
+                error={Boolean(
+                  nodesQuery.error || agentsQuery.error || healthQuery.error,
+                )}
+                recentSessions={
+                  agentsQuery.error ||
+                  sessionsLoading ||
+                  firstQueryError(sessionQueries)
+                    ? undefined
+                    : allSessions.length
+                }
+                refreshing={
+                  nodesQuery.isFetching ||
+                  agentsQuery.isFetching ||
+                  healthQuery.isFetching
+                }
+                refresh={() => {
+                  void nodesQuery.refetch();
+                  void agentsQuery.refetch();
+                  void healthQuery.refetch();
+                  sessionQueries.forEach((query) => {
+                    void query.refetch();
+                  });
+                }}
+              />
+            )}
+            {kind === "api-keys" && (
+              <ApiKeysPanel
+                apiKeys={apiKeysQuery.data?.api_keys ?? []}
+                isLoading={apiKeysQuery.isLoading}
+                userId={user.user_id}
+              />
+            )}
+            {kind === "node-registration" && (
+              <NodeRegistrationPanel userId={user.user_id} />
+            )}
+          </div>
         </div>
       </div>
     </ConsoleLayout>
@@ -510,6 +531,7 @@ function NodeGrid({
   const queryClient = useQueryClient();
   const [deleteError, setDeleteError] = useState<Error | null>(null);
   const [nodeToDelete, setNodeToDelete] = useState<Node | null>(null);
+  const [setupStarted, setSetupStarted] = useState(false);
   const removeNode = useMutation({
     mutationFn: (node: Node) => deleteNode(userId, node.node_id),
     onError: (error) => setDeleteError(error),
@@ -529,97 +551,57 @@ function NodeGrid({
   return (
     <div className="grid gap-3">
       {deleteError && <ApiNotice error={deleteError} />}
-      {nodes.length > 0 ? (
+      {setupStarted ? (
+        <PaxdGettingStartedGuide
+          userId={userId}
+          onStart={() => setSetupStarted(true)}
+        />
+      ) : nodes.length > 0 ? (
         <div className="grid min-w-0 overflow-hidden rounded-lg border border-hairline">
           {nodes.map((node) => (
-            <article
-              className="grid min-w-0 gap-3 border-b border-hairline bg-surface-1 px-3 py-2.5 transition last:border-b-0 hover:bg-surface-2 sm:grid-cols-[minmax(0,1fr)_180px_120px_132px]"
+            <NodeListRow
+              deleting={removeNode.isPending}
               key={node.node_id}
-            >
-              <Link className="contents" href={`/nodes/${node.node_id}`}>
-                <div className="min-w-0">
-                  <TruncatedText className="text-sm font-medium">
-                    {node.name ?? node.hostname ?? node.node_id}
-                  </TruncatedText>
-                  {node.description && (
-                    <TruncatedText className="mt-1 text-xs text-ink-muted">
-                      {node.description}
-                    </TruncatedText>
-                  )}
-                </div>
-                <div className="grid min-w-0 gap-1">
-                  <MonoId>
-                    {node.os ?? "unknown os"} / {node.arch ?? "unknown arch"}
-                  </MonoId>
-                  <MonoId tooltip={node.node_id}>
-                    {compactId(node.node_id)}
-                  </MonoId>
-                </div>
-                <div className="flex items-start sm:justify-end">
-                  <Badge tone={node.online ? "success" : "neutral"}>
-                    {node.online ? "online" : "offline"}
-                  </Badge>
-                </div>
-              </Link>
-              <div className="flex items-start justify-end gap-1">
-                <NodeMaintenanceActions
-                  currentVersion={node.paxd_version}
-                  disabled={!node.online || removeNode.isPending}
-                  nodeArch={node.arch}
-                  nodeId={node.node_id}
-                  nodeLabel={node.name ?? node.hostname ?? node.node_id}
-                  nodeOS={node.os}
-                  userId={userId}
-                />
-                <ConfirmDialog
-                  confirmLabel={
-                    removeNode.isPending ? "Deleting..." : "Delete node"
-                  }
-                  description={
-                    <>
-                      This removes{" "}
-                      <span className="font-medium text-ink">
-                        {nodeToDelete?.name ??
-                          nodeToDelete?.hostname ??
-                          nodeToDelete?.node_id}
-                      </span>{" "}
-                      from the fleet view. Agents hosted on this node will be
-                      cleaned up at the same time.
-                    </>
-                  }
-                  disabled={removeNode.isPending}
-                  onConfirm={() => {
-                    if (nodeToDelete) {
-                      removeNode.mutate(nodeToDelete);
-                    }
-                  }}
-                  onOpenChange={(open) => {
-                    if (!open) {
-                      setNodeToDelete(null);
-                    }
-                  }}
-                  open={nodeToDelete?.node_id === node.node_id}
-                  title="Delete node?"
-                >
-                  <Button
-                    disabled={removeNode.isPending}
-                    icon={<Trash2 className="h-4 w-4" />}
-                    onClick={() => setNodeToDelete(node)}
-                    size="icon"
-                    tooltip="Delete node"
-                    type="button"
-                    variant="danger"
-                  />
-                </ConfirmDialog>
-              </div>
-            </article>
+              node={node}
+              onDelete={setNodeToDelete}
+              userId={userId}
+            />
           ))}
         </div>
       ) : totalCount > 0 ? (
         <EmptyState label="No active nodes" />
       ) : (
-        <PaxdGettingStartedGuide kind="node" />
+        <PaxdGettingStartedGuide
+          userId={userId}
+          onStart={() => setSetupStarted(true)}
+        />
       )}
+      <ConfirmDialog
+        confirmLabel={removeNode.isPending ? "Deleting..." : "Delete node"}
+        description={
+          <>
+            This removes{" "}
+            <span className="font-medium text-ink">
+              {nodeToDelete ? nodeLabel(nodeToDelete) : ""}
+            </span>{" "}
+            from the fleet view. Agents hosted on this node will be cleaned up
+            at the same time.
+          </>
+        }
+        disabled={removeNode.isPending}
+        onConfirm={() => {
+          if (nodeToDelete) {
+            removeNode.mutate(nodeToDelete);
+          }
+        }}
+        onOpenChange={(open) => {
+          if (!open) {
+            setNodeToDelete(null);
+          }
+        }}
+        open={nodeToDelete !== null}
+        title="Delete node?"
+      />
     </div>
   );
 }
@@ -640,6 +622,7 @@ function AgentGrid({
   const queryClient = useQueryClient();
   const [deleteError, setDeleteError] = useState<Error | null>(null);
   const [agentToDelete, setAgentToDelete] = useState<AgentRow | null>(null);
+  const [setupStarted, setSetupStarted] = useState(false);
   const removeAgent = useMutation({
     mutationFn: (agent: AgentRow) => deleteAgent(userId, agent.agent_id),
     onError: (error) => setDeleteError(error),
@@ -663,7 +646,12 @@ function AgentGrid({
         <span className="shrink-0">Scope:&nbsp;</span>
         <TruncatedText>{nodeLabel ?? "No node selected"}</TruncatedText>
       </div>
-      {agents.length > 0 ? (
+      {setupStarted ? (
+        <PaxdGettingStartedGuide
+          userId={userId}
+          onStart={() => setSetupStarted(true)}
+        />
+      ) : agents.length > 0 ? (
         <div className="grid min-w-0 overflow-hidden rounded-lg border border-hairline">
           {agents.map((agent) => (
             <article
@@ -756,7 +744,10 @@ function AgentGrid({
       ) : totalCount > 0 ? (
         <EmptyState label="No active agents" />
       ) : (
-        <PaxdGettingStartedGuide kind="agent" />
+        <PaxdGettingStartedGuide
+          userId={userId}
+          onStart={() => setSetupStarted(true)}
+        />
       )}
     </div>
   );
@@ -1028,7 +1019,7 @@ function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
       await saveRootKey(selectedAgentId, encodedKey);
       setEncodedKey("");
       setConfigured(true);
-      setStatus("Root key saved in this browser.");
+      setStatus("Root key saved on this device.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
     } finally {
@@ -1043,7 +1034,7 @@ function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
       await deleteRootKey(selectedAgentId);
       setConfigured(false);
       setEncodedKey("");
-      setStatus("Root key removed from this browser.");
+      setStatus("Root key removed from this device.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
     } finally {
@@ -1068,13 +1059,13 @@ function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
   }
 
   return (
-    <section className="grid gap-4 rounded-lg border border-hairline bg-surface-1 p-4">
+    <section className="grid min-w-0 gap-4 rounded-lg border border-hairline bg-surface-1 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-medium">Encrypted session access</h2>
           <p className="mt-1 text-xs text-ink-tertiary">
             Pair this device to open end-to-end encrypted sessions. Encryption
-            keys remain in this browser and are never sent to PAX Manager.
+            keys stay locally and are never sent to PAX Manager.
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
@@ -1095,11 +1086,11 @@ function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
         </div>
       </div>
       {agents.length > 0 ? (
-        <div className="grid gap-3 sm:max-w-md">
-          <label className="grid gap-1 text-xs text-ink-tertiary">
+        <div className="grid min-w-0 gap-3 sm:max-w-md">
+          <label className="grid min-w-0 gap-1 text-xs text-ink-tertiary">
             Agent
             <select
-              className="h-9 rounded-md border border-hairline bg-canvas px-3 text-base text-ink outline-none focus:border-accent sm:text-sm"
+              className="h-9 w-full min-w-0 rounded-md border border-hairline bg-canvas px-3 text-base text-ink outline-none focus:border-accent sm:text-sm"
               onChange={(event) => setAgentId(event.target.value)}
               value={selectedAgentId}
             >
@@ -1110,7 +1101,7 @@ function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
               ))}
             </select>
           </label>
-          <details className="rounded-lg border border-hairline bg-canvas p-3">
+          <details className="min-w-0 rounded-lg border border-hairline bg-canvas p-3">
             <summary className="cursor-pointer text-sm font-medium text-ink-muted">
               Advanced: manually manage root key
             </summary>
@@ -1118,11 +1109,11 @@ function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
               Development use only. Generating a different key from paxd will
               make encrypted sessions unreadable on this device.
             </p>
-            <label className="mt-3 grid gap-1 text-xs text-ink-tertiary">
+            <label className="mt-3 grid min-w-0 gap-1 text-xs text-ink-tertiary">
               Base64 root key
               <input
                 autoComplete="off"
-                className="h-9 rounded-md border border-hairline bg-surface-1 px-3 font-mono text-base text-ink outline-none focus:border-accent sm:text-sm"
+                className="h-9 w-full min-w-0 rounded-md border border-hairline bg-surface-1 px-3 font-mono text-base text-ink outline-none focus:border-accent sm:text-sm"
                 onChange={(event) => setEncodedKey(event.target.value)}
                 placeholder="32-byte base64 value"
                 type="password"

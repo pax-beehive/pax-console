@@ -9,6 +9,25 @@ describe("service health", () => {
     loading: false,
     error: false,
   };
+  it("excludes CLI identities from device health and counts", () => {
+    const nodes = [
+      ...healthy.nodes,
+      { node_id: "cli-offline", kind: "paxl", online: false },
+      { node_id: "cli-unknown", kind: "paxl" },
+    ];
+    expect(serviceHealth({ ...healthy, nodes })).toEqual({
+      title: "All systems operational",
+      description: "1 device(s) and 1 agent(s) online.",
+      tone: "success",
+    });
+    expect(
+      serviceHealth({ ...healthy, nodes: nodes.slice(1), agents: [] }),
+    ).toEqual({
+      title: "PAX is operational",
+      description: "0 device(s) and 0 agent(s) online.",
+      tone: "success",
+    });
+  });
   it("does not infer agent availability from its device", () => {
     expect(
       serviceHealth({

@@ -23,6 +23,16 @@ export const queryKeys = {
     ["users", userId, "artifacts", artifactId] as const,
   artifactPublication: (userId: string, publicationId: string) =>
     ["users", userId, "artifact-publications", publicationId] as const,
+  artifactFetchCheck: (userId: string, sessionId: string, path: string) =>
+    [
+      "users",
+      userId,
+      "sessions",
+      sessionId,
+      "artifact-fetches",
+      "check",
+      path,
+    ] as const,
   teams: (userId: string) => ["users", userId, "teams"] as const,
   team: (userId: string, teamId: string) =>
     ["users", userId, "teams", teamId] as const,

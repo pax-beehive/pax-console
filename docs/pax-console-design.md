@@ -28,7 +28,7 @@ ACP frame batch. Live normalized events and canonical encrypted history share
 that ID so the normal turn reconciliation path suppresses overlapping history
 snapshots while a turn is streaming.
 The UI renders normalized agent events.
-Cloudflare Access owns identity.
+WorkOS owns browser identity; Cloudflare Access protects regional origins.
 PAX Manager owns permissions and resources.
 ```
 
@@ -243,21 +243,42 @@ Current token shape:
 
 ```css
 :root {
-  --primary: #f4f4f5;
-  --primary-hover: #ffffff;
-  --accent: #5e6ad2;
-  --accent-bright: #96a0ff;
-  --ink: #f4f4f5;
-  --ink-muted: #c9cbd1;
-  --ink-subtle: #8f929a;
-  --ink-tertiary: #656870;
-  --canvas: #070708;
-  --surface-1: #0d0d0f;
-  --surface-2: #141416;
-  --surface-3: #1a1a1d;
-  --hairline: #222327;
-  --hairline-strong: #35363c;
+  --primary: #dddddd;
+  --primary-hover: #ededed;
+  --primary-focus: #c9c9c9;
+  --accent: #b8b8b8;
+  --accent-bright: #d2d2d2;
+  --ink: #e7e7e7;
+  --ink-muted: #c3c3c3;
+  --ink-subtle: #a5a5a5;
+  --ink-tertiary: #838383;
+  --canvas: #262626;
+  --surface-1: #2d2d2d;
+  --surface-2: #353535;
+  --surface-3: #3d3d3d;
+  --surface-4: #464646;
+  --hairline: #434343;
+  --hairline-strong: #5b5b5b;
+  --hairline-tertiary: #6f6f6f;
   --success: #52b788;
+  --warning: #d6a84f;
+  --danger: #f87171;
+  --overlay: rgb(19 19 19 / 64%);
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --topbar-h: 48px;
+  --sidebar-w: 248px;
+  --sidebar-collapsed-w: 76px;
+  --font-ui:
+    ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Noto Sans CJK SC", "Noto Sans SC", "Microsoft YaHei UI", "Microsoft YaHei",
+    sans-serif;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
 }
 ```
 
@@ -268,8 +289,8 @@ for headings or strong hierarchy. The global 14px/1.5 baseline keeps compact UI
 copy readable; session content uses 16px/24px below 640px and 14px/20px above.
 
 The accent stays sparse: selected-state left indicator bars, focus rings and
-glows, hover emphasis, a subtle body radial gradient, and `::selection`.
-Primary actions remain near-white; do not turn the accent into a large-area
+glows, hover emphasis, and `::selection`. The canvas is solid neutral matte charcoal;
+text and primary actions use soft off-white; do not turn the accent into a large-area
 brand fill. Entrance micro-animations use `motion/react` and stay short and
 subtle (~200ms).
 
@@ -295,28 +316,38 @@ PAX Console
 |   +-- Knowledge
 |       +-- capsules
 |       +-- session injections
- +-- Settings (/settings; bottom-pinned sidebar group)
-    +-- Devices (Nodes / Agents)
-    |   +-- Add device: Quick connect / Pair with code
-    |   +-- Device detail: runtime, agents, browser control
-    |   +-- Advanced device settings: maintenance, secrets, deletion
-    +-- Projects (hierarchy and reusable launch Targets)
-    +-- Service status (PAX, devices, agents, recent sessions)
-    +-- Advanced settings
-        +-- Allowed actions (persistent approval grants)
-        +-- Encrypted chats (keys and pairing)
-        +-- API keys
-        +-- Manual device registration
+ +-- Settings (desktop: dedicated sidebar and content)
+    +-- Workspace
+    |   +-- Notifications (default; subscription and alert descriptions)
+    |   +-- Devices & agents (connection and device detail workflows)
+    |   +-- Projects (hierarchy and reusable workspace targets)
+    +-- Security & access
+    |   +-- Allowed actions (persistent approval grants)
+    |   +-- Encrypted chats (keys and pairing)
+    +-- Developer tools
+    |   +-- API keys
+    |   +-- Device registration (custom setup tokens)
+    +-- Status & support
+        +-- Service status (PAX, devices, agents, recent sessions)
 ```
 
-The sidebar keeps only Home and Collaboration as top-level entries; everything
-else lives in one Settings disclosure group pinned to the bottom of the
-sidebar. Home owns one recent-session rail with date groups and a secondary Project filter plus the
-embedded session workbench; do not add Sessions or Projects as separate
-first-level sidebar items.
-First-level groups are independent disclosures, not an accordion. Settings
-aggregates Projects (project/target CRUD), Devices (nodes/agents), Security
-(approval grants), Developer (API keys/node registration), and Diagnostics.
+The ordinary sidebar keeps Home and Collaboration at the top and a Settings
+entry at the bottom. Inside Settings, replace it with a 272px settings sidebar
+rather than stacking a second navigation pane. Keep group headings quiet and
+show a short purpose below each item's label. The selected section has one
+active marker; nested device and pairing workflows retain their parent.
+A Back to workspace link restores the ordinary navigation and its prior
+collapsed state. On narrow screens, retain the existing Settings directory,
+Advanced settings list, and per-page back links. Keep their original headings,
+spacing, notification explanation layout, and project navigation.
+
+Desktop Settings opens Notifications directly. Section headers explain purpose and scope;
+content uses readable widths, aligned spacing, and restrained section borders.
+Use separate descriptive rows for completed replies and approval alerts. Keep
+subscription actions together and preserve the checking/unknown state while
+confirming notification status. Do not add an intermediate directory list on desktop
+or a generic Advanced group. Existing Advanced URLs remain compatible.
+
 Collaboration owns teams, friends, envelopes, and knowledge as secondary tabs;
 team invites stay inside the Teams surface as a team action queue. Legacy deep
 links such as `/nodes`,
@@ -749,8 +780,12 @@ snapshot. The frontend polls Manager rather than parsing raw control frames.
 There is no standard ACP model-list query. Manual refresh deliberately
 re-applies the current standard model config value so the response returns the
 complete current `configOptions`; it is allowed during an active turn.
-Never-stabilized legacy `models` payloads are display-only, and encrypted
-sessions do not expose Manager-side configuration controls.
+Legacy model catalogs are selectable when Manager exposes a normalized model
+option. Selection uses the same settings page and updates only after the agent
+accepts the change; busy or failed switches preserve the current model. Legacy
+catalog refresh is unavailable. Older Manager snapshots without a normalized
+option remain read-only. Encrypted sessions do not expose Manager-side
+configuration controls.
 
 ## WebSocket Design
 
@@ -1305,7 +1340,9 @@ the panel-right entry opens Artifacts / Browser / Knowledge, a bottom sheet on
 mobile and a right panel on desktop. Tool evidence appears contextually.
 Home / Collaboration / Settings retain their existing access rules.
 
-One Session settings trigger summarizes model and permissions. Its compact
+One Session settings trigger summarizes model, reasoning effort, and permissions.
+Reasoning effort uses the agent-reported current option label and is omitted when
+the agent does not report it. Its compact
 rows include every reported ACP option, permission choices, and creation-only
 encryption. Mobile uses a full-width bottom sheet with a backdrop; desktop uses
 a centered panel. Selection rows consistently show label, current value, and
@@ -1328,3 +1365,13 @@ Workspace selection separates saved locations from typed paths. Use this path
 only selects; Save as workspace target is optional and unchecked by default.
 Persistence waits for successful native assignment and reuses matching targets.
 Both path and save intent are scoped to the selected Project / Agent.
+
+## Regional account entry
+
+When browser regional mode is enabled, restore the D1 account assignment before
+loading user resources. New users choose between reachable regions after actual
+origin probes; highlight the lowest observed latency without silently assigning.
+Keep this a focused first-account screen. Existing users never see a region
+picker. Failed bootstrap or region availability displays a retry action and must
+not create an account elsewhere. All business transport stays on the canonical
+same-origin entrypoint; the trusted Worker owns regional routing.

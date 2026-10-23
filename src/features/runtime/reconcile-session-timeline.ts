@@ -9,15 +9,14 @@ export type ReconciledSessionTimeline = {
   timeline: SessionEvent[];
 };
 
-export function historySnapshotsForTimeline(
-  snapshotTurnIds: string[] | undefined,
-  runtime: {
-    sessionStatus?: string;
-    sessionTurnId?: string;
-    localStatus: string;
-    localTurnId?: string;
-  },
-) {
+type TimelineRuntime = {
+  sessionStatus?: string;
+  sessionTurnId?: string;
+  localStatus: string;
+  localTurnId?: string;
+};
+
+function timelineRuntimeOwner(runtime: TimelineRuntime) {
   const localActive =
     runtime.localStatus === "streaming" ||
     runtime.localStatus === "waiting_approval";
@@ -29,16 +28,30 @@ export function historySnapshotsForTimeline(
   ].includes(runtime.sessionStatus ?? "");
   // A newly submitted local turn (including its pending ID) takes precedence
   // over metadata that may still point at the previous turn.
-  const activeTurnId = localActive
-    ? runtime.localTurnId
-    : reportedActive
-      ? runtime.sessionTurnId
-      : undefined;
+  return {
+    active: localActive || reportedActive,
+    turnId: localActive
+      ? runtime.localTurnId
+      : reportedActive
+        ? runtime.sessionTurnId
+        : undefined,
+  };
+}
+
+export function activeTimelineTurnId(runtime: TimelineRuntime) {
+  return timelineRuntimeOwner(runtime).turnId;
+}
+
+export function historySnapshotsForTimeline(
+  snapshotTurnIds: string[] | undefined,
+  runtime: TimelineRuntime,
+) {
+  const owner = timelineRuntimeOwner(runtime);
   // Without an identified active turn, do not let a snapshot silence its stream.
-  if ((localActive || reportedActive) && !activeTurnId) return [];
+  if (owner.active && !owner.turnId) return [];
   // Starting another turn must not hand previous complete history back to
   // retained, potentially partial conversation/observer fragments.
-  return (snapshotTurnIds ?? []).filter((turnId) => turnId !== activeTurnId);
+  return (snapshotTurnIds ?? []).filter((turnId) => turnId !== owner.turnId);
 }
 
 /**
@@ -53,6 +66,7 @@ export function reconcileSessionTimeline(
   observerSnapshotTurnIds: string[] = [],
   calibratedTurnIds?: string[],
   historySnapshotTurnIds: string[] = [],
+  activeTurnId?: string,
 ): ReconciledSessionTimeline {
   const mergedHistory = mergeEvents(historyEvents);
   const mergedConversation = mergeEvents(conversationEvents);
@@ -162,14 +176,26 @@ export function reconcileSessionTimeline(
     visibleLegacyConversation,
     visibleLegacyObserver,
   );
+  const orderedTimeline = [...timeline, ...runtimeTail];
+  // Only the identified current turn belongs at the bottom. Retained streams
+  // from earlier turns keep their history positions, and calibrated history
+  // wins over stale runtime metadata. Preserve event order within each part.
+  const pinActiveTurn = activeTurnId && !committedTurnIds.has(activeTurnId);
+  const finalTimeline = pinActiveTurn
+    ? [
+        ...orderedTimeline.filter((event) => event.turnId !== activeTurnId),
+        ...orderedTimeline.filter((event) => event.turnId === activeTurnId),
+      ]
+    : orderedTimeline;
 
   return {
     historyEvents: visibleHistory,
     liveEvents: visibleRuntime,
-    timeline: reconcilePermissionDecisions(
-      mergeEvents([...timeline, ...runtimeTail]),
-      [...mergedConversation, ...mergedObserver, ...mergedHistory],
-    ),
+    timeline: reconcilePermissionDecisions(mergeEvents(finalTimeline), [
+      ...mergedConversation,
+      ...mergedObserver,
+      ...mergedHistory,
+    ]),
   };
 }
 

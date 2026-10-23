@@ -1,27 +1,27 @@
 @import "tailwindcss";
 
 :root {
-  --primary: #f4f4f5;
-  --primary-hover: #ffffff;
-  --primary-focus: #8ea2ff;
-  --accent: #5e6ad2;
-  --accent-bright: #96a0ff;
-  --ink: #f4f4f5;
-  --ink-muted: #c9cbd1;
-  --ink-subtle: #8f929a;
-  --ink-tertiary: #656870;
-  --canvas: #070708;
-  --surface-1: #0d0d0f;
-  --surface-2: #141416;
-  --surface-3: #1a1a1d;
-  --surface-4: #202025;
-  --hairline: #222327;
-  --hairline-strong: #35363c;
-  --hairline-tertiary: #454650;
+  --primary: #dddddd;
+  --primary-hover: #ededed;
+  --primary-focus: #c9c9c9;
+  --accent: #b8b8b8;
+  --accent-bright: #d2d2d2;
+  --ink: #e7e7e7;
+  --ink-muted: #c3c3c3;
+  --ink-subtle: #a5a5a5;
+  --ink-tertiary: #838383;
+  --canvas: #262626;
+  --surface-1: #2d2d2d;
+  --surface-2: #353535;
+  --surface-3: #3d3d3d;
+  --surface-4: #464646;
+  --hairline: #434343;
+  --hairline-strong: #5b5b5b;
+  --hairline-tertiary: #6f6f6f;
   --success: #52b788;
   --warning: #d6a84f;
   --danger: #f87171;
-  --overlay: rgb(0 0 0 / 72%);
+  --overlay: rgb(19 19 19 / 64%);
   --radius-xs: 4px;
   --radius-sm: 6px;
   --radius-md: 8px;
@@ -105,13 +105,7 @@ html {
 }
 
 body {
-  background:
-    radial-gradient(
-      ellipse 90% 55% at 50% -25%,
-      rgb(94 106 210 / 7%),
-      transparent 70%
-    ),
-    var(--canvas);
+  background: var(--canvas);
   color: var(--ink);
   font-family: var(--font-ui);
   font-size: 14px;
@@ -122,7 +116,7 @@ body {
 }
 
 ::selection {
-  background: rgb(94 106 210 / 35%);
+  background: rgb(184 184 184 / 28%);
   color: var(--ink);
 }
 

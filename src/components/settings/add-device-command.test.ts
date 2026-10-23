@@ -4,7 +4,11 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { buildDeviceInstallCommand, shellQuote } from "./add-device-command";
+import {
+  buildDeviceInstallCommand,
+  buildDeviceSetupCommand,
+  shellQuote,
+} from "./add-device-command";
 
 afterEach(() => vi.unstubAllGlobals());
 describe("device install command", () => {
@@ -14,28 +18,41 @@ describe("device install command", () => {
     });
     const command = buildDeviceInstallCommand("one-time-token");
     expect(command).toContain(
-      "PAXL_DOWNLOAD_URL='https://staging.example.test'",
-    );
-    expect(command).toContain(
       "PAX_DOWNLOAD_URL='https://staging.example.test'",
     );
-    expect(command).toContain("/api/v1/public/paxl/install.sh");
+    expect(command).not.toContain("/api/v1/public/paxl/install.sh");
     expect(command).toContain("/api/v1/public/paxd/install.sh");
     expect(command).toContain("PAX_CLOUD_URL='https://staging.example.test'");
     expect(command).toContain("PAX_SETUP_AFTER_INSTALL=1");
     expect(command).toContain("PAX_REGISTRATION_TOKEN='one-time-token'");
   });
   it.each([
-    ["wss://paxworkspace.net", "https://api.paxworkspace.net"],
-    ["wss://stage.paxworkspace.net", "https://stage-api.paxworkspace.net"],
-    ["wss://ws.lakeward.net", "https://api.lakeward.net"],
-    ["ws://localhost:9879", "http://localhost:9879"],
-  ])("generates a Manager install URL for %s", (wsBaseUrl, origin) => {
+    [
+      "wss://paxworkspace.net",
+      "https://api.paxworkspace.net",
+      "https://wsapi.paxworkspace.net",
+    ],
+    [
+      "wss://stage.paxworkspace.net",
+      "https://stage-api.paxworkspace.net",
+      "https://stage-wsapi.paxworkspace.net",
+    ],
+    [
+      "wss://ws.lakeward.net",
+      "https://api.lakeward.net",
+      "https://api.lakeward.net",
+    ],
+    ["ws://localhost:9879", "http://localhost:9879", "http://localhost:9879"],
+    [
+      "wss://hk-api.paxworkspace.net",
+      "https://hk-api.paxworkspace.net",
+      "https://hk-wsapi.paxworkspace.net",
+    ],
+  ])("generates a Manager install URL for %s", (wsBaseUrl, origin, cloud) => {
     vi.stubGlobal("__PAX_RUNTIME_CONFIG__", { wsBaseUrl });
     const command = buildDeviceInstallCommand("fake-token");
     expect(command).toContain(`PAX_DOWNLOAD_URL='${origin}'`);
-    expect(command).toContain(`PAXL_DOWNLOAD_URL='${origin}'`);
-    expect(command).toContain(`PAX_CLOUD_URL='${origin}'`);
+    expect(command).toContain(`PAX_CLOUD_URL='${cloud}'`);
   });
   it("quotes shell metacharacters as data", () => {
     expect(shellQuote("abc'$(whoami)\n`id`")).toBe(
@@ -49,17 +66,13 @@ describe("device install command", () => {
 describe("quick-connect shell execution", () => {
   it.each([
     "ok",
-    "paxl-download",
-    "paxl-install",
     "paxd-download",
     "paxd-install",
-    "paxl-html",
+    "browser",
     "paxd-html",
-    "paxl-empty",
     "paxd-empty",
-    "paxl-partial",
     "paxd-partial",
-  ])("installs both tools in order and stops on %s failure", (failure) => {
+  ])("runs one installer and stops on %s failure", (failure) => {
     const dir = mkdtempSync(join(tmpdir(), "pax-device-command-"));
     try {
       const log = join(dir, "steps");
@@ -67,7 +80,6 @@ describe("quick-connect shell execution", () => {
         join(dir, "curl"),
         `#!/bin/bash
 case "\${@: -1}" in
-  https://staging.example.test/api/v1/public/paxl/install.sh) product=paxl ;;
   https://staging.example.test/api/v1/public/paxd/install.sh) product=paxd ;;
   *) exit 91 ;;
 esac
@@ -80,15 +92,6 @@ if [ "$PAX_TEST_FAIL" = "$product-empty" ]; then exit 0; fi
 if [ "$PAX_TEST_FAIL" = "$product-partial" ]; then
   printf '#!/usr/bin/env bash\\nprintf executed >> "$PAX_TEST_LOG"\\n'; exit 18
 fi
-if [ "$product" = paxl ]; then
-cat <<'SCRIPT'
-#!/usr/bin/env bash
-[ "$PAXL_DOWNLOAD_URL" = https://staging.example.test ] || exit 92
-[ -z "\${PAX_REGISTRATION_TOKEN:-}" ] || exit 93
-printf 'paxl-install\\n' >> "$PAX_TEST_LOG"
-[ "$PAX_TEST_FAIL" != paxl-install ] || exit 7
-SCRIPT
-else
 cat <<'SCRIPT'
 #!/usr/bin/env bash
 [ "$PAX_DOWNLOAD_URL" = https://staging.example.test ] || exit 94
@@ -99,14 +102,13 @@ printf 'paxd-install\\n' >> "$PAX_TEST_LOG"
 [ "$PAX_TEST_FAIL" != paxd-install ] || exit 8
 printf 'setup\\n' >> "$PAX_TEST_LOG"
 SCRIPT
-fi
 `,
         { mode: 0o755 },
       );
       vi.stubGlobal("__PAX_RUNTIME_CONFIG__", {
         wsBaseUrl: "wss://staging.example.test",
       });
-      const token = "fake'$(exit 81)\n`exit 82`";
+      const token = failure === "browser" ? "" : "fake'$(exit 81)\n`exit 82`";
       const env: NodeJS.ProcessEnv = {
         ...process.env,
         PATH: `${dir}:${process.env.PATH}`,
@@ -114,24 +116,16 @@ fi
         PAX_TEST_FAIL: failure,
         PAX_TEST_EXPECTED_TOKEN: token,
       };
-      delete env.PAX_REGISTRATION_TOKEN;
+      env.PAX_REGISTRATION_TOKEN = "stale-token-from-another-account";
       const result = spawnSync(
         "bash",
         ["-c", buildDeviceInstallCommand(token)],
         { env, encoding: "utf8" },
       );
-      const expectedSteps = [
-        "paxl-download",
-        "paxl-install",
-        "paxd-download",
-        "paxd-install",
-        "setup",
-      ];
+      const expectedSteps = ["paxd-download", "paxd-install", "setup"];
       const rejectedResponse = /-(html|empty|partial)$/.test(failure);
       const failIndex = expectedSteps.indexOf(
-        rejectedResponse
-          ? failure.replace(/-(html|empty|partial)$/, "-download")
-          : failure,
+        rejectedResponse ? "paxd-download" : failure,
       );
       expect(readFileSync(log, "utf8").trim().split("\n")).toEqual(
         failIndex < 0 ? expectedSteps : expectedSteps.slice(0, failIndex + 1),
@@ -141,7 +135,7 @@ fi
         expect(result.stderr).not.toContain("syntax error");
       }
       expect(result.status).toBe(
-        failure === "ok"
+        failure === "ok" || failure === "browser"
           ? 0
           : failure.endsWith("partial")
             ? 18
@@ -149,9 +143,7 @@ fi
               ? 1
               : failure.endsWith("download")
                 ? 22
-                : failure === "paxl-install"
-                  ? 7
-                  : 8,
+                : 8,
       );
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -213,20 +205,17 @@ describe("quick-connect HTTP execution", () => {
         if (response === "script") {
           expect(result).toEqual({
             code: 0,
-            stdout: "installed\ninstalled\n",
+            stdout: "installed\n",
             stderr: "",
           });
-          expect(requests).toEqual([
-            "/api/v1/public/paxl/install.sh",
-            "/api/v1/public/paxd/install.sh",
-          ]);
+          expect(requests).toEqual(["/api/v1/public/paxd/install.sh"]);
         } else {
           expect(result.code).toBe(1);
           expect(result.stdout).toBe("");
           expect(result.stderr).toContain("Expected a shell installer");
           expect(result.stderr).not.toContain("syntax error");
           expect(requests).toEqual([
-            "/api/v1/public/paxl/install.sh",
+            "/api/v1/public/paxd/install.sh",
             "/login",
           ]);
         }
@@ -238,3 +227,83 @@ describe("quick-connect HTTP execution", () => {
     },
   );
 });
+
+describe("regional registration commands", () => {
+  it.each(["hk", "us"])(
+    "uses the token's %s region despite a US browser override",
+    async (region) => {
+      const { bootstrapRegion, loadRegionConfig } =
+        await import("@/features/region/bootstrap");
+      vi.stubGlobal("window", {
+        location: { origin: "https://paxworkspace.net" },
+      });
+      vi.stubGlobal("__PAX_RUNTIME_CONFIG__", {
+        wsBaseUrl: "wss://api.paxworkspace.net",
+      });
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () =>
+          Response.json({ status: "ready", region, user_id: "usr_test" }),
+        ),
+      );
+      try {
+        await bootstrapRegion();
+        const prefix = region === "hk" ? "hk-" : "";
+        const install = buildDeviceInstallCommand("fake-token");
+        expect(install).toContain(
+          `PAX_DOWNLOAD_URL='https://${prefix}api.paxworkspace.net'`,
+        );
+        expect(install).toContain(
+          `PAX_CLOUD_URL='https://${prefix}wsapi.paxworkspace.net'`,
+        );
+        expect(buildDeviceSetupCommand("fake-token")).toBe(
+          `PAX_REGISTRATION_TOKEN='fake-token' paxd setup --cloud-url 'https://${prefix}wsapi.paxworkspace.net' --registration-token-env`,
+        );
+        expect(buildDeviceSetupCommand()).toBe(
+          `PAX_REGISTRATION_TOKEN='' paxd setup --cloud-url 'https://${prefix}wsapi.paxworkspace.net'`,
+        );
+      } finally {
+        vi.stubGlobal(
+          "fetch",
+          vi.fn(async () => Response.json({ enabled: false })),
+        );
+        await loadRegionConfig();
+      }
+    },
+  );
+});
+
+it.each(["", "fake'$(exit 81)\n`exit 82`"])(
+  "executes the short command with a literal token",
+  (token) => {
+    const dir = mkdtempSync(join(tmpdir(), "pax-setup-command-"));
+    try {
+      writeFileSync(
+        join(dir, "paxd"),
+        '#!/bin/bash\n[ "$PAX_REGISTRATION_TOKEN" = "$EXPECTED_TOKEN" ] || exit 90\nprintf "%s\\n" "$@"\n',
+        { mode: 0o755 },
+      );
+      vi.stubGlobal("__PAX_RUNTIME_CONFIG__", {
+        wsBaseUrl: "wss://api.paxworkspace.net",
+      });
+      const result = spawnSync("bash", ["-c", buildDeviceSetupCommand(token)], {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          PATH: `${dir}:${process.env.PATH}`,
+          EXPECTED_TOKEN: token,
+          PAX_REGISTRATION_TOKEN: "stale-token",
+        },
+      });
+      expect(result.status).toBe(0);
+      expect(result.stdout.trim().split("\n")).toEqual([
+        "setup",
+        "--cloud-url",
+        "https://wsapi.paxworkspace.net",
+        ...(token ? ["--registration-token-env"] : []),
+      ]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);

@@ -36,6 +36,20 @@ describe("MarkdownMessage links", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows the real path and a copy button for local file links", () => {
+    render(
+      <MarkdownMessage content="See [main.ts](file:///Users/alice/project/main.ts:12)." />,
+    );
+
+    expect(screen.getByText("main.ts")).toHaveAttribute(
+      "title",
+      "/Users/alice/project/main.ts",
+    );
+    expect(
+      screen.getAllByRole("button", { name: "Copy path" }).length,
+    ).toBeGreaterThan(0);
+  });
+
   it("keeps console routes and web URLs clickable", () => {
     render(
       <MarkdownMessage content="[session](/sessions/sess_1) [docs](https://example.com/docs)" />,
@@ -53,6 +67,32 @@ describe("MarkdownMessage links", () => {
 });
 
 describe("MarkdownMessage GFM syntax", () => {
+  it("preserves literal template backticks and backslashes in streaming and final text", () => {
+    const content = "代码 `` String.raw`C:\\temp` ``，然后继续。";
+    const { container, rerender } = render(
+      <MarkdownMessage content={content} streaming />,
+    );
+    expect(container.querySelector("code")?.textContent).toBe(
+      "String.raw`C:\\temp`",
+    );
+    rerender(<MarkdownMessage content={content} />);
+    expect(container.querySelector("code")?.textContent).toBe(
+      "String.raw`C:\\temp`",
+    );
+    expect(container).toHaveTextContent("，然后继续。");
+  });
+
+  it("lets long inline paths flow with surrounding text instead of forming a block", () => {
+    const path =
+      "/Users/example/项目/" + "long-directory/".repeat(12) + "file.ts";
+    const { container } = render(
+      <MarkdownMessage content={`修改 \`${path}\`，然后测试。`} />,
+    );
+    const code = container.querySelector("p > code");
+    expect(code?.textContent).toBe(path);
+    expect(code).toHaveClass("inline", "[overflow-wrap:anywhere]");
+    expect(code).not.toHaveClass("inline-block");
+  });
   it("does not treat home-directory tildes as strikethrough delimiters", () => {
     const content =
       "Copy ~/pax_workspace/pax-nexus into ~/pax_workspace/backup.";

@@ -45,3 +45,41 @@ export function compactDateTime(value?: string) {
     month: "short",
   });
 }
+
+export function formatBytes(value: number) {
+  if (!Number.isFinite(value) || value <= 0) {
+    return "0 B";
+  }
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let size = value;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  return `${size >= 10 || unitIndex === 0 ? size.toFixed(0) : size.toFixed(1)} ${units[unitIndex]}`;
+}
+
+/** Compact elapsed time such as "45s", "12m", "5h" or "3d". */
+export function formatAge(value: string | undefined, now: number = Date.now()) {
+  if (!value) {
+    return undefined;
+  }
+  const time = new Date(value).getTime();
+  if (Number.isNaN(time)) {
+    return undefined;
+  }
+  const seconds = Math.max(0, Math.floor((now - time) / 1000));
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours}h`;
+  }
+  return `${Math.floor(hours / 24)}d`;
+}

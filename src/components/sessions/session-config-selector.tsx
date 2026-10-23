@@ -65,6 +65,18 @@ export function configurationModel(configuration?: SessionConfiguration) {
   );
 }
 
+export function configurationSummary(configuration?: SessionConfiguration) {
+  const effort = configuration?.options.find(
+    (option) =>
+      option.type === "select" &&
+      (option.category?.toLowerCase() === "thought_level" ||
+        option.id.toLowerCase() === "reasoning_effort"),
+  );
+  return [configurationModel(configuration), effort && optionValueLabel(effort)]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 export function SessionConfigSelector(props: SessionConfigSelectorProps) {
   const settings = useSessionSettings();
   const model = configurationModel(props.configuration);
@@ -249,7 +261,7 @@ function SessionConfigFields({
               ))}
             </SettingsChoices>
             <p className="px-3 pb-3 text-xs leading-5 text-ink-tertiary">
-              Legacy agent model list; switching is not standardized.
+              Model switching is unavailable for this session.
             </p>
           </div>
         )}

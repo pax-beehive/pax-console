@@ -273,6 +273,22 @@ function normalizeHistoryMessageWithoutTurn(
         name: tool.title || tool.tool_call_id || "Tool",
         status: historyToolStatus(tool.status || message.status),
         ...(tool.context_compaction ? { contextCompaction: true } : {}),
+        ...(tool.subagent
+          ? {
+              subagent: {
+                ...(tool.subagent.background ? { background: true } : {}),
+                ...(tool.subagent.description
+                  ? { description: tool.subagent.description }
+                  : {}),
+                ...(tool.subagent.agent_type
+                  ? { agentType: tool.subagent.agent_type }
+                  : {}),
+              },
+            }
+          : {}),
+        ...(tool.parent_tool_call_id
+          ? { parentToolCallId: tool.parent_tool_call_id }
+          : {}),
         sessionUpdate: message.message_type,
         ...(message.has_detail
           ? {
@@ -537,17 +553,18 @@ function normalizeHistoryFrames(
       { createdAt },
     );
     events.push(
-      ...candidateEvents.map((event) =>
-        aggregatedTerminalOutput &&
+      ...candidateEvents.map((event) => ({
+        ...event,
+        // ACP request/stream IDs can repeat across turns and resumed requests.
+        // Anchor durable events to their stored row so merging another history
+        // page cannot replace an older event with a newer turn at that position.
+        id: `${message.message_id}:${event.id}`,
+        ...(aggregatedTerminalOutput &&
         event.type === "tool_call" &&
         event.outputMode === "append"
-          ? {
-              ...event,
-              output: aggregatedTerminalOutput,
-              outputMode: "replace" as const,
-            }
-          : event,
-      ),
+          ? { output: aggregatedTerminalOutput, outputMode: "replace" as const }
+          : {}),
+      })),
     );
   }
 

@@ -95,7 +95,7 @@ describe("SessionConfigSelector", () => {
     expect(onChange).toHaveBeenCalledWith("reasoning_effort", "high");
   });
 
-  it("shows legacy model lists as read-only", async () => {
+  it("keeps legacy models read-only when Manager exposes no selectable option", async () => {
     renderWithTooltip(
       <SessionConfigSelector
         configuration={{
@@ -133,7 +133,84 @@ describe("SessionConfigSelector", () => {
     expect(
       screen.getByRole("radio", { name: /DeepSeek Flash/ }),
     ).toBeDisabled();
-    expect(screen.getByText(/switching is not standardized/i)).toBeVisible();
+    expect(screen.getByText(/model switching is unavailable/i)).toBeVisible();
+  });
+
+  it("switches a Manager-normalized legacy model and waits for the confirmed snapshot", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const configuration = {
+      can_force_refresh: false,
+      can_set: true,
+      legacy_models: {
+        current_model_id: "provider:old",
+        available: [
+          { id: "provider:old", name: "Old model" },
+          { id: "provider:new", name: "New model" },
+        ],
+      },
+      options: [
+        {
+          id: "model",
+          name: "Model",
+          category: "model",
+          type: "select",
+          current_value: "provider:old",
+          options: [
+            { value: "provider:old", name: "Old model" },
+            { value: "provider:new", name: "New model" },
+          ],
+        },
+      ],
+      session_id: "sess_legacy",
+    };
+    const view = renderWithTooltip(
+      <SessionConfigSelector
+        configuration={configuration}
+        onChange={onChange}
+        onRefresh={vi.fn()}
+      />,
+    );
+    await user.click(
+      screen.getByRole("button", {
+        name: "Session configuration, model Old model",
+      }),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Legacy model" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "Force refresh session configuration",
+      }),
+    ).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Model: Old model" }));
+    await user.click(screen.getByRole("radio", { name: "New model" }));
+    expect(onChange).toHaveBeenCalledWith("model", "provider:new");
+    expect(
+      screen.getByRole("button", { name: "Model: Old model" }),
+    ).toBeVisible();
+    view.rerender(
+      <TooltipProvider>
+        <SessionConfigSelector
+          configuration={{
+            ...configuration,
+            legacy_models: {
+              ...configuration.legacy_models,
+              current_model_id: "provider:new",
+            },
+            options: [
+              { ...configuration.options[0], current_value: "provider:new" },
+            ],
+          }}
+          onChange={onChange}
+          onRefresh={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+    expect(
+      screen.getByRole("button", { name: "Model: New model" }),
+    ).toBeVisible();
   });
 
   it("shows a model option's description inline without the group", async () => {

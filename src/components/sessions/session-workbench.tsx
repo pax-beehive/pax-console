@@ -1,5 +1,9 @@
 "use client";
 
+import { CronOriginBadge } from "@/components/sessions/cron-origin-badge";
+import { cronSessionOrigin } from "@/features/sessions/session-origin";
+import { stageEncryptedAttachment } from "@/features/e2ee/attachments";
+
 import {
   FormEvent,
   ReactNode,
@@ -43,6 +47,7 @@ import {
 } from "@/components/sessions/session-event-cards";
 import { showPendingActivity } from "./activity-label";
 import { SessionPendingActivity } from "./session-pending-activity";
+import { SessionHistoryPagination } from "./session-history-pagination";
 import { SessionBrowserApprovals } from "./session-browser-approvals";
 import { SessionBrowserWindow } from "./session-browser-window";
 import { WorkspacePicker } from "./workspace-picker";
@@ -50,7 +55,7 @@ import { SessionWorkspaceDetails } from "./session-workspace-details";
 import { SessionComposer } from "@/components/sessions/session-composer";
 import {
   SessionConfigSelector,
-  configurationModel,
+  configurationSummary,
 } from "@/components/sessions/session-config-selector";
 import { SessionHeader } from "@/components/sessions/session-header";
 import { SecureModeActivation } from "@/components/sessions/secure-mode-activation";
@@ -113,10 +118,13 @@ import {
 import { normalizeHistoryMessages } from "@/features/runtime/normalize-history-message";
 import { mergeEvents } from "@/features/runtime/merge-session-events";
 import {
+  activeTimelineTurnId,
   historySnapshotsForTimeline,
   latestRuntimeTurnId,
   reconcileSessionTimeline,
 } from "@/features/runtime/reconcile-session-timeline";
+import { countRunningSubagents } from "@/features/runtime/running-subagents";
+import { SubagentCountBadge } from "./subagent-count-badge";
 import {
   groupWorkstreamEvents,
   SessionEvent,
@@ -128,6 +136,8 @@ import {
   type TimelineAnchor,
 } from "@/features/runtime/timeline-anchor";
 import { usePageResume } from "@/features/runtime/use-page-resume";
+import { completedReplyTargets } from "@/features/notifications/read-turns";
+import { useReadTurnNotifications } from "@/features/notifications/use-read-turn-notifications";
 import { useSessionObserver } from "@/features/runtime/session-observer";
 import { useSessionTurnObservation } from "@/features/runtime/use-session-turn-observation";
 import { sessionDisplayStatus } from "@/features/runtime/session-display-status";
@@ -148,6 +158,11 @@ import { cn } from "@/lib/utils";
 import { canSeeAdminFeatures } from "@/features/auth/admin-view";
 import { useE2EESessionRuntime } from "@/features/e2ee/use-e2ee-session-runtime";
 import { flattenEncryptedHistoryPages } from "@/features/e2ee/transport";
+import {
+  E2EE_FETCH_UNAVAILABLE,
+  NODE_OFFLINE_MESSAGE,
+} from "@/features/local-files/local-file-fetch-messages";
+import { LocalFileFetchProvider } from "@/components/local-files/local-file-fetch-provider";
 import { useConsoleStore } from "@/stores/console-store";
 
 type SessionWorkbenchProps = {
@@ -182,12 +197,14 @@ type SessionSidePanel = {
 };
 
 type PendingEncryptedBootstrap = {
+  attachments: ComposerAttachment[];
   cwd: string;
   prompt: string;
   sessionId: string;
 };
 
 export type ComposerAttachment = {
+  encryptedFile?: File;
   attachmentId: string;
   contentType?: string;
   filename: string;
@@ -341,8 +358,6 @@ export function SessionWorkbench({
   const activeSessionReportedRunning = isActiveSessionRunStatus(
     activeSession?.runtime_status,
   );
-  const activeSessionRuntimeBlocksPrompt =
-    activeSessionReportedRunning || activeSession?.runtime_status === "unknown";
   const isExternallyCreatedSession = Boolean(
     !usesEncryptedTransport &&
     currentSessionId &&
@@ -446,7 +461,20 @@ export function SessionWorkbench({
     user.user_id,
     activeSession && !usesEncryptedTransport ? currentSessionId : undefined,
   );
+  const restoreEncryptedAttachments = useCallback(
+    (files: ComposerAttachment[]) => {
+      setComposerAttachments((current) => {
+        const ids = new Set(current.map((item) => item.attachmentId));
+        return [
+          ...current,
+          ...files.filter((item) => !ids.has(item.attachmentId)),
+        ];
+      });
+    },
+    [],
+  );
   const encryptedRuntime = useE2EESessionRuntime({
+    onAttachmentFailure: restoreEncryptedAttachments,
     agentId: activeAgentId,
     enabled: usesEncryptedTransport,
     sessionId: currentSessionId,
@@ -458,11 +486,6 @@ export function SessionWorkbench({
     async (prompt: string) => {
       if (!activeAgentId || !activeNodeId) {
         throw new Error("Select a node and agent before starting a session");
-      }
-      if (composerAttachments.length > 0) {
-        throw new Error(
-          "Encrypted session attachments are not supported yet. Remove the files before starting.",
-        );
       }
       if (encryptedRuntime.keyLoading) {
         throw new Error(
@@ -489,6 +512,7 @@ export function SessionWorkbench({
       setPendingEncryptedBootstrap({
         cwd: normalizedNewSessionCwd || "/tmp",
         prompt,
+        attachments: [...composerAttachments],
         sessionId: session.session_id,
       });
       handleSessionAssigned(session.session_id, false);
@@ -496,7 +520,7 @@ export function SessionWorkbench({
     [
       activeAgentId,
       activeNodeId,
-      composerAttachments.length,
+      composerAttachments,
       encryptedRuntime.keyLoading,
       encryptedRuntime.rootKeyAvailable,
       handleSessionAssigned,
@@ -534,8 +558,8 @@ export function SessionWorkbench({
     void startEncryptedNativeSession(pending.cwd)
       .then(() => {
         handleSessionAssigned(pending.sessionId);
-        return pending.prompt
-          ? sendEncryptedMessage(pending.prompt)
+        return pending.prompt || pending.attachments.length
+          ? sendEncryptedMessage(pending.prompt, pending.attachments)
           : undefined;
       })
       .then(() => {
@@ -604,7 +628,7 @@ export function SessionWorkbench({
   const {
     fetchNextPage: fetchNextHistoryPage,
     hasNextPage: hasNextHistoryPage,
-    isFetchingNextPage: isFetchingNextHistoryPage,
+    isFetching: isFetchingHistory,
   } = historyQuery;
   const capsulesQuery = useKnowledgeCapsules(
     showAdminFeatures ? user.user_id : undefined,
@@ -652,14 +676,22 @@ export function SessionWorkbench({
   };
   const handleAddComposerAttachments = useCallback(
     async (files: File[]) => {
-      if (
-        files.length === 0 ||
-        attachmentUploadRef.current ||
-        usesEncryptedTransport
-      ) {
+      if (files.length === 0 || attachmentUploadRef.current) {
         return;
       }
 
+      if (usesEncryptedTransport) {
+        try {
+          const staged = files.map(stageEncryptedAttachment);
+          setComposerAttachments((current) => [...current, ...staged]);
+          setComposerAttachmentError(null);
+        } catch (error) {
+          setComposerAttachmentError(
+            error instanceof Error ? error : new Error(String(error)),
+          );
+        }
+        return;
+      }
       attachmentUploadRef.current = true;
       setComposerAttachmentError(null);
       setComposerAttachmentUploadPending(true);
@@ -996,18 +1028,13 @@ export function SessionWorkbench({
         : conversationRun.status,
     },
   );
-  const isTurnRunning = usesEncryptedTransport
-    ? Boolean(pendingEncryptedBootstrap) ||
-      activeSessionRuntimeBlocksPrompt ||
-      encryptedRuntime.status === "streaming"
-    : shouldFollowQueuedTurn ||
-      (displayedRunStatus !== "done" &&
-        displayedRunStatus !== "cancelled" &&
-        displayedRunStatus !== "error" &&
-        (conversationRun.status === "streaming" ||
-          conversationRun.status === "waiting_approval" ||
-          shouldObserveSessionTurn ||
-          activeSession?.runtime_status === "unknown"));
+  // Queue/observer subscriptions can outlive a turn. Use the same resolved
+  // state as the badge so those subscriptions cannot keep the composer busy.
+  const isTurnRunning =
+    (usesEncryptedTransport && Boolean(pendingEncryptedBootstrap)) ||
+    displayedRunStatus === "streaming" ||
+    displayedRunStatus === "waiting_approval" ||
+    displayedRunStatus === "unknown";
   const [pendingSessionConfigOptionId, setPendingSessionConfigOptionId] =
     useState<string>();
   const updateSessionConfiguration = useMutation({
@@ -1469,45 +1496,78 @@ export function SessionWorkbench({
   // The timeline merges durable REST history with live conversation events.
   // REST gives refresh/resume safety; the run stream gives low-latency updates.
   const historyEvents = useMemo(
-    () => mergeEvents(normalizeHistoryMessages(historyMessages)),
-    [historyMessages],
+    () =>
+      usesEncryptedTransport
+        ? encryptedRuntime.historyEvents
+        : mergeEvents(normalizeHistoryMessages(historyMessages)),
+    [historyMessages, usesEncryptedTransport, encryptedRuntime.historyEvents],
   );
 
-  const reconciledTimeline = useMemo(
-    () =>
-      reconcileSessionTimeline(
-        historyEvents,
-        usesEncryptedTransport
-          ? encryptedRuntime.events
-          : conversationRun.events,
-        usesEncryptedTransport ? [] : sessionObserver.events,
-        usesEncryptedTransport ? [] : sessionObserver.snapshotTurnIds,
-        usesEncryptedTransport ? undefined : historySync.calibratedTurnIds,
-        usesEncryptedTransport
-          ? []
-          : historySnapshotsForTimeline(historySync.snapshotTurnIds, {
-              sessionStatus: activeSession?.runtime_status,
-              sessionTurnId: observedTurnId,
-              localStatus: conversationRun.status,
-              localTurnId: conversationRun.activeTurnId,
-            }),
-      ),
+  const timelineRuntime = useMemo(
+    () => ({
+      sessionStatus: activeSession?.runtime_status,
+      sessionTurnId: observedTurnId,
+      localStatus: conversationRun.status,
+      localTurnId: conversationRun.activeTurnId,
+    }),
     [
-      conversationRun.events,
-      encryptedRuntime.events,
+      activeSession?.runtime_status,
+      observedTurnId,
+      conversationRun.status,
+      conversationRun.activeTurnId,
+    ],
+  );
+  const reconciledTimeline = useMemo(() => {
+    if (usesEncryptedTransport) {
+      return {
+        timeline: mergeEvents([...historyEvents, ...encryptedRuntime.events]),
+      };
+    }
+    return reconcileSessionTimeline(
       historyEvents,
-      usesEncryptedTransport,
+      conversationRun.events,
       sessionObserver.events,
       sessionObserver.snapshotTurnIds,
       historySync.calibratedTurnIds,
-      historySync.snapshotTurnIds,
-      activeSession?.runtime_status,
-      conversationRun.status,
-      conversationRun.activeTurnId,
-      observedTurnId,
-    ],
-  );
+      historySnapshotsForTimeline(historySync.snapshotTurnIds, timelineRuntime),
+      activeTimelineTurnId(timelineRuntime),
+    );
+  }, [
+    conversationRun.events,
+    encryptedRuntime.events,
+    historyEvents,
+    usesEncryptedTransport,
+    sessionObserver.events,
+    sessionObserver.snapshotTurnIds,
+    historySync.calibratedTurnIds,
+    historySync.snapshotTurnIds,
+    timelineRuntime,
+  ]);
   const { timeline } = reconciledTimeline;
+  const runningSubagents = useMemo(
+    () =>
+      usesEncryptedTransport
+        ? 0
+        : countRunningSubagents(
+            timeline,
+            activeTimelineTurnId(timelineRuntime),
+          ),
+    [timeline, timelineRuntime, usesEncryptedTransport],
+  );
+  const readNotificationTargets = useMemo(
+    () =>
+      usesEncryptedTransport || !currentSessionId
+        ? new Map<string, string>()
+        : completedReplyTargets(historyEvents, timeline, currentSessionId),
+    [usesEncryptedTransport, currentSessionId, historyEvents, timeline],
+  );
+  useReadTurnNotifications({
+    userId: user.user_id,
+    agentId: activeAgentId,
+    sessionId: currentSessionId,
+    targets: readNotificationTargets,
+    scrollRef: timelineScrollRef,
+  });
   const currentToolEvidence =
     selectedToolEvidence?.type === "tool"
       ? {
@@ -1600,42 +1660,53 @@ export function SessionWorkbench({
       scrollElement.clientHeight;
     shouldStickToBottomRef.current = distanceFromBottom < 96;
   }, []);
-  const loadEarlierHistory = useCallback(() => {
-    const scrollElement = timelineScrollRef.current;
-    if (
-      !scrollElement ||
-      pendingHistoryPrependRef.current ||
-      !shouldLoadEarlierHistory({
-        hasNextPage: Boolean(hasNextHistoryPage),
-        isFetchingNextPage: isFetchingNextHistoryPage,
-        scrollTop: scrollElement.scrollTop,
-      })
-    ) {
-      return;
-    }
-
-    pendingHistoryPrependRef.current = {
-      anchor: captureTimelineAnchor(scrollElement),
-      expectedPageCount: historyPageCount + 1,
-      scrollHeight: scrollElement.scrollHeight,
-      scrollTop: scrollElement.scrollTop,
-    };
-    shouldStickToBottomRef.current = false;
-    void fetchNextHistoryPage().then((result) => {
-      if (result.isError) {
-        pendingHistoryPrependRef.current = null;
+  const loadEarlierHistory = useCallback(
+    (explicit = false) => {
+      const scrollElement = timelineScrollRef.current;
+      if (
+        !scrollElement ||
+        pendingHistoryPrependRef.current ||
+        !shouldLoadEarlierHistory({
+          hasNextPage: Boolean(hasNextHistoryPage),
+          isFetchingNextPage: isFetchingHistory,
+          scrollTop: explicit ? 0 : scrollElement.scrollTop,
+        })
+      ) {
+        return;
       }
-    });
-  }, [
-    fetchNextHistoryPage,
-    hasNextHistoryPage,
-    historyPageCount,
-    isFetchingNextHistoryPage,
-  ]);
+
+      const pendingPrepend = {
+        anchor: captureTimelineAnchor(scrollElement),
+        expectedPageCount: historyPageCount + 1,
+        scrollHeight: scrollElement.scrollHeight,
+        scrollTop: scrollElement.scrollTop,
+      };
+      pendingHistoryPrependRef.current = pendingPrepend;
+      shouldStickToBottomRef.current = false;
+      const clearPending = () => {
+        if (pendingHistoryPrependRef.current === pendingPrepend) {
+          pendingHistoryPrependRef.current = null;
+        }
+      };
+      void fetchNextHistoryPage({ cancelRefetch: false }).then((result) => {
+        if (result.isError) clearPending();
+      }, clearPending);
+    },
+    [
+      fetchNextHistoryPage,
+      hasNextHistoryPage,
+      historyPageCount,
+      isFetchingHistory,
+    ],
+  );
+  const requestEarlierHistory = useCallback(
+    () => loadEarlierHistory(true),
+    [loadEarlierHistory],
+  );
   const handleTimelineScroll = useCallback(() => {
     updateTimelineStickiness();
-    loadEarlierHistory();
-  }, [loadEarlierHistory, updateTimelineStickiness]);
+    if (!historyQuery.isError) loadEarlierHistory();
+  }, [historyQuery.isError, loadEarlierHistory, updateTimelineStickiness]);
 
   const queueDraft = queueTurn.mutateAsync;
   const sendConversationMessage = conversationRun.sendMessage;
@@ -1755,14 +1826,6 @@ export function SessionWorkbench({
             setComposerAttachmentError(null);
             return true;
           }
-          if (attachmentIds.length > 0) {
-            setComposerAttachmentError(
-              new Error(
-                "Encrypted session attachments are not supported yet. Remove the files before sending.",
-              ),
-            );
-            return false;
-          }
           if (isTurnRunning) {
             setSendError(
               new Error(
@@ -1771,7 +1834,13 @@ export function SessionWorkbench({
             );
             return false;
           }
-          await sendEncryptedMessage(content);
+          setComposerAttachmentUploadPending(composerAttachments.length > 0);
+          try {
+            await sendEncryptedMessage(content, composerAttachments);
+            clearSentAttachments(attachmentIds);
+          } finally {
+            setComposerAttachmentUploadPending(false);
+          }
           setComposerAttachmentError(null);
           return true;
         }
@@ -2137,6 +2206,7 @@ export function SessionWorkbench({
         icon: <FileText className="h-4 w-4" />,
         content: (
           <SessionArtifactsPanel
+            previewScope={JSON.stringify([user.user_id, currentSessionId])}
             artifacts={activeArtifacts}
             downloadHref={(artifact, ref) =>
               artifactContentDownloadHref(
@@ -2281,6 +2351,7 @@ export function SessionWorkbench({
             )}
             <div className="flex min-w-0 flex-1 flex-col">
               <div className="order-2 flex min-w-0 gap-1 text-xs text-ink-muted sm:max-w-[52vw] sm:text-sm">
+                <CronOriginBadge origin={cronSessionOrigin(activeSession)} />
                 <TruncatedText>
                   {projectQuery.data?.project.display_name ??
                     activeNode?.name ??
@@ -2401,6 +2472,7 @@ export function SessionWorkbench({
               }
               status={displayedRunStatus}
             />
+            <SubagentCountBadge count={runningSubagents} />
             <SessionRuntimeActions
               canReset={Boolean(
                 activeSession?.runtime_turn_instance_id &&
@@ -2450,12 +2522,13 @@ export function SessionWorkbench({
           ref={timelineScrollRef}
         >
           <div className="mx-auto grid w-full max-w-4xl gap-2">
-            <div
-              className="h-6 text-center text-xs text-ink-tertiary"
-              role="status"
-            >
-              {isFetchingNextHistoryPage ? "Loading earlier messages" : null}
-            </div>
+            <SessionHistoryPagination
+              scrollRef={timelineScrollRef}
+              hasMore={Boolean(hasNextHistoryPage)}
+              isLoading={isFetchingHistory}
+              hasError={historyQuery.isError}
+              onLoadEarlier={requestEarlierHistory}
+            />
             <SessionErrors
               messagesError={historyQuery.error ?? historySync.error}
               missingRouteState={!activeNodeId || !activeAgentId}
@@ -2476,6 +2549,15 @@ export function SessionWorkbench({
                   permissionDecision={permissionDecision}
                   userId={user.user_id}
                 />
+                {readNotificationTargets.has(item.id) && (
+                  <span
+                    aria-hidden="true"
+                    className="block h-px"
+                    data-notification-read-turn={readNotificationTargets.get(
+                      item.id,
+                    )}
+                  />
+                )}
               </div>
             ))}
             <SessionPendingActivity
@@ -2509,6 +2591,22 @@ export function SessionWorkbench({
           </div>
         )}
 
+        {encryptedRuntime.uploadProgress && (
+          <div
+            role="status"
+            className="flex items-center justify-center gap-3 p-2 text-xs text-ink-muted"
+          >
+            <span>{encryptedRuntime.uploadProgress}</span>
+            <Button
+              onClick={encryptedRuntime.cancelUpload}
+              type="button"
+              variant="ghost"
+              size="sm"
+            >
+              Cancel upload
+            </Button>
+          </div>
+        )}
         <SessionComposer
           userId={user.user_id}
           availableCommands={
@@ -2522,7 +2620,11 @@ export function SessionWorkbench({
             updateSessionPermission.isPending
           }
           attachmentError={composerAttachmentError}
-          attachmentUploadPending={composerAttachmentUploadPending}
+          attachmentUploadPending={
+            composerAttachmentUploadPending ||
+            Boolean(encryptedRuntime.uploadProgress) ||
+            Boolean(pendingEncryptedBootstrap)
+          }
           attachments={composerAttachments}
           currentSessionId={currentSessionId}
           createEmptySessionPending={
@@ -2554,7 +2656,7 @@ export function SessionWorkbench({
           permissionChoices={permissionChoices}
           configurationSummary={
             !usesEncryptedTransport
-              ? configurationModel(sessionConfigurationQuery.data)
+              ? configurationSummary(sessionConfigurationQuery.data)
               : undefined
           }
           configurationControl={
@@ -2645,9 +2747,28 @@ export function SessionWorkbench({
     </div>
   );
 
+  // Local file links in this session can be fetched from the node only for
+  // manager-transport sessions on an online node; otherwise they stay
+  // copy-only. The provider is always mounted so assigning a session id
+  // does not remount the workbench.
+  const localFileFetchDisabledReason = !currentSessionId
+    ? "Start the session to fetch files from the agent's machine."
+    : usesEncryptedTransport
+      ? E2EE_FETCH_UNAVAILABLE
+      : activeNode?.online === false || activeAgent?.online === false
+        ? NODE_OFFLINE_MESSAGE
+        : undefined;
+
   return (
     <SessionWorkbenchFrame embedded={embedded} user={user}>
-      {workbench}
+      <LocalFileFetchProvider
+        disabledReason={localFileFetchDisabledReason}
+        enabled={!localFileFetchDisabledReason}
+        sessionId={currentSessionId ?? ""}
+        userId={user.user_id}
+      >
+        {workbench}
+      </LocalFileFetchProvider>
       {browserOpen && activeNodeId && (
         <SessionBrowserWindow
           nodeId={activeNodeId}

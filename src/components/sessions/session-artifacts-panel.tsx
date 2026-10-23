@@ -21,6 +21,7 @@ export function SessionArtifactsPanel({
   isLoading,
   onLoadPreview,
   onRefresh,
+  previewScope,
 }: {
   artifacts: SessionArtifact[];
   downloadHref: (artifact: SessionArtifact, ref: string) => string;
@@ -29,6 +30,7 @@ export function SessionArtifactsPanel({
     artifact: SessionArtifact,
   ) => Promise<ArtifactPreviewDescriptor>;
   onRefresh: () => void;
+  previewScope?: string;
 }) {
   const [selectedArtifactId, setSelectedArtifactId] = useState("");
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -152,6 +154,7 @@ export function SessionArtifactsPanel({
             className="min-h-0 flex-1 overflow-y-auto p-4"
           >
             <ArtifactViewerShell
+              previewScope={previewScope}
               autoLoad
               key={selectedArtifact.artifact_id}
               artifact={artifactDocumentFromSessionArtifact(

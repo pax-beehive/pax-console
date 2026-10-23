@@ -1,8 +1,164 @@
 # PAX Console 代码结构与接入说明
 
+## Settings 设置工作区
+
+桌面 `/settings` 默认展示通知设置内容，使用专用侧栏与右侧内容区。
+`settings-catalog.ts` 统一维护桌面四组、八项设置及用途说明。手机保留原来的 Settings
+入口列表、Advanced settings 列表与逐页返回，不增加设置选择器。`useDesktopSettings`
+使用与 `lg` 一致的 1024px 媒体查询，按视口挂载入口内容，手机入口不会挂载通知设置控件。
+桌面设置页面复用 `SettingsPageHeader`，明确标题、用途与操作范围，手机保留原有标题布局。
+设备/Agent 详情和加密配对旧路径仍保持所属分组高亮；`/settings/advanced` 在桌面直接
+展示 Allowed actions，在手机展示原有高级设置目录。
+项目保留内部项目列表和工作目录目标面板，通知订阅的核对中状态保持原有防闪烁规则。
+设置项及子功能清单见 `docs/settings-inventory.md`；此调整不新增 API 或服务端状态。
+浏览器回归覆盖桌面/手机全部八项、当前入口、手机逐页返回以及横向溢出；数据使用明确夹具。
+
+## 通知订阅管理看板
+
+`/admin/notifications` 与 Customers 位于同一管理员导航组，两页共享顶部切换。
+手机沿用 Customers 底部入口。前端继续使用有效管理员视图，Manager 独立鉴权。
+数据通过同源 `/api/pax/api/v1/user/self/notification-subscriptions` 获取，原有区域
+Worker 聚合 US/HK，并分别保留区域更新时间、故障状态和分页游标。
+
+看板展示筛选后的全量统计和设备订阅列表。订阅状态、客户端最后上报的通知权限、
+投递结果分开展示，不能把已启用订阅当成设备在线，也不能把服务商接受当成用户已读。
+没有投递记录时明确显示 No delivery attempts，不补造数据。用户详情跳转保留合并前的
+`(region, user_id)`；不同区域的 receiver 不按邮箱合并。列表和详情均不返回 endpoint、
+密钥或原始服务商响应。
+
+`features/analytics/use-subscriptions.ts` 复用有焦点才刷新的调度器。TanStack Query key
+包含管理员身份、筛选项和区域游标；筛选变更重挂结果组件并取消旧请求。区域故障可以
+保留明确标记为过期的快照，鉴权失败隐藏旧数据。排队但尚未尝试的任务显示 Not attempted yet。
+
+用户在 Settings → Notifications (`/settings/notifications`) 为当前浏览器或安卓壳单独开启
+通知。只有点击开启时申请系统权限；等待根作用域 `/push-sw.js` 激活后才调用 PushManager。
+公开配置和本人接收端元数据使用 TanStack Query；localStorage 只保留所属用户、receiver ID、
+key ID 和本地开关，不存 endpoint 或加密密钥。登录后的前台修复不会再次弹权限，尊重服务端撤销，
+失效订阅或公钥变更时重新订阅，跨账号先解除旧绑定。退出前执行有时限的撤销与取消订阅，随后
+继续原有网关表单退出流程。
+
+通知设置把“核对中/未知”与“已关闭”分开。确认结果绑定当前用户客户端和配置快照版本；
+即使查询缓存已命中，也要等设备订阅核对完成才允许 Enable。核对失败保持未知状态并提供刷新。
+确认启用后刷新接收端元数据；绑定或接收端快照暂时缺失时显示确认中，不把它当成可重新启用。
+浏览器审计在保留查询缓存的客户端导航后阻塞核对，并观察 DOM 变化以捕获按钮短暂可点的问题。
+
+Service Worker 只处理推送、点击和订阅变更，不拦截 fetch 或缓存认证响应。普通会话通知展示
+Manager 提供的本轮最后一段回复短预览，最多 200 个 Unicode 字符；缺失时使用通用提示。
+新增 `approval.required` 类型用于等待用户审批的请求，标题为 `Approval needed`，
+正文为 `Your session is waiting for your approval. Tap to review the request.`。
+点击后进入对应会话查看请求，再由用户作出决定；推送点击不提交审批。Manager 在请求创建及
+投递前检查 Pax Auto Approve、待审批状态、到期时间和会话归属；已保存授权自动处理的请求
+不进入人工待审批路径。设置页只在 `approval_required_enabled` 为 true 时展示相关说明。
+通知统一跳到 Home 的 `/?session_id={encoded_id}`，由 Home 解析会话的 node/agent 并加载工作台，
+再次经过正常会话鉴权。Worker 把旧的 `/sessions/{id}` 通知链接也转换成 Home 地址；
+测试通知仍跳到通知设置页。先部署兼容两种链接的 Console，再部署生成 Home 链接的 Manager。
+优先复用已经打开的对应会话，先聚焦再导航；窗口关闭、导航失败或返回空值时打开对应地址。
+Worker 的 Client.url 是文档创建时的地址，Home 用 replaceState 切换会话后它仍可能保留旧值。
+因此点击通知始终实际导航到目标地址，即使 Client.url 看起来已匹配也不提前返回；
+这会重新导航/加载已打开的目标，避免只聚焦后仍停在另一个会话。浏览器回归覆盖打开 A、
+同文档切换到 B、再点 A 通知的场景，并核对实际 URL 和文档内容。
+只复用顶层同源窗口。浏览器审计使用真实 Worker 和窗口导航，但显式模拟 OS 聚焦权限，
+不代表系统通知点击验收。测试按钮调用真实队列接口；
+排队、服务商接受和设备实际显示分别表述。配套 Manager 在持久化普通会话的成功结束响应时，
+把结束记录、去重标识和各接收端任务放入同一事务；页面关闭后仍可发送。发送器配置就绪后，
+`turn_completion_enabled` 为 true。加密会话暂不支持自动结束通知，设置页明确说明此范围。
+安卓通知栏的 `badge` 单独使用透明底白色 PAX 标志 `pax-notification-badge.png`，由原始
+SVG 生成并针对 24 dp 显示加粗；带背景的应用图仅用于通知大图标。需要 Manager 配置稳定的
+VAPID 公私钥和 contact，前端只读取公钥。浏览器检查使用明确的测试夹具，不代表安卓真机收包。
+
+普通会话的通知已读清理只作用于当前设备。工作台先确认持久化历史存在该 turn 的结束标记、
+最终回复与已渲染内容一致，再用时间线滚动容器内的 IntersectionObserver 观察回复末尾。
+只有页面可见且聚焦、末尾进入可见区时才清理；打开应用、收到结束信号或仅看见长回复开头都不算已读。
+页面按 Manager 现有 v1 规则计算通知 ID（Go JSON 的 user/agent/session/turn 数组经 SHA256），
+只把这个不透明 ID 发给 worker，不新增服务端接口。Go 生成的测试向量固定跨语言转义规则，
+后端 stableID 规则的变更需与 Console 协调。
+Worker 使用 getNotifications/close 精确关闭匹配 tag，在 IndexedDB 中保存最多 512 条 ID/已读时间，
+活动时淘汰超过 24 小时的记录，以处理通知晚到和 worker 重启；不保存回复内容，不同步其他设备。
+晚到通知仍先调用 showNotification，再检查已读记录并关闭。存储不可用时保留晚到通知；
+对明确已读的当前通知仍尝试关闭。其他会话、更新一轮和手动测试通知均保留。
+`scripts/notification-dismiss-browser.mjs` 用真实工作台、可见性判断、worker 通信及 IndexedDB
+覆盖这些路径，用户/历史/系统展示使用明确测试夹具，不宣称真机系统通知验收。
+
+## WorkOS 登录链路
+
+生产登录入口是 `/auth/login`。区域网关（Worker 或区域直连服务）负责 PKCE 回调、加密的 HttpOnly
+会话 cookie、续期及退出；Next.js 和浏览器存储不保存 WorkOS 密钥。退出使用同源
+表单 POST `/auth/logout`，由网关清理 cookie 并重定向至 WorkOS 注销会话。
+已有 `NEXT_PUBLIC_PAX_LOGOUT_URL` 仅作为旧部署的 GET 退出覆盖配置。
+
+首次登录只允许经过 WorkOS 验证的邮箱绑定原有目录身份；绑定后以 WorkOS 用户 ID
+识别账号，保持原 PAX 用户 ID、区域和资源归属。REST 和 WebSocket 经过当前配置的同源网关，Manager 验证区域网关签名和原有资源权限。前端切换应在 Worker 与两区 Manager
+部署并验证后进行；源代码发布不代表生产认证已切换。
+
+区域初始化或 AuthGate 返回 401 时，自动 replace 到 `/auth/login?returnTo=...`，
+保留相对路径、查询串和 hash，登录前不挂载账号请求。sessionStorage 中仅存储跳转时间戳，
+15 秒内避免自动重复跳转；手动登录链接始终可用。区域初始化成功后清除该标记。
+区域服务故障仍保留错误信息和重试按钮。
+
+AuthKit 生产品牌源文件位于 `branding/workos/`，通过
+`node scripts/workos-branding-payload.mjs` 构建无密钥的 updateAppBranding JSON，
+脚本不自动发布。显式发布到生产 branding ID 后检查中英文、桌面、手机和注册页。
+桌面使用品牌介绍与表单双栏，手机隐藏介绍栏。全站使用中性雾面炭灰、柔和灰白和中性灰强调色。
+品牌配置不修改登录提供商、邮箱验证或 MFA 策略。
+
+## 公开公司说明与政策页面
+
+`workers/public-pages/` 是独立的 `pax-public-pages` Cloudflare Worker，提供
+`/about`、`/privacy`、`/terms`。`/about` 用作 OAuth 应用主页，链接两份政策和现有
+中英文产品介绍页。页面是无脚本、无账号请求、无数据库绑定的静态 HTML；不进入
+Next.js 的 RegionGate。路由配置仅覆盖这三个前缀，handler 再限制精确路径与
+GET/HEAD，不识别的相邻路径返回 404，不转发到 Console 或 Manager。
+工作台、API、现有 regional Worker 和 Access 策略不由该模块修改。
+Console 镜像发布不更新此 Worker；部署、回滚和无登录验收见该目录 README。
+
+## Harness 与 ACP adapter 升级
+
+目标版本可留空，默认 latest；paxd 通过 paxl 解析一次后固定版本，前端从命令结果展示实际安装版本，刷新后可恢复。
+节点详情的高级设置通过 `NodeHarnessUpgrade` 分别升级 Claude/Codex/Pi CLI 和 ACP adapter。
+前端提交 latest 或指定的精确版本；ACP 更新需要选择运行中的 daemon connection，CLI 更新不传 connection。
+Claude/Codex 的受管理 ACP 绑定明确的原生 executable，CLI 更新后验证新进程的 runtime 版本。
+Pi ACP 0.7.0 起由 paxd 绑定 Pi CLI 所在 SDK，CLI 升级后重启并验证实际 SDK 版本；显式指定 PI_ACP_SDK_ROOT 的连接保持独立安装。请求经过同源 API proxy，
+调用 `POST /api/v1/user/:user_id/nodes/:node_id/harness/upgrade`，复用现有 command 查询与
+`received → applied/failed` 状态。收到 ACK 只表示已接收；只有 paxd 完成安装验证及所需的
+ACP 新进程握手后才显示成功。command_id 在提交前写入浏览器存储，刷新后继续查询，重试沿用
+同一个 ID。paxl 负责本地安装，paxd 负责等待任务结束、重建进程和失败恢复；Manager 负责鉴权及转发。
+支持直接 symlink 入口的 npm 全局安装和 Claude 官方原生安装。原生 Claude 需要更新后的 paxl：校验官方下载的大小和 SHA-256，并独立保存旧 binary 供回滚；继续复用现有 command、重启和 runtime 版本验证。Homebrew、npx wrapper 暂不支持。
+
+## 用户分析看板与焦点轮询
+
+`/admin/customers` 展示美国、香港两区的账号、访问记录、真实 agent 绑定和消息使用情况。
+仅管理员可见，预览普通用户时隐藏；Manager 在服务端再次校验管理员权限。
+浏览器只请求同源 `/api/pax/api/v1/user/self/customer-analytics`，Worker 使用原始身份
+并发读取两个固定区域，不进行 D1 查询或账号创建。任一区拒绝授权则整次请求失败；
+区域故障时保留该区旧值和更新时间，不把故障当成零用户。账号按规范化邮箱去重。
+
+看板每 15 秒刷新一次，但必须同时满足页面可见、窗口获得焦点、在线且组件仍挂载。
+失焦、隐藏、pagehide、离线或卸载立即清除定时器并取消请求。恢复焦点按新鲜度
+最多请求一次，不补发历史轮次。错误指数退避，鉴权错误停止。筛选、搜索和详情不发请求。
+TanStack observer 禁用自动 mount/focus/reconnect/retry，调度器是唯一请求入口。
+全局 QueryProvider 的 focus listener 也包含窗口焦点，避免已有 shell 轮询在失焦窗口继续。
+
+已登录 Console 的访问记录每分钟最多上报一次，同样只在前台有焦点时执行。
+新表 `customer_visits` 记录首次和最近访问；旧的 `last_seen_at` 不用于推断访问时间。
+历史未知值保留为 Unknown。加密消息只能确认存在活动，不推算用户发送条数。
+普通账号筛选表示排除管理员，不把权限角色当成内外部客户分类。
+
 这份文档给人读，目标是让新加入的人能快速理解：项目为什么这样分层、Cloudflare 本地开发为什么这样接、REST 和 WebSocket 后续应该怎么演进。
 
 如果你改了关键架构、认证链路、目录结构、REST/WebSocket 协议、UI primitives 或 shell 布局，请同时更新本文和 `docs/agent-operating-guide.md`。
+
+## 公开产品介绍与搜索索引
+
+`/overview` 是英文产品介绍，`/zh/overview` 是简体中文版，主域名 `/` 仍为工作台。
+两版共用 `src/app/overview/` 下的服务端页面、架构图和文案字典，通过普通链接切换，
+不依赖 cookie 或浏览器语言跳转。内容容器分别设置 en / zh-CN，工作台和根文档仍为英文。
+AppProviders 仅对这两个精确路径跳过 RegionGate；不挂载账号请求，进入工作台后仍
+运行原有区域与身份检查。根 metadata 默认 noindex, follow，介绍页单独设置 index,
+follow、自引用 canonical、本地化分享信息和 JSON-LD，并以 hreflang 关联中英版本
+及英文 x-default。静态 sitemap 包含两个介绍页，侧栏 About 入口进入默认英文页。
+生产 Cloudflare Access 需精确公开 `/zh/overview`，不能以 `/zh/*` 或整站替代。
+路径、无登录验收与 Search Console 流程见 `docs/public-overview.md`。
+域名、cookie 与浏览器加密密钥存储不迁移。
 
 ## 一句话模型
 
@@ -40,9 +196,7 @@ SessionSettings 统一承载新建/已有会话的配置和权限：手机为带
 和位置计数；首尾禁用对应按钮，单图隐藏导航，非图片和无 attachment ID 项跳过。
 预览仅请求当前图片，切换时独立重置错误/重试状态，不影响消息缩略图。
 
-
-
-移动端 composer 的权限按钮限制宽度，完整权限名称保留在菜单和无障碍标签中。运行中 Queue/Stop 保持直接可见，Steer 放在移动端更多菜单（桌面仍保留快捷按钮），未实现的语音按钮不占用手机工具栏。Project 原生选择保留系统交互，但用自定义箭头和明确的深色背景/边框；RunBadge 内部图标与文字保持同行。移动端顶部栏为 44px 最小高度加安全区，刷新入口移至用户菜单。短行内代码作为整体换行，超长内容仍允许断行，避免横向溢出。
+移动端 composer 的权限按钮限制宽度，完整权限名称保留在菜单和无障碍标签中。运行中 Queue/Steer/Stop 在手机和桌面均直接可见，Steer 以独立按钮放在 Queue 旁，未实现的语音按钮不占用手机工具栏。Project 原生选择保留系统交互，但用自定义箭头和明确的深色背景/边框；RunBadge 内部图标与文字保持同行。移动端顶部栏为 44px 最小高度加安全区，刷新入口移至用户菜单。行内代码与正文一起换行，超长路径可在容器内断行，每行保留独立背景，不再使用 inline-block 形成整块灰底。流式 Markdown 将代码内反斜杠视为字面字符，避免错误补闭合符。
 
 ```txt
 Cloudflare Access 负责入口身份。
@@ -97,7 +251,7 @@ Browser --encrypted command/HTTP--> 任意 Manager
   HTTP 结果不确定时必须重发 `prepareEncryptedCommand` 产生的同一个 envelope，
   不能用相同业务 ID 重新加密出不同 nonce/ciphertext。
 - `root-key-store.ts` 在浏览器 IndexedDB 中按 agent 保存开发阶段手工共享的
-  root key。Settings / Advanced settings / Encrypted chats 提供保存和删除入口，key 不经过 Manager API。
+  root key。Settings / Security & access / Encrypted chats 提供保存和删除入口，key 不经过 Manager API。
 
 paxd 在解密并接受 `session/prompt` 时按 prompt request 建立稳定 `turn_id`，并在
 encrypted event plaintext 中以 `{ turn_id, frames }` 返回；canonical encrypted
@@ -120,9 +274,9 @@ GET  /api/v1/user/{user_id}/agents/{agent_id}/sessions/{session_id}/encrypted-ev
 
 Workbench 只能按服务端 session marker 切换，不能因为浏览器恰好保存了某 agent 的
 root key 就切换，因为同一个 agent 可以同时拥有普通和 E2EE session。E2EE session
-使用 `encrypted-history`、encrypted event SSE 和 encrypted command；浏览器缺 key
+使用 encrypted turn replay、encrypted event SSE 和 encrypted command；浏览器缺 key
 时显示 locked notice，绝不能静默回退到 Manager 明文 `/conversation`。当前已支持
-history、live frame、prompt 和 cancel；queue、steer、attachment 及 Manager 明文
+history、live frame、prompt、cancel 和加密附件；queue、steer 及 Manager 明文
 permission projection 在有对应的 encrypted ACP 语义前保持禁用。`/e2ee` 页面继续
 作为诊断入口，不再是访问加密 session 的唯一入口。
 
@@ -333,8 +487,8 @@ src/components/home/project-rail.tsx
   并在编辑父级时排除自身和 descendants。
 
 src/components/resources/
-  Settings 组下的资源页。Devices 聚合 Nodes / Agents；Advanced settings 收纳 active
-  approval grants、Encrypted chats、API keys 和手动注册 token（pending approvals 留在 Home Inbox）。
+  Settings 下的资源页。Devices 聚合 Nodes / Agents；Security & access 收纳 active
+  approval grants 与 Encrypted chats，Developer tools 收纳 API keys 和手动注册 token（pending approvals 留在 Home Inbox）。
   Service status 公开服务、设备与 Agent 各自的状态。Inquiries 和 Conversations 属于 Home action/deep-link，
   不再伪装成系统设置。旧资源列表 URL 保留 redirect。
 
@@ -349,6 +503,17 @@ src/components/artifacts/
   保留紧凑预览，同时链接到受 AuthGate 保护的全宽独立页
   /artifacts/publications/[publicationId] 与 /artifacts/files/[artifactId]；
   独立页复用同一 renderer，并自动取得短效 preview URL。
+  两处 Download 入口均通过原生 `download` 和 `target="_self"` 访问同源
+  content API，避免新窗口导航触发 Android App 链接接管；保留 noreferrer、
+  attachment disposition 与签名存储重定向。Worker 来源校验和 Manager
+  文件归属校验继续生效。Android Chrome 与已安装 TWA 均需验证下载。
+  内嵌 viewer 默认只显示紧凑文件行；Collapse 隐藏已挂载内容，保留阅读位置和
+  图片缩放；Close 使在途请求失效并释放 object URL，保留可重新 Preview 的文件行。
+  Zustand artifact-preview-store 只保存 [user_id, session_id] 范围内当前展开的
+  viewer instance，协调 timeline 与侧栏同一时间只展开一份预览，不保存内容或 URL。
+  Fullscreen 使用 Radix dialog；Esc 退出全屏，内嵌预览内的 Esc 关闭该预览。
+  图片支持完整适应、原尺寸缩放、像素尺寸和解码失败重试；沿用通用 download
+  元数据的 MIME/文件名 fallback、blob 预览预算和 HTML sandbox 隔离。
 
 src/components/sessions/
   Session workbench。把 REST 历史消息和 WebSocket live events 合成时间线。
@@ -390,7 +555,10 @@ src/components/sessions/
   runtime status，也不由前端自动重跑工具。待授权请求在折叠行外始终可操作，
   段内不重复显示同一待授权控件。原有授权范围、提交锁、diff 和 Tool evidence 保留。
   completedAt 仅由结束当前活动段的消息或 turn_done 时间生成，属于视图投影元数据，
-  不写回后端。时间线 block 使用 8px
+  不写回后端。投影时保留已完成 turn ID；迟到的 progress/tool 结果追加到原轮次最后的
+  已完成活动段，不修改当前 active turn 的归属，也不关闭新轮次的运行活动。原活动段
+  不在当前历史中时，使用无虚构时长的已完成 Worked 段保留结果。无 turn ID 的旧事件
+  在下一条用户 prompt 处重新开始分组。时间线 block 使用 8px
   间距；agent 与 user 正文使用 14px 字号、20px 行高，Markdown H1/H2/H3
   分别使用 18px/16px/15px 字号，引用使用 13px 字号；Session 与 Home composer
   桌面输入框和正文一致，使用 14px 字号、20px 行高。小于 640px 的手机布局中，输入和 agent/user 正文统一使用 16px/24px，
@@ -458,12 +626,12 @@ status / count pill
   走 Codex-like dark workbench，而不是通用 dashboard。
   优先使用 split panes、compact rows、timeline、evidence panel。
   避免大 hero、KPI-card grid、每个 section 都套 rounded card。
-  签名 accent 色为 --accent #5e6ad2（小字/图标用更亮的 --accent-bright #96a0ff），
+  签名 accent 色为 --accent #b8b8b8（小字/图标用更亮的 --accent-bright #d2d2d2），
   只用于小面积交互信号：选中态底色（bg-accent/10，hover 加深到 /15；
   segmented tab 用 bg-accent/15 + accent-bright 文字）、左侧指示条、
   聚焦环/光晕、hover 强调；
-  不要把 accent 或渐变用作大面积品牌装饰。body 自带一层极淡的 accent
-  径向渐变增加纵深，::selection 使用 accent 色。
+  不要把 accent 或渐变用作大面积品牌装饰。body 使用纯色中性雾面炭灰 #262626，
+  正文使用柔和灰白，::selection 使用中性灰 accent 色。
   Cards 只用于可选择实体、modal、独立工具或确实需要框住的复杂内容。
 
 Sidebar 折叠
@@ -474,9 +642,10 @@ Sidebar 折叠
   手机宽度隐藏 Sidebar，保留 Topbar；Home 默认显示 clean composer，并用左侧抽屉承载 Project / Session rail。
   Sidebar 自身使用安静的 surface 和 compact nav rows，不保留固定的 Current node 区块。
   Sidebar 一级入口保持粗粒度：顶部只有 Home 和 Collaboration；
-  其余入口收进钉在侧栏底部的 Settings 展开组。
-  Collaboration / Settings 是彼此独立的 disclosure，不是 accordion；多个组可以同时保持展开。
-  Settings 展开时在 Sidebar 二级导航承载 Devices、Projects、Service status 和 Advanced settings。
+  Settings 作为侧栏底部的独立入口；进入后用 272px 设置侧栏替换普通工作区导航，
+  通过 Back to workspace 返回。工作区原有折叠状态保留，设置侧栏不受它影响。
+  Settings 按 Workspace、Security & access、Developer tools、Status & support 分组。
+  窄屏使用带分组的原生 select 切换设置，不增加第二层横向导航。
   Collaboration 展开时在 Sidebar 二级导航承载 Teams、Friends、Envelopes、Knowledge。
   Team invites 属于 Teams 页面里的 team action queue，不作为 Collaboration 并列二级入口。
   不要把这些全局二级 tabs 放进具体页面 header 或页面组件内部。
@@ -556,6 +725,22 @@ Attachments
   旧的 initialize + session URL PUT 流程；未知协议在发请求前报错。成功后再调用
   /attachments/{attachment_id}/complete 把状态变成 completed。真正发 prompt 时，
   前端把 attachment_id 放进 /conversation 的 content block；附件本身不绑定 agent。
+
+Local file links（本地文件链接）
+  agent 输出里指向其本机的路径（markdown 本地 href、工具输入的绝对路径、diff
+  文件头）统一渲染为 src/components/ui/local-file-link.tsx 的 LocalFileLink：
+  tooltip 为真实路径，复制按钮只写入不含 file:// 和行号后缀的绝对路径，复制在任何
+  场景都可用。解析在 src/features/local-files/local-file-href.ts。
+  SessionWorkbench 挂载 LocalFileFetchProvider（LocalFileLinkContext）；E2EE、
+  node/agent 离线或尚未创建的 session 下 enabled=false，artifact viewer 与独立页
+  没有 provider，只能复制。启用时点击链接：
+  GET /sessions/{session_id}/artifact-fetches/check?path= 预检并展示完整路径确认，
+  POST /sessions/{session_id}/artifact-fetches {path}：accepted=true 返回
+  ArtifactPublication（origin=user_fetch），复用 useArtifactPublication 轮询并在
+  对话框内嵌 PublicationArtifactViewer；accepted=false 返回 denial{code,rule,message}。
+  503 表示 node 离线，409 表示 E2EE。会话内"已获取"记录是纯客户端 UI 状态，放在
+  Zustand（useLocalFileFetchStore），publication 数据仍归 TanStack Query。
+  行为场景见 docs/local-file-links.md。
 
 Artifact publications
   Session timeline 识别 `message_type = "pax:artifact"`，从
@@ -738,12 +923,13 @@ Sidebar 一级入口是粗粒度工作区（顶部 Home / Collaboration，底部
 /collaboration/friends         Friends
 /collaboration/envelopes       Envelopes
 /collaboration/knowledge       Knowledge capsules
-/settings                      Settings directory
+/settings                      桌面 Notifications；手机 Settings 目录
 /settings/devices              Devices; ?view=agents selects Agents
-/settings/devices/add          Quick connect / Pair with code
+/settings/devices/add          Quick connect / Browser sign-in
+/settings/devices/agents/add   Agent setup; optional nodeId selects a computer
 /settings/projects             Project hierarchy and launch Targets
 /settings/service-status       PAX health, devices and agents independently
-/settings/advanced             Advanced settings directory
+/settings/advanced             桌面 Allowed actions；手机 Advanced settings 目录
 /settings/advanced/permissions Active approval grants
 /settings/advanced/encryption  Browser keys and encrypted-device pairing
 /settings/advanced/api-keys    API key management
@@ -803,19 +989,37 @@ AES-256-GCM，与 `paxd/internal/secretchannel/crypto.go` 字节级兼容）在�
 输入在开始发送时清空，发送使用直接 async handler，不把明文或捕获明文的函数放入
 TanStack Mutation 缓存。
 
-Settings / Devices / Nodes 的每个在线 node 行提供受确认保护的 paxd
-maintenance 操作。Restart 固定发送 `mode: immediate`；打开 Upgrade 弹窗后，前端按
-node 上报的 `os/arch` 调用 `GET /api/v1/public/paxd/download` 解析该平台最新的
-stable artifact，展示并提交其精确版本；当前版本相同时禁止重复升级。Upgrade 固定
-使用 `tag: stable` 和 `mode: immediate`。前端为每次请求生成唯一 `command_id`，并在
-ACK 后显示 command id、dispatch status 以及 upgrade 的新 boot 确认状态，便于与
-paxd 日志和 heartbeat 对照。
+Settings / Devices / Nodes 的每个 node 行（`NodeListRow`）展示在线状态、平台、paxd
+版本和 `metadata.paxl` 观测；离线行附带距最后一次 heartbeat 的时长。维护操作都在行
+末的操作菜单里：升级 paxd、重启 paxd、升级 paxl、删除设备。Restart 固定发送
+`mode: immediate`；打开 Upgrade 弹窗后，前端按 node 上报的 `os/arch` 调用
+`GET /api/v1/public/paxd/download` 解析该平台最新的 stable artifact，展示并提交其精确
+版本；当前版本相同时禁止重复升级。Upgrade 固定使用 `tag: stable` 和
+`mode: immediate`。
+
+三个维护弹窗共用 `DaemonCommandDialog`：确认、提交后不关闭，轮询
+`GET .../daemon/commands/{command_id}` 直到命令结束。paxl 的步骤对应 paxd 上报的
+`downloading`、`activating`、`verifying`；paxd 重启和升级在 paxd 本地会一直停在
+`received`，步骤以 Manager 基于 heartbeat 的 `maintenance_confirmation` 为准。paxd
+暂时不可达时（Manager 返回 `stale: true`，旧版 Manager 返回 503）显示为等待重连，
+不算失败。关闭弹窗不会取消命令。失败后的 Retry 使用新的 `command_id`，复用旧 ID
+只会拿到 paxd 已存的失败结果。
+
+Manager 会记录这些命令，并在每个 node 上返回每种类型最近一条的
+`latest_daemon_commands`。列表行展示进行中的命令，或尚未被已安装版本覆盖的最近一次
+失败，点击即可打开对应弹窗。有命令进行中时 `useNodes` 每 3 秒刷新。状态折叠逻辑在
+`src/features/devices/daemon-commands.ts`，与 Manager 的 `NodeDaemonCommandState`
+保持一致，响应里有 Manager 的 `state` 时以它为准。浏览器不再自行保存 command id。
 
 control tunnel 同一时刻只允许一组 query request/response，因此面板按
 status → harnesses → agent connections 串行加载。mutation 收到 ACK 后保存
 `command_id`，然后每秒查询 agent connections；generation、restart nonce 和
 runtime phase 收敛后停止轮询并刷新 agent 列表。command 的 `received` 只表示
 paxd 已接收请求，不作为运行完成状态。
+connection 查询包含 disabled 条目，也可能返回软删除历史。列表与计数过滤
+`desired_state: deleted`，删除收敛接受记录消失或进入 deleted 状态，不再等待
+历史行物理删除；旧 runtime phase 不能覆盖删除状态。正常 stopped/disabled 连接
+仍保留在列表中。
 
 agent connection 创建和编辑支持 `desired_slots`（范围 1–16），新建默认值为
 `2`；connection 列表展示的是期望 slot 数，不代表当前已 running 的 slot 数。
@@ -929,9 +1133,13 @@ config），利用 `session/set_config_option` 必须返回完整 `configOptions
 session-control request 使用独立 admission key，可与同一 session 的 active prompt
 并行，但多个 config request 彼此串行。
 
-Hermes 等旧实现只返回 `models.currentModelId/availableModels` 时，Console 可以展示
-当前 model 和 model list，但不提供切换或强制刷新，因为旧 `session/set_model`
-从未标准化。E2EE session 的 payload 对 Manager 不可见，所以该 selector 和这些 REST
+Hermes 等旧实现返回 `models.currentModelId/availableModels` 且没有标准 model option 时，
+Manager 在 REST snapshot 中投影可编辑的 `model` option。Console 复用现有选择器和
+PATCH endpoint；Manager 通过旧 `session/set_model` 发送已广告的 model ID，收到成功确认后
+才持久化当前模型，并保留模型列表和其他配置。标准 model option 优先，失败时不回退到旧接口。
+Hermes 忙碌时拒绝切换，Console 保持原选择并展示错误。旧模型接口不用于强制刷新列表，
+也不推导 reasoning effort 配置；只返回 `legacy_models` 的旧 Manager 仍按只读展示。
+E2EE session 的 payload 对 Manager 不可见，所以该 selector 和这些 REST
 操作保持禁用。ACP client initialize 必须声明
 `clientCapabilities.session.configOptions.boolean={}`，否则 Agent 可以合法地省略
 boolean fast-mode 配置。
@@ -982,8 +1190,12 @@ resume 复用同一个 turn ID，queued follow-up 使用新的 ID。durable hist
 turn 投影都带 `turn_id`，并以 `message_type=turn_done`、`status=complete` marker
 结束。timeline 必须把 history、当前窗口拥有的 conversation stream、observer replay
 作为三条独立有序流协调，不能按 `createdAt` 重排（observer 重放帧使用客户端接收时间）。
-本地 conversation 只接管该 turn 的 agent 输出，同时保留 durable user prompt，并把
-该 turn 留在原 history 位置；新版 observer 在 `head` 提交完整 snapshot 后替换
+本地 conversation 只接管该 turn 的 agent 输出，同时保留 durable user prompt。
+已确认的当前活动 turn（含用户消息和工具事件）整体置于其他事件之后，保留轮内顺序，
+不受旧历史分页带入的早期锚点影响。本地活动 turn ID（含 pending ID）优先于服务端
+运行状态中的 ID；旧流残留保留历史位置，已校准或由完整历史快照接管的轮次不因
+滞后的运行状态移到末尾。活动 ID 未知时保留原有保守排序。
+新版 observer 在 `head` 提交完整 snapshot 后替换
 目标 turn 的旧投影，不再依赖重放文本过滤。只有 completion marker 出现在 history 后，
 durable history 才完整接管该 turn。
 durable history 可能把同一 turn 的全部 `agent_message_chunk` 聚合进第一条 chunk
@@ -1016,6 +1228,9 @@ ACP `end_turn` 和 observer 回放的结束记录会立即刷新 session 状态�
 发送前的缓存和在途请求不能结束新任务。用实时 `runtime_turn_instance_id` 识别
 服务端新一轮运行，避免旧的 done 覆盖它。observer/history 结束通知必须匹配
 当前轮，已中止流的迟到回调忽略。顶部状态和停止按钮使用同一结束状态。
+Manager 和 E2EE composer 均从 RunBadge 使用的同一份展示状态判断是否忙碌；
+queue-following 和 observer 订阅在 turn 结束后可以继续存在，本身不阻止发送新 prompt。
+加密会话初始化完成前仍阻止重复提交。
 paxd snapshot 是持久化运行状态的唯一写入来源。node-control 断开时保留最后一次
 执行状态和时间，不再将其改成 `unknown`。node API 返回 `online: false` 时，
 workbench badge 显示 `paxd offline`，不修改底层执行状态。历史 `unknown` 仍等待
@@ -1526,11 +1741,14 @@ history?view=summary&turn_id=...，按 before_seq 读到 has_older=false。只�
 全部读取成功且包含 turn_done，才一次性提交校准结果，移交该轮正文的展示权。
 失败保留当前画面并在后续状态轮询重试。校准结果放在按用户和 session 隔离的
 TanStack Query 缓存；结束的 turn 不再接受迟到实时片段覆盖。普通分页中出现
-turn_done 不等于已拿全整轮。E2EE 继续沿用原来的加密历史流程。
+turn_done 不等于已拿全整轮。E2EE 使用下文的按整轮加密回放流程。
 
 向上翻页不在 focus 时重读全部历史。分页前记录可见行 ID 和相对视口的偏移，
 在 useLayoutEffect 中恢复，避免列表尾部同时增长造成跳动；移除行上的
 content-visibility 估算高度，并为加载提示保留固定空间。
+历史 ACP frame 生成的事件 ID 以持久化 message_id 为命名空间。ACP request/stream ID
+可能跨 turn 或恢复请求复用，不能单独作为历史合并键，否则加载旧页会把最新实时 turn
+锚定到旧事件的位置。requestId/toolCallId 保持原值，继续用于权限决策与工具更新匹配。
 
 ### 节点在线状态与切回 idle session 的同步
 
@@ -1574,22 +1792,55 @@ Only wsBaseUrl, PAX_RELEASE_ID and PAX_COMMIT_SHA are exposed; never serialize
 process.env or PAX_MANAGER_URL/Cloudflare credentials into the browser. Inline
 JSON escapes `<` to prevent closing-script injection. REST remains /api/pax.
 
-### Settings directory and quick device connection
+### Settings workspace and quick device connection
 
-`src/components/settings/` 承载英文优先的设置目录、服务状态与 Add device。
+设备列表、引导中的电脑选择和设备健康统计通过 `isDeviceNode` 排除
+`kind: "paxl"` 的 CLI 登录身份。完整节点数据仍保留在 query cache 中供身份和
+Agent 关联使用；缺少 kind 的旧节点继续显示，不通过名称或在线状态猜测节点类型。
+
+`src/components/settings/` 承载英文优先的设置工作区、服务状态与 Add device。
 设备的维护、secret 传输和删除在设备详情的 Advanced device settings 内；
 运行控制、Agent 管理、浏览器控制保留。Project/Target CRUD 仍复用现有组件。
 旧 Security、Developer、Diagnostics 等入口保留重定向；手机页面提供返回上层入口。
 
-Quick connect 通过同源 API 创建当前用户的一次性注册 token，不传 admin-only
-owner override。命令使用配置的 public runtime origin，token 只保存在当前页面内存，
-一小时后可重新生成。同一命令先安装 paxl，再安装并配置 paxd；两个 installer
-使用 public Manager origin 下载；已知生产、预发布及旧 Console 域名映射到
-对应 API 域名，自定义域名和本地端口保留。完整下载后检查 Shell shebang 才执行，
-HTML、空响应和中断下载均报错停止；步骤以 && 串联，下载或安装失败时停止。生成的 token 仅传入 paxd 步骤，setup 消费后立即清理环境，
-复用原有凭据持久化与 service 安装/启动流程。旧 pairing 与 `/connect` 完整保留。
-发布时必须先上线支持 `--registration-token-env` 的 paxd binary 和 installer。
-功能迁移与验证记录见 `settings-migration.md`。
+`components/connect/connection-onboarding.tsx` 统一首页和资源空态、Settings
+新增设备/Agent 的两步引导：连接电脑，再选择 Agent。节点详情通过 `nodeId`
+预选电脑，多电脑时由用户选择。空态开始引导后保持挂载，避免新设备/Agent
+进入 query cache 时把进行中的流程卸载。
+
+Quick connect 和 Browser sign-in 是操作按钮，点击即生成对应命令；初始页面不再
+额外显示 Generate command，也不使用选中状态按钮语义。生成时显示进度并阻止
+并发重复请求；已有有效命令时再次点击同一操作复用该命令。
+
+Quick connect 通过同源 API 创建当前用户的一次性注册 token，不传 owner override。
+命令使用 public runtime origin，只调用一次 paxd installer，设置
+`PAX_SETUP_AFTER_INSTALL=1`，由新版 installer 统一安装 paxl、paxd 并 setup。
+已知 Console 域名映射到下载 API；设备注册单独使用 wsapi 机器入口，不能使用浏览器 API。
+生产 US/HK 下载及注册地址按已认证 bootstrap 的账号分区选择，不被 WebSocket 配置覆盖。
+自定义域名及本地端口保留。已安装设备可切换到短 paxd setup 命令，复用同一 token，
+不重新下载工具；完整安装命令使用多行 quoted heredoc，避免嵌套引号。
+完整下载并检查 Shell shebang 后执行；HTML、空响应及中断下载停止且不执行。
+返回下载/安装错误。Browser sign-in 使用相同的完整安装命令，
+显式清空环境中可能残留的 `PAX_REGISTRATION_TOKEN`，继续使用终端登录链接和
+`/connect` 原有配对流程，无需预装 CLI。
+
+Token 只保存在已挂载组件的临时状态，不进 URL、日志或 Query/mutation cache。
+按服务器期限过期（无有效期限时回退一小时）并允许重新生成。两种模式均先记录
+已在线电脑，再轮询新上线设备。现有 API 无 token 与 node 的关联，因此需要用户
+选择自己的在线电脑，不把其他新上线设备直接判定为本次 token 注册成功。
+
+Agent 选择提供 Codex、Claude Code 和电脑报告的其他类型。缺少 adapter 时给出
+对应 npm 安装命令；仅找到 npx 时说明首次连接会下载 adapter，不宣称已安装。
+现有 API 不能单独检查 Agent 本体或登录状态，页面明确显示未检查，不能用 adapter
+发现结果推断本体缺失或已登录。runtime running 只表示连接已启动，不证明认证或
+ACP prompt 成功。
+
+发现和连接状态查询串行，遵守 paxd 每节点只有一个在途查询的限制。创建 ACK 后
+按 connection ID、observed generation/restart nonce 和 running phase 确认，成功后
+才显示 Start a conversation。离线时阻止操作；runtime 失败重试同一个 connection；
+创建响应不确定时引导到设备设置检查，避免重复创建。自动轮询超过 90 秒停止并
+提供手动检查。部署 Console 前需先上线支持组合安装与 `--registration-token-env`
+的 paxd installer/binary。功能迁移记录见 `settings-migration.md`。
 
 ## 输出空档与 artifact 阅读宽度
 
@@ -1607,6 +1858,210 @@ keyboard dismissal and visual-viewport shell reflow cannot leave the menu behind
 The mobile navigation reserves 4rem of content height plus the bottom safe area;
 its top padding and bottom content padding are independent of that safe area.
 ConsoleLayout reserves the same --console-mobile-nav-height to prevent overlap.
+
+## E2EE 附件
+
+加密会话支持附件选择；新会话先在浏览器内存保留 File，完成 session/new 后再上传。
+附件沿用 E2EE 根密钥与 key_epoch，通过附件专用 HKDF 标签及 agent/session/随机附件 ID
+派生 AES-256-GCM 密钥。每块 4 MiB，nonce 为 12 字节大端块序号；AAD 绑定协议、
+附件身份、明文总大小、总块数和当前块序号。空文件也保留一个认证块。
+
+浏览器上传二进制密文，Manager 只接收随机文件名、application/octet-stream 和密文大小。
+文件名、原始类型、分块描述和下载凭证通过 E2EE 的 paxEncryptedAttachments 传递。
+paxd 完整认证后发布本地文件，替换成 ACP resource_link；描述及下载凭证不会交给 agent。
+历史里的文件引用仍然加密。目前每文件上限 512 MiB、每消息 16 个文件；支持上传进度、
+取消及手动重试，尚无浏览器附件预览和跨刷新断点续传。先部署 Manager/paxd，再部署 Console。
+
+## E2EE 按整轮回放
+
+首次进入会话时，通过同源 `encrypted-events?view=replay` 读取最近一整轮。
+每个 HTTP 分页默认最多 100 个加密 batch；第一页面固定 `head_cursor`，后续页面
+携带 `turn_ref / through_cursor / after_cursor`，直到本轮完整。加载过程中逐页合并
+事件并让出事件循环；向上滚动用 `before_turn` 读取更早的一整轮。
+历史顶部同时提供“Load earlier messages”入口。最近一轮不足一屏时自动补读，
+直到内容可滚动或已无更早历史；窗口尺寸变化时也检查。失败后停止自动请求，
+允许手动重试。前插旧消息保持阅读锚点，不重置实时 SSE 游标或移除已加载轮次。
+
+paxd 保持原有实时 frame 流和 75 ms / 16 KiB 分批，在 dispatch 前把原始用户 prompt
+也作为加密 event 写入同一可靠日志。外层 `turn_ref` 是不含内容的轮次引用，与密文中
+的 `turn_id` 相同。Manager 仅索引、分页、返回密文，不解析 ACP；新轮次回放不再
+依赖 paxd 二次写入的 canonical history。附件保留本地路径替换前的原始加密引用。
+
+浏览器完成最近一轮后，从快照 `head_cursor` 接 SSE；回放过程中到达的新 frame
+由 SSE 补齐，重连沿用已认证的最后 cursor。回放和实时事件使用同一规范化与流标识，
+完整前缀与实时后缀可连续拼接，prompt 回显与乐观消息按请求 ID 去重。
+新命令先等待初始回放边界，复用正在进行的查询；避免快速返回的 session/new 响应
+进入历史快照，导致实时 RPC 一直等待。首次 prompt 复用已完成的回放，不重复加载。
+移除 1.5 秒 history 轮询、窗口聚焦重读和完成后重读。解密后的分页仅在组件持有时
+留在 Query cache（gcTime 0），根密钥不进 cache；当前挂载会话仍保留已加载轮次与
+实时事件，因此单轮极大或持续运行很久仍可能占用较多内存。
+
+旧 frame 没有外层轮次引用，Manager 无法在不解密的情况下准确分轮。它们保留为
+一个兼容 bucket，可能较大；仅此路径一次读取最近 100 条 canonical history 与现有
+prompt 上下文补全，筛选属于回放轮次的消息，再使用 `reconcile-history.ts` 合并。
+这不保证恢复全部旧 prompt，也不回填旧密文的轮次索引。普通 session 路径不变。
+
+部署顺序为 Manager 的 schema/API、paxd、Console。旧 Manager 对 replay 查询返回
+SSE 时，Console 取消响应并提示接口不支持，避免一直等待；不会降级明文。
+
+设备授权新增 `short-code-v2`：新设备显示 8 位数字，每 60 秒轮换，上一代
+额外保留 30 秒。授权设备输入后自动匹配，再明确点击授权；确认窗口 30 秒，
+所有截止时间受请求的 10 分钟有效期约束。手机和电脑使用同一套流程，无扫码。
+页面保留显示／隐藏和复制，并使用可收缩布局适配窄屏。
+
+短码种子与原有高熵 pairing secret 只保存在新设备 IndexedDB v3。两个浏览器
+在 Web Worker 中分别执行 OPAQUE 客户端和服务端，Manager 仅转发登录握手
+和加密载荷；注册记录、短码以及可离线枚举的短码摘要均不上送。握手成功后，
+原有 pairing secret 经绑定上下文的 AES-GCM 通道交给授权端；用户点击授权后，
+才沿用既有 root key 包装协议。该应用层协议尚未经独立密码学审计。
+
+Manager 增加协议版本、角色 capability 哈希、取消／拒绝时间、握手表与限流表；
+不修改已交付密钥包的格式。能力令牌通过同源代理的 `X-Pax-Pairing-Capability`
+传输。按账号及账号/agent 共用 10 分钟 30 次握手预算，跨实例事务计数；
+浏览器也持久化本地预算。最多尝试 3 个待授权请求的当前与上一代短码，
+每次握手都计数，多重匹配拒绝授权。轮换或重建请求均不重置预算。
+
+Manager 先升级，Console 后升级。paxd 命令入口新建 legacy 请求并继续使用
+原有长 secret，无需更新 paxd。请求取消、拒绝、过期或替换后不能继续授权；
+已批准的密钥包仍可在请求到期后恢复。现有本地密钥不会因 DB 升级被清除。
+
+## 区域直连与固定账号归属
+
+直连模式由 pax-manager 的 `workers/region-directory/src/regional` Node 网关承接
+登录、区域初始化、REST、SSE 和 WebSocket，Next.js 提供页面。US、HK 各自保存完整的
+最小账号目录：WorkOS subject、原有身份、PAX user ID 和固定区域；项目和会话数据仍只在
+账号所属区域。单一主目录分配新账号，通过持久化日志复制；本地命中不查询 CF D1，也不
+跨区查找。本地缺失才向主目录恢复，主目录不可用时返回错误，不猜测区域或创建重复账号。
+
+`/api/region-config` 的 `mode: "direct"` 启用 `DirectRegionGate`。前端先验证两区
+HTTPS origin，再初始化当前账号；已有账号不测速、不定时重新选择区域，新账号只选择一次。
+若账号属于另一地区，在挂载业务请求前导航到该区并保留 path/query/hash。之后 REST/SSE
+使用同源 `/api/pax`，WebSocket 使用已确认的本区 origin，优先于旧的中央 WS 环境变量。
+
+localStorage 的 `pax:account-region` 仅记录 `us`/`hk`，用于入口站点的导航提示，不代表
+认证或账号归属。新设备仍可通过目录恢复。已有账号跳回入口时附带纯导航标记
+`pax_region_return=1`，入口消费并删除标记、忽略旧提示，避免切换账号后循环跳转。
+目的地始终重新校验登录和目录。Cookie 保持 host-only，新域名可能有一次 WorkOS 登录往返；
+URL 不携带 token、cookie、邮箱或账号 ID。
+
+部署必须让区域网关先于 Next.js 接管 API，并保留 `PAX_BROWSER_REGIONS_ENABLED=true`
+使 Next 代理在网关缺失时拒绝回退。旧 D1 数据需冻结写入、导入并核对两地记录，再切流；
+不能同时运行两套注册权威。详细步骤见 Manager 的 `workers/region-directory/regional/README.md`。
+本次 Console 修改不包含线上 DNS/证书切换或安卓客户端发布。
+
+## Legacy Worker region bootstrap and edge routing
+
+Production regional mode is runtime-configured with
+`PAX_BROWSER_REGIONS_ENABLED=true` and
+`PAX_REGION_PUBLIC_ORIGIN=https://paxworkspace.net`. `/api/region-config` is
+no-store and publishes only the mode and canonical origin. RegionGate runs
+inside QueryProvider before any AuthGate/account requests. Alternate Console
+hostnames navigate to the canonical host while preserving path/query/hash.
+
+The gate calls POST `/api/v1/region/bootstrap` with an empty JSON body to restore
+existing users. Only new users see the region choice. Real no-store origin probes
+run concurrently through `/api/v1/region/probe/us|hk`, with echoed random nonces;
+unavailable regions are disabled. The fastest reachable region is recommended,
+then the user confirms. No client region preference can override an existing
+D1 assignment. Only a ready result mounts account components and `/me`.
+
+REST and SSE continue through same-origin `/api/pax`; WebSockets use the same
+origin after bootstrap. The Cloudflare Worker verifies Access plus its HttpOnly
+route cookie and forwards to the fixed regional Manager. Browser code never reads
+the cookies or chooses an API host from user input. The bootstrap result is
+TanStack Query state, refreshed every 20 minutes and on stale focus; the signed
+route cookie expires after one hour and the Worker can recover an existing
+assignment from D1. Failures remain visible without switching regions.
+
+When regional mode is enabled, the Next `/api/pax` fallback returns 503. The
+active edge routes must be installed before enabling the Console flag. In legacy
+mode the existing Next proxy and configured direct WebSocket behavior remain.
+HTML/static assets use the common Console origin; business traffic is regional.
+The production rollout also requires regional Manager read-only identity mode,
+matching provisioning secrets, and a final legacy inventory reconciliation.
+Machine tickets, paxd routing and automatic installer changes remain separate.
+
+Validation: `NODE_OPTIONS=--no-experimental-webstorage pnpm exec vitest run`
+avoids the Node 24.19 global webstorage/jsdom collision in existing tests.
+`pnpm exec vitest run src/app/api/region-config --coverage
+--coverage.include=src/app/api/region-config/route.ts` verifies the new backend
+handler, which has 100% coverage. Region gate, recovery, probe failure and tunnel
+selection have focused tests; lint, typecheck and production build are required.
+
+## Image publication
+
+The main branch image workflow builds the existing Dockerfile, verifies its
+immutable GHCR digest and registers it in PAX Release. It does not deploy
+production or inject runtime environment files into the image. See
+[image-release.md](image-release.md) for credentials, failure recovery and
+manual runs.
+
+Release image registration can additionally authenticate to Cloudflare with the
+per-repository `PAX_RELEASE_CF_CLIENT_ID` / `PAX_RELEASE_CF_CLIENT_SECRET` Actions
+Secrets. They stay in publication steps and never enter the Console runtime or
+browser bundle. See [image-release.md](image-release.md) for migration and checks.
+
+## Regional paxl login approval
+
+`/paxl-login.html` accepts a single `code` with optional explicit `region`, or
+regional `us_code`/`hk_code` values. Duplicate or mixed parameters fail before
+approval. With regional mode enabled, Console submits through the same-origin
+`POST /api/v1/region/paxl-login/approve`; the Worker reads the existing assignment
+and forwards only the home code with signed identity proof. An unavailable home
+request is an error and never falls back to another region. The login route does
+not provision accounts or add D1 state. Existing AuthGate/RegionGate handles
+normal account bootstrap before approval.
+
+Browser approval confirms identity only for the versioned CLI protocol. The CLI
+pins one identity and region durably, commits there, saves the credential, then
+acknowledges receipt. The page may close after confirmation; CLI completion is
+separate. Explicit `admin=1&region=hk` displays the administrator destination and
+requires administrator permission from the existing target Manager account.
+Ordinary login cannot override the directory assignment. Regional parameters
+fail closed on legacy Console; simple single-code legacy mode remains supported.
+
+Roll out Worker and Console before regional Managers start requiring signed
+proof, then release the new CLI after both Managers support `client_commit_v1`.
+Cached old Console code must be refreshed. Validate with `vitest run
+src/features/auth/paxl-login.test.ts
+src/components/connect/paxl-login-page-client.test.tsx`, typecheck, lint and build.
+
+## paxl 版本与远程升级
+
+节点列表和节点高级设置展示 `metadata.paxl` 中最近一次实际可执行文件的观测；
+离线时标注 last observed。升级先解析稳定版，再通过同源代理提交明确版本到
+`POST /api/v1/user/{user_id}/nodes/{node_id}/paxl/upgrade`。继续复用 daemon command
+查询接口；received 仅代表已接收，applied 表示替换后实际版本验证成功，不重启 paxd。
+
+刷新、换浏览器或节点断线后的恢复依赖 Manager 记录的 `latest_daemon_commands`：
+节点详情页展示最近一次 paxl 升级结果，进行中的升级会在弹窗里继续显示进度，不再使用
+localStorage。服务端数据仍由 TanStack Query 管理。先部署对应 Manager 与 paxd，
+再部署 Console。跨仓库浏览器 fixture 为 `scripts/paxl-upgrade-e2e.mjs`，
+由 Manager 的 `TestPaxlBrowserUpgrade` 启动真实前端、API 与 paxd control runner。
+
+## Paxl upgrade release lookup recovery
+
+The upgrade dialog reads stable metadata through the same-origin regional proxy
+`/api/pax/api/v1/public/artifacts/download`. The Worker must allow this exact
+read route and retain identity and account-region checks. Worker error envelopes
+use `error`; apiFetch maps known routing errors to actionable messages with HTTP
+status and keeps Manager `message` errors. Unknown Worker details remain hidden.
+A failed lookup displays a release-check failure and a read-only retry action.
+Install stays disabled during lookup or after failure, including cached versions.
+
+## Cronjob 会话来源
+
+定时任务的 CRUD、调度、prompt/workspace 快照和原生会话绑定由 paxd SQLite 管理，
+paxl 通过本地 Unix socket 操作。paxd 使用现有 ACP pool 创建或恢复会话，再通过
+Manager 的节点鉴权接口 `POST /api/v1/node/agents/:agent_id/sessions/register` 登记
+普通 Pax session。Manager 返回的 `session_id` 才用于 REST、URL 和历史查询。
+
+Console 从普通 session 查询的 `metadata.origin` 读取 `kind=cronjob`、`cronjob_id`、
+`run_id` 和任务名称快照，在最近会话和工作台展示来源标记。解析集中在
+`features/sessions/session-origin.ts`，不新增前端调度器或独立会话状态。
+来源 run 是创建该会话的第一次执行；reuse 模式的后续运行不会改写它。
+paxd 先持久化消息，再经现有 E2EE 历史与实时事件通道同步，离线补登记后会出现在普通会话列表。
+当前仅提供来源展示，任务管理使用 `paxl cron`。
 
 Projects settings can include archived projects through Include archived. The
 settings page and breadcrumb load the inclusive project list so archived project

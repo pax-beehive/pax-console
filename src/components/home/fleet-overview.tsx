@@ -1,5 +1,12 @@
 "use client";
 
+import { CronOriginBadge } from "@/components/sessions/cron-origin-badge";
+import {
+  cronSessionOrigin,
+  type CronSessionOrigin,
+} from "@/features/sessions/session-origin";
+import { stageEncryptedAttachment } from "@/features/e2ee/attachments";
+
 import { SessionDraftInput } from "@/components/sessions/session-draft-input";
 import { ComposerDropZone } from "@/components/sessions/composer-drop-zone";
 import { ComposerAttachmentStatus } from "@/components/sessions/composer-attachment-status";
@@ -140,6 +147,7 @@ type WorkItem = {
   actionHref?: string;
   actionLabel: string;
   agentId?: string;
+  cronOrigin?: CronSessionOrigin;
   archivedAt?: string;
   background?: string;
   context: string;
@@ -255,6 +263,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
         : null,
     );
   const [selectedWorkItemId, setSelectedWorkItemId] = useState("");
+  const [setupStarted, setSetupStarted] = useState(false);
 
   const nodesQuery = useNodes(user.user_id);
   const nodes = sortOnlineFirst(
@@ -752,14 +761,22 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   }
 
   async function addComposerAttachments(files: File[]) {
-    if (
-      files.length === 0 ||
-      attachmentUploadRef.current ||
-      newSessionTransport === "e2ee"
-    ) {
+    if (files.length === 0 || attachmentUploadRef.current) {
       return;
     }
 
+    if (newSessionTransport === "e2ee") {
+      try {
+        const staged = files.map(stageEncryptedAttachment);
+        setComposerAttachments((current) => [...current, ...staged]);
+        setComposerAttachmentError(null);
+      } catch (error) {
+        setComposerAttachmentError(
+          error instanceof Error ? error : new Error(String(error)),
+        );
+      }
+      return;
+    }
     attachmentUploadRef.current = true;
     setComposerAttachmentError(null);
     setComposerAttachmentUploadPending(true);
@@ -1030,10 +1047,22 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 sessionId={activeSessionTarget.sessionId}
                 user={user}
               />
-            ) : fleetSetupGuideKind ? (
+            ) : setupStarted || fleetSetupGuideKind ? (
               <div className="flex min-h-0 flex-1 items-center overflow-auto p-3 sm:p-5">
                 <div className="mx-auto w-full max-w-4xl">
-                  <PaxdGettingStartedGuide kind={fleetSetupGuideKind} />
+                  {setupStarted ||
+                  (nodesQuery.isSuccess && agentsQuery.isSuccess) ? (
+                    <PaxdGettingStartedGuide
+                      userId={user.user_id}
+                      onStart={() => setSetupStarted(true)}
+                    />
+                  ) : (
+                    <p role="status" className="text-sm text-ink-muted">
+                      {nodesQuery.error || agentsQuery.error
+                        ? "Your devices couldn't be loaded. Refresh to try again."
+                        : "Loading your devices…"}
+                    </p>
+                  )}
                 </div>
               </div>
             ) : (
@@ -1201,11 +1230,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                   {encryptionBlocked && encryptionGuidance}
                   <ComposerDropZone
                     disabledReason={
-                      secureComposerActive
-                        ? "Attachments aren’t available in encrypted sessions yet"
-                        : composerAttachmentUploadPending
-                          ? "Upload in progress"
-                          : undefined
+                      composerAttachmentUploadPending
+                        ? "Upload in progress"
+                        : undefined
                     }
                     onFiles={addComposerAttachments}
                     className={cn(
@@ -1225,9 +1252,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                     />
                     <input
                       className="sr-only"
-                      disabled={
-                        secureComposerActive || composerAttachmentUploadPending
-                      }
+                      disabled={composerAttachmentUploadPending}
                       multiple
                       onChange={(event) => {
                         const files = [...(event.currentTarget.files ?? [])];
@@ -1293,10 +1318,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                         <DropdownMenuTrigger asChild>
                           <Button
                             aria-label="Upload files"
-                            disabled={
-                              composerAttachmentUploadPending ||
-                              newSessionTransport === "e2ee"
-                            }
+                            disabled={composerAttachmentUploadPending}
                             icon={
                               composerAttachmentUploadPending ? (
                                 <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -1305,11 +1327,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                               )
                             }
                             size="icon"
-                            tooltip={
-                              newSessionTransport === "e2ee"
-                                ? "Attachments are not supported in encrypted sessions yet"
-                                : "Upload files"
-                            }
+                            tooltip={"Upload files"}
                             type="button"
                             variant="ghost"
                           />
@@ -1615,6 +1633,7 @@ function HomeSessionRow({
       >
         <span className="flex min-w-0 items-center gap-1.5 text-sm text-ink">
           <span className="truncate">{session.title}</span>
+          <CronOriginBadge origin={session.cronOrigin} />
           {session.transport === "e2ee" && (
             <Tooltip content="End-to-end encrypted">
               <span
@@ -2382,6 +2401,7 @@ function buildWorkItems({
           actionLabel: "Continue",
           agentId: session.agent_id,
           archivedAt: session.archived_at,
+          cronOrigin: cronSessionOrigin(session),
           context: [
             agent?.name ?? agent?.agent_type ?? session.agent_id,
             node?.name ?? node?.hostname ?? session.node_id,

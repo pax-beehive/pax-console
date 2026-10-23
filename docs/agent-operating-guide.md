@@ -1,6 +1,262 @@
 # Agent Operating Guide
 
+## WorkOS authentication
+
+Production login starts at `/auth/login`. The region-directory gateway (Worker or direct regional service) owns
+PKCE callbacks, encrypted HttpOnly session cookies, refresh and logout; no
+WorkOS secrets belong in Next.js or browser storage. Logout is a native
+same-origin POST to `/auth/logout`, allowing the server to revoke the WorkOS
+session through its redirect. `NEXT_PUBLIC_PAX_LOGOUT_URL` remains a legacy
+GET override for installations using a different authentication gateway.
+
+The gateway binds a verified WorkOS subject to the original directory identity.
+Existing user IDs, regions and resources remain unchanged. Browser REST and
+WebSocket traffic stay on the configured same-origin gateway. Manager independently
+validates the regional gateway assertion and existing resource permissions.
+Deploy this UI after the gateway and both Managers support WorkOS; publishing
+source alone is not an authentication cutover.
+
+A bootstrap 401 is a normal signed-out state. RegionGate and AuthGate automatically
+replace the current page with `/auth/login?returnTo=...` before mounting account
+queries. Preserve the relative path, query and hash. A tab-scoped 15-second
+redirect guard prevents rapid callback loops; the visible sign-in link remains
+available. Successful bootstrap clears the guard. Outages retain retry controls.
+
+Production AuthKit branding is versioned in `branding/workos/`. Build its non-secret
+`updateAppBranding` payload with `node scripts/workos-branding-payload.mjs`; this
+only prints JSON and does not publish. Publish explicitly to the production
+branding ID and verify desktop/mobile, English/Chinese, and sign-up screens.
+The desktop content panel uses sanitized HTML/CSS; mobile hides it. Authentication
+providers, email verification and MFA policy are independent of branding.
+
+## Public company and policy documents
+
+`workers/public-pages/` independently serves `/about`, `/privacy`, and `/terms`
+through the `pax-public-pages` Cloudflare Worker. `/about` is the OAuth homepage;
+it links the policy documents and the existing Next.js product overviews.
+These are static documents, with no application credentials, account fetches,
+or data bindings. The Worker permits only exact GET/HEAD document paths and
+rejects prefix siblings; it never proxies to the application. Do not expand its
+three route prefixes to root, API, or workbench paths. The Console image
+workflow does not deploy this Worker. See its README for deployment and
+anonymous access checks. AppProviders' existing public overview paths remain
+unchanged because these documents do not pass through Next.js.
+
+## Harness and ACP adapter upgrades
+
+Node detail's advanced settings expose Claude/Codex/Pi CLI and ACP adapter upgrades. `NodeHarnessUpgrade` accepts an optional version (blank means latest) and displays the resolved installed version from the command result, including after reload. It sends upgrades through the same-origin
+`POST /api/v1/user/:user_id/nodes/:node_id/harness/upgrade` proxy route. ACP upgrades select a running daemon connection; native CLI upgrades omit it. Store the request ID before dispatch and
+recover it after reload; retries reuse that ID. The component selector distinguishes
+native CLI and ACP adapter updates. With Pi ACP >=0.7.0, paxd binds the SDK from the connection's Pi CLI installation and verifies its runtime version after restart. Explicit PI_ACP_SDK_ROOT connections retain their separate SDK installation. A received ACK is pending, and
+only the daemon command's applied result is displayed as verified. Poll progress
+with the existing command query; keep server state in TanStack Query. The
+installation backend supports npm global packages and official native Claude
+installations with direct symlink launchers. Native Claude requires the updated
+paxl backend; it verifies official downloads and retains an independent rollback
+binary. The existing command, restart and runtime verification flow is shared.
+Homebrew and npx wrappers remain unsupported.
+
+## Settings workspace
+
+On desktop, `/settings` opens the actual Notifications page.
+`settings/settings-catalog.ts` owns the four desktop navigation groups, eight
+sections, descriptions, and legacy-route matching. Desktop Settings uses a dedicated 272px sidebar with a Back to workspace
+link; it replaces the ordinary app navigation rather than adding another rail.
+The workspace sidebar's persisted collapsed state is preserved and restored on
+exit. Narrow screens retain the original Settings directory, Advanced settings
+list, page headings, and back links. Navigation retains the existing authenticated
+routes and query ownership.
+
+`SettingsPageHeader` gives each section a title and purpose description.
+Notification controls explain device scope and separate subscription actions
+from completed-reply and approval-request descriptions. Unknown notification
+state remains unknown until device confirmation completes; switching sections
+must never expose an Enable action for an already enabled subscription.
+Projects retain their own project/target panes inside the Settings workspace.
+Devices retain their Devices/Agents segmented view and detail workflows.
+`/settings/advanced` shows Allowed actions on desktop and the original Advanced
+settings directory on mobile; existing deep links continue
+to work. See `docs/settings-inventory.md` for the feature inventory.
+
+`node scripts/settings-workspace-browser.mjs` checks all eight sections at desktop
+and mobile widths, active links, legacy Advanced navigation, and overflow. It
+uses fictional account/API data and saves screenshots under
+`PAX_SETTINGS_SCREENSHOTS` (default `/tmp/pax-settings-workspace`).
+`PAX_SETTINGS_PREVIEW_URL` defaults to `http://127.0.0.1:3375`.
+The push audit retains its original mobile Settings list/back-link flow while
+keeping warm query caches. Real push-provider and OS display claims remain excluded.
+
+## Customer analytics and focus-only polling
+
+Device opt-in is in Settings > Notifications (`/settings/notifications`).
+`features/notifications/push-client.ts` serializes browser operations, requests
+permission only from the enable action, waits for root worker activation, and
+registers through the authenticated same-origin API. localStorage stores only
+owner/receiver/key IDs and the local opt-in flag. Reconciliation never prompts,
+honors remote revocation, replaces expired/invalidated subscriptions, and checks
+the returned owner before saving a binding. Logout cleanup is bounded to three
+seconds and then continues the normal gateway form submission.
+
+NotificationSettings keeps unknown/checking separate from confirmed off. A
+device confirmation belongs to the current owner/client and exact config
+snapshot/revision; cached queries alone cannot enable actions. Reconciliation
+failure retains an unknown status and an explicit refresh. A successful enabled
+confirmation refreshes receiver metadata before committing the visible state;
+temporarily missing local/server registration data never exposes Enable as if
+the receiver were confirmed off. Notification text may contain a short reply preview.
+
+`public/push-sw.js` has no fetch handler or authenticated caching. Preserve its
+JavaScript content type, root scope and no-store headers. It displays the
+Manager's bounded reply preview for standard turns (200 Unicode code points),
+with a generic fallback for older Managers or missing replies. Clicks prefer
+the window whose creation URL matches, focus before navigation, and open a new
+window if reuse fails. Always navigate to the notification target, even when
+Client.url matches: it is the document creation URL and remains stale after
+Home switches sessions with history.replaceState. Focusing alone can leave a
+different session on screen. This intentionally navigates/reloads an already
+open target rather than treating the creation URL as current application state.
+Only top-level, same-origin clients are reused. Validated session
+links use Home's `/?session_id={encoded_id}` route; Home resolves node/agent
+context and applies ordinary auth. The worker also converts older `/sessions/{id}`
+notification links into this Home route. Deploy this compatible Console before
+the Manager starts generating Home links. It works
+without an open app page. Native
+OS permission can still prevent display. Test pushes go to the real Manager
+queue, not an in-page Notification constructor. Managers need stable
+`PAX_WEB_PUSH_PUBLIC_KEY`, `PAX_WEB_PUSH_PRIVATE_KEY`, `PAX_WEB_PUSH_KEY_ID`, and
+`PAX_WEB_PUSH_SUBSCRIBER` values before `test_enabled` becomes true. Keep private
+material out of Next.js/browser configuration. With the companion Manager
+completion integration, `turn_completion_enabled` becomes true when sending is
+configured. Automatic alerts cover correlated, successful standard-session
+turns, including completion after the app page closes. Encrypted-session
+completion remains unsupported and the settings page states that limit.
+
+When `approval_required_enabled` is true, the settings page also describes
+approval reminders. The worker displays `approval.required` with the fixed title
+`Approval needed` and body `Your session is waiting for your approval. Tap to
+review the request.` It opens the same Home session route for review; clicking
+the notification never submits an approval. Manager checks pending status,
+expiry, ownership, session access, and Pax Auto Approve before delivery. Requests
+covered by a saved approval bypass the pending-request path. Deploy this Console
+worker before enabling the companion Manager change. Older Managers omit the
+optional capability flag, so settings do not promise unsupported alerts.
+
+The session workbench dismisses read turn notifications on this device only.
+`completedReplyTargets` requires a durable `turn_done` and the final assistant
+reply matching the rendered timeline. An IntersectionObserver watches a marker
+after that reply, inside the timeline scroll root; only a visible, focused page
+acknowledges it. Opening the app, receiving a terminal signal, or seeing the top
+of a long reply is insufficient. Refocus, history updates and session changes
+re-evaluate the markers. No permission prompt or worker registration is added.
+The browser derives the existing version-1 Manager notification ID from SHA256
+of Go-JSON `[user_id, agent_id, session_id, turn_id]`; `read-turns.test.ts` pins
+Go-generated vectors, including HTML/Unicode escaping. Coordinate changes to
+Manager's stableID contract with this client. Only opaque IDs go to the worker.
+The push worker closes exact matching tags through getNotifications/close and
+stores at most 512 opaque ID/timestamp receipts in IndexedDB, expiring them
+lazily after 24 hours. This handles delayed pushes and worker restarts without
+conversation content or cross-device read state. Pushes still call
+showNotification before checking receipts; storage failures leave late alerts
+visible, while explicit reads still try to close already displayed alerts.
+
+`node scripts/notification-dismiss-browser.mjs` targets port 3356 (override
+`PAX_PUSH_PREVIEW_URL`). It exercises the actual Home workbench, real visibility
+observer, page/worker messaging and IndexedDB. Account/history and OS display
+are fictional fixtures. Loading, unfocused and offscreen replies preserve the
+alert; reading its end dismisses only that turn, including a late push after
+the app page closes. Other turns/sessions and manual tests remain visible.
+
+Android's small status icon uses the dedicated transparent, monochrome
+`public/pax-notification-badge.png`. The full-background app image belongs only
+in the notification's `icon`; using it as `badge` produces a solid white block.
+Regenerate the badge from the original `pax-icon.svg` geometry with
+`node scripts/generate-notification-badge.mjs`; pass `--check` to validate the
+96x96 PNG, transparent margin and generated asset without writing it.
+
+`node scripts/notification-settings-browser.mjs` targets local port 3355 (override
+`PAX_PUSH_PREVIEW_URL`). It uses fictional API/permission/subscription fixtures,
+installs the real worker, and observes its showNotification call after leaving
+the app page. It also checks reply preview rendering and actual WindowClient
+navigation to a fictional session page. It also holds reconciliation while
+returning through client navigation with warm query caches, checks the checking
+state and observes DOM mutations for any actionable Enable flash. Synthetic clicks lack browser user
+activation, so OS focus is an explicit fixture. It does not prove native OS
+display, native notification clicks, or real Android delivery.
+
+The audit also opens the target, changes the same document to another session
+via replaceState, and verifies that clicking the target notification actually
+returns to its URL and document content. The pre-fix worker fails this Chromium
+regression because its Client.url remains the document creation URL, as defined
+by the [Service Workers specification](https://www.w3.org/TR/service-workers/#client-url).
+
+`/admin/notifications` is the adjacent Push subscriptions administrator page.
+Both pages share `AdminAnalyticsNav`; mobile keeps the Customers bottom item
+active for either page. The page honors the effective admin view and queries
+`/api/pax/api/v1/user/self/notification-subscriptions`. Manager authorization
+remains authoritative. The canonical Worker aggregates fixed US/HK origins;
+authorization denial hides cached protected data and outages stay explicitly
+partial. Keep regional receiver identities and pagination separate.
+
+`use-subscriptions.ts` reuses the focused scheduler below, with keys scoped to
+admin identity, filters and regional cursors. A filter change remounts the
+results observer and cancels the old request. Summary counts cover all filtered
+records, not just the page. Receiver details use the current snapshot. Never
+display endpoint URLs, subscription keys or provider bodies. Subscription
+state, last reported permission and latest delivery are distinct. Missing
+attempt metadata means `No delivery attempts`; a pending task with zero attempts
+is `Not attempted yet`, and provider acceptance is not device display. Customer
+details link using the pre-merge `(region, user_id)` references.
+
+Browser QA: `node scripts/subscription-dashboard-browser.mjs` against a local
+Next server on 3354 (override `PAX_SUBSCRIPTIONS_PREVIEW_URL`). Fixtures stay in
+the test script and screenshots go to `/tmp/pax-notification-audit`.
+
+`/admin/customers` is an administrator-only metadata dashboard. Both navigation
+surfaces and the page honor preview-as-user; the Manager independently checks
+the current administrator policy. The Worker fans a single same-origin request
+out to the fixed US/HK origins, without D1 lookups or provisioning. A regional
+authorization denial fails the whole request; outages retain explicitly stale
+regional data. Never turn a missing region into a successful zero count.
+
+`features/analytics/use-focused-query.ts` keeps its TanStack observers disabled
+and uses `focused-polling.ts` as the sole automatic request scheduler. Fetch only
+when visible, `document.hasFocus()` is true, online, and mounted. Blur, hidden,
+pagehide, offline and unmount clear timers and cancel in-flight fetches. There
+is one request at a time, no catch-up loop, a freshness cooldown on focus, and
+exponential error backoff capped at five minutes. Authentication failures stop
+the scheduler. Do not add TanStack mount/focus/reconnect/retry triggers to these
+queries. QueryProvider's focus listener also pauses existing shell intervals
+when a visible window loses OS focus.
+
+Analytics refreshes every 15 seconds while focused. CustomerVisitTracker posts
+at most once per minute while a signed-in Console is focused. Neither uses
+background beacons, service workers or scheduled backend jobs. Filters and
+details use the loaded snapshot. Visit timestamps begin with this release;
+legacy `users.last_seen_at` is not reliable visit evidence. Encrypted records
+are shown as activity, never counted as confirmed user sends. Non-admin is an
+explicit permission filter, not an inferred external-customer classification.
+
+Local browser check: start Next on port 3349, then run
+`node scripts/customer-analytics-browser.mjs`. It intercepts API calls with
+fictional accounts, verifies two minutes without focus produce zero requests,
+and captures desktop/mobile screenshots under `/tmp/pax-customer-audit/`.
+
 This file is for coding agents working on PAX Console. Keep it short, factual, and current. When architecture or integration behavior changes, update this file together with `docs/architecture.zh.md`.
+
+## Public product overview
+
+`/overview` (English) and `/zh/overview` (Simplified Chinese) are public
+Server Component product pages for PaxWorkspace. Only those exact paths bypass
+RegionGate in AppProviders; neither mounts account queries. Both share the
+layout, diagram, and typed copy in `src/app/overview/`. All workbench routes
+keep their existing region/auth flow. Root metadata defaults to noindex, follow;
+each overview opts into indexing, has a self-canonical and localized share/JSON-LD
+metadata, and links both languages plus English x-default through hreflang.
+The static sitemap lists both pages. Language switches are ordinary links, with
+no browser-language redirects or cookies. Each page's content wrapper declares
+its language; the workbench and root document retain English. See
+`docs/public-overview.md` for narrow Cloudflare Access paths and rollout checks.
+Do not treat a local 200 as proof of public production access.
 
 ## Mobile layout
 
@@ -22,7 +278,7 @@ store. Never debounce draft writes or subscribe Home/the timeline to raw draft
 text. Completion scrolls its own list and focuses the input with preventScroll.
 
 Existing sessions expose secure secret delivery in the composer + menu, including
-E2EE sessions where uploads remain disabled. Reuse NodeSecretChannelPush and the
+E2EE sessions. Reuse NodeSecretChannelPush and the
 node-level channel API; never store plaintext in chat drafts or query caches.
 Only a successful file receipt is appended to the originating draft (preserving
 existing text); the user reviews/sends it. Keep the node-detail entry available.
@@ -59,19 +315,18 @@ keys update the title and position counter. Preview errors/retries belong to
 the current image independently of the message thumbnail; render only the
 selected image through the existing authenticated attachment endpoint.
 
-
 The turn-footer gauge represents context used/window (not per-turn tokens).
 Its needle and colored arc share a clamped continuous ratio and green-to-red
 hue; absent/invalid capacity is neutral and does not imply zero usage.
 
-Mobile layout: keep Queue/Stop directly accessible; Steer is available in the
-mobile turn overflow menu and as a desktop shortcut. Bound the permission
+Mobile layout: keep Queue/Steer/Stop directly accessible on both mobile and
+desktop; Steer has its own button beside Queue. Bound the permission
 trigger width without shortening its accessible name or menu labels. Do not
 show the unavailable voice action on mobile. Project selects use a visible
 custom chevron and dark surface while retaining native selection. RunBadge
 icon/text must share a no-wrap inline flex container. The mobile topbar has a
 44px minimum height plus safe-area padding; reload lives in the user menu.
-Inline code may move as a unit, but long tokens must still wrap within the viewport.
+Inline code flows with surrounding prose; use inline layout with overflow-wrap:anywhere and cloned box decoration, not inline-block. Preserve literal backslashes inside code spans during streaming; they do not escape a closing backtick.
 
 ## Encrypted transport boundary
 
@@ -116,7 +371,7 @@ POST failure, retain the value returned by `prepareEncryptedCommand` and call
 `postEncryptedCommand` again with that exact envelope; re-encrypting the same
 business command would change its nonce/ciphertext and correctly conflict at the
 Manager. `root-key-store.ts` stores
-one development root key per agent in IndexedDB, surfaced under Settings / Advanced settings /
+one development root key per agent in IndexedDB, surfaced under Settings / Security & access /
 Encrypted chats. Root keys must not be put in TanStack Query, localStorage, server
 components, URL state, or the Manager API.
 
@@ -145,7 +400,7 @@ initial encrypted prompt. Do not save a Project Target before `session/new`
 succeeds. The normal toggle-off path must remain on `/conversation`.
 
 The E2EE workbench currently supports durable history, live frames, prompt, and
-cancel. Queue, steer, attachments, and Manager-projected permission decisions
+cancel and encrypted attachments. Queue, steer, and Manager-projected permission decisions
 remain disabled on encrypted turns until their payloads have encrypted ACP
 equivalents. `/e2ee` remains a diagnostic lab rather than the product entry.
 
@@ -405,7 +660,10 @@ do not launch them with `Promise.all`. Commands are
 asynchronous: mutation responses acknowledge receipt, then the UI polls the
 agent connection inventory until the requested generation, restart nonce, and
 runtime phase have converged. The command ACK is not the runtime completion
-signal.
+signal. Connection inventories include disabled entries and may retain soft-deleted
+history. Hide `desired_state: deleted` rows from actionable lists and counts, and
+recognize them as completed removal even when an older runtime status remains.
+Stopped/disabled connections remain visible. Never wait for physical row deletion.
 
 Agent detail also mounts `NodeDaemonControl`, scoped by exact `cloud_agent_id`.
 Its Edit settings action exposes the shared Slots/runtime form; discovery,
@@ -450,11 +708,29 @@ Collaboration and knowledge resources are normal user-scoped REST resources:
 
 /artifact-publications/{publication_id} and
 /artifact-publications/{publication_id}/content/main
-  Agent publish_artifact output is output-only. The browser never creates these
-  uploads. The session timeline detects `message_type = "pax:artifact"`, polls
+  Agent publish_artifact output is output-only. The browser never uploads file
+  bytes itself; the only browser-initiated publications are local file fetches
+  below (`origin = "user_fetch"`), which paxd uploads. The session timeline
+  detects `message_type = "pax:artifact"`, polls
   publication state until `available` or `failed`, and uses the publication
   content endpoint for preview/download URLs. Treat publication ids as the UI
   card key; do not manage lifecycle by artifact id.
+
+/sessions/{session_id}/artifact-fetches/check?path= and
+/sessions/{session_id}/artifact-fetches
+  Local file links (`LocalFileLink`, used by MarkdownMessage local hrefs, tool
+  input paths, and diff headers) always show the real path as the tooltip and
+  copy only the clean absolute path. SessionWorkbench mounts
+  `LocalFileFetchProvider`; it is disabled for E2EE sessions, offline
+  nodes/agents, and unsaved sessions, and absent elsewhere (artifact viewer,
+  standalone pages), so those links stay copy-only. Clicking an enabled link
+  runs check (`{allowed, path, filename, size_bytes?, denial?}`), shows the
+  full path for confirmation, then POSTs `{path}`: `accepted: true` returns an
+  ArtifactPublication polled with `useArtifactPublication` and rendered with
+  `PublicationArtifactViewer`; `accepted: false` returns
+  `denial: {code, rule, message}`. HTTP 503 means the node is offline and 409
+  means an E2EE session. The "already fetched" map is client-only Zustand state
+  (`useLocalFileFetchStore`). Behavior scenarios: `docs/local-file-links.md`.
 
 /artifact-uploads, /artifacts, and /sessions/{session_id}/artifacts
   The Session Artifacts panel reads artifacts through TanStack Query and lets
@@ -495,6 +771,10 @@ Use `runtime_turn_instance_id` to distinguish a newer live turn from a local
 terminal overlay. Match observer/history completions to the owned turn and
 ignore callbacks from aborted streams. A terminal overlay controls both the
 header and composer, and cannot mask a newer server-owned turn.
+The composer derives its busy state from the same resolved status as RunBadge
+for both Manager and E2EE sessions. Queue-following and observer subscriptions
+may remain active after completion; they do not themselves block a fresh prompt.
+Encrypted session bootstrap continues to block prompts until initialization finishes.
 paxd snapshots are the only durable runtime writer. A node-control disconnect
 preserves the last execution state and timestamp; it does not turn it into
 `unknown`. The workbench badge shows `paxd offline` when the node API reports
@@ -595,9 +875,15 @@ model option exists) through `session/set_config_option`; that method's
 response is the fresh complete `configOptions` snapshot. This request may run
 alongside an active prompt, but other config controls for the session are
 serialized. Treat refresh as a deliberate no-op write, not a read-only RPC.
-Legacy `models.currentModelId/availableModels` is displayed read-only because
-`session/set_model` never became standard. E2EE sessions do not expose this
-Manager-owned snapshot. Both paxd and any direct tunnel client must advertise
+When an agent reports legacy `models.currentModelId/availableModels` without a
+standard model option, Manager projects an editable `model` option into the REST
+snapshot. The existing selector submits advertised IDs through the same PATCH
+endpoint; Manager uses `session/set_model` and persists the selected ID only
+after acknowledgement. Standard model options take precedence. A rejected or
+busy-agent request leaves the displayed selection unchanged. Legacy model
+switching does not refresh the catalog or invent reasoning controls. Older
+Managers that expose only `legacy_models` remain display-only. E2EE sessions do
+not expose this Manager-owned snapshot. Both paxd and any direct tunnel client must advertise
 `clientCapabilities.session.configOptions.boolean={}` during initialize so
 agents can include boolean options such as fast mode.
 
@@ -742,8 +1028,14 @@ turn projections with `turn_id` and ends the turn with a
 keeps history, the owned conversation stream, and observer replay as separate
 ordered sources; it must not timestamp-sort them because replayed ACP frames
 receive client arrival timestamps. A locally owned conversation replaces only
-that turn's agent projection while retaining the durable user prompt at the
-turn's original history position. A committed observer snapshot replaces the full target turn; message identity,
+that turn's agent projection while retaining the durable user prompt. The
+identified current active turn (including its prompt and tools) is pinned after
+all other events, preserving its internal order even when pagination exposes an
+earlier history anchor. Use local active ownership before reported runtime
+ownership, including pending IDs. Retained previous streams keep their history
+positions; calibrated/snapshot-owned turns are never moved by stale runtime
+metadata. Unknown active IDs keep the existing conservative ordering.
+A committed observer snapshot replaces the full target turn; message identity,
 not repeated-text filtering, determines the resulting projection. Once all pages of the completed turn have been calibrated, durable history owns the turn.
 Durable storage may aggregate every `agent_message_chunk` in that turn into a
 single row anchored at the first chunk. History normalization therefore places
@@ -852,6 +1144,18 @@ AuthGate-protected full-width preview at
 `/artifacts/files/[artifactId]?ref=...`; those pages reuse the same renderer,
 auto-load a short-lived URL, and do not expose public artifact links.
 
+Embedded artifact viewers initially show only a compact file row. Collapse hides
+the mounted content and preserves scroll/zoom; Close invalidates pending work,
+revokes its object URL, and leaves a Preview action on the file row. A shared
+Zustand `artifact-preview-store` holds only the active viewer instance per
+`[user_id, session_id]` scope, so timeline and side-panel viewers expand one at
+a time. Content and URLs remain local to the viewer. Fullscreen uses a Radix
+dialog; Escape exits fullscreen, while Escape inside an inline viewer closes
+that preview. Standalone pages keep their existing automatic loading and Back
+navigation. Image previews support fit, original-size zoom, dimensions, and
+retry on decode failure. Keep the existing MIME/filename fallback for generic
+download metadata, blob preview limits, and sandboxed HTML isolation.
+
 Contiguous thought/progress and tool calls use the same collapsed activity row
 from the first event. An explicit streaming thought displays `Thinking…`;
 recognized running tools use concise actions such as `Reading files…` or
@@ -879,6 +1183,12 @@ from its inner rows while pending to avoid duplicate decision controls. Existing
 approval scopes, pending locks, decisions, history detail loading, patches, and
 Tool evidence remain intact. Normal messages and standalone actionable events
 close the block; the closing timestamp is view-projection metadata only.
+Remember completed turn IDs during workstream projection. Late progress/tool
+results append to that turn's last completed activity block without changing
+the active-turn fallback or closing a newer live block. If the original block
+is absent, retain the result in a completed `Worked` block without inventing a
+duration. For legacy events without turn IDs, the next user prompt starts a
+fresh activity block.
 The timeline uses an 8px row gap; agent and user copy uses
 14px type with a 20px line height, while Markdown H1/H2/H3 use 18px/16px/15px
 type and blockquotes use 13px type. Session and Home composer input uses the
@@ -1022,7 +1332,7 @@ one React element, such as an anchor, as the delegated child.
 
 The UI direction is Codex-like dark workbench, not a generic dashboard. Prefer split panes, compact rows, timelines, and evidence panels over large hero sections, KPI-card grids, and floating card sections. Cards are reserved for selectable entities, modals, and isolated tools. Ordinary metadata should be muted text or monospace text; use `Badge` for states that need scanning or action, such as connected, running, failed, approval required, revoked, or offline.
 
-The signature accent (`--color-accent` #5e6ad2, with `--color-accent-bright` #96a0ff for small text/icons) is reserved for small interactive signals: selected-state tinted backgrounds (bg-accent/10, hover bg-accent/15; bg-accent/15 with accent-bright text for segmented tabs), left indicator bars, focus rings and glows, and hover emphasis. Do not use accent fills or gradients as large-area brand decoration. The body carries a very subtle accent radial gradient for depth, and `::selection` uses the accent color. Entrance micro-animations use the `motion` package (`motion/react`); keep them short (~200ms) and subtle.
+The signature accent (`--color-accent` #b8b8b8, with `--color-accent-bright` #d2d2d2 for small text/icons) is reserved for small interactive signals: selected-state tinted backgrounds (bg-accent/10, hover bg-accent/15; bg-accent/15 with accent-bright text for segmented tabs), left indicator bars, focus rings and glows, and hover emphasis. Do not use accent fills or gradients as large-area brand decoration. The body uses a solid neutral matte charcoal canvas (#262626), with soft off-white text and neutral gray selection highlights; avoid glossy gradients. Entrance micro-animations use the `motion` package (`motion/react`); keep them short (~200ms) and subtle.
 
 Sidebar collapsed state is client-only UI state and belongs in `useConsoleStore().sidebarCollapsed`.
 
@@ -1043,18 +1353,20 @@ Collapsed tabs show icons only; labels must remain available via Tooltip.
 
 ## Current Sidebar Routes
 
-The sidebar is intentionally hierarchical. Keep first-level nav coarse: only
-Home and Collaboration live at the top. Everything else (the former Runtime
-workspace and the settings pages) sits in one Settings group pinned to the
-bottom of the sidebar. First-level groups are independent disclosures, not an
-accordion; multiple groups may stay open at the same time.
+The ordinary workspace sidebar keeps Home and Collaboration at the top and a
+Settings entry at the bottom. Collaboration retains its secondary disclosure.
+Entering Settings replaces the ordinary sidebar with the grouped settings
+catalog on desktop; it does not add another navigation rail. Mobile retains the
+original Settings and Advanced settings directories with per-page back links.
+The viewport subscription uses the shell's 1024px `lg` breakpoint; mobile landing
+pages do not mount desktop notification controls.
 
 ```txt
 Home             /
 Collaboration    /collaboration/teams
                  children: Teams, Friends, Envelopes, Knowledge
-Settings         bottom-pinned group; /settings
-                 children: Devices, Projects, Service status, Advanced settings
+Settings         bottom-pinned entry; desktop /settings opens Notifications
+                 dedicated grouped navigation replaces the workspace sidebar
 ```
 
 These deep links should remain directly reachable:
@@ -1071,12 +1383,13 @@ These deep links should remain directly reachable:
 /collaboration/friends         Friends
 /collaboration/envelopes       Envelopes
 /collaboration/knowledge       Knowledge
-/settings                      Settings directory
+/settings                      Desktop Notifications; mobile Settings directory
 /settings/devices              Devices; ?view=agents selects Agents
-/settings/devices/add          Quick connect / Pair with code
+/settings/devices/add          Quick connect / Browser sign-in
+/settings/devices/agents/add   Agent setup; optional nodeId selects a computer
 /settings/projects             Project hierarchy and launch Targets
 /settings/service-status       PAX health, devices and agents independently
-/settings/advanced             Advanced settings directory
+/settings/advanced             Desktop Allowed actions; mobile Advanced directory
 /settings/advanced/permissions Active approval grants
 /settings/advanced/encryption  Browser keys and encrypted-device pairing
 /settings/advanced/api-keys    API key management
@@ -1085,14 +1398,12 @@ These deep links should remain directly reachable:
 /agents/[agentId]?nodeId=...   Agent detail
 ```
 
-When adding a sidebar item, add both a real `src/app/**/page.tsx` route and an
-active-state mapping in `src/components/shell/sidebar.tsx`. Prefer adding a
-secondary tab to Collaboration or the bottom Settings group when the
-destination belongs to those workspaces. Settings is for low-frequency
-configuration and observability, not user work: inquiries and conversations
-remain Home deep-links. Devices and Developer may use page-local segmented
-views because they intentionally aggregate closely related resources. Home
-owns the user-facing Sessions tab; do not re-promote Sessions as a sidebar item.
+When adding a Settings section, add a real `src/app/**/page.tsx` route and its
+label, description, and active-route mapping in `settings/settings-catalog.ts`.
+Other workspace navigation remains in `shell/sidebar.tsx`. Settings is for
+configuration and observability; inquiries and conversations remain Home deep
+links. Devices keeps its page-local Devices/Agents segmented view. Home owns
+the user-facing Sessions tab; do not add Sessions as a separate sidebar item.
 
 PAX Manager exposes Home sessions through
 `GET /api/v1/user/{user_id}/sessions?page_size=20&page_num=...`, with optional
@@ -1219,13 +1530,31 @@ Inquiries route
 
 Do not regress these routes into placeholders.
 
-Settings / Devices / Nodes exposes guarded row actions for immediate paxd
-restart and upgrade. Restart requires confirmation. When the upgrade dialog
-opens, it resolves the newest stable artifact for the node's reported OS and
-architecture through `GET /api/v1/public/paxd/download`, shows that exact
-version, and disables redundant upgrades when the node already runs it. Both
-actions generate a client command id and display the acknowledged command so
-operators can correlate it with daemon logs and the new boot heartbeat.
+Settings / Devices / Nodes rows (`NodeListRow`) show presence, platform, the
+paxd version and the `metadata.paxl` observation; offline rows add the age of
+the last heartbeat. Maintenance lives in the row's actions menu: paxd upgrade,
+paxd restart, paxl upgrade and delete. When the paxd upgrade dialog opens, it
+resolves the newest stable artifact for the node's reported OS and architecture
+through `GET /api/v1/public/paxd/download`, shows that exact version, and
+disables redundant upgrades when the node already runs it.
+
+All three maintenance dialogs share `DaemonCommandDialog`: confirm, submit,
+then stay open and poll `GET .../daemon/commands/{command_id}` until the command
+settles. paxl steps follow paxd's `downloading`, `activating`, `verifying`
+phases; paxd restart and upgrade steps follow Manager's heartbeat-based
+`maintenance_confirmation`, because paxd keeps those records at `received`.
+Unreachable paxd (Manager returns `stale: true`, or older Managers return 503)
+is shown as reconnecting, not as a failure. Closing the dialog never cancels
+the command. Retry after a failure issues a new command id; reusing an id would
+only return paxd's stored failure.
+
+Manager records these commands and returns the newest one per type as
+`latest_daemon_commands` on every node. The row shows a running command, or the
+newest failure not already superseded by the installed version, and opens its
+dialog from that note. `useNodes` polls every 3 s while any node reports a
+running command. State folding lives in `src/features/devices/daemon-commands.ts`
+and mirrors Manager's `NodeDaemonCommandState`; the Manager `state` field wins
+when present. The browser keeps no command ids of its own.
 
 ## Documentation Maintenance Requirement
 
@@ -1487,6 +1816,14 @@ different from title), size, and creation date live in file details. Only
 loading, processing, and failure states appear beside the title; full errors
 remain in the viewer body. Do not show normal-status badges or renderer IDs.
 
+Both embedded and standalone artifact Download links use the native `download`
+attribute and `target="_self"` on the same-origin authenticated content endpoint.
+Do not open this endpoint in a new tab: on Android, a new browsing context can
+hand the URL to the installed TWA and change the request's navigation origin.
+Keep `rel="noreferrer"` and the existing attachment disposition and signed-storage
+redirect. The regional Worker's origin checks and Manager ownership checks still
+apply. Validate downloads in both Android Chrome and the installed TWA.
+
 ## Snapshot-driven queued turns
 
 Manager persists one queued draft per session (64 KiB maximum), dispatched by
@@ -1543,12 +1880,16 @@ pages succeed; turn_done confirms completion, while an idle snapshot can be
 displayed without that marker. Removed rows disappear and failures retain
 the previous snapshot. Without latest_turn_id, idle polls re-read the tail.
 A turn_done in an ordinary page alone does not
-transfer ownership. E2EE retains its existing history flow.
+transfer ownership. E2EE uses the whole-turn encrypted replay flow described below.
 
 Older history pages do not refetch on focus. Prepending captures the visible
 row ID and pixel offset and restores it in a layout effect before paint; bottom
 updates must not affect that offset. Avoid content-visibility estimated heights
 on timeline rows. Foreground recovery never resubmits prompts or cancels turns.
+Durable ACP-derived event IDs are namespaced by their stored message_id. ACP
+request and stream IDs can repeat across turns or resumed requests; using them
+alone lets a prepended page move the latest live turn to an older event's anchor.
+Keep requestId/toolCallId intact for permission decisions and tool updates.
 
 ### Idle history display without a completion row
 
@@ -1577,6 +1918,12 @@ JSON escapes `<` to prevent closing-script injection. REST remains /api/pax.
 
 ### Settings organization and device setup
 
+Device lists, onboarding computer choices, and device health/counts exclude
+nodes with `kind: "paxl"` using `isDeviceNode`. These are CLI login identities,
+not runtime devices. Preserve the complete node query cache for identity and
+agent associations. Nodes without a kind remain visible for compatibility;
+never infer node kind from its display name or connection state.
+
 `src/components/settings/` owns the English-first directory, health summary and
 Add device flow. Keep pending approvals in Home, device maintenance and secret
 transfer in device details, and technical profile fields in expandable advanced
@@ -1584,20 +1931,58 @@ sections. Preserve existing resource and Project/Target CRUD components.
 Legacy Security, Developer, Diagnostics, API key and registration URLs redirect
 to their new destinations. Mobile pages provide a parent link.
 
-Quick connect uses the same-origin token API without an owner override (the
-authenticated user supplies ownership), then assembles an install command using
-the configured public runtime origin. It installs paxl first, then installs and
-sets up paxd, using each public installer with its matching download-origin
-variable. Known production, staging, and legacy Console origins map to their
-Manager API origins; custom origins and local ports remain unchanged. Each
-installer is fully downloaded and checked for a shell shebang before execution;
-HTML, empty responses, and partial downloads stop with an error. The steps use
-&&, so a failed download/install stops setup. Only the paxd step receives the generated
-registration token. Its one-use token stays in page state,
-expires after one hour, and can be regenerated. Never log it or store it in the
-query cache. Keep `paxl daemon setup` and `/connect` as the pairing alternative.
-Ship the paxd installer and binary supporting `--registration-token-env` before
-shipping this Console flow. See `settings-migration.md` for preservation checks.
+`components/connect/connection-onboarding.tsx` is the shared two-step flow for
+Home/resource empty states and Settings Add device/Add agent. Node detail links
+to Add agent with `nodeId`; multiple computers require a selection. Keep an
+in-progress empty-state flow mounted when the new node/agent enters the query
+cache, so users can finish setup and reach Start a conversation.
+
+Quick connect and Browser sign-in are action buttons: clicking either prepares
+its command immediately, including Quick connect on first render. Do not render
+them as pressed-state selectors or require a separate initial Generate command
+action. Show generation progress, prevent duplicate in-flight requests, and reuse
+a valid displayed command when the same action is clicked again.
+
+Quick connect uses the same-origin token API without an owner override. The
+copied command uses the configured public runtime origin and invokes only the
+paxd public installer, with `PAX_SETUP_AFTER_INSTALL=1`; that installer installs
+both paxl and paxd before setup. Known production, staging, and legacy Console
+origins map to download API origins; machine registration uses wsapi, never the
+browser API. Use the authenticated bootstrap account region for production US/HK
+install and setup commands even when a browser tunnel override is configured.
+Custom origins and local ports are preserved. The "PAX is already installed"
+option reuses the same token in a short paxd setup command without reinstalling.
+The full command uses a quoted heredoc rather than nested shell quoting.
+Fully download and check the shell shebang before executing: HTML, empty bodies,
+and partial downloads must stop without execution. Propagate download/install
+failures. Browser sign-in uses the same complete installer command, explicitly
+clears any inherited `PAX_REGISTRATION_TOKEN`, and retains paxd's terminal login
+link and `/connect` pairing flow. It needs no preinstalled CLI.
+
+The one-use token stays only in mounted component state, expires at the server's
+expiry (one-hour fallback), and can be regenerated. Never log it, put it in a
+URL, or store it in Query/mutation caches. Both methods snapshot online devices
+before exposing a command and poll for newly online computers. The API does not
+correlate token and node, so users choose their online computer explicitly;
+do not assert a detected computer consumed this token.
+
+Agent setup checks the daemon inventory, offers Codex/Claude Code plus the
+other reported types, and shows adapter-specific installation help. An
+`available` npx command means the adapter can be downloaded on connection, not
+that it is installed. The current API cannot independently verify agent CLI
+installation or sign-in; keep this limitation visible, and never render those
+checks as passed or missing based on adapter discovery alone. Runtime `running`
+means connected, not proof of authentication or a successful ACP prompt.
+
+Sequence discovery and connection polling: paxd permits one outstanding query
+per node. Creation ACKs only start polling; require the matching connection ID,
+observed generation/restart nonce, and running phase before offering the new
+conversation link. Offline nodes block actions. Runtime failures retry the same
+connection, and ambiguous create errors direct users to its device settings
+rather than blindly creating duplicates. Automatic polling stops after 90
+seconds with a manual check action. Ship the combined paxd installer with
+`--registration-token-env` support before shipping this Console flow. See
+`settings-migration.md` for preservation checks.
 
 ## Output-gap feedback and artifact reader width
 
@@ -1620,6 +2005,280 @@ keyboard dismissal and visual-viewport shell reflow cannot leave the menu behind
 The mobile navigation reserves 4rem of content height plus the bottom safe area;
 its top padding and bottom content padding are independent of that safe area.
 ConsoleLayout reserves the same --console-mobile-nav-height to prevent overlap.
+
+## Encrypted attachment uploads
+
+Encrypted composers stage File objects in browser memory. Creation waits for
+session/new before encrypting and uploading. `features/e2ee/attachments.ts`
+derives an attachment-specific AES-GCM key from the existing root key, agent,
+session, key epoch, and a fresh random attachment ID. Files use 4 MiB authenticated
+chunks; the first version caps each file at 512 MiB and each prompt at 16 files.
+Only binary ciphertext and opaque filenames reach the attachment REST API/storage.
+The owner-only content endpoint with `?ticket=1` returns a signed download URL.
+Send private descriptors through encrypted ACP `params.paxEncryptedAttachments`;
+never send them through ordinary conversation or node control APIs. paxd consumes
+these descriptors, authenticates/decrypts locally, and substitutes resource_link
+blocks before dispatch/history projection. Upload progress and cancellation are
+browser-local; failed uploads can be retried and completed uploads reuse their
+object with a refreshed download ticket. Session-local plaintext files remain on
+paxd for agent access; encrypted attachments currently render as file references,
+without browser preview. Ciphertext is assembled as a Blob for single PUT;
+resumable upload and disk-backed browser staging are not implemented.
+Deploy Manager and paxd before enabling the Console upload UI.
+
+## Encrypted whole-turn replay
+
+`features/e2ee/replay.ts` restores the latest whole turn from the existing
+`encrypted-events?view=replay` endpoint. HTTP pages contain at most 100 encrypted
+batches by default; the loader freezes the first response's head_cursor and
+continues with turn_ref/through_cursor/after_cursor until that turn is complete.
+It validates route, key epoch, authenticated inner turn ID, and monotonic cursors,
+merges normalized events per page, and yields between pages. Earlier whole turns
+load on scroll using before_turn, the newer turn's exclusive start cursor.
+The shared history pager also offers Load earlier messages. If the latest turn
+does not fill the viewport, it automatically loads older pages until scrolling
+is possible or history is exhausted, including after viewport resizing. Failed
+loads stop automatic pagination and offer an explicit retry; prepend anchoring
+preserves the current reading position. Older-page reads do not reset the live
+SSE cursor or discard already loaded turns.
+
+Paxd journals the original user prompt as an encrypted event before ACP dispatch.
+Its opaque outer turn_ref matches the encrypted turn_id. Manager indexes and
+returns ciphertext without parsing ACP or waiting for canonical message/part
+projection. The reference exposes grouping only, not prompt content. Prompt
+normalization uses the optimistic request identity so the live echo does not
+create a second user bubble. Original attachment references survive replay.
+
+`use-e2ee-session-runtime.ts` waits for initial replay, then subscribes to SSE
+at the frozen session head. Arrivals during replay are recovered through SSE;
+reconnects retain the latest authenticated event cursor. Replay and live events
+use the same normalizer and text stream identity. The primary timeline merges
+the complete replay prefix with its live suffix. There is no 1.5-second history
+poll, focus refetch, or completion refetch. Decrypted replay is held in TanStack
+Query only while observed (gcTime 0); root keys remain outside the query cache.
+A mounted session still retains loaded turns and live events, with no blind cap.
+Outbound commands wait for the initial replay boundary, joining its in-flight
+query once. This prevents a fast session/new response from entering the snapshot
+and bypassing the live RPC resolver. Bootstrap callbacks reuse the completed
+query even when captured before replay finished.
+
+Legacy events without an outer turn reference form one unindexed replay bucket.
+For that bucket only, the loader reads a 100-row canonical history page and the
+existing browser-side prompt-context completion once, filters it to replayed
+turns, and uses `reconcile-history.ts`. It does not guarantee all old prompts are
+recovered or turn-bounded loading for old ciphertext. New indexed turns do not
+use canonical history. Old segmented/aggregate canonical history contracts remain
+supported by the compatibility adapter. Ordinary session behavior is unchanged.
+
+Deploy Manager's schema/API, then paxd's prompt echo/turn metadata, then Console.
+A pre-replay Manager returns SSE to the JSON query; Console cancels that body and
+reports the unsupported API instead of waiting indefinitely. No plaintext fallback
+is allowed. See replay.test.ts and use-e2ee-session-runtime.test.tsx for BDD cases.
+
+E2EE device authorization uses `short-code-v2` for the eight-digit browser flow.
+A new browser keeps a random code seed, the original high-entropy pairing secret,
+and a recipient capability in IndexedDB v3. The code rotates every 60 seconds;
+the previous generation has a 30-second grace period. A request lasts 10 minutes.
+An authorized browser matches the code automatically, then explicitly approves
+within 30 seconds. Neither matching nor displaying the code transfers the root
+key. Device names are descriptive labels, not independently verified identities.
+
+`short-code-crypto.ts` runs both OPAQUE roles using pinned
+`@serenity-kit/opaque@1.1.0`; `short-code.worker.ts` keeps WASM work off the UI
+thread. Registration/setup remain local. The relay receives login messages and
+an authenticated encrypted copy of the original pairing secret, never an
+8-digit-code commitment/verifier. OPAQUE identities and AES-GCM AAD bind account,
+agent, request, recipient public key, device, epoch, attempt, and generation.
+The existing root-key wrapping protocol is reused after explicit approval.
+The library has a published security review; this application protocol has not
+had an independent cryptographic audit.
+
+Manager must be deployed first with its additive schema and short-code routes.
+All requests still use the same-origin proxy. `X-Pax-Pairing-Capability` contains
+a random 32-byte capability (not the short code); Manager persists only its hash.
+The authorized browser tries at most three pending v2 requests and two valid code
+generations per request. Every handshake, including successful ones, consumes
+one of 30 attempts per account and account/agent in a fixed 10-minute window.
+Manager stores counters transactionally across instances; the receiving browser
+also persists a local budget against a dishonest relay. Rotation, regeneration,
+and reload do not reset that budget. Multiple successful matches fail closed.
+
+Where available, a browser Web Lock serializes recipient work across tabs.
+The recipient saves each handshake answer before posting it so lost responses
+and reloads can resume it. Expired/failed handshakes cannot deliver keys. Request
+terminal states include approved, expired, superseded, cancelled, and rejected.
+The existing approved-package recovery remains available after request expiry.
+The paxd command option creates a fresh legacy request; it never passes a short
+code to the legacy verifier. No paxd upgrade is needed for that option.
+
+Validation: `pnpm test run src/features/e2ee src/components/e2ee` covers lifecycle,
+crypto, timing and UI. `node scripts/e2ee-short-code-browser-check.mjs` against a
+local production build (default port 3028, override `E2EE_CHECK_URL`) uses two
+isolated Chrome contexts and mocked API traffic to verify both device directions,
+wrong codes, refresh recovery, explicit consent, actual key decryption, and mobile
+overflow. It requires locally installed Chrome and does not access real accounts.
+
+## Direct regional access and fixed account routing
+
+The opt-in Node gateway in pax-manager `workers/region-directory/src/regional`
+serves `/auth/*`, `/api/region-config`, bootstrap, `/api/pax` and WebSockets before
+Next.js. Its local PostgreSQL directory contains all US/HK account routes and
+WorkOS subject bindings; business data remains in the home Manager. One authority
+writes registrations and replicates committed records. Local hits need neither
+Cloudflare D1 nor cross-region discovery. Unknown accounts fail closed when the
+authority is unavailable. Deployment and D1 migration instructions live in
+pax-manager `workers/region-directory/regional/README.md`.
+
+`/api/region-config` returns `mode: "direct"`, the current `region`, both configured
+HTTPS `origins`, and an optional `entry` hint. RegionGate validates these origins
+before DirectRegionGate boots the account once. No probes, focus refresh or
+periodic bootstrap run in direct mode. Existing accounts keep their original ID
+and region; new accounts explicitly choose once. A verified foreign assignment
+navigates to that origin before any account queries mount, preserving the current
+path, query and hash. All subsequent REST/SSE calls stay on `/api/pax` and tunnels
+use the home origin even if an old public WebSocket override exists.
+
+Only `us` or `hk` is saved under localStorage `pax:account-region`. The hint may
+skip bootstrap on the designated entry origin; it is not authentication or an
+assignment. A new browser/device still recovers its account from the directory.
+An authoritative return adds the navigation-only `pax_region_return=1` flag; the
+destination consumes/removes it and ignores stale entry hints to avoid a redirect
+loop when changing accounts. Destination login and bootstrap remain mandatory.
+Host-only WorkOS cookies may require a sign-in round trip on a new regional host.
+No token, cookie, email or account ID is carried in the navigation URL.
+
+The direct gateway must intercept API paths before Next.js. Keep
+`PAX_BROWSER_REGIONS_ENABLED=true` as a fail-closed fallback and configure the
+regional canonical origin; an unavailable gateway must not cause a fallback to
+the old central proxy. Deploy the paired gateway and Console changes together,
+import and verify the old directory before admitting traffic, and keep only one
+registration authority. Native applications must persist the returned `api_url`;
+this Console change does not modify the Android client or production DNS/TLS.
+
+## Legacy Worker region bootstrap and edge routing
+
+Production regional mode is runtime-configured with
+`PAX_BROWSER_REGIONS_ENABLED=true` and
+`PAX_REGION_PUBLIC_ORIGIN=https://paxworkspace.net`. `/api/region-config` is
+no-store and publishes only the mode and canonical origin. RegionGate runs
+inside QueryProvider before any AuthGate/account requests. Alternate Console
+hostnames navigate to the canonical host while preserving path/query/hash.
+
+The gate calls POST `/api/v1/region/bootstrap` with an empty JSON body to restore
+existing users. Only new users see the region choice. Real no-store origin probes
+run concurrently through `/api/v1/region/probe/us|hk`, with echoed random nonces;
+unavailable regions are disabled. The fastest reachable region is recommended,
+then the user confirms. No client region preference can override an existing
+D1 assignment. Only a ready result mounts account components and `/me`.
+
+REST and SSE continue through same-origin `/api/pax`; WebSockets use the same
+origin after bootstrap. The Cloudflare Worker verifies Access plus its HttpOnly
+route cookie and forwards to the fixed regional Manager. Browser code never reads
+the cookies or chooses an API host from user input. The bootstrap result is
+TanStack Query state, refreshed every 20 minutes and on stale focus; the signed
+route cookie expires after one hour and the Worker can recover an existing
+assignment from D1. Failures remain visible without switching regions.
+
+When regional mode is enabled, the Next `/api/pax` fallback returns 503. The
+active edge routes must be installed before enabling the Console flag. In legacy
+mode the existing Next proxy and configured direct WebSocket behavior remain.
+HTML/static assets use the common Console origin; business traffic is regional.
+The production rollout also requires regional Manager read-only identity mode,
+matching provisioning secrets, and a final legacy inventory reconciliation.
+Machine tickets, paxd routing and automatic installer changes remain separate.
+
+Validation: `NODE_OPTIONS=--no-experimental-webstorage pnpm exec vitest run`
+avoids the Node 24.19 global webstorage/jsdom collision in existing tests.
+`pnpm exec vitest run src/app/api/region-config --coverage
+--coverage.include=src/app/api/region-config/route.ts` verifies the new backend
+handler, which has 100% coverage. Region gate, recovery, probe failure and tunnel
+selection have focused tests; lint, typecheck and production build are required.
+
+## Image publication
+
+The main branch image workflow builds the existing Dockerfile, verifies its
+immutable GHCR digest and registers it in PAX Release. It does not deploy
+production or inject runtime environment files into the image. See
+[image-release.md](image-release.md) for credentials, failure recovery and
+manual runs.
+
+Release image registration can additionally authenticate to Cloudflare with the
+per-repository `PAX_RELEASE_CF_CLIENT_ID` / `PAX_RELEASE_CF_CLIENT_SECRET` Actions
+Secrets. They stay in publication steps and never enter the Console runtime or
+browser bundle. See [image-release.md](image-release.md) for migration and checks.
+
+## Regional paxl login approval
+
+`/paxl-login.html` accepts a single `code` with optional explicit `region`, or
+regional `us_code`/`hk_code` values. Duplicate or mixed parameters fail before
+approval. With regional mode enabled, Console submits through the same-origin
+`POST /api/v1/region/paxl-login/approve`; the Worker reads the existing assignment
+and forwards only the home code with signed identity proof. An unavailable home
+request is an error and never falls back to another region. The login route does
+not provision accounts or add D1 state. Existing AuthGate/RegionGate handles
+normal account bootstrap before approval.
+
+Browser approval confirms identity only for the versioned CLI protocol. The CLI
+pins one identity and region durably, commits there, saves the credential, then
+acknowledges receipt. The page may close after confirmation; CLI completion is
+separate. Explicit `admin=1&region=hk` displays the administrator destination and
+requires administrator permission from the existing target Manager account.
+Ordinary login cannot override the directory assignment. Regional parameters
+fail closed on legacy Console; simple single-code legacy mode remains supported.
+
+Roll out Worker and Console before regional Managers start requiring signed
+proof, then release the new CLI after both Managers support `client_commit_v1`.
+Cached old Console code must be refreshed. Validate with `vitest run
+src/features/auth/paxl-login.test.ts
+src/components/connect/paxl-login-page-client.test.tsx`, typecheck, lint and build.
+
+## Paxl remote upgrades
+
+Node rows and advanced node settings show `metadata.paxl` as the last daemon
+observation (installed/missing/probe_failed, version, real path and probe time).
+Offline observations are explicitly labeled. `PaxlUpgradeDialog` resolves the
+stable paxl artifact, submits an explicit version through the same-origin
+`POST /api/v1/user/{user_id}/nodes/{node_id}/paxl/upgrade`, then follows the
+daemon command endpoint (see the maintenance dialogs above). Received is
+pending; only applied means the daemon verified the actual installed
+executable. This action does not restart paxd.
+
+Recovery after reloads, other browsers and node disconnects comes from
+Manager's recorded `latest_daemon_commands`; the node detail page shows the
+latest paxl upgrade and resumes a running one in the dialog. Nothing is kept in
+localStorage. Install the compatible Manager and paxd before enabling the
+action. The opt-in cross-repository browser fixture is
+`scripts/paxl-upgrade-e2e.mjs`; its runner lives in Manager's
+`TestPaxlBrowserUpgrade` and uses the production paxd control runner and installer.
+
+## Paxl upgrade release lookup recovery
+
+The upgrade dialog reads stable metadata through the same-origin regional proxy
+`/api/pax/api/v1/public/artifacts/download`. The Worker must allow this exact
+read route and retain identity and account-region checks. Worker error envelopes
+use `error`; apiFetch maps known routing errors to actionable messages with HTTP
+status and keeps Manager `message` errors. Unknown Worker details remain hidden.
+A failed lookup displays a release-check failure and a read-only retry action.
+Install stays disabled during lookup or after failure, including cached versions.
+
+## Scheduled session provenance
+
+paxd owns cron definitions, trigger execution, prompt/workspace snapshots, and
+native session bindings. paxl provides local CRUD. The node-authenticated Manager
+`POST /api/v1/node/agents/:agent_id/sessions/register` endpoint returns the normal
+Pax session ID, deduplicating the native ID and durable registration ID.
+
+Console reads `metadata.origin` from ordinary session queries. The parser lives
+in `src/features/sessions/session-origin.ts`; the shared `CronOriginBadge` shows
+the task name with cronjob and creation-run IDs in its tooltip. It appears in
+recent sessions and the workbench. Reused sessions retain the original creation
+run. Missing or unknown metadata leaves existing sessions unchanged.
+
+Messages and permission requests use the existing E2EE runtime/history paths.
+Deploy Manager support before enabling tasks in updated paxd, then update Console
+for provenance display. Offline execution can appear after registration and
+history synchronization recover. No browser scheduler or cron management page
+is introduced; use `paxl cron` for task management.
 
 Projects settings can include archived projects through Include archived. The
 settings page and breadcrumb load the inclusive project list so archived project

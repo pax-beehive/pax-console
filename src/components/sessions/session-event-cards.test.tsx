@@ -26,6 +26,7 @@ import type {
   SessionEvent,
   WorkstreamItem,
 } from "@/features/runtime/session-events";
+import { groupWorkstreamEvents } from "@/features/runtime/session-events";
 
 const permissionDecision = {
   decisions: {},
@@ -411,6 +412,77 @@ describe("session event cards", () => {
     expect(container.querySelector(".animate-spin")).not.toBeInTheDocument();
   });
 
+  it("renders late background command results as completed evidence after the final reply", () => {
+    const sessionId = "sess_1";
+    const events: SessionEvent[] = [
+      {
+        type: "turn_done",
+        id: "old-turn-done",
+        sessionId,
+        turnId: "old-turn",
+        createdAt: "2026-10-20T22:50:00Z",
+      },
+      {
+        type: "agent_message",
+        id: "final-reply",
+        sessionId,
+        turnId: "last-turn",
+        content: "All finished.",
+        createdAt: "2026-10-20T23:03:02Z",
+      },
+      {
+        type: "turn_done",
+        id: "last-turn-done",
+        sessionId,
+        turnId: "last-turn",
+        createdAt: "2026-10-20T23:03:02Z",
+      },
+      {
+        type: "tool_call",
+        id: "late-error",
+        sessionId,
+        turnId: "old-turn",
+        name: "exec_command",
+        status: "error",
+        output: { exit_code: 2 },
+        createdAt: "2026-10-20T23:04:29Z",
+      },
+      {
+        type: "tool_call",
+        id: "late-done",
+        sessionId,
+        turnId: "old-turn",
+        name: "exec_command",
+        status: "done",
+        createdAt: "2026-10-20T23:04:30Z",
+      },
+    ];
+    const { container } = render(
+      <TooltipProvider>
+        {groupWorkstreamEvents(events).map((item) => (
+          <WorkstreamItemCard
+            key={item.id}
+            item={item}
+            permissionDecision={permissionDecision}
+          />
+        ))}
+      </TooltipProvider>,
+    );
+
+    expect(screen.getByText("All finished.")).toBeVisible();
+    expect(screen.getByText("Done")).toBeVisible();
+    expect(screen.getByText("Worked")).toBeVisible();
+    expect(screen.queryByText("Working…")).not.toBeInTheDocument();
+    expect(container.querySelector(".animate-spin")).not.toBeInTheDocument();
+
+    const group = container.querySelector("details")!;
+    group.open = true;
+    fireEvent(group, new Event("toggle"));
+    expect(screen.getAllByText("exec_command")).toHaveLength(2);
+    expect(screen.getByText("error")).toBeVisible();
+    expect(screen.getByText("done")).toBeVisible();
+  });
+
   it("shows elapsed time from the real completed activity boundary", () => {
     renderItem({ ...activityGroup(true), completedAt: "2026-09-25T00:00:24Z" });
     expect(screen.getByText("Worked for 24s")).toBeVisible();
@@ -448,6 +520,47 @@ describe("session event cards", () => {
     expect(screen.getByText("shell")).toBeVisible();
     expect(container.querySelectorAll("details")).toHaveLength(1);
     expect(screen.queryByText("Tool calls")).not.toBeInTheDocument();
+  });
+
+  it("renders an absolute tool input path as a copyable local file link", () => {
+    const tool = activityGroup(true).events[1] as Extract<
+      SessionEvent,
+      { type: "tool_call" }
+    >;
+    renderItem({
+      type: "event",
+      id: tool.id,
+      event: {
+        ...tool,
+        name: "Read",
+        input: { file_path: "/Users/me/proj/src/app.ts" },
+      },
+    });
+
+    expect(screen.getByText("/Users/me/proj/src/app.ts")).toHaveAttribute(
+      "title",
+      "/Users/me/proj/src/app.ts",
+    );
+    expect(
+      screen.getByRole("button", { name: "Copy path" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps relative tool input paths as plain previews", () => {
+    const tool = activityGroup(true).events[1] as Extract<
+      SessionEvent,
+      { type: "tool_call" }
+    >;
+    renderItem({
+      type: "event",
+      id: tool.id,
+      event: { ...tool, name: "Read", input: { path: "src/app.ts" } },
+    });
+
+    expect(screen.getByText("src/app.ts")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Copy path" }),
+    ).not.toBeInTheDocument();
   });
 
   it("collapses thought content by default", () => {

@@ -67,6 +67,11 @@ export function nodeLabel(node: Node) {
   return node.name ?? node.hostname ?? node.node_id;
 }
 
+export function isDeviceNode(node: Node) {
+  // CLI login identities share the node API but are not runtime devices.
+  return node.kind !== "paxl";
+}
+
 export function agentLabel(agent: Agent) {
   return agent.name ?? agent.agent_type ?? agent.agent_id;
 }
@@ -194,7 +199,9 @@ export function nodeDaemonRuntimeOutcome(
     (item) => item.id === target.connectionId,
   );
   if (target.action === "remove") {
-    return connection ? undefined : "removed";
+    return !connection || connection.desired_state === "deleted"
+      ? "removed"
+      : undefined;
   }
 
   const status = connection?.status;

@@ -112,7 +112,7 @@ describe("ProjectRail", () => {
     );
     expect(mocks.useProjects).toHaveBeenLastCalledWith("user_1", true);
     expect(screen.getByText("Archived")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Pax Archived" }));
+    await userEvent.click(screen.getByRole("button", { name: /Pax\s*Archived/ }));
     expect(select).toHaveBeenCalledWith("project_1");
     expect(
       screen.queryByRole("button", { name: "Actions for Pax" }),

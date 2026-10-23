@@ -5,9 +5,11 @@ import type { MessageDetailPage } from "./types";
 import {
   type QueryClient,
   useInfiniteQuery,
+  useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { isDaemonCommandSettled } from "@/features/devices/daemon-commands";
 import { API_BASE_URL, apiFetch, userPath } from "./client";
 import { ApiError, AuthError } from "./errors";
 import { queryKeys } from "./query-keys";
@@ -23,6 +25,8 @@ import {
   ApprovedNodeRegistration,
   ApprovedPaxlDeviceLogin,
   ArtifactContentURL,
+  ArtifactFetchCheck,
+  ArtifactFetchResult,
   ArtifactPublicationContentState,
   ArtifactPublicationState,
   ArtifactUploadTicket,
@@ -397,6 +401,46 @@ export function restartNodeDaemon(userId: string, nodeId: string) {
       }),
       method: "POST",
     },
+  );
+}
+
+export function upgradeNodePaxl(
+  userId: string,
+  nodeId: string,
+  input: { command_id: string; version: string },
+) {
+  return apiFetch<NodeDaemonCommandData>(
+    userPath(userId, `/nodes/${nodeId}/paxl/upgrade`),
+    {
+      method: "POST",
+      body: JSON.stringify({ ...input, tag: "stable" }),
+    },
+  );
+}
+
+export type HarnessUpgradeInput = {
+  command_id: string;
+  harness: "claude-code" | "codex" | "pi";
+  component: "cli" | "acp";
+  version?: string;
+  connection_id?: string;
+};
+
+export function upgradeNodeHarness(
+  userId: string,
+  nodeId: string,
+  input: HarnessUpgradeInput,
+) {
+  return apiFetch<NodeDaemonCommandData>(
+    userPath(userId, `/nodes/${nodeId}/harness/upgrade`),
+    { method: "POST", body: JSON.stringify(input) },
+  );
+}
+
+export function getLatestPaxlRelease(os: string, arch: string) {
+  const platform = `${os.trim()}/${arch.trim()}`.toLowerCase();
+  return apiFetch<PaxdRelease>(
+    `/api/v1/public/artifacts/download?product=paxl&platform=${encodeURIComponent(platform)}&tags=stable`,
   );
 }
 
@@ -1234,6 +1278,31 @@ export function getArtifactPublication(userId: string, publicationId: string) {
   );
 }
 
+export function checkArtifactFetch(
+  userId: string,
+  sessionId: string,
+  path: string,
+) {
+  const params = new URLSearchParams({ path });
+  return apiFetch<ArtifactFetchCheck>(
+    `${userPath(userId, `/sessions/${sessionId}/artifact-fetches/check`)}?${params}`,
+  );
+}
+
+export function createArtifactFetch(
+  userId: string,
+  sessionId: string,
+  path: string,
+) {
+  return apiFetch<ArtifactFetchResult>(
+    userPath(userId, `/sessions/${sessionId}/artifact-fetches`),
+    {
+      body: JSON.stringify({ path }),
+      method: "POST",
+    },
+  );
+}
+
 export async function getArtifactPublicationContent(
   userId: string,
   publicationId: string,
@@ -1924,7 +1993,15 @@ export function useNodes(userId?: string, refetchInterval = 15_000) {
     queryKey: queryKeys.nodes(userId ?? "pending"),
     queryFn: () => listNodes(userId as string),
     enabled: Boolean(userId),
-    refetchInterval,
+    // Follow paxd maintenance closely while any device reports one running.
+    refetchInterval: (query) =>
+      query.state.data?.nodes?.some((node) =>
+        node.latest_daemon_commands?.some(
+          (command) => command.state === "in_progress",
+        ),
+      )
+        ? Math.min(refetchInterval, 3_000)
+        : refetchInterval,
     refetchOnWindowFocus: "always",
   });
 }
@@ -2027,6 +2104,7 @@ export function useNodeDaemonCommand(
   userId?: string,
   nodeId?: string,
   commandId?: string,
+  enabled = true,
 ) {
   return useQuery({
     queryKey: queryKeys.nodeDaemonCommand(
@@ -2040,15 +2118,15 @@ export function useNodeDaemonCommand(
         nodeId as string,
         commandId as string,
       ),
-    enabled: Boolean(userId && nodeId && commandId),
+    enabled: Boolean(userId && nodeId && commandId && enabled),
+    retry: false,
     refetchInterval: (query) => {
-      if (query.state.error || query.state.data?.error) {
+      if (isDaemonCommandSettled(query.state.data)) {
         return false;
       }
-      const status = query.state.data?.command?.status;
-      return status && ["applied", "failed", "rejected"].includes(status)
-        ? false
-        : 1_000;
+      // paxd restarts and upgrades drop the control tunnel on purpose; keep
+      // polling slowly until the node reconnects.
+      return query.state.error || query.state.data?.stale ? 3_000 : 1_000;
     },
   });
 }
@@ -2495,6 +2573,55 @@ export function useArtifactPublication(
       return status === "queued" || status === "uploading" ? 2_000 : false;
     },
     refetchOnWindowFocus: true,
+  });
+}
+
+export function useArtifactFetchCheck(
+  userId?: string,
+  sessionId?: string,
+  path?: string,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: queryKeys.artifactFetchCheck(
+      userId ?? "pending",
+      sessionId ?? "pending",
+      path ?? "pending",
+    ),
+    queryFn: () =>
+      checkArtifactFetch(userId as string, sessionId as string, path as string),
+    enabled: Boolean(enabled && userId && sessionId && path),
+    // The node's view of the file can change at any time; always re-check
+    // when the dialog opens instead of serving a cached verdict.
+    gcTime: 0,
+    refetchOnWindowFocus: false,
+    retry: false,
+    staleTime: 0,
+  });
+}
+
+export function useCreateArtifactFetch(userId?: string, sessionId?: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (path: string) =>
+      createArtifactFetch(userId as string, sessionId as string, path),
+    onSuccess: (result) => {
+      if (!result.accepted || !userId) {
+        return;
+      }
+      queryClient.setQueryData(
+        queryKeys.artifactPublication(
+          userId,
+          result.publication.publication_id,
+        ),
+        { publication: result.publication },
+      );
+      if (sessionId) {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.sessionArtifacts(userId, sessionId),
+        });
+      }
+    },
   });
 }
 

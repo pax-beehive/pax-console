@@ -4,15 +4,15 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   Activity,
+  Bell,
+  ChartNoAxesCombined,
   Brain,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   Inbox,
-  FolderTree,
+  Info,
   MailPlus,
-  Radio,
-  Server,
   Settings,
   Users,
 } from "lucide-react";
@@ -21,6 +21,8 @@ import { Button } from "@/components/ui/button";
 import { PaxLogo } from "@/components/ui/pax-logo";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useConsoleStore } from "@/stores/console-store";
+import { isSettingsRoute } from "@/components/settings/settings-catalog";
+import { SettingsSidebar } from "@/components/settings/settings-navigation";
 
 type NavItem = {
   children?: readonly NavItem[];
@@ -63,25 +65,22 @@ const settingsNavItem: NavItem = {
     "/monitor",
     "/e2ee/pairing",
   ],
-  children: [
-    {
-      href: "/settings/devices",
-      icon: Server,
-      label: "Devices",
-      matches: ["/settings/devices", "/nodes", "/agents"],
-    },
-    { href: "/settings/projects", icon: FolderTree, label: "Projects" },
-    { href: "/settings/service-status", icon: Radio, label: "Service status" },
-    {
-      href: "/settings/advanced",
-      icon: Settings,
-      label: "Advanced settings",
-      matches: ["/settings/advanced", "/e2ee/pairing"],
-    },
-  ],
 };
 
 export function Sidebar({ showAdminFeatures }: { showAdminFeatures: boolean }) {
+  const pathname = usePathname();
+  return isSettingsRoute(pathname) ? (
+    <SettingsSidebar />
+  ) : (
+    <WorkspaceSidebar showAdminFeatures={showAdminFeatures} />
+  );
+}
+
+function WorkspaceSidebar({
+  showAdminFeatures,
+}: {
+  showAdminFeatures: boolean;
+}) {
   const collapsed = useConsoleStore((state) => state.sidebarCollapsed);
   const setCollapsed = useConsoleStore((state) => state.setSidebarCollapsed);
 
@@ -138,6 +137,34 @@ export function Sidebar({ showAdminFeatures }: { showAdminFeatures: boolean }) {
             ))}
         </div>
         <div className="mt-2 border-t border-hairline pt-2">
+          <NavEntry
+            collapsed={collapsed}
+            item={{
+              href: "/overview",
+              icon: Info,
+              label: "About PaxWorkspace",
+            }}
+          />
+          {showAdminFeatures && (
+            <>
+              <NavEntry
+                collapsed={collapsed}
+                item={{
+                  href: "/admin/customers",
+                  icon: ChartNoAxesCombined,
+                  label: "Customers",
+                }}
+              />
+              <NavEntry
+                collapsed={collapsed}
+                item={{
+                  href: "/admin/notifications",
+                  icon: Bell,
+                  label: "Push subscriptions",
+                }}
+              />
+            </>
+          )}
           <NavEntry collapsed={collapsed} item={settingsNavItem} />
         </div>
       </nav>

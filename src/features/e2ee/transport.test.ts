@@ -359,4 +359,106 @@ describe("E2EE HTTP and SSE transport", () => {
       }),
     ).rejects.toThrow("message metadata mismatch");
   });
+  it.each([false, true])(
+    "authenticates context pages without disclosing turn metadata (tampered=%s)",
+    async (tampered) => {
+      const stored = async (id: number, role: string, text: string) => {
+        const messageId = `context_${id}`;
+        const envelope = await encryptEnvelope(
+          rootKey,
+          "event",
+          {
+            record_id: `header_${id}`,
+            agent_id: "agent_1",
+            session_id: "session_1",
+            kind: "e2ee_message",
+            key_epoch: 1,
+          },
+          new TextEncoder().encode(
+            JSON.stringify({
+              message_id: messageId,
+              revision: 1,
+              agent_id: "agent_1",
+              session_id: "session_1",
+              turn_id: "private_turn",
+              role,
+            }),
+          ),
+        );
+        const part = await encryptEnvelope(
+          rootKey,
+          "event",
+          {
+            record_id: `part_${id}`,
+            agent_id: "agent_1",
+            session_id: "session_1",
+            kind: "e2ee_message_part",
+            key_epoch: 1,
+          },
+          new TextEncoder().encode(
+            JSON.stringify({
+              message_id: messageId,
+              revision: 1,
+              part_index: 0,
+              part_type: "text",
+              text,
+            }),
+          ),
+        );
+        return {
+          id,
+          message_id: messageId,
+          revision: 1,
+          envelope,
+          parts: [{ id, part_index: 0, revision: 1, envelope: part }],
+        };
+      };
+      const response = await stored(501, "assistant", "response tail");
+      const prompt = await stored(1, "user", "original private prompt");
+      if (tampered) prompt.parts[0].envelope.payload = "AAAA";
+      const controller = new AbortController();
+      const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+        expect(url).not.toContain("private_turn");
+        expect(url).not.toContain("original private prompt");
+        expect(init?.signal).toBe(controller.signal);
+        const older = url.includes("before_id=501");
+        return new Response(
+          JSON.stringify({
+            code: 200,
+            data: {
+              messages: [older ? prompt : response],
+              pagination: { has_more: !older, next_before_id: older ? 0 : 501 },
+            },
+          }),
+          { status: 200 },
+        );
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      const request = loadEncryptedSessionHistory({
+        agentId: "agent_1",
+        sessionId: "session_1",
+        userId: "self",
+        rootKey,
+        keyEpoch: 1,
+        signal: controller.signal,
+      });
+      if (tampered) {
+        await expect(request).rejects.toThrow();
+      } else {
+        const result = await request;
+        expect(result.messages.map((message) => message.role)).toEqual([
+          "user",
+          "assistant",
+        ]);
+        expect(result.messages[0].parts?.[0].text).toBe(
+          "original private prompt",
+        );
+        expect(result.pagination).toEqual({
+          has_more: true,
+          next_before_id: 501,
+        });
+      }
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    },
+  );
 });

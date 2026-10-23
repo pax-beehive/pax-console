@@ -13,6 +13,7 @@ export type User = {
 
 export type Node = {
   node_id: string;
+  kind?: string;
   name?: string;
   description?: string;
   hostname?: string;
@@ -30,6 +31,45 @@ export type Node = {
   registered_at?: string;
   metadata?: ApiRecord;
   user_metadata?: ApiRecord;
+  /** Newest Manager-recorded maintenance command per command type. */
+  latest_daemon_commands?: DaemonCommandRecord[];
+};
+
+export type DaemonCommandState = "in_progress" | "succeeded" | "failed";
+
+export type NodeDaemonMaintenanceConfirmation = {
+  command_id?: string;
+  expected_version?: string;
+  observed_boot_id?: string;
+  observed_version?: string;
+  requested_boot_id?: string;
+  /** awaiting_new_boot, awaiting_running, confirmed or version_mismatch. */
+  status: string;
+  updated_at?: string;
+};
+
+/**
+ * Manager-side record of a paxd maintenance command. paxd owns execution;
+ * status, phase and error mirror its last observed command state.
+ */
+export type DaemonCommandRecord = {
+  command_id: string;
+  completed_at?: string;
+  created_at: string;
+  error_code?: string;
+  error_message?: string;
+  maintenance_confirmation?: NodeDaemonMaintenanceConfirmation;
+  node_id: string;
+  observed_at?: string;
+  phase?: string;
+  requested_by_user_id?: string;
+  result?: ApiRecord;
+  state: DaemonCommandState;
+  status: string;
+  target?: ApiRecord;
+  target_version?: string;
+  type: string;
+  updated_at: string;
 };
 
 export type Health = {
@@ -123,6 +163,11 @@ export type NodeDaemonAgentConnection = {
 };
 
 export type NodeDaemonCommand = {
+  result?: {
+    phase?: string;
+    paxl?: PaxlObservation;
+    harness?: { target_version?: string; installation?: { version?: string } };
+  };
   applied_at?: string;
   command_id: string;
   desired_generation?: number;
@@ -150,7 +195,12 @@ export type NodeDaemonSecretChannel = {
 export type NodeDaemonQueryResult = {
   agent_connections?: { items: NodeDaemonAgentConnection[] };
   command?: NodeDaemonCommand;
+  /** Present for Manager-recorded commands on command.get. */
+  daemon_command?: DaemonCommandRecord;
   error?: NodeDaemonControlError;
+  maintenance_confirmation?: NodeDaemonMaintenanceConfirmation;
+  /** True when paxd was unreachable and Manager served its stored record. */
+  stale?: boolean;
   harnesses?: { items: NodeDaemonHarness[] };
   status?: NodeDaemonStatus;
   secret_channel_open?: NodeDaemonSecretChannel;
@@ -163,6 +213,7 @@ export type NodeDaemonCommandData = {
   command_status?: string;
   confirmation_status?: string;
   connection_id?: string;
+  daemon_command?: DaemonCommandRecord;
   desired_generation?: number;
   dispatch_error?: string;
   dispatch_status?: string;
@@ -337,6 +388,12 @@ export type HistoryMessage = {
     status: string;
     kind?: string;
     context_compaction?: boolean;
+    subagent?: {
+      background?: boolean;
+      description?: string;
+      agent_type?: string;
+    };
+    parent_tool_call_id?: string;
   };
   id?: number;
   revision?: number;
@@ -577,6 +634,8 @@ export type ArtifactPublication = {
   filename?: string;
   title?: string;
   status: "queued" | "uploading" | "available" | "failed" | string;
+  /** `user_fetch` publications were requested from a local file link. */
+  origin?: "agent" | "user_fetch";
   artifact_id?: string;
   error_code?: string;
   error_message?: string;
@@ -588,6 +647,36 @@ export type ArtifactPublicationState = {
   publication: ArtifactPublication;
   artifact?: SessionArtifact;
 };
+
+export type ArtifactFetchDenial = {
+  code:
+    | "hidden_path_denied"
+    | "credential_path_denied"
+    | "owner_only_denied"
+    | "not_found"
+    | "outside_home"
+    | "not_regular_file"
+    | "permission_denied"
+    | "too_large"
+    | "invalid_path"
+    | (string & {});
+  rule: string;
+  message: string;
+};
+
+/** GET /sessions/{session_id}/artifact-fetches/check?path= */
+export type ArtifactFetchCheck = {
+  allowed: boolean;
+  path: string;
+  filename: string;
+  size_bytes?: number;
+  denial?: ArtifactFetchDenial;
+};
+
+/** POST /sessions/{session_id}/artifact-fetches: 202 accepted, 200 denied. */
+export type ArtifactFetchResult =
+  | { accepted: true; publication: ArtifactPublication }
+  | { accepted: false; denial: ArtifactFetchDenial };
 
 export type ArtifactPreviewKind =
   | "image"
@@ -954,4 +1043,13 @@ export type Envelope = {
   created_at?: string;
   accepted_at?: string;
   archived_at?: string;
+};
+
+export type PaxlObservation = {
+  status: string;
+  version?: string;
+  commit?: string;
+  path?: string;
+  checked_at?: string;
+  error?: string;
 };

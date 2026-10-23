@@ -1,9 +1,13 @@
 "use client";
 
 import { Search } from "lucide-react";
+import type { ComponentPropsWithoutRef } from "react";
 import { cn } from "@/lib/utils";
 
-type SearchBoxProps = {
+type SearchBoxProps = Omit<
+  ComponentPropsWithoutRef<"input">,
+  "className" | "type"
+> & {
   className?: string;
   placeholder?: string;
 };
@@ -11,6 +15,7 @@ type SearchBoxProps = {
 export function SearchBox({
   className,
   placeholder = "Search",
+  ...inputProps
 }: SearchBoxProps) {
   return (
     <label
@@ -22,6 +27,7 @@ export function SearchBox({
     >
       <Search className="h-4 w-4 shrink-0" />
       <input
+        {...inputProps}
         className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-tertiary"
         placeholder={placeholder}
         type="search"

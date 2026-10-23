@@ -14,34 +14,61 @@ import { Button } from "@/components/ui/button";
 import { approvePaxlDeviceLogin } from "@/features/api/resources";
 import { User } from "@/features/api/types";
 import { AuthGate } from "@/features/auth/auth-gate";
+import {
+  parseLoginTarget,
+  confirmRegionalLogin,
+  type LoginTarget,
+} from "@/features/auth/paxl-login";
+import { getRegionalOrigin } from "@/features/region/bootstrap";
 
 const userCodePattern = /^[A-Z0-9]{6}$/;
 
 export function PaxlLoginPageClient() {
   const searchParams = useSearchParams();
-  const initialCode = useMemo(
-    () => normalizeUserCode(searchParams.get("code") ?? ""),
-    [searchParams],
-  );
-
+  const parsed = useMemo(() => {
+    try {
+      return { target: parseLoginTarget(searchParams), error: null };
+    } catch (error) {
+      return {
+        target: null,
+        error: error instanceof Error ? error.message : "Invalid login link.",
+      };
+    }
+  }, [searchParams]);
+  if (!parsed.target)
+    return (
+      <main role="alert" className="p-6 text-ink">
+        {parsed.error}
+      </main>
+    );
   return (
     <AuthGate>
-      {(user) => <PaxlLoginShell initialCode={initialCode} user={user} />}
+      {(user) => (
+        <PaxlLoginShell
+          key={searchParams.toString()}
+          target={parsed.target!}
+          user={user}
+        />
+      )}
     </AuthGate>
   );
 }
 
-function PaxlLoginShell({
-  initialCode,
-  user,
-}: {
-  initialCode: string;
-  user: User;
-}) {
-  const [userCode, setUserCode] = useState(initialCode);
-  const isValidCode = userCodePattern.test(userCode);
+function PaxlLoginShell({ target, user }: { target: LoginTarget; user: User }) {
+  const [userCode, setUserCode] = useState(target.code ?? "");
+  const isValidCode = !!target.codes || userCodePattern.test(userCode);
   const approve = useMutation({
-    mutationFn: () => approvePaxlDeviceLogin(user.user_id, userCode),
+    mutationFn: () => {
+      if (getRegionalOrigin())
+        return confirmRegionalLogin(
+          target.codes ? target : { ...target, code: userCode },
+        );
+      if (target.codes || target.target_region || target.admin)
+        throw new Error(
+          "Regional login is unavailable on this Console. Use the unified Console link.",
+        );
+      return approvePaxlDeviceLogin(user.user_id, userCode);
+    },
   });
   const userLabel = user.email ?? user.name ?? user.user_id;
 
@@ -79,11 +106,15 @@ function PaxlLoginShell({
               ,
             </div>
             <h1 className="mt-2 text-3xl font-medium leading-[1.14] text-ink md:text-[2.6rem]">
-              Approve this device.
+              {target.admin
+                ? "Approve administrator login."
+                : "Approve this device."}
             </h1>
             <p className="mt-3 max-w-xl text-sm leading-6 text-ink-muted">
-              PAX Manager will issue a user-scoped credential to the paxl
-              process waiting in your terminal.
+              Confirm your identity for the paxl process waiting in your
+              terminal.
+              {target.admin &&
+                ` Administrator access is requested for ${target.target_region === "hk" ? "Hong Kong" : "United States"}.`}
             </p>
           </header>
 
@@ -129,28 +160,34 @@ function PaxlLoginShell({
           </div>
 
           <form className="grid gap-5 p-5" onSubmit={onSubmit}>
-            <div className="grid gap-2.5">
-              <label className="grid gap-2.5 text-xs font-medium text-ink-subtle">
-                Approval code
-                <input
-                  autoCapitalize="characters"
-                  autoComplete="one-time-code"
-                  autoFocus
-                  className="h-14 rounded-md border border-hairline bg-surface-2 px-4 text-center font-mono text-2xl font-medium tracking-[0.24em] text-ink outline-none transition placeholder:text-ink-tertiary focus:border-primary"
-                  inputMode="text"
-                  maxLength={6}
-                  onChange={(event) => {
-                    setUserCode(normalizeUserCode(event.target.value));
-                    approve.reset();
-                  }}
-                  placeholder="ABC123"
-                  value={userCode}
-                />
-              </label>
-              <div className="text-xs leading-5 text-ink-tertiary">
-                Use the code shown by the paxl process you started.
+            {target.codes ? (
+              <p className="text-sm text-ink-muted">
+                This login will use your account&apos;s region.
+              </p>
+            ) : (
+              <div className="grid gap-2.5">
+                <label className="grid gap-2.5 text-xs font-medium text-ink-subtle">
+                  Approval code
+                  <input
+                    autoCapitalize="characters"
+                    autoComplete="one-time-code"
+                    autoFocus
+                    className="h-14 rounded-md border border-hairline bg-surface-2 px-4 text-center font-mono text-2xl font-medium tracking-[0.24em] text-ink outline-none transition placeholder:text-ink-tertiary focus:border-primary"
+                    inputMode="text"
+                    maxLength={6}
+                    onChange={(event) => {
+                      setUserCode(normalizeUserCode(event.target.value));
+                      approve.reset();
+                    }}
+                    placeholder="ABC123"
+                    value={userCode}
+                  />
+                </label>
+                <div className="text-xs leading-5 text-ink-tertiary">
+                  Use the code shown by the paxl process you started.
+                </div>
               </div>
-            </div>
+            )}
 
             {approve.error && (
               <div className="border border-warning/30 bg-warning/10 p-3 text-xs leading-5 text-ink-muted">
@@ -177,7 +214,7 @@ function PaxlLoginShell({
 
           <div className="border-t border-hairline px-5 py-4 text-xs leading-5 text-ink-tertiary">
             <div>
-              This code is consumed once paxl receives its local credential.
+              Only the paxl process you started can complete this login.
             </div>
           </div>
         </aside>

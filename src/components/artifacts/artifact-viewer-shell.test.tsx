@@ -4,6 +4,7 @@ import "@testing-library/jest-dom/vitest";
 import Link from "next/link";
 import {
   cleanup,
+  act,
   fireEvent,
   render,
   screen,
@@ -46,6 +47,246 @@ afterEach(() => {
 });
 
 describe("ArtifactViewerShell", () => {
+  it.each([
+    { standalone: false, sourceType: "session_artifact" as const },
+    { standalone: true, sourceType: "session_artifact" as const },
+    { standalone: false, sourceType: "publication" as const },
+    { standalone: true, sourceType: "publication" as const },
+  ])(
+    "keeps $sourceType downloads in the current browser context (standalone=$standalone)",
+    ({ standalone, sourceType }) => {
+      const collection =
+        sourceType === "session_artifact"
+          ? "artifacts"
+          : "artifact-publications";
+      const downloadHref = `/api/pax/api/v1/user/self/${collection}/artifact_1/content/main?disposition=attachment&redirect=true`;
+      render(
+        <TooltipProvider>
+          <ArtifactViewerShell
+            artifact={{ ...artifact, sourceType, downloadHref }}
+            standalone={standalone}
+          />
+        </TooltipProvider>,
+      );
+
+      const download = screen.getByRole("link", { name: "Download" });
+      expect(download).toHaveAttribute("href", downloadHref);
+      expect(download).toHaveAttribute("download");
+      expect(download).toHaveAttribute("target", "_self");
+      expect(download).toHaveAttribute("rel", "noreferrer");
+    },
+  );
+  it("starts as a compact file card without an empty preview region", () => {
+    render(
+      <TooltipProvider>
+        <ArtifactViewerShell artifact={artifact} loadPreview={vi.fn()} />
+      </TooltipProvider>,
+    );
+
+    expect(screen.getByRole("button", { name: "Preview" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(
+      screen.queryByRole("region", { name: "Artifact preview" }),
+    ).toBeNull();
+    expect(screen.queryByText(/Select Preview to load/)).toBeNull();
+    expect(screen.queryByText("builtin:json")).toBeNull();
+  });
+
+  it("collapses and resumes the same content and scroll position without fetching again", async () => {
+    const loadPreview = vi.fn(async () => ({
+      url: "https://signed.example/result.json",
+    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response('{"value":42}')),
+    );
+    render(
+      <TooltipProvider>
+        <ArtifactViewerShell artifact={artifact} loadPreview={loadPreview} />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    await screen.findByText("42");
+    const region = screen.getByRole("region", { name: "Artifact preview" });
+    region.scrollTop = 140;
+    fireEvent.scroll(region);
+    fireEvent.click(screen.getByRole("button", { name: "Collapse preview" }));
+    expect(region).not.toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Expand preview" }),
+    ).toHaveFocus();
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand preview" }));
+    expect(screen.getByRole("region", { name: "Artifact preview" })).toBe(
+      region,
+    );
+    expect(region.scrollTop).toBe(140);
+    expect(loadPreview).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes a pending preview and ignores its late descriptor", async () => {
+    let resolvePreview!: (value: { url: string }) => void;
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <TooltipProvider>
+        <ArtifactViewerShell
+          artifact={artifact}
+          loadPreview={() =>
+            new Promise((resolve) => {
+              resolvePreview = resolve;
+            })
+          }
+        />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close preview" }));
+    await act(async () =>
+      resolvePreview({ url: "https://signed.example/late" }),
+    );
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("region", { name: "Artifact preview" }),
+    ).toBeNull();
+    expect(screen.getByRole("button", { name: "Preview" })).toBeEnabled();
+  });
+
+  it("does not reopen when automatic loading was scheduled before closing", () => {
+    let scheduled!: FrameRequestCallback;
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      scheduled = callback;
+      return 1;
+    });
+    vi.spyOn(window, "cancelAnimationFrame").mockImplementation(
+      () => undefined,
+    );
+    const loadPreview = vi.fn();
+    render(
+      <TooltipProvider>
+        <ArtifactViewerShell
+          artifact={artifact}
+          autoLoad
+          loadPreview={loadPreview}
+        />
+      </TooltipProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Close preview" }));
+    act(() => scheduled(0));
+    expect(loadPreview).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Preview" })).toBeVisible();
+  });
+
+  it("does not create a blob URL when an image response finishes after closing", async () => {
+    let resolveResponse!: (response: Response) => void;
+    const fetchMock = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveResponse = resolve;
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const createURL = vi.spyOn(URL, "createObjectURL");
+    render(
+      <TooltipProvider>
+        <ArtifactViewerShell
+          artifact={{
+            ...artifact,
+            contentType: "image/png",
+            filename: "result.png",
+          }}
+          loadPreview={async () => ({ url: "https://signed.example/png" })}
+        />
+      </TooltipProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "Close preview" }));
+    await act(async () => resolveResponse(new Response(new Uint8Array([1]))));
+    expect(createURL).not.toHaveBeenCalled();
+    expect(screen.queryByRole("img")).toBeNull();
+  });
+
+  it("expands only one preview per session while retaining the other content", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response('{"value":42}')),
+    );
+    const loadPreview = vi.fn(async () => ({
+      url: "https://signed.example/json",
+    }));
+    render(
+      <TooltipProvider>
+        {["First", "Second", "Other session"].map((title, index) => (
+          <ArtifactViewerShell
+            key={title}
+            artifact={{ ...artifact, id: title, title }}
+            loadPreview={loadPreview}
+            previewScope={index < 2 ? "session-1" : "session-2"}
+          />
+        ))}
+      </TooltipProvider>,
+    );
+    const first = within(screen.getByLabelText("Artifact viewer: First"));
+    const second = within(screen.getByLabelText("Artifact viewer: Second"));
+    const other = within(
+      screen.getByLabelText("Artifact viewer: Other session"),
+    );
+    fireEvent.click(first.getByRole("button", { name: "Preview" }));
+    await first.findByText("42");
+    fireEvent.click(other.getByRole("button", { name: "Preview" }));
+    await other.findByText("42");
+    fireEvent.click(second.getByRole("button", { name: "Preview" }));
+    await second.findByText("42");
+
+    expect(
+      first.queryByRole("region", { name: "Artifact preview" }),
+    ).toBeNull();
+    expect(
+      other.getByRole("region", { name: "Artifact preview" }),
+    ).toBeVisible();
+    fireEvent.click(first.getByRole("button", { name: "Expand preview" }));
+    expect(
+      first.getByRole("region", { name: "Artifact preview" }),
+    ).toBeVisible();
+    expect(
+      second.queryByRole("region", { name: "Artifact preview" }),
+    ).toBeNull();
+    expect(loadPreview).toHaveBeenCalledTimes(3);
+  });
+
+  it("keeps Escape scoped to the focused inline preview", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response('{"value":42}')),
+    );
+    render(
+      <TooltipProvider>
+        <ArtifactViewerShell
+          artifact={artifact}
+          loadPreview={async () => ({ url: "https://signed.example/json" })}
+        />
+      </TooltipProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    await screen.findByText("42");
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(
+      screen.getByRole("region", { name: "Artifact preview" }),
+    ).toBeVisible();
+    fireEvent.keyDown(screen.getByRole("button", { name: "Close preview" }), {
+      key: "Escape",
+    });
+    expect(
+      screen.queryByRole("region", { name: "Artifact preview" }),
+    ).toBeNull();
+  });
+
   it("loads text previews through the resolved structured renderer", async () => {
     const fetchMock = vi.fn(async () => {
       return new Response('{"hello":"world"}', {
@@ -247,13 +488,22 @@ describe("ArtifactViewerShell", () => {
     expect(within(menu).queryByText("result.json")).not.toBeInTheDocument();
   });
 
-  it("opens and closes the host-owned fullscreen dialog", () => {
+  it("opens and closes the fullscreen dialog without closing the inline preview", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response('{"value":42}')),
+    );
     render(
       <TooltipProvider>
-        <ArtifactViewerShell artifact={artifact} />
+        <ArtifactViewerShell
+          artifact={artifact}
+          loadPreview={async () => ({ url: "https://signed.example/json" })}
+        />
       </TooltipProvider>,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    await screen.findByText("42");
     fireEvent.click(
       screen.getByRole("button", { name: "Open artifact fullscreen" }),
     );
@@ -261,8 +511,11 @@ describe("ArtifactViewerShell", () => {
       screen.getByRole("dialog", { name: "Artifact viewer: Result" }),
     ).toBeInTheDocument();
 
-    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "Artifact preview" }),
+    ).toBeVisible();
   });
 
   it("loads URL previews into a blob URL and revokes each object URL", async () => {
@@ -333,6 +586,213 @@ describe("ArtifactViewerShell", () => {
 
     unmount();
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:pax-preview-2");
+  });
+
+  it("shows image dimensions, retains zoom across collapse and fullscreen, and restores fit", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(new Uint8Array([1]), {
+            headers: { "content-type": "application/octet-stream" },
+          }),
+      ),
+    );
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:generic-png");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    const loadPreview = vi.fn(async () => ({
+      contentType: "application/octet-stream",
+      previewKind: "download" as const,
+      url: "https://signed.example/result.png?signature=secret",
+    }));
+    render(
+      <TooltipProvider>
+        <ArtifactViewerShell
+          artifact={{
+            ...artifact,
+            filename: "result.png",
+            contentType: "application/octet-stream",
+          }}
+          loadPreview={loadPreview}
+        />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    const image = await screen.findByRole("img", { name: "Result" });
+    Object.defineProperties(image, {
+      naturalWidth: { value: 1600 },
+      naturalHeight: { value: 1000 },
+    });
+    fireEvent.load(image);
+    expect(screen.getByText("1600 × 1000")).toBeVisible();
+    expect(image).toHaveClass("max-h-full", "max-w-full");
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    expect(image).toHaveStyle({ width: "2000px", height: "1250px" });
+    fireEvent.click(screen.getByRole("button", { name: "Collapse preview" }));
+    fireEvent.click(screen.getByRole("button", { name: "Expand preview" }));
+    expect(screen.getByRole("img")).toBe(image);
+    expect(
+      screen.getByRole("button", { name: "Show image at actual size" }),
+    ).toHaveTextContent("125%");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open artifact fullscreen" }),
+    );
+    expect(screen.getByRole("img")).toHaveStyle({ width: "2000px" });
+    fireEvent.keyDown(
+      screen.getByRole("button", { name: "Show image at actual size" }),
+      { key: "Escape" },
+    );
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Show image at actual size" }),
+    ).toHaveTextContent("125%");
+    fireEvent.click(screen.getByRole("button", { name: "Fit image" }));
+    expect(screen.getByRole("img")).toHaveClass("max-h-full", "max-w-full");
+    expect(loadPreview).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers retry and download when an image cannot be decoded", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(new Uint8Array([1]))),
+    );
+    vi.spyOn(URL, "createObjectURL")
+      .mockReturnValueOnce("blob:broken")
+      .mockReturnValueOnce("blob:retry");
+    const revoke = vi
+      .spyOn(URL, "revokeObjectURL")
+      .mockImplementation(() => undefined);
+    const loadPreview = vi.fn(async () => ({
+      contentType: "image/png",
+      url: "https://signed.example/png",
+    }));
+    render(
+      <TooltipProvider>
+        <ArtifactViewerShell
+          artifact={{
+            ...artifact,
+            contentType: "image/png",
+            filename: "result.png",
+          }}
+          loadPreview={loadPreview}
+        />
+      </TooltipProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    fireEvent.error(await screen.findByRole("img"));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "This image could not be displayed",
+    );
+    expect(screen.getByRole("link", { name: "Download" })).toHaveAttribute(
+      "href",
+      "/download",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Retry preview" }));
+    expect(await screen.findByRole("img")).toHaveAttribute("src", "blob:retry");
+    expect(revoke).toHaveBeenCalledWith("blob:broken");
+    expect(loadPreview).toHaveBeenCalledTimes(2);
+  });
+
+  it("releases a closed image, leaves its card, and fetches a fresh preview on reopen", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(new Uint8Array([1]))),
+    );
+    vi.spyOn(URL, "createObjectURL")
+      .mockReturnValueOnce("blob:first")
+      .mockReturnValueOnce("blob:second");
+    const revoke = vi
+      .spyOn(URL, "revokeObjectURL")
+      .mockImplementation(() => undefined);
+    const loadPreview = vi.fn(async () => ({
+      contentType: "image/png",
+      url: "https://signed.example/png",
+    }));
+    render(
+      <TooltipProvider>
+        <ArtifactViewerShell
+          artifact={{
+            ...artifact,
+            contentType: "image/png",
+            filename: "result.png",
+          }}
+          autoLoad
+          loadPreview={loadPreview}
+        />
+      </TooltipProvider>,
+    );
+    await screen.findByRole("img");
+    fireEvent.click(screen.getByRole("button", { name: "Close preview" }));
+    expect(revoke).toHaveBeenCalledWith("blob:first");
+    expect(screen.queryByRole("img")).toBeNull();
+    expect(screen.getByRole("button", { name: "Preview" })).toHaveFocus();
+    expect(loadPreview).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    expect(await screen.findByRole("img")).toHaveAttribute(
+      "src",
+      "blob:second",
+    );
+  });
+
+  it("resets preview content when its artifact identity changes", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response('{"value":42}')),
+    );
+    const loadPreview = vi.fn(async () => ({
+      url: "https://signed.example/json",
+    }));
+    const { rerender } = render(
+      <TooltipProvider>
+        <ArtifactViewerShell artifact={artifact} loadPreview={loadPreview} />
+      </TooltipProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    await screen.findByText("42");
+    rerender(
+      <TooltipProvider>
+        <ArtifactViewerShell
+          artifact={{ ...artifact, id: "another", title: "Another" }}
+          loadPreview={loadPreview}
+        />
+      </TooltipProvider>,
+    );
+    expect(screen.queryByText("42")).toBeNull();
+    expect(screen.getByRole("button", { name: "Preview" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+
+  it("clears a previous session's preview when its scope changes", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response('{"value":42}')),
+    );
+    const loadPreview = async () => ({ url: "https://signed.example/json" });
+    const { rerender } = render(
+      <TooltipProvider>
+        <ArtifactViewerShell
+          artifact={artifact}
+          loadPreview={loadPreview}
+          previewScope="session-1"
+        />
+      </TooltipProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    await screen.findByText("42");
+    rerender(
+      <TooltipProvider>
+        <ArtifactViewerShell
+          artifact={artifact}
+          loadPreview={loadPreview}
+          previewScope="session-2"
+        />
+      </TooltipProvider>,
+    );
+    expect(screen.queryByText("42")).toBeNull();
+    expect(screen.getByRole("button", { name: "Preview" })).toBeVisible();
   });
 
   it.each([

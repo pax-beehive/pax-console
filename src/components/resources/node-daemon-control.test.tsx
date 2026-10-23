@@ -59,7 +59,15 @@ beforeEach(() => {
       const body = init?.body ? JSON.parse(String(init.body)) : undefined;
       requests.push({ path, method, body });
       let data;
-      if (method === "PATCH") {
+      if (method === "DELETE") {
+        const id = path.split("/").at(-1);
+        connections = connections.map((item) =>
+          item.id === id
+            ? { ...item, enabled: false, desired_state: "deleted" }
+            : item,
+        );
+        data = { command_id: "command_remove", command_status: "received" };
+      } else if (method === "PATCH") {
         if (patchError)
           return Response.json(
             { message: "Node unavailable" },
@@ -126,7 +134,7 @@ describe("agent-scoped runtime settings", () => {
       screen.queryByRole("button", { name: "Discover" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "New agent" }),
+      screen.queryByRole("button", { name: "Advanced setup" }),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("Harness inventory")).not.toBeInTheDocument();
 
@@ -167,8 +175,57 @@ describe("agent-scoped runtime settings", () => {
     expect(await screen.findByText("Other agent")).toBeVisible();
     expect(screen.getByText("Current agent")).toBeVisible();
     expect(screen.getByRole("button", { name: "Discover" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "New agent" })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Advanced setup" }),
+    ).toBeVisible();
     expect(screen.getByText("Harness inventory")).toBeVisible();
+  });
+
+  it("hides deleted history while retaining stopped connections", async () => {
+    connections = [
+      {
+        ...connection,
+        id: "deleted",
+        name: "Deleted history",
+        desired_state: "deleted",
+        enabled: false,
+      },
+      {
+        ...connection,
+        id: "stopped",
+        name: "Stopped connection",
+        desired_state: "stopped",
+        enabled: false,
+      },
+    ];
+    renderControl();
+    expect(await screen.findByText("Stopped connection")).toBeVisible();
+    expect(screen.queryByText("Deleted history")).not.toBeInTheDocument();
+    expect(screen.getByText("1 connections")).toBeVisible();
+  });
+
+  it("confirms removal and finishes when paxd retains a deleted history row", async () => {
+    const user = userEvent.setup();
+    renderControl("agent_current");
+    await user.click(
+      await screen.findByRole("button", { name: "Remove daemon connection" }),
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Remove daemon connection?" }),
+    ).toBeVisible();
+    expect(
+      requests.filter((request) => request.method === "DELETE"),
+    ).toHaveLength(0);
+    await user.click(screen.getByRole("button", { name: "Remove connection" }));
+    expect(
+      await screen.findByText("runtime removed", {}, { timeout: 3000 }),
+    ).toBeVisible();
+    expect(screen.queryByText("Current agent")).not.toBeInTheDocument();
+    expect(requests.filter((request) => request.method === "DELETE")).toEqual([
+      expect.objectContaining({
+        path: expect.stringContaining("/agent-connections/conn_current"),
+      }),
+    ]);
   });
 
   it("blocks invalid slots and keeps the form editable after a failed save", async () => {

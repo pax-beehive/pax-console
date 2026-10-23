@@ -37,13 +37,17 @@ export function useBrowserPairing(userId: string, agentId: string) {
 
   const restore = useCallback(async (): Promise<PairingFlowState> => {
     if (await loadRootKey(agentId)) return { phase: "ready" };
-    const candidates = (await listPendingPairings(agentId)).sort(
-      (a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt),
-    );
+    const candidates = (await listPendingPairings(agentId))
+      .filter((p) => !p.shortCode || p.shortCode.ownerUserId === userId)
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
     let ended: BrowserPairingState | undefined;
     for (const candidate of candidates) {
       const result = await inspectBrowserPairing(userId, candidate);
-      if (result.phase !== "expired" && result.phase !== "superseded")
+      if (
+        !(
+          ["expired", "superseded", "cancelled", "rejected"] as string[]
+        ).includes(result.phase)
+      )
         return result;
       ended ??= result;
     }
@@ -124,13 +128,13 @@ export function useBrowserPairing(userId: string, agentId: string) {
     };
   }, [agentId, userId, state]);
 
-  async function start(deviceName: string) {
+  async function start(deviceName: string, shortCode = false) {
     if (!agentId || starting.current?.agentId === agentId) return;
     const current = ++operation.current;
     starting.current = { agentId, operation: current };
     setStartingAgent(agentId);
     try {
-      await beginBrowserPairing(userId, agentId, deviceName);
+      await beginBrowserPairing(userId, agentId, deviceName, 1, shortCode);
       const value = await restore();
       if (current === operation.current) setStored({ agentId, value });
     } catch (error) {

@@ -49,6 +49,27 @@ describe("artifact document renderer registry", () => {
     ).toBe("builtin:pdf");
   });
 
+  it.each(["image/png", "application/octet-stream", undefined])(
+    "previews a raster image when generic download metadata masks its %s type",
+    (contentType) => {
+      expect(
+        resolveArtifactRenderer(
+          { filename: "result.png", contentType },
+          { previewKind: "download", contentType },
+        ).kind,
+      ).toBe("image");
+    },
+  );
+
+  it("prefers the declared MIME type when a filename has a misleading raster suffix", () => {
+    expect(
+      resolveArtifactRenderer(
+        { contentType: "application/json", filename: "misleading.png" },
+        { previewKind: "download" },
+      ).kind,
+    ).toBe("json");
+  });
+
   it.each([
     ["image/png", "asset.bin", "builtin:image"],
     ["application/pdf", "asset.bin", "builtin:pdf"],

@@ -1,11 +1,11 @@
 "use client";
 
 import { Slot, Slottable } from "@radix-ui/react-slot";
-import { ComponentPropsWithoutRef, ReactNode } from "react";
+import { ComponentPropsWithRef, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Tooltip } from "./tooltip";
 
-type ButtonProps = ComponentPropsWithoutRef<"button"> & {
+type ButtonProps = ComponentPropsWithRef<"button"> & {
   asChild?: boolean;
   icon?: ReactNode;
   size?: "sm" | "md" | "icon";

@@ -2,6 +2,7 @@
 
 import {
   Activity,
+  Bell,
   FolderTree,
   KeyRound,
   Server,
@@ -9,6 +10,9 @@ import {
   ShieldCheck,
   TerminalSquare,
 } from "lucide-react";
+import { useDesktopSettings } from "./use-desktop-settings";
+import { NotificationSettings } from "./notification-settings";
+import { ResourcePageClient } from "@/components/resources/resource-page-client";
 import { AuthGate } from "@/features/auth/auth-gate";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import { useAgents, useHealth, useNodes } from "@/features/api/resources";
@@ -22,89 +26,104 @@ import {
 } from "./settings-navigation";
 
 export function SettingsPage({ advanced = false }: { advanced?: boolean }) {
+  const desktop = useDesktopSettings();
   return (
     <AuthGate>
-      {(user) => (
-        <ConsoleLayout user={user}>
-          <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">
-            <div className="mx-auto grid max-w-2xl gap-6">
-              <header>
-                {advanced && <SettingsBack />}
-                <h1 className="text-2xl font-semibold">
-                  {advanced ? "Advanced settings" : "Settings"}
-                </h1>
-                <p className="mt-2 text-sm text-ink-tertiary">
-                  {advanced
-                    ? "Permissions and developer tools. Most people can leave these settings as they are."
-                    : "Manage your devices, projects, and service health."}
-                </p>
-              </header>
-              {advanced ? (
-                <>
-                  <SettingsGroup>
-                    <SettingsLink
-                      href={settingsLinks.permissions}
-                      icon={ShieldCheck}
-                      title="Allowed actions"
-                      description="Review or revoke permissions previously given to agents."
-                    />
-                    <SettingsLink
-                      href={settingsLinks.encryption}
-                      icon={ShieldCheck}
-                      title="Encrypted chats"
-                      description="Give this browser or another device access to encrypted chats."
-                    />
-                  </SettingsGroup>
-                  <SettingsGroup>
-                    <SettingsLink
-                      href={settingsLinks.apiKeys}
-                      icon={KeyRound}
-                      title="API keys"
-                      description="Connect scripts and other apps to PAX."
-                    />
-                    <SettingsLink
-                      href={settingsLinks.registration}
-                      icon={TerminalSquare}
-                      title="Manual device registration"
-                      description="Create a registration token for custom installation workflows."
-                    />
-                  </SettingsGroup>
-                  <p className="text-xs text-ink-tertiary">
-                    Device versions, runtime information, browser audit, and
-                    maintenance tools live in each device&apos;s details.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <SettingsGroup>
-                    <SettingsLink
-                      href={settingsLinks.devices}
-                      icon={Server}
-                      title="Devices"
-                      description="Connect computers or servers and manage their agents."
-                    />
-                    <SettingsLink
-                      href={settingsLinks.projects}
-                      icon={FolderTree}
-                      title="Projects"
-                      description="Organize projects and their working folders."
-                    />
-                  </SettingsGroup>
-                  <HomeHealth user={user} />
-                  <SettingsGroup>
-                    <SettingsLink
-                      href={settingsLinks.advanced}
-                      icon={Settings2}
-                      title="Advanced settings"
-                      description="Permissions, encrypted access, and developer tools."
-                    />
-                  </SettingsGroup>
-                </>
-              )}
-            </div>
-          </div>
-        </ConsoleLayout>
-      )}
+      {(user) =>
+        desktop && advanced ? (
+          <ResourcePageClient kind="grants" user={user} />
+        ) : (
+          <ConsoleLayout user={user}>
+            {desktop ? (
+              <NotificationSettings userId={user.user_id} />
+            ) : (
+              <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6 lg:hidden">
+                <div className="mx-auto grid max-w-2xl gap-6">
+                  <header>
+                    {advanced && <SettingsBack />}
+                    <h1 className="text-2xl font-semibold">
+                      {advanced ? "Advanced settings" : "Settings"}
+                    </h1>
+                    <p className="mt-2 text-sm text-ink-tertiary">
+                      {advanced
+                        ? "Permissions and developer tools. Most people can leave these settings as they are."
+                        : "Manage your devices, projects, and service health."}
+                    </p>
+                  </header>
+                  {advanced ? (
+                    <>
+                      <SettingsGroup>
+                        <SettingsLink
+                          href={settingsLinks.permissions}
+                          icon={ShieldCheck}
+                          title="Allowed actions"
+                          description="Review or revoke permissions previously given to agents."
+                        />
+                        <SettingsLink
+                          href={settingsLinks.encryption}
+                          icon={ShieldCheck}
+                          title="Encrypted chats"
+                          description="Give this browser or another device access to encrypted chats."
+                        />
+                      </SettingsGroup>
+                      <SettingsGroup>
+                        <SettingsLink
+                          href={settingsLinks.apiKeys}
+                          icon={KeyRound}
+                          title="API keys"
+                          description="Connect scripts and other apps to PAX."
+                        />
+                        <SettingsLink
+                          href={settingsLinks.registration}
+                          icon={TerminalSquare}
+                          title="Manual device registration"
+                          description="Create a registration token for custom installation workflows."
+                        />
+                      </SettingsGroup>
+                      <p className="text-xs text-ink-tertiary">
+                        Device versions, runtime information, browser audit, and
+                        maintenance tools live in each device&apos;s details.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <SettingsGroup>
+                        <SettingsLink
+                          href={settingsLinks.notifications}
+                          icon={Bell}
+                          title="Notifications"
+                          description="Enable push notifications and test this device."
+                        />
+                        <SettingsLink
+                          href={settingsLinks.devices}
+                          icon={Server}
+                          title="Devices"
+                          description="Connect computers or servers and manage their agents."
+                        />
+                        <SettingsLink
+                          href={settingsLinks.projects}
+                          icon={FolderTree}
+                          title="Projects"
+                          description="Organize projects and their working folders."
+                        />
+                      </SettingsGroup>
+                      <HomeHealth user={user} />
+                      <SettingsGroup>
+                        <SettingsLink
+                          href={settingsLinks.advanced}
+                          icon={Settings2}
+                          title="Advanced settings"
+                          description="Permissions, encrypted access, and developer tools."
+                        />
+                      </SettingsGroup>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+          </ConsoleLayout>
+        )
+      }
     </AuthGate>
   );
 }

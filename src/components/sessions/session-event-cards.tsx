@@ -24,22 +24,15 @@ import {
   ThumbsUp,
   X,
 } from "lucide-react";
-import {
-  artifactDocumentFromPublication,
-  artifactPreviewPageHref,
-} from "@/components/artifacts/artifact-document";
-import { ArtifactViewerShell } from "@/components/artifacts/artifact-viewer-shell";
+import { PublicationArtifactViewer } from "@/components/artifacts/publication-artifact-viewer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { LocalFileLink } from "@/components/ui/local-file-link";
 import { MarkdownMessage } from "@/components/ui/markdown-message";
 import { PaxLogo } from "@/components/ui/pax-logo";
 import { MonoId, TruncatedText } from "@/components/ui/text";
-import {
-  artifactPublicationContentDownloadHref,
-  getArtifactPublicationContent,
-  useArtifactPublication,
-} from "@/features/api/resources";
 import { AgentOwnerInfo } from "@/features/api/types";
+import { isAbsoluteLocalPath } from "@/features/local-files/local-file-href";
 import {
   PermissionDecision,
   permissionRequestCodePatches,
@@ -586,62 +579,12 @@ function ArtifactPublicationCard({
   event: Extract<SessionEvent, { type: "artifact_publication" }>;
   userId?: string;
 }) {
-  const publicationQuery = useArtifactPublication(userId, event.publicationId);
-  const artifact = artifactDocumentFromPublication({
-    contentRef: event.contentRef,
-    downloadHref: userId
-      ? artifactPublicationContentDownloadHref(
-          userId,
-          event.publicationId,
-          event.contentRef,
-        )
-      : undefined,
-    fallbackTitle: event.publicationId,
-    publicationId: event.publicationId,
-    state: publicationQuery.data,
-  });
-
-  const loadPreview = useCallback(async () => {
-    if (!userId) {
-      throw new Error("Sign in to preview this artifact.");
-    }
-
-    const data = await getArtifactPublicationContent(
-      userId,
-      event.publicationId,
-      event.contentRef,
-      { disposition: "inline" },
-    );
-    if (data.status !== "available" || !data.url) {
-      throw new Error(
-        data.status === "failed"
-          ? data.publication.error_message || "Artifact preview failed."
-          : "Artifact preview is not ready yet.",
-      );
-    }
-
-    return {
-      contentType: data.content?.content_type,
-      filename: data.content?.filename,
-      previewKind: data.preview_kind,
-      url: data.url,
-    };
-  }, [event.contentRef, event.publicationId, userId]);
-
   return (
-    <ArtifactViewerShell
-      artifact={artifact}
-      error={
-        publicationQuery.error instanceof Error
-          ? publicationQuery.error
-          : undefined
-      }
-      loadPreview={userId ? loadPreview : undefined}
-      viewerHref={artifactPreviewPageHref(
-        "publication",
-        event.publicationId,
-        event.contentRef,
-      )}
+    <PublicationArtifactViewer
+      contentRef={event.contentRef}
+      publicationId={event.publicationId}
+      previewScope={JSON.stringify([userId, event.sessionId])}
+      userId={userId}
     />
   );
 }
@@ -1210,6 +1153,8 @@ function ToolEventRow({
   userId?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const inputLocalPath = toolInputLocalPath(event.input);
+  const inputPreview = compactToolInputPreview(event.input);
   const approvedDecisions = event.permissions
     ?.map((permission) =>
       permissionDecisionForPermission(permission, permissionDecision),
@@ -1265,13 +1210,21 @@ function ToolEventRow({
           >
             {event.name}
           </TruncatedText>
-          {compactToolInputPreview(event.input) && (
-            <TruncatedText
-              className="mt-1 font-mono text-xs text-ink-tertiary"
-              tooltip={compactToolInputPreview(event.input)}
-            >
-              {compactToolInputPreview(event.input)}
-            </TruncatedText>
+          {inputLocalPath ? (
+            <LocalFileLink
+              className="mt-1 flex min-w-0 items-center font-mono text-xs"
+              href={inputLocalPath}
+              textClassName="min-w-0 truncate"
+            />
+          ) : (
+            inputPreview && (
+              <TruncatedText
+                className="mt-1 font-mono text-xs text-ink-tertiary"
+                tooltip={inputPreview}
+              >
+                {inputPreview}
+              </TruncatedText>
+            )
           )}
         </span>
         <div className="flex shrink-0 items-center gap-1.5">
@@ -1416,12 +1369,20 @@ function ToolEvidencePatchList({ patches }: { patches: CodePatch[] }) {
               key={codePatchKey(patch)}
             >
               <div className="flex min-w-0 items-center justify-between gap-2">
-                <TruncatedText
-                  className="font-mono text-xs text-ink"
-                  tooltip={title}
-                >
-                  {title}
-                </TruncatedText>
+                {patch.path && isAbsoluteLocalPath(patch.path) ? (
+                  <LocalFileLink
+                    className="flex min-w-0 items-center font-mono text-xs"
+                    href={patch.path}
+                    textClassName="min-w-0 truncate"
+                  />
+                ) : (
+                  <TruncatedText
+                    className="font-mono text-xs text-ink"
+                    tooltip={title}
+                  >
+                    {title}
+                  </TruncatedText>
+                )}
                 <PatchStatsView
                   className="shrink-0 font-mono text-xs"
                   summary={patchStatsSummary([patch], stats)}
@@ -1629,12 +1590,20 @@ function PatchSidePanel({
       >
         <header className="flex min-h-14 items-center justify-between gap-3 border-b border-hairline px-4">
           <div className="min-w-0">
-            <TruncatedText
-              className="font-mono text-sm font-medium text-ink"
-              tooltip={title}
-            >
-              {title}
-            </TruncatedText>
+            {patch.path && isAbsoluteLocalPath(patch.path) ? (
+              <LocalFileLink
+                className="flex min-w-0 items-center font-mono text-sm font-medium"
+                href={patch.path}
+                textClassName="min-w-0 truncate"
+              />
+            ) : (
+              <TruncatedText
+                className="font-mono text-sm font-medium text-ink"
+                tooltip={title}
+              >
+                {title}
+              </TruncatedText>
+            )}
             <div className="mt-1 flex items-center gap-3 text-xs">
               <PatchStatsView
                 className="font-mono"
@@ -2522,6 +2491,25 @@ function compactToolInputPreview(value: unknown) {
 
   const compact = text.replace(/\s+/g, " ").trim();
   return compact.length > 160 ? `${compact.slice(0, 157)}...` : compact;
+}
+
+// File tools (Read/Edit/Write) carry only a path; show it as a copyable,
+// fetchable LocalFileLink when it is absolute on the agent's machine.
+function toolInputLocalPath(value: unknown) {
+  if (textFromPayload(value) !== undefined) {
+    return undefined;
+  }
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+  const record = value as Record<string, unknown>;
+  for (const key of ["path", "filePath", "file_path"]) {
+    const candidate = record[key];
+    if (typeof candidate === "string" && candidate.trim()) {
+      return isAbsoluteLocalPath(candidate) ? candidate.trim() : undefined;
+    }
+  }
+  return undefined;
 }
 
 function toolInputIdentifier(value: unknown) {
