@@ -40,7 +40,7 @@ const agents: Agent[] = [
   {
     agent_id: "agent_2",
     name: "Claude",
-    node_id: "node_2",
+    node_id: "node_1",
     online: false,
   },
 ];
@@ -137,7 +137,7 @@ describe("ProjectSettingsDetail", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("creates another target for the same project", async () => {
+  it("creates a target with the same directory for another agent on the same node", async () => {
     mocks.createProjectTarget.mockResolvedValue({
       target: {
         ...mocks.useProjectTargets().data.targets[1],
@@ -160,7 +160,7 @@ describe("ProjectSettingsDetail", () => {
     );
     await userEvent.type(
       screen.getByRole("textbox", { name: "Target workspace" }),
-      "~/pax-manager-review",
+      "~/pax-manager",
     );
     await userEvent.click(
       screen.getByRole("checkbox", { name: "Make default" }),
@@ -175,7 +175,7 @@ describe("ProjectSettingsDetail", () => {
         "project_2",
         {
           agent_id: "agent_2",
-          cwd: "~/pax-manager-review",
+          cwd: "~/pax-manager",
           display_name: "Review workspace",
           enabled: true,
           is_default: true,

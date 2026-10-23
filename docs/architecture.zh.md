@@ -2062,3 +2062,17 @@ Console 从普通 session 查询的 `metadata.origin` 读取 `kind=cronjob`、`c
 来源 run 是创建该会话的第一次执行；reuse 模式的后续运行不会改写它。
 paxd 先持久化消息，再经现有 E2EE 历史与实时事件通道同步，离线补登记后会出现在普通会话列表。
 当前仅提供来源展示，任务管理使用 `paxl cron`。
+
+Projects settings can include archived projects through Include archived. The
+settings page and breadcrumb load the inclusive project list so archived project
+links remain readable. Archived projects show a badge and disable project and
+workspace-target mutations. Home continues to request active projects only;
+project archive does not cascade to children, targets, or sessions. Project
+archive and session archive are independent. The API currently has no project
+restore operation.
+
+Home workspace selection also offers enabled targets from other agents in the
+same project on the selected agent's device. Deduplicate these paths against
+current-agent targets and each other. Reuse is explicit, preserves the selected
+agent, and passes only the directory, never the source agent's target ID. Reuse
+does not implicitly save a new target or change the default workspace.

@@ -94,6 +94,35 @@ describe("ProjectRail", () => {
     expect(onSelectProject).toHaveBeenCalledWith("project_2");
   });
 
+  it("includes archived projects on request and keeps them selectable without edit actions", async () => {
+    const archived = { ...projects[0], archived_at: "2026-10-23T12:00:00Z" };
+    mocks.useProjects.mockImplementation((_userId, includeArchived) => ({
+      data: {
+        projects: includeArchived ? [archived, projects[1]] : [projects[1]],
+      },
+      error: null,
+      isLoading: false,
+    }));
+    const select = vi.fn();
+    renderRail(select);
+    expect(screen.queryByText("Pax")).not.toBeInTheDocument();
+    expect(screen.getByText("Manager")).toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole("checkbox", { name: "Include archived" }),
+    );
+    expect(mocks.useProjects).toHaveBeenLastCalledWith("user_1", true);
+    expect(screen.getByText("Archived")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Pax\s*Archived/ }));
+    expect(select).toHaveBeenCalledWith("project_1");
+    expect(
+      screen.queryByRole("button", { name: "Actions for Pax" }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole("checkbox", { name: "Include archived" }),
+    );
+    expect(screen.queryByText("Pax")).not.toBeInTheDocument();
+  });
+
   it("creates a project under an existing parent", async () => {
     const onSelectProject = vi.fn();
     const createdProject: Project = {

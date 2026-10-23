@@ -2279,3 +2279,17 @@ Deploy Manager support before enabling tasks in updated paxd, then update Consol
 for provenance display. Offline execution can appear after registration and
 history synchronization recover. No browser scheduler or cron management page
 is introduced; use `paxl cron` for task management.
+
+Projects settings can include archived projects through Include archived. The
+settings page and breadcrumb load the inclusive project list so archived project
+links remain readable. Archived projects show a badge and disable project and
+workspace-target mutations. Home continues to request active projects only;
+project archive does not cascade to children, targets, or sessions. Project
+archive and session archive are independent. The API currently has no project
+restore operation.
+
+Home workspace selection also offers enabled targets from other agents in the
+same project on the selected agent's device. Deduplicate these paths against
+current-agent targets and each other. Reuse is explicit, preserves the selected
+agent, and passes only the directory, never the source agent's target ID. Reuse
+does not implicitly save a new target or change the default workspace.

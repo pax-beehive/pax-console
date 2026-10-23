@@ -20,7 +20,7 @@ import { ProjectSettingsRail } from "./project-settings-rail";
 export function ProjectSettingsPage({ user }: { user: User }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const projectsQuery = useProjects(user.user_id);
+  const projectsQuery = useProjects(user.user_id, true);
   const nodesQuery = useNodes(user.user_id);
   const agentsQuery = useAgents(user.user_id);
   const projects = useMemo(

@@ -1452,6 +1452,54 @@ describe("FleetOverview session rail", () => {
     );
   });
 
+  it("reuses another agent's workspace on the same device without changing agents or target ownership", async () => {
+    mocks.listAgents.mockResolvedValue({
+      agents: [
+        {
+          agent_id: "agent_1",
+          name: "Pi agent",
+          node_id: "node_1",
+          online: true,
+        },
+        {
+          agent_id: "agent_2",
+          name: "Second agent",
+          node_id: "node_1",
+          online: true,
+        },
+      ],
+    });
+    renderOverview();
+    await userEvent.selectOptions(
+      await screen.findByRole("combobox", { name: "Project" }),
+      "project_1",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Pi agent" }));
+    await userEvent.click(screen.getByRole("button", { name: "Second agent" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Choose workspace" }),
+    );
+    expect(screen.getByText("From other agents on this device")).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: /~\/pax\s*Pi agent/ }),
+    );
+    await userEvent.type(
+      screen.getByPlaceholderText("Ask an agent to do something"),
+      "Reuse workspace",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Start session" }),
+    );
+    const workbench = await screen.findByTestId("session-workbench");
+    expect(workbench).toHaveAttribute("data-agent-id", "agent_2");
+    expect(workbench).toHaveAttribute("data-initial-cwd", "~/pax");
+    expect(workbench).not.toHaveAttribute("data-project-target-id");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Assign native session" }),
+    );
+    expect(mocks.createProjectTarget).not.toHaveBeenCalled();
+  });
+
   it("clears the workspace for an unbound agent and offers the configured agent", async () => {
     mocks.listAgents.mockResolvedValue({
       agents: [

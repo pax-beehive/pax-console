@@ -14,6 +14,7 @@ type Target = { target_id: string; cwd: string; is_default?: boolean };
 export function WorkspacePicker({
   value,
   targets,
+  reusableTargets = [],
   save,
   canSave,
   disabled,
@@ -22,6 +23,7 @@ export function WorkspacePicker({
 }: {
   value: string;
   targets: Target[];
+  reusableTargets?: (Target & { sourceLabel: string })[];
   save: boolean;
   canSave: boolean;
   disabled?: boolean;
@@ -30,7 +32,7 @@ export function WorkspacePicker({
 }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"saved" | "path">(
-    targets.length ? "saved" : "path",
+    targets.length || reusableTargets.length ? "saved" : "path",
   );
   const [path, setPath] = useState(value);
   const [saveTarget, setSaveTarget] = useState(save);
@@ -41,7 +43,7 @@ export function WorkspacePicker({
       onOpenChange={(next) => {
         setOpen(next);
         if (next) {
-          setTab(targets.length ? "saved" : "path");
+          setTab(targets.length || reusableTargets.length ? "saved" : "path");
           setPath(value);
           setSaveTarget(save);
         }
@@ -120,7 +122,36 @@ export function WorkspacePicker({
                 {target.cwd === value && <Check className="h-4 w-4 shrink-0" />}
               </Button>
             ))}
-            {!targets.length && (
+            {reusableTargets.length > 0 && (
+              <>
+                <p className="mt-2 border-t border-hairline px-2 pt-3 text-xs text-ink-tertiary">
+                  From other agents on this device
+                </p>
+                {reusableTargets.map((target) => (
+                  <Button
+                    key={target.target_id}
+                    type="button"
+                    variant="ghost"
+                    className="h-auto min-h-10 justify-start text-left"
+                    onClick={() => {
+                      onChange(target.cwd, false);
+                      setOpen(false);
+                    }}
+                  >
+                    <span className="min-w-0 flex-1 break-all text-xs">
+                      <span className="font-mono">{target.cwd}</span>
+                      <span className="ml-2 text-ink-tertiary">
+                        {target.sourceLabel}
+                      </span>
+                    </span>
+                    {target.cwd === value && (
+                      <Check className="h-4 w-4 shrink-0" />
+                    )}
+                  </Button>
+                ))}
+              </>
+            )}
+            {!targets.length && !reusableTargets.length && (
               <p className="p-2 text-sm text-ink-tertiary">
                 No saved workspaces for this project and agent.
               </p>
