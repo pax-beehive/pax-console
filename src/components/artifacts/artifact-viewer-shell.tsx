@@ -1,29 +1,34 @@
 "use client";
 
-import Image from "next/image";
+import * as Dialog from "@radix-ui/react-dialog";
 import Link from "next/link";
 import {
   CSSProperties,
+  Dispatch,
   ReactNode,
+  SetStateAction,
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
 } from "react";
-import { createPortal } from "react-dom";
 import {
+  ChevronDown,
   Download,
   ExternalLink,
   FileDown,
   FileText,
   Link2,
+  Image as ImageIcon,
   LoaderCircle,
   Maximize2,
   Minimize2,
   Minus,
   MoreHorizontal,
   Plus,
+  RefreshCw,
   X,
 } from "lucide-react";
 import {
@@ -32,12 +37,18 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MarkdownMessage } from "@/components/ui/markdown-message";
 import { TruncatedText } from "@/components/ui/text";
 import { LocalFileLinkContext } from "@/features/local-files/local-file-link-context";
 import { cn } from "@/lib/utils";
 import { compactDate } from "@/lib/format";
+import { useArtifactPreviewStore } from "@/stores/artifact-preview-store";
+import {
+  ArtifactImagePreview,
+  type ArtifactImageState,
+} from "./artifact-image-preview";
 import {
   ArtifactDocument,
   ArtifactPreviewDescriptor,
@@ -65,18 +76,33 @@ type ArtifactViewerShellProps = {
   className?: string;
   error?: Error | null;
   loadPreview?: () => Promise<ArtifactPreviewDescriptor>;
+  previewScope?: string;
   standalone?: boolean;
   navigation?: ReactNode;
   viewerHref?: string;
 };
 
-export function ArtifactViewerShell({
+export function ArtifactViewerShell(props: ArtifactViewerShellProps) {
+  return (
+    <ArtifactViewer
+      key={JSON.stringify([
+        props.artifact.sourceType,
+        props.artifact.id,
+        props.previewScope,
+      ])}
+      {...props}
+    />
+  );
+}
+
+function ArtifactViewer({
   allowFullscreen = true,
   artifact,
   autoLoad = false,
   className,
   error: sourceError,
   loadPreview,
+  previewScope,
   standalone = false,
   navigation,
   viewerHref,
@@ -89,6 +115,26 @@ export function ArtifactViewerShell({
   const copyMessageTimeoutRef = useRef<
     ReturnType<typeof setTimeout> | undefined
   >(undefined);
+  const [visibility, setVisibility] = useState<"closed" | "open" | "collapsed">(
+    autoLoad || standalone ? "open" : "closed",
+  );
+  const [imageState, setImageState] = useState<ArtifactImageState>({});
+  const viewerId = useId();
+  const bodyId = useId();
+  const shellRef = useRef<HTMLElement>(null);
+  const previewButtonRef = useRef<HTMLButtonElement>(null);
+  const fullscreenButtonRef = useRef<HTMLButtonElement>(null);
+  const scrollRef = useRef({ top: 0, left: 0 });
+  const restoreFocusRef = useRef(false);
+  const scope = standalone ? undefined : previewScope;
+  const activeViewer = useArtifactPreviewStore((state) =>
+    scope ? state.activeByScope[scope] : undefined,
+  );
+  const activate = useArtifactPreviewStore((state) => state.activate);
+  const release = useArtifactPreviewStore((state) => state.release);
+  const expanded =
+    visibility === "open" && (!scope || activeViewer === viewerId);
+  const isFullscreen = fullscreen && expanded;
   const autoLoadedArtifactRef = useRef<string | undefined>(undefined);
   const previewObjectUrlRef = useRef<string | undefined>(undefined);
   const previewRequestRef = useRef(0);
@@ -137,33 +183,45 @@ export function ArtifactViewerShell({
   }, [revokePreviewObjectUrl]);
 
   useEffect(() => {
-    previewRequestRef.current += 1;
-    clearPreviewObjectUrl();
     return () => {
       previewRequestRef.current += 1;
       clearPreviewObjectUrl();
-    };
-  }, [artifact.id, clearPreviewObjectUrl]);
-
-  useEffect(() => {
-    if (!fullscreen) {
-      return;
-    }
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setFullscreen(false);
+      if (scope) {
+        release(scope, viewerId);
       }
     };
-    window.addEventListener("keydown", onKeyDown);
+  }, [clearPreviewObjectUrl, release, scope, viewerId]);
 
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [fullscreen]);
+  useEffect(() => {
+    if (visibility !== "open" && restoreFocusRef.current) {
+      restoreFocusRef.current = false;
+      previewButtonRef.current?.focus();
+    }
+  }, [visibility]);
+
+  const openPreview = useCallback(() => {
+    setVisibility("open");
+    if (scope) {
+      activate(scope, viewerId);
+    }
+  }, [activate, scope, viewerId]);
+
+  const closePreview = useCallback(() => {
+    autoLoadedArtifactRef.current = artifact.id;
+    previewRequestRef.current += 1;
+    clearPreviewObjectUrl();
+    setPreview(undefined);
+    setPreviewError(null);
+    setPreviewPending(false);
+    setImageState({});
+    setFullscreen(false);
+    setVisibility("closed");
+    scrollRef.current = { top: 0, left: 0 };
+    restoreFocusRef.current = true;
+    if (scope) {
+      release(scope, viewerId);
+    }
+  }, [artifact.id, clearPreviewObjectUrl, release, scope, viewerId]);
 
   const handlePreview = useCallback(async () => {
     if (!loadPreview) {
@@ -171,11 +229,17 @@ export function ArtifactViewerShell({
     }
 
     const requestId = ++previewRequestRef.current;
+    autoLoadedArtifactRef.current = artifact.id;
+    openPreview();
     setPreviewPending(true);
     setPreviewError(null);
+    setImageState({});
     try {
       assertUrlPreviewWithinBudget(artifact, resolveArtifactRenderer(artifact));
       const descriptor = await loadPreview();
+      if (requestId !== previewRequestRef.current) {
+        return;
+      }
       const resolved = resolveArtifactRenderer(artifact, descriptor);
       assertUrlPreviewWithinBudget(artifact, resolved);
       if (resolved.dataSource === "text" && descriptor.url) {
@@ -237,7 +301,13 @@ export function ArtifactViewerShell({
         setPreviewPending(false);
       }
     }
-  }, [artifact, clearPreviewObjectUrl, loadPreview, revokePreviewObjectUrl]);
+  }, [
+    artifact,
+    clearPreviewObjectUrl,
+    loadPreview,
+    openPreview,
+    revokePreviewObjectUrl,
+  ]);
 
   useEffect(() => {
     if (
@@ -249,49 +319,47 @@ export function ArtifactViewerShell({
       return;
     }
 
-    autoLoadedArtifactRef.current = artifact.id;
     const frame = window.requestAnimationFrame(() => {
-      void handlePreview();
+      if (autoLoadedArtifactRef.current !== artifact.id) {
+        void handlePreview();
+      }
     });
     return () => window.cancelAnimationFrame(frame);
   }, [artifact.id, artifact.status, autoLoad, handlePreview, loadPreview]);
 
   const shell = (
     <section
+      ref={shellRef}
       aria-label={`Artifact viewer: ${title}`}
       className={cn(
         "flex min-w-0 flex-col overflow-hidden rounded-lg border border-hairline bg-surface-1",
-        fullscreen
+        isFullscreen
           ? "h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] shadow-2xl"
-          : standalone
+          : standalone && expanded
             ? "h-full max-h-none"
             : "max-h-[42rem]",
         className,
       )}
-      role={fullscreen ? "dialog" : undefined}
+      onKeyDown={(event) => {
+        if (
+          event.key === "Escape" &&
+          expanded &&
+          (isFullscreen || !standalone)
+        ) {
+          event.stopPropagation();
+          if (isFullscreen) {
+            setFullscreen(false);
+          } else {
+            closePreview();
+          }
+        }
+      }}
     >
-      {!standalone && (
-        <div className="flex min-w-0 items-start gap-3 border-b border-hairline px-3 py-2.5">
-          <FileText className="mt-0.5 h-4 w-4 shrink-0 text-ink-tertiary" />
-          <div className="min-w-0 flex-1">
-            <TruncatedText className="text-sm font-medium text-ink">
-              {artifact.title}
-            </TruncatedText>
-            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-tertiary">
-              {artifact.filename && (
-                <TruncatedText tooltip={artifact.filename}>
-                  {artifact.filename}
-                </TruncatedText>
-              )}
-              {artifact.sizeBytes ? (
-                <span>{formatArtifactBytes(artifact.sizeBytes)}</span>
-              ) : null}
-              <span className="font-mono">{renderer.id}</span>
-            </div>
-          </div>
-        </div>
+      {isFullscreen && (
+        <Dialog.Title className="sr-only">
+          Artifact viewer: {artifact.title}
+        </Dialog.Title>
       )}
-
       {standalone ? (
         <header className="flex min-w-0 shrink-0 items-center gap-1 border-b border-hairline px-2 py-2 sm:gap-3 sm:px-3">
           {navigation && <div className="shrink-0">{navigation}</div>}
@@ -405,92 +473,192 @@ export function ArtifactViewerShell({
           </DropdownMenu>
         </header>
       ) : (
-        <div className="flex min-w-0 flex-wrap items-center gap-1 border-b border-hairline px-2 py-1.5">
-          <Button
-            disabled={
-              !loadPreview ||
-              previewPending ||
-              !isArtifactAvailable(artifact.status)
-            }
-            icon={
-              previewPending ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-              ) : (
-                <FileText className="h-4 w-4" />
-              )
-            }
-            onClick={() => void handlePreview()}
-            size="sm"
-            type="button"
-            variant="secondary"
-          >
-            {preview ? "Refresh" : "Preview"}
-          </Button>
-          {viewerHref && (
-            <Button asChild size="sm" variant="secondary">
-              <Link href={viewerHref}>
-                <ExternalLink className="h-4 w-4" />
-                <span className="min-w-0 truncate">Open page</span>
-              </Link>
-            </Button>
+        <div
+          className={cn(
+            "flex min-w-0 flex-wrap items-center gap-2 px-3 py-2",
+            expanded && "border-b border-hairline",
           )}
-          {artifact.downloadHref && (
-            <Button asChild size="sm" variant="ghost">
-              <a
-                href={artifact.downloadHref}
-                download
-                rel="noreferrer"
-                target="_self"
+        >
+          {renderer.kind === "image" ? (
+            <ImageIcon className="h-4 w-4 shrink-0 text-ink-tertiary" />
+          ) : (
+            <FileText className="h-4 w-4 shrink-0 text-ink-tertiary" />
+          )}
+          <div className="min-w-0 flex-1 basis-24">
+            <TruncatedText className="text-sm font-medium text-ink">
+              {artifact.title}
+            </TruncatedText>
+            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-tertiary">
+              {artifact.filename && artifact.filename !== artifact.title && (
+                <TruncatedText tooltip={artifact.filename}>
+                  {artifact.filename}
+                </TruncatedText>
+              )}
+              {artifact.sizeBytes ? (
+                <span>{formatArtifactBytes(artifact.sizeBytes)}</span>
+              ) : null}
+            </div>
+          </div>
+          {artifact.status !== "available" && (
+            <Badge tone={artifact.status === "failed" ? "warning" : "neutral"}>
+              {artifact.status}
+            </Badge>
+          )}
+          <div className="flex max-w-full flex-wrap items-center gap-1">
+            {!expanded ? (
+              <Button
+                aria-controls={bodyId}
+                aria-expanded={false}
+                aria-label={
+                  visibility === "closed" ? "Preview" : "Expand preview"
+                }
+                disabled={
+                  !loadPreview ||
+                  (visibility === "closed" && previewPending) ||
+                  !isArtifactAvailable(artifact.status)
+                }
+                icon={
+                  previewPending ? (
+                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileText className="h-4 w-4" />
+                  )
+                }
+                onClick={() => {
+                  if (visibility !== "closed") {
+                    setFullscreen(false);
+                    openPreview();
+                  } else {
+                    void handlePreview();
+                  }
+                }}
+                ref={previewButtonRef}
+                size="sm"
+                type="button"
+                variant={visibility === "closed" ? "primary" : "secondary"}
               >
-                <Download className="h-4 w-4" />
-                <span className="min-w-0 truncate">Download</span>
-              </a>
-            </Button>
-          )}
-          {preview?.url && (
-            <Button asChild size="sm" variant="ghost">
-              <a href={preview.url} rel="noreferrer" target="_blank">
-                <ExternalLink className="h-4 w-4" />
-                <span className="min-w-0 truncate">Open file</span>
-              </a>
-            </Button>
-          )}
-          <div className="min-w-0 flex-1" />
-          {allowFullscreen && (
-            <Button
-              aria-label={
-                fullscreen
-                  ? "Exit artifact fullscreen"
-                  : "Open artifact fullscreen"
-              }
-              icon={
-                fullscreen ? (
-                  <Minimize2 className="h-4 w-4" />
-                ) : (
-                  <Maximize2 className="h-4 w-4" />
-                )
-              }
-              onClick={() => setFullscreen((current) => !current)}
-              size="icon"
-              tooltip={fullscreen ? "Exit fullscreen" : "Open fullscreen"}
-              type="button"
-              variant="ghost"
-            />
-          )}
-          {fullscreen && (
-            <Button
-              aria-label="Close artifact fullscreen"
-              icon={<X className="h-4 w-4" />}
-              onClick={() => setFullscreen(false)}
-              size="icon"
-              tooltip="Close fullscreen"
-              type="button"
-              variant="ghost"
-            />
-          )}
+                {visibility === "closed" ? "Preview" : "Expand"}
+              </Button>
+            ) : (
+              <>
+                <Button
+                  aria-label={
+                    previewError || imageState.failed
+                      ? "Retry preview"
+                      : "Refresh"
+                  }
+                  disabled={
+                    !loadPreview ||
+                    previewPending ||
+                    !isArtifactAvailable(artifact.status)
+                  }
+                  icon={
+                    previewPending ? (
+                      <LoaderCircle className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )
+                  }
+                  onClick={() => void handlePreview()}
+                  size="icon"
+                  tooltip={
+                    previewError || imageState.failed
+                      ? "Retry preview"
+                      : "Refresh"
+                  }
+                  type="button"
+                  variant="ghost"
+                />
+              </>
+            )}
+            {viewerHref && (
+              <Button asChild size="icon" tooltip="Open page" variant="ghost">
+                <Link aria-label="Open page" href={viewerHref}>
+                  <ExternalLink className="h-4 w-4" />
+                </Link>
+              </Button>
+            )}
+            {artifact.downloadHref && (
+              <Button asChild size="icon" tooltip="Download" variant="ghost">
+                <a
+                  aria-label="Download"
+                  href={artifact.downloadHref}
+                  download
+                  rel="noreferrer"
+                  target="_self"
+                >
+                  <Download className="h-4 w-4" />
+                </a>
+              </Button>
+            )}
+            {expanded && preview?.url && (
+              <Button asChild size="icon" tooltip="Open file" variant="ghost">
+                <a
+                  aria-label="Open file"
+                  href={preview.url}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              </Button>
+            )}
+            {expanded && allowFullscreen && (
+              <Button
+                aria-label={
+                  isFullscreen
+                    ? "Exit artifact fullscreen"
+                    : "Open artifact fullscreen"
+                }
+                icon={
+                  isFullscreen ? (
+                    <Minimize2 className="h-4 w-4" />
+                  ) : (
+                    <Maximize2 className="h-4 w-4" />
+                  )
+                }
+                onClick={() => setFullscreen(!isFullscreen)}
+                ref={fullscreenButtonRef}
+                size="icon"
+                tooltip={isFullscreen ? "Exit fullscreen" : "Open fullscreen"}
+                type="button"
+                variant="ghost"
+              />
+            )}
+            {visibility !== "closed" && !standalone && (
+              <>
+                {expanded && (
+                  <Button
+                    aria-controls={bodyId}
+                    aria-expanded={true}
+                    aria-label="Collapse preview"
+                    icon={<ChevronDown className="h-4 w-4" />}
+                    onClick={() => {
+                      restoreFocusRef.current = true;
+                      setVisibility("collapsed");
+                      setFullscreen(false);
+                      if (scope) release(scope, viewerId);
+                    }}
+                    size="icon"
+                    tooltip="Collapse preview"
+                    type="button"
+                    variant="ghost"
+                  />
+                )}
+                <Button
+                  aria-label="Close preview"
+                  icon={<X className="h-4 w-4" />}
+                  onClick={closePreview}
+                  size="icon"
+                  tooltip="Close preview"
+                  type="button"
+                  variant="ghost"
+                />
+              </>
+            )}
+          </div>
         </div>
       )}
-
       {standalone && copyMessage && (
         <div
           role="status"
@@ -500,29 +668,77 @@ export function ArtifactViewerShell({
         </div>
       )}
 
-      <div className="min-h-0 flex-1 overflow-auto bg-canvas">
-        <ArtifactViewerBody
-          artifact={artifact}
-          error={previewError ?? sourceError}
-          pending={previewPending}
-          preview={preview}
-          rendererKind={renderer.kind}
-          standalone={standalone}
-        />
-      </div>
+      {visibility !== "closed" && (
+        <div
+          aria-label="Artifact preview"
+          className="min-h-0 flex-1 overflow-auto bg-canvas"
+          hidden={!expanded}
+          id={bodyId}
+          onScroll={(event) => {
+            scrollRef.current = {
+              top: event.currentTarget.scrollTop,
+              left: event.currentTarget.scrollLeft,
+            };
+          }}
+          ref={(element) => {
+            if (element) {
+              element.scrollTop = scrollRef.current.top;
+              element.scrollLeft = scrollRef.current.left;
+            }
+          }}
+          role="region"
+        >
+          <ArtifactViewerBody
+            artifact={artifact}
+            error={previewError ?? sourceError}
+            pending={previewPending}
+            preview={preview}
+            rendererKind={renderer.kind}
+            standalone={standalone || isFullscreen}
+            imageState={imageState}
+            onImageChange={setImageState}
+          />
+        </div>
+      )}
+      {visibility === "closed" &&
+        (sourceError || artifact.status === "failed") && (
+          <p className="px-3 pb-2 text-xs text-warning" role="alert">
+            {sourceError?.message ??
+              artifact.statusMessage ??
+              "Artifact publication failed."}
+          </p>
+        )}
     </section>
   );
 
-  if (fullscreen && typeof document !== "undefined") {
-    return createPortal(
-      <div className="fixed inset-0 z-[100] grid place-items-center bg-black/80 p-4 backdrop-blur-sm">
-        {shell}
-      </div>,
-      document.body,
-    );
-  }
-
-  return shell;
+  return (
+    <Dialog.Root open={isFullscreen} onOpenChange={setFullscreen}>
+      {isFullscreen ? (
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm" />
+          <Dialog.Content
+            aria-describedby={undefined}
+            asChild
+            className="fixed left-1/2 top-1/2 z-[100] -translate-x-1/2 -translate-y-1/2"
+            onOpenAutoFocus={(event) => {
+              event.preventDefault();
+              shellRef.current?.focus();
+            }}
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              window.requestAnimationFrame(() =>
+                fullscreenButtonRef.current?.focus(),
+              );
+            }}
+          >
+            {shell}
+          </Dialog.Content>
+        </Dialog.Portal>
+      ) : (
+        shell
+      )}
+    </Dialog.Root>
+  );
 }
 
 function ArtifactViewerBody({
@@ -532,6 +748,8 @@ function ArtifactViewerBody({
   preview,
   rendererKind,
   standalone,
+  imageState,
+  onImageChange,
 }: {
   artifact: ArtifactDocument;
   error?: Error | null;
@@ -539,6 +757,8 @@ function ArtifactViewerBody({
   preview?: LoadedArtifactPreview;
   rendererKind: DocumentRendererKind;
   standalone: boolean;
+  imageState: ArtifactImageState;
+  onImageChange: Dispatch<SetStateAction<ArtifactImageState>>;
 }) {
   if (pending || artifact.status === "loading") {
     return (
@@ -584,6 +804,8 @@ function ArtifactViewerBody({
         kind={rendererKind}
         preview={preview}
         standalone={standalone}
+        imageState={imageState}
+        onImageChange={onImageChange}
       />
     </div>
   );
@@ -594,30 +816,25 @@ function DocumentRenderer({
   kind,
   preview,
   standalone,
+  imageState,
+  onImageChange,
 }: {
   artifact: ArtifactDocument;
   kind: DocumentRendererKind;
   preview: LoadedArtifactPreview;
   standalone: boolean;
+  imageState: ArtifactImageState;
+  onImageChange: Dispatch<SetStateAction<ArtifactImageState>>;
 }) {
   if (kind === "image" && preview.url) {
     return (
-      <div
-        className={cn(
-          "relative min-h-80 w-full bg-[linear-gradient(45deg,#111_25%,transparent_25%),linear-gradient(-45deg,#111_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#111_75%),linear-gradient(-45deg,transparent_75%,#111_75%)] bg-[length:20px_20px] bg-[position:0_0,0_10px,10px_-10px,-10px_0px]",
-          standalone && "h-full min-h-[calc(100dvh-13rem)]",
-        )}
-      >
-        <Image
-          alt={artifact.title}
-          className="object-contain p-3"
-          fill
-          referrerPolicy="no-referrer"
-          sizes="(max-width: 1024px) 100vw, 960px"
-          src={preview.url}
-          unoptimized
-        />
-      </div>
+      <ArtifactImagePreview
+        fillHeight={standalone}
+        onChange={onImageChange}
+        src={preview.url}
+        state={imageState}
+        title={artifact.title}
+      />
     );
   }
   if (kind === "pdf" && preview.url) {
@@ -1019,7 +1236,12 @@ function useStoredNumber(
 ) {
   const [value, setValue] = useState(fallback);
   useEffect(() => {
-    const stored = Number(window.localStorage.getItem(key));
+    let stored: number;
+    try {
+      stored = Number(window.localStorage?.getItem(key));
+    } catch {
+      return;
+    }
     if (Number.isFinite(stored) && stored >= min && stored <= max) {
       const frame = window.requestAnimationFrame(() => setValue(stored));
       return () => window.cancelAnimationFrame(frame);
@@ -1030,7 +1252,11 @@ function useStoredNumber(
     (next: number) => {
       const clamped = Math.min(max, Math.max(min, Number(next.toFixed(2))));
       setValue(clamped);
-      window.localStorage.setItem(key, String(clamped));
+      try {
+        window.localStorage?.setItem(key, String(clamped));
+      } catch {
+        // Reader controls also work when browser storage is unavailable.
+      }
     },
     [key, max, min],
   );

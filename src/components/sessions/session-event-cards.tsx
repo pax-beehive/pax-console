@@ -583,6 +583,7 @@ function ArtifactPublicationCard({
     <PublicationArtifactViewer
       contentRef={event.contentRef}
       publicationId={event.publicationId}
+      previewScope={JSON.stringify([userId, event.sessionId])}
       userId={userId}
     />
   );

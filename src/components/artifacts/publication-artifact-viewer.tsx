@@ -19,6 +19,7 @@ type PublicationArtifactViewerProps = {
   contentRef?: string;
   fallbackTitle?: string;
   publicationId: string;
+  previewScope?: string;
   userId?: string;
 };
 
@@ -30,6 +31,7 @@ export function PublicationArtifactViewer({
   contentRef = "main",
   fallbackTitle,
   publicationId,
+  previewScope,
   userId,
 }: PublicationArtifactViewerProps) {
   const publicationQuery = useArtifactPublication(userId, publicationId);
@@ -86,6 +88,7 @@ export function PublicationArtifactViewer({
           : undefined
       }
       loadPreview={userId ? loadPreview : undefined}
+      previewScope={previewScope}
       viewerHref={artifactPreviewPageHref(
         "publication",
         publicationId,

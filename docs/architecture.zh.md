@@ -507,6 +507,13 @@ src/components/artifacts/
   content API，避免新窗口导航触发 Android App 链接接管；保留 noreferrer、
   attachment disposition 与签名存储重定向。Worker 来源校验和 Manager
   文件归属校验继续生效。Android Chrome 与已安装 TWA 均需验证下载。
+  内嵌 viewer 默认只显示紧凑文件行；Collapse 隐藏已挂载内容，保留阅读位置和
+  图片缩放；Close 使在途请求失效并释放 object URL，保留可重新 Preview 的文件行。
+  Zustand artifact-preview-store 只保存 [user_id, session_id] 范围内当前展开的
+  viewer instance，协调 timeline 与侧栏同一时间只展开一份预览，不保存内容或 URL。
+  Fullscreen 使用 Radix dialog；Esc 退出全屏，内嵌预览内的 Esc 关闭该预览。
+  图片支持完整适应、原尺寸缩放、像素尺寸和解码失败重试；沿用通用 download
+  元数据的 MIME/文件名 fallback、blob 预览预算和 HTML sandbox 隔离。
 
 src/components/sessions/
   Session workbench。把 REST 历史消息和 WebSocket live events 合成时间线。

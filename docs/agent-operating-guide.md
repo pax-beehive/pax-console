@@ -1144,6 +1144,18 @@ AuthGate-protected full-width preview at
 `/artifacts/files/[artifactId]?ref=...`; those pages reuse the same renderer,
 auto-load a short-lived URL, and do not expose public artifact links.
 
+Embedded artifact viewers initially show only a compact file row. Collapse hides
+the mounted content and preserves scroll/zoom; Close invalidates pending work,
+revokes its object URL, and leaves a Preview action on the file row. A shared
+Zustand `artifact-preview-store` holds only the active viewer instance per
+`[user_id, session_id]` scope, so timeline and side-panel viewers expand one at
+a time. Content and URLs remain local to the viewer. Fullscreen uses a Radix
+dialog; Escape exits fullscreen, while Escape inside an inline viewer closes
+that preview. Standalone pages keep their existing automatic loading and Back
+navigation. Image previews support fit, original-size zoom, dimensions, and
+retry on decode failure. Keep the existing MIME/filename fallback for generic
+download metadata, blob preview limits, and sandboxed HTML isolation.
+
 Contiguous thought/progress and tool calls use the same collapsed activity row
 from the first event. An explicit streaming thought displays `Thinking…`;
 recognized running tools use concise actions such as `Reading files…` or
