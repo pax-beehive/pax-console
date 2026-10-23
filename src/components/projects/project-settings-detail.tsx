@@ -45,7 +45,7 @@ export function ProjectSettingsDetail({
 }: ProjectSettingsDetailProps) {
   const queryClient = useQueryClient();
   const projectQuery = useProject(userId, projectId);
-  const projectsQuery = useProjects(userId);
+  const projectsQuery = useProjects(userId, true);
   const targetsQuery = useProjectTargets(userId, projectId);
   const [editor, setEditor] = useState<TargetEditorState | null>(null);
   const project = projectQuery.data?.project;
@@ -106,6 +106,7 @@ export function ProjectSettingsDetail({
           <h1 className="mt-2 text-2xl font-semibold text-ink">
             {project.display_name}
           </h1>
+          {project.archived_at && <Badge tone="neutral">Archived</Badge>}
           <div className="mt-2 text-sm text-ink-tertiary">
             {path.map((item) => item.display_name).join(" / ")}
           </div>
@@ -125,6 +126,7 @@ export function ProjectSettingsDetail({
               </p>
             </div>
             <Button
+              disabled={Boolean(project.archived_at)}
               icon={<FolderPlus className="h-4 w-4" />}
               onClick={() => setEditor({ mode: "create" })}
               type="button"
@@ -207,6 +209,7 @@ export function ProjectSettingsDetail({
                     </div>
                     <div className="mt-4 flex flex-wrap gap-2">
                       <Button
+                        disabled={Boolean(project.archived_at)}
                         aria-label={`Edit ${target.display_name}`}
                         icon={<Pencil className="h-3.5 w-3.5" />}
                         onClick={() => setEditor({ mode: "edit", target })}
@@ -219,7 +222,10 @@ export function ProjectSettingsDetail({
                       {target.enabled && !target.is_default && (
                         <Button
                           aria-label={`Make ${target.display_name} default`}
-                          disabled={quickUpdate.isPending}
+                          disabled={
+                            quickUpdate.isPending ||
+                            Boolean(project.archived_at)
+                          }
                           icon={<Star className="h-3.5 w-3.5" />}
                           onClick={() =>
                             quickUpdate.mutate({
@@ -236,7 +242,9 @@ export function ProjectSettingsDetail({
                       )}
                       <Button
                         aria-label={`${target.enabled ? "Disable" : "Enable"} ${target.display_name}`}
-                        disabled={quickUpdate.isPending}
+                        disabled={
+                          quickUpdate.isPending || Boolean(project.archived_at)
+                        }
                         icon={
                           target.enabled ? (
                             <CircleOff className="h-3.5 w-3.5" />

@@ -12,6 +12,7 @@ import {
   Pencil,
   Plus,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
@@ -53,7 +54,8 @@ export function ProjectSettingsRail({
   userId,
 }: ProjectSettingsRailProps) {
   const queryClient = useQueryClient();
-  const projectsQuery = useProjects(userId);
+  const [includeArchived, setIncludeArchived] = useState(false);
+  const projectsQuery = useProjects(userId, includeArchived);
   const projects = useMemo(
     () => projectsQuery.data?.projects ?? [],
     [projectsQuery.data?.projects],
@@ -86,7 +88,7 @@ export function ProjectSettingsRail({
     <div className="grid">
       <div className="flex items-center justify-between gap-2 border-b border-hairline px-3 py-2">
         <span className="text-xs text-ink-tertiary">
-          {projects.length} active
+          {projects.filter((project) => !project.archived_at).length} active
         </span>
         <Button
           icon={<FolderPlus className="h-3.5 w-3.5" />}
@@ -100,6 +102,21 @@ export function ProjectSettingsRail({
         </Button>
       </div>
 
+      <label className="flex items-center gap-2 border-b border-hairline px-3 py-2 text-xs text-ink-muted">
+        <input
+          checked={includeArchived}
+          onChange={(event) => setIncludeArchived(event.target.checked)}
+          type="checkbox"
+        />
+        Include archived
+      </label>
+
+      {archive.error && (
+        <div className="p-3">
+          <InlineError error={archive.error} />
+        </div>
+      )}
+
       {editor && (
         <ProjectEditor
           editor={editor}
@@ -109,7 +126,7 @@ export function ProjectSettingsRail({
             invalidateProjects();
             onSelectProject(project.project_id);
           }}
-          projects={projects}
+          projects={projects.filter((project) => !project.archived_at)}
           userId={userId}
         />
       )}
@@ -144,7 +161,9 @@ export function ProjectSettingsRail({
         description={
           <>
             Archive <strong>{archiveCandidate?.display_name}</strong>? Child
-            projects and existing sessions will remain available.
+            projects and existing sessions will remain available. This project
+            will be hidden from Home project choices. You can view it using
+            Include archived.
           </>
         }
         disabled={archive.isPending}
@@ -308,30 +327,33 @@ function ProjectTreeRow({
           )}
           <Folder className="h-4 w-4 shrink-0 text-accent-bright" />
           <span className="truncate text-sm">{node.project.display_name}</span>
+          {node.project.archived_at && <Badge tone="neutral">Archived</Badge>}
         </button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              aria-label={`Actions for ${node.project.display_name}`}
-              className="opacity-100 lg:opacity-70 lg:group-hover:opacity-100"
-              icon={<MoreHorizontal className="h-4 w-4" />}
-              size="icon"
-              tooltip="Project actions"
-              type="button"
-              variant="ghost"
-            />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuItem onSelect={() => onEdit(node.project)}>
-              <Pencil className="h-4 w-4" />
-              Edit project
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => onArchive(node.project)}>
-              <Archive className="h-4 w-4" />
-              Archive project
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {!node.project.archived_at && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                aria-label={`Actions for ${node.project.display_name}`}
+                className="opacity-100 lg:opacity-70 lg:group-hover:opacity-100"
+                icon={<MoreHorizontal className="h-4 w-4" />}
+                size="icon"
+                tooltip="Project actions"
+                type="button"
+                variant="ghost"
+              />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onSelect={() => onEdit(node.project)}>
+                <Pencil className="h-4 w-4" />
+                Edit project
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onArchive(node.project)}>
+                <Archive className="h-4 w-4" />
+                Archive project
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
       {node.children.map((child) => (
         <ProjectTreeRow

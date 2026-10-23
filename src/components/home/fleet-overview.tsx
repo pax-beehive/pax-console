@@ -424,6 +424,35 @@ export function FleetOverview({ user }: FleetOverviewProps) {
         : [],
     [selectedProjectId, enabledProjectTargets, activeAgent?.agent_id],
   );
+  const reusableProjectTargets = useMemo(() => {
+    if (!selectedProjectId || !activeAgent?.node_id) return [];
+    const knownPaths = new Set(
+      suggestedProjectTargets.map((target) => target.cwd),
+    );
+    return enabledProjectTargets.flatMap((target) => {
+      const source = agents.find((agent) => agent.agent_id === target.agent_id);
+      if (
+        !source ||
+        source.agent_id === activeAgent.agent_id ||
+        source.node_id !== activeAgent.node_id ||
+        knownPaths.has(target.cwd)
+      )
+        return [];
+      knownPaths.add(target.cwd);
+      return [
+        {
+          ...target,
+          sourceLabel: source.name || source.agent_type || source.agent_id,
+        },
+      ];
+    });
+  }, [
+    selectedProjectId,
+    activeAgent,
+    suggestedProjectTargets,
+    enabledProjectTargets,
+    agents,
+  ]);
   const defaultWorkspace =
     suggestedProjectTargets.find((target) => target.is_default) ??
     (suggestedProjectTargets.length === 1
@@ -1066,6 +1095,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                     disabled={!activeAgent}
                     canSave={Boolean(selectedProjectId)}
                     targets={suggestedProjectTargets}
+                    reusableTargets={reusableProjectTargets}
                     save={
                       workspaceDraft?.key === workspaceKey &&
                       Boolean(workspaceDraft.save)
