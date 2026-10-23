@@ -272,7 +272,20 @@ function kindFromFilename(value?: string): DocumentRendererKind | undefined {
   }
 
   const extensions: [string[], DocumentRendererKind][] = [
-    [[".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".svg"], "image"],
+    [
+      [
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".webp",
+        ".avif",
+        ".bmp",
+        ".ico",
+        ".svg",
+      ],
+      "image",
+    ],
     [[".pdf"], "pdf"],
     [[".html", ".htm"], "html"],
     [[".md", ".markdown", ".mdx"], "markdown"],

@@ -2206,6 +2206,7 @@ export function SessionWorkbench({
         icon: <FileText className="h-4 w-4" />,
         content: (
           <SessionArtifactsPanel
+            previewScope={JSON.stringify([user.user_id, currentSessionId])}
             artifacts={activeArtifacts}
             downloadHref={(artifact, ref) =>
               artifactContentDownloadHref(
