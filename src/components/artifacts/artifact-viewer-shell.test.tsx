@@ -17,6 +17,17 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ARTIFACT_PREVIEW_BUDGET } from "./artifact-preview-data";
 import { ArtifactViewerShell } from "./artifact-viewer-shell";
 
+vi.mock("mermaid", () => ({
+  default: {
+    initialize: vi.fn(),
+    render: vi.fn(async (_id: string, source: string) => {
+      if (source === "invalid diagram")
+        throw new Error("Invalid Mermaid syntax");
+      return { svg: '<svg data-testid="mermaid-artifact"></svg>' };
+    }),
+  },
+}));
+
 const artifact = {
   id: "artifact_1",
   sourceType: "session_artifact" as const,
@@ -286,6 +297,50 @@ describe("ArtifactViewerShell", () => {
       screen.queryByRole("region", { name: "Artifact preview" }),
     ).toBeNull();
   });
+
+  it.each([false, true])(
+    "previews mmd artifacts and handles invalid syntax (%s)",
+    async (invalid) => {
+      const source = invalid ? "invalid diagram" : "flowchart LR\n  A --> B";
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => new Response(source)),
+      );
+      render(
+        <TooltipProvider>
+          <ArtifactViewerShell
+            artifact={{
+              ...artifact,
+              filename: "diagram.mmd",
+              contentType: "text/plain",
+            }}
+            loadPreview={async () => ({
+              previewKind: "text",
+              url: "https://signed.example/diagram.mmd",
+            })}
+          />
+        </TooltipProvider>,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+      if (invalid) {
+        await screen.findByText(/Could not render this Mermaid diagram/);
+        expect(
+          screen.queryByTestId("mermaid-artifact"),
+        ).not.toBeInTheDocument();
+      } else {
+        await screen.findByTestId("mermaid-artifact");
+      }
+      fireEvent.click(
+        screen.getByRole("button", { name: "Show Mermaid code" }),
+      );
+      expect(
+        screen.getByText(invalid ? "invalid diagram" : /flowchart LR/),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Preview Mermaid diagram" }),
+      ).toBeInTheDocument();
+    },
+  );
 
   it("loads text previews through the resolved structured renderer", async () => {
     const fetchMock = vi.fn(async () => {
