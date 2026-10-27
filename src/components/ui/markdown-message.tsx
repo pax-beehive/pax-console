@@ -17,6 +17,7 @@ import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 import { isLocalFileHref } from "@/features/local-files/local-file-href";
+import { remarkVisualizeFiles } from "@/features/local-files/remark-visualize-files";
 import { normalizeStreamingMarkdown } from "@/lib/streaming-markdown";
 import { LocalFileLink } from "./local-file-link";
 
@@ -192,7 +193,7 @@ const highlightedMarkdownPlugins: NonNullable<
 
 const markdownRemarkPlugins: NonNullable<
   ComponentProps<typeof ReactMarkdown>["remarkPlugins"]
-> = [[remarkGfm, { singleTilde: false }]];
+> = [[remarkGfm, { singleTilde: false }], remarkVisualizeFiles];
 
 let mermaidModulePromise: Promise<typeof import("mermaid").default> | undefined;
 

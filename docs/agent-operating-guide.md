@@ -737,6 +737,12 @@ Collaboration and knowledge resources are normal user-scoped REST resources:
   means an E2EE session. The "already fetched" map is client-only Zustand state
   (`useLocalFileFetchStore`). Behavior scenarios: `docs/local-file-links.md`.
 
+  A complete standalone `visualize` block in Markdown is another local-file
+  entry point. It displays the filename and reuses this manual check/fetch flow;
+  both `{path}` and `{path, mode: "wide"}` payloads are accepted. Incomplete
+  streaming output and code examples remain text. Missing/invalid paths are not
+  converted. No publication, upload, or visualization execution starts on render.
+
 /artifact-uploads, /artifacts, and /sessions/{session_id}/artifacts
   The Session Artifacts panel reads artifacts through TanStack Query and lets
   every session user preview or download content through manager-issued signed

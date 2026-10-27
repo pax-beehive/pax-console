@@ -1,9 +1,17 @@
 /* @vitest-environment jsdom */
 
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { MarkdownMessage, isLocalFileHref } from "./markdown-message";
+
+afterEach(cleanup);
 
 vi.mock("mermaid", () => ({
   default: {
@@ -15,6 +23,71 @@ vi.mock("mermaid", () => ({
 }));
 
 describe("MarkdownMessage links", () => {
+  it.each([undefined, "wide"])(
+    "renders a complete visualize block as a local file reference (mode: %s)",
+    (mode) => {
+      const path = "/Users/alice/project/canvas [v2]*_test_%20.html";
+      const block = `\uE200visualize\uE202${JSON.stringify({ path, ...(mode ? { mode } : {}) })}\uE201`;
+      const { container } = render(
+        <MarkdownMessage content={`**Before**\n\n${block}\n\nAfter.`} />,
+      );
+      expect(screen.getByText("canvas [v2]*_test_%20.html")).toHaveAttribute(
+        "title",
+        path,
+      );
+      expect(container.querySelector("strong")).toHaveTextContent("Before");
+      expect(container).toHaveTextContent("After.");
+      expect(container).not.toHaveTextContent("\uE200");
+      expect(container).not.toHaveTextContent('"mode"');
+    },
+  );
+
+  it("keeps an unfinished streamed block as text and converts it as soon as the block closes", () => {
+    const partial = '\uE200visualize\uE202{"path":"/Users/alice/canvas.html"}';
+    const { container, rerender } = render(
+      <MarkdownMessage content={partial} streaming />,
+    );
+    expect(container).toHaveTextContent("\uE200visualize");
+    expect(screen.queryByText("canvas.html")).not.toBeInTheDocument();
+    rerender(<MarkdownMessage content={`${partial}\uE201`} streaming />);
+    expect(screen.getByText("canvas.html")).toHaveAttribute(
+      "title",
+      "/Users/alice/canvas.html",
+    );
+    expect(container).not.toHaveTextContent("\uE200");
+  });
+
+  it.each(["inline", "fenced"])(
+    "preserves visualize examples inside %s code",
+    (kind) => {
+      const block =
+        '\uE200visualize\uE202{"path":"/Users/alice/canvas.html"}\uE201';
+      const content =
+        kind === "inline" ? `\`${block}\`` : `\`\`\`text\n${block}\n\`\`\``;
+      const { container } = render(<MarkdownMessage content={content} />);
+      expect(container.querySelector("code")).toHaveTextContent(block);
+      expect(
+        screen.queryByRole("button", { name: "Copy path" }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it.each([
+    "invalid-json",
+    "null",
+    "[]",
+    '{"path":42}',
+    '{"path":"https://example.com/canvas.html"}',
+    '{"path":"/sessions/sess_1"}',
+  ])("leaves an invalid visualize reference inert (%s)", (payload) => {
+    const block = `\uE200visualize\uE202${payload}\uE201`;
+    const { container } = render(<MarkdownMessage content={block} />);
+    expect(container).toHaveTextContent(block);
+    expect(
+      screen.queryByRole("button", { name: "Copy path" }),
+    ).not.toBeInTheDocument();
+  });
+
   it.each([
     "/Users/alice/project/app.ts:12",
     "/home/alice/project/app.ts",
