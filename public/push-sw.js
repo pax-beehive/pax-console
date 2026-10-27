@@ -176,6 +176,11 @@ self.addEventListener("push", (event) => {
   const tag = notificationId(payload.notification_id)
     ? payload.notification_id
     : undefined;
+  const occurredAt = payload.occurred_at;
+  const hasEventTime =
+    Number.isSafeInteger(occurredAt) &&
+    occurredAt > 0 &&
+    occurredAt <= 8_640_000_000_000_000;
   event.waitUntil(
     self.registration
       .showNotification(approval ? "Approval needed" : "Pax Workspace", {
@@ -190,6 +195,7 @@ self.addEventListener("push", (event) => {
         badge: "/pax-notification-badge.png",
         tag,
         renotify: false,
+        ...(hasEventTime ? { timestamp: occurredAt } : {}),
         data: { url: notificationTarget(payload.url) },
       })
       .then(async () => {

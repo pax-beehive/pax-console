@@ -108,6 +108,78 @@ function fixture(
   };
 }
 describe("push service worker", () => {
+  it.each([
+    ["turn.completed", "A reply from the earlier session."],
+    [
+      "approval.required",
+      "Your session is waiting for your approval. Tap to review the request.",
+    ],
+    ["notification.test", "Notifications are working on this device."],
+  ])(
+    "sets the original system timestamp for a delayed %s without changing its text or clearing it",
+    async (type, content) => {
+      const f = fixture(new Map(), false);
+      const occurred = Date.now() - 2 * 3600_000;
+      const id = `ntf_${"e".repeat(64)}`;
+      f.notifications.push({ tag: id, close: vi.fn() });
+      await f.fire("push", {
+        data: {
+          json: () => ({
+            version: 1,
+            type,
+            notification_id: id,
+            occurred_at: occurred,
+            body: "A reply from the earlier session.",
+            url: "/?session_id=earlier",
+          }),
+        },
+      });
+      const options = f.showNotification.mock
+        .calls[0][1] as NotificationOptions & { timestamp?: number };
+      expect(options.timestamp).toBe(occurred);
+      expect(options.body).toBe(content);
+      expect(options.data.url).toBe("/?session_id=earlier");
+      expect(options.silent).not.toBe(true);
+      expect(f.notifications[0].close).not.toHaveBeenCalled();
+      await f.fire("notificationclick", {
+        notification: { close: vi.fn(), data: options.data },
+      });
+      expect(f.client.navigate).toHaveBeenCalledWith(
+        "https://pax.example.invalid/?session_id=earlier",
+      );
+    },
+  );
+  it.each([
+    undefined,
+    null,
+    "2026-10-26",
+    "0",
+    -1,
+    0,
+    1.5,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    8_640_000_000_000_001,
+  ])(
+    "keeps legacy text when the original time is unavailable or invalid: %s",
+    async (occurred) => {
+      const f = fixture();
+      await f.fire("push", {
+        data: {
+          json: () => ({
+            version: 1,
+            type: "turn.completed",
+            occurred_at: occurred,
+            body: "Legacy reply",
+          }),
+        },
+      });
+      const options = f.showNotification.mock
+        .calls[0][1] as NotificationOptions & { timestamp?: number };
+      expect(options.body).toBe("Legacy reply");
+      expect(options.timestamp).toBeUndefined();
+    },
+  );
   it("shows an approval reminder and opens the session for review", async () => {
     const f = fixture();
     await f.fire("push", {
