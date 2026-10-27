@@ -415,7 +415,7 @@ export type HistoryMessage = {
   raw_json?: ApiRecord;
   parts?: MessagePart[];
   // Transcript ordering key (seq refactor): session-scoped monotonic order,
-  // the single key used to order and dedup live + durable items.
+  // the durable cursor key. Artifact display positions may reference their source sequence.
   session_seq?: number;
   conversation_seq?: number;
   created_at?: string;

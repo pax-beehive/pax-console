@@ -1114,6 +1114,145 @@ describe("listSessionHistory", () => {
       ]),
     ).toEqual([]);
   });
+
+  it("places late artifact uploads at their backend source position across pages", () => {
+    const artifact = {
+      message_id: "artifact",
+      message_type: "pax:artifact",
+      turn_id: "turn_first",
+      session_seq: 108,
+      raw_json: { source_session_seq: 3 },
+    };
+    const pages = [
+      {
+        messages: [{ message_id: "next-prompt", session_seq: 107 }, artifact],
+        pagination: { next_before_seq: 107, next_after_seq: 108 },
+      },
+      {
+        messages: [
+          { message_id: "prompt", session_seq: 1 },
+          { message_id: "answer", session_seq: 5 },
+          { message_id: "done", session_seq: 6 },
+        ],
+        pagination: { next_before_seq: 1, next_after_seq: 6 },
+      },
+    ];
+
+    expect(
+      flattenSessionHistoryPages(pages).map((message) => message.message_id),
+    ).toEqual(["prompt", "artifact", "answer", "done", "next-prompt"]);
+    expect(artifact.session_seq).toBe(108);
+    expect(pages[0].pagination.next_after_seq).toBe(108);
+  });
+
+  it.each([undefined, null, "2", -1, 0, 1.5, 8, 99])(
+    "ignores invalid artifact source position %s and preserves durable order",
+    (sourceSeq) => {
+      expect(
+        flattenSessionHistoryPages([
+          {
+            messages: [
+              { message_id: "done", session_seq: 6 },
+              {
+                message_id: "artifact",
+                message_type: "pax:artifact",
+                session_seq: 8,
+                raw_json: { source_session_seq: sourceSeq },
+              },
+            ],
+            pagination: {},
+          },
+        ]).map((message) => message.message_id),
+      ).toEqual(["done", "artifact"]);
+    },
+  );
+
+  it("uses source positions only for artifact cards and keeps ties deterministic", () => {
+    expect(
+      flattenSessionHistoryPages([
+        {
+          messages: [
+            {
+              message_id: "second",
+              message_type: "pax:artifact",
+              session_seq: 9,
+              raw_json: { source_session_seq: 3 },
+            },
+            {
+              message_id: "first",
+              message_type: "pax:artifact",
+              session_seq: 8,
+              raw_json: { source_session_seq: 3 },
+            },
+            {
+              message_id: "ordinary",
+              session_seq: 7,
+              raw_json: { source_session_seq: 1 },
+            },
+          ],
+          pagination: {},
+        },
+      ]).map((message) => message.message_id),
+    ).toEqual(["first", "second", "ordinary"]);
+  });
+
+  it("keeps a completed turn's late artifact before its Done footer in the rendered workstream", async () => {
+    const { normalizeHistoryMessages } =
+      await import("../runtime/normalize-history-message");
+    const { groupWorkstreamEvents } = await import("../runtime/session-events");
+    const history = flattenSessionHistoryPages([
+      {
+        messages: [
+          {
+            message_id: "answer",
+            message_type: "agent_message_chunk",
+            session_seq: 5,
+            session_id: "session",
+            turn_id: "turn",
+            raw_json: { text_layout: "segment" },
+            parts: [
+              {
+                part_index: 0,
+                part_type: "text",
+                text: "The diagram is attached.",
+              },
+            ],
+          },
+          {
+            message_id: "done",
+            message_type: "turn_done",
+            session_seq: 6,
+            session_id: "session",
+            turn_id: "turn",
+          },
+          {
+            message_id: "artifact",
+            message_type: "pax:artifact",
+            session_seq: 8,
+            session_id: "session",
+            turn_id: "turn",
+            raw_json: { source_session_seq: 3 },
+            parts: [
+              {
+                part_index: 0,
+                part_type: "artifact",
+                artifact_uri: "artifact-publication://apub_late/main",
+                payload_json: { publication_id: "apub_late" },
+              },
+            ],
+          },
+        ],
+        pagination: { next_after_seq: 8 },
+      },
+    ]);
+
+    const workstream = groupWorkstreamEvents(normalizeHistoryMessages(history));
+    expect(
+      workstream.map((item) =>
+        item.type === "event" ? item.event.type : item.type,
+      ),
+    ).toEqual(["artifact_publication", "agent_message", "turn_footer"]);
+  });
 });
 
 describe("listAgentOwnerInfos", () => {
@@ -1410,7 +1549,11 @@ describe("collaboration resources", () => {
 it("creates a self-owned registration token without an admin-only owner override", async () => {
   apiFetch.mockResolvedValueOnce({ token: "one-use" });
   await createNodeRegistrationToken("user-1", 3600);
-  expect(apiFetch).toHaveBeenCalledWith("/api/v1/user/user-1/node-registration-tokens", {
-    method: "POST", body: JSON.stringify({ expires_in_seconds: 3600 }),
-  });
+  expect(apiFetch).toHaveBeenCalledWith(
+    "/api/v1/user/user-1/node-registration-tokens",
+    {
+      method: "POST",
+      body: JSON.stringify({ expires_in_seconds: 3600 }),
+    },
+  );
 });
