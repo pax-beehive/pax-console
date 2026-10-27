@@ -952,9 +952,27 @@ export function flattenSessionHistoryPages(pages?: HistoryListData[]) {
   }
   const ordered = [...messages.values()];
   if (ordered.every((message) => typeof message.session_seq === "number")) {
-    ordered.sort((a, b) => a.session_seq! - b.session_seq!);
+    ordered.sort(
+      (a, b) =>
+        historyDisplaySequence(a) - historyDisplaySequence(b) ||
+        a.session_seq! - b.session_seq!,
+    );
   }
   return ordered;
+}
+
+function historyDisplaySequence(message: HistoryMessage) {
+  const sourceSeq = message.raw_json?.source_session_seq;
+  if (
+    message.message_type === "pax:artifact" &&
+    typeof sourceSeq === "number" &&
+    Number.isSafeInteger(sourceSeq) &&
+    sourceSeq > 0 &&
+    sourceSeq < message.session_seq!
+  ) {
+    return sourceSeq;
+  }
+  return message.session_seq!;
 }
 
 export function stopSessionTurn(

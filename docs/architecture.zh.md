@@ -1677,6 +1677,15 @@ history 不会为了计算轮次底部 diff 而预取所有工具详情。
 旧的全 session artifact 修复扫描，正常写入路径继续负责展示记录的投影。
 本次不改变 paxd 或普通回复/think 的 part 0 存储，也不限制列表所有正文的总字节数。
 
+## Artifact publication turn placement
+
+New Manager artifact cards include `raw_json.source_session_seq`, referencing
+their originating tool message. Use that positive source sequence as the card's
+display position when it precedes the card's own sequence. Stored sequences and
+pagination cursors remain unchanged. Cards without a valid source position keep
+ordinary ordering. Deploy Manager before Console. No historical-data repair is
+added; old records may retain their previous placement.
+
 ## Summary history preserves conversation text
 
 Summary pages use a base transport-row cursor and include non-tool context for

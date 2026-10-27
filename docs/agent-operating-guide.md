@@ -1786,6 +1786,15 @@ scan; publication reconciliation still happens on write paths. Full history stay
 available for older clients. These changes do not split ordinary reply/thought
 part 0, cap total inline text bytes, or change paxd persistence.
 
+## Artifact publication turn placement
+
+New Manager artifact cards include `raw_json.source_session_seq`, referencing
+their originating tool message. Use that positive source sequence as the card's
+display position when it precedes the card's own sequence. Stored sequences and
+pagination cursors remain unchanged. Cards without a valid source position keep
+ordinary ordering. Deploy Manager before Console. No historical-data repair is
+added; old records may retain their previous placement.
+
 ## Summary history preserves conversation text
 
 Summary pages use a base transport-row cursor and include non-tool context for
