@@ -1,6 +1,12 @@
 "use client";
 
-import type { Dispatch, SetStateAction } from "react";
+import {
+  type Dispatch,
+  type SetStateAction,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+} from "react";
 import { Minus, Plus, Scan } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -77,6 +83,69 @@ export function ArtifactImagePreview({
   title,
   fillHeight,
 }: ImageStateProps & { src: string; title: string; fillHeight: boolean }) {
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
+  const anchorRef = useRef<{
+    x: number;
+    y: number;
+    clientX: number;
+    clientY: number;
+  } | null>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || state.failed) return;
+
+    const handleWheel = (event: WheelEvent) => {
+      const image = imageRef.current;
+      if (
+        !(event.metaKey || event.ctrlKey) ||
+        !image ||
+        !state.width ||
+        !state.height ||
+        !event.deltaY
+      )
+        return;
+      // React wheel listeners are passive; use a native listener so browser page
+      // zoom is prevented only while zooming a loaded image in this canvas.
+      event.preventDefault();
+      const rect = image.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const delta =
+        event.deltaY *
+        (event.deltaMode === 1
+          ? 16
+          : event.deltaMode === 2
+            ? canvas.clientHeight
+            : 1);
+      const factor = Math.exp(-Math.max(-100, Math.min(100, delta)) * 0.002);
+      anchorRef.current = {
+        x: (event.clientX - rect.left) / rect.width,
+        y: (event.clientY - rect.top) / rect.height,
+        clientX: event.clientX,
+        clientY: event.clientY,
+      };
+      const fitZoom = rect.width / state.width;
+      onChange((current) => ({
+        ...current,
+        zoom: Math.min(4, Math.max(0.25, (current.zoom ?? fitZoom) * factor)),
+      }));
+    };
+    canvas.addEventListener("wheel", handleWheel, { passive: false });
+    return () => canvas.removeEventListener("wheel", handleWheel);
+  }, [onChange, state.failed, state.width, state.height]);
+
+  useLayoutEffect(() => {
+    const anchor = anchorRef.current;
+    const canvas = canvasRef.current;
+    const image = imageRef.current;
+    if (!anchor || !canvas || !image) return;
+    const rect = image.getBoundingClientRect();
+    canvas.scrollLeft += rect.left + anchor.x * rect.width - anchor.clientX;
+    canvas.scrollTop += rect.top + anchor.y * rect.height - anchor.clientY;
+    anchorRef.current = null;
+  }, [state.zoom]);
+
   if (state.failed) {
     return (
       <div
@@ -91,6 +160,7 @@ export function ArtifactImagePreview({
   return (
     <div className={cn("flex min-h-80 flex-col", fillHeight && "h-full")}>
       <div
+        ref={canvasRef}
         aria-label="Image canvas"
         className={cn(
           "flex h-80 overflow-auto bg-canvas p-3",
@@ -100,6 +170,7 @@ export function ArtifactImagePreview({
         {/* Blob images use their decoded dimensions for fit and original-size zoom. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
+          ref={imageRef}
           alt={title}
           className={cn(
             "m-auto block h-auto w-auto shrink-0 object-contain",
