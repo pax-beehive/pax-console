@@ -12,6 +12,7 @@ import {
 import { isDaemonCommandSettled } from "@/features/devices/daemon-commands";
 import { API_BASE_URL, apiFetch, userPath } from "./client";
 import { ApiError, AuthError } from "./errors";
+import { historyDisplaySequence } from "./history-display-sequence";
 import { queryKeys } from "./query-keys";
 import {
   ApiRecord,
@@ -959,20 +960,6 @@ export function flattenSessionHistoryPages(pages?: HistoryListData[]) {
     );
   }
   return ordered;
-}
-
-function historyDisplaySequence(message: HistoryMessage) {
-  const sourceSeq = message.raw_json?.source_session_seq;
-  if (
-    message.message_type === "pax:artifact" &&
-    typeof sourceSeq === "number" &&
-    Number.isSafeInteger(sourceSeq) &&
-    sourceSeq > 0 &&
-    sourceSeq < message.session_seq!
-  ) {
-    return sourceSeq;
-  }
-  return message.session_seq!;
 }
 
 export function stopSessionTurn(

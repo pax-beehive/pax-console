@@ -628,6 +628,7 @@ export type UserAttachmentUploadTicket = {
 
 export type ArtifactPublication = {
   publication_id: string;
+  turn_id?: string;
   node_id?: string;
   agent_id?: string;
   session_id?: string;

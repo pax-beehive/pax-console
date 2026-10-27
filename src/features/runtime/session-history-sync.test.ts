@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AgentSession, HistoryMessage } from "../api/types";
-import { listSessionHistory } from "../api/resources";
+import {
+  flattenSessionHistoryPages,
+  listSessionHistory,
+} from "../api/resources";
 import {
   emptyHistorySync,
   mergeSyncedHistory,
@@ -46,6 +49,58 @@ const args = {
 };
 
 describe("history calibration", () => {
+  it.each([false, true])(
+    "keeps a late artifact at its source position after sync (snapshot: %s)",
+    (snapshot) => {
+      const prompt = message("prompt", 1, "first", "user");
+      const answer = message("answer", 5, "first");
+      const done = message("done", 6, "first", "turn_done");
+      const next = message("next", 7, "second", "user");
+      const artifact: HistoryMessage = {
+        ...message("artifact", 108, "first", "pax:artifact"),
+        raw_json: { source_session_seq: 3 },
+        parts: [
+          {
+            part_index: 0,
+            part_type: "artifact",
+            artifact_uri: "artifact-publication://apub_late/main",
+          },
+        ],
+      };
+      const base = flattenSessionHistoryPages([
+        page([prompt, answer, done, next, artifact]),
+      ]);
+      const synced = mergeSyncedHistory(
+        base,
+        snapshot
+          ? {
+              messages: [prompt, answer, done, artifact],
+              calibratedTurnIds: ["first"],
+            }
+          : emptyHistorySync,
+      );
+      expect(synced.map((m) => m.message_id)).toEqual([
+        "prompt",
+        "artifact",
+        "answer",
+        "done",
+        "next",
+      ]);
+      const timeline = reconcileSessionTimeline(
+        normalizeHistoryMessages(synced),
+        [],
+      );
+      expect(timeline.timeline.map((event) => event.type)).toEqual([
+        "user_message",
+        "artifact_publication",
+        "agent_message",
+        "turn_done",
+        "user_message",
+      ]);
+      expect(artifact.session_seq).toBe(108);
+    },
+  );
+
   it("catches up from the second newest sequence and replaces the entire completed turn", async () => {
     const prompt = message("prompt", 1, "turn", "user");
     const partial = message(
