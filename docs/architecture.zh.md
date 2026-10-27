@@ -1686,6 +1686,10 @@ pagination cursors remain unchanged. Cards without a valid source position keep
 ordinary ordering. Deploy Manager before Console. No historical-data repair is
 added; old records may retain their previous placement.
 
+Both page flattening and `mergeSyncedHistory` use the same display sequence.
+Turn calibration and idle snapshots must not re-sort a late card by its durable
+insertion sequence. Durable sequences still drive pagination and tail cursors.
+
 ## Summary history preserves conversation text
 
 Summary pages use a base transport-row cursor and include non-tool context for

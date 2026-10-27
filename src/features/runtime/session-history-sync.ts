@@ -1,5 +1,6 @@
 import type { AgentSession, HistoryMessage } from "../api/types";
 import { listSessionHistory } from "../api/resources";
+import { historyDisplaySequence } from "../api/history-display-sequence";
 
 export type HistorySyncState = {
   messages: HistoryMessage[];
@@ -27,7 +28,9 @@ export function mergeSyncedHistory(
   );
   for (const message of sync.messages) byId.set(message.message_id, message);
   return [...byId.values()].sort(
-    (a, b) => (a.session_seq ?? 0) - (b.session_seq ?? 0),
+    (a, b) =>
+      historyDisplaySequence(a) - historyDisplaySequence(b) ||
+      (a.session_seq ?? 0) - (b.session_seq ?? 0),
   );
 }
 
