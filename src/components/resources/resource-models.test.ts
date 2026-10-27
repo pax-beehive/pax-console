@@ -3,6 +3,7 @@ import { Agent, AgentSession, Node } from "@/features/api/types";
 import {
   buildAgentRows,
   buildSessionRows,
+  byCreatedAtDesc,
   byLastActiveDesc,
   isActiveAgent,
   isActiveNode,
@@ -125,6 +126,43 @@ describe("paxd runtime reconciliation", () => {
 });
 
 describe("resource list models", () => {
+  it("keeps devices and agents in creation order despite activity updates", () => {
+    const items = [
+      {
+        id: "old",
+        created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-10-26T00:00:00Z",
+      },
+      {
+        id: "new",
+        created_at: "2026-10-01T00:00:00Z",
+        updated_at: "2026-10-01T00:00:00Z",
+      },
+    ];
+    expect(
+      byCreatedAtDesc(items, (item) => item.id).map((item) => item.id),
+    ).toEqual(["new", "old"]);
+    expect(items.map((item) => item.id)).toEqual(["old", "new"]);
+  });
+
+  it("uses stable IDs for equal or unavailable creation times", () => {
+    const items = [
+      { id: "missing-b" },
+      { id: "same-b", created_at: "2026-01-01T00:00:00Z" },
+      { id: "missing-a", created_at: "invalid" },
+      { id: "same-a", created_at: "2026-01-01T00:00:00Z" },
+    ];
+    const expected = ["same-a", "same-b", "missing-a", "missing-b"];
+    expect(
+      byCreatedAtDesc(items, (item) => item.id).map((item) => item.id),
+    ).toEqual(expected);
+    expect(
+      byCreatedAtDesc([...items].reverse(), (item) => item.id).map(
+        (item) => item.id,
+      ),
+    ).toEqual(expected);
+  });
+
   it("sorts resources by most recent activity timestamp", () => {
     const agents: Agent[] = [
       {
