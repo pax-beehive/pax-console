@@ -10,6 +10,7 @@ export type DocumentRendererKind =
   | "image"
   | "pdf"
   | "html"
+  | "mermaid"
   | "markdown"
   | "text"
   | "json"
@@ -52,6 +53,7 @@ export type BuiltinArtifactRenderer = {
     | "builtin:image"
     | "builtin:pdf"
     | "builtin:html"
+    | "builtin:mermaid"
     | "builtin:markdown"
     | "builtin:text"
     | "builtin:json"
@@ -70,6 +72,7 @@ const rendererDefinitions: Record<
   image: renderer("image", "url"),
   pdf: renderer("pdf", "url"),
   html: renderer("html", "url"),
+  mermaid: renderer("mermaid", "text"),
   markdown: renderer("markdown", "text"),
   text: renderer("text", "text"),
   json: renderer("json", "text"),
@@ -220,6 +223,8 @@ function kindFromPreview(
     image: "image",
     pdf: "pdf",
     html: "html",
+    mermaid: "mermaid",
+    mmd: "mermaid",
     markdown: "markdown",
     md: "markdown",
     text: "text",
@@ -246,6 +251,8 @@ function kindFromContentType(value?: string): DocumentRendererKind | undefined {
     "application/pdf": "pdf",
     "text/html": "html",
     "application/xhtml+xml": "html",
+    "text/vnd.mermaid": "mermaid",
+    "text/mermaid": "mermaid",
     "text/markdown": "markdown",
     "text/x-markdown": "markdown",
     "application/json": "json",
@@ -288,6 +295,7 @@ function kindFromFilename(value?: string): DocumentRendererKind | undefined {
     ],
     [[".pdf"], "pdf"],
     [[".html", ".htm"], "html"],
+    [[".mmd", ".mermaid"], "mermaid"],
     [[".md", ".markdown", ".mdx"], "markdown"],
     [[".jsonl", ".ndjson"], "jsonl"],
     [[".json", ".geojson"], "json"],

@@ -39,7 +39,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MarkdownMessage } from "@/components/ui/markdown-message";
+import {
+  MarkdownMessage,
+  MermaidCodeBlock,
+} from "@/components/ui/markdown-message";
 import { TruncatedText } from "@/components/ui/text";
 import { LocalFileLinkContext } from "@/features/local-files/local-file-link-context";
 import { cn } from "@/lib/utils";
@@ -864,6 +867,10 @@ function DocumentRenderer({
       />
     );
   }
+  if (kind === "mermaid" && preview.content !== undefined) {
+    return <MermaidCodeBlock content={preview.content} />;
+  }
+
   if (kind === "markdown" && preview.content !== undefined) {
     return (
       <DocumentMarkdownRenderer

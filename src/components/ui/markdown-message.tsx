@@ -212,6 +212,14 @@ function loadMermaid() {
   return mermaidModulePromise;
 }
 
+export function MermaidCodeBlock({ content }: { content: string }) {
+  return (
+    <MarkdownPre>
+      <code className="language-mermaid">{content}</code>
+    </MarkdownPre>
+  );
+}
+
 function MarkdownPre({
   children,
   className,

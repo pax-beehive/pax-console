@@ -85,6 +85,9 @@ describe("artifact document renderer registry", () => {
   });
 
   it.each([
+    ["diagram.mmd", "builtin:mermaid"],
+    ["DIAGRAM.MMD", "builtin:mermaid"],
+    ["diagram.mermaid", "builtin:mermaid"],
     ["README.md", "builtin:markdown"],
     ["events.jsonl", "builtin:jsonl"],
     ["metrics.csv", "builtin:csv"],
@@ -140,7 +143,7 @@ describe("artifact document renderer registry", () => {
   it("registers every builtin document renderer exactly once", () => {
     expect(
       new Set(builtinArtifactRendererRegistry.map(({ id }) => id)).size,
-    ).toBe(9);
+    ).toBe(10);
   });
 
   it("adapts session artifacts to the shared document contract", () => {
