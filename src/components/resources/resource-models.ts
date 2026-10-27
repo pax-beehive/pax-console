@@ -103,6 +103,20 @@ export function sessionUpdatedAt(session: AgentSession) {
   );
 }
 
+export function byCreatedAtDesc<T extends { created_at?: string }>(
+  items: readonly T[],
+  getId: (item: T) => string,
+) {
+  return [...items].sort((left, right) => {
+    const leftTime = timestampValue(left.created_at);
+    const rightTime = timestampValue(right.created_at);
+    if (leftTime !== rightTime) {
+      return rightTime > leftTime ? 1 : -1;
+    }
+    return getId(left).localeCompare(getId(right));
+  });
+}
+
 export function byLastActiveDesc<T>(
   items: readonly T[],
   getTimestamp: (item: T) => string | undefined,

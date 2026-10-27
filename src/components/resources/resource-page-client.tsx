@@ -55,6 +55,7 @@ import {
   agentLabel,
   buildAgentRows,
   buildSessionRows,
+  byCreatedAtDesc,
   byLastActiveDesc,
   isActiveAgent,
   isActiveNode,
@@ -62,7 +63,6 @@ import {
   isDeviceNode,
   nodeLabel,
   paginateItems,
-  resourceLastActiveAt,
   sessionUpdatedAt,
   SessionRow,
 } from "./resource-models";
@@ -194,11 +194,7 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
   const allNodes = nodesQuery.data?.nodes ?? emptyNodes;
   const sortedNodes = useMemo(
     () =>
-      byLastActiveDesc(
-        allNodes.filter(isDeviceNode),
-        resourceLastActiveAt,
-        (node) => nodeLabel(node),
-      ),
+      byCreatedAtDesc(allNodes.filter(isDeviceNode), (node) => node.node_id),
     [allNodes],
   );
   const nodes = useMemo(
@@ -210,10 +206,7 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
   );
   const allAgents = agentsQuery.data?.agents ?? emptyAgents;
   const sortedAgents = useMemo(
-    () =>
-      byLastActiveDesc(allAgents, resourceLastActiveAt, (agent) =>
-        agentLabel(agent),
-      ),
+    () => byCreatedAtDesc(allAgents, (agent) => agent.agent_id),
     [allAgents],
   );
   const agents = useMemo(
