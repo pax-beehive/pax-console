@@ -282,6 +282,9 @@ try {
         badge: options.badge,
         icon: options.icon,
         data: options.data,
+        ...(options.timestamp === undefined
+          ? {}
+          : { timestamp: options.timestamp }),
       });
     };
   });
@@ -323,24 +326,30 @@ try {
     }),
   );
   await page.goto(origin + "/settings/notifications");
-  const completion = await worker.evaluate(async (url) => {
-    const event = new Event("push");
-    let pending;
-    event.data = {
-      json: () => ({
-        version: 1,
-        type: "turn.completed",
-        body: "Final response.\nAll checks passed.",
-        url,
-      }),
-    };
-    event.waitUntil = (work) => {
-      pending = work;
-    };
-    self.dispatchEvent(event);
-    await pending;
-    return self.__shownNotifications.at(-1);
-  }, sessionPath);
+  const originalTime = Date.now() - 30 * 60_000;
+  const completion = await worker.evaluate(
+    async ({ url, originalTime }) => {
+      const event = new Event("push");
+      let pending;
+      event.data = {
+        json: () => ({
+          version: 1,
+          type: "turn.completed",
+          body: "Final response.\nAll checks passed.",
+          occurred_at: originalTime,
+          url,
+        }),
+      };
+      event.waitUntil = (work) => {
+        pending = work;
+      };
+      self.dispatchEvent(event);
+      await pending;
+      return self.__shownNotifications.at(-1);
+    },
+    { url: sessionPath, originalTime },
+  );
+  assert.equal(completion.timestamp, originalTime);
   assert.equal(completion.body, "Final response. All checks passed.");
   assert.equal(completion.data.url, sessionPath);
   const clickNotification = (data) =>

@@ -108,7 +108,12 @@ the receiver were confirmed off. Notification text may contain a short reply pre
 `public/push-sw.js` has no fetch handler or authenticated caching. Preserve its
 JavaScript content type, root scope and no-store headers. It displays the
 Manager's bounded reply preview for standard turns (200 Unicode code points),
-with a generic fallback for older Managers or missing replies. Clicks prefer
+with a generic fallback for older Managers or missing replies. An optional
+`occurred_at` Unix-millisecond payload field is passed to the native notification
+`timestamp`; the title and body remain unchanged. Use the persisted completion or
+approval-creation time, not delivery/retry time. Missing or invalid timestamps keep
+the browser default. This supports original-time display on Chrome for Android
+without expiring unread notifications or changing read cleanup. Clicks prefer
 the window whose creation URL matches, focus before navigation, and open a new
 window if reuse fails. Always navigate to the notification target, even when
 Client.url matches: it is the document creation URL and remains stale after

@@ -44,6 +44,9 @@ key ID 和本地开关，不存 endpoint 或加密密钥。登录后的前台修
 
 Service Worker 只处理推送、点击和订阅变更，不拦截 fetch 或缓存认证响应。普通会话通知展示
 Manager 提供的本轮最后一段回复短预览，最多 200 个 Unicode 字符；缺失时使用通用提示。
+负载可选 occurred_at 为原始事件的 Unix 毫秒时间，Worker 验证后仅传给系统通知 timestamp，
+标题和正文不增加时间文案。Chrome 安卓系统通知可显示原始发生时间；缺失或无效字段保留
+浏览器默认时间。此字段不用于清理未读通知，不改变已读清理和投递期限。
 新增 `approval.required` 类型用于等待用户审批的请求，标题为 `Approval needed`，
 正文为 `Your session is waiting for your approval. Tap to review the request.`。
 点击后进入对应会话查看请求，再由用户作出决定；推送点击不提交审批。Manager 在请求创建及
