@@ -7,6 +7,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -54,9 +55,25 @@ describe("LocalFileLink", () => {
     );
   });
 
+  it("opens path details from the keyboard and returns focus on close", async () => {
+    renderWithContext(null);
+    const label = screen.getByRole("button", { name: "report.md" });
+    label.focus();
+    fireEvent.keyDown(label, {
+      key: " ",
+    });
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      "Referenced at line 12",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(label).toHaveFocus());
+  });
+
   it("copies only the clean absolute path and briefly shows a check", async () => {
     vi.useFakeTimers();
     renderWithContext(null);
+    fireEvent.click(screen.getByRole("button", { name: "report.md" }));
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Copy path" }));
@@ -86,6 +103,7 @@ describe("LocalFileLink", () => {
       value: execCommand,
     });
     renderWithContext(null, "C:\\Users\\me\\app.ts:3");
+    fireEvent.click(screen.getByRole("button", { name: "report.md" }));
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Copy path" }));
@@ -98,14 +116,19 @@ describe("LocalFileLink", () => {
     ).toBeInTheDocument();
   });
 
-  it("is inert without a provider but copy still works", async () => {
+  it("keeps copy out of the prose and opens path details without a provider", async () => {
     renderWithContext(null);
 
     expect(
-      screen.queryByRole("button", { name: "report.md" }),
+      screen.queryByRole("button", { name: "Copy path" }),
     ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByText("report.md"));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "report.md" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      "/Users/me/proj/out/report.md",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Fetch and open" }),
+    ).not.toBeInTheDocument();
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Copy path" }));
@@ -122,6 +145,9 @@ describe("LocalFileLink", () => {
       userId: "user_1",
     });
 
+    expect(
+      screen.queryByRole("button", { name: "Copy path" }),
+    ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "report.md" }));
     expect(requestFetch).toHaveBeenCalledWith({
       label: "report.md",
@@ -136,7 +162,7 @@ describe("LocalFileLink", () => {
     expect(requestFetch).toHaveBeenCalledTimes(1);
   });
 
-  it("stays inert with copy available when the context is disabled (E2EE)", async () => {
+  it("opens copy-only details when the context disables fetching (E2EE)", async () => {
     const requestFetch = vi.fn();
     renderWithContext({
       disabledReason:
@@ -147,13 +173,10 @@ describe("LocalFileLink", () => {
       userId: "user_1",
     });
 
-    expect(
-      screen.queryByRole("button", { name: "report.md" }),
-    ).not.toBeInTheDocument();
     fireEvent.click(screen.getByText("report.md"));
     expect(requestFetch).not.toHaveBeenCalled();
-    expect(screen.getByText("report.md").getAttribute("title")).toContain(
-      "/Users/me/proj/out/report.md",
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      "Fetching is unavailable for end-to-end encrypted sessions",
     );
 
     await act(async () => {
@@ -172,10 +195,12 @@ describe("LocalFileLink", () => {
       </details>,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "/Users/me/a.ts" }));
+    expect(document.querySelector("details")).not.toHaveAttribute("open");
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Copy path" }));
     });
     expect(document.querySelector("details")).not.toHaveAttribute("open");
-    expect(screen.getByText("/Users/me/a.ts")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toHaveTextContent("/Users/me/a.ts");
   });
 });

@@ -379,14 +379,14 @@ describe("LocalFileFetchProvider", () => {
     expect(await within(dialog).findByText(text)).toBeInTheDocument();
   });
 
-  it("keeps the link inert but copyable when the session disables fetching", () => {
+  it("opens copy-only path details without requests when fetching is disabled", () => {
     renderSession({ enabled: false });
 
     expect(
-      screen.queryByRole("button", { name: "report.md" }),
+      screen.queryByRole("button", { name: "Copy path" }),
     ).not.toBeInTheDocument();
     fireEvent.click(screen.getByText("report.md"));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toHaveTextContent(PATH);
     expect(calls).toEqual([]);
     expect(
       screen.getByRole("button", { name: "Copy path" }),
