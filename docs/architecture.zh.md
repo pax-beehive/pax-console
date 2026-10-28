@@ -745,6 +745,12 @@ Local file links（本地文件链接）
   Zustand（useLocalFileFetchStore），publication 数据仍归 TanStack Query。
   行为场景见 docs/local-file-links.md。
 
+  Complete standalone `visualize` references also become LocalFileLink nodes
+  through `remark-visualize-files.ts`. The Markdown transform consumes a valid
+  local `path` only after the closing U+E201 arrives; the optional `mode` does
+  not change the existing fetch dialog. Streaming fragments and code examples
+  remain literal text. Rendering never starts a fetch or adds history messages.
+
 Artifact publications
   Session timeline 识别 `message_type = "pax:artifact"`，从
   `parts[*].payload_json.publication_id` 或

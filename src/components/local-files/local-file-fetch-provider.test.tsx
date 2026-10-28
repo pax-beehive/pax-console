@@ -99,7 +99,10 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-function renderSession({ enabled = true }: { enabled?: boolean } = {}) {
+function renderSession({
+  enabled = true,
+  content = `Wrote [report.md](${PATH}:12).`,
+}: { enabled?: boolean; content?: string } = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -116,7 +119,7 @@ function renderSession({ enabled = true }: { enabled?: boolean } = {}) {
           sessionId="sess_1"
           userId="user_1"
         >
-          <MarkdownMessage content={`Wrote [report.md](${PATH}:12).`} />
+          <MarkdownMessage content={content} />
         </LocalFileFetchProvider>
       </TooltipProvider>
     </QueryClientProvider>,
@@ -149,6 +152,40 @@ async function openDialog() {
 }
 
 describe("LocalFileFetchProvider", () => {
+  it("waits for a user click before fetching a complete visualize reference", async () => {
+    allowCheck();
+    routes[`POST ${FETCH_URL}`] = () => ({
+      accepted: true,
+      publication: publication("queued"),
+    });
+    routes[`GET ${PUBLICATION_URL}`] = () => ({
+      publication: publication("uploading"),
+    });
+    renderSession({
+      content: `\uE200visualize\uE202${JSON.stringify({ path: PATH, mode: "wide" })}\uE201`,
+    });
+    expect(calls).toEqual([]);
+    const dialog = await openDialog();
+    expect(
+      await within(dialog).findByText(
+        "This file is on the agent's machine. Fetch it to view it here.",
+      ),
+    ).toBeInTheDocument();
+    expect(calls).toEqual([
+      { method: "GET", path: CHECK_URL, body: undefined },
+    ]);
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Fetch and open" }),
+    );
+    await waitFor(() =>
+      expect(calls).toContainEqual({
+        method: "POST",
+        path: FETCH_URL,
+        body: { path: PATH },
+      }),
+    );
+  });
+
   it("checks, confirms, uploads, and opens the fetched file in the viewer", async () => {
     allowCheck();
     routes[`POST ${FETCH_URL}`] = () => ({

@@ -10,6 +10,7 @@ Code map:
 
 ```txt
 src/features/local-files/local-file-href.ts        parseLocalFileHref / isLocalFileHref
+src/features/local-files/remark-visualize-files.ts  complete visualize blocks become local-file links
 src/features/local-files/local-file-link-context.ts LocalFileLinkContext
 src/features/local-files/local-file-fetch-store.ts  session-local "already fetched" map (Zustand)
 src/features/local-files/local-file-fetch-messages.ts denial / failure / HTTP error copy
@@ -74,6 +75,20 @@ Scenario: the real path is discoverable
 ## Feature: fetch a local file from the node
 
 ```gherkin
+Scenario: complete visualization reference
+  Given an agent reply contains a standalone visualize block with a local path
+  When the closing U+E201 marker arrives
+  Then the block becomes a local-file link showing the filename
+  And rendering it makes no network request
+  When I click the filename
+  Then the existing check and manual "Fetch and open" dialog is used
+  And the optional mode field does not change the fetch flow
+
+Scenario: unfinished or literal visualization reference
+  Given a visualize block has not closed, or appears inside inline or fenced code
+  Then the original text remains visible
+  And it does not start a fetch
+
 Scenario: no session context keeps the link inert
   Given a local file link without LocalFileLinkContext (for example the artifact viewer)
   When I click the link text
