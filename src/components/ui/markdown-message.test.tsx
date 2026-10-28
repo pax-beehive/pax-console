@@ -109,7 +109,7 @@ describe("MarkdownMessage links", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows the real path and a copy button for local file links", () => {
+  it("shows local filenames inline and keeps copy inside path details", () => {
     render(
       <MarkdownMessage content="See [main.ts](file:///Users/alice/project/main.ts:12)." />,
     );
@@ -119,8 +119,15 @@ describe("MarkdownMessage links", () => {
       "/Users/alice/project/main.ts",
     );
     expect(
-      screen.getAllByRole("button", { name: "Copy path" }).length,
-    ).toBeGreaterThan(0);
+      screen.queryByRole("button", { name: "Copy path" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "main.ts" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      "/Users/alice/project/main.ts",
+    );
+    expect(
+      screen.getByRole("button", { name: "Copy path" }),
+    ).toBeInTheDocument();
   });
 
   it("keeps console routes and web URLs clickable", () => {

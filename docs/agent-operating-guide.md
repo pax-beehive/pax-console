@@ -724,11 +724,13 @@ Collaboration and knowledge resources are normal user-scoped REST resources:
 /sessions/{session_id}/artifact-fetches/check?path= and
 /sessions/{session_id}/artifact-fetches
   Local file links (`LocalFileLink`, used by MarkdownMessage local hrefs, tool
-  input paths, and diff headers) always show the real path as the tooltip and
-  copy only the clean absolute path. SessionWorkbench mounts
+  input paths, and diff headers) show only the filename/path label inline, with
+  no copy icon or reserved button space. The real path remains the tooltip;
+  copying the clean absolute path is available inside the dialog. SessionWorkbench mounts
   `LocalFileFetchProvider`; it is disabled for E2EE sessions, offline
   nodes/agents, and unsaved sessions, and absent elsewhere (artifact viewer,
-  standalone pages), so those links stay copy-only. Clicking an enabled link
+  standalone pages), so those links open copy-only path details without requests.
+  Clicking an enabled link
   runs check (`{allowed, path, filename, size_bytes?, denial?}`), shows the
   full path for confirmation, then POSTs `{path}`: `accepted: true` returns an
   ArtifactPublication polled with `useArtifactPublication` and rendered with

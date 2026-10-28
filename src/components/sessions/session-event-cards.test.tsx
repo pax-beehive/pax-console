@@ -542,6 +542,12 @@ describe("session event cards", () => {
       "/Users/me/proj/src/app.ts",
     );
     expect(
+      screen.queryByRole("button", { name: "Copy path" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "/Users/me/proj/src/app.ts" }),
+    );
+    expect(
       screen.getByRole("button", { name: "Copy path" }),
     ).toBeInTheDocument();
   });

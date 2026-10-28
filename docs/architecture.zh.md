@@ -732,11 +732,13 @@ Attachments
 Local file links（本地文件链接）
   agent 输出里指向其本机的路径（markdown 本地 href、工具输入的绝对路径、diff
   文件头）统一渲染为 src/components/ui/local-file-link.tsx 的 LocalFileLink：
-  tooltip 为真实路径，复制按钮只写入不含 file:// 和行号后缀的绝对路径，复制在任何
-  场景都可用。解析在 src/features/local-files/local-file-href.ts。
+  正文只显示文件名/路径文字，不放复制图标或为按钮预留空位。tooltip 为真实路径，
+  点击后的弹窗提供复制，只写入不含 file:// 和行号后缀的绝对路径，复制在任何场景
+  都可用。解析在 src/features/local-files/local-file-href.ts。
   SessionWorkbench 挂载 LocalFileFetchProvider（LocalFileLinkContext）；E2EE、
   node/agent 离线或尚未创建的 session 下 enabled=false，artifact viewer 与独立页
-  没有 provider，只能复制。启用时点击链接：
+  没有 provider；这些场景点击文件名会打开仅显示路径、禁用原因与复制按钮的弹窗，
+  不发送请求。启用时点击链接：
   GET /sessions/{session_id}/artifact-fetches/check?path= 预检并展示完整路径确认，
   POST /sessions/{session_id}/artifact-fetches {path}：accepted=true 返回
   ArtifactPublication（origin=user_fetch），复用 useArtifactPublication 轮询并在
