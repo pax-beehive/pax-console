@@ -2116,6 +2116,8 @@ TanStack Query 保存搜索分页和原文读取结果，key 包括用户、查�
 视图和原文分页属于页面局部状态。切换用户、查询或类型时重建选中来源。搜索片段、
 正文、read receipt、cursor 不进入 Zustand 或 localStorage。同一查询再次提交会
 重新检索；过期 cursor 需要重启分页，不能作为 Secretary 增量处理 checkpoint。
+鉴权失败时隐藏缓存结果和已选原文；显式重启先清除选中来源，防止重置错误后在重新
+鉴权期间挂载旧的原文缓存。
 
 `src/components/search` 采用结果行加来源面板。桌面选中后左右分栏，手机选中后显示
 来源和返回按钮。来源读取保留命中的 content_hash 或 summary revision；消息支持
@@ -2143,6 +2145,8 @@ Manager session_id，不推断 ACP/native session 身份。
 Mutation 不乐观修改已保存状态；提交前取消旧 GET，成功后使用服务端响应。409 会
 重新读取配置，要求用户检查最新 revision 后再保存。配置 revision 只表示设置变更，
 队列进度等运行状态变化不能重置未提交的表单。
+Agent 列表鉴权失败时隐藏旧的名称缓存。进度跳转仅滚动设置内容面板，不滚动固定的
+Console shell，避免手机底部导航离开视口底边。
 
 页面显示服务端的 disabled/idle/waiting_for_agent/processing/error、待处理会话数、
 上次完成时间和有界安全错误。启用时每五秒刷新，关闭时每十五秒刷新。选中的 agent

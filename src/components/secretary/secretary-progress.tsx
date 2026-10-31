@@ -111,7 +111,27 @@ export function SecretaryProgressOverview({
             </p>
             {page.counts.total_sessions > 0 && (
               <Button asChild size="sm" variant="ghost">
-                <a href="#secretary-session-progress">View sessions</a>
+                <a
+                  href="#secretary-session-progress"
+                  onClick={(event) => {
+                    const target = document.getElementById(
+                      "secretary-session-progress",
+                    );
+                    const container = target?.closest<HTMLElement>(
+                      "[data-secretary-scroll]",
+                    );
+                    if (!target || !container) return;
+                    event.preventDefault();
+                    container.scrollTo({
+                      top:
+                        container.scrollTop +
+                        target.getBoundingClientRect().top -
+                        container.getBoundingClientRect().top,
+                    });
+                  }}
+                >
+                  View sessions
+                </a>
               </Button>
             )}
           </div>

@@ -67,12 +67,16 @@ export function SecretarySettingsPanel({ userId }: { userId: string }) {
   const save = useUpdateSecretarySettings(userId);
   const run = useRunSecretaryNow(userId);
   const progress = useSecretaryProgress(userId);
-  const ownedAgents = (agents.data?.agents ?? []).filter(
-    (agent) => !agent.owner_user_id || agent.owner_user_id === userId,
-  );
+  const ownedAgents = (
+    agents.error instanceof AuthError ? [] : (agents.data?.agents ?? [])
+  ).filter((agent) => !agent.owner_user_id || agent.owner_user_id === userId);
 
   return (
-    <div className="min-h-0 min-w-0 flex-1 overflow-auto p-4 sm:p-5 lg:px-8">
+    <div
+      data-secretary-scroll
+      data-viewport-scroll
+      className="min-h-0 min-w-0 flex-1 overflow-auto p-4 sm:p-5 lg:px-8"
+    >
       <div className="mx-auto w-full max-w-5xl space-y-5">
         <p className="text-sm leading-6 text-ink-muted">
           Choose one of your agents to read your workspace conversations and

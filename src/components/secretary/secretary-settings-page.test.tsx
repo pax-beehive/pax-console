@@ -11,7 +11,7 @@ import {
 import { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ApiError } from "@/features/api/errors";
+import { ApiError, AuthError } from "@/features/api/errors";
 import { useAgents } from "@/features/api/resources";
 import {
   SecretarySettings,
@@ -77,6 +77,7 @@ function agentsState() {
     data: { agents: owned },
     isPending: false,
     isError: false,
+    error: null as Error | null,
     refetch: vi.fn(),
   };
 }
@@ -265,6 +266,17 @@ describe("Secretary settings", () => {
     expect(
       screen.queryByRole("option", { name: "Someone else's agent" }),
     ).not.toBeInTheDocument();
+  });
+  it("hides cached agent names when inventory access is denied", () => {
+    setAgents({ ...agentsState(), isError: true, error: new AuthError() });
+    setup();
+    expect(
+      screen.queryByRole("option", { name: "My agent" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: /Travel agent/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toBeDisabled();
   });
   it("allows disabling and clearing a removed or non-owned saved agent", () => {
     setSettings(

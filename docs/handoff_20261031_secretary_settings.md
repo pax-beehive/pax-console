@@ -1,5 +1,8 @@
 # Automatic Secretary settings
 
+Latest current-main integration and verification:
+[integration handoff](handoff_20261031_console_main_integration.md).
+
 ## Behavior
 
 `/settings/secretary` is available to normal signed-in users, admins, and admin

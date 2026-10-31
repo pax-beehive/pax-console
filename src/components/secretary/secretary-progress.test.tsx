@@ -71,6 +71,23 @@ function query(overrides: Record<string, unknown> = {}) {
 }
 afterEach(cleanup);
 describe("Secretary progress", () => {
+  it("jumps to sessions inside the content panel without scrolling the fixed shell", () => {
+    render(
+      <div data-secretary-scroll>
+        <SecretaryProgressOverview progress={query()} />
+        <SecretarySessionProgressList progress={query()} agents={[]} />
+      </div>,
+    );
+    const target = document.getElementById("secretary-session-progress")!;
+    const container = target.closest<HTMLElement>("[data-secretary-scroll]")!;
+    container.scrollTop = 25;
+    container.getBoundingClientRect = vi.fn(() => ({ top: 180 }) as DOMRect);
+    target.getBoundingClientRect = vi.fn(() => ({ top: 680 }) as DOMRect);
+    container.scrollTo = vi.fn();
+    fireEvent.click(screen.getByRole("link", { name: "View sessions" }));
+    expect(container.scrollTo).toHaveBeenCalledWith({ top: 525 });
+    expect(window.location.hash).toBe("");
+  });
   it("shows authoritative aggregate counts rather than the number of loaded rows", () => {
     render(<SecretaryProgressOverview progress={query()} />);
     const panel = screen.getByRole("region", { name: "Summary progress" });

@@ -657,6 +657,9 @@ or search cursors in Zustand or localStorage. The opaque search cursor belongs
 only to that search; it is not a Secretary processing checkpoint. An expired
 cursor requires restarting the result set. Submitting the same query also
 restarts it so newly indexed messages can appear.
+Authentication failures hide cached results and the selected source. Explicit
+restart clears the selection before resetting the query, so a recent source
+cache cannot reappear while authentication is being checked again.
 
 `src/components/search` renders result rows and the source reader. It reads
 the hit's exact content hash or summary revision. Message views default to
@@ -2389,6 +2392,9 @@ available when the saved agent disappears or the inventory cannot load. Show
 bounded safe errors, queue size, last completion, and an explicit manual run;
 request acceptance does not mean a summary has completed. Search remains a
 separate, read-only view of persisted summaries and their exact source refs.
+An inventory authentication failure hides cached agent names. The progress jump
+scrolls only the inner settings panel; it must not scroll the fixed Console shell
+or move mobile navigation away from the bottom of the viewport.
 
 `scripts/secretary-smoke/run.mjs` verifies real settings HTTP behavior with an
 explicit isolated test agent. It enables/disables and restores that fixture's

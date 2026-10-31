@@ -134,10 +134,14 @@ function WorkspaceSearchContent({
   });
   const expiredCursor =
     search.error instanceof ApiError && /cursor/i.test(search.error.message);
+  function restart() {
+    setSelected(undefined);
+    void search.restart();
+  }
   function submit(event: FormEvent) {
     event.preventDefault();
     if (draft.trim() === query) {
-      void search.restart();
+      restart();
       return;
     }
     onNavigate(searchHref(draft, kind));
@@ -297,7 +301,7 @@ function WorkspaceSearchContent({
                     <Button
                       className="mt-2"
                       onClick={() => {
-                        void search.restart();
+                        restart();
                       }}
                       size="sm"
                     >

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { chromium } from "playwright";
@@ -20,6 +20,31 @@ assert(
   "PAX_SEARCH_CONSOLE_URL must be a loopback HTTP origin for the isolated fixture stack",
 );
 
+// Only local fixture runs may attach a private, owner-scoped test API key.
+const headersFile = process.env.PAX_BROWSER_TEST_HEADERS_FILE;
+let extraHTTPHeaders;
+if (headersFile) {
+  const metadata = await stat(headersFile);
+  assert(
+    metadata.isFile() && metadata.size <= 8192 && (metadata.mode & 0o077) === 0,
+    "The browser fixture header file must be a small private file (mode 0600)",
+  );
+  let headers;
+  try {
+    headers = JSON.parse(await readFile(headersFile, "utf8"));
+  } catch {
+    throw new Error("The browser fixture header file must contain valid JSON");
+  }
+  assert(
+    headers &&
+      Object.keys(headers).length === 1 &&
+      typeof headers.Authorization === "string" &&
+      /^Bearer [^\s]+$/.test(headers.Authorization),
+    "The browser fixture header file must contain only an Authorization Bearer header",
+  );
+  extraHTTPHeaders = headers;
+}
+
 const output = process.env.PAX_SEARCH_SMOKE_OUTPUT_DIR
   ? path.resolve(process.env.PAX_SEARCH_SMOKE_OUTPUT_DIR)
   : await mkdtemp(path.join(tmpdir(), "pax-search-browser-"));
@@ -32,7 +57,7 @@ const browser = await chromium.launch({
 const timeout = 45_000;
 const pageErrors = [];
 
-function apiResponse(page, suffix, method = "POST") {
+function apiResponse(page, suffix, method = "POST", matchesRequest) {
   return page.waitForResponse(
     (response) => {
       const url = new URL(response.url());
@@ -41,7 +66,8 @@ function apiResponse(page, suffix, method = "POST") {
         new RegExp(`^/api/pax/api/v1/user/[^/]+/${suffix}$`).test(
           url.pathname,
         ) &&
-        response.request().method() === method
+        response.request().method() === method &&
+        (!matchesRequest || matchesRequest(response.request().postDataJSON()))
       );
     },
     { timeout },
@@ -71,9 +97,12 @@ async function dataFrom(responsePromise, label) {
   return body.data;
 }
 
-async function successfulAction(page, suffix, action, label) {
+async function successfulAction(page, suffix, action, label, matchesRequest) {
   // Observe the real response. No routing, fulfillment, or API stubs are used.
-  const pending = dataFrom(apiResponse(page, suffix), label);
+  const pending = dataFrom(
+    apiResponse(page, suffix, "POST", matchesRequest),
+    label,
+  );
   const [data] = await Promise.all([pending, action()]);
   return data;
 }
@@ -99,7 +128,9 @@ async function submit(page, query) {
         .getByRole("button", { name: "Search", exact: true })
         .click(),
     `Search ${query}`,
+    (request) => request.query === query.trim(),
   );
+  await page.waitForURL((url) => url.searchParams.get("q") === query.trim());
   assert(Array.isArray(data.hits), "Search must return a hits array");
   if (data.hits.length) {
     await results(page).getByRole("listitem").first().waitFor();
@@ -110,6 +141,7 @@ async function submit(page, query) {
 }
 
 async function filter(page, name, expectedKind) {
+  const query = new URL(page.url()).searchParams.get("q") || "";
   const data = await successfulAction(
     page,
     "search",
@@ -119,6 +151,10 @@ async function filter(page, name, expectedKind) {
         .getByRole("button", { name, exact: true })
         .click(),
     `${name} filter`,
+    (request) =>
+      request.query === query &&
+      request.kinds?.length === 1 &&
+      request.kinds[0] === expectedKind,
   );
   assert(data.hits.length > 0, `${name} filter must retain the seeded result`);
   assert(
@@ -182,7 +218,7 @@ async function assertNoOverflow(page, label) {
 }
 
 async function normalUserPage(viewport) {
-  const context = await browser.newContext({ viewport });
+  const context = await browser.newContext({ viewport, extraHTTPHeaders });
   const page = await context.newPage();
   page.setDefaultTimeout(timeout);
   page.on("pageerror", (error) => pageErrors.push(error.name));

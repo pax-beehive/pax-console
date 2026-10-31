@@ -10,6 +10,7 @@ fixture agent; do not point the test at a live model agent.
 ```bash
 PAX_SECRETARY_CONSOLE_URL=http://127.0.0.1:3117 \
 PAX_SECRETARY_SMOKE_AGENT_ID=<fixture-agent-id> \
+PAX_BROWSER_TEST_HEADERS_FILE=/private/tmp/pax-secretary-pr-browser-headers.json \
 PAX_BROWSER_TEST_EXECUTABLE="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
 node scripts/secretary-smoke/run.mjs
 ```
@@ -32,3 +33,12 @@ session links, and verifies progress refresh preserves unsaved configuration.
 Additional desktop/mobile progress screenshots show the paginated session list.
 Use fixtures with completed, partial, and unstarted sessions to exercise every
 classification without invoking a live agent.
+
+Current main’s proxy forwards Cloudflare assertion fallbacks to Manager. For the
+isolated local fixture, `PAX_BROWSER_TEST_HEADERS_FILE` can provide a legitimate
+fixture owner API key instead. The file must be private (mode 0600), at most 8 KiB,
+and contain only `{ "Authorization": "Bearer <fixture-key>" }`. This option is
+read after the loopback-origin guard; its contents are never logged. Keep it
+outside the repository, and revoke/delete the fixture key and file after testing.
+See the search smoke README for local preview setup. No authentication source
+changes or feature request mocks are needed.

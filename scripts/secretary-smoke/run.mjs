@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { chromium } from "playwright";
@@ -18,6 +18,30 @@ assert(
     !origin.hash,
   "Use a loopback Console origin connected to an isolated Secretary fixture stack",
 );
+// Only local fixture runs may attach a private, owner-scoped test API key.
+const headersFile = process.env.PAX_BROWSER_TEST_HEADERS_FILE;
+let extraHTTPHeaders;
+if (headersFile) {
+  const metadata = await stat(headersFile);
+  assert(
+    metadata.isFile() && metadata.size <= 8192 && (metadata.mode & 0o077) === 0,
+    "The browser fixture header file must be a small private file (mode 0600)",
+  );
+  let headers;
+  try {
+    headers = JSON.parse(await readFile(headersFile, "utf8"));
+  } catch {
+    throw new Error("The browser fixture header file must contain valid JSON");
+  }
+  assert(
+    headers &&
+      Object.keys(headers).length === 1 &&
+      typeof headers.Authorization === "string" &&
+      /^Bearer [^\s]+$/.test(headers.Authorization),
+    "The browser fixture header file must contain only an Authorization Bearer header",
+  );
+  extraHTTPHeaders = headers;
+}
 const agentId = process.env.PAX_SECRETARY_SMOKE_AGENT_ID;
 assert(
   agentId,
@@ -143,7 +167,7 @@ async function assertProgress(page) {
   return data;
 }
 async function openPage(viewport, pathname) {
-  const context = await browser.newContext({ viewport });
+  const context = await browser.newContext({ viewport, extraHTTPHeaders });
   contexts.push(context);
   const page = await context.newPage();
   page.setDefaultTimeout(timeout);
@@ -354,6 +378,14 @@ try {
   await mobile
     .getByRole("link", { name: "View sessions", exact: true })
     .click();
+  const fixedNavigation = await mobile
+    .getByRole("navigation", { name: "Primary", exact: true })
+    .boundingBox();
+  assert(
+    fixedNavigation &&
+      Math.abs(fixedNavigation.y + fixedNavigation.height - 844) <= 1,
+    "Jumping to sessions must keep the mobile navigation pinned to the viewport",
+  );
   await noOverflow(mobile, "Mobile session progress");
   await mobile.screenshot({
     path: path.join(output, "mobile-secretary-progress.png"),

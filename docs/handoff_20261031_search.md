@@ -1,5 +1,8 @@
 # Workspace search handoff
 
+Latest current-main integration and verification:
+[integration handoff](handoff_20261031_console_main_integration.md).
+
 ## Checkouts
 
 Console worktree: `/Users/gengcongkai/pax_workspace/work/search-mvp-console`

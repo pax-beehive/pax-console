@@ -5,7 +5,7 @@ isolated Manager/PostgreSQL/Elasticsearch fixture stack and the normal same-orig
 `/api/pax` proxy. It does not mock requests, create business records, publish
 summaries, or alter application authentication.
 
-Use Node 24 and the already installed Console dependencies. From the sibling
+Use the repository Node version (24.14.1) and the already installed Console dependencies. From the sibling
 Manager checkout, start a disposable stack and leave it running:
 
 ```bash
@@ -22,20 +22,26 @@ Start this Console against the printed Manager URL in a separate terminal:
 
 ```bash
 PAX_MANAGER_URL=http://127.0.0.1:MANAGER_PORT \
-PAX_CF_AUTHORIZATION=local-dev \
+PAX_CF_AUTHORIZATION=local-smoke-fixture \
 NEXT_PUBLIC_PAX_API_BASE_URL=/api/pax \
 NEXT_PUBLIC_PAX_USER_SCOPE=self \
 pnpm exec next dev --webpack --hostname 127.0.0.1 --port 3117
 ```
 
-`local-dev` is only an identity placeholder for this dev-auth fixture Manager;
-do not use it against a Manager that validates Cloudflare JWTs. The server-side
-proxy retains its normal identity gate. Running Next directly also avoids the
-normal `pnpm dev` script refreshing a Cloudflare token for this isolated test.
+`local-smoke-fixture` is a non-secret presence placeholder for the local proxy.
+Current main forwards it as a Cloudflare assertion, so the isolated fixture also
+needs a legitimate owner API key. Create that key through the local Manager
+fixture API and save only `{ "Authorization": "Bearer <fixture-key>" }` to a
+mode-0600 file outside the repository. Set `PAX_BROWSER_TEST_HEADERS_FILE` to its
+path for the runner; the key takes precedence in Manager authentication. Do not
+print or commit the file, and revoke the fixture key after testing. This does not
+change application authentication. Running Next directly avoids refreshing a
+real Cloudflare token for the isolated test.
 
 Once the server is ready, run from this Console checkout:
 
 ```bash
+PAX_BROWSER_TEST_HEADERS_FILE=/private/tmp/pax-secretary-pr-browser-headers.json \
 node scripts/search-smoke/run.mjs
 ```
 
@@ -43,6 +49,7 @@ Optional environment variables:
 
 | Variable                      | Meaning                                                                      |
 | ----------------------------- | ---------------------------------------------------------------------------- |
+| `PAX_BROWSER_TEST_HEADERS_FILE` | Optional private mode-0600 JSON file containing only a fixture Authorization Bearer header; accepted only by this loopback runner |
 | `PAX_SEARCH_CONSOLE_URL`      | Loopback Console origin; default `http://127.0.0.1:3117`                     |
 | `PAX_BROWSER_TEST_EXECUTABLE` | Existing Chrome/Chromium executable, if Playwright's browser is unavailable  |
 | `PAX_SEARCH_SMOKE_OUTPUT_DIR` | Screenshot directory; default is a newly created private temporary directory |

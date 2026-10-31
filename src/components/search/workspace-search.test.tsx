@@ -320,6 +320,19 @@ describe("Workspace search", () => {
       "href",
       "/auth/login",
     );
+    fireEvent.submit(screen.getByRole("form", { name: "Workspace search" }));
+    searchResult({ ...queryState(), isPending: true });
+    view.rerender(
+      <WorkspaceSearch
+        userId="user_1"
+        query="数据"
+        kind="all"
+        onNavigate={vi.fn()}
+      />,
+    );
+    expect(
+      screen.queryByRole("region", { name: "Selected source" }),
+    ).not.toBeInTheDocument();
   });
 
   it("reads the exact selected version and opens its canonical session", () => {
