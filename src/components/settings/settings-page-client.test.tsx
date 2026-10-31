@@ -61,6 +61,10 @@ describe("settings landing pages", () => {
       "href",
       "/settings/devices",
     );
+    expect(screen.getByRole("link", { name: /Secretary/ })).toHaveAttribute(
+      "href",
+      "/settings/secretary",
+    );
     expect(
       screen.getByRole("link", { name: /Advanced settings/ }),
     ).toHaveAttribute("href", "/settings/advanced");

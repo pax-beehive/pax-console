@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { Activity, Settings, Users, ChartNoAxesCombined } from "lucide-react";
+import {
+  Activity,
+  Search,
+  Settings,
+  Users,
+  ChartNoAxesCombined,
+} from "lucide-react";
 import { usePathname } from "next/navigation";
 
 const items = [
@@ -10,6 +16,12 @@ const items = [
     icon: Activity,
     label: "Home",
     matches: ["/", "/sessions", "/inquiries", "/conversations"],
+  },
+  {
+    href: "/search",
+    icon: Search,
+    label: "Search",
+    matches: ["/search"],
   },
   {
     href: "/collaboration/teams",
@@ -42,7 +54,7 @@ export function MobileNav({
     <nav
       aria-label="Primary"
       className={`absolute inset-x-0 bottom-0 z-50 grid h-[var(--console-mobile-nav-height)] border-t border-hairline bg-surface-1/95 px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] backdrop-blur lg:hidden ${
-        showAdminFeatures ? "grid-cols-4" : "grid-cols-2"
+        showAdminFeatures ? "grid-cols-5" : "grid-cols-3"
       }`}
     >
       {items

@@ -29,12 +29,20 @@ export function Topbar({ user }: TopbarProps) {
         <span className="text-xs font-semibold tracking-widest text-ink-muted sm:hidden">
           PAX
         </span>
-        {isAdmin && !previewAsUser && (
+        <form
+          action="/search"
+          method="get"
+          role="search"
+          className="hidden w-full max-w-[340px] sm:block"
+        >
           <SearchBox
-            className="hidden w-full max-w-[340px] sm:flex"
-            placeholder="Search threads and resources"
+            aria-label="Quick search"
+            name="q"
+            maxLength={256}
+            placeholder="Search your workspace"
+            required
           />
-        )}
+        </form>
       </div>
       <div className="flex min-w-0 items-center gap-2 sm:gap-3">
         <DropdownMenu>

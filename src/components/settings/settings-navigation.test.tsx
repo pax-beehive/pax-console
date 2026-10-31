@@ -27,13 +27,14 @@ describe("settings navigation", () => {
       "apiKeys",
     );
     expect(settingsSectionForPath("/sessions/one")).toBeUndefined();
+    expect(settingsSectionForPath("/settings/secretary")?.id).toBe("secretary");
   });
 
-  it("exposes all eight settings with descriptions and one selected section", () => {
+  it("exposes all nine settings with descriptions and one selected section", () => {
     route.pathname = "/settings";
     render(<SettingsSidebar />);
     const navigation = screen.getByRole("navigation", { name: "Settings" });
-    expect(within(navigation).getAllByRole("link")).toHaveLength(8);
+    expect(within(navigation).getAllByRole("link")).toHaveLength(9);
     expect(
       within(navigation).getByRole("link", { name: /Notifications/ }),
     ).toHaveAttribute("aria-current", "page");
@@ -60,5 +61,21 @@ describe("settings navigation", () => {
     expect(
       screen.getByRole("link", { name: /Notifications/ }),
     ).not.toHaveAttribute("aria-current");
+  });
+
+  it("selects Secretary within the existing settings workspace", () => {
+    route.pathname = "/settings/secretary";
+    render(<SettingsSidebar />);
+    expect(screen.getByRole("link", { name: /Secretary/ })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("link", { name: /Secretary/ })).toHaveAttribute(
+      "href",
+      "/settings/secretary",
+    );
+    expect(
+      screen.getByRole("link", { name: /Back to workspace/ }),
+    ).toBeInTheDocument();
   });
 });
