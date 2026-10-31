@@ -11,6 +11,7 @@ const publicKey = createECDH("prime256v1").generateKeys().toString("base64url");
 const sections = [
   ["Notifications", "/settings/notifications", "Notifications"],
   ["Devices & agents", "/settings/devices", "Devices"],
+  ["Secretary", "/settings/secretary", "Secretary"],
   ["Projects", "/settings/projects", "Projects"],
   ["Allowed actions", "/settings/advanced/permissions", "Allowed actions"],
   ["Encrypted chats", "/settings/advanced/encryption", "Encrypted chats"],
@@ -23,7 +24,10 @@ const sections = [
   ["Service status", "/settings/service-status", "Service status"],
 ];
 await mkdir(output, { recursive: true });
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({
+  headless: true,
+  executablePath: process.env.PAX_BROWSER_TEST_EXECUTABLE || undefined,
+});
 try {
   for (const viewport of [
     { width: 1440, height: 1000 },
@@ -80,6 +84,32 @@ try {
         data = {
           regions: [{ region: "local", available: true, receivers: [] }],
         };
+      else if (path.endsWith("/secretary"))
+        data = {
+          enabled: false,
+          revision: 0,
+          state: "disabled",
+          pending_count: 0,
+          agent_available: false,
+        };
+      else if (path.endsWith("/secretary/progress"))
+        data = {
+          as_of: "2026-10-31T12:00:00Z",
+          counts: {
+            total_sessions: 0,
+            completed_sessions: 0,
+            partial_sessions: 0,
+            unstarted_sessions: 0,
+            total_messages: 0,
+            completed_messages: 0,
+            pending_messages: 0,
+            total_turns: 0,
+            completed_turns: 0,
+            pending_turns: 0,
+            ungrouped_messages: 0,
+          },
+          sessions: [],
+        };
       return route.fulfill({ json: { code: 200, data } });
     });
     await page.goto(origin + "/settings");
@@ -109,7 +139,7 @@ try {
         fullPage: false,
       });
     } else {
-      assert.equal(await navigation.getByRole("link").count(), 8);
+      assert.equal(await navigation.getByRole("link").count(), sections.length);
       const bounds = await navigation.boundingBox();
       assert(bounds.width >= 250 && bounds.x === 0);
     }

@@ -412,6 +412,19 @@ Topbar
   compact Button/SearchBox/TruncatedText primitives
 ```
 
+Workspace search is implemented at `/search`. Every authenticated user has a
+Search link in desktop and mobile navigation; the desktop Topbar quick-search
+form opens the same route. The URL retains the submitted query and result kind.
+Results use compact rows with safe literal highlights and filters for all,
+sessions, messages, and summaries. Selecting a result opens a source pane with
+message views, context, or summary coverage and exact child-summary revisions.
+Desktop uses a split pane after selection; mobile shows the source with a Back
+to results control. Source bodies preserve whitespace and wrap long content.
+Loading, no results, failed/expired pagination, unavailable sources, and changed
+versions have explicit states. A changed version requires an explicit current
+read; summary source links retain their frozen versions. This is an owner-only
+search surface, with permission checks performed by Manager on every read.
+
 Avoid dynamic Tailwind `grid-cols-[...]` strings for shell collapse behavior. The sidebar uses explicit width because local development through `paxworkspace.net` and Turbopack can otherwise make stale chunk/class behavior hard to diagnose.
 
 ## Existing API Model

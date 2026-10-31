@@ -1,6 +1,7 @@
 import {
   Activity,
   Bell,
+  Bot,
   FolderTree,
   KeyRound,
   LockKeyhole,
@@ -14,6 +15,7 @@ export const settingsLinks = {
   home: "/settings",
   devices: "/settings/devices",
   projects: "/settings/projects",
+  secretary: "/settings/secretary",
   status: "/settings/service-status",
   notifications: "/settings/notifications",
   advanced: "/settings/advanced",
@@ -60,6 +62,15 @@ export const settingsGroups: readonly {
         aliases: ["/nodes", "/agents"],
         description:
           "Connect computers and servers, manage their agents, and inspect connection details.",
+      },
+      {
+        id: "secretary",
+        href: settingsLinks.secretary,
+        title: "Secretary",
+        icon: Bot,
+        caption: "Automatic conversation summaries",
+        description:
+          "Choose an agent to maintain summaries connected to your conversations, and track what has been summarized.",
       },
       {
         id: "projects",

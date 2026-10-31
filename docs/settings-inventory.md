@@ -1,6 +1,6 @@
 # Settings inventory and organization
 
-Settings has eight primary sections. The desktop navigation shows all sections
+Settings has nine primary sections. The desktop navigation shows all sections
 in four groups; `/settings` opens Notifications directly on desktop. Mobile keeps
 the original Settings directory, Advanced settings list, and per-page back links;
 it has no section selector. Account reload/sign-out remain in the
@@ -11,6 +11,7 @@ the workspace administrator navigation.
 | ----------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------- |
 | Workspace         | Notifications       | Device opt-in/out, subscription confirmation, test delivery, latest-attempt status; explanations of completed replies and manual approvals | `/settings/notifications`                       |
 | Workspace         | Devices & agents    | Connect a device, add an agent, switch between device and agent lists, filter active resources, inspect details                            | `/settings/devices` (`?view=agents` for agents) |
+| Workspace         | Secretary           | Choose one owned agent, enable automatic summaries, inspect published coverage and remaining conversations                                 | `/settings/secretary`                           |
 | Workspace         | Projects            | Create/edit/archive projects, organize hierarchy, configure reusable agent and working-folder targets                                      | `/settings/projects`                            |
 | Security & access | Allowed actions     | Review persistent agent grants, inspect scope, revoke permission                                                                           | `/settings/advanced/permissions`                |
 | Security & access | Encrypted chats     | Save/remove browser encryption keys, manage encrypted-device access and pairing                                                            | `/settings/advanced/encryption`                 |

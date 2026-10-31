@@ -3,6 +3,7 @@
 import {
   Activity,
   Bell,
+  Bot,
   FolderTree,
   KeyRound,
   Server,
@@ -99,6 +100,12 @@ export function SettingsPage({ advanced = false }: { advanced?: boolean }) {
                           icon={Server}
                           title="Devices"
                           description="Connect computers or servers and manage their agents."
+                        />
+                        <SettingsLink
+                          href={settingsLinks.secretary}
+                          icon={Bot}
+                          title="Secretary"
+                          description="Maintain automatic summaries and track conversation progress."
                         />
                         <SettingsLink
                           href={settingsLinks.projects}

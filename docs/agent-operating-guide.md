@@ -59,7 +59,7 @@ Homebrew and npx wrappers remain unsupported.
 ## Settings workspace
 
 On desktop, `/settings` opens the actual Notifications page.
-`settings/settings-catalog.ts` owns the four desktop navigation groups, eight
+`settings/settings-catalog.ts` owns the four desktop navigation groups, nine
 sections, descriptions, and legacy-route matching. Desktop Settings uses a dedicated 272px sidebar with a Back to workspace
 link; it replaces the ordinary app navigation rather than adding another rail.
 The workspace sidebar's persisted collapsed state is preserved and restored on
@@ -78,7 +78,7 @@ Devices retain their Devices/Agents segmented view and detail workflows.
 settings directory on mobile; existing deep links continue
 to work. See `docs/settings-inventory.md` for the feature inventory.
 
-`node scripts/settings-workspace-browser.mjs` checks all eight sections at desktop
+`node scripts/settings-workspace-browser.mjs` checks all nine sections at desktop
 and mobile widths, active links, legacy Advanced navigation, and overflow. It
 uses fictional account/API data and saves screenshots under
 `PAX_SETTINGS_SCREENSHOTS` (default `/tmp/pax-settings-workspace`).
@@ -618,7 +618,7 @@ stop a turn, or cancel the agent. Only the active tab mounts
 Admin-only experimental UI must use the shared effective admin view. A real
 admin can enable `Preview as user` from the top-right user menu; while enabled,
 the UI must hide the same experimental controls hidden from normal users.
-Knowledge panels, fake inquiries, global search, image attachment, and voice
+Knowledge panels, fake inquiries, image attachment, and voice
 input currently follow this rule. Tool evidence and the read-only Session
 Artifacts panel remain available to all session users. The Artifacts panel
 supports list, refresh, signed preview, and download; it does not expose the
@@ -626,10 +626,58 @@ legacy browser upload control.
 The Collaboration navigation group is also admin-only for the current public
 release. Both desktop and mobile navigation must honor preview-as-user mode.
 
+Workspace search is available to every authenticated user, including admins
+using Preview as user. It is an owner-scoped production feature, not an
+admin-only experimental control.
+
 Never duplicate server resources such as nodes, agents, sessions, messages,
 teams, friends, envelopes, or knowledge capsules into Zustand.
 
 ## REST API Rules
+
+### Workspace search
+
+`/search?q=...&kind=...` is the authenticated search surface. The shell exposes
+Search in both desktop and mobile navigation. The desktop quick-search field
+uses a native GET form to this route. `kind` is `all`, `session`, `message`, or
+`summary`; the URL owns the submitted query and kind, while input drafts,
+source selection, paragraph view, and source pagination stay local to the page.
+
+`src/features/api/workspace-search.ts` owns the typed POST search and source
+read requests. Both use `apiFetch(userPath(...))` through `/api/pax`; do not add
+browser-to-Elasticsearch traffic or owner IDs to request bodies. Manager
+derives the owner from authentication and rechecks the source in PostgreSQL.
+Search matches contiguous literal text, including single Chinese characters;
+it does not invoke a model or perform semantic expansion.
+
+TanStack Query owns result pages and reads. Keys include the authenticated
+user and every query/ref/view/pagination field. A new user, query, or kind
+remounts the selection surface. Never put snippets, receipts, source bodies,
+or search cursors in Zustand or localStorage. The opaque search cursor belongs
+only to that search; it is not a Secretary processing checkpoint. An expired
+cursor requires restarting the result set. Submitting the same query also
+restarts it so newly indexed messages can appear.
+Authentication failures hide cached results and the selected source. Explicit
+restart clears the selection before resetting the query, so a recent source
+cache cannot reappear while authentication is being checked again.
+
+`src/components/search` renders result rows and the source reader. It reads
+the hit's exact content hash or summary revision. Message views default to
+the backend-selected view and can expand to first, last, or full visible text;
+long views are paginated and context messages open by their own exact refs.
+A version conflict offers an explicit current-version read. Summary coverage
+and child-summary links retain their frozen versions, including when the
+original message has since changed. Permission and deletion failures display
+an unavailable state. A search hit never authorizes a subsequent read.
+
+The summary pane is read-only. Summary publication belongs to Secretary via
+the Manager API/MCP adapter; Console does not generate summaries or start a
+background agent. SearchBox accepts normal controlled-input and form props.
+Literal highlights are React text nodes, never raw HTML from the index.
+
+See `scripts/search-smoke/README.md` for real browser verification against the
+isolated Manager/PostgreSQL/Elasticsearch fixture stack. Do not use production
+data for this fixture runner.
 
 Use:
 
@@ -2317,3 +2365,64 @@ same project on the selected agent's device. Deduplicate these paths against
 current-agent targets and each other. Reuse is explicit, preserves the selected
 agent, and passes only the directory, never the source agent's target ID. Reuse
 does not implicitly save a new target or change the default workspace.
+
+## Automatic Secretary settings
+
+`/settings/secretary` is available to every authenticated user through the
+desktop settings workspace and the mobile Settings directory. It selects
+exactly one existing owned agent using `useAgents(userId, "owned")`. Keep
+explicitly foreign agents out of that selector even if a response includes one.
+An offline owned agent may be saved; work waits for its connection. Do not create
+an agent or enable Secretary implicitly.
+
+`src/features/api/secretary.ts` owns same-origin GET/PATCH `/secretary` and POST
+`/secretary/run` under the authenticated user path. Settings and runtime status
+belong in user-scoped TanStack Query caches. Form choices are local drafts until
+Save settings sends `agent_id`, `enabled`, and `expected_revision`. A disabled
+configuration may clear the agent with an empty ID. The backend owns current
+agent availability, work scheduling, source permissions, model calls, and
+immutable summary publication; this page does not run a browser processing loop.
+
+Do not optimistically mark a save or run successful. Cancel stale settings reads
+before mutations and use the returned server state. A 409 refetches settings and
+requires the user to review the new revision. Runtime-only updates must not
+change the settings CAS revision or reset an unsaved form. Poll status every
+five seconds while enabled and fifteen seconds while disabled. Disable remains
+available when the saved agent disappears or the inventory cannot load. Show
+bounded safe errors, queue size, last completion, and an explicit manual run;
+request acceptance does not mean a summary has completed. Search remains a
+separate, read-only view of persisted summaries and their exact source refs.
+An inventory authentication failure hides cached agent names. The progress jump
+scrolls only the inner settings panel; it must not scroll the fixed Console shell
+or move mobile navigation away from the bottom of the viewport.
+
+`scripts/secretary-smoke/run.mjs` verifies real settings HTTP behavior with an
+explicit isolated test agent. It enables/disables and restores that fixture's
+configuration, checks reload and mobile navigation, and captures screenshots.
+It does not mock requests or treat accepted settings as proof that generation
+and immutable provenance have completed; those belong in Manager acceptance.
+
+### Published summary progress
+
+`src/features/api/secretary-progress.ts` reads GET `/secretary/progress` with
+bounded opaque-cursor pagination. It has an independent user-scoped TanStack
+infinite query, polling every thirty seconds even while Secretary is disabled.
+Refresh replaces loaded pages; explicit refresh discards old cursors. Session
+rows are keyed by `source_id` and deduplicated using the newest returned row.
+Do not derive universe counts from the loaded page. Use the authoritative
+`counts` and show `as_of`; totals and remaining work may rise as content changes.
+Updating progress must not remount an unsaved Secretary configuration form.
+The Current status Queued count is queued work, not remaining summary coverage;
+the Summary progress section separately counts the entire eligible universe.
+
+The progress universe is currently owned, visible, nonempty canonical plaintext
+user/assistant content. Empty, encrypted, archived/deleted/inaccessible, reasoning,
+tool and internal Secretary execution sources are excluded by Manager. Completion
+means published coverage matching the current complete message version. An
+active model read never increases completed counts. The UI calls intermediate
+coverage Partly summarized, not Partly read, and shows no model percentage.
+Show exact turn counts only when `ungrouped_messages` is zero and known turn
+groups exist; otherwise use message counts without guessing turn boundaries.
+Overview metrics and a jump link sit above configuration; the per-session list
+follows the controls, with source agent/session identity and canonical session
+links. A progress failure has its own retry and does not disable configuration.

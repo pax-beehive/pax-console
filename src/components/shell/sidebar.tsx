@@ -13,6 +13,7 @@ import {
   Inbox,
   Info,
   MailPlus,
+  Search,
   Settings,
   Users,
 } from "lucide-react";
@@ -38,6 +39,12 @@ const primaryNavItems: readonly NavItem[] = [
     icon: Activity,
     label: "Home",
     matches: ["/", "/sessions", "/inquiries", "/conversations"],
+  },
+  {
+    href: "/search",
+    icon: Search,
+    label: "Search",
+    matches: ["/search"],
   },
   {
     href: "/collaboration/teams",

@@ -3,7 +3,7 @@
 ## Settings 设置工作区
 
 桌面 `/settings` 默认展示通知设置内容，使用专用侧栏与右侧内容区。
-`settings-catalog.ts` 统一维护桌面四组、八项设置及用途说明。手机保留原来的 Settings
+`settings-catalog.ts` 统一维护桌面四组、九项设置及用途说明。手机保留原来的 Settings
 入口列表、Advanced settings 列表与逐页返回，不增加设置选择器。`useDesktopSettings`
 使用与 `lg` 一致的 1024px 媒体查询，按视口挂载入口内容，手机入口不会挂载通知设置控件。
 桌面设置页面复用 `SettingsPageHeader`，明确标题、用途与操作范围，手机保留原有标题布局。
@@ -11,7 +11,7 @@
 展示 Allowed actions，在手机展示原有高级设置目录。
 项目保留内部项目列表和工作目录目标面板，通知订阅的核对中状态保持原有防闪烁规则。
 设置项及子功能清单见 `docs/settings-inventory.md`；此调整不新增 API 或服务端状态。
-浏览器回归覆盖桌面/手机全部八项、当前入口、手机逐页返回以及横向溢出；数据使用明确夹具。
+浏览器回归覆盖桌面/手机全部九项、当前入口、手机逐页返回以及横向溢出；数据使用明确夹具。
 
 ## 通知订阅管理看板
 
@@ -2098,3 +2098,80 @@ same project on the selected agent's device. Deduplicate these paths against
 current-agent targets and each other. Reuse is explicit, preserves the selected
 agent, and passes only the directory, never the source agent's target ID. Reuse
 does not implicitly save a new target or change the default workspace.
+
+## Workspace 搜索
+
+`/search?q=...&kind=...` 提供当前登录用户范围内的标题、消息正文和当前总结检索。
+普通用户、管理员和 Preview as user 都可以使用；桌面 Sidebar、手机底部导航都有
+Search 入口，桌面 Topbar 的快捷搜索用 GET 表单打开该页。
+
+API 层集中在 `src/features/api/workspace-search.ts`，通过既有 `apiFetch` 和
+`userPath` 向同源 `/api/pax` 发送 search / search/read POST 请求。浏览器不直接
+访问 ES，也不指定 owner。Manager 从登录态确定 owner，在 PG 再次验证原文权限。
+ES 是检索投影，PG 是消息、总结版本和引用快照的事实源。查询是连续字面子串匹配，
+支持中文单字，不调用模型或 embedding。
+
+TanStack Query 保存搜索分页和原文读取结果，key 包括用户、查询、类型以及完整引用、
+视图和分页参数。URL 保存已提交的 query/kind；输入草稿、选中来源、first/last/full
+视图和原文分页属于页面局部状态。切换用户、查询或类型时重建选中来源。搜索片段、
+正文、read receipt、cursor 不进入 Zustand 或 localStorage。同一查询再次提交会
+重新检索；过期 cursor 需要重启分页，不能作为 Secretary 增量处理 checkpoint。
+鉴权失败时隐藏缓存结果和已选原文；显式重启先清除选中来源，防止重置错误后在重新
+鉴权期间挂载旧的原文缓存。
+
+`src/components/search` 采用结果行加来源面板。桌面选中后左右分栏，手机选中后显示
+来源和返回按钮。来源读取保留命中的 content_hash 或 summary revision；消息支持
+展开、分页和前后文。版本变化时明确提示并允许读取当前版本。总结展示冻结的 coverage
+与下层总结精确版本，点击可回到对应旧原文；失去权限或删除后不能依靠旧命中继续读取。
+高亮使用 React 文本节点，不注入 ES 返回的 HTML。打开完整 session 使用 canonical
+Manager session_id，不推断 ACP/native session 身份。
+
+搜索页只读总结。生成和发布由 Secretary 经 Manager API/MCP 完成，不在搜索页启动
+后台总结流水线。真实浏览器验收入口见 `scripts/search-smoke/README.md`，覆盖普通用户
+权限、同源代理、中文子串、消息展开、总结溯源以及桌面和手机布局。
+
+## Secretary 自动总结设置
+
+`/settings/secretary` 为所有登录用户提供设置入口。桌面位于专用 Settings 侧栏；
+手机通过 Settings 目录进入。页面复用共享设置页标题和手机返回链接，不增加平行导航。
+这里只选择一个已有且归当前用户所有的 agent，调用 `useAgents(userId, "owned")`，
+不隐式创建 agent，也不在打开页面或选择 agent 时自动启用。离线的 owned agent
+仍可保存配置，后台等待重新连接。
+
+`src/features/api/secretary.ts` 经同源 `/api/pax` 调用用户范围内的 GET/PATCH
+`/secretary` 和 POST `/secretary/run`。TanStack Query 按 user ID 保存持久配置及
+运行状态。表单中的 agent 和开关只是草稿，点击 Save settings 后才发送
+`agent_id`、`enabled`、`expected_revision`。关闭时允许用空 agent ID 清除失效选择。
+Mutation 不乐观修改已保存状态；提交前取消旧 GET，成功后使用服务端响应。409 会
+重新读取配置，要求用户检查最新 revision 后再保存。配置 revision 只表示设置变更，
+队列进度等运行状态变化不能重置未提交的表单。
+Agent 列表鉴权失败时隐藏旧的名称缓存。进度跳转仅滚动设置内容面板，不滚动固定的
+Console shell，避免手机底部导航离开视口底边。
+
+页面显示服务端的 disabled/idle/waiting_for_agent/processing/error、待处理会话数、
+上次完成时间和有界安全错误。启用时每五秒刷新，关闭时每十五秒刷新。选中的 agent
+失效或列表读取失败时仍允许关闭。Run now / Retry run 只请求后台调度；HTTP 接受
+请求不等于总结已完成。Agent 可用性、原文权限、实际模型调用、自动调度和不可变总结
+发布均由 Manager 负责，浏览器不运行采集或生成循环，也不重启旧的本地实验流水线。
+
+`scripts/secretary-smoke/run.mjs` 使用隔离测试 agent 验证真实设置请求、启用和关闭
+后的刷新持久性、手机导航与布局，并恢复初始配置。它不 mock 请求，也不将配置保存
+成功当作总结生成已完成；模型调用和固定来源版本的验证由 Manager acceptance 负责。
+
+### 总结进度
+
+`src/features/api/secretary-progress.ts` 通过 GET `/secretary/progress` 读取全局
+统计和有界分页的会话行，使用按用户隔离的 TanStack infinite query。进度独立每三十
+秒刷新，Secretary 关闭时也可以查看；它不改变配置 revision 或重置未保存的表单。
+刷新替换已加载页面，显式刷新会丢弃旧 cursor；会话按 `source_id` 去重并采用最新行。
+总会话数、已追平、部分总结、待总结使用服务端全量 `counts`，不能根据已加载页推算。
+显示 `as_of`，并提示新消息或编辑会让总量、剩余量增加。
+
+统计范围由 Manager 决定：当前 owner 可见、非空的 canonical 明文用户/assistant
+消息；空会话、加密、归档/删除/不可访问、工具、reasoning 和 Secretary 自己的执行
+会话均不计入。只有成功发布且匹配当前消息版本的 coverage 算完成；模型正在读取不
+推进完成数。UI 显示 Partly summarized，不声称有 LLM 阅读百分比。只有无未分组消息
+且确有稳定 turn 分组时显示轮次，否则回退到消息数，不能猜测轮次。顶部概览提供跳转
+到会话列表的入口；列表位于配置控件之后，展示源 agent、session 和准确剩余数。
+进度读取失败单独重试，不影响配置保存。
+Current status 中的 Queued 只是队列任务数；它与全量会话的剩余总结覆盖数不同。
