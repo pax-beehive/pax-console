@@ -22,6 +22,45 @@ afterEach(() => {
   mocks.stream.mockReset();
 });
 
+it("uses known node and agent context for a direct scoped metadata read without a list lookup", async () => {
+  const fetchMock = vi.fn().mockResolvedValue(
+    new Response(
+      JSON.stringify({
+        code: 0,
+        data: {
+          session_id: "sess/1",
+          node_id: "node/1",
+          agent_id: "agent/1",
+          runtime_status: "idle",
+        },
+      }),
+      { headers: { "Content-Type": "application/json" } },
+    ),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const { result, unmount } = renderHook(
+    () => useUserSession("self", "sess/1", "agent/1", 0, "node/1"),
+    {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    },
+  );
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(String(fetchMock.mock.calls[0][0])).toContain(
+    "/nodes/node%2F1/agents/agent%2F1/sessions/sess%2F1",
+  );
+  expect(fetchMock.mock.calls[0][1]).toEqual(
+    expect.objectContaining({ signal: expect.any(AbortSignal) }),
+  );
+  unmount();
+  client.clear();
+});
+
 it("uses a fresh REST idle response without remounting, observing running, or receiving an end frame", async () => {
   const clock = vi.spyOn(Date, "now").mockReturnValue(100);
   const session = {

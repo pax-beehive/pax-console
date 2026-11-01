@@ -96,7 +96,9 @@ import {
   useProjects,
   useProjectTargets,
   useTeamInvites,
+  useUserSession,
 } from "@/features/api/resources";
+import { ApiError, AuthError } from "@/features/api/errors";
 import { queryKeys } from "@/features/api/query-keys";
 import {
   Agent,
@@ -172,6 +174,7 @@ type WorkItem = {
 };
 
 type EmbeddedSessionTarget = {
+  messageId?: string;
   agentId?: string;
   initialApprovalMode?: SessionApprovalMode;
   initialPermissionChoiceId?: string;
@@ -210,6 +213,12 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const canonicalUrlSessionId = searchParams.get("session_id") ?? "";
   const legacyUrlSessionId = searchParams.get("sessionId") ?? "";
   const urlSessionId = canonicalUrlSessionId || legacyUrlSessionId;
+  const urlMessageId = urlSessionId
+    ? searchParams.get("message_id") || undefined
+    : undefined;
+  const [appliedUrlTarget, setAppliedUrlTarget] = useState(
+    JSON.stringify([urlSessionId, urlMessageId]),
+  );
   const [composerMode, setComposerMode] = useState<ComposerMode>("clean");
   const homeDraftKey = `home:${user.user_id}`;
   const setComposerDraft = useConsoleStore((state) => state.setComposerDraft);
@@ -259,6 +268,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
         ? {
             key: `url:${urlSessionId}`,
             sessionId: urlSessionId,
+            messageId: urlMessageId,
           }
         : null,
     );
@@ -553,9 +563,48 @@ export function FleetOverview({ user }: FleetOverviewProps) {
           sessionId: selectedSession.sessionId,
         }
       : null;
-  const resolvedEmbeddedSessionTarget = embeddedSessionTarget
+  const listResolvedSessionTarget = embeddedSessionTarget
     ? resolveEmbeddedSessionTarget(embeddedSessionTarget, activeWorkItems)
     : null;
+  const lookupSessionId =
+    listResolvedSessionTarget &&
+    listResolvedSessionTarget.sessionId !== "new" &&
+    (!listResolvedSessionTarget.nodeId || !listResolvedSessionTarget.agentId)
+      ? listResolvedSessionTarget.sessionId
+      : undefined;
+  const linkedSessionQuery = useUserSession(
+    user.user_id,
+    lookupSessionId,
+    undefined,
+    0,
+  );
+  const linkedSession =
+    lookupSessionId &&
+    !linkedSessionQuery.error &&
+    linkedSessionQuery.data &&
+    linkedSessionQuery.data?.session_id === lookupSessionId &&
+    linkedSessionQuery.data.node_id &&
+    linkedSessionQuery.data.agent_id
+      ? linkedSessionQuery.data
+      : undefined;
+  const resolvedEmbeddedSessionTarget =
+    listResolvedSessionTarget && linkedSession
+      ? {
+          ...listResolvedSessionTarget,
+          nodeId: linkedSession.node_id,
+          agentId: linkedSession.agent_id,
+        }
+      : listResolvedSessionTarget;
+  const linkedSessionFailed = Boolean(
+    lookupSessionId &&
+    (linkedSessionQuery.error ||
+      (linkedSessionQuery.isSuccess && !linkedSession)),
+  );
+  const linkedSessionUnavailable =
+    linkedSessionQuery.error instanceof AuthError ||
+    (linkedSessionQuery.error instanceof ApiError &&
+      [401, 403, 404].includes(linkedSessionQuery.error.status)) ||
+    (linkedSessionQuery.isSuccess && !linkedSession);
   const activeSessionTarget =
     selectedSessionTarget || resolvedEmbeddedSessionTarget;
   const activeSessionTargetPending =
@@ -617,34 +666,29 @@ export function FleetOverview({ user }: FleetOverviewProps) {
 
   useEffect(() => {
     if (!canonicalUrlSessionId && legacyUrlSessionId) {
-      replaceHomeSessionUrl(legacyUrlSessionId);
+      replaceHomeSessionUrl(legacyUrlSessionId, urlMessageId);
     }
-  }, [canonicalUrlSessionId, legacyUrlSessionId]);
+  }, [canonicalUrlSessionId, legacyUrlSessionId, urlMessageId]);
 
-  useEffect(() => {
-    if (!canonicalUrlSessionId && legacyUrlSessionId) {
-      replaceHomeSessionUrl(legacyUrlSessionId);
-    }
-  }, [canonicalUrlSessionId, legacyUrlSessionId]);
-
-  useEffect(() => {
+  const urlTargetKey = JSON.stringify([urlSessionId, urlMessageId]);
+  if (appliedUrlTarget !== urlTargetKey) {
+    setAppliedUrlTarget(urlTargetKey);
     if (
-      !urlSessionId ||
-      !activeSessionTargetPending ||
-      !sessionsQuery.hasNextPage ||
-      sessionsQuery.isFetchingNextPage
+      urlSessionId &&
+      (activeSessionTarget?.sessionId !== urlSessionId ||
+        activeSessionTarget.messageId !== urlMessageId)
     ) {
-      return;
+      setSelectedWorkItemId("");
+      setEmbeddedSessionTarget({
+        key:
+          activeSessionTarget?.sessionId === urlSessionId
+            ? activeSessionTarget.key
+            : `url:${urlSessionId}`,
+        sessionId: urlSessionId,
+        messageId: urlMessageId,
+      });
     }
-
-    void sessionsQuery.fetchNextPage();
-  }, [
-    activeSessionTargetPending,
-    sessionsQuery,
-    sessionsQuery.hasNextPage,
-    sessionsQuery.isFetchingNextPage,
-    urlSessionId,
-  ]);
+  }
 
   useEffect(() => {
     const sessionId = activeSessionTarget?.sessionId;
@@ -975,8 +1019,27 @@ export function FleetOverview({ user }: FleetOverviewProps) {
           >
             {secureComposerActive && <SecureModeActivation />}
             {activeSessionTargetPending ? (
-              <section className="flex min-h-0 flex-1 items-center justify-center p-5 text-sm text-ink-tertiary">
-                Loading session...
+              <section
+                className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-5 text-sm text-ink-tertiary"
+                role={linkedSessionFailed ? "alert" : "status"}
+              >
+                <p>
+                  {linkedSessionFailed
+                    ? linkedSessionUnavailable
+                      ? "This session was removed or is no longer available to you."
+                      : "Could not load this session. Please try again."
+                    : "Loading session..."}
+                </p>
+                {linkedSessionFailed && (
+                  <Button
+                    onClick={() => {
+                      void linkedSessionQuery.refetch();
+                    }}
+                    size="sm"
+                  >
+                    Retry session
+                  </Button>
+                )}
               </section>
             ) : activeSessionTarget ? (
               <SessionWorkbench
@@ -1042,9 +1105,13 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                   };
                   setEmbeddedSessionTarget(nextTarget);
                   rememberSession(sessionId);
-                  replaceHomeSessionUrl(sessionId);
+                  replaceHomeSessionUrl(
+                    sessionId,
+                    activeSessionTarget.messageId,
+                  );
                 }}
                 sessionId={activeSessionTarget.sessionId}
+                targetMessageId={activeSessionTarget.messageId}
                 user={user}
               />
             ) : setupStarted || fleetSetupGuideKind ? (
@@ -2568,12 +2635,13 @@ function composerPlaceholder(mode: ComposerMode) {
   return "Ask an agent to do something";
 }
 
-function replaceHomeSessionUrl(sessionId: string) {
+function replaceHomeSessionUrl(sessionId: string, messageId?: string) {
   if (typeof window === "undefined") {
     return;
   }
 
   const params = new URLSearchParams({ session_id: sessionId });
+  if (messageId) params.set("message_id", messageId);
   window.history.replaceState(window.history.state, "", `/?${params}`);
 }
 
@@ -2603,7 +2671,6 @@ function resolveEmbeddedSessionTarget(
   return {
     ...target,
     agentId: sessionItem.agentId,
-    key: `url:${target.sessionId}:${sessionItem.nodeId ?? ""}:${sessionItem.agentId ?? ""}`,
     nodeId: sessionItem.nodeId,
   };
 }

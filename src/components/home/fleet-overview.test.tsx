@@ -24,6 +24,8 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useConsoleStore } from "@/stores/console-store";
 import type { AgentSession, Project, User } from "@/features/api/types";
+import { ApiError } from "@/features/api/errors";
+import { queryKeys } from "@/features/api/query-keys";
 import { FleetOverview } from "./fleet-overview";
 
 const localStorageValues = new Map<string, string>();
@@ -56,6 +58,8 @@ const mocks = vi.hoisted(() => ({
   useProjects: vi.fn(),
   useProjectTargets: vi.fn(),
   useTeamInvites: vi.fn(),
+  useUserSession: vi.fn(),
+  retrySession: vi.fn(),
 }));
 
 beforeAll(() => {
@@ -100,6 +104,7 @@ vi.mock("@/components/sessions/session-workbench", () => ({
     initialPrompt,
     initialProjectTargetId,
     initialTransport,
+    targetMessageId,
     nodeId,
     onSessionAssigned,
     sessionId,
@@ -115,6 +120,7 @@ vi.mock("@/components/sessions/session-workbench", () => ({
     initialPrompt?: string;
     initialProjectTargetId?: string;
     initialTransport?: "manager" | "e2ee";
+    targetMessageId?: string;
     nodeId?: string;
     onSessionAssigned?: (sessionId: string) => void;
     sessionId: string;
@@ -132,6 +138,7 @@ vi.mock("@/components/sessions/session-workbench", () => ({
       data-primary-project-id={initialPrimaryProjectId}
       data-initial-prompt={initialPrompt}
       data-initial-transport={initialTransport}
+      data-target-message-id={targetMessageId}
       data-project-target-id={initialProjectTargetId}
       data-node-id={nodeId}
       data-testid="session-workbench"
@@ -169,6 +176,7 @@ vi.mock("@/features/api/resources", async (importOriginal) => {
     useProjects: mocks.useProjects,
     useProjectTargets: mocks.useProjectTargets,
     useTeamInvites: mocks.useTeamInvites,
+    useUserSession: mocks.useUserSession,
   };
 });
 
@@ -181,6 +189,14 @@ beforeEach(() => {
   mocks.createProjectTarget.mockReset();
   mocks.createUserAttachment.mockReset();
   mocks.routerPush.mockReset();
+  mocks.retrySession.mockReset();
+  mocks.useUserSession.mockReset().mockReturnValue({
+    data: undefined,
+    error: null,
+    isPending: true,
+    isSuccess: false,
+    refetch: mocks.retrySession,
+  });
   mocks.updateAgentSession.mockReset();
   mocks.updateAgentSession.mockResolvedValue({
     agent_id: "agent_1",
@@ -1768,6 +1784,230 @@ describe("FleetOverview session rail", () => {
       expect(window.location.pathname).toBe("/");
     },
   );
+
+  it.each(["session_id", "sessionId"])(
+    "preserves an exact message target while resolving %s",
+    async (parameter) => {
+      window.history.replaceState(
+        null,
+        "",
+        `/?${parameter}=sess_1&message_id=canonical%3Amessage%2F2`,
+      );
+      renderOverview();
+      const workbench = await screen.findByTestId("session-workbench");
+      expect(workbench).toHaveAttribute(
+        "data-target-message-id",
+        "canonical:message/2",
+      );
+      expect(
+        new URLSearchParams(window.location.search).get("message_id"),
+      ).toBe("canonical:message/2");
+      fireEvent.click(screen.getByRole("link", { name: /Session one/ }));
+      await waitFor(() =>
+        expect(screen.getByTestId("session-workbench")).not.toHaveAttribute(
+          "data-target-message-id",
+        ),
+      );
+      expect(window.location.search).toBe("?session_id=sess_1");
+    },
+  );
+
+  it("updates the exact message target when the URL changes within the same session", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/?session_id=sess_1&message_id=first",
+    );
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const overview = () => (
+      <QueryClientProvider client={client}>
+        <TooltipProvider>
+          <FleetOverview user={{ user_id: "user_1" } as User} />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+    const { rerender } = render(overview());
+    expect(await screen.findByTestId("session-workbench")).toHaveAttribute(
+      "data-target-message-id",
+      "first",
+    );
+    window.history.replaceState(
+      null,
+      "",
+      "/?session_id=sess_1&message_id=second",
+    );
+    rerender(overview());
+    await waitFor(() =>
+      expect(screen.getByTestId("session-workbench")).toHaveAttribute(
+        "data-target-message-id",
+        "second",
+      ),
+    );
+    window.history.replaceState(null, "", "/?session_id=sess_1");
+    rerender(overview());
+    await waitFor(() =>
+      expect(screen.getByTestId("session-workbench")).not.toHaveAttribute(
+        "data-target-message-id",
+      ),
+    );
+    client.clear();
+  });
+
+  it("resolves an offline owned target outside the loaded session list directly without scanning pages", async () => {
+    mocks.listUserSessions.mockClear();
+    window.history.replaceState(
+      null,
+      "",
+      "/?session_id=outside-list&message_id=canonical-target",
+    );
+    mocks.listUserSessions.mockResolvedValue({
+      sessions: [
+        { session_id: "unrelated", agent_id: "agent_1", node_id: "node_1" },
+      ],
+      pagination: { page_num: 1, page_size: 20, total_pages: 99 },
+    });
+    mocks.useUserSession.mockImplementation((_user, id) => ({
+      data:
+        id === "outside-list"
+          ? {
+              session_id: id,
+              node_id: "offline-node",
+              agent_id: "offline-agent",
+              runtime_status: "idle",
+            }
+          : undefined,
+      error: null,
+      isSuccess: Boolean(id),
+      refetch: mocks.retrySession,
+    }));
+    renderOverview();
+    const workbench = await screen.findByTestId("session-workbench");
+    expect(workbench).toHaveTextContent("outside-list");
+    expect(workbench).toHaveAttribute("data-node-id", "offline-node");
+    expect(workbench).toHaveAttribute("data-agent-id", "offline-agent");
+    expect(workbench).toHaveAttribute(
+      "data-target-message-id",
+      "canonical-target",
+    );
+    expect(mocks.useUserSession).toHaveBeenCalledWith(
+      "user_1",
+      "outside-list",
+      undefined,
+      0,
+    );
+    await waitFor(() =>
+      expect(mocks.listUserSessions).toHaveBeenCalledTimes(1),
+    );
+    expect(new URLSearchParams(window.location.search).get("message_id")).toBe(
+      "canonical-target",
+    );
+  });
+
+  it("does not enable another metadata fetch for an already resolved target", () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/?session_id=sess_1&message_id=canonical-target",
+    );
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    });
+    client.setQueryData(
+      queryKeys.userSessions("user_1", {
+        agentIds: [],
+        includeArchived: false,
+        nodeIds: [],
+        pageSize: 20,
+      }),
+      {
+        pages: [
+          {
+            sessions: [
+              { session_id: "sess_1", agent_id: "agent_1", node_id: "node_1" },
+            ],
+            pagination: { page_num: 1, total_pages: 1 },
+          },
+        ],
+        pageParams: [1],
+      },
+    );
+    render(
+      <QueryClientProvider client={client}>
+        <TooltipProvider>
+          <FleetOverview user={{ user_id: "user_1" } as User} />
+        </TooltipProvider>
+      </QueryClientProvider>,
+    );
+    expect(screen.getByTestId("session-workbench")).toHaveAttribute(
+      "data-node-id",
+      "node_1",
+    );
+    expect(
+      mocks.useUserSession.mock.calls.every(([, sessionId]) => !sessionId),
+    ).toBe(true);
+    client.clear();
+  });
+
+  it.each([403, 404, 500])(
+    "shows a safe direct-session failure for HTTP %s and does not mount another session",
+    async (status) => {
+      window.history.replaceState(
+        null,
+        "",
+        "/?session_id=outside-list&message_id=canonical-target",
+      );
+      mocks.useUserSession.mockReturnValue({
+        data: {
+          session_id: "outside-list",
+          agent_id: "stale-agent",
+          node_id: "stale-node",
+        },
+        error: new ApiError("private backend detail", status, {}),
+        isSuccess: false,
+        refetch: mocks.retrySession,
+      });
+      renderOverview();
+      expect(
+        await screen.findByText(
+          status === 500
+            ? "Could not load this session. Please try again."
+            : "This session was removed or is no longer available to you.",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByTestId("session-workbench")).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("private backend detail"),
+      ).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Retry session" }));
+      expect(mocks.retrySession).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("rejects metadata for a different PAX session rather than opening its history", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/?session_id=outside-list&message_id=canonical-target",
+    );
+    mocks.useUserSession.mockReturnValue({
+      data: {
+        session_id: "different-session",
+        agent_id: "wrong-agent",
+        node_id: "wrong-node",
+      },
+      isSuccess: true,
+      refetch: mocks.retrySession,
+    });
+    renderOverview();
+    expect(
+      await screen.findByText(
+        "This session was removed or is no longer available to you.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("session-workbench")).not.toBeInTheDocument();
+  });
 
   it("leaves command-click navigation to the Home session link", async () => {
     const queryClient = new QueryClient({

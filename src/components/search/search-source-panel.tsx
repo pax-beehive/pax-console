@@ -191,7 +191,9 @@ export function SearchSourcePanel({
                 }
                 size="sm"
               >
-                <Link href={`/?session_id=${encodeURIComponent(sessionId)}`}>
+                <Link
+                  href={`/?session_id=${encodeURIComponent(sessionId)}${message ? `&message_id=${encodeURIComponent(message.message_id)}` : ""}`}
+                >
                   Open session
                 </Link>
               </Button>

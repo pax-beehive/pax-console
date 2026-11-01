@@ -7,6 +7,73 @@ import {
 } from "./normalize-history-message";
 
 describe("normalizeHistoryMessage", () => {
+  it("keeps a selected canonical segment distinct through part assembly and event merging", () => {
+    const messages = ["prefix", "target", "suffix"].map((id, index) => ({
+      message_id: id,
+      session_id: "pax-session",
+      turn_id: "turn",
+      session_seq: index + 1,
+      role: "assistant",
+      message_type: "agent_message_chunk",
+      raw_json: { text_layout: "segment" },
+      parts: [
+        { id: index * 2 + 1, part_index: 0, part_type: "text", text: id },
+        {
+          id: index * 2 + 2,
+          part_index: 1,
+          part_type: "text",
+          text: " second part",
+        },
+      ],
+    }));
+    const events = mergeEvents(normalizeHistoryMessages(messages, "target"));
+    expect(events).toHaveLength(3);
+    expect(events[1]).toMatchObject({
+      historyMessageId: "target",
+      content: "target second part",
+    });
+    expect(
+      events.filter((event) => event.historyMessageId === "target"),
+    ).toHaveLength(1);
+    // Ordinary history keeps its established compact grouping.
+    expect(normalizeHistoryMessages(messages)).toHaveLength(1);
+  });
+
+  it("keeps one target when a canonical message contains multiple ACP frame parts with derived event IDs", () => {
+    const events = normalizeHistoryMessages(
+      [
+        {
+          message_id: "canonical",
+          session_id: "pax-session",
+          role: "assistant",
+          message_type: "agent_message_chunk",
+          parts: ["first ", "second"].map((text, index) => ({
+            id: index + 1,
+            part_index: index,
+            part_type: "json",
+            payload_json: {
+              jsonrpc: "2.0",
+              method: "session/update",
+              params: {
+                sessionId: "native-session",
+                update: {
+                  sessionUpdate: "agent_message_chunk",
+                  content: { type: "text", text },
+                },
+              },
+            },
+          })),
+        },
+      ],
+      "canonical",
+    );
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      historyMessageId: "canonical",
+      content: "first second",
+    });
+  });
+
   it("keeps durable completion and usage rows distinct when ACP request IDs are reused", () => {
     const messages = ["turn_1", "turn_2", "turn_2"].map((turnId, index) => ({
       message_id: `completion-${index}`,

@@ -9,6 +9,7 @@ type Props = {
   isLoading: boolean;
   hasError: boolean;
   onLoadEarlier: () => void;
+  autoLoad?: boolean;
 };
 
 export function SessionHistoryPagination({
@@ -17,10 +18,11 @@ export function SessionHistoryPagination({
   isLoading,
   hasError,
   onLoadEarlier,
+  autoLoad = true,
 }: Props) {
   useEffect(() => {
     const container = scrollRef.current;
-    if (!container || !hasMore || isLoading || hasError) return;
+    if (!autoLoad || !container || !hasMore || isLoading || hasError) return;
     let requested = false;
     const fillViewport = () => {
       // A short latest turn cannot emit a scroll event to request older turns.
@@ -40,7 +42,7 @@ export function SessionHistoryPagination({
     if (container.firstElementChild)
       observer.observe(container.firstElementChild);
     return () => observer.disconnect();
-  }, [scrollRef, hasMore, isLoading, hasError, onLoadEarlier]);
+  }, [autoLoad, scrollRef, hasMore, isLoading, hasError, onLoadEarlier]);
 
   return (
     <div className="min-h-8 text-center text-xs text-ink-tertiary">

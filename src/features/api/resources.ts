@@ -123,7 +123,7 @@ type MailboxListData = {
   messages: MailboxMessage[];
 };
 
-type HistoryListData = {
+export type HistoryListData = {
   messages: HistoryMessage[] | null;
   pagination?: {
     has_more?: boolean;
@@ -671,44 +671,18 @@ export async function getUserSession(
   sessionId: string,
   agentId?: string,
   nodeId?: string,
+  signal?: AbortSignal,
 ) {
-  if (agentId && nodeId) {
-    return apiFetch<AgentSession>(
-      userPath(
-        userId,
-        `/nodes/${encodeURIComponent(nodeId)}/agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(sessionId)}`,
-      ),
-    );
-  }
-  const pageSize = 200;
-  let pageNum = 1;
-
-  while (true) {
-    const page = await listUserSessions(userId, {
-      includeArchived: true,
-      pageNum,
-      pageSize,
-    });
-    const session = page.sessions.find((item) => item.session_id === sessionId);
-    if (session) {
-      if (!session.agent_id || !session.node_id) return session;
-      return getUserSession(
-        userId,
-        sessionId,
-        session.agent_id,
-        session.node_id,
-      );
-    }
-
-    if (page.pagination?.total_pages) {
-      if (pageNum >= page.pagination.total_pages) {
-        return null;
-      }
-    } else if (page.sessions.length < pageSize) {
-      return null;
-    }
-    pageNum += 1;
-  }
+  const path =
+    agentId && nodeId
+      ? userPath(
+          userId,
+          `/nodes/${encodeURIComponent(nodeId)}/agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(sessionId)}`,
+        )
+      : userPath(userId, `/sessions/${encodeURIComponent(sessionId)}`);
+  return signal
+    ? apiFetch<AgentSession>(path, { signal })
+    : apiFetch<AgentSession>(path);
 }
 
 export function getAgent(userId: string, agentId: string) {
@@ -919,6 +893,7 @@ export function listSessionHistory(
     beforeId?: number;
     turnId?: string;
   } = {},
+  signal?: AbortSignal,
 ) {
   const params = new URLSearchParams({
     limit: String(limit),
@@ -932,9 +907,10 @@ export function listSessionHistory(
   } else if (cursor.beforeId && cursor.beforeId > 0) {
     params.set("before_id", String(cursor.beforeId));
   }
-  return apiFetch<HistoryListData>(
-    `${userPath(userId, `/sessions/${sessionId}/history`)}?${params}`,
-  );
+  const path = `${userPath(userId, `/sessions/${encodeURIComponent(sessionId)}/history`)}?${params}`;
+  return signal
+    ? apiFetch<HistoryListData>(path, { signal })
+    : apiFetch<HistoryListData>(path);
 }
 
 export function flattenSessionHistoryPages(pages?: HistoryListData[]) {
@@ -2453,6 +2429,7 @@ export function useUserSession(
   sessionId?: string,
   agentId?: string,
   refetchInterval = 30_000,
+  nodeId?: string,
 ) {
   const client = useQueryClient();
   return useQuery({
@@ -2460,7 +2437,7 @@ export function useUserSession(
       userId ?? "pending",
       sessionId ?? "pending",
     ),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       // Client-side read timing, not a field supplied by Manager. Capture before
       // the request so a delayed pre-submit response cannot finish a new turn.
       const runtimeSnapshotRequestedAt = Date.now();
@@ -2474,12 +2451,14 @@ export function useUserSession(
               sessionId ?? "pending",
             ),
           )?.agent_id,
-        client.getQueryData<AgentSession>(
-          queryKeys.sessionMetadata(
-            userId ?? "pending",
-            sessionId ?? "pending",
-          ),
-        )?.node_id,
+        nodeId ??
+          client.getQueryData<AgentSession>(
+            queryKeys.sessionMetadata(
+              userId ?? "pending",
+              sessionId ?? "pending",
+            ),
+          )?.node_id,
+        signal,
       );
       return session ? { ...session, runtimeSnapshotRequestedAt } : null;
     },

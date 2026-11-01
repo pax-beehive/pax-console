@@ -2126,6 +2126,28 @@ TanStack Query 保存搜索分页和原文读取结果，key 包括用户、查�
 高亮使用 React 文本节点，不注入 ES 返回的 HTML。打开完整 session 使用 canonical
 Manager session_id，不推断 ACP/native session 身份。
 
+消息来源的 Open session 链接同时携带 `message_id`，Home 在解析 session 和兼容旧
+URL 时保留该 canonical 消息身份。已加载消息会按确切身份滚动、短暂高亮；相邻文本
+segment 合并时保留目标边界，原有 message parts 仍按原规则拼装，长用户消息自动展开。
+选择其他 session 后移除定位目标，session 类型命中仍保持普通打开行为。
+
+如果目标 session 不在当前已加载或过滤后的 Home 列表，复用 `useUserSession` 经
+沿用现有 session 权限的 canonical GET `/sessions/{session_id}` 直接解析 node/agent；
+不扫描 session 列表，也不要求 agent 在线。已有 node/agent 的场景继续使用原 scoped
+详情路由。响应的 session ID 和上下文必须准确，拒绝或删除显示 unavailable，临时
+错误提供 Retry session，错误时不挂载别的 session 或显示被拒绝的缓存元数据。
+需要先部署配套的 canonical metadata Manager 接口再部署 Console。
+
+未加载的消息先通过有 owner 校验的 source read 读取当前位置，验证 PAX session、agent
+及安全正整数 seq，再并行加载 `before_seq=seq+1` 最多 26 条和 `after_seq=seq` 最多
+25 条历史，不循环扫描完整 session。该历史片段使用独立的、按身份隔离的 TanStack
+缓存，支持向前/向后分页及 Back to latest，不把它混入最新历史缓存或交给 live turn
+校准。目标缺失、跨 session/agent、无权限或读取失败时明确提示，不能把最新一页当成
+成功定位；错误和重新鉴权期间隐藏缓存片段，退出后丢弃窗口缓存，再次进入重新校验。
+切换目标或身份会取消旧请求；发送、排队或 steer 时回到最新，避免隐藏新回复；同一
+session 的目标变化不重建运行时。跳转展示当前 canonical
+消息；冻结版本的 summary evidence 继续在来源面板读取。
+
 搜索页只读总结。生成和发布由 Secretary 经 Manager API/MCP 完成，不在搜索页启动
 后台总结流水线。真实浏览器验收入口见 `scripts/search-smoke/README.md`，覆盖普通用户
 权限、同源代理、中文子串、消息展开、总结溯源以及桌面和手机布局。
