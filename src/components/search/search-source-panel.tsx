@@ -6,7 +6,7 @@ import { ExternalLink, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MonoId } from "@/components/ui/text";
-import { ApiError } from "@/features/api/errors";
+import { ApiError, AuthError } from "@/features/api/errors";
 import {
   isWorkspaceMessageRead,
   isWorkspaceSummaryVersion,
@@ -37,12 +37,14 @@ export function SearchSourcePanel({
   title,
   onSelect,
   onClose,
+  onAccessDenied,
 }: {
   userId: string;
   sourceRef: WorkspaceSearchRef;
   title?: string;
   onSelect: (ref: WorkspaceSearchRef) => void;
   onClose: () => void;
+  onAccessDenied?: () => void;
 }) {
   const [request, setRequest] = useState<WorkspaceReadRequest>({
     ref: sourceRef,
@@ -55,6 +57,13 @@ export function SearchSourcePanel({
     headingRef.current?.focus();
   }, []);
   const source = useWorkspaceSource(userId, request);
+  const accessDenied =
+    source.error instanceof AuthError ||
+    (source.error instanceof ApiError &&
+      [401, 403].includes(source.error.status));
+  useEffect(() => {
+    if (accessDenied) onAccessDenied?.();
+  }, [accessDenied, onAccessDenied]);
   const data = source.isError ? undefined : source.data;
   const changed =
     source.error instanceof ApiError && source.error.status === 409;
@@ -333,7 +342,7 @@ function ContextMessage({
   );
 }
 
-function SummaryContent({
+export function SummaryContent({
   summary,
   onSelect,
 }: {

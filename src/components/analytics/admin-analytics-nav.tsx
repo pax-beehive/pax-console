@@ -8,11 +8,12 @@ export function AdminAnalyticsNav() {
   return (
     <nav
       aria-label="Customer administration"
-      className="flex gap-1 border-b border-hairline pb-2 text-sm"
+      className="flex flex-wrap gap-1 border-b border-hairline pb-2 text-sm"
     >
       {[
         ["/admin/customers", "Customers"],
         ["/admin/notifications", "Push subscriptions"],
+        ["/admin/summaries", "Summary developer"],
       ].map(([href, label]) => (
         <Link
           key={href}

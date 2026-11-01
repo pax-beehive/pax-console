@@ -509,6 +509,27 @@ describe("Workspace search", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("keeps normal search source dismissal available without an administrator denial callback", () => {
+    sourceResult({
+      ...sourceState(message),
+      isError: true,
+      error: new AuthError(),
+    });
+    setup();
+    openMessage();
+    expect(
+      screen.queryByRole("article", { name: "Message text" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close source" }));
+    expect(
+      screen.queryByRole("region", { name: "Selected source" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Database choice/ }),
+    ).toBeInTheDocument();
+  });
+
   it("clears selected sources on query or user change and supports returning on mobile", () => {
     const view = setup();
     openMessage();
