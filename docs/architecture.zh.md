@@ -2108,8 +2108,13 @@ Search 入口，桌面 Topbar 的快捷搜索用 GET 表单打开该页。
 API 层集中在 `src/features/api/workspace-search.ts`，通过既有 `apiFetch` 和
 `userPath` 向同源 `/api/pax` 发送 search / search/read POST 请求。浏览器不直接
 访问 ES，也不指定 owner。Manager 从登录态确定 owner，在 PG 再次验证原文权限。
-ES 是检索投影，PG 是消息、总结版本和引用快照的事实源。查询是连续字面子串匹配，
-支持中文单字，不调用模型或 embedding。
+ES 是检索投影，PG 是消息、总结版本和引用快照的事实源。查询按 Unicode White_Space
+拆词，忽略大小写去重，在同一个索引/当前对象内匹配，顺序不限；每个词可以在标题或
+正文中按连续字面子串命中，支持中文单字和字面标点。匹配的不同词越多越靠前，全部
+关键词命中优先于部分命中；同词数时比较 ASCII identifier 边界的命中词数，再按
+最新时间排序。使用同一个排序结果流，不额外发起 fallback 请求，不调用模型或 embedding。
+Manager 负责最多 16 个不同非空词和既有 256 字符的校验；Console 保留查询内部原始
+空白，展示数量提示和输入错误，不自行拒绝词数以免 Unicode 大小写差异引入额外限制。
 
 TanStack Query 保存搜索分页和原文读取结果，key 包括用户、查询、类型以及完整引用、
 视图和分页参数。URL 保存已提交的 query/kind；输入草稿、选中来源、first/last/full
@@ -2123,7 +2128,11 @@ TanStack Query 保存搜索分页和原文读取结果，key 包括用户、查�
 来源和返回按钮。来源读取保留命中的 content_hash 或 summary revision；消息支持
 展开、分页和前后文。版本变化时明确提示并允许读取当前版本。总结展示冻结的 coverage
 与下层总结精确版本，点击可回到对应旧原文；失去权限或删除后不能依靠旧命中继续读取。
-高亮使用 React 文本节点，不注入 ES 返回的 HTML。打开完整 session 使用 canonical
+高亮独立匹配各词、忽略大小写去重、优先处理长词并合并重叠区间，保留原始 Unicode
+边界，以 React 文本节点呈现，不拼接查询正则或注入 HTML。拆词使用 Unicode
+White_Space：NEL 是分隔符、BOM 是字面字符；浏览器大小写折叠仅用于展示，校验和
+匹配以 Manager 为准。需要先部署配套 Manager 多词查询逻辑，再部署 Console 提示和
+高亮更新，此查询变更不需要重建索引。打开完整 session 使用 canonical
 Manager session_id，不推断 ACP/native session 身份。
 
 消息来源的 Open session 链接同时携带 `message_id`，Home 在解析 session 和兼容旧

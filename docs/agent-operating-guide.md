@@ -647,8 +647,17 @@ source selection, paragraph view, and source pagination stay local to the page.
 read requests. Both use `apiFetch(userPath(...))` through `/api/pax`; do not add
 browser-to-Elasticsearch traffic or owner IDs to request bodies. Manager
 derives the owner from authentication and rechecks the source in PostgreSQL.
-Search matches contiguous literal text, including single Chinese characters;
-it does not invoke a model or perform semantic expansion.
+Search splits terms on Unicode White_Space (`strings.Fields` on Manager),
+deduplicates them case-insensitively and matches them in the same indexed/current
+object, in any order. Each term may match its title or body as a contiguous
+literal substring, including single Chinese characters and literal punctuation.
+More distinct matching terms rank first, so all-keyword matches precede partial
+matches. ASCII identifier-boundary match counts break ties, then newest. This
+is one ranked result stream, with no separate fallback request. Manager enforces
+at most 16 distinct nonempty terms and the
+existing 256-character limit; Console keeps the raw internal query whitespace,
+shows limit guidance and surfaces input errors without client-only term
+rejection. This does not invoke a model or perform semantic expansion.
 
 TanStack Query owns result pages and reads. Keys include the authenticated
 user and every query/ref/view/pagination field. A new user, query, or kind
@@ -673,7 +682,14 @@ an unavailable state. A search hit never authorizes a subsequent read.
 The summary pane is read-only. Summary publication belongs to Secretary via
 the Manager API/MCP adapter; Console does not generate summaries or start a
 background agent. SearchBox accepts normal controlled-input and form props.
-Literal highlights are React text nodes, never raw HTML from the index.
+Literal highlights split each term with Unicode White_Space, deduplicate them
+case-insensitively, find longest terms first and merge overlapping intervals.
+They preserve original Unicode text boundaries and render React text nodes,
+never raw HTML or query-built regular expressions. NEL is a separator; BOM is
+literal. Browser case folding is only for presentation; Manager remains the
+authority for validation and matching. Deploy the paired Manager multi-term
+query change before this Console hint/highlight update; no index rebuild is
+needed for this query behavior.
 
 Message sources open Home using `/?session_id=...&message_id=...`, with the
 canonical PAX session and message IDs. Session-only sources retain the normal
