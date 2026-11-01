@@ -10,28 +10,39 @@ import { SessionEvent, type SessionMessageAttachment } from "./session-events";
 
 export function normalizeHistoryMessages(
   messages: HistoryMessage[],
+  targetMessageId?: string,
 ): SessionEvent[] {
   const projectedMessages = mergeConsecutiveHistoryTextSegments(
     projectHistoryMessagesForDisplay(messages),
+    targetMessageId,
   );
   return finalizeHistoryTextChunks(
     orderAggregatedHistoryText(
       mergeAdjacentHistoryTextChunks(
         projectedMessages.flatMap((message) =>
-          normalizeHistoryMessage(message),
+          normalizeHistoryMessage(message).map((event) =>
+            message.message_id === targetMessageId
+              ? { ...event, historyMessageId: targetMessageId }
+              : event,
+          ),
         ),
       ),
     ),
   );
 }
 
-function mergeConsecutiveHistoryTextSegments(messages: HistoryMessage[]) {
+function mergeConsecutiveHistoryTextSegments(
+  messages: HistoryMessage[],
+  targetMessageId?: string,
+) {
   const merged: HistoryMessage[] = [];
 
   for (const message of messages) {
     const previous = merged.at(-1);
     if (
       !previous ||
+      previous.message_id === targetMessageId ||
+      message.message_id === targetMessageId ||
       !canMergeConsecutiveHistoryTextSegments(previous, message)
     ) {
       merged.push(message);
@@ -424,7 +435,8 @@ function mergeAdjacentHistoryTextChunks(events: SessionEvent[]) {
       previous.type === event.type &&
       previous.sessionId === event.sessionId &&
       previous.turnId === event.turnId &&
-      previous.sessionUpdate === event.sessionUpdate
+      previous.sessionUpdate === event.sessionUpdate &&
+      previous.historyMessageId === event.historyMessageId
     ) {
       previous.content += event.content;
       continue;

@@ -478,14 +478,24 @@ function UserMessageCard({
             ))}
           </ul>
         )}
-        <UserMessageBody key={event.id} content={event.content} />
+        <UserMessageBody
+          key={`${event.id}:${event.historyMessageId ?? ""}`}
+          content={event.content}
+          initiallyExpanded={Boolean(event.historyMessageId)}
+        />
       </div>
     </article>
   );
 }
 
-function UserMessageBody({ content }: { content: string }) {
-  const [expanded, setExpanded] = useState(false);
+function UserMessageBody({
+  content,
+  initiallyExpanded = false,
+}: {
+  content: string;
+  initiallyExpanded?: boolean;
+}) {
+  const [expanded, setExpanded] = useState(initiallyExpanded);
   const [canExpand, setCanExpand] = useState(false);
   const contentId = useId();
   const viewportRef = useRef<HTMLDivElement>(null);

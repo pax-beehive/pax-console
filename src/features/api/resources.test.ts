@@ -892,43 +892,45 @@ describe("listUserSessions", () => {
     );
   });
 
-  it("resolves session metadata across pages by session ID", async () => {
-    apiFetch
-      .mockResolvedValueOnce({
-        pagination: { page_num: 1, page_size: 200, total_pages: 2 },
-        sessions: [{ session_id: "sess_other" }],
-      })
-      .mockResolvedValueOnce({
-        pagination: { page_num: 2, page_size: 200, total_pages: 2 },
-        sessions: [
-          { agent_id: "agent_1", node_id: "node_1", session_id: "sess_1" },
-        ],
-      })
-      .mockResolvedValueOnce({
-        agent_id: "agent_1",
-        node_id: "node_1",
-        session_id: "sess_1",
-        latest_message_id: "latest",
-      });
-
-    await expect(getUserSession("u1", "sess_1")).resolves.toMatchObject({
+  it("resolves canonical session metadata with one permission-checked request and no list scan", async () => {
+    apiFetch.mockResolvedValueOnce({
       agent_id: "agent_1",
       node_id: "node_1",
-      session_id: "sess_1",
+      session_id: "sess/1",
       latest_message_id: "latest",
     });
-    expect(apiFetch).toHaveBeenNthCalledWith(
-      1,
-      "/api/v1/user/u1/sessions?page_size=200&page_num=1&include_archived=true",
+
+    await expect(getUserSession("u1", "sess/1")).resolves.toMatchObject({
+      agent_id: "agent_1",
+      node_id: "node_1",
+      session_id: "sess/1",
+      latest_message_id: "latest",
+    });
+    expect(apiFetch).toHaveBeenCalledTimes(1);
+    expect(apiFetch).toHaveBeenCalledWith("/api/v1/user/u1/sessions/sess%2F1");
+  });
+
+  it("propagates canonical metadata denial without falling back to another session", async () => {
+    const denied = new Error("Forbidden");
+    apiFetch.mockRejectedValue(denied);
+    await expect(getUserSession("u1", "denied")).rejects.toBe(denied);
+    expect(apiFetch).toHaveBeenCalledTimes(1);
+    expect(apiFetch).toHaveBeenCalledWith("/api/v1/user/u1/sessions/denied");
+  });
+
+  it("forwards cancellation to the canonical metadata request", async () => {
+    const controller = new AbortController();
+    apiFetch.mockResolvedValue({ session_id: "target" });
+    await getUserSession(
+      "u1",
+      "target",
+      undefined,
+      undefined,
+      controller.signal,
     );
-    expect(apiFetch).toHaveBeenNthCalledWith(
-      3,
-      "/api/v1/user/u1/nodes/node_1/agents/agent_1/sessions/sess_1",
-    );
-    expect(apiFetch).toHaveBeenNthCalledWith(
-      2,
-      "/api/v1/user/u1/sessions?page_size=200&page_num=2&include_archived=true",
-    );
+    expect(apiFetch).toHaveBeenCalledWith("/api/v1/user/u1/sessions/target", {
+      signal: controller.signal,
+    });
   });
 });
 

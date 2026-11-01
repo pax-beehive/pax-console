@@ -103,7 +103,7 @@ import {
   useSessionConfiguration,
 } from "@/features/api/resources";
 import { queryKeys } from "@/features/api/query-keys";
-import { ApiError, formatErrorDetail } from "@/features/api/errors";
+import { ApiError, AuthError, formatErrorDetail } from "@/features/api/errors";
 import {
   KnowledgeCapsule,
   SessionKnowledgeInjection,
@@ -142,6 +142,15 @@ import { useSessionObserver } from "@/features/runtime/session-observer";
 import { useSessionTurnObservation } from "@/features/runtime/use-session-turn-observation";
 import { sessionDisplayStatus } from "@/features/runtime/session-display-status";
 import { useSessionHistorySync } from "@/features/runtime/use-session-history-sync";
+import {
+  SessionMessageUnavailableError,
+  useSessionMessageWindow,
+} from "@/features/runtime/session-message-window";
+import {
+  isMessageTarget,
+  useTimelineMessageTarget,
+} from "@/features/runtime/use-timeline-message-target";
+import { SessionMessageTargetNotice } from "./session-message-target-notice";
 import { isSupportedSessionWorkspace } from "@/features/runtime/workspace-path";
 import {
   PAX_AUTO_APPROVE_CHOICE_ID,
@@ -168,6 +177,7 @@ import { useConsoleStore } from "@/stores/console-store";
 type SessionWorkbenchProps = {
   user: User;
   sessionId: string;
+  targetMessageId?: string;
   nodeId?: string;
   agentId?: string;
   embedded?: boolean;
@@ -216,6 +226,7 @@ const emptyAgentOwnerInfos = {};
 export function SessionWorkbench({
   user,
   sessionId,
+  targetMessageId,
   nodeId,
   agentId,
   embedded = false,
@@ -244,8 +255,9 @@ export function SessionWorkbench({
   const sessionMetadataQuery = useUserSession(
     user.user_id,
     currentSessionId,
-    undefined,
+    agentId,
     5_000,
+    nodeId,
   );
   const sessionMetadata = sessionMetadataQuery.data ?? undefined;
   const nodesQuery = useNodes(user.user_id, 5_000);
@@ -315,6 +327,17 @@ export function SessionWorkbench({
   const [sessionNameDraft, setSessionNameDraft] = useState("");
   const timelineScrollRef = useRef<HTMLDivElement>(null);
   const shouldStickToBottomRef = useRef(true);
+  const [targetNavigation, setTargetNavigation] = useState({
+    id: targetMessageId,
+    dismissed: false,
+  });
+  if (targetNavigation.id !== targetMessageId) {
+    setTargetNavigation({ id: targetMessageId, dismissed: false });
+  }
+  const messageTarget =
+    targetNavigation.id === targetMessageId && targetNavigation.dismissed
+      ? undefined
+      : targetMessageId;
   const pendingHistoryPrependRef = useRef<{
     expectedPageCount: number;
     scrollHeight: number;
@@ -624,12 +647,57 @@ export function SessionWorkbench({
   const historyMessages = usesEncryptedTransport
     ? baseHistoryMessages
     : historySync.messages;
-  const historyPageCount = historyQuery.data?.pages.length ?? 0;
+  const historyAccessError = [
+    sessionMetadataQuery.error,
+    historyQuery.error,
+    historySync.error,
+  ].find(
+    (error) =>
+      error instanceof AuthError ||
+      (error instanceof ApiError && [401, 403, 404].includes(error.status)),
+  );
+  const messageWindow = useSessionMessageWindow({
+    userId: user.user_id,
+    sessionId: currentSessionId,
+    agentId: activeAgentId,
+    messageId: messageTarget,
+    loadedMessages: historyMessages,
+    enabled: Boolean(
+      activeSession &&
+      !usesEncryptedTransport &&
+      plainHistoryQuery.isSuccess &&
+      !historyAccessError,
+    ),
+  });
+  const messageTargetError = useMemo(
+    () =>
+      historyAccessError ??
+      messageWindow.error ??
+      (messageTarget && usesEncryptedTransport
+        ? new SessionMessageUnavailableError(
+            "Encrypted messages are not search targets.",
+          )
+        : !plainHistoryQuery.isSuccess
+          ? (plainHistoryQuery.error ?? sessionMetadataQuery.error)
+          : null),
+    [
+      historyAccessError,
+      messageWindow.error,
+      messageTarget,
+      usesEncryptedTransport,
+      plainHistoryQuery.isSuccess,
+      plainHistoryQuery.error,
+      sessionMetadataQuery.error,
+    ],
+  );
+  const focusedHistory = Boolean(messageTarget && messageWindow.focused);
+  const displayedHistoryQuery = focusedHistory ? messageWindow : historyQuery;
+  const historyPageCount = displayedHistoryQuery.data?.pages.length ?? 0;
   const {
     fetchNextPage: fetchNextHistoryPage,
     hasNextPage: hasNextHistoryPage,
     isFetching: isFetchingHistory,
-  } = historyQuery;
+  } = displayedHistoryQuery;
   const capsulesQuery = useKnowledgeCapsules(
     showAdminFeatures ? user.user_id : undefined,
     {
@@ -1499,8 +1567,13 @@ export function SessionWorkbench({
     () =>
       usesEncryptedTransport
         ? encryptedRuntime.historyEvents
-        : mergeEvents(normalizeHistoryMessages(historyMessages)),
-    [historyMessages, usesEncryptedTransport, encryptedRuntime.historyEvents],
+        : mergeEvents(normalizeHistoryMessages(historyMessages, messageTarget)),
+    [
+      historyMessages,
+      usesEncryptedTransport,
+      encryptedRuntime.historyEvents,
+      messageTarget,
+    ],
   );
 
   const timelineRuntime = useMemo(
@@ -1590,9 +1663,49 @@ export function SessionWorkbench({
     invocationOwnerLookups,
   );
   const workstreamItems = useMemo(
-    () => groupWorkstreamEvents(timeline),
-    [timeline],
+    () =>
+      groupWorkstreamEvents(
+        messageTarget
+          ? messageTargetError
+            ? []
+            : normalizeHistoryMessages(
+                focusedHistory ? messageWindow.messages : historyMessages,
+                messageTarget,
+              )
+          : timeline,
+      ),
+    [
+      timeline,
+      focusedHistory,
+      messageWindow.messages,
+      messageTarget,
+      historyMessages,
+      messageTargetError,
+    ],
   );
+  const stopTargetAutoScroll = useCallback(() => {
+    shouldStickToBottomRef.current = false;
+  }, []);
+  useTimelineMessageTarget({
+    scrollRef: timelineScrollRef,
+    messageId: messageTarget,
+    items: workstreamItems,
+    ready:
+      !focusedHistory ||
+      (messageWindow.isSuccess && !messageWindow.isValidating),
+    onLocate: stopTargetAutoScroll,
+  });
+  const backToLatest = useCallback(() => {
+    setTargetNavigation({ id: targetMessageId, dismissed: true });
+    shouldStickToBottomRef.current = true;
+    if (typeof window !== "undefined" && currentSessionId) {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("session_id") === currentSessionId) {
+        params.delete("message_id");
+        window.history.replaceState(window.history.state, "", `/?${params}`);
+      }
+    }
+  }, [targetMessageId, currentSessionId]);
   const isAgentResponsePending = showPendingActivity(
     displayedRunStatus,
     workstreamItems,
@@ -1705,8 +1818,13 @@ export function SessionWorkbench({
   );
   const handleTimelineScroll = useCallback(() => {
     updateTimelineStickiness();
-    if (!historyQuery.isError) loadEarlierHistory();
-  }, [historyQuery.isError, loadEarlierHistory, updateTimelineStickiness]);
+    if (!focusedHistory && !displayedHistoryQuery.isError) loadEarlierHistory();
+  }, [
+    displayedHistoryQuery.isError,
+    focusedHistory,
+    loadEarlierHistory,
+    updateTimelineStickiness,
+  ]);
 
   const queueDraft = queueTurn.mutateAsync;
   const sendConversationMessage = conversationRun.sendMessage;
@@ -1854,6 +1972,7 @@ export function SessionWorkbench({
             );
             return false;
           }
+          if (messageTarget) backToLatest();
           await queueDraft(content);
           return true;
         }
@@ -1864,6 +1983,7 @@ export function SessionWorkbench({
             approval_mode: effectiveNewSessionApprovalMode,
           });
         }
+        if (messageTarget) backToLatest();
         await sendConversationMessage(content, {
           ...(isNewSession
             ? {
@@ -1903,6 +2023,8 @@ export function SessionWorkbench({
       activeAgentId,
       activeNodeId,
       beginEncryptedSession,
+      backToLatest,
+      messageTarget,
       composerAttachments,
       clearSentAttachments,
       usesEncryptedTransport,
@@ -1932,13 +2054,14 @@ export function SessionWorkbench({
   const handleSteerTurn = useCallback(
     async (content: string) => {
       try {
+        if (messageTarget) backToLatest();
         await steerDraft(content);
         return true;
       } catch {
         return false;
       }
     },
-    [steerDraft],
+    [steerDraft, messageTarget, backToLatest],
   );
   const handleStopTurn = useCallback(() => {
     if (usesEncryptedTransport) {
@@ -2126,8 +2249,8 @@ export function SessionWorkbench({
 
   useEffect(() => {
     pendingHistoryPrependRef.current = null;
-    shouldStickToBottomRef.current = true;
-  }, [currentSessionId]);
+    shouldStickToBottomRef.current = !messageTarget;
+  }, [currentSessionId, messageTarget]);
 
   useLayoutEffect(() => {
     const pendingPrepend = pendingHistoryPrependRef.current;
@@ -2512,6 +2635,36 @@ export function SessionWorkbench({
           />
         )}
 
+        {messageTarget && (
+          <SessionMessageTargetNotice
+            loading={
+              focusedHistory &&
+              (messageWindow.isPending || messageWindow.isValidating) &&
+              !messageTargetError
+            }
+            error={messageTargetError ?? null}
+            missing={
+              (!focusedHistory ||
+                (messageWindow.isSuccess && !messageWindow.isValidating)) &&
+              !workstreamItems.some((item) =>
+                isMessageTarget(item, messageTarget),
+              )
+            }
+            focused={focusedHistory}
+            onRetry={() => {
+              if (
+                (!plainHistoryQuery.isSuccess && plainHistoryQuery.error) ||
+                sessionMetadataQuery.error
+              ) {
+                void sessionMetadataQuery.refetch?.();
+                void historyQuery.refetch();
+                return;
+              }
+              void messageWindow.refetch();
+            }}
+            onLatest={backToLatest}
+          />
+        )}
         <div
           className={cn(
             "min-h-0 flex-1 overflow-auto [overflow-anchor:none] p-3 transition-colors duration-500 sm:p-4",
@@ -2526,11 +2679,16 @@ export function SessionWorkbench({
               scrollRef={timelineScrollRef}
               hasMore={Boolean(hasNextHistoryPage)}
               isLoading={isFetchingHistory}
-              hasError={historyQuery.isError}
+              hasError={displayedHistoryQuery.isError}
               onLoadEarlier={requestEarlierHistory}
+              autoLoad={!focusedHistory}
             />
             <SessionErrors
-              messagesError={historyQuery.error ?? historySync.error}
+              messagesError={
+                focusedHistory
+                  ? null
+                  : (historyQuery.error ?? historySync.error)
+              }
               missingRouteState={!activeNodeId || !activeAgentId}
               sendError={
                 encryptedKeyError ??
@@ -2541,7 +2699,22 @@ export function SessionWorkbench({
               }
             />
             {workstreamItems.map((item) => (
-              <div className="min-w-0 max-w-full" key={item.id}>
+              <div
+                className="min-w-0 max-w-full rounded-lg outline-none data-[message-highlighted=true]:ring-2 data-[message-highlighted=true]:ring-accent data-[message-highlighted=true]:bg-accent/10"
+                data-timeline-id={item.id}
+                data-target-message-id={
+                  isMessageTarget(item, messageTarget)
+                    ? messageTarget
+                    : undefined
+                }
+                aria-label={
+                  isMessageTarget(item, messageTarget)
+                    ? "Selected search message"
+                    : undefined
+                }
+                tabIndex={isMessageTarget(item, messageTarget) ? -1 : undefined}
+                key={item.id}
+              >
                 <WorkstreamItemCard
                   agentOwnerInfos={agentOwnerInfos}
                   item={item}
@@ -2549,7 +2722,7 @@ export function SessionWorkbench({
                   permissionDecision={permissionDecision}
                   userId={user.user_id}
                 />
-                {readNotificationTargets.has(item.id) && (
+                {!messageTarget && readNotificationTargets.has(item.id) && (
                   <span
                     aria-hidden="true"
                     className="block h-px"
@@ -2560,15 +2733,33 @@ export function SessionWorkbench({
                 )}
               </div>
             ))}
-            <SessionPendingActivity
-              status={displayedRunStatus}
-              items={workstreamItems}
-              scopeKey={JSON.stringify([
-                currentSessionId,
-                latestRuntimeTurnId(timeline),
-              ])}
-            />
-            {!historyQuery.isLoading &&
+            {focusedHistory && messageWindow.hasPreviousPage && (
+              <div className="flex justify-center py-2">
+                <Button
+                  disabled={messageWindow.isFetching}
+                  onClick={() => {
+                    void messageWindow.fetchPreviousPage();
+                  }}
+                  size="sm"
+                >
+                  {messageWindow.isFetchingPreviousPage
+                    ? "Loading newer messages…"
+                    : "Load newer messages"}
+                </Button>
+              </div>
+            )}
+            {!messageTarget && (
+              <SessionPendingActivity
+                status={displayedRunStatus}
+                items={workstreamItems}
+                scopeKey={JSON.stringify([
+                  currentSessionId,
+                  latestRuntimeTurnId(timeline),
+                ])}
+              />
+            )}
+            {!messageTarget &&
+              !historyQuery.isLoading &&
               workstreamItems.length === 0 &&
               !isAgentResponsePending && (
                 <div className="rounded-lg border border-dashed border-hairline bg-surface-1 p-4 text-sm text-ink-tertiary">

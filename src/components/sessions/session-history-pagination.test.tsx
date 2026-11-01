@@ -17,6 +17,7 @@ function renderHistory(
     isLoading?: boolean;
     hasError?: boolean;
     height?: number;
+    autoLoad?: boolean;
   } = {},
 ) {
   const load = vi.fn();
@@ -34,6 +35,7 @@ function renderHistory(
           isLoading={options.isLoading ?? false}
           hasError={options.hasError ?? false}
           onLoadEarlier={load}
+          autoLoad={options.autoLoad}
         />
         <p>Latest encrypted turn</p>
       </div>
@@ -44,6 +46,14 @@ function renderHistory(
 }
 
 describe("earlier session history access", () => {
+  it("keeps a focused history window bounded until an explicit request", () => {
+    const load = renderHistory({ autoLoad: false });
+    expect(load).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Load earlier messages" }),
+    );
+    expect(load).toHaveBeenCalledTimes(1);
+  });
   it("loads older messages without a scroll event when the latest turn does not fill the viewport", () => {
     const load = renderHistory();
     expect(load).toHaveBeenCalledTimes(1);

@@ -214,6 +214,8 @@ export type SessionEvent = (
     }
 ) & {
   turnId?: string;
+  // Exact durable search target; event IDs can belong to normalized ACP frames.
+  historyMessageId?: string;
 };
 
 export type SessionEventListener = (event: SessionEvent) => void;

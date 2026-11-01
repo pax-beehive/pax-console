@@ -349,7 +349,7 @@ describe("Workspace search", () => {
     ).toHaveTextContent("We chose 数据库");
     expect(screen.getByRole("link", { name: "Open session" })).toHaveAttribute(
       "href",
-      "/?session_id=sess_1",
+      "/?session_id=sess_1&message_id=msg_123",
     );
     fireEvent.click(screen.getByRole("button", { name: "Full message" }));
     expect(latestRead()).toEqual(

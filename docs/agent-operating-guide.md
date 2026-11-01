@@ -675,6 +675,37 @@ the Manager API/MCP adapter; Console does not generate summaries or start a
 background agent. SearchBox accepts normal controlled-input and form props.
 Literal highlights are React text nodes, never raw HTML from the index.
 
+Message sources open Home using `/?session_id=...&message_id=...`, with the
+canonical PAX session and message IDs. Session-only sources retain the normal
+session link. Home preserves a message target through session resolution and
+legacy URL normalization; choosing another session clears it. A target in
+an unloaded or filtered-out session resolves its node/agent context through
+`useUserSession` and the canonical permission-checked GET `/sessions/{session_id}`;
+do not scan session-list pages or require an online agent. Known context keeps
+the existing scoped detail route. Exact session ID and context are checked
+before mounting its workbench; denied/missing sessions show unavailable, and
+temporary failures offer Retry session without exposing another session or
+cached denied metadata. Deploy the paired canonical metadata Manager endpoint
+before this Console change. A target in
+loaded durable history is scrolled into view and briefly highlighted. Preserve
+its canonical boundary when compacting adjacent text segments, assemble its
+existing parts, and expand a selected long user message.
+
+For unloaded targets, `runtime/session-message-window.ts` resolves the current
+message through the owner-checked source read, verifies its session, agent and
+positive safe sequence, then reads two bounded history pages: up to 26 records
+before `seq + 1` (including the target), and 25 after `seq`. No full-history
+search loop is added. The resulting focused window has its own identity-scoped
+TanStack cache, older/newer cursors and Back to latest control. It never replaces
+the latest history cache or owns live-turn calibration. A missing target or
+denied read cannot be presented as a successful jump; cached target content is
+hidden on errors and during entry revalidation. Window caches are discarded on
+exit; revisiting rechecks the anchor and current history access. Changing
+targets/identity cancels old reads. Sending, queueing or steering returns to
+latest so live output remains visible, without remounting the session runtime.
+These links show
+current session history; frozen summary evidence remains in the source reader.
+
 See `scripts/search-smoke/README.md` for real browser verification against the
 isolated Manager/PostgreSQL/Elasticsearch fixture stack. Do not use production
 data for this fixture runner.
