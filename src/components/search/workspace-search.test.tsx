@@ -204,7 +204,7 @@ describe("Workspace search", () => {
     setup({ query: "" });
     expect(
       screen.getByText(
-        "Enter a word or phrase to find its exact text in your content.",
+        "Separate keywords with spaces. All-keyword results come first, followed by partial matches.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Search" })).toBeDisabled();
@@ -213,6 +213,68 @@ describe("Workspace search", () => {
       kinds: undefined,
       limit: 20,
     });
+  });
+
+  it("keeps multi-term input intact and explains ranked partial fallback and the backend term limit", () => {
+    const query = "port\t数据库  PORT";
+    setup({ query });
+    expect(screen.getByRole("searchbox")).toHaveValue(query);
+    expect(useWorkspaceSearch).toHaveBeenLastCalledWith(
+      "user_1",
+      expect.objectContaining({ query }),
+    );
+    expect(
+      screen.getByText(
+        /Results matching all keywords first, then partial matches/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Up to 16 distinct terms/)).toBeInTheDocument();
+  });
+
+  it("lets the backend validate distinct terms and provides useful input guidance on rejection", () => {
+    const query = Array.from({ length: 17 }, (_, index) => `t${index}`).join(
+      " ",
+    );
+    searchResult({
+      ...queryState([]),
+      isError: true,
+      error: new ApiError("invalid query", 400, {}),
+    });
+    setup({ query });
+    expect(useWorkspaceSearch).toHaveBeenLastCalledWith(
+      "user_1",
+      expect.objectContaining({ query }),
+    );
+    expect(screen.getByRole("button", { name: "Search" })).toBeEnabled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Use up to 16 distinct terms and 256 characters.",
+    );
+  });
+
+  it("renders the backend's partial matches without filtering them or issuing a second search", () => {
+    searchResult(
+      queryState([
+        {
+          ...messageHit,
+          ref: { ...messageRef, id: "full" },
+          title: "Full port 数据库",
+        },
+        {
+          ...messageHit,
+          ref: { ...messageRef, id: "partial" },
+          title: "Partial port",
+          snippet: "only port appears",
+        },
+      ]),
+    );
+    setup({ query: "数据库 port" });
+    const partial = screen.getByRole("button", { name: /Partial port/ });
+    expect(partial).toBeInTheDocument();
+    expect(partial.querySelectorAll("mark")).toHaveLength(2);
+    expect(
+      screen.getByRole("button", { name: /Full port 数据库/ }),
+    ).toBeInTheDocument();
+    expect(useWorkspaceSearch).toHaveBeenCalledTimes(1);
   });
 
   it("shows loading and an empty state, and bounds too-long URL queries", () => {
@@ -628,6 +690,80 @@ describe("Workspace search", () => {
 });
 
 describe("Literal highlighting", () => {
+  it.each([
+    "port 数据库",
+    "数据库 port",
+    "\tPORT\u0085数据库\nport\u3000PORT ",
+  ])(
+    "highlights every English/Chinese term independently of order and Unicode whitespace: %j",
+    (query) => {
+      const text = "数据库 uses PORT; transport still matches.";
+      const { container } = render(
+        <LiteralHighlight text={text} query={query} />,
+      );
+      expect(
+        [...container.querySelectorAll("mark")].map((mark) => mark.textContent),
+      ).toEqual(["数据库", "PORT", "port"]);
+      expect(container.textContent).toBe(text);
+    },
+  );
+
+  it("deduplicates case-insensitive terms and coalesces overlapping longest matches without losing text", () => {
+    const text = "database banana abcde 😀port";
+    const { container } = render(
+      <LiteralHighlight
+        text={text}
+        query="data database DATA ata ana abc bcde 😀port port"
+      />,
+    );
+    expect(
+      [...container.querySelectorAll("mark")].map((mark) => mark.textContent),
+    ).toEqual(["database", "anana", "abcde", "😀port"]);
+    expect(container.querySelector("mark mark")).toBeNull();
+    expect(container.textContent).toBe(text);
+  });
+
+  it("keeps punctuation literal and HTML inert when multiple terms are highlighted", () => {
+    const text = "<img src=x onerror=alert(1)> [a.*] PORT";
+    const { container } = render(
+      <LiteralHighlight text={text} query="PORT <img [a.*]" />,
+    );
+    expect(
+      [...container.querySelectorAll("mark")].map((mark) => mark.textContent),
+    ).toEqual(["<img", "[a.*]", "PORT"]);
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.textContent).toBe(text);
+  });
+
+  it("treats BOM as a literal character rather than a whitespace separator", () => {
+    const { container } = render(
+      <LiteralHighlight text="port 数据库" query={"port\uFEFF数据库"} />,
+    );
+    expect(container.querySelector("mark")).toBeNull();
+  });
+
+  it.each(["", " \t\n\u0085\u3000"])(
+    "renders blank query %j as intact text without marks",
+    (query) => {
+      const { container } = render(
+        <LiteralHighlight text="😀 数据库 PORT" query={query} />,
+      );
+      expect(container.querySelector("mark")).toBeNull();
+      expect(container.textContent).toBe("😀 数据库 PORT");
+    },
+  );
+
+  it("preserves original Unicode boundaries for several terms and lowercase expansions", () => {
+    const text = "İSTANBUL DATA 数据库";
+    const { container } = render(
+      <LiteralHighlight text={text} query="i data 数据 DATA" />,
+    );
+    expect(
+      [...container.querySelectorAll("mark")].map((mark) => mark.textContent),
+    ).toEqual(["İ", "DATA", "数据"]);
+    expect(container.textContent).toBe(text);
+  });
+
   it("keeps text intact when lowercase Unicode has a different length", () => {
     const { container } = render(
       <LiteralHighlight text="İstanbul DATA 数据" query="data" />,

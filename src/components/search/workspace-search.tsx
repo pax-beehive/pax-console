@@ -134,6 +134,8 @@ function WorkspaceSearchContent({
   });
   const expiredCursor =
     search.error instanceof ApiError && /cursor/i.test(search.error.message);
+  const invalidInput =
+    search.error instanceof ApiError && search.error.status === 400;
   function restart() {
     setSelected(undefined);
     void search.restart();
@@ -157,8 +159,9 @@ function WorkspaceSearchContent({
       <header className="shrink-0 border-b border-hairline px-4 pb-3 pt-4 sm:px-5">
         <h1 className="text-base font-semibold text-ink">Search</h1>
         <p className="mt-1 text-xs text-ink-tertiary">
-          Find messages, session titles, and summaries in your workspace. Whole
-          English words first, then newest within each group.
+          Results matching all keywords first, then partial matches. More
+          matching keywords rank higher; whole English terms break ties, then
+          newest.
         </p>
         <form
           aria-label="Workspace search"
@@ -182,6 +185,10 @@ function WorkspaceSearchContent({
             Search
           </Button>
         </form>
+        <p className="mt-2 text-xs text-ink-tertiary">
+          Up to 16 distinct terms, separated by spaces. Order doesn&apos;t
+          matter.
+        </p>
         <nav
           aria-label="Search result type"
           className="mt-3 flex gap-1 overflow-x-auto"
@@ -212,7 +219,7 @@ function WorkspaceSearchContent({
           ) : !query ? (
             <SearchNotice
               title="Search your workspace"
-              text="Enter a word or phrase to find its exact text in your content."
+              text="Separate keywords with spaces. All-keyword results come first, followed by partial matches."
             />
           ) : search.isPending ? (
             <SearchNotice title="Searching…" loading />
@@ -292,7 +299,9 @@ function WorkspaceSearchContent({
                       ? "Your session expired. Sign in again to search your workspace."
                       : expiredCursor
                         ? "These results have expired. Start the search again to continue."
-                        : "Search is unavailable right now. Please try again."}
+                        : invalidInput
+                          ? "Use up to 16 distinct terms and 256 characters."
+                          : "Search is unavailable right now. Please try again."}
                   </p>
                   {authorizationDenied ? (
                     <Button asChild className="mt-2" size="sm">
