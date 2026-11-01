@@ -2426,3 +2426,42 @@ groups exist; otherwise use message counts without guessing turn boundaries.
 Overview metrics and a jump link sit above configuration; the per-session list
 follows the controls, with source agent/session identity and canonical session
 links. A progress failure has its own retry and does not disable configuration.
+
+## Summary developer inspection
+
+`/admin/summaries` lists the current administrator's readable current summaries
+without a keyword query. The desktop sidebar exposes Summary developer only in
+the effective admin view. Mobile reuses the Customers bottom item and the shared
+administration tabs. `SummaryBrowserAccess` checks `canSeeAdminFeatures` before
+mounting queries; ordinary users and Preview as user cannot mount the list or
+detail browser. Changing identity remounts its local state.
+
+`features/api/developer-summaries.ts` uses same-origin `/api/pax` GET requests to
+`/api/v1/user/self/developer/summaries?limit=20&cursor=...` and
+`/api/v1/user/self/developer/summaries/:summary_id?revision=N`. Manager checks
+administrator status independently and retains normal ownership/source access.
+There is no owner selector or cross-user read authority. These endpoints read
+PG directly and do not require an Elasticsearch projection. Deploy the companion
+Manager endpoints before publishing this Console; an older Manager produces an
+explicit load error rather than an empty successful list.
+
+The list uses server opaque cursors, including empty pages with continuations.
+Refresh clears the selected detail and restarts the cursor chain. TanStack Query
+keys include administrator identity and, for detail, the selected ID and exact
+revision. List, detail, and nested source 401/403 responses hide all cached
+developer content until refresh. The optional `SearchSourcePanel.onAccessDenied`
+callback propagates evidence-read denials to this page; ordinary search retains
+its existing source-error and dismissal behavior. Other errors hide the cached
+body. Direct ID lookup accepts an
+optional positive revision; blank requests current. Detail reuses the search
+summary/source renderers, preserving frozen message hashes and child summary
+versions. Raw JSON is a text-only disclosure of the returned summary object.
+No body, source receipt, selected record, or cursor is persisted in browser
+storage. This page does not generate, publish, edit, or delete summaries.
+
+Focused tests: `pnpm exec vitest run
+src/features/api/developer-summaries.test.tsx
+src/components/admin/summary-browser.test.tsx
+src/components/shell/summary-navigation.test.tsx`. The repository browser smoke
+workflow lives in `scripts/admin-summary-smoke/`; it uses the real isolated
+Manager/PG API and same-origin Console proxy rather than intercepted responses.

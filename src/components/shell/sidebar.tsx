@@ -6,6 +6,7 @@ import {
   Activity,
   Bell,
   ChartNoAxesCombined,
+  FileText,
   Brain,
   ChevronDown,
   ChevronLeft,
@@ -168,6 +169,14 @@ function WorkspaceSidebar({
                   href: "/admin/notifications",
                   icon: Bell,
                   label: "Push subscriptions",
+                }}
+              />
+              <NavEntry
+                collapsed={collapsed}
+                item={{
+                  href: "/admin/summaries",
+                  icon: FileText,
+                  label: "Summary developer",
                 }}
               />
             </>

@@ -2175,3 +2175,30 @@ Console shell，避免手机底部导航离开视口底边。
 到会话列表的入口；列表位于配置控件之后，展示源 agent、session 和准确剩余数。
 进度读取失败单独重试，不影响配置保存。
 Current status 中的 Queued 只是队列任务数；它与全量会话的剩余总结覆盖数不同。
+
+## Summary 开发者检查页
+
+`/admin/summaries` 提供无需关键词的当前总结列表，以及按 summary ID 和可选 revision
+直接读取的开发者入口。桌面 Sidebar 仅在有效管理员视图下显示 Summary developer；
+手机沿用 Customers 底部入口，在管理员页面的共享导航中切换，不增加底部栏数量。
+`SummaryBrowserAccess` 在查询组件挂载之前使用 `canSeeAdminFeatures` 检查身份；
+普通用户和 Preview as user 不挂载列表或详情查询，切换后立即卸载受保护内容。
+
+`features/api/developer-summaries.ts` 统一向同源 `/api/pax` 请求 GET
+`/api/v1/user/self/developer/summaries` 和 `/developer/summaries/:summary_id`。
+Manager 独立检查当前用户为管理员，并且只返回该管理员自己仍有权读取的总结。
+此入口不扩大跨用户原文或总结权限，也不依赖 ES。列表仅包含当前版本，按 ID 分页；
+页面默认请求最多 20 个候选，权限过滤后可见行数可能更少。空页仍可能带有
+`next_cursor`，页面必须保留 Load more。显式刷新
+清空选中详情并从第一页重新开始，不能复用旧 cursor 链。
+
+TanStack Query 按当前管理员 ID 隔离列表缓存，详情 key 额外包括 summary ID 和
+确切 revision。选择项、直接读取输入和展开的原文面板只属于页面局部状态，不写入
+Zustand 或浏览器存储。列表、详情或嵌套原文读取返回 401/403 时隐藏全部缓存列表和
+总结，并关闭来源面板，显式刷新后重新读取。共享 `SearchSourcePanel` 的可选
+`onAccessDenied` 回调仅由开发者页接入，普通搜索页保留既有来源错误和关闭行为。
+其他读取失败时隐藏旧缓存正文；历史版本不存在或来源
+不可访问时显示 unavailable，不以当前正文代替请求的旧版本。详情复用搜索页的
+`SummaryContent` 和 `SearchSourcePanel`，展示正文、claims、冻结 coverage 和下层
+总结版本，并保留消息 hash。Raw JSON 直接呈现 Manager 返回的数据，以 React 文本
+节点渲染，不解释 HTML。页面只读，不触发总结生成或修改 Secretary 配置。
