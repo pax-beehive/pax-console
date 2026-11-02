@@ -71,7 +71,9 @@ describe("Secretary HTTP contract", () => {
     await expect(getSecretarySettings("self", signal)).resolves.toEqual(saved);
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("/api/pax/api/v1/user/self/secretary");
-    expect(init).toMatchObject({ credentials: "include", signal });
+    expect(init).toMatchObject({ credentials: "include" });
+    expect(init?.signal?.aborted).toBe(false);
+    expect(signal.aborted).toBe(false);
     expect(new Headers(init?.headers).has("Content-Type")).toBe(false);
     expect(init?.body).toBeUndefined();
   });

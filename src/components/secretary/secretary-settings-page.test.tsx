@@ -429,7 +429,7 @@ describe("Secretary settings", () => {
     fireEvent.click(screen.getByRole("button", { name: "Retry settings" }));
     expect(state.refetch).toHaveBeenCalledOnce();
   });
-  it("shows live work, last completion, queue and bounded errors", () => {
+  it("distinguishes a previous failed task from ongoing processing", () => {
     setSettings(
       settingsState({
         ...configured,
@@ -446,8 +446,25 @@ describe("Secretary settings", () => {
     expect(
       within(status).queryByText("No completed runs yet"),
     ).not.toBeInTheDocument();
-    expect(within(status).getByText(/x{30}/).textContent).toHaveLength(400);
+    expect(status).toHaveTextContent("A previous summary task failed");
+    expect(status).toHaveTextContent(
+      "Other conversations are still being processed",
+    );
+    expect(within(status).queryByText(/x{30}/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Run now" })).toBeDisabled();
+  });
+  it("bounds the safe error text when processing has stopped", () => {
+    setSettings(
+      settingsState({
+        ...configured,
+        state: "error",
+        last_error: "x".repeat(800),
+      }),
+    );
+    setup();
+    const status = screen.getByRole("region", { name: "Secretary status" });
+    expect(within(status).getByText(/x{30}/).textContent).toHaveLength(400);
+    expect(screen.getByRole("button", { name: "Retry run" })).toBeEnabled();
   });
   it("requests and retries work only when the persisted settings allow it", () => {
     setSettings(settingsState(configured));

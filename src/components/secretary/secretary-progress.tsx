@@ -71,7 +71,9 @@ export function SecretaryProgressOverview({
           <div className="mt-3 text-xs leading-5 text-warning" role="alert">
             {progress.error instanceof AuthError
               ? "Sign in again to view summary progress."
-              : "Summary progress is unavailable. Refresh to try again."}
+              : progress.error?.name === "TimeoutError"
+                ? "Loading summary progress timed out. Refresh to try again."
+                : "Summary progress is unavailable. Refresh to try again."}
           </div>
         ) : (
           <p className="mt-3 text-xs text-ink-tertiary" role="status">

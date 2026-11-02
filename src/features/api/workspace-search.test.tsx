@@ -103,7 +103,7 @@ describe("workspace search HTTP contract", () => {
     expect(init).toMatchObject({
       method: "POST",
       credentials: "include",
-      signal: controller.signal,
+      signal: expect.any(AbortSignal),
     });
     expect(new Headers(init?.headers).get("Content-Type")).toBe(
       "application/json",
@@ -135,7 +135,7 @@ describe("workspace search HTTP contract", () => {
 
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("/api/pax/api/v1/user/usr_1/search/read");
-    expect(init?.signal).toBe(controller.signal);
+    expect(init?.signal?.aborted).toBe(false);
     expect(JSON.parse(String(init?.body))).toEqual(request);
   });
 
@@ -176,7 +176,7 @@ describe("workspace search HTTP contract", () => {
     );
     controller.abort();
     await expect(pending).rejects.toMatchObject({ name: "AbortError" });
-    expect(fetchMock.mock.calls[0][1]?.signal).toBe(controller.signal);
+    expect(fetchMock.mock.calls[0][1]?.signal?.aborted).toBe(true);
   });
 });
 

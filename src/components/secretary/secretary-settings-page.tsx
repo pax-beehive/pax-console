@@ -404,7 +404,9 @@ function SecretaryStatus({ settings }: { settings: SecretarySettings }) {
       </dl>
       {settings.last_error && (
         <p className="mt-3 line-clamp-3 whitespace-pre-wrap text-xs leading-5 text-warning [overflow-wrap:anywhere]">
-          {settings.last_error.slice(0, 400)}
+          {settings.state === "processing"
+            ? "A previous summary task failed. Other conversations are still being processed."
+            : settings.last_error.slice(0, 400)}
         </p>
       )}
     </section>

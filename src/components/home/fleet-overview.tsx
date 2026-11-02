@@ -3,6 +3,7 @@
 import { CronOriginBadge } from "@/components/sessions/cron-origin-badge";
 import {
   cronSessionOrigin,
+  isInternalSecretarySession,
   type CronSessionOrigin,
 } from "@/features/sessions/session-origin";
 import { stageEncryptedAttachment } from "@/features/e2ee/attachments";
@@ -349,7 +350,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     () =>
       dedupeSessionsById(
         sessionsQuery.data?.pages.flatMap((page) => page.sessions) ?? [],
-      ),
+      ).filter((session) => !isInternalSecretarySession(session)),
     [sessionsQuery.data?.pages],
   );
   const latestSessionTimeByAgent = useMemo(

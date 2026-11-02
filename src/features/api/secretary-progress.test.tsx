@@ -86,13 +86,24 @@ describe("Secretary progress API", () => {
     expect(url).toBe(
       "/api/pax/api/v1/user/self/secretary/progress?limit=20&cursor=opaque%2B%2F%3D",
     );
-    expect(init).toMatchObject({ credentials: "include", signal });
+    expect(init).toMatchObject({ credentials: "include" });
+    expect(init?.signal?.aborted).toBe(false);
+    expect(signal.aborted).toBe(false);
     expect(init?.body).toBeUndefined();
     expect(new Headers(init?.headers).has("Content-Type")).toBe(false);
   });
   it("does not fetch without an authenticated user", () => {
     renderHook(() => useSecretaryProgress(undefined), wrapper());
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("exposes a timeout without immediately repeating the expensive progress request", async () => {
+    fetchMock.mockRejectedValue(new DOMException("Timed out", "TimeoutError"));
+    const hook = renderHook(() => useSecretaryProgress("self"), wrapper());
+    await waitFor(() => expect(hook.result.current.isError).toBe(true));
+    expect(hook.result.current.error?.name).toBe("TimeoutError");
+    expect(hook.result.current.isPending).toBe(false);
+    expect(hook.result.current.isFetching).toBe(false);
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
   it("loads progress independently of enabled settings and isolates users", async () => {
     fetchMock.mockImplementation(async () => response(page));
