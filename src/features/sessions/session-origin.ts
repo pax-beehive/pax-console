@@ -1,5 +1,14 @@
 import type { AgentSession } from "@/features/api/types";
 
+export function isInternalSecretarySession(
+  session: Pick<AgentSession, "session_id" | "source">,
+) {
+  return (
+    session.source === "secretary_internal" ||
+    session.session_id.startsWith("sess_secretary_")
+  );
+}
+
 export type CronSessionOrigin = {
   kind: "cronjob";
   cronjob_id: string;

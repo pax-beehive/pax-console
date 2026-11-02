@@ -635,6 +635,12 @@ teams, friends, envelopes, or knowledge capsules into Zustand.
 
 ## REST API Rules
 
+`apiFetch` keeps a twelve-second deadline through JSON body consumption, including
+when a query supplies its own AbortSignal. It forwards caller cancellation and
+cleans up timers/listeners after settlement. TimeoutError is distinct from caller
+AbortError. Secretary progress exposes a timeout and Refresh action immediately
+without automatic immediate retries; its ordinary thirty-second polling remains.
+
 ### Workspace search
 
 `/search?q=...&kind=...` is the authenticated search surface. The shell exposes
@@ -2437,8 +2443,10 @@ change the settings CAS revision or reset an unsaved form. Poll status every
 five seconds while enabled and fifteen seconds while disabled. Disable remains
 available when the saved agent disappears or the inventory cannot load. Show
 bounded safe errors, queue size, last completion, and an explicit manual run;
-request acceptance does not mean a summary has completed. Search remains a
-separate, read-only view of persisted summaries and their exact source refs.
+while processing continues, explain that a previous task failed and other
+conversations are still processing. Keep historical errors distinct from the
+current run; request acceptance does not mean a summary has completed. Search
+remains a separate, read-only view of persisted summaries and their exact source refs.
 An inventory authentication failure hides cached agent names. The progress jump
 scrolls only the inner settings panel; it must not scroll the fixed Console shell
 or move mobile navigation away from the bottom of the viewport.
@@ -2461,6 +2469,10 @@ Do not derive universe counts from the loaded page. Use the authoritative
 Updating progress must not remount an unsaved Secretary configuration form.
 The Current status Queued count is queued work, not remaining summary coverage;
 the Summary progress section separately counts the entire eligible universe.
+Home also filters internal work from cached list pages using the shared
+`isInternalSecretarySession` predicate: exact `source: secretary_internal` or the
+reserved `sess_secretary_` ID prefix. Do not match display names. Authorized
+explicit session links remain readable for diagnostics.
 
 The progress universe is currently owned, visible, nonempty canonical plaintext
 user/assistant content. Empty, encrypted, archived/deleted/inaccessible, reasoning,

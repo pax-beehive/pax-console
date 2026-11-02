@@ -55,7 +55,17 @@ export async function apiFetch<T>(
   // Browser code should call the same-origin proxy by default. That keeps
   // Cloudflare Access and CORS handling on the Next server side in local dev.
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 12_000);
+  const callerSignal = init?.signal;
+  const cancel = () => controller.abort(callerSignal?.reason);
+  if (callerSignal?.aborted) cancel();
+  else callerSignal?.addEventListener("abort", cancel, { once: true });
+  const timeout = window.setTimeout(
+    () =>
+      controller.abort(
+        new DOMException("PAX API request timed out", "TimeoutError"),
+      ),
+    12_000,
+  );
   const headers = new Headers(init?.headers);
   const method = init?.method ?? "GET";
 
@@ -65,46 +75,57 @@ export async function apiFetch<T>(
     headers.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    credentials: "include",
-    redirect: init?.redirect ?? "manual",
-    headers,
-    method,
-    signal: init?.signal ?? controller.signal,
-  }).finally(() => window.clearTimeout(timeout));
+  try {
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      credentials: "include",
+      redirect: init?.redirect ?? "manual",
+      headers,
+      method,
+      signal: controller.signal,
+    });
 
-  if (
-    response.status === 0 ||
-    response.status === 401 ||
-    response.status === 403 ||
-    (response.status >= 300 && response.status < 400) ||
-    response.type === "opaqueredirect"
-  ) {
-    throw new AuthError();
+    if (
+      response.status === 0 ||
+      response.status === 401 ||
+      response.status === 403 ||
+      (response.status >= 300 && response.status < 400) ||
+      response.type === "opaqueredirect"
+    ) {
+      throw new AuthError();
+    }
+
+    const contentType = response.headers.get("content-type");
+    if (!contentType?.includes("application/json")) {
+      throw new ApiError(
+        `Expected JSON response from PAX API, received ${contentType ?? "unknown content type"}`,
+        response.status,
+        null,
+      );
+    }
+
+    const body = (await response.json()) as ApiEnvelope<T>;
+
+    if (!response.ok || body.code >= 400) {
+      throw new ApiError(
+        body.message ??
+          `${Object.hasOwn(routingErrors, body.error ?? "") ? routingErrors[body.error!] : "PAX API request failed"} (HTTP ${response.status}).`,
+        response.status,
+        body,
+      );
+    }
+
+    return body.data;
+  } catch (error) {
+    // Reading a timed-out response body can throw AbortError instead of the
+    // abort reason. Preserve TimeoutError so retries can distinguish it from
+    // a query cancellation.
+    if (controller.signal.aborted) throw controller.signal.reason;
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+    callerSignal?.removeEventListener("abort", cancel);
   }
-
-  const contentType = response.headers.get("content-type");
-  if (!contentType?.includes("application/json")) {
-    throw new ApiError(
-      `Expected JSON response from PAX API, received ${contentType ?? "unknown content type"}`,
-      response.status,
-      null,
-    );
-  }
-
-  const body = (await response.json()) as ApiEnvelope<T>;
-
-  if (!response.ok || body.code >= 400) {
-    throw new ApiError(
-      body.message ??
-        `${Object.hasOwn(routingErrors, body.error ?? "") ? routingErrors[body.error!] : "PAX API request failed"} (HTTP ${response.status}).`,
-      response.status,
-      body,
-    );
-  }
-
-  return body.data;
 }
 
 export function userPath(userId: string, path: string) {

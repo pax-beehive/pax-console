@@ -2180,9 +2180,11 @@ Agent 列表鉴权失败时隐藏旧的名称缓存。进度跳转仅滚动设�
 Console shell，避免手机底部导航离开视口底边。
 
 页面显示服务端的 disabled/idle/waiting_for_agent/processing/error、待处理会话数、
-上次完成时间和有界安全错误。启用时每五秒刷新，关闭时每十五秒刷新。选中的 agent
-失效或列表读取失败时仍允许关闭。Run now / Retry run 只请求后台调度；HTTP 接受
-请求不等于总结已完成。Agent 可用性、原文权限、实际模型调用、自动调度和不可变总结
+上次完成时间和有界安全错误。启用时每五秒刷新，关闭时每十五秒刷新。
+仍在 processing 时，将错误明确描述为先前任务失败，说明其他会话仍在处理，
+避免将历史错误误认为当前任务停止。
+选中的 agent 失效或列表读取失败时仍允许关闭。Run now / Retry run 只请求后台调度；
+HTTP 接受请求不等于总结已完成。Agent 可用性、原文权限、实际模型调用、自动调度和不可变总结
 发布均由 Manager 负责，浏览器不运行采集或生成循环，也不重启旧的本地实验流水线。
 
 `scripts/secretary-smoke/run.mjs` 使用隔离测试 agent 验证真实设置请求、启用和关闭
@@ -2205,7 +2207,15 @@ Console shell，避免手机底部导航离开视口底边。
 且确有稳定 turn 分组时显示轮次，否则回退到消息数，不能猜测轮次。顶部概览提供跳转
 到会话列表的入口；列表位于配置控件之后，展示源 agent、session 和准确剩余数。
 进度读取失败单独重试，不影响配置保存。
+公共 `apiFetch` 的十二秒期限覆盖请求和 JSON 正文读取；TanStack Query 提供的
+AbortSignal 不会替代该期限，调用方取消仍立即传递。超时返回 TimeoutError，取消
+返回 AbortError。进度超时后显示明确错误和 Refresh，不立即自动重试同一个慢查询；
+原有每三十秒轮询保留。请求结束后清理定时器和取消监听。
 Current status 中的 Queued 只是队列任务数；它与全量会话的剩余总结覆盖数不同。
+
+Home 的会话列表额外过滤 source 为 `secretary_internal` 或保留前缀
+`sess_secretary_` 的后台执行会话，旧列表缓存也遵守该规则。普通用户讨论 Secretary
+的会话不受影响；有权限的明确 session URL 仍可读取后台会话进行诊断。
 
 ## Summary 开发者检查页
 
