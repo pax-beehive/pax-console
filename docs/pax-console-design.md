@@ -415,11 +415,24 @@ Topbar
 Workspace search is implemented at `/search`. Every authenticated user has a
 Search link in desktop and mobile navigation; the desktop Topbar quick-search
 form opens the same route. The URL retains the submitted query and result kind.
-Results use compact rows with safe literal highlights and filters for all,
-sessions, messages, and summaries. Selecting a result opens a source pane with
-message views, context, or summary coverage and exact child-summary revisions.
-Desktop uses a split pane after selection; mobile shows the source with a Back
-to results control. Source bodies preserve whitespace and wrap long content.
+Results group title, message, and summary matches by canonical session, with
+standalone summaries kept separate when they span sessions. The card title is
+the session's name and stays on one line; the best matching content takes at
+most two lines. Keep agent, time, and version metadata in the source reader.
+An independent count-and-chevron control expands one-line matches: a quiet
+background label (Summary, Message, or Title), followed by the actual matching
+content with ellipsis. The count covers only loaded matches. Load more matches
+appears only when the server supplies a continuation; it does not consume the
+next page of session results. Filters remain All, Titles, Messages, and Summaries,
+with safe literal highlights and tooltip-backed truncation.
+
+Selecting a card or match opens its exact source. Desktop uses a split pane;
+mobile hides the search form and result list while reading. Nested evidence and
+child summaries have a Back to summary/message/title control, followed by Back
+to results. Retain the parent reader's exact revision, view, pagination, and
+scroll, along with the selected card, expanded matches, and list scroll. Choosing
+another result resets this reader history. Close returns directly to results.
+Use 44px mobile controls and preserve source whitespace and long-content wrapping.
 Loading, no results, failed/expired pagination, unavailable sources, and changed
 versions have explicit states. A changed version requires an explicit current
 read; summary source links retain their frozen versions. This is an owner-only

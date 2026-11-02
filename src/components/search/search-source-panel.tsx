@@ -40,6 +40,7 @@ export function SearchSourcePanel({
   onClose,
   onAccessDenied,
   revalidateOnMount = false,
+  active = true,
 }: {
   userId: string;
   sourceRef: WorkspaceSearchRef;
@@ -48,6 +49,7 @@ export function SearchSourcePanel({
   onClose: () => void;
   onAccessDenied?: () => void;
   revalidateOnMount?: boolean;
+  active?: boolean;
 }) {
   const [request, setRequest] = useState<WorkspaceReadRequest>({
     ref: sourceRef,
@@ -57,8 +59,8 @@ export function SearchSourcePanel({
   const [previousOffsets, setPreviousOffsets] = useState<number[]>([]);
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
-    headingRef.current?.focus();
-  }, []);
+    if (active) headingRef.current?.focus({ preventScroll: true });
+  }, [active]);
   const sourceOptions = revalidateOnMount
     ? ([{ revalidateOnMount: true }] as const)
     : ([] as const);
@@ -136,6 +138,7 @@ export function SearchSourcePanel({
         </div>
         <Button
           aria-label="Close source"
+          className="min-h-11 min-w-11 md:min-h-9 md:min-w-9"
           icon={<X aria-hidden="true" className="h-4 w-4" />}
           onClick={onClose}
           size="icon"
@@ -143,7 +146,7 @@ export function SearchSourcePanel({
           variant="ghost"
         />
       </header>
-      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-4 [overflow-wrap:anywhere]">
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-4 [overflow-wrap:anywhere] [&_a]:min-h-11 [&_button]:min-h-11 md:[&_a]:min-h-8 md:[&_button]:min-h-8">
         {source.isPending || checking ? (
           <p className="text-sm text-ink-tertiary" role="status">
             Loading source…

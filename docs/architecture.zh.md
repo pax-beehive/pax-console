@@ -2109,9 +2109,25 @@ does not implicitly save a new target or change the default workspace.
 普通用户、管理员和 Preview as user 都可以使用；桌面 Sidebar、手机底部导航都有
 Search 入口，桌面 Topbar 的快捷搜索用 GET 表单打开该页。
 
-API 层集中在 `src/features/api/workspace-search.ts`，通过既有 `apiFetch` 和
-`userPath` 向同源 `/api/pax` 发送 search / search/read POST 请求。浏览器不直接
+`src/features/api/workspace-search.ts` 保留原始命中搜索和来源读取；
+`workspace-search-groups.ts` 负责 Console 按 session 分组的搜索和组内匹配分页。
+两者通过既有 `apiFetch` 和 `userPath` 向同源 `/api/pax` 发送 search / search/read POST 请求。浏览器不直接
 访问 ES，也不指定 owner。Manager 从登录态确定 owner，在 PG 再次验证原文权限。
+Console 向 POST `/search` 显式发送 `group_by: "session"`，每页请求二十个组，
+不是取二十条文档再在浏览器去重。响应保留空 `hits`，增加 `groups`：每组含不透明
+`key`、当前 canonical session `title`（或独立来源标题）、可选 agent/session ID、最多三条按排名排序的
+`matches` 和 `matches_has_more`。总结或独立来源组可能没有 session ID，不能从
+summary subject 或组 key 推断。省略 grouping 时，原始搜索和 MCP 协议保持不变。
+先部署 Manager 分组检索并完成索引迁移，再发布此 Console；分组投影尚不可用时返回
+503，不以部分文档命中冒充完整组列表。
+
+组内更多匹配仍请求 POST `/search`，携带原始 query、kinds、session_ids、确切
+`group_key` 和独立的原始命中 cursor，不发送 `group_by`。仅用户点击加载更多后
+请求；第一页可能包含初始三条，按完整 ref（包括总结 revision 或消息 hash/规范化版本）
+合并。权限过滤后的空页仍可能有 cursor；`matches_has_more` 只表示还有候选，不能据此
+声称精确可见总数。组列表使用另一套 cursor。若返回 `pagination_limited: true` 且
+没有后续 cursor，表示达到有界的组分页窗口，应提示缩小查询，不宣称已展示全部结果。
+
 ES 是检索投影，PG 是消息、总结版本和引用快照的事实源。查询按 Unicode White_Space
 拆词，忽略大小写去重，在同一个索引/当前对象内匹配，顺序不限；每个词可以在标题或
 正文中按连续字面子串命中，支持中文单字和字面标点。匹配的不同词越多越靠前，全部
@@ -2120,18 +2136,27 @@ ES 是检索投影，PG 是消息、总结版本和引用快照的事实源。�
 Manager 负责最多 16 个不同非空词和既有 256 字符的校验；Console 保留查询内部原始
 空白，展示数量提示和输入错误，不自行拒绝词数以免 Unicode 大小写差异引入额外限制。
 
-TanStack Query 保存搜索分页和原文读取结果，key 包括用户、查询、类型以及完整引用、
-视图和分页参数。URL 保存已提交的 query/kind；输入草稿、选中来源、first/last/full
-视图和原文分页属于页面局部状态。切换用户、查询或类型时重建选中来源。搜索片段、
+TanStack Query 保存组列表、组内匹配分页和原文读取结果，key 包括用户、查询、类型/
+session 过滤、页大小和确切组 key 或完整来源引用、视图、分页参数；组与原始命中
+cursor 不共享缓存 key。组查询进入时重新校验权限，原本禁用的展开查询启用时也会
+重读 warm cache；完成进入校验前不显示旧缓存。URL 保存已提交的 query/kind；输入
+草稿、卡片展开状态、来源阅读路径、first/last/full 视图和原文分页属于页面局部状态。
+切换用户、查询或类型时重建选中来源。搜索片段、
 正文、read receipt、cursor 不进入 Zustand 或 localStorage。同一查询再次提交会
 重新检索；过期 cursor 需要重启分页，不能作为 Secretary 增量处理 checkpoint。
 鉴权失败时隐藏缓存结果和已选原文；显式重启先清除选中来源，防止重置错误后在重新
 鉴权期间挂载旧的原文缓存。
 
-`src/components/search` 采用结果行加来源面板。桌面选中后左右分栏，手机选中后显示
-来源和返回按钮。来源读取保留命中的 content_hash 或 summary revision；消息支持
+`src/components/search` 每组显示一张紧凑卡片：单行 canonical session 标题，下面最多
+两行最佳命中的实际片段；右上角展开后，每条来源仅占一行，类型标签与正文并排并省略
+溢出内容。数量只描述当前展示的匹配，不是全量总数。点击卡片预览最佳命中，点击展开行
+读取该条确切来源。桌面采用结果加来源双栏；手机来源占满结果区，搜索控件暂时收起，
+顶部为紧凑的返回和关闭操作，shell 及底部 Search 导航保留。来源读取保留命中的 content_hash 或 summary revision；消息支持
 展开、分页和前后文。版本变化时明确提示并允许读取当前版本。总结展示冻结的 coverage
 与下层总结精确版本，点击可回到对应旧原文；失去权限或删除后不能依靠旧命中继续读取。
+嵌套来源保留上一层确切 ref、视图、分页和滚动位置；返回逐层回到原总结，关闭回到原
+结果列表并保留展开和滚动。切换另一条结果会建立新的阅读路径。组、匹配或原文读取的
+401/403 隐藏所有旧搜索内容，重新验证后再展示。
 高亮独立匹配各词、忽略大小写去重、优先处理长词并合并重叠区间，保留原始 Unicode
 边界，以 React 文本节点呈现，不拼接查询正则或注入 HTML。拆词使用 Unicode
 White_Space：NEL 是分隔符、BOM 是字面字符；浏览器大小写折叠仅用于展示，校验和
