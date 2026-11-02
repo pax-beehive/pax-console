@@ -6,6 +6,7 @@ import { ExternalLink, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MonoId } from "@/components/ui/text";
+import { MarkdownMessage } from "@/components/ui/markdown-message";
 import { ApiError, AuthError } from "@/features/api/errors";
 import {
   isWorkspaceMessageRead,
@@ -347,16 +348,22 @@ function ContextMessage({
 export function SummaryContent({
   summary,
   onSelect,
+  markdown = false,
 }: {
   summary: WorkspaceSummaryVersion;
   onSelect: (ref: WorkspaceSearchRef) => void;
+  markdown?: boolean;
 }) {
   return (
     <>
-      <article aria-label="Summary text">
-        <p className="whitespace-pre-wrap text-sm leading-7 text-ink">
-          {summary.body}
-        </p>
+      <article aria-label="Summary text" className="min-w-0">
+        {markdown ? (
+          <MarkdownMessage content={summary.body} />
+        ) : (
+          <p className="whitespace-pre-wrap text-sm leading-7 text-ink">
+            {summary.body}
+          </p>
+        )}
       </article>
       {!!summary.claims?.length && (
         <section

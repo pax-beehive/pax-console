@@ -2494,6 +2494,36 @@ Overview metrics and a jump link sit above configuration; the per-session list
 follows the controls, with source agent/session identity and canonical session
 links. A progress failure has its own retry and does not disable configuration.
 
+### Reading published summaries
+
+View summaries on `/settings/secretary` opens the ordinary owner-facing
+`/settings/secretary/summaries` page, including when automatic summaries are off.
+`features/api/secretary-summaries.ts` requests GET `/secretary/summaries` with
+twenty items and an opaque cursor through the same-origin user proxy. Manager
+reads all currently readable, owned published summary subjects from PostgreSQL,
+newest current revision first; this requires neither administrator access nor ES.
+An empty permission-filtered page may still offer Load more. Expired cursors
+require Refresh, which clears selection and restarts the first page.
+
+Selection lives in the URL as `summary_id` plus a pinned `revision`; newly
+published list versions never silently replace an open version. Details use
+the owner-authorized `/search/read` protocol and safely render the complete
+Markdown body, claims, evidence, frozen coverage, and exact child-summary refs.
+Evidence opens in the shared source reader while retaining the summary pane and
+its reading position underneath. Closing the source returns to the same summary.
+Only successful source reads supply real session/message IDs for workbench links;
+the internal summary subject ID is not a session ID. Missing historical versions
+stay unavailable instead of falling back to current text.
+
+TanStack Query owns the user- and version-scoped list, detail, and source caches.
+On entry, wait for cached data's permission revalidation before rendering it.
+401/403 from any read hides all cached list/detail/source content. Other detail
+errors also hide old body text and offer Retry. Desktop uses a split list/reader;
+mobile switches panes with Back to summaries, retaining the list's pagination.
+The page is read-only and never starts a model run or changes Secretary settings.
+An empty result means no published summary is available, with a settings link
+for checking processing progress.
+
 ## Summary developer inspection
 
 `/admin/summaries` lists the current administrator's readable current summaries

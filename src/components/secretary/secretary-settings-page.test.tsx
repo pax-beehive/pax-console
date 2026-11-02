@@ -165,6 +165,16 @@ afterEach(() => {
 });
 
 describe("Secretary settings", () => {
+  it("links to published summaries even while automatic summaries are off", () => {
+    setup();
+    expect(
+      screen.getByRole("link", { name: "View summaries" }),
+    ).toHaveAttribute("href", "/settings/secretary/summaries");
+    expect(useUpdateSecretarySettings).toHaveBeenCalledWith("owner");
+    expect(
+      screen.getByRole("switch", { name: "Automatic summaries" }),
+    ).not.toBeChecked();
+  });
   it("keeps an unsaved configuration draft when only progress updates", () => {
     const view = setup();
     fireEvent.change(screen.getByRole("combobox"), {

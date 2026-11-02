@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, RefreshCw } from "lucide-react";
+import Link from "next/link";
+import { BookOpen, ChevronDown, RefreshCw } from "lucide-react";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import {
   SettingsBack,
@@ -83,6 +84,18 @@ export function SecretarySettingsPanel({ userId }: { userId: string }) {
           maintain summaries automatically. Enabling Secretary allows that agent
           to run in the background.
         </p>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-5">
+          <p className="text-xs leading-5 text-ink-tertiary">
+            Read published summaries and trace their conclusions to your
+            original messages.
+          </p>
+          <Button
+            asChild
+            icon={<BookOpen aria-hidden="true" className="h-4 w-4" />}
+          >
+            <Link href="/settings/secretary/summaries">View summaries</Link>
+          </Button>
+        </div>
         {settings.isPending ? (
           <p className="text-sm text-ink-tertiary" role="status">
             Loading Secretary settings…
