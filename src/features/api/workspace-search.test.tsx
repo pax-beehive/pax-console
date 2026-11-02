@@ -53,9 +53,9 @@ function response(data: unknown, status = 200) {
   );
 }
 
-function queryWrapper() {
+function queryWrapper(staleTime = 0) {
   const client = new QueryClient({
-    defaultOptions: { queries: { retryDelay: 0, gcTime: Infinity } },
+    defaultOptions: { queries: { retryDelay: 0, gcTime: Infinity, staleTime } },
   });
   clients.push(client);
   return {
@@ -321,6 +321,31 @@ describe("workspace search queries", () => {
 });
 
 describe("source reads and types", () => {
+  it("revalidates opted-in evidence reads despite a fresh cached version", async () => {
+    fetchMock.mockResolvedValue(response(null, 403));
+    const { client, wrapper } = queryWrapper(15_000);
+    const request = { ref: message.ref };
+    client.setQueryData(workspaceSearchKeys.source("usr_1", request), message);
+    const { result } = renderHook(
+      () => useWorkspaceSource("usr_1", request, { revalidateOnMount: true }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(result.current.error).toBeInstanceOf(AuthError);
+  });
+
+  it("preserves existing fresh-cache behavior when revalidation is not requested", () => {
+    const { client, wrapper } = queryWrapper(15_000);
+    const request = { ref: message.ref };
+    client.setQueryData(workspaceSearchKeys.source("usr_1", request), message);
+    const { result } = renderHook(() => useWorkspaceSource("usr_1", request), {
+      wrapper,
+    });
+    expect(result.current.data).toEqual(message);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("enables reads only when a reference exists and caches every read parameter", async () => {
     fetchMock.mockImplementation(async () => response(message));
     const { wrapper } = queryWrapper();

@@ -2224,6 +2224,30 @@ Home、Resources/Monitor 和 agent 详情的会话列表额外过滤 source 为
 select 投影覆盖旧缓存和实时缓存更新，不修改缓存中的原始元数据；有权限的明确
 session URL 仍可读取后台会话进行诊断。
 
+### 读取总结成果
+
+所有登录用户都可以从 `/settings/secretary` 的 View summaries 进入
+`/settings/secretary/summaries`，关闭自动总结后也保留已有成果的读取入口。
+列表按当前版本发布时间倒序展示标题、预览、版本、时间及来源消息数，无需关键词。
+`features/api/secretary-summaries.ts` 经同源代理调用用户范围内的 GET
+`/secretary/summaries?limit=20&cursor=...`。该入口由 Manager 查询 PG 当前总结，
+独立检查 owner 和当前来源权限，不要求管理员身份，不依赖 ES。
+权限过滤后的空页若仍有 cursor，继续保留加载更多。cursor 过期要求显式刷新并从头
+读取，不能自动重复请求旧 cursor。
+
+选中总结后 URL 保存 `summary_id` 和确切 `revision`，刷新、分享链接及列表出现
+新版时均保留选中的不可变版本。详情复用 `/search/read` 的总结读取协议，使用安全
+Markdown 渲染完整正文，展示结论、引文、冻结 coverage 以及下层总结版本引用。
+点击证据或来源消息，在共享 `SearchSourcePanel` 中读取确切正文版本；该读取成功后
+才使用服务端返回的真实 session/message ID 提供工作台定位链接。内部 subject ID
+不能当作 session ID。历史正文不可用时明确提示，不替换为当前正文。
+
+列表、详情和来源由按用户及版本隔离的 TanStack Query 缓存持有；页面重新挂载时
+等待权限读取完成后再展示旧缓存。401/403 隐藏列表、总结和来源缓存；一般详情错误
+也隐藏旧正文并提供重试。手机在列表和详情之间切换，桌面使用双栏，长文本在独立
+滚动区域内换行。页面只读，不修改 Secretary 配置或触发生成；未发布任何总结时
+说明结果将在发布后出现，并保留返回设置查看进度的入口。
+
 ## Summary 开发者检查页
 
 `/admin/summaries` 提供无需关键词的当前总结列表，以及按 summary ID 和可选 revision

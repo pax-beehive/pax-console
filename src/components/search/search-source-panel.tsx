@@ -6,6 +6,7 @@ import { ExternalLink, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MonoId } from "@/components/ui/text";
+import { MarkdownMessage } from "@/components/ui/markdown-message";
 import { ApiError, AuthError } from "@/features/api/errors";
 import {
   isWorkspaceMessageRead,
@@ -38,6 +39,7 @@ export function SearchSourcePanel({
   onSelect,
   onClose,
   onAccessDenied,
+  revalidateOnMount = false,
 }: {
   userId: string;
   sourceRef: WorkspaceSearchRef;
@@ -45,6 +47,7 @@ export function SearchSourcePanel({
   onSelect: (ref: WorkspaceSearchRef) => void;
   onClose: () => void;
   onAccessDenied?: () => void;
+  revalidateOnMount?: boolean;
 }) {
   const [request, setRequest] = useState<WorkspaceReadRequest>({
     ref: sourceRef,
@@ -56,7 +59,12 @@ export function SearchSourcePanel({
   useEffect(() => {
     headingRef.current?.focus();
   }, []);
-  const source = useWorkspaceSource(userId, request);
+  const sourceOptions = revalidateOnMount
+    ? ([{ revalidateOnMount: true }] as const)
+    : ([] as const);
+  const source = useWorkspaceSource(userId, request, ...sourceOptions);
+  const checking =
+    revalidateOnMount && source.isFetching && !source.isFetchedAfterMount;
   const accessDenied =
     source.error instanceof AuthError ||
     (source.error instanceof ApiError &&
@@ -64,7 +72,7 @@ export function SearchSourcePanel({
   useEffect(() => {
     if (accessDenied) onAccessDenied?.();
   }, [accessDenied, onAccessDenied]);
-  const data = source.isError ? undefined : source.data;
+  const data = source.isError || checking ? undefined : source.data;
   const changed =
     source.error instanceof ApiError && source.error.status === 409;
   const unavailable =
@@ -136,7 +144,7 @@ export function SearchSourcePanel({
         />
       </header>
       <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-4 [overflow-wrap:anywhere]">
-        {source.isPending ? (
+        {source.isPending || checking ? (
           <p className="text-sm text-ink-tertiary" role="status">
             Loading source…
           </p>
@@ -347,16 +355,22 @@ function ContextMessage({
 export function SummaryContent({
   summary,
   onSelect,
+  markdown = false,
 }: {
   summary: WorkspaceSummaryVersion;
   onSelect: (ref: WorkspaceSearchRef) => void;
+  markdown?: boolean;
 }) {
   return (
     <>
-      <article aria-label="Summary text">
-        <p className="whitespace-pre-wrap text-sm leading-7 text-ink">
-          {summary.body}
-        </p>
+      <article aria-label="Summary text" className="min-w-0">
+        {markdown ? (
+          <MarkdownMessage content={summary.body} />
+        ) : (
+          <p className="whitespace-pre-wrap text-sm leading-7 text-ink">
+            {summary.body}
+          </p>
+        )}
       </article>
       {!!summary.claims?.length && (
         <section

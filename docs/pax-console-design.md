@@ -425,6 +425,16 @@ versions have explicit states. A changed version requires an explicit current
 read; summary source links retain their frozen versions. This is an owner-only
 search surface, with permission checks performed by Manager on every read.
 
+Secretary settings also exposes View summaries for every signed-in owner,
+including while automatic summaries are off. `/settings/secretary/summaries`
+uses compact newest-first rows and a readable Markdown detail pane. Version and
+publication time are quiet metadata; claims and original evidence follow the
+body. Desktop retains the list beside the selected version, while mobile uses
+Back to summaries. Opening evidence retains the summary underneath so closing
+the source returns to the same reading position. Keep empty/loading/retry and
+permission states explicit; this product reader is separate from the admin JSON
+inspection page.
+
 Avoid dynamic Tailwind `grid-cols-[...]` strings for shell collapse behavior. The sidebar uses explicit width because local development through `paxworkspace.net` and Turbopack can otherwise make stale chunk/class behavior hard to diagnose.
 
 ## Existing API Model
