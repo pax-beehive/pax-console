@@ -21,6 +21,10 @@ replace the current page with `/auth/login?returnTo=...` before mounting account
 queries. Preserve the relative path, query and hash. A tab-scoped 15-second
 redirect guard prevents rapid callback loops; the visible sign-in link remains
 available. Successful bootstrap clears the guard. Outages retain retry controls.
+AuthGate treats current-user HTTP 5xx, timeout, network and empty-profile failures
+as account-loading errors with a Retry action. These failures must not offer
+sign-in as their recovery path or claim that the session expired. Confirmed
+authentication failures still use SignInRedirect before rendering account data.
 
 Production AuthKit branding is versioned in `branding/workos/`. Build its non-secret
 `updateAppBranding` payload with `node scripts/workos-branding-payload.mjs`; this

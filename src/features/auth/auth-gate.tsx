@@ -1,9 +1,10 @@
 "use client";
 
 import { ReactNode } from "react";
-import { API_BASE_URL, LOGIN_URL } from "@/features/api/client";
+import { API_BASE_URL } from "@/features/api/client";
 import { AuthError } from "@/features/api/errors";
 import { User } from "@/features/api/types";
+import { Button } from "@/components/ui/button";
 import { useCurrentUser } from "./use-current-user";
 import { SignInRedirect } from "./sign-in-redirect";
 
@@ -34,20 +35,25 @@ export function AuthGate({ children }: AuthGateProps) {
             PAX Workspace
           </div>
           <h1 className="mt-3 text-3xl font-semibold leading-tight">
-            Sign in to open PAX Console.
+            Unable to load your account.
           </h1>
           <p className="mt-3 text-sm leading-6 text-ink-muted">
-            Continue with your email, Google, or GitHub account.
+            PAX could not load your account information. Retry to continue.
           </p>
-          <div className="mt-5 rounded-lg border border-hairline bg-canvas p-3 font-mono text-xs leading-5 text-ink-subtle">
-            {formatAuthError(currentUser.error)}
-          </div>
-          <a
-            className="mt-5 inline-flex min-h-9 items-center rounded-lg border border-primary bg-primary px-3 text-sm font-medium text-canvas hover:bg-primary-hover"
-            href={LOGIN_URL}
+          <div
+            role="alert"
+            className="mt-5 rounded-lg border border-hairline bg-canvas p-3 font-mono text-xs leading-5 text-ink-subtle"
           >
-            Sign in
-          </a>
+            {formatAccountError(currentUser.error)}
+          </div>
+          <Button
+            className="mt-5"
+            disabled={currentUser.isFetching}
+            onClick={() => void currentUser.refetch()}
+            variant="primary"
+          >
+            Retry
+          </Button>
         </section>
       </div>
     );
@@ -56,13 +62,9 @@ export function AuthGate({ children }: AuthGateProps) {
   return children(currentUser.data);
 }
 
-function formatAuthError(error: Error | null) {
+function formatAccountError(error: Error | null) {
   if (!error) {
     return "No user profile returned from /api/v1/user/self/me.";
-  }
-
-  if (error instanceof AuthError) {
-    return "Your sign-in has expired. Sign in again to continue.";
   }
 
   return `${error.name}: ${error.message}; API base: ${API_BASE_URL}`;
