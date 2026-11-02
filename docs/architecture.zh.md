@@ -2213,9 +2213,12 @@ AbortSignal 不会替代该期限，调用方取消仍立即传递。超时返�
 原有每三十秒轮询保留。请求结束后清理定时器和取消监听。
 Current status 中的 Queued 只是队列任务数；它与全量会话的剩余总结覆盖数不同。
 
-Home 的会话列表额外过滤 source 为 `secretary_internal` 或保留前缀
+Home、Resources/Monitor 和 agent 详情的会话列表额外过滤 source 为
+`secretary_internal` 或保留前缀
 `sess_secretary_` 的后台执行会话，旧列表缓存也遵守该规则。普通用户讨论 Secretary
-的会话不受影响；有权限的明确 session URL 仍可读取后台会话进行诊断。
+的会话、直接与所选 Secretary agent 聊天的普通会话不受影响。per-agent query 的
+select 投影覆盖旧缓存和实时缓存更新，不修改缓存中的原始元数据；有权限的明确
+session URL 仍可读取后台会话进行诊断。
 
 ## Summary 开发者检查页
 

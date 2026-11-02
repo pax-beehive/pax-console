@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   cronSessionOrigin,
   isInternalSecretarySession,
+  selectVisibleSessions,
 } from "./session-origin";
 
 describe("internal Secretary execution sessions", () => {
@@ -24,6 +25,27 @@ describe("internal Secretary execution sessions", () => {
     expect(isInternalSecretarySession({ session_id: "sess_secretary" })).toBe(
       false,
     );
+  });
+  it("filters cached execution rows while preserving pagination and normal agent chats", () => {
+    const context = { agent_id: "secretary_agent", node_id: "node_1" };
+    const ordinary = {
+      ...context,
+      session_id: "sess_user",
+      name: "Secretary planning",
+    };
+    const page = {
+      sessions: [
+        { ...context, session_id: "sess_secretary_job" },
+        { ...context, session_id: "sess_native", source: "secretary_internal" },
+        ordinary,
+      ],
+      pagination: { page_num: 1, total_pages: 3 },
+    };
+    expect(selectVisibleSessions(page)).toEqual({
+      ...page,
+      sessions: [ordinary],
+    });
+    expect(page.sessions).toHaveLength(3);
   });
 });
 

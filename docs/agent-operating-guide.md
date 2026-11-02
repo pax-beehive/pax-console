@@ -2469,10 +2469,14 @@ Do not derive universe counts from the loaded page. Use the authoritative
 Updating progress must not remount an unsaved Secretary configuration form.
 The Current status Queued count is queued work, not remaining summary coverage;
 the Summary progress section separately counts the entire eligible universe.
-Home also filters internal work from cached list pages using the shared
+Home, resource/monitor lists, and agent-detail lists also filter internal work
+from cached list pages using the shared
 `isInternalSecretarySession` predicate: exact `source: secretary_internal` or the
 reserved `sess_secretary_` ID prefix. Do not match display names. Authorized
-explicit session links remain readable for diagnostics.
+explicit session links remain readable for diagnostics. The per-agent query
+projection applies to existing cache entries and live cache updates without
+mutating stored metadata; ordinary chats on the configured Secretary agent
+remain visible.
 
 The progress universe is currently owned, visible, nonempty canonical plaintext
 user/assistant content. Empty, encrypted, archived/deleted/inaccessible, reasoning,

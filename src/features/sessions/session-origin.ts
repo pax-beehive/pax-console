@@ -9,6 +9,17 @@ export function isInternalSecretarySession(
   );
 }
 
+export function selectVisibleSessions<T extends { sessions: AgentSession[] }>(
+  data: T,
+): T {
+  return {
+    ...data,
+    sessions: data.sessions.filter(
+      (session) => !isInternalSecretarySession(session),
+    ),
+  };
+}
+
 export type CronSessionOrigin = {
   kind: "cronjob";
   cronjob_id: string;

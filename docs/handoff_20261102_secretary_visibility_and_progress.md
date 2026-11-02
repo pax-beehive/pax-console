@@ -37,3 +37,16 @@ that failed tasks will necessarily recover.
 Both architecture and operating-guide documentation describe the changed request
 lifecycle and cached-list visibility boundary. Backend query timeouts and progress
 query performance are handled by the companion Manager fix.
+
+## Cached per-agent list follow-up
+
+The final list audit also found unfiltered per-agent query observers used by
+Resources/Monitor, agent detail, and the E2EE session selector. These now reuse
+`selectVisibleSessions` as a TanStack query projection. It filters both exact
+internal markers from existing cache entries and later cache updates, without
+modifying the stored metadata or filtering the selected Secretary agent itself.
+Ordinary chats on that agent remain visible, including chats named Secretary.
+The canonical single-session read path remains available for explicit links.
+
+Two regression tests failed before this fix and pass with it. The shared
+session-origin module has 100% statement, branch, function, and line coverage.

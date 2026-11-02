@@ -1,5 +1,5 @@
 /* @vitest-environment jsdom */
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import {
   focusManager,
   QueryClient,
@@ -7,7 +7,7 @@ import {
 } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { afterEach, expect, it, vi } from "vitest";
-import { useNodes, useUserSession } from "./resources";
+import { useAgentSessions, useNodes, useUserSession } from "./resources";
 import { queryKeys } from "./query-keys";
 
 const mocks = vi.hoisted(() => ({ fetch: vi.fn() }));
@@ -19,6 +19,52 @@ afterEach(() => {
   vi.useRealTimers();
   mocks.fetch.mockReset();
   focusManager.setFocused(undefined);
+});
+
+it("hides internal agent sessions from cached lists and later updates without hiding ordinary chats", async () => {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+  });
+  const key = queryKeys.sessions("self", "n", "secretary_agent");
+  const ordinary = {
+    session_id: "sess_chat",
+    agent_id: "secretary_agent",
+    name: "Secretary planning",
+  };
+  const cached = {
+    sessions: [
+      { session_id: "sess_secretary_1", agent_id: "secretary_agent" },
+      { session_id: "sess_native", source: "secretary_internal" },
+      ordinary,
+    ],
+  };
+  client.setQueryData(key, cached);
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  const { result, unmount } = renderHook(
+    () => useAgentSessions("self", "n", "secretary_agent"),
+    { wrapper },
+  );
+  expect(result.current.data?.sessions).toEqual([ordinary]);
+  expect(client.getQueryData(key)).toEqual(cached);
+  act(() => {
+    client.setQueryData(key, {
+      sessions: [
+        ...cached.sessions,
+        { session_id: "sess_secretary_new", source: "secretary_internal" },
+        { ...ordinary, session_id: "sess_new_chat" },
+      ],
+    });
+  });
+  await waitFor(() =>
+    expect(
+      result.current.data?.sessions.map((session) => session.session_id),
+    ).toEqual(["sess_chat", "sess_new_chat"]),
+  );
+  expect(mocks.fetch).not.toHaveBeenCalled();
+  unmount();
+  client.clear();
 });
 
 it("polls node recovery and idle session heads, pauses hidden polling and refreshes nodes on focus", async () => {

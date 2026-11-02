@@ -10,6 +10,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { isDaemonCommandSettled } from "@/features/devices/daemon-commands";
+import { selectVisibleSessions } from "@/features/sessions/session-origin";
 import { API_BASE_URL, apiFetch, userPath } from "./client";
 import { ApiError, AuthError } from "./errors";
 import { historyDisplaySequence } from "./history-display-sequence";
@@ -2419,6 +2420,7 @@ export function useAgentSessions(
     ),
     queryFn: () =>
       listAgentSessions(userId as string, nodeId as string, agentId as string),
+    select: selectVisibleSessions,
     enabled: Boolean(userId && nodeId && agentId),
     refetchInterval: 30_000,
   });
