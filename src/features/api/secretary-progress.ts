@@ -69,6 +69,7 @@ export function useSecretaryProgress(userId: string | undefined) {
       !(
         error instanceof AuthError ||
         error.name === "AbortError" ||
+        error.name === "TimeoutError" ||
         (error instanceof ApiError && error.status < 500)
       ) && count < 2,
   });

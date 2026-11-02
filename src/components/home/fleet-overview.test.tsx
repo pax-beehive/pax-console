@@ -328,6 +328,42 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("FleetOverview session rail", () => {
+  it("hides internal Secretary sessions from list responses while retaining ordinary conversations", async () => {
+    mocks.listUserSessions.mockResolvedValue({
+      pagination: { page_num: 1, page_size: 20, total: 3, total_pages: 1 },
+      sessions: [
+        {
+          agent_id: "agent_1",
+          node_id: "node_1",
+          session_id: "sess_secretary_123",
+          name: "Internal execution",
+        },
+        {
+          agent_id: "agent_1",
+          node_id: "node_1",
+          session_id: "sess_native",
+          source: "secretary_internal",
+          name: "Internal native execution",
+        },
+        {
+          agent_id: "agent_1",
+          node_id: "node_1",
+          session_id: "sess_user",
+          name: "Secretary design discussion",
+        },
+      ],
+    });
+    renderOverview();
+    expect(
+      await screen.findByRole("link", { name: /Secretary design discussion/ }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("link", { name: /Internal execution/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /Internal native execution/ }),
+    ).not.toBeInTheDocument();
+  });
   it("keeps Home and the session rail out of per-keystroke draft updates", async () => {
     renderOverview();
     await screen.findByRole("link", { name: /Session one/ });

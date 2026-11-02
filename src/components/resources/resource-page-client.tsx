@@ -42,6 +42,7 @@ import {
   useNodes,
 } from "@/features/api/resources";
 import { queryKeys } from "@/features/api/query-keys";
+import { selectVisibleSessions } from "@/features/sessions/session-origin";
 import { Agent, AgentApproval, Node, User } from "@/features/api/types";
 import { compactId } from "@/lib/format";
 import {
@@ -234,6 +235,7 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
           nodeId
             ? listAgentSessions(user.user_id, nodeId, agent.agent_id)
             : Promise.resolve({ sessions: [] }),
+        select: selectVisibleSessions,
         enabled:
           Boolean(user.user_id && nodeId && agent.agent_id) &&
           (kind === "sessions" || kind === "monitor"),

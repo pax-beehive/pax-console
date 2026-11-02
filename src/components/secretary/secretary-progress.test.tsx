@@ -247,6 +247,22 @@ describe("Secretary progress", () => {
     fireEvent.click(screen.getByRole("button", { name: "Refresh progress" }));
     expect(failed.restart).toHaveBeenCalledOnce();
   });
+  it("replaces loading with an explicit timeout and an available refresh action", () => {
+    const state = query({
+      data: undefined,
+      isError: true,
+      error: new DOMException("Timed out", "TimeoutError"),
+    });
+    render(<SecretaryProgressOverview progress={state} />);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Loading summary progress timed out",
+    );
+    const refresh = screen.getByRole("button", { name: "Refresh progress" });
+    expect(refresh).toBeEnabled();
+    fireEvent.click(refresh);
+    expect(state.restart).toHaveBeenCalledOnce();
+  });
   it("hides cached progress after authentication expires", () => {
     const state = query({ isError: true, error: new AuthError() });
     render(
