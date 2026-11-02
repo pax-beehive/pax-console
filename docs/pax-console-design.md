@@ -426,6 +426,13 @@ appears only when the server supplies a continuation; it does not consume the
 next page of session results. Filters remain All, Titles, Messages, and Summaries,
 with safe literal highlights and tooltip-backed truncation.
 
+While Manager explicitly reports that the grouping index is still migrating,
+show individual source matches using the existing raw search. Display a brief
+notice and a Try grouped search action. Count these as matches, keep separate
+documents from the same session visible, and omit grouping disclosure controls.
+Raw pages continue in the same mode; retrying grouping starts a fresh result set.
+Other service errors keep the ordinary neutral Retry state.
+
 Selecting a card or match opens its exact source. Desktop uses a split pane;
 mobile hides the search form and result list while reading. Nested evidence and
 child summaries have a Back to summary/message/title control, followed by Back

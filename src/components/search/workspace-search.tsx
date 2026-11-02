@@ -11,10 +11,12 @@ import { ApiError, AuthError } from "@/features/api/errors";
 import { LOGIN_URL } from "@/features/api/client";
 import {
   WorkspaceSearchKind,
+  WorkspaceSearchHit,
   WorkspaceSearchRef,
 } from "@/features/api/workspace-search";
-import { useWorkspaceSearchGroups } from "@/features/api/workspace-search-groups";
+import { useWorkspaceSearchResults } from "@/features/api/workspace-search-results";
 import { SearchGroupCard } from "./search-group-card";
+import { SearchHitRow } from "./search-hit-row";
 import { SearchSourcePanel } from "./search-source-panel";
 
 export type SearchKindFilter = "all" | WorkspaceSearchKind;
@@ -126,7 +128,8 @@ function WorkspaceSearchContent({
     kinds: kind === "all" ? undefined : [kind],
     limit: 20,
   };
-  const search = useWorkspaceSearchGroups(userId, filters);
+  const search = useWorkspaceSearchResults(userId, filters);
+  const rawMode = search.data?.pages[0]?.mode === "raw";
   const checking = search.isFetching && !search.isFetchedAfterMount;
   const authorizationDenied =
     groupAccessDenied ||
@@ -138,12 +141,28 @@ function WorkspaceSearchContent({
   const groups = (
     authorizationDenied || checking
       ? []
-      : (search.data?.pages.flatMap((page) => page.groups) ?? [])
+      : (search.data?.pages.flatMap((page) =>
+          page.mode === "raw" ? [] : page.groups,
+        ) ?? [])
   ).filter((group) => {
     if (seen.has(group.key)) return false;
     seen.add(group.key);
     return true;
   });
+  const seenHits = new Set<string>();
+  const hits = (
+    authorizationDenied || checking
+      ? []
+      : (search.data?.pages.flatMap((page) =>
+          page.mode === "raw" ? page.hits : [],
+        ) ?? [])
+  ).filter((hit) => {
+    const key = searchRefKey(hit.ref);
+    if (seenHits.has(key)) return false;
+    seenHits.add(key);
+    return true;
+  });
+  const count = rawMode ? hits.length : groups.length;
   const expiredCursor =
     search.error instanceof ApiError && /cursor/i.test(search.error.message);
   const invalidInput =
@@ -156,6 +175,17 @@ function WorkspaceSearchContent({
   }
   function closeReaders() {
     setReaders([]);
+  }
+  function selectHit(
+    hit: WorkspaceSearchHit,
+    trigger: HTMLElement,
+    key: string,
+  ) {
+    returnFocus.current = trigger;
+    setSelectedGroup(key);
+    setReaders([
+      { key: ++readerSequence.current, ref: hit.ref, title: hit.title },
+    ]);
   }
   useEffect(() => {
     if (!readers.length) returnFocus.current?.focus({ preventScroll: true });
@@ -181,7 +211,9 @@ function WorkspaceSearchContent({
       >
         <h1 className="text-base font-semibold text-ink">Search</h1>
         <p className="mt-1 hidden text-xs text-ink-tertiary md:block">
-          Results grouped by session. Best matches first.
+          {rawMode
+            ? "Showing individual matches. Best matches first."
+            : "Results grouped by session. Best matches first."}
         </p>
         <form
           aria-label="Workspace search"
@@ -251,10 +283,33 @@ function WorkspaceSearchContent({
                 aria-live="polite"
                 className="border-b border-hairline px-4 py-2 text-xs text-ink-tertiary"
               >
-                {groups.length} {groups.length === 1 ? "result" : "results"}
+                {count}{" "}
+                {count === 1
+                  ? rawMode
+                    ? "match"
+                    : "result"
+                  : rawMode
+                    ? "matches"
+                    : "results"}
                 {search.hasNextPage ? " loaded" : ""}
               </div>
-              {!groups.length && !search.isError && !authorizationDenied && (
+              {rawMode && !authorizationDenied && (
+                <div className="border-b border-hairline px-4 py-2">
+                  <p className="text-xs text-ink-tertiary">
+                    Showing individual matches while session grouping is being
+                    prepared.
+                  </p>
+                  <Button
+                    className="mt-1 min-h-11 md:min-h-8"
+                    onClick={restart}
+                    size="sm"
+                    variant="ghost"
+                  >
+                    Try grouped search
+                  </Button>
+                </div>
+              )}
+              {!count && !search.isError && !authorizationDenied && (
                 <SearchNotice
                   title={
                     search.hasNextPage
@@ -278,17 +333,23 @@ function WorkspaceSearchContent({
                       active={Boolean(selected && selectedGroup === group.key)}
                       selectedRef={readers[0]?.ref}
                       onAccessDenied={denyAccess}
-                      onSelect={(hit, trigger) => {
-                        returnFocus.current = trigger;
-                        setSelectedGroup(group.key);
-                        setReaders([
-                          {
-                            key: ++readerSequence.current,
-                            ref: hit.ref,
-                            title: hit.title,
-                          },
-                        ]);
-                      }}
+                      onSelect={(hit, trigger) =>
+                        selectHit(hit, trigger, group.key)
+                      }
+                    />
+                  </li>
+                ))}
+                {hits.map((hit) => (
+                  <li key={searchRefKey(hit.ref)}>
+                    <SearchHitRow
+                      hit={hit}
+                      query={query}
+                      active={Boolean(
+                        selected && selectedGroup === searchRefKey(hit.ref),
+                      )}
+                      onSelect={(trigger) =>
+                        selectHit(hit, trigger, searchRefKey(hit.ref))
+                      }
                     />
                   </li>
                 ))}
@@ -342,7 +403,9 @@ function WorkspaceSearchContent({
                   </div>
                 )}
               {!authorizationDenied &&
-                search.data?.pages.at(-1)?.pagination_limited && (
+                search.data?.pages.some(
+                  (page) => page.mode !== "raw" && page.pagination_limited,
+                ) && (
                   <p className="px-4 py-3 text-xs text-ink-tertiary">
                     Narrow your search to see more results.
                   </p>
@@ -394,7 +457,7 @@ function WorkspaceSearchContent({
               );
             })}
           </section>
-        ) : query && groups.length > 0 ? (
+        ) : query && count > 0 ? (
           <div className="hidden min-w-0 flex-1 items-center justify-center p-8 text-sm text-ink-tertiary md:flex">
             <FileText aria-hidden="true" className="mr-2 h-4 w-4" />
             Select a result to read its source.

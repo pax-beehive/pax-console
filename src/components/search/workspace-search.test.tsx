@@ -21,10 +21,10 @@ import {
   WorkspaceSummaryVersion,
 } from "@/features/api/workspace-search";
 import {
-  useWorkspaceSearchGroups,
   useWorkspaceGroupMatches,
   WorkspaceSearchGroup,
 } from "@/features/api/workspace-search-groups";
+import { useWorkspaceSearchResults } from "@/features/api/workspace-search-results";
 import { WorkspaceSearch } from "./workspace-search";
 import { SearchSourcePanel } from "./search-source-panel";
 import { LiteralHighlight } from "./literal-highlight";
@@ -35,8 +35,11 @@ vi.mock("@/features/api/workspace-search", async (importOriginal) => ({
 }));
 
 vi.mock("@/features/api/workspace-search-groups", () => ({
-  useWorkspaceSearchGroups: vi.fn(),
   useWorkspaceGroupMatches: vi.fn(),
+}));
+
+vi.mock("@/features/api/workspace-search-results", () => ({
+  useWorkspaceSearchResults: vi.fn(),
 }));
 
 const render = (ui: ReactElement) =>
@@ -118,6 +121,8 @@ function queryState(hits: WorkspaceSearchHit[] = [messageHit]) {
       pages: [{ groups: hits.map(groupFromHit) }] as {
         groups: WorkspaceSearchGroup[];
         pagination_limited?: boolean;
+        mode?: "grouped" | "raw";
+        hits?: WorkspaceSearchHit[];
       }[],
       pageParams: [undefined] as (string | undefined)[],
     },
@@ -141,8 +146,8 @@ function sourceState(data: unknown = message) {
   };
 }
 function searchResult(state: ReturnType<typeof queryState>) {
-  vi.mocked(useWorkspaceSearchGroups).mockReturnValue(
-    state as unknown as ReturnType<typeof useWorkspaceSearchGroups>,
+  vi.mocked(useWorkspaceSearchResults).mockReturnValue(
+    state as unknown as ReturnType<typeof useWorkspaceSearchResults>,
   );
 }
 function sourceResult(state: ReturnType<typeof sourceState>) {
@@ -262,7 +267,7 @@ describe("Workspace search", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Search" })).toBeDisabled();
-    expect(useWorkspaceSearchGroups).toHaveBeenLastCalledWith("user_1", {
+    expect(useWorkspaceSearchResults).toHaveBeenLastCalledWith("user_1", {
       query: "",
       kinds: undefined,
       limit: 20,
@@ -273,7 +278,7 @@ describe("Workspace search", () => {
     const query = "port\t数据库  PORT";
     setup({ query });
     expect(screen.getByRole("searchbox")).toHaveValue(query);
-    expect(useWorkspaceSearchGroups).toHaveBeenLastCalledWith(
+    expect(useWorkspaceSearchResults).toHaveBeenLastCalledWith(
       "user_1",
       expect.objectContaining({ query }),
     );
@@ -293,7 +298,7 @@ describe("Workspace search", () => {
       error: new ApiError("invalid query", 400, {}),
     });
     setup({ query });
-    expect(useWorkspaceSearchGroups).toHaveBeenLastCalledWith(
+    expect(useWorkspaceSearchResults).toHaveBeenLastCalledWith(
       "user_1",
       expect.objectContaining({ query }),
     );
@@ -330,7 +335,7 @@ describe("Workspace search", () => {
         name: /Preview best match in Full port 数据库/,
       }),
     ).toBeInTheDocument();
-    expect(useWorkspaceSearchGroups).toHaveBeenCalledTimes(1);
+    expect(useWorkspaceSearchResults).toHaveBeenCalledTimes(1);
   });
 
   it("shows loading and an empty state, and bounds too-long URL queries", () => {
@@ -356,7 +361,7 @@ describe("Workspace search", () => {
       />,
     );
     expect(screen.getByText("Search phrase is too long")).toBeInTheDocument();
-    expect(useWorkspaceSearchGroups).toHaveBeenLastCalledWith(
+    expect(useWorkspaceSearchResults).toHaveBeenLastCalledWith(
       "user_1",
       expect.objectContaining({ query: "" }),
     );
@@ -685,7 +690,7 @@ describe("Workspace search", () => {
     expect(
       screen.queryByRole("region", { name: "Selected source" }),
     ).not.toBeInTheDocument();
-    expect(useWorkspaceSearchGroups).toHaveBeenLastCalledWith(
+    expect(useWorkspaceSearchResults).toHaveBeenLastCalledWith(
       "user_2",
       expect.anything(),
     );
@@ -1207,6 +1212,132 @@ describe("Session result groups", () => {
     expect(
       screen.queryByRole("button", { name: "Load more" }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("Individual matches during group migration", () => {
+  function rawState() {
+    return {
+      ...queryState(),
+      data: {
+        pages: [
+          {
+            mode: "raw" as const,
+            groups: [],
+            hits: [
+              messageHit,
+              {
+                ...messageHit,
+                ref: { ...messageRef, id: "msg_456" },
+                title: "Another match",
+              },
+            ],
+          },
+        ],
+        pageParams: [undefined],
+      },
+    };
+  }
+
+  it("shows separate hits and truthful match counts without session disclosure controls", () => {
+    searchResult(rawState());
+    setup();
+    expect(screen.getByText("2 matches")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Showing individual matches while session grouping is being prepared.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Results grouped by session. Best matches first."),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Show matches in/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Preview message: Database choice" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Preview message: Another match" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Preview message: Database choice" }),
+    );
+    expect(latestRead()?.ref).toEqual(messageRef);
+    expect(screen.getByRole("link", { name: "Open session" })).toHaveAttribute(
+      "href",
+      "/?session_id=sess_1&message_id=msg_123",
+    );
+  });
+
+  it("loads additional raw pages and resets selection when retrying grouped search", () => {
+    const state = { ...rawState(), hasNextPage: true };
+    searchResult(state);
+    const view = setup();
+    fireEvent.click(screen.getByRole("button", { name: "Load more" }));
+    expect(state.fetchNextPage).toHaveBeenCalledOnce();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Preview message: Database choice" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Try grouped search" }));
+    expect(state.restart).toHaveBeenCalledOnce();
+    expect(
+      screen.queryByRole("region", { name: "Selected source" }),
+    ).not.toBeInTheDocument();
+    searchResult(queryState());
+    view.rerender(
+      <WorkspaceSearch
+        userId="user_1"
+        query="数据"
+        kind="all"
+        onNavigate={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("1 result")).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Showing individual matches while session grouping is being prepared.",
+      ),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Show matches in Database choice/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps raw failures neutral and hides cached raw content on authorization denial", () => {
+    searchResult({
+      ...rawState(),
+      isError: true,
+      error: new ApiError("Search request failed", 503, {}),
+    });
+    const view = setup();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Search is unavailable right now.",
+    );
+    expect(
+      screen.queryByRole("link", { name: "Sign in again" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Retry search" }),
+    ).toBeInTheDocument();
+    searchResult({
+      ...rawState(),
+      isError: true,
+      error: new ApiError("forbidden", 403, {}),
+    });
+    view.rerender(
+      <WorkspaceSearch
+        userId="user_1"
+        query="数据"
+        kind="all"
+        onNavigate={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText("Database choice")).not.toBeInTheDocument();
+    expect(screen.queryByText("Another match")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Sign in again" }),
+    ).toBeInTheDocument();
   });
 });
 

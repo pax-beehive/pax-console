@@ -2121,6 +2121,14 @@ summary subject 或组 key 推断。省略 grouping 时，原始搜索和 MCP �
 先部署 Manager 分组检索并完成索引迁移，再发布此 Console；分组投影尚不可用时返回
 503，不以部分文档命中冒充完整组列表。
 
+`workspace-search-results.ts` 仅在首页收到确切的迁移就绪 503 文案
+`Grouped search requires the search index migration to finish` 时，自动发起不带
+grouping 或 cursor 的原始搜索。界面明确显示独立命中，二十条表示二十条文档，
+不冒充二十个 session。后续分页固定沿原始模式和 cursor 继续；分组续页失败不会
+把分组 cursor 用于原始查询。其他服务错误、401/403、输入错误和版本冲突保持
+既有处理。Try grouped search 或重新提交相同查询会清空分页与选中来源，从新的
+分组首页重新尝试。此 Console 结果流使用独立缓存 key，原始 MCP 和组内分页不变。
+
 组内更多匹配仍请求 POST `/search`，携带原始 query、kinds、session_ids、确切
 `group_key` 和独立的原始命中 cursor，不发送 `group_by`。仅用户点击加载更多后
 请求；第一页可能包含初始三条，按完整 ref（包括总结 revision 或消息 hash/规范化版本）
@@ -2132,7 +2140,7 @@ ES 是检索投影，PG 是消息、总结版本和引用快照的事实源。�
 拆词，忽略大小写去重，在同一个索引/当前对象内匹配，顺序不限；每个词可以在标题或
 正文中按连续字面子串命中，支持中文单字和字面标点。匹配的不同词越多越靠前，全部
 关键词命中优先于部分命中；同词数时比较 ASCII identifier 边界的命中词数，再按
-最新时间排序。使用同一个排序结果流，不额外发起 fallback 请求，不调用模型或 embedding。
+最新时间排序。关键词使用同一个排序结果流，不额外发起关键词 fallback 请求，不调用模型或 embedding。
 Manager 负责最多 16 个不同非空词和既有 256 字符的校验；Console 保留查询内部原始
 空白，展示数量提示和输入错误，不自行拒绝词数以免 Unicode 大小写差异引入额外限制。
 
