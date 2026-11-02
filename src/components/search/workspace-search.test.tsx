@@ -14,20 +14,29 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError, AuthError } from "@/features/api/errors";
 import {
-  useWorkspaceSearch,
   useWorkspaceSource,
   WorkspaceMessageRead,
   WorkspaceReadRequest,
   WorkspaceSearchHit,
   WorkspaceSummaryVersion,
 } from "@/features/api/workspace-search";
+import {
+  useWorkspaceSearchGroups,
+  useWorkspaceGroupMatches,
+  WorkspaceSearchGroup,
+} from "@/features/api/workspace-search-groups";
 import { WorkspaceSearch } from "./workspace-search";
+import { SearchSourcePanel } from "./search-source-panel";
 import { LiteralHighlight } from "./literal-highlight";
 
 vi.mock("@/features/api/workspace-search", async (importOriginal) => ({
   ...(await importOriginal<object>()),
-  useWorkspaceSearch: vi.fn(),
   useWorkspaceSource: vi.fn(),
+}));
+
+vi.mock("@/features/api/workspace-search-groups", () => ({
+  useWorkspaceSearchGroups: vi.fn(),
+  useWorkspaceGroupMatches: vi.fn(),
 }));
 
 const render = (ui: ReactElement) =>
@@ -94,9 +103,24 @@ const summary: WorkspaceSummaryVersion = {
   summary_sources: [{ summary_id: "summary_child", revision: 3 }],
 };
 
+function groupFromHit(hit: WorkspaceSearchHit): WorkspaceSearchGroup {
+  return {
+    key: hit.ref.id,
+    title: hit.title || "Untitled",
+    session_id: hit.session_id,
+    matches: [hit],
+    matches_has_more: false,
+  };
+}
 function queryState(hits: WorkspaceSearchHit[] = [messageHit]) {
   return {
-    data: { pages: [{ hits }], pageParams: [undefined] },
+    data: {
+      pages: [{ groups: hits.map(groupFromHit) }] as {
+        groups: WorkspaceSearchGroup[];
+        pagination_limited?: boolean;
+      }[],
+      pageParams: [undefined] as (string | undefined)[],
+    },
     isPending: false,
     isError: false,
     error: null as Error | null,
@@ -117,8 +141,8 @@ function sourceState(data: unknown = message) {
   };
 }
 function searchResult(state: ReturnType<typeof queryState>) {
-  vi.mocked(useWorkspaceSearch).mockReturnValue(
-    state as unknown as ReturnType<typeof useWorkspaceSearch>,
+  vi.mocked(useWorkspaceSearchGroups).mockReturnValue(
+    state as unknown as ReturnType<typeof useWorkspaceSearchGroups>,
   );
 }
 function sourceResult(state: ReturnType<typeof sourceState>) {
@@ -142,7 +166,11 @@ function setup(props: Partial<Parameters<typeof WorkspaceSearch>[0]> = {}) {
   };
 }
 function openMessage() {
-  fireEvent.click(screen.getByRole("button", { name: /Database choice/ }));
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: /Preview best match in Database choice/,
+    }),
+  );
 }
 function latestRead(): WorkspaceReadRequest | undefined {
   return vi.mocked(useWorkspaceSource).mock.calls.at(-1)?.[1];
@@ -150,10 +178,31 @@ function latestRead(): WorkspaceReadRequest | undefined {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
   searchResult(queryState());
   sourceResult(sourceState());
+  vi.mocked(useWorkspaceGroupMatches).mockReturnValue({
+    data: undefined,
+    isPending: false,
+    isError: false,
+    error: null,
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    fetchNextPage: vi.fn(),
+    restart: vi.fn(),
+  } as unknown as ReturnType<typeof useWorkspaceGroupMatches>);
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe("Workspace search", () => {
   it("supports submitting and opening a result using the keyboard", async () => {
@@ -165,13 +214,18 @@ describe("Workspace search", () => {
     await user.clear(input);
     await user.type(input, "database{Enter}");
     expect(onNavigate).toHaveBeenCalledWith("/search?q=database");
-    screen.getByRole("button", { name: /Database choice/ }).focus();
+    screen
+      .getByRole("button", { name: /Preview best match in Database choice/ })
+      .focus();
     await user.keyboard("{Enter}");
     expect(
       screen.getByRole("region", { name: "Selected source" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Database choice" }),
+      within(screen.getByRole("region", { name: "Selected source" })).getByRole(
+        "heading",
+        { name: "Database choice" },
+      ),
     ).toHaveFocus();
   });
 
@@ -208,7 +262,7 @@ describe("Workspace search", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Search" })).toBeDisabled();
-    expect(useWorkspaceSearch).toHaveBeenLastCalledWith("user_1", {
+    expect(useWorkspaceSearchGroups).toHaveBeenLastCalledWith("user_1", {
       query: "",
       kinds: undefined,
       limit: 20,
@@ -219,14 +273,12 @@ describe("Workspace search", () => {
     const query = "port\t数据库  PORT";
     setup({ query });
     expect(screen.getByRole("searchbox")).toHaveValue(query);
-    expect(useWorkspaceSearch).toHaveBeenLastCalledWith(
+    expect(useWorkspaceSearchGroups).toHaveBeenLastCalledWith(
       "user_1",
       expect.objectContaining({ query }),
     );
     expect(
-      screen.getByText(
-        /Results matching all keywords first, then partial matches/,
-      ),
+      screen.getByText(/Results grouped by session. Best matches first/),
     ).toBeInTheDocument();
     expect(screen.getByText(/Up to 16 distinct terms/)).toBeInTheDocument();
   });
@@ -241,7 +293,7 @@ describe("Workspace search", () => {
       error: new ApiError("invalid query", 400, {}),
     });
     setup({ query });
-    expect(useWorkspaceSearch).toHaveBeenLastCalledWith(
+    expect(useWorkspaceSearchGroups).toHaveBeenLastCalledWith(
       "user_1",
       expect.objectContaining({ query }),
     );
@@ -268,13 +320,17 @@ describe("Workspace search", () => {
       ]),
     );
     setup({ query: "数据库 port" });
-    const partial = screen.getByRole("button", { name: /Partial port/ });
+    const partial = screen.getByRole("button", {
+      name: /Preview best match in Partial port/,
+    });
     expect(partial).toBeInTheDocument();
     expect(partial.querySelectorAll("mark")).toHaveLength(2);
     expect(
-      screen.getByRole("button", { name: /Full port 数据库/ }),
+      screen.getByRole("button", {
+        name: /Preview best match in Full port 数据库/,
+      }),
     ).toBeInTheDocument();
-    expect(useWorkspaceSearch).toHaveBeenCalledTimes(1);
+    expect(useWorkspaceSearchGroups).toHaveBeenCalledTimes(1);
   });
 
   it("shows loading and an empty state, and bounds too-long URL queries", () => {
@@ -300,7 +356,7 @@ describe("Workspace search", () => {
       />,
     );
     expect(screen.getByText("Search phrase is too long")).toBeInTheDocument();
-    expect(useWorkspaceSearch).toHaveBeenLastCalledWith(
+    expect(useWorkspaceSearchGroups).toHaveBeenLastCalledWith(
       "user_1",
       expect.objectContaining({ query: "" }),
     );
@@ -321,7 +377,9 @@ describe("Workspace search", () => {
       isError: true,
       error: new ApiError("invalid cursor", 400, {}),
       data: {
-        pages: [{ hits: [messageHit, messageHit] }],
+        pages: [
+          { groups: [groupFromHit(messageHit), groupFromHit(messageHit)] },
+        ],
         pageParams: [undefined],
       },
     };
@@ -480,7 +538,11 @@ describe("Workspace search", () => {
     );
     sourceResult(sourceState(summary));
     setup();
-    fireEvent.click(screen.getByRole("button", { name: /Storage decisions/ }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Preview best match in Storage decisions/,
+      }),
+    );
     expect(latestRead()?.ref).toEqual({
       kind: "summary",
       id: "summary_1",
@@ -500,6 +562,7 @@ describe("Workspace search", () => {
       ...messageRef,
       content_hash: "sha256:frozen",
     });
+    fireEvent.click(screen.getByRole("button", { name: "Back to summary" }));
     fireEvent.click(
       screen.getByRole("button", {
         name: "Open summary summary_child, version 3",
@@ -577,19 +640,21 @@ describe("Workspace search", () => {
       isError: true,
       error: new AuthError(),
     });
-    setup();
-    openMessage();
+    const onClose = vi.fn();
+    render(
+      <SearchSourcePanel
+        userId="user_1"
+        sourceRef={messageRef}
+        onSelect={vi.fn()}
+        onClose={onClose}
+      />,
+    );
     expect(
       screen.queryByRole("article", { name: "Message text" }),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("alert")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Close source" }));
-    expect(
-      screen.queryByRole("region", { name: "Selected source" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /Database choice/ }),
-    ).toBeInTheDocument();
+    expect(onClose).toHaveBeenCalledOnce();
   });
 
   it("clears selected sources on query or user change and supports returning on mobile", () => {
@@ -620,7 +685,7 @@ describe("Workspace search", () => {
     expect(
       screen.queryByRole("region", { name: "Selected source" }),
     ).not.toBeInTheDocument();
-    expect(useWorkspaceSearch).toHaveBeenLastCalledWith(
+    expect(useWorkspaceSearchGroups).toHaveBeenLastCalledWith(
       "user_2",
       expect.anything(),
     );
@@ -680,12 +745,468 @@ describe("Workspace search", () => {
       }),
     );
     setup();
-    fireEvent.click(screen.getByRole("button", { name: /Release plan/ }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Preview best match in Release plan/,
+      }),
+    );
     expect(latestRead()?.ref).toEqual({ kind: "session", id: "42" });
     expect(screen.getByRole("link", { name: "Open session" })).toHaveAttribute(
       "href",
       "/?session_id=sess_release",
     );
+  });
+});
+
+describe("Session result groups", () => {
+  const summaryHit: WorkspaceSearchHit = {
+    ref: {
+      kind: "summary",
+      id: summary.summary_id,
+      revision: summary.revision,
+    },
+    title: summary.title,
+    snippet: summary.body,
+    session_id: "sess_1",
+  };
+  const sessionHit: WorkspaceSearchHit = {
+    ref: { kind: "session", id: "42" },
+    title: "My storage session",
+    snippet: "My storage session",
+    session_id: "sess_1",
+  };
+  const sessionGroup: WorkspaceSearchGroup = {
+    key: "opaque_session_group",
+    title: "My storage session",
+    session_id: "sess_1",
+    matches: [summaryHit, messageHit, sessionHit],
+    matches_has_more: false,
+  };
+  function groupedResult(groups: WorkspaceSearchGroup[] = [sessionGroup]) {
+    searchResult({
+      ...queryState(),
+      data: { pages: [{ groups }], pageParams: [undefined] },
+    });
+  }
+  function extraResult(overrides: Record<string, unknown>) {
+    vi.mocked(useWorkspaceGroupMatches).mockReturnValue({
+      data: undefined,
+      isPending: false,
+      isError: false,
+      error: null,
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      fetchNextPage: vi.fn(),
+      restart: vi.fn(),
+      ...overrides,
+    } as unknown as ReturnType<typeof useWorkspaceGroupMatches>);
+  }
+  function expand() {
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Show matches in My storage session",
+      }),
+    );
+  }
+  function readVersions() {
+    vi.mocked(useWorkspaceSource).mockImplementation(
+      (_userId, request) =>
+        sourceState(
+          request?.ref.kind === "summary"
+            ? summary
+            : {
+                ...message,
+                ref: request?.ref ?? messageRef,
+              },
+        ) as unknown as ReturnType<typeof useWorkspaceSource>,
+    );
+  }
+
+  it("uses the canonical session title and the best snippet in one compact result", () => {
+    groupedResult();
+    setup();
+    const card = screen.getByRole("article", { name: "My storage session" });
+    expect(screen.getByText("1 result")).toBeInTheDocument();
+    expect(within(card).getByRole("heading")).toHaveTextContent(
+      "My storage session",
+    );
+    expect(within(card).getByRole("heading")).toHaveClass("truncate");
+    expect(within(card).getByText(summary.body, { selector: "p" })).toHaveClass(
+      "line-clamp-2",
+    );
+    expect(within(card).queryByText(summary.title)).not.toBeInTheDocument();
+    expect(within(card).queryByText("sess_1")).not.toBeInTheDocument();
+    expect(
+      within(card).getByRole("button", { name: /Show matches/ }),
+    ).toHaveTextContent("3");
+    expect(useWorkspaceGroupMatches).toHaveBeenLastCalledWith(
+      "user_1",
+      expect.objectContaining({ query: "数据", limit: 20 }),
+      sessionGroup.key,
+      false,
+    );
+  });
+
+  it("expands independently and shows one-line labeled content without opening a source", () => {
+    groupedResult();
+    setup();
+    expand();
+    expect(
+      screen.queryByRole("region", { name: "Selected source" }),
+    ).not.toBeInTheDocument();
+    const rows = screen.getAllByRole("button", {
+      name: /^Preview (summary|message|title):/,
+    });
+    expect(rows).toHaveLength(3);
+    expect(rows[0]).toHaveTextContent(`Summary${summary.body}`);
+    expect(rows[0].querySelector(".flex-1")).toHaveClass("truncate");
+    expect(rows[0].querySelector(".bg-surface-2")).toHaveClass(
+      "font-medium",
+      "shrink-0",
+    );
+    expect(
+      screen.queryByRole("button", { name: /Load more matches/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Hide matches/ }),
+    ).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(rows[1]);
+    expect(latestRead()?.ref).toEqual(messageRef);
+  });
+
+  it("returns from frozen evidence to the same summary and result expansion without losing scroll", () => {
+    groupedResult();
+    readVersions();
+    setup();
+    expand();
+    const results = screen.getByRole("region", { name: "Search results" });
+    results.scrollTop = 170;
+    fireEvent.click(screen.getByRole("button", { name: /^Preview summary:/ }));
+    const summaryArticle = screen.getByRole("article", {
+      name: "Summary text",
+    });
+    const summaryScroll = summaryArticle.closest(
+      ".overflow-y-auto",
+    ) as HTMLElement;
+    summaryScroll.scrollTop = 210;
+    expect(
+      screen.getByRole("form", { name: "Workspace search" }).parentElement,
+    ).toHaveClass("hidden", "md:block");
+    fireEvent.click(screen.getByRole("button", { name: "Read evidence" }));
+    expect(latestRead()?.ref).toEqual({
+      ...messageRef,
+      content_hash: "sha256:frozen",
+    });
+    expect(
+      screen.queryByRole("article", { name: "Summary text" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Back to summary" }));
+    expect(screen.getByRole("article", { name: "Summary text" })).toBe(
+      summaryArticle,
+    );
+    expect(summaryScroll.scrollTop).toBe(210);
+    expect(latestRead()?.ref).toEqual(summaryHit.ref);
+    expect(
+      screen.getByRole("button", { name: /Preview best match/ }),
+    ).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Back to results" }));
+    expect(
+      screen.queryByRole("region", { name: "Selected source" }),
+    ).not.toBeInTheDocument();
+    expect(results.scrollTop).toBe(170);
+    expect(
+      screen.getByRole("button", { name: /Hide matches/ }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("searchbox")).toHaveValue("数据");
+    expect(
+      screen.getByRole("button", { name: /^Preview summary:/ }),
+    ).toHaveFocus();
+  });
+
+  it("resets nested history when a different result is selected", () => {
+    groupedResult([
+      sessionGroup,
+      { ...groupFromHit(messageHit), key: "second", title: "Another session" },
+    ]);
+    readVersions();
+    setup();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Preview best match in My storage session",
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Read evidence" }));
+    expect(
+      screen.getByRole("button", { name: "Back to summary" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Preview best match in Another session",
+      }),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Back to summary" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Back to results" }),
+    ).toBeInTheDocument();
+    expect(latestRead()?.ref).toEqual(messageRef);
+  });
+
+  it("keeps cross-session summaries separate and deduplicates pages by the authoritative group key", () => {
+    const standalone = {
+      ...groupFromHit(summaryHit),
+      key: "cross_session",
+      session_id: undefined,
+    };
+    const state = {
+      ...queryState(),
+      data: {
+        pages: [
+          { groups: [sessionGroup] },
+          { groups: [sessionGroup, standalone] },
+        ],
+        pageParams: [undefined, "next"],
+      },
+    };
+    searchResult(state);
+    setup();
+    expect(screen.getByText("2 results")).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: /^Preview best match/ }),
+    ).toHaveLength(2);
+  });
+
+  it("requests extra matches only on demand and merges repeated preview refs without changing root pagination", () => {
+    groupedResult([{ ...sessionGroup, matches_has_more: true }]);
+    const view = setup();
+    expand();
+    fireEvent.click(screen.getByRole("button", { name: /Load more matches/ }));
+    expect(useWorkspaceGroupMatches).toHaveBeenLastCalledWith(
+      "user_1",
+      expect.objectContaining({ query: "数据", limit: 20 }),
+      sessionGroup.key,
+      true,
+    );
+    const fetchNextPage = vi.fn();
+    extraResult({
+      data: {
+        pages: [
+          {
+            hits: [
+              ...sessionGroup.matches,
+              {
+                ...messageHit,
+                ref: { ...messageRef, id: "msg_456" },
+                snippet: "Another source message",
+              },
+            ],
+          },
+        ],
+      },
+      hasNextPage: true,
+      fetchNextPage,
+    });
+    view.rerender(
+      <WorkspaceSearch
+        userId="user_1"
+        query="数据"
+        kind="all"
+        onNavigate={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: /Hide matches/ }),
+    ).toHaveTextContent("4");
+    expect(
+      screen.getAllByRole("button", {
+        name: /^Preview (summary|message|title):/,
+      }),
+    ).toHaveLength(4);
+    expect(screen.getByText("1 result")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Load more matches/ }));
+    expect(fetchNextPage).toHaveBeenCalledOnce();
+  });
+
+  it("withholds warm extra matches until revalidation and hides protected results on child denial", () => {
+    groupedResult([{ ...sessionGroup, matches_has_more: true }]);
+    const cached = {
+      ...messageHit,
+      ref: { ...messageRef, id: "cached" },
+      snippet: "Cached extra text",
+    };
+    extraResult({
+      data: { pages: [{ hits: [cached] }] },
+      isFetching: true,
+      isFetchedAfterMount: false,
+    });
+    const view = setup();
+    expand();
+    fireEvent.click(screen.getByRole("button", { name: /Load more matches/ }));
+    expect(screen.queryByText("Cached extra text")).not.toBeInTheDocument();
+    extraResult({
+      data: { pages: [{ hits: [cached] }] },
+      isError: true,
+      error: new ApiError("forbidden", 403, {}),
+    });
+    view.rerender(
+      <WorkspaceSearch
+        userId="user_1"
+        query="数据"
+        kind="all"
+        onNavigate={vi.fn()}
+      />,
+    );
+    expect(
+      screen.queryByRole("article", { name: "My storage session" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Sign in again");
+  });
+
+  it("does not let an old disabled child error block a newly authorized result page", () => {
+    groupedResult([{ ...sessionGroup, matches_has_more: true }]);
+    extraResult({ isError: true, error: new AuthError() });
+    setup();
+    expect(
+      screen.getByRole("article", { name: "My storage session" }),
+    ).toBeInTheDocument();
+    expand();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Load more matches/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("withholds warm grouped results while initial authorization is revalidated", () => {
+    searchResult({
+      ...queryState(),
+      isFetching: true,
+      isFetchedAfterMount: false,
+    } as ReturnType<typeof queryState>);
+    setup();
+    expect(screen.queryByText("Database choice")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Searching");
+  });
+
+  it("withholds warm reader content and removes the results when its access revalidation is denied", () => {
+    sourceResult({
+      ...sourceState(message),
+      isFetching: true,
+      isFetchedAfterMount: false,
+    } as ReturnType<typeof sourceState>);
+    const view = setup();
+    openMessage();
+    expect(vi.mocked(useWorkspaceSource).mock.calls.at(-1)?.[2]).toEqual({
+      revalidateOnMount: true,
+    });
+    expect(
+      screen.queryByRole("article", { name: "Message text" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Loading source");
+    sourceResult({
+      ...sourceState(message),
+      isError: true,
+      error: new ApiError("forbidden", 403, {}),
+    });
+    view.rerender(
+      <WorkspaceSearch
+        userId="user_1"
+        query="数据"
+        kind="all"
+        onNavigate={vi.fn()}
+      />,
+    );
+    expect(
+      screen.queryByRole("region", { name: "Selected source" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Database choice")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Sign in again");
+  });
+
+  it("keeps continuation available when a candidate page has no currently visible groups", () => {
+    const state = { ...queryState([]), hasNextPage: true };
+    searchResult(state);
+    setup();
+    expect(screen.queryByText("No results")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("No visible matches in this page"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Load more" }));
+    expect(state.fetchNextPage).toHaveBeenCalledOnce();
+  });
+
+  it("retains visible matches during retryable expansion failures and restarts expired child cursors", () => {
+    groupedResult([{ ...sessionGroup, matches_has_more: true }]);
+    const view = setup();
+    expand();
+    fireEvent.click(screen.getByRole("button", { name: /Load more matches/ }));
+    const fetchNextPage = vi.fn();
+    extraResult({
+      isError: true,
+      error: new ApiError("unavailable", 503, {}),
+      fetchNextPage,
+    });
+    view.rerender(
+      <WorkspaceSearch
+        userId="user_1"
+        query="数据"
+        kind="all"
+        onNavigate={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getAllByRole("button", {
+        name: /^Preview (summary|message|title):/,
+      }),
+    ).toHaveLength(3);
+    fireEvent.click(screen.getByRole("button", { name: "Retry matches" }));
+    expect(fetchNextPage).toHaveBeenCalledOnce();
+    const restart = vi.fn();
+    extraResult({
+      isError: true,
+      error: new ApiError("invalid cursor", 400, {}),
+      restart,
+    });
+    view.rerender(
+      <WorkspaceSearch
+        userId="user_1"
+        query="数据"
+        kind="all"
+        onNavigate={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Reload matches" }));
+    expect(restart).toHaveBeenCalledOnce();
+    expect(screen.getByText("1 result")).toBeInTheDocument();
+  });
+
+  it("only suggests a narrower query when the backend reports the group pagination window limit", () => {
+    groupedResult();
+    const view = setup();
+    expect(
+      screen.queryByText("Narrow your search to see more results."),
+    ).not.toBeInTheDocument();
+    searchResult({
+      ...queryState(),
+      data: {
+        pages: [{ groups: [sessionGroup], pagination_limited: true }],
+        pageParams: [undefined],
+      },
+    } as ReturnType<typeof queryState>);
+    view.rerender(
+      <WorkspaceSearch
+        userId="user_1"
+        query="数据"
+        kind="all"
+        onNavigate={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByText("Narrow your search to see more results."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Load more" }),
+    ).not.toBeInTheDocument();
   });
 });
 

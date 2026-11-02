@@ -653,10 +653,33 @@ uses a native GET form to this route. `kind` is `all`, `session`, `message`, or
 `summary`; the URL owns the submitted query and kind, while input drafts,
 source selection, paragraph view, and source pagination stay local to the page.
 
-`src/features/api/workspace-search.ts` owns the typed POST search and source
-read requests. Both use `apiFetch(userPath(...))` through `/api/pax`; do not add
+`src/features/api/workspace-search.ts` owns raw POST search and source read
+requests. `workspace-search-groups.ts` owns the Console's grouped search and
+per-group match pagination. Both use `apiFetch(userPath(...))` through `/api/pax`; do not add
 browser-to-Elasticsearch traffic or owner IDs to request bodies. Manager
 derives the owner from authentication and rechecks the source in PostgreSQL.
+Console requests POST `/search` with `group_by: "session"` and a limit of twenty
+groups, not twenty documents deduplicated in the browser. The response retains
+an empty `hits` array and adds `groups`, each with an opaque `key`, the current
+canonical session `title` (or a standalone source title), optional agent/session IDs, up to three best-first
+`matches`, and `matches_has_more`. Summary or standalone groups may lack a
+session ID; never infer one from a summary subject or group key. The default raw
+search/MCP response remains unchanged when grouping is omitted.
+Deploy Manager's grouped search support and complete its index migration before
+publishing this Console. An unavailable grouped projection returns 503 rather
+than a partially grouped raw-document page.
+
+Additional matches use the same POST `/search` with the original query, kind
+and session filters, the exact `group_key`, and a separate raw-hit cursor;
+omit `group_by`. Only request this stream after an explicit Load more matches
+action. Its first page may repeat initial matches, so merge by exact ref,
+including the summary revision or message hash/canonicalization version. An
+empty filtered page may still have a continuation. `matches_has_more` promises
+only more candidates to check, not an exact authorized total. Group pagination
+uses its own opaque cursor. A grouped `pagination_limited: true` without a
+continuation means Manager reached its bounded group window; show a hint to
+narrow the query instead of implying every result has been displayed.
+
 Search splits terms on Unicode White_Space (`strings.Fields` on Manager),
 deduplicates them case-insensitively and matches them in the same indexed/current
 object, in any order. Each term may match its title or body as a contiguous
@@ -669,9 +692,13 @@ existing 256-character limit; Console keeps the raw internal query whitespace,
 shows limit guidance and surfaces input errors without client-only term
 rejection. This does not invoke a model or perform semantic expansion.
 
-TanStack Query owns result pages and reads. Keys include the authenticated
-user and every query/ref/view/pagination field. A new user, query, or kind
-remounts the selection surface. Never put snippets, receipts, source bodies,
+TanStack Query owns group pages, per-group match pages, and source reads. Keys
+include the authenticated user, query, kind/session filters, page size, and
+the exact group or source ref. Grouped and raw match cursors never share a
+query key. Group reads always revalidate on mount; enabling a previously
+disabled expansion also rechecks a warm cache. Wait for entry revalidation
+before showing cached data. A new user, query, or kind remounts the selection
+surface. Never put snippets, receipts, source bodies,
 or search cursors in Zustand or localStorage. The opaque search cursor belongs
 only to that search; it is not a Secretary processing checkpoint. An expired
 cursor requires restarting the result set. Submitting the same query also
@@ -680,7 +707,12 @@ Authentication failures hide cached results and the selected source. Explicit
 restart clears the selection before resetting the query, so a recent source
 cache cannot reappear while authentication is being checked again.
 
-`src/components/search` renders result rows and the source reader. It reads
+`src/components/search` renders one compact card per returned group. Session-backed
+cards use the canonical session name; the next two lines contain the best matching
+source's actual snippet. The disclosure expands one-line source rows with an
+inline type label and ellipsis. Counts describe currently displayed matches,
+not a full-result total. Selecting a card previews its best hit; selecting a
+source row previews that exact hit. The source reader reads
 the hit's exact content hash or summary revision. Message views default to
 the backend-selected view and can expand to first, last, or full visible text;
 long views are paginated and context messages open by their own exact refs.
@@ -688,6 +720,15 @@ A version conflict offers an explicit current-version read. Summary coverage
 and child-summary links retain their frozen versions, including when the
 original message has since changed. Permission and deletion failures display
 an unavailable state. A search hit never authorizes a subsequent read.
+Nested source selections retain the previous reader and its exact ref, view,
+pagination and reading position. Back returns one level, including from message
+evidence to its originating summary; Close returns to the unchanged result
+list. Choosing a different search result starts a new reader path. On mobile,
+the detail fills the result area and replaces the search controls with compact
+Back/Close navigation. Returning restores expanded cards and result scrolling;
+the shell and bottom Search navigation remain in place. A 401/403 from group,
+match or source reads hides all cached search content until access is checked
+again.
 
 The summary pane is read-only. Summary publication belongs to Secretary via
 the Manager API/MCP adapter; Console does not generate summaries or start a

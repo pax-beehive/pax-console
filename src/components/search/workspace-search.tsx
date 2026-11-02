@@ -1,34 +1,32 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, FileText, MessageSquare, Search } from "lucide-react";
+import { ArrowLeft, FileText, Search } from "lucide-react";
 import { AuthGate } from "@/features/auth/auth-gate";
 import { ConsoleLayout } from "@/components/shell/console-layout";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SearchBox } from "@/components/ui/search-box";
-import { MonoId } from "@/components/ui/text";
 import { ApiError, AuthError } from "@/features/api/errors";
 import { LOGIN_URL } from "@/features/api/client";
 import {
-  useWorkspaceSearch,
   WorkspaceSearchKind,
   WorkspaceSearchRef,
 } from "@/features/api/workspace-search";
-import { LiteralHighlight } from "./literal-highlight";
+import { useWorkspaceSearchGroups } from "@/features/api/workspace-search-groups";
+import { SearchGroupCard } from "./search-group-card";
 import { SearchSourcePanel } from "./search-source-panel";
 
 export type SearchKindFilter = "all" | WorkspaceSearchKind;
 const kinds: SearchKindFilter[] = ["all", "session", "message", "summary"];
 const labels: Record<SearchKindFilter, string> = {
   all: "All",
-  session: "Sessions",
+  session: "Titles",
   message: "Messages",
   summary: "Summaries",
 };
 const singularLabels: Record<WorkspaceSearchKind, string> = {
-  session: "Session",
+  session: "Title",
   message: "Message",
   summary: "Summary",
 };
@@ -109,27 +107,41 @@ function WorkspaceSearchContent({
   onNavigate: (href: string) => void;
 }) {
   const [draft, setDraft] = useState(query);
-  const [selected, setSelected] = useState<{
-    ref: WorkspaceSearchRef;
-    title?: string;
-  }>();
+  const [readers, setReaders] = useState<
+    {
+      key: number;
+      ref: WorkspaceSearchRef;
+      title?: string;
+    }[]
+  >([]);
+  const [selectedGroup, setSelectedGroup] = useState<string>();
+  const [groupAccessDenied, setGroupAccessDenied] = useState(false);
+  const denyAccess = useCallback(() => setGroupAccessDenied(true), []);
+  const readerSequence = useRef(0);
+  const returnFocus = useRef<HTMLElement | null>(null);
+  const selected = readers.at(-1);
   const queryTooLong = Array.from(query).length > 256;
-  const search = useWorkspaceSearch(userId, {
+  const filters = {
     query: queryTooLong ? "" : query,
     kinds: kind === "all" ? undefined : [kind],
     limit: 20,
-  });
+  };
+  const search = useWorkspaceSearchGroups(userId, filters);
+  const checking = search.isFetching && !search.isFetchedAfterMount;
   const authorizationDenied =
-    search.isError && search.error instanceof AuthError;
+    groupAccessDenied ||
+    (search.isError &&
+      (search.error instanceof AuthError ||
+        (search.error instanceof ApiError &&
+          [401, 403].includes(search.error.status))));
   const seen = new Set<string>();
-  const hits = (
-    authorizationDenied
+  const groups = (
+    authorizationDenied || checking
       ? []
-      : (search.data?.pages.flatMap((page) => page.hits) ?? [])
-  ).filter((hit) => {
-    const key = searchRefKey(hit.ref);
-    if (seen.has(key)) return false;
-    seen.add(key);
+      : (search.data?.pages.flatMap((page) => page.groups) ?? [])
+  ).filter((group) => {
+    if (seen.has(group.key)) return false;
+    seen.add(group.key);
     return true;
   });
   const expiredCursor =
@@ -137,9 +149,17 @@ function WorkspaceSearchContent({
   const invalidInput =
     search.error instanceof ApiError && search.error.status === 400;
   function restart() {
-    setSelected(undefined);
+    setReaders([]);
+    setSelectedGroup(undefined);
+    setGroupAccessDenied(false);
     void search.restart();
   }
+  function closeReaders() {
+    setReaders([]);
+  }
+  useEffect(() => {
+    if (!readers.length) returnFocus.current?.focus({ preventScroll: true });
+  }, [readers.length]);
   function submit(event: FormEvent) {
     event.preventDefault();
     if (draft.trim() === query) {
@@ -153,15 +173,15 @@ function WorkspaceSearchContent({
     <div
       className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
       onKeyDown={(event) => {
-        if (event.key === "Escape") setSelected(undefined);
+        if (event.key === "Escape") closeReaders();
       }}
     >
-      <header className="shrink-0 border-b border-hairline px-4 pb-3 pt-4 sm:px-5">
+      <header
+        className={`${selected && !authorizationDenied ? "hidden md:block" : ""} shrink-0 border-b border-hairline px-4 pb-3 pt-4 sm:px-5`}
+      >
         <h1 className="text-base font-semibold text-ink">Search</h1>
-        <p className="mt-1 text-xs text-ink-tertiary">
-          Results matching all keywords first, then partial matches. More
-          matching keywords rank higher; whole English terms break ties, then
-          newest.
+        <p className="mt-1 hidden text-xs text-ink-tertiary md:block">
+          Results grouped by session. Best matches first.
         </p>
         <form
           aria-label="Workspace search"
@@ -170,13 +190,14 @@ function WorkspaceSearchContent({
         >
           <SearchBox
             aria-label="Search your workspace"
-            className="min-h-9 flex-1"
+            className="min-h-11 flex-1 md:min-h-9"
             maxLength={512}
             onChange={(event) => setDraft(event.target.value)}
             placeholder="Search titles and content"
             value={draft}
           />
           <Button
+            className="min-h-11 md:min-h-9"
             disabled={!draft.trim()}
             icon={<Search aria-hidden="true" className="h-4 w-4" />}
             type="submit"
@@ -185,7 +206,7 @@ function WorkspaceSearchContent({
             Search
           </Button>
         </form>
-        <p className="mt-2 text-xs text-ink-tertiary">
+        <p className="mt-2 hidden text-xs text-ink-tertiary md:block">
           Up to 16 distinct terms, separated by spaces. Order doesn&apos;t
           matter.
         </p>
@@ -198,6 +219,7 @@ function WorkspaceSearchContent({
               key={value}
               aria-pressed={kind === value}
               onClick={() => onNavigate(searchHref(query, value))}
+              className="min-h-11 md:min-h-8"
               size="sm"
               variant={kind === value ? "secondary" : "ghost"}
             >
@@ -221,7 +243,7 @@ function WorkspaceSearchContent({
               title="Search your workspace"
               text="Separate keywords with spaces. All-keyword results come first, followed by partial matches."
             />
-          ) : search.isPending ? (
+          ) : search.isPending || checking ? (
             <SearchNotice title="Searching…" loading />
           ) : (
             <>
@@ -229,67 +251,49 @@ function WorkspaceSearchContent({
                 aria-live="polite"
                 className="border-b border-hairline px-4 py-2 text-xs text-ink-tertiary"
               >
-                {hits.length} {hits.length === 1 ? "result" : "results"}
+                {groups.length} {groups.length === 1 ? "result" : "results"}
                 {search.hasNextPage ? " loaded" : ""}
               </div>
-              {!hits.length && !search.isError && (
+              {!groups.length && !search.isError && !authorizationDenied && (
                 <SearchNotice
-                  title="No results"
-                  text="Try a shorter phrase or a different result type."
+                  title={
+                    search.hasNextPage
+                      ? "No visible matches in this page"
+                      : "No results"
+                  }
+                  text={
+                    search.hasNextPage
+                      ? "Load more to continue searching."
+                      : "Try a shorter phrase or a different result type."
+                  }
                 />
               )}
               <ul className="min-w-0 divide-y divide-hairline">
-                {hits.map((hit) => {
-                  const active =
-                    selected &&
-                    searchRefKey(selected.ref) === searchRefKey(hit.ref);
-                  return (
-                    <li key={searchRefKey(hit.ref)}>
-                      <button
-                        aria-pressed={Boolean(active)}
-                        className={`block w-full min-w-0 px-4 py-3 text-left transition hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent ${active ? "bg-surface-2" : ""}`}
-                        onClick={() =>
-                          setSelected({ ref: hit.ref, title: hit.title })
-                        }
-                        type="button"
-                      >
-                        <div className="flex min-w-0 items-center gap-2">
-                          <Badge>{singularLabels[hit.ref.kind]}</Badge>
-                          <span className="min-w-0 truncate text-sm font-medium text-ink">
-                            <LiteralHighlight
-                              text={
-                                hit.title ||
-                                (hit.ref.kind === "message"
-                                  ? "Message"
-                                  : "Untitled")
-                              }
-                              query={query}
-                            />
-                          </span>
-                          {hit.ref.kind === "summary" && (
-                            <span className="shrink-0 text-xs text-ink-tertiary">
-                              v{hit.ref.revision}
-                            </span>
-                          )}
-                        </div>
-                        <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-ink-muted [overflow-wrap:anywhere]">
-                          <LiteralHighlight text={hit.snippet} query={query} />
-                        </p>
-                        {hit.session_id && (
-                          <div className="mt-2 flex min-w-0 items-center gap-1">
-                            <MessageSquare
-                              aria-hidden="true"
-                              className="h-3 w-3 shrink-0 text-ink-tertiary"
-                            />
-                            <MonoId>{hit.session_id}</MonoId>
-                          </div>
-                        )}
-                      </button>
-                    </li>
-                  );
-                })}
+                {groups.map((group) => (
+                  <li key={group.key}>
+                    <SearchGroupCard
+                      group={group}
+                      userId={userId}
+                      filters={filters}
+                      active={Boolean(selected && selectedGroup === group.key)}
+                      selectedRef={readers[0]?.ref}
+                      onAccessDenied={denyAccess}
+                      onSelect={(hit, trigger) => {
+                        returnFocus.current = trigger;
+                        setSelectedGroup(group.key);
+                        setReaders([
+                          {
+                            key: ++readerSequence.current,
+                            ref: hit.ref,
+                            title: hit.title,
+                          },
+                        ]);
+                      }}
+                    />
+                  </li>
+                ))}
               </ul>
-              {search.isError && (
+              {(search.isError || authorizationDenied) && (
                 <div
                   className="m-4 rounded-md border border-warning/30 p-3"
                   role="alert"
@@ -320,19 +324,29 @@ function WorkspaceSearchContent({
                   )}
                 </div>
               )}
-              {search.hasNextPage && !search.isError && (
-                <div className="p-4">
-                  <Button
-                    className="w-full justify-center"
-                    disabled={search.isFetchingNextPage}
-                    onClick={() => {
-                      void search.fetchNextPage();
-                    }}
-                  >
-                    {search.isFetchingNextPage ? "Loading more…" : "Load more"}
-                  </Button>
-                </div>
-              )}
+              {search.hasNextPage &&
+                !search.isError &&
+                !authorizationDenied && (
+                  <div className="p-4">
+                    <Button
+                      className="w-full justify-center"
+                      disabled={search.isFetchingNextPage}
+                      onClick={() => {
+                        void search.fetchNextPage();
+                      }}
+                    >
+                      {search.isFetchingNextPage
+                        ? "Loading more…"
+                        : "Load more"}
+                    </Button>
+                  </div>
+                )}
+              {!authorizationDenied &&
+                search.data?.pages.at(-1)?.pagination_limited && (
+                  <p className="px-4 py-3 text-xs text-ink-tertiary">
+                    Narrow your search to see more results.
+                  </p>
+                )}
             </>
           )}
         </section>
@@ -341,26 +355,46 @@ function WorkspaceSearchContent({
             aria-label="Selected source"
             className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
           >
-            <div className="border-b border-hairline px-3 py-2 md:hidden">
+            <div className="shrink-0 border-b border-hairline px-3 py-1">
               <Button
+                className="min-h-11 md:min-h-8"
                 icon={<ArrowLeft aria-hidden="true" className="h-4 w-4" />}
-                onClick={() => setSelected(undefined)}
+                onClick={() => setReaders((current) => current.slice(0, -1))}
                 size="sm"
                 variant="ghost"
               >
-                Back to results
+                {readers.length > 1
+                  ? `Back to ${singularLabels[readers[readers.length - 2].ref.kind].toLowerCase()}`
+                  : "Back to results"}
               </Button>
             </div>
-            <SearchSourcePanel
-              key={searchRefKey(selected.ref)}
-              userId={userId}
-              sourceRef={selected.ref}
-              title={selected.title}
-              onSelect={(ref) => setSelected({ ref })}
-              onClose={() => setSelected(undefined)}
-            />
+            {readers.map((reader, index) => {
+              const active = index === readers.length - 1;
+              return (
+                <div
+                  key={reader.key}
+                  aria-hidden={!active}
+                  className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+                  style={active ? undefined : { display: "none" }}
+                >
+                  <SearchSourcePanel
+                    active={active}
+                    revalidateOnMount
+                    onAccessDenied={denyAccess}
+                    userId={userId}
+                    sourceRef={reader.ref}
+                    title={reader.title}
+                    onSelect={(ref) => {
+                      const next = { key: ++readerSequence.current, ref };
+                      setReaders((current) => [...current, next]);
+                    }}
+                    onClose={closeReaders}
+                  />
+                </div>
+              );
+            })}
           </section>
-        ) : query && hits.length > 0 ? (
+        ) : query && groups.length > 0 ? (
           <div className="hidden min-w-0 flex-1 items-center justify-center p-8 text-sm text-ink-tertiary md:flex">
             <FileText aria-hidden="true" className="mr-2 h-4 w-4" />
             Select a result to read its source.
