@@ -137,6 +137,7 @@ export function SecretarySummaryDetail({
             onSelect={selectSource}
             onClose={() => setSourceRef(undefined)}
             onAccessDenied={onAccessDenied}
+            revalidateOnMount
           />
         </div>
       )}

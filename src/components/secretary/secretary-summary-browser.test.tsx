@@ -132,6 +132,8 @@ let source: {
   data: WorkspaceMessageRead;
   isPending: boolean;
   isError: boolean;
+  isFetching: boolean;
+  isFetchedAfterMount: boolean;
   error: Error | null;
   refetch: ReturnType<typeof vi.fn>;
 };
@@ -156,6 +158,8 @@ beforeEach(() => {
     data: message,
     isPending: false,
     isError: false,
+    isFetching: false,
+    isFetchedAfterMount: true,
     error: null,
     refetch: vi.fn(),
   };
@@ -241,6 +245,7 @@ describe("Secretary summary reading", () => {
     expect(useWorkspaceSource).toHaveBeenCalledWith(
       "owner",
       expect.objectContaining({ ref: message.ref }),
+      { revalidateOnMount: true },
     );
     expect(screen.getByRole("link", { name: /Open session/ })).toHaveAttribute(
       "href",
@@ -440,6 +445,18 @@ describe("Secretary summary reading", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("no longer available");
     expect(
       screen.queryByRole("link", { name: /Database decision/ }),
+    ).not.toBeInTheDocument();
+  });
+  it("checks evidence access again before exposing a warm cached source", () => {
+    source = { ...source, isFetching: true, isFetchedAfterMount: false };
+    show({ id: item.summary_id, revision: item.revision });
+    fireEvent.click(screen.getByRole("button", { name: "Read evidence" }));
+    expect(screen.getByRole("status")).toHaveTextContent("Loading source");
+    expect(
+      screen.queryByRole("link", { name: /Open session/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("article", { name: "Summary text" }),
     ).not.toBeInTheDocument();
   });
   it("wraps long titles and summary text inside narrow reading panes", () => {
