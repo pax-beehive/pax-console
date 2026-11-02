@@ -263,6 +263,7 @@ export function useWorkspaceSearch(
 export function useWorkspaceSource(
   userId: string | undefined,
   request: WorkspaceReadRequest | undefined,
+  options?: { revalidateOnMount?: boolean },
 ) {
   return useQuery({
     queryKey: workspaceSearchKeys.source(userId ?? "pending", request),
@@ -273,6 +274,7 @@ export function useWorkspaceSource(
         signal,
       ),
     enabled: Boolean(userId && request?.ref.id),
+    refetchOnMount: options?.revalidateOnMount ? "always" : undefined,
     retry: retryWorkspaceRequest,
   });
 }
