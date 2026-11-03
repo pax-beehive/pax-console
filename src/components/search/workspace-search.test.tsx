@@ -210,6 +210,25 @@ afterEach(() => {
 });
 
 describe("Workspace search", () => {
+  it("uses the full result area until a source is selected and restores it on close", () => {
+    setup();
+    const results = screen.getByRole("region", { name: "Search results" });
+    expect(results.parentElement?.children).toHaveLength(1);
+    expect(
+      screen.queryByText("Select a result to read its source."),
+    ).not.toBeInTheDocument();
+    openMessage();
+    expect(results.parentElement?.children).toHaveLength(2);
+    expect(
+      screen.getByRole("region", { name: "Selected source" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close source" }));
+    expect(results.parentElement?.children).toHaveLength(1);
+    expect(
+      screen.queryByRole("region", { name: "Selected source" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("supports submitting and opening a result using the keyboard", async () => {
     const user = userEvent.setup();
     const { onNavigate } = setup();

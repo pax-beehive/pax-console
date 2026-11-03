@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, FileText, Search } from "lucide-react";
+import { ArrowLeft, Search } from "lucide-react";
 import { AuthGate } from "@/features/auth/auth-gate";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import { Button } from "@/components/ui/button";
@@ -263,7 +263,7 @@ function WorkspaceSearchContent({
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <section
           aria-label="Search results"
-          className={`${selected && !authorizationDenied ? "hidden md:flex md:w-[42%] md:shrink-0" : "flex w-full"} min-h-0 min-w-0 flex-col overflow-y-auto md:border-r md:border-hairline`}
+          className={`${selected && !authorizationDenied ? "hidden md:flex md:w-[42%] md:shrink-0" : "flex flex-1"} min-h-0 min-w-0 flex-col overflow-y-auto md:border-r md:border-hairline`}
         >
           {queryTooLong ? (
             <SearchNotice
@@ -457,11 +457,6 @@ function WorkspaceSearchContent({
               );
             })}
           </section>
-        ) : query && count > 0 ? (
-          <div className="hidden min-w-0 flex-1 items-center justify-center p-8 text-sm text-ink-tertiary md:flex">
-            <FileText aria-hidden="true" className="mr-2 h-4 w-4" />
-            Select a result to read its source.
-          </div>
         ) : null}
       </div>
     </div>

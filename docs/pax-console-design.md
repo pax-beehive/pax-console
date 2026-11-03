@@ -433,7 +433,9 @@ documents from the same session visible, and omit grouping disclosure controls.
 Raw pages continue in the same mode; retrying grouping starts a fresh result set.
 Other service errors keep the ordinary neutral Retry state.
 
-Selecting a card or match opens its exact source. Desktop uses a split pane;
+Selecting a card or match opens its exact source. Before selection, results
+occupy the full content width and no empty source pane is mounted. Desktop uses
+a split pane only while reading: results take 42% and the reader takes the rest;
 mobile hides the search form and result list while reading. Nested evidence and
 child summaries have a Back to summary/message/title control, followed by Back
 to results. Retain the parent reader's exact revision, view, pagination, and

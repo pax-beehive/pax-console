@@ -715,8 +715,11 @@ Authentication failures hide cached results and the selected source. Explicit
 restart clears the selection before resetting the query, so a recent source
 cache cannot reappear while authentication is being checked again.
 
-`src/components/search` renders one compact card per returned group. Session-backed
-cards use the canonical session name; the next two lines contain the best matching
+`src/components/search` renders one compact card per returned group. The
+results fill the available width until a source is selected; do not mount a
+placeholder beside them. Selection opens the desktop 42% results / remaining
+source split. Closing the source restores the single full-width result pane.
+Session-backed cards use the canonical session name; the next two lines contain the best matching
 source's actual snippet. The disclosure expands one-line source rows with an
 inline type label and ellipsis. Counts describe currently displayed matches,
 not a full-result total. Selecting a card previews its best hit; selecting a
