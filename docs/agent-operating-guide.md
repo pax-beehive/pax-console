@@ -667,7 +667,15 @@ session ID; never infer one from a summary subject or group key. The default raw
 search/MCP response remains unchanged when grouping is omitted.
 Deploy Manager's grouped search support and complete its index migration before
 publishing this Console. An unavailable grouped projection returns 503 rather
-than a partially grouped raw-document page.
+than a partially grouped raw-document page. The Console's
+`workspace-search-results.ts` handles only the exact migration-readiness 503
+(`Grouped search requires the search index migration to finish`) by starting a
+fresh raw search. This mode displays individual matches and counts documents,
+not sessions; its next pages retain the raw mode and cursor. A grouped
+continuation never falls back with its grouped cursor. Other service failures,
+authentication failures, invalid queries, and version conflicts retain their
+existing error states. Try grouped search or submitting the same query resets
+the complete result stream and attempts a new grouped first page.
 
 Additional matches use the same POST `/search` with the original query, kind
 and session filters, the exact `group_key`, and a separate raw-hit cursor;
@@ -686,7 +694,7 @@ object, in any order. Each term may match its title or body as a contiguous
 literal substring, including single Chinese characters and literal punctuation.
 More distinct matching terms rank first, so all-keyword matches precede partial
 matches. ASCII identifier-boundary match counts break ties, then newest. This
-is one ranked result stream, with no separate fallback request. Manager enforces
+is one ranked result stream, with no separate keyword-fallback request. Manager enforces
 at most 16 distinct nonempty terms and the
 existing 256-character limit; Console keeps the raw internal query whitespace,
 shows limit guidance and surfaces input errors without client-only term
