@@ -1210,8 +1210,13 @@ single row anchored at the first chunk. History normalization therefore places
 that aggregate after the turn's work events and immediately before the durable
 turn boundary. Consecutive `text_layout=segment` rows with adjacent
 `session_seq` values are one visible text block and must be concatenated
-without inserting whitespace; a sequence gap or visible work event preserves
-the segment boundary. Live streams continue to use receipt order.
+without inserting whitespace. Loaded, consecutive `session/set_config_option`
+requests and `config_option_update` notifications that produce no display event
+do not interrupt that text block. They must belong to the same session and
+cannot carry a conflicting turn ID. Sequence gaps, other records, visible work
+events and a selected search target preserve the segment boundary. Live streams
+continue to use receipt order. This display normalization also repairs existing
+history without rewriting stored messages.
 
 Session names are updated through the existing node/agent-scoped endpoint:
 
