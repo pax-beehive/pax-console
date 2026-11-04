@@ -165,6 +165,46 @@ afterEach(() => {
 });
 
 describe("Secretary settings", () => {
+  it("explains connection backoff as automatic waiting without exposing a raw failure", () => {
+    setSettings(
+      settingsState({
+        ...configured,
+        state: "waiting",
+        execution_state: "waiting",
+        blocked_reason: "connection_backoff",
+        last_error: "raw private tunnel failure",
+      }),
+    );
+    setup();
+    const status = screen.getByRole("region", { name: "Secretary status" });
+    expect(status).toHaveTextContent("Waiting to reconnect");
+    expect(status).toHaveTextContent("Secretary will retry automatically");
+    expect(status).not.toHaveTextContent("raw private tunnel failure");
+    expect(status).not.toHaveTextContent("Attempt in progress");
+    expect(status).not.toHaveTextContent("source session to finish");
+  });
+  it("offers a manual retry after connection retries are exhausted", () => {
+    const run = mutationState();
+    setRun(run);
+    setSettings(
+      settingsState({
+        ...configured,
+        state: "error",
+        execution_state: "blocked",
+        blocked_reason: "connection_retries_exhausted",
+        last_error: "raw private tunnel failure",
+      }),
+    );
+    setup();
+    const status = screen.getByRole("region", { name: "Secretary status" });
+    expect(status).toHaveTextContent("Connection retries exhausted");
+    expect(status).toHaveTextContent(
+      "could not connect after automatic retries",
+    );
+    expect(status).not.toHaveTextContent("raw private tunnel failure");
+    fireEvent.click(screen.getByRole("button", { name: "Retry run" }));
+    expect(run.mutate).toHaveBeenCalledOnce();
+  });
   it.each([
     [
       "unknown",

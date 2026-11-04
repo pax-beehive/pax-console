@@ -33,6 +33,7 @@ import {
 const stateLabels: Record<SecretaryState, string> = {
   disabled: "Off",
   idle: "Ready",
+  waiting: "Waiting",
   waiting_for_agent: "Waiting for agent",
   processing: "Processing",
   error: "Needs attention",
@@ -460,6 +461,13 @@ function executionStatus(settings: SecretarySettings) {
     case "queued":
       return { label: "Queued", description: "Summary work is queued." };
     case "waiting":
+      if (settings.blocked_reason === "connection_backoff") {
+        return {
+          label: "Waiting to reconnect",
+          description:
+            "The agent connection is temporarily unavailable. Secretary will retry automatically.",
+        };
+      }
       return {
         label: "Waiting",
         description:
@@ -467,7 +475,10 @@ function executionStatus(settings: SecretarySettings) {
       };
     case "blocked":
       return {
-        label: "Retry required",
+        label:
+          settings.blocked_reason === "connection_retries_exhausted"
+            ? "Connection retries exhausted"
+            : "Retry required",
         description: blockedDescription(settings.blocked_reason),
       };
   }
@@ -475,6 +486,8 @@ function executionStatus(settings: SecretarySettings) {
 
 function blockedDescription(reason: SecretarySettings["blocked_reason"]) {
   switch (reason) {
+    case "connection_retries_exhausted":
+      return "Secretary could not connect after automatic retries. Use Retry run when the agent is available.";
     case "invalid_output":
       return "Automatic retries stopped after invalid output. Use Retry run to try again.";
     case "execution_failed":

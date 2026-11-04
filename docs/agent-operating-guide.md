@@ -2653,5 +2653,8 @@ needs_recovery、unknown、blocked。Current status 卡只使用固定解释，�
 等待恢复和自动重试暂停；running 是已记录 attempt，不等于确认原生进程仍在执行。
 `blocked_reason` 的安全枚举按白名单解释，不展示未知字段或原始执行错误。
 兼容 execution_unknown、lease_expired、invalid_output、execution_failed、canceled、retry_required，
-并接受 retry_exhausted/execution_canceled 的安全别名。关闭和 agent 不可用状态优先；
-旧响应没有这些字段时维持原有展示，不新增诊断页面或浏览器调度循环。
+并接受 retry_exhausted/execution_canceled 的安全别名。`waiting` 配合
+`connection_backoff` 显示连接暂不可用、后台将自动重试；此时不显示旧错误或声称正在运行。
+`blocked` 配合 `connection_retries_exhausted` 显示连接重试已耗尽，并保留 Retry run，
+agent 不可用时该操作仍禁用。原始连接错误不回显，页面不推断重试次数或倒计时。
+关闭优先；普通 agent 不可用及旧响应维持原有展示，不新增诊断页面或浏览器调度循环。

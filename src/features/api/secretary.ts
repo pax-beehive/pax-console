@@ -8,6 +8,7 @@ import { queryKeys } from "./query-keys";
 export type SecretaryState =
   | "disabled"
   | "idle"
+  | "waiting"
   | "waiting_for_agent"
   | "processing"
   | "error";
@@ -26,6 +27,8 @@ export type SecretaryBlockedReason =
   | "execution_failed"
   | "canceled"
   | "retry_required"
+  | "connection_backoff"
+  | "connection_retries_exhausted"
   | "retry_exhausted"
   | "execution_canceled";
 export type SecretarySettings = {

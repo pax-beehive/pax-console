@@ -2222,9 +2222,14 @@ Console shell，避免手机底部导航离开视口底边。
 needs_recovery、unknown 和 blocked，`blocked_reason` 只使用安全白名单枚举。
 现有 Current status 卡展示保存输出、等待恢复、结果未知或需要重试的简短说明，
 不回显新状态的原始执行错误。running 只表示持久 attempt 与有效租约，不宣称原生进程已确认运行。
-关闭或 agent 不可用仍优先展示原有状态；旧响应省略新字段时沿用原有行为。
+关闭优先展示原有状态。新增连接等待使用 `state: waiting`、`execution_state: waiting`
+及 `blocked_reason: connection_backoff`，固定说明后台将自动重试，不能显示为错误或正在运行。
+连接重试耗尽使用 `state: error`、`execution_state: blocked` 及
+`blocked_reason: connection_retries_exhausted`，固定说明连接失败并提供 Retry run；
+agent 不可用时操作仍禁用。没有重试次数或下次重试时间字段，前端不生成计数或倒计时。
+普通 agent 不可用及旧响应省略新字段时沿用原有行为，不回显原始连接错误。
 
-页面显示服务端的 disabled/idle/waiting_for_agent/processing/error、待处理会话数、
+页面显示服务端的 disabled/idle/waiting/waiting_for_agent/processing/error、待处理会话数、
 上次完成时间和有界安全错误。启用时每五秒刷新，关闭时每十五秒刷新。
 仍在 processing 时，将错误明确描述为先前任务失败，说明其他会话仍在处理，
 避免将历史错误误认为当前任务停止。
