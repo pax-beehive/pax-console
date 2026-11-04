@@ -199,7 +199,7 @@ export function SecretarySettingsPanel({ userId }: { userId: string }) {
                     !settings.data.agent_available ||
                     settings.data.state === "processing"
                   }
-                  description="This queues every unpaused pending task. Paused tasks stay paused, and active leased executions are not restarted. An unknown execution may still return a late result; restarting it can create duplicate work and model charges. Use an individual task's controls to check an existing result first."
+                  description="This queues every unpaused pending task. Paused tasks stay paused, and tasks with an operation in progress are not restarted. An unknown execution may still return a late result; restarting it can create duplicate work and model charges. Use an individual task's controls to check an existing result first."
                   onConfirm={() => {
                     setBulkRevision(undefined);
                     save.reset();

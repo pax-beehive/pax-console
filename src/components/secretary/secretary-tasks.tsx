@@ -72,7 +72,7 @@ function outcomeText(outcome?: string) {
     case "paused":
       return "Future retries are paused for this task. A current execution can still finish.";
     case "resumed":
-      return "Future scheduling resumed for this task.";
+      return "Future scheduling resumed for this task. Unconfirmed executions still require a result check or an explicit retry.";
     default:
       return "Task status refreshed.";
   }
@@ -264,7 +264,7 @@ function SecretaryTaskRow({
           ? ` · ${task.connection_failures} connection ${task.connection_failures === 1 ? "failure" : "failures"}`
           : ""}
         {retryAt && !task.paused ? ` · Next retry ${retryAt}` : ""}
-        {task.lease_active ? " · Active lease" : ""}
+        {task.lease_active ? " · Operation in progress" : ""}
       </p>
       <div data-testid="task-controls" className="mt-2 flex flex-wrap gap-1.5">
         {task.execution_session_id && (

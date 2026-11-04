@@ -270,6 +270,10 @@ describe("Secretary per-task controls", () => {
     ["recovered", "Existing result recovered"],
     ["still_unknown", "still unknown"],
     ["result_invalid", "could not be published"],
+    [
+      "resumed",
+      "Unconfirmed executions still require a result check or an explicit retry",
+    ],
   ])("explains the %s check outcome safely", (outcome, text) => {
     actions.set("42", { ...mutation(), isSuccess: true, data: { outcome } });
     setup();
