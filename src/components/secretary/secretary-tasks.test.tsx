@@ -236,6 +236,13 @@ describe("Secretary per-task controls", () => {
                 has_output: false,
                 error_code: "connection_backoff",
               },
+              {
+                attempt_id: "published",
+                batch_id: "published-batch",
+                state: "committed",
+                not_dispatched: false,
+                has_output: true,
+              },
             ],
           },
         ],
@@ -254,6 +261,8 @@ describe("Secretary per-task controls", () => {
     fireEvent.click(within(row).getByRole("button", { name: "Task details" }));
     expect(row).toHaveTextContent("old-batch");
     expect(row).toHaveTextContent("Not dispatched");
+    expect(row).toHaveTextContent("Published");
+    expect(row).not.toHaveTextContent("Secretary will retry automatically");
     fireEvent.click(within(row).getByRole("button", { name: "More attempts" }));
     expect(more).toHaveBeenCalledOnce();
   });

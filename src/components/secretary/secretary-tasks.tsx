@@ -47,7 +47,9 @@ const safeReasons: Record<string, string> = {
   retry_required:
     "Automatic processing has stopped. Review this task before retrying.",
 };
-function reason(code: string | undefined) {
+function reason(code: string | undefined, historical = false) {
+  if (historical && code === "connection_backoff")
+    return "The agent connection was unavailable before this attempt could be dispatched.";
   return code ? safeReasons[code] : undefined;
 }
 function timestamp(value: string | undefined) {
@@ -424,12 +426,12 @@ function TaskAttemptHistory({
                   <span>
                     {attempt.not_dispatched
                       ? "Not dispatched"
-                      : attempt.has_output
-                        ? "Output saved"
-                        : attempt.state === "unknown"
-                          ? "Outcome unknown"
-                          : attempt.state === "committed"
-                            ? "Published"
+                      : attempt.state === "committed"
+                        ? "Published"
+                        : attempt.has_output
+                          ? "Output saved"
+                          : attempt.state === "unknown"
+                            ? "Outcome unknown"
                             : attempt.state === "running"
                               ? "In progress"
                               : "Finished attempt"}
@@ -442,9 +444,9 @@ function TaskAttemptHistory({
                 </div>
                 <MonoId>{attempt.attempt_id}</MonoId>
                 <MonoId>{attempt.batch_id}</MonoId>
-                {reason(attempt.error_code) && (
+                {reason(attempt.error_code, true) && (
                   <p className="mt-1 leading-5 text-ink-muted">
-                    {reason(attempt.error_code)}
+                    {reason(attempt.error_code, true)}
                   </p>
                 )}
                 {attempt.execution_session_id && (
