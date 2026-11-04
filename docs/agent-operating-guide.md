@@ -2537,9 +2537,10 @@ remain visible.
 The progress universe is currently owned, visible, nonempty canonical plaintext
 user/assistant content. Empty, encrypted, archived/deleted/inaccessible, reasoning,
 tool and internal Secretary execution sources are excluded by Manager. Completion
-means published coverage matching the current complete message version. An
-active model read never increases completed counts. The UI calls intermediate
-coverage Partly summarized, not Partly read, and shows no model percentage.
+comes from committed per-message processing, including explicit no-summary
+outcomes. A message contributing to multiple summaries counts once; coverage rows
+are not the processing ledger. An active model read never increases completed
+counts. The UI uses Partly processed and shows no model percentage.
 Show exact turn counts only when `ungrouped_messages` is zero and known turn
 groups exist; otherwise use message counts without guessing turn boundaries.
 Overview metrics and a jump link sit above configuration; the per-session list
@@ -2554,11 +2555,29 @@ View summaries on `/settings/secretary` opens the ordinary owner-facing
 twenty items and an opaque cursor through the same-origin user proxy. Manager
 reads all currently readable, owned published summary subjects from PostgreSQL,
 newest current revision first; this requires neither administrator access nor ES.
+Each row is an independent summary Node, keyed by `summary_id`; one origin
+session can have multiple summaries. Explicit `node_status: empty` marks a revision
+with no retained content; do not infer it from an empty body. Optional Manager-supplied `node_type` is
+`summary` in this release. `origin_source_id`, `origin_agent_id`,
+`origin_session_id`, and `origin_session_title` describe the organizing origin,
+not all factual dependencies or authorization. Legacy responses may omit them.
+Display the supplied origin title and link only an explicit origin session ID;
+never infer it from subject IDs or evidence. Additional evidence sessions do not
+create duplicate result cards in Console; Manager supplies the search group.
 An empty permission-filtered page may still offer Load more. Expired cursors
 require Refresh, which clears selection and restarts the first page.
 
 Selection lives in the URL as `summary_id` plus a pinned `revision`; newly
-published list versions never silently replace an open version. Details use
+published list versions never silently replace an open version. Version history
+loads GET `/secretary/summaries/:summary_id/revisions?limit=20&cursor=...` only
+after disclosure, through the same-origin user proxy. It returns the summary
+list page shape, ordered by revision. Do not assume revisions are contiguous.
+History uses separate user/summary-scoped TanStack cache keys and rechecks access
+on opening; an empty filtered page can retain a next cursor. A failed first-page
+refresh hides cached history, continuation failures can retain already loaded rows,
+and any 401/403 hides the entire reader. Reload versions discards expired cursors.
+Selecting a history row still reads the pinned version through Manager.
+Details use
 the owner-authorized `/search/read` protocol and safely render the complete
 Markdown body, claims, evidence, frozen coverage, and exact child-summary refs.
 Evidence opens in the shared source reader while retaining the summary pane and
@@ -2614,3 +2633,25 @@ src/components/admin/summary-browser.test.tsx
 src/components/shell/summary-navigation.test.tsx`. The repository browser smoke
 workflow lives in `scripts/admin-summary-smoke/`; it uses the real isolated
 Manager/PG API and same-origin Console proxy rather than intercepted responses.
+
+### 多摘要成果浏览器检查
+
+`scripts/summary-nodes-browser.mjs` 在本机 Next.js 页面使用明确的合成 API 数据，验证
+同 session 两份独立摘要、按需版本历史、固定旧版读取、证据返回路径，以及 1440px/390px
+布局无横向溢出。它不连接真实 Manager，不证明后台生成或权限持久化已通过端到端验收。
+可用 `PAX_SUMMARY_CONSOLE_URL` 指定 loopback origin，默认 `http://127.0.0.1:3124`；
+`PAX_BROWSER_TEST_EXECUTABLE` 可指定已安装 Chrome。截图写入临时目录，测试输出明确标注 fixtures。
+
+### Summary 与执行状态兼容
+
+成果的可选 `node_status: stale` 显示 Awaiting update，仍可查看被授权的旧正文与确切证据，
+不能当成 empty。历史 revision 的状态由 Manager 对该版确定，不套用 current 状态。
+撤权后的正文由后端拒绝，不能只加一个过时标记。
+
+Secretary 设置响应的可选 `execution_state` 支持 queued、waiting、running、output_received、
+needs_recovery、unknown、blocked。Current status 卡只使用固定解释，区分已保存输出、
+等待恢复和自动重试暂停；running 是已记录 attempt，不等于确认原生进程仍在执行。
+`blocked_reason` 的安全枚举按白名单解释，不展示未知字段或原始执行错误。
+兼容 execution_unknown、lease_expired、invalid_output、execution_failed、canceled、retry_required，
+并接受 retry_exhausted/execution_canceled 的安全别名。关闭和 agent 不可用状态优先；
+旧响应没有这些字段时维持原有展示，不新增诊断页面或浏览器调度循环。

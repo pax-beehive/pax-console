@@ -106,7 +106,7 @@ function coverageText(counts) {
   const total = turns ? counts.total_turns : counts.total_messages;
   const completed = turns ? counts.completed_turns : counts.completed_messages;
   const pending = turns ? counts.pending_turns : counts.pending_messages;
-  return `${completed} of ${total} ${turns ? (total === 1 ? "turn" : "turns") : total === 1 ? "message" : "messages"} summarized · ${pending} remaining`;
+  return `${completed} of ${total} ${turns ? (total === 1 ? "turn" : "turns") : total === 1 ? "message" : "messages"} processed · ${pending} remaining`;
 }
 async function assertProgress(page) {
   const data = await readResponse(
@@ -132,8 +132,8 @@ async function assertProgress(page) {
   for (const [label, key] of [
     ["Sessions tracked", "total_sessions"],
     ["Up to date", "completed_sessions"],
-    ["Partly summarized", "partial_sessions"],
-    ["Awaiting summary", "unstarted_sessions"],
+    ["Partly processed", "partial_sessions"],
+    ["Awaiting processing", "unstarted_sessions"],
   ]) {
     assert.equal(
       await overview

@@ -96,7 +96,16 @@ export type WorkspaceSummaryClaim = {
   evidence?: WorkspaceSummaryEvidence[];
 };
 
-export type WorkspaceSummaryVersion = {
+export type WorkspaceSummaryNodeMetadata = {
+  node_type?: "summary";
+  node_status?: "active" | "empty" | "stale";
+  origin_source_id?: string;
+  origin_agent_id?: string;
+  origin_session_id?: string;
+  origin_session_title?: string;
+};
+
+export type WorkspaceSummaryVersion = WorkspaceSummaryNodeMetadata & {
   summary_id: string;
   revision: number;
   owner_user_id: string;

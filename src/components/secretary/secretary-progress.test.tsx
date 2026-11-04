@@ -93,10 +93,10 @@ describe("Secretary progress", () => {
     const panel = screen.getByRole("region", { name: "Summary progress" });
     expect(panel).toHaveTextContent("Sessions tracked42");
     expect(panel).toHaveTextContent("Up to date10");
-    expect(panel).toHaveTextContent("Partly summarized12");
-    expect(panel).toHaveTextContent("Awaiting summary20");
-    expect(panel).toHaveTextContent("20 of 50 turns summarized · 30 remaining");
-    expect(panel).toHaveTextContent("Only published summaries count");
+    expect(panel).toHaveTextContent("Partly processed12");
+    expect(panel).toHaveTextContent("Awaiting processing20");
+    expect(panel).toHaveTextContent("20 of 50 turns processed · 30 remaining");
+    expect(panel).toHaveTextContent("Progress counts committed processing");
     expect(screen.getByRole("link", { name: "View sessions" })).toHaveAttribute(
       "href",
       "#secretary-session-progress",
@@ -111,9 +111,9 @@ describe("Secretary progress", () => {
       />,
     );
     expect(
-      screen.getByText("2 of 5 turns summarized · 3 remaining"),
+      screen.getByText("2 of 5 turns processed · 3 remaining"),
     ).toBeInTheDocument();
-    expect(screen.getByText("Partly summarized")).toBeInTheDocument();
+    expect(screen.getByText("Partly processed")).toBeInTheDocument();
     expect(screen.getByText("Work agent")).toBeInTheDocument();
     expect(screen.getByText("session_1")).toBeInTheDocument();
     expect(
@@ -138,10 +138,10 @@ describe("Secretary progress", () => {
       />,
     );
     expect(
-      screen.getByText("4 of 10 messages summarized · 6 remaining"),
+      screen.getByText("4 of 10 messages processed · 6 remaining"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByText("2 of 5 turns summarized · 3 remaining"),
+      screen.queryByText("2 of 5 turns processed · 3 remaining"),
     ).not.toBeInTheDocument();
     expect(
       screen.getByText(/Where turn counts aren’t available/),
@@ -173,7 +173,7 @@ describe("Secretary progress", () => {
     );
     expect(screen.getAllByRole("listitem")).toHaveLength(1);
     expect(
-      screen.getByText("3 of 5 turns summarized · 2 remaining"),
+      screen.getByText("3 of 5 turns processed · 2 remaining"),
     ).toBeInTheDocument();
     expect(screen.queryByText("Database design")).not.toBeInTheDocument();
   });
@@ -195,7 +195,7 @@ describe("Secretary progress", () => {
       />,
     );
     expect(
-      screen.getByText("20 of 60 turns summarized · 40 remaining"),
+      screen.getByText("20 of 60 turns processed · 40 remaining"),
     ).toBeInTheDocument();
     expect(screen.getByRole("region").textContent).not.toContain("%");
   });
@@ -224,9 +224,9 @@ describe("Secretary progress", () => {
         agents={[]}
       />,
     );
-    expect(screen.getByText("Awaiting summary")).toBeInTheDocument();
+    expect(screen.getByText("Awaiting processing")).toBeInTheDocument();
     expect(
-      screen.getByText("0 of 5 turns summarized · 5 remaining"),
+      screen.getByText("0 of 5 turns processed · 5 remaining"),
     ).toBeInTheDocument();
   });
   it("shows loading and missing-backend errors with an explicit refresh", () => {

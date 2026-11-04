@@ -898,6 +898,27 @@ describe("Session result groups", () => {
     expect(latestRead()?.ref).toEqual(messageRef);
   });
 
+  it("keeps multiple independent summary hits in one origin session group", () => {
+    const second = {
+      ...summaryHit,
+      ref: { kind: "summary" as const, id: "summary_2", revision: 1 },
+      snippet: "Deployment and search indexing",
+    };
+    groupedResult([
+      { ...sessionGroup, matches: [summaryHit, second, messageHit] },
+    ]);
+    readVersions();
+    setup();
+    expand();
+    expect(
+      screen.getAllByRole("article", { name: "My storage session" }),
+    ).toHaveLength(1);
+    const rows = screen.getAllByRole("button", { name: /^Preview summary:/ });
+    expect(rows).toHaveLength(2);
+    fireEvent.click(rows[1]);
+    expect(latestRead()?.ref).toEqual(second.ref);
+  });
+
   it("returns from frozen evidence to the same summary and result expansion without losing scroll", () => {
     groupedResult();
     readVersions();

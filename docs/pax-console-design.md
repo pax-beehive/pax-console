@@ -449,7 +449,12 @@ search surface, with permission checks performed by Manager on every read.
 
 Secretary settings also exposes View summaries for every signed-in owner,
 including while automatic summaries are off. `/settings/secretary/summaries`
-uses compact newest-first rows and a readable Markdown detail pane. Version and
+uses compact newest-first rows and a readable Markdown detail pane. Independent
+summaries from the same origin session stay separate. Show a supplied origin
+session title quietly, without treating it as permission or duplicating evidence
+sources into result cards. Version history is an on-demand paginated disclosure;
+selection stays pinned to the chosen version. History rechecks access on opening
+and preserves explicit empty, loading, expired-cursor, and denied states. Version and
 publication time are quiet metadata; claims and original evidence follow the
 body. Desktop retains the list beside the selected version, while mobile uses
 Back to summaries. Opening evidence retains the summary underneath so closing

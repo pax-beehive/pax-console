@@ -7,6 +7,7 @@ import { RefreshCw } from "lucide-react";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import { SettingsPageHeader } from "@/components/settings/settings-navigation";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { AuthGate } from "@/features/auth/auth-gate";
 import { ApiError } from "@/features/api/errors";
 import {
@@ -136,7 +137,7 @@ export function SecretarySummaryBrowser({
               <h2 className="text-sm font-semibold text-ink">Your summaries</h2>
               <p className="mt-1 text-xs leading-5 text-ink-tertiary">
                 Newest summaries first. Each entry shows its latest published
-                version.
+                version. A session can have more than one summary.
               </p>
             </div>
             {invalidSelection && (
@@ -180,13 +181,26 @@ export function SecretarySummaryBrowser({
                           {item.title || "Untitled summary"}
                         </span>
                         <span className="mt-1 line-clamp-3 block break-words text-xs leading-5 text-ink-muted [overflow-wrap:anywhere]">
-                          {item.body_preview || "Open to read this summary."}
+                          {item.node_status === "empty"
+                            ? "No retained content in this version."
+                            : item.body_preview || "Open to read this summary."}
                         </span>
+                        {item.origin_session_title && (
+                          <span
+                            className="mt-1 block truncate text-xs text-ink-tertiary"
+                            title={item.origin_session_title}
+                          >
+                            {item.origin_session_title}
+                          </span>
+                        )}
                         <span className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-tertiary">
                           <time dateTime={item.created_at}>
                             {summaryDate(item.created_at)}
                           </time>
                           <span>v{item.revision}</span>
+                          {item.node_status === "stale" && (
+                            <Badge tone="warning">Awaiting update</Badge>
+                          )}
                           <span>{item.coverage_count} source messages</span>
                         </span>
                       </Link>

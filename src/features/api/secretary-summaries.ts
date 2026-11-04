@@ -11,9 +11,10 @@ import {
   isWorkspaceSummaryVersion,
   readWorkspaceSource,
   type WorkspaceSummaryVersion,
+  type WorkspaceSummaryNodeMetadata,
 } from "./workspace-search";
 
-export type SecretarySummaryItem = {
+export type SecretarySummaryItem = WorkspaceSummaryNodeMetadata & {
   summary_id: string;
   revision: number;
   subject_type: WorkspaceSummaryVersion["subject_type"];
@@ -42,6 +43,23 @@ export function getSecretarySummaries(
   if (cursor) params.set("cursor", cursor);
   return apiFetch<SecretarySummaryPage>(
     userPath(userId, `/secretary/summaries?${params}`),
+    { signal },
+  );
+}
+
+export function getSecretarySummaryRevisions(
+  userId: string,
+  summaryId: string,
+  cursor?: string,
+  signal?: AbortSignal,
+) {
+  const params = new URLSearchParams({ limit: "20" });
+  if (cursor) params.set("cursor", cursor);
+  return apiFetch<SecretarySummaryPage>(
+    userPath(
+      userId,
+      `/secretary/summaries/${encodeURIComponent(summaryId)}/revisions?${params}`,
+    ),
     { signal },
   );
 }
@@ -75,6 +93,8 @@ export async function getSecretarySummary(
 
 export const secretarySummaryKeys = {
   list: (userId: string) => ["secretary-summaries", userId, "list"] as const,
+  revisions: (userId: string, summaryId?: string) =>
+    ["secretary-summaries", userId, "revisions", summaryId ?? null] as const,
   detail: (userId: string, selection?: SecretarySummarySelection) =>
     [
       "secretary-summaries",
@@ -125,4 +145,31 @@ export function useSecretarySummary(
     refetchOnMount: "always",
     retry: retryRequest,
   });
+}
+
+export function useSecretarySummaryRevisions(
+  userId: string | undefined,
+  summaryId: string | undefined,
+  enabled = true,
+) {
+  const client = useQueryClient();
+  const queryKey = secretarySummaryKeys.revisions(
+    userId ?? "pending",
+    summaryId,
+  );
+  const query = useInfiniteQuery({
+    queryKey,
+    queryFn: ({ pageParam, signal }) =>
+      getSecretarySummaryRevisions(userId!, summaryId!, pageParam, signal),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (page) => page.next_cursor || undefined,
+    enabled: Boolean(userId && summaryId && enabled),
+    refetchOnMount: "always",
+    staleTime: 0,
+    retry: retryRequest,
+  });
+  return {
+    ...query,
+    restart: () => client.resetQueries({ queryKey, exact: true }),
+  };
 }

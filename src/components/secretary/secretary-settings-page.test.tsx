@@ -165,6 +165,96 @@ afterEach(() => {
 });
 
 describe("Secretary settings", () => {
+  it.each([
+    [
+      "unknown",
+      "execution_unknown",
+      "Outcome unknown",
+      "Automatic retries are paused",
+    ],
+    [
+      "needs_recovery",
+      "lease_expired",
+      "Awaiting recovery",
+      "previous lease expired",
+    ],
+    [
+      "output_received",
+      undefined,
+      "Output saved",
+      "awaiting validation or commit",
+    ],
+    ["running", undefined, "Attempt in progress", "Waiting for its result"],
+    [
+      "blocked",
+      "invalid_output",
+      "Retry required",
+      "stopped after invalid output",
+    ],
+    ["blocked", "execution_failed", "Retry required", "reached their limit"],
+    ["blocked", "canceled", "Retry required", "previous attempt was canceled"],
+    ["queued", undefined, "Queued", "Summary work is queued"],
+    ["waiting", undefined, "Waiting", "source session to finish"],
+  ] as const)(
+    "explains the persisted execution state %s without showing raw errors",
+    (executionState, reason, label, description) => {
+      setSettings(
+        settingsState({
+          ...configured,
+          state: "error",
+          execution_state: executionState,
+          blocked_reason: reason,
+          last_error: "raw private execution detail",
+        }),
+      );
+      render(<SecretarySettingsPanel userId="owner" />);
+      const status = screen.getByRole("region", { name: "Secretary status" });
+      expect(status).toHaveTextContent(label);
+      expect(status).toHaveTextContent(description);
+      expect(status).not.toHaveTextContent("raw private execution detail");
+    },
+  );
+  it("keeps disabled and unavailable-agent status ahead of persisted execution diagnostics", () => {
+    setSettings(
+      settingsState({
+        ...saved,
+        execution_state: "unknown",
+        blocked_reason: "execution_unknown",
+      }),
+    );
+    const view = render(<SecretarySettingsPanel userId="owner" />);
+    expect(
+      screen.getByRole("region", { name: "Secretary status" }),
+    ).toHaveTextContent("Off");
+    expect(screen.queryByText("Outcome unknown")).not.toBeInTheDocument();
+    setSettings(
+      settingsState({
+        ...configured,
+        state: "waiting_for_agent",
+        execution_state: "unknown",
+      }),
+    );
+    view.rerender(<SecretarySettingsPanel userId="owner" />);
+    expect(screen.queryByText("Outcome unknown")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "Secretary status" }),
+    ).toHaveTextContent("Waiting for agent");
+  });
+  it("uses a fixed fallback for an unrecognized blocked reason", () => {
+    setSettings(
+      settingsState({
+        ...configured,
+        state: "error",
+        execution_state: "blocked",
+        blocked_reason:
+          "secret raw reason" as SecretarySettings["blocked_reason"],
+      }),
+    );
+    render(<SecretarySettingsPanel userId="owner" />);
+    const status = screen.getByRole("region", { name: "Secretary status" });
+    expect(status).toHaveTextContent("Automatic processing is paused");
+    expect(status).not.toHaveTextContent("secret raw reason");
+  });
   it("links to published summaries even while automatic summaries are off", () => {
     setup();
     expect(
