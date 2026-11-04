@@ -36,14 +36,36 @@ function mergeConsecutiveHistoryTextSegments(
   targetMessageId?: string,
 ) {
   const merged: HistoryMessage[] = [];
+  let previousSequence: number | undefined;
 
   for (const message of messages) {
     const previous = merged.at(-1);
+    const consecutive =
+      Number.isSafeInteger(previousSequence) &&
+      Number.isSafeInteger(message.session_seq) &&
+      message.session_seq === previousSequence! + 1;
+    previousSequence = message.session_seq;
+
+    // Configuration records can split stored text while the agent is still
+    // emitting the same answer. Only bridge boundaries fully present here.
+    if (
+      previous &&
+      consecutive &&
+      message.message_id !== targetMessageId &&
+      previous.session_id === message.session_id &&
+      previous.turn_id &&
+      (!message.turn_id || message.turn_id === previous.turn_id) &&
+      previous.raw_json?.text_layout === "segment" &&
+      isHistoryTextContinuationControl(message)
+    ) {
+      continue;
+    }
+
     if (
       !previous ||
       previous.message_id === targetMessageId ||
       message.message_id === targetMessageId ||
-      !canMergeConsecutiveHistoryTextSegments(previous, message)
+      !canMergeConsecutiveHistoryTextSegments(previous, message, consecutive)
     ) {
       merged.push(message);
       continue;
@@ -84,6 +106,7 @@ function mergeConsecutiveHistoryTextSegments(
 function canMergeConsecutiveHistoryTextSegments(
   previous: HistoryMessage,
   message: HistoryMessage,
+  consecutive: boolean,
 ) {
   if (!previous.turn_id || previous.turn_id !== message.turn_id) {
     return false;
@@ -105,11 +128,22 @@ function canMergeConsecutiveHistoryTextSegments(
     return false;
   }
 
-  return (
-    Number.isSafeInteger(previous.session_seq) &&
-    Number.isSafeInteger(message.session_seq) &&
-    message.session_seq === previous.session_seq! + 1
+  return consecutive;
+}
+
+function isHistoryTextContinuationControl(message: HistoryMessage) {
+  const configurationFrame = historyFrameCandidates(message).some(
+    (candidate) => {
+      const frame = asRecord(unwrapHistoryFrame(candidate));
+      if (frame?.method === "session/set_config_option") return true;
+      return (
+        frame?.method === "session/update" &&
+        asRecord(asRecord(frame.params)?.update)?.sessionUpdate ===
+          "config_option_update"
+      );
+    },
   );
+  return configurationFrame && normalizeHistoryMessage(message).length === 0;
 }
 
 /**
