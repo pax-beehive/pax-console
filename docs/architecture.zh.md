@@ -2218,6 +2218,12 @@ Mutation 不乐观修改已保存状态；提交前取消旧 GET，成功后使�
 Agent 列表鉴权失败时隐藏旧的名称缓存。进度跳转仅滚动设置内容面板，不滚动固定的
 Console shell，避免手机底部导航离开视口底边。
 
+服务端可选 `execution_state` 进一步区分 queued、waiting、running、output_received、
+needs_recovery、unknown 和 blocked，`blocked_reason` 只使用安全白名单枚举。
+现有 Current status 卡展示保存输出、等待恢复、结果未知或需要重试的简短说明，
+不回显新状态的原始执行错误。running 只表示持久 attempt 与有效租约，不宣称原生进程已确认运行。
+关闭或 agent 不可用仍优先展示原有状态；旧响应省略新字段时沿用原有行为。
+
 页面显示服务端的 disabled/idle/waiting_for_agent/processing/error、待处理会话数、
 上次完成时间和有界安全错误。启用时每五秒刷新，关闭时每十五秒刷新。
 仍在 processing 时，将错误明确描述为先前任务失败，说明其他会话仍在处理，
@@ -2236,13 +2242,14 @@ HTTP 接受请求不等于总结已完成。Agent 可用性、原文权限、实
 统计和有界分页的会话行，使用按用户隔离的 TanStack infinite query。进度独立每三十
 秒刷新，Secretary 关闭时也可以查看；它不改变配置 revision 或重置未保存的表单。
 刷新替换已加载页面，显式刷新会丢弃旧 cursor；会话按 `source_id` 去重并采用最新行。
-总会话数、已追平、部分总结、待总结使用服务端全量 `counts`，不能根据已加载页推算。
+总会话数、已追平、部分处理、待处理使用服务端全量 `counts`，不能根据已加载页推算。
 显示 `as_of`，并提示新消息或编辑会让总量、剩余量增加。
 
 统计范围由 Manager 决定：当前 owner 可见、非空的 canonical 明文用户/assistant
 消息；空会话、加密、归档/删除/不可访问、工具、reasoning 和 Secretary 自己的执行
-会话均不计入。只有成功发布且匹配当前消息版本的 coverage 算完成；模型正在读取不
-推进完成数。UI 显示 Partly summarized，不声称有 LLM 阅读百分比。只有无未分组消息
+会话均不计入。完成数来自成功提交的处理账本，包括明确无需新增或修改摘要的消息；
+同一消息支持多份摘要也只计算一次，不用 coverage 行数推算进度。模型正在读取不
+推进完成数。UI 显示 Partly processed，不声称有 LLM 阅读百分比。只有无未分组消息
 且确有稳定 turn 分组时显示轮次，否则回退到消息数，不能猜测轮次。顶部概览提供跳转
 到会话列表的入口；列表位于配置控件之后，展示源 agent、session 和准确剩余数。
 进度读取失败单独重试，不影响配置保存。
@@ -2264,6 +2271,15 @@ session URL 仍可读取后台会话进行诊断。
 所有登录用户都可以从 `/settings/secretary` 的 View summaries 进入
 `/settings/secretary/summaries`，关闭自动总结后也保留已有成果的读取入口。
 列表按当前版本发布时间倒序展示标题、预览、版本、时间及来源消息数，无需关键词。
+底层统一 Node，第一版只支持 summary；列表按稳定 `summary_id` 保留独立成果，
+同一个 session 的多份摘要不会合并成一项。可选 `node_type: summary` 与
+`origin_source_id/origin_agent_id/origin_session_id/origin_session_title` 来自 Manager，
+旧响应可以省略。`node_status: empty` 明确标记该版没有保留内容；缺失状态时不根据空正文猜测。
+当前版本真实失效时，`node_status: stale` 显示 Awaiting update，保留仍有权限的正文；
+它不等于空结果。历史版本不套用最新节点状态，源内容撤权仍由 Manager 拒绝读取。
+列表展示整理归属 session 名称，详情只在返回真实 origin session ID 时
+提供入口；不解析 subject ID、摘要 ID 或来源证据来猜测整理归属。整理归属用于展示与搜索分组，
+不代表所有事实来源，也不授予权限。额外证据来源不会在浏览器中复制为新的搜索卡片。
 `features/api/secretary-summaries.ts` 经同源代理调用用户范围内的 GET
 `/secretary/summaries?limit=20&cursor=...`。该入口由 Manager 查询 PG 当前总结，
 独立检查 owner 和当前来源权限，不要求管理员身份，不依赖 ES。
@@ -2271,7 +2287,13 @@ session URL 仍可读取后台会话进行诊断。
 读取，不能自动重复请求旧 cursor。
 
 选中总结后 URL 保存 `summary_id` 和确切 `revision`，刷新、分享链接及列表出现
-新版时均保留选中的不可变版本。详情复用 `/search/read` 的总结读取协议，使用安全
+新版时均保留选中的不可变版本。Version history 按需读取
+GET `/secretary/summaries/:summary_id/revisions?limit=20&cursor=...`，返回与当前列表
+相同的分页结构；历史记录按 summary ID 和 revision 去重，不推断版本连续，空页仍可继续。
+历史缓存按用户及 summary ID 隔离，打开时重新检查权限；刷新失败隐藏旧页，续页失败允许
+保留已加载的可读记录，401/403 则隐藏全部成果。失效 cursor 通过 Reload versions 从首页重读。
+历史入口只列出 Manager 当前授权可读的版本，选择后仍经原文读取接口检查确切 revision。
+详情复用 `/search/read` 的总结读取协议，使用安全
 Markdown 渲染完整正文，展示结论、引文、冻结 coverage 以及下层总结版本引用。
 点击证据或来源消息，在共享 `SearchSourcePanel` 中读取确切正文版本；该读取成功后
 才使用服务端返回的真实 session/message ID 提供工作台定位链接。内部 subject ID

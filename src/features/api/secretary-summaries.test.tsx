@@ -7,6 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getSecretarySummaries,
   getSecretarySummary,
+  getSecretarySummaryRevisions,
+  useSecretarySummaryRevisions,
   secretarySummaryKeys,
   useSecretarySummaries,
   useSecretarySummary,
@@ -125,6 +127,54 @@ describe("Secretary summary HTTP contract", () => {
       getSecretarySummary("self", { id: "summary_1", revision: 3 }),
     ).rejects.toMatchObject({ name: "ApiError", status: 409 });
     expect(fetchMock).toHaveBeenCalledOnce();
+  });
+});
+
+describe("Secretary summary revisions", () => {
+  it("requests an encoded summary ID and its own revision cursor", async () => {
+    fetchMock.mockResolvedValue(response({ items: [], next_cursor: "next+2" }));
+    await expect(
+      getSecretarySummaryRevisions("self", "id /&", "next+1"),
+    ).resolves.toEqual({ items: [], next_cursor: "next+2" });
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "/api/pax/api/v1/user/self/secretary/summaries/id%20%2F%26/revisions?limit=20&cursor=next%2B1",
+    );
+  });
+  it("does not fetch hidden revision history", () => {
+    const { wrapper } = queryWrapper();
+    renderHook(
+      () => useSecretarySummaryRevisions("user_1", "summary_1", false),
+      { wrapper },
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("rechecks a warm revision page when history is reopened", async () => {
+    fetchMock
+      .mockResolvedValueOnce(response({ items: [], next_cursor: "next" }))
+      .mockImplementationOnce(() => new Promise(() => {}));
+    const { wrapper } = queryWrapper(15_000);
+    const { result, rerender } = renderHook(
+      ({ enabled }) =>
+        useSecretarySummaryRevisions("user_1", "summary_1", enabled),
+      { wrapper, initialProps: { enabled: true } },
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    rerender({ enabled: false });
+    rerender({ enabled: true });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(result.current.isFetching).toBe(true);
+    expect(fetchMock.mock.calls[1][0]).not.toContain("cursor=");
+  });
+  it("isolates revision history from other summaries and users", () => {
+    expect(secretarySummaryKeys.revisions("a", "s1")).not.toEqual(
+      secretarySummaryKeys.revisions("a", "s2"),
+    );
+    expect(secretarySummaryKeys.revisions("a", "s1")).not.toEqual(
+      secretarySummaryKeys.revisions("b", "s1"),
+    );
+    expect(secretarySummaryKeys.revisions("a", "s1")).not.toEqual(
+      secretarySummaryKeys.list("a"),
+    );
   });
 });
 

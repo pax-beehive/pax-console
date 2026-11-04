@@ -383,6 +383,7 @@ function SecretaryStatus({ settings }: { settings: SecretarySettings }) {
   const date = settings.last_completed_at
     ? new Date(settings.last_completed_at)
     : undefined;
+  const execution = executionStatus(settings);
   return (
     <section
       aria-label="Secretary status"
@@ -399,7 +400,7 @@ function SecretaryStatus({ settings }: { settings: SecretarySettings }) {
                 : "neutral"
           }
         >
-          {stateLabels[settings.state] || "Unknown"}
+          {execution?.label || stateLabels[settings.state] || "Unknown"}
         </Badge>
       </div>
       <dl className="mt-3 grid grid-cols-[auto_minmax(0,1fr)] gap-x-5 gap-y-2 text-xs">
@@ -415,7 +416,12 @@ function SecretaryStatus({ settings }: { settings: SecretarySettings }) {
             : "No completed runs yet"}
         </dd>
       </dl>
-      {settings.last_error && (
+      {execution && (
+        <p className="mt-3 text-xs leading-5 text-ink-muted">
+          {execution.description}
+        </p>
+      )}
+      {!execution && settings.last_error && (
         <p className="mt-3 line-clamp-3 whitespace-pre-wrap text-xs leading-5 text-warning [overflow-wrap:anywhere]">
           {settings.state === "processing"
             ? "A previous summary task failed. Other conversations are still being processed."
@@ -424,6 +430,62 @@ function SecretaryStatus({ settings }: { settings: SecretarySettings }) {
       )}
     </section>
   );
+}
+
+function executionStatus(settings: SecretarySettings) {
+  if (!settings.enabled || settings.state === "waiting_for_agent") return;
+  switch (settings.execution_state) {
+    case "unknown":
+      return {
+        label: "Outcome unknown",
+        description:
+          "The previous result could not be confirmed. Automatic retries are paused.",
+      };
+    case "needs_recovery":
+      return {
+        label: "Awaiting recovery",
+        description:
+          "The previous lease expired. The saved attempt must be checked before continuing.",
+      };
+    case "output_received":
+      return {
+        label: "Output saved",
+        description: "The result is saved and awaiting validation or commit.",
+      };
+    case "running":
+      return {
+        label: "Attempt in progress",
+        description: "A summary attempt is recorded. Waiting for its result.",
+      };
+    case "queued":
+      return { label: "Queued", description: "Summary work is queued." };
+    case "waiting":
+      return {
+        label: "Waiting",
+        description:
+          "Waiting for the source session to finish or become available.",
+      };
+    case "blocked":
+      return {
+        label: "Retry required",
+        description: blockedDescription(settings.blocked_reason),
+      };
+  }
+}
+
+function blockedDescription(reason: SecretarySettings["blocked_reason"]) {
+  switch (reason) {
+    case "invalid_output":
+      return "Automatic retries stopped after invalid output. Use Retry run to try again.";
+    case "execution_failed":
+    case "retry_exhausted":
+      return "Automatic retries reached their limit. Use Retry run to try again.";
+    case "canceled":
+    case "execution_canceled":
+      return "The previous attempt was canceled. Use Retry run when ready.";
+    default:
+      return "Automatic processing is paused. Use Retry run after checking the source session.";
+  }
 }
 
 function Notice({ children }: { children: string }) {

@@ -15,6 +15,7 @@ import { ApiError, AuthError } from "@/features/api/errors";
 import {
   useSecretarySummaries,
   useSecretarySummary,
+  useSecretarySummaryRevisions,
 } from "@/features/api/secretary-summaries";
 import {
   useWorkspaceSource,
@@ -29,6 +30,7 @@ import {
 vi.mock("@/features/api/secretary-summaries", () => ({
   useSecretarySummaries: vi.fn(),
   useSecretarySummary: vi.fn(),
+  useSecretarySummaryRevisions: vi.fn(),
 }));
 vi.mock("@/features/api/workspace-search", async (original) => ({
   ...(await original<object>()),
@@ -167,6 +169,16 @@ beforeEach(() => {
   vi.mocked(useSecretarySummaries).mockImplementation(
     () => list as unknown as ReturnType<typeof useSecretarySummaries>,
   );
+  vi.mocked(useSecretarySummaryRevisions).mockReturnValue({
+    data: undefined,
+    isPending: false,
+    isError: false,
+    isFetching: false,
+    isFetchedAfterMount: true,
+    hasNextPage: false,
+    restart: vi.fn(),
+    fetchNextPage: vi.fn(),
+  } as unknown as ReturnType<typeof useSecretarySummaryRevisions>);
   vi.mocked(useSecretarySummary).mockImplementation(
     () => detail as unknown as ReturnType<typeof useSecretarySummary>,
   );
@@ -215,6 +227,126 @@ describe("Secretary summary reading", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/Newest summaries first/)).toBeInTheDocument();
     expect(screen.queryByText("Raw JSON")).not.toBeInTheDocument();
+  });
+  it("keeps independent summaries from the same origin session in the list", () => {
+    const origin = {
+      node_type: "summary" as const,
+      origin_source_id: "source_1",
+      origin_session_id: "sess_origin",
+      origin_session_title: "Search and deployment",
+    };
+    list.data.pages[0].items = [
+      { ...item, ...origin },
+      {
+        ...item,
+        ...origin,
+        summary_id: "summary_2",
+        title: "Deployment recovery",
+      },
+    ];
+    show();
+    expect(
+      screen.getByRole("list", { name: "Summary list" }).children,
+    ).toHaveLength(2);
+    expect(screen.getAllByText("Search and deployment")).toHaveLength(2);
+    expect(
+      screen.getByRole("link", { name: /Deployment recovery/ }),
+    ).toHaveAttribute(
+      "href",
+      "/settings/secretary/summaries?summary_id=summary_2&revision=4",
+    );
+  });
+  it("marks a stale summary as awaiting update while retaining its readable content", () => {
+    list.data.pages[0].items = [
+      { ...item, node_status: "stale" } as typeof item,
+    ];
+    detail = { ...detail, data: { ...summary, node_status: "stale" } };
+    show({ id: item.summary_id, revision: 4 });
+    expect(screen.getAllByText("Awaiting update")).toHaveLength(2);
+    expect(
+      screen.getByRole("heading", { name: "Storage" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/No retained content/)).not.toBeInTheDocument();
+  });
+  it("labels an explicit empty result without inferring state from its body", () => {
+    list.data.pages[0].items = [
+      { ...item, node_status: "empty" } as typeof item,
+    ];
+    detail = {
+      ...detail,
+      data: { ...summary, node_status: "empty", body: "" },
+    };
+    show({ id: item.summary_id, revision: 4 });
+    expect(
+      screen.getAllByText(/No retained content in this version/),
+    ).toHaveLength(2);
+    expect(
+      screen.queryByText("Keep messages in PostgreSQL."),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Version history" }),
+    ).toBeInTheDocument();
+  });
+  it("links only the supplied organizing session and keeps its ID separate from the subject", () => {
+    detail = {
+      ...detail,
+      data: {
+        ...summary,
+        origin_session_id: "sess origin/&",
+        origin_session_title: "Original conversation",
+      },
+    };
+    show({ id: item.summary_id, revision: 4 });
+    expect(
+      screen.getByRole("link", { name: "Original conversation" }),
+    ).toHaveAttribute("href", "/?session_id=sess%20origin%2F%26");
+  });
+  it("loads revision history only when requested and navigates to an exact version", () => {
+    vi.mocked(useSecretarySummaryRevisions).mockReturnValue({
+      data: { pages: [{ items: [{ ...item, revision: 2 }] }] },
+      isPending: false,
+      isError: false,
+      isFetching: false,
+      isFetchedAfterMount: true,
+      hasNextPage: false,
+      restart: vi.fn(),
+      fetchNextPage: vi.fn(),
+    } as unknown as ReturnType<typeof useSecretarySummaryRevisions>);
+    show({ id: item.summary_id, revision: 4 });
+    expect(useSecretarySummaryRevisions).toHaveBeenLastCalledWith(
+      "owner",
+      item.summary_id,
+      false,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Read version 2" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Version history" }));
+    expect(useSecretarySummaryRevisions).toHaveBeenLastCalledWith(
+      "owner",
+      item.summary_id,
+      true,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Read version 2" }));
+    expect(navigate).toHaveBeenCalledWith(
+      "/settings/secretary/summaries?summary_id=summary_1&revision=2",
+    );
+  });
+  it("does not expose cached versions while history access is being checked", () => {
+    vi.mocked(useSecretarySummaryRevisions).mockReturnValue({
+      data: { pages: [{ items: [{ ...item, revision: 2 }] }] },
+      isPending: false,
+      isError: false,
+      isFetching: true,
+      isFetchedAfterMount: false,
+      hasNextPage: false,
+    } as unknown as ReturnType<typeof useSecretarySummaryRevisions>);
+    show({ id: item.summary_id, revision: 4 });
+    fireEvent.click(screen.getByRole("button", { name: "Version history" }));
+    expect(
+      screen.queryByRole("button", { name: "Read version 2" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Loading versions");
   });
   it("renders the full Markdown summary, revision and frozen evidence", () => {
     show({ id: item.summary_id, revision: item.revision });

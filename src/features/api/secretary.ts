@@ -11,6 +11,23 @@ export type SecretaryState =
   | "waiting_for_agent"
   | "processing"
   | "error";
+export type SecretaryExecutionState =
+  | "running"
+  | "output_received"
+  | "needs_recovery"
+  | "unknown"
+  | "blocked"
+  | "queued"
+  | "waiting";
+export type SecretaryBlockedReason =
+  | "execution_unknown"
+  | "lease_expired"
+  | "invalid_output"
+  | "execution_failed"
+  | "canceled"
+  | "retry_required"
+  | "retry_exhausted"
+  | "execution_canceled";
 export type SecretarySettings = {
   agent_id?: string;
   enabled: boolean;
@@ -20,6 +37,8 @@ export type SecretarySettings = {
   last_completed_at?: string;
   last_error?: string;
   agent_available: boolean;
+  execution_state?: SecretaryExecutionState;
+  blocked_reason?: SecretaryBlockedReason;
 };
 export type UpdateSecretarySettings = {
   agent_id: string;

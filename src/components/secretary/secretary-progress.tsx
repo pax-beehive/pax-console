@@ -16,8 +16,8 @@ import { Agent } from "@/features/api/types";
 type ProgressQuery = ReturnType<typeof useSecretaryProgress>;
 const stateLabels = {
   completed: "Up to date",
-  partial: "Partly summarized",
-  unstarted: "Awaiting summary",
+  partial: "Partly processed",
+  unstarted: "Awaiting processing",
 };
 
 export function coverageText(counts: SecretaryCoverageCounts) {
@@ -25,7 +25,7 @@ export function coverageText(counts: SecretaryCoverageCounts) {
   const total = turns ? counts.total_turns : counts.total_messages;
   const completed = turns ? counts.completed_turns : counts.completed_messages;
   const pending = turns ? counts.pending_turns : counts.pending_messages;
-  return `${completed} of ${total} ${turns ? (total === 1 ? "turn" : "turns") : total === 1 ? "message" : "messages"} summarized · ${pending} remaining`;
+  return `${completed} of ${total} ${turns ? (total === 1 ? "turn" : "turns") : total === 1 ? "message" : "messages"} processed · ${pending} remaining`;
 }
 
 function visiblePage(progress: ProgressQuery) {
@@ -92,11 +92,11 @@ export function SecretaryProgressOverview({
               value={page.counts.completed_sessions}
             />
             <ProgressCount
-              label="Partly summarized"
+              label="Partly processed"
               value={page.counts.partial_sessions}
             />
             <ProgressCount
-              label="Awaiting summary"
+              label="Awaiting processing"
               value={page.counts.unstarted_sessions}
             />
           </dl>
@@ -104,8 +104,8 @@ export function SecretaryProgressOverview({
             {coverageText(page.counts)}
           </p>
           <p className="mt-2 text-xs leading-5 text-ink-tertiary">
-            Only published summaries count toward progress. Counts update as
-            sessions change.
+            Progress counts committed processing, including messages that need
+            no summary. A message used by multiple summaries is counted once.
           </p>
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs text-ink-tertiary">
@@ -231,7 +231,7 @@ export function SecretarySessionProgressList({
             </div>
             {session.last_completed_at && (
               <p className="mt-1 text-xs text-ink-tertiary">
-                Last summary {formatDate(session.last_completed_at)}
+                Last processed {formatDate(session.last_completed_at)}
               </p>
             )}
           </li>

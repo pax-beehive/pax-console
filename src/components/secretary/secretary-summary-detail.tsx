@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   SearchSourcePanel,
   SummaryContent,
@@ -13,6 +15,7 @@ import {
 } from "@/features/api/secretary-summaries";
 import { ApiError } from "@/features/api/errors";
 import type { WorkspaceSearchRef } from "@/features/api/workspace-search";
+import { SecretarySummaryHistory } from "./secretary-summary-history";
 import { isSummaryAccessDenied, summaryDate } from "./secretary-summary-format";
 
 export function SecretarySummaryDetail({
@@ -77,12 +80,28 @@ export function SecretarySummaryDetail({
           {summary && (
             <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs leading-5 text-ink-tertiary">
               <span>Version {summary.revision}</span>
+              {summary.node_status === "stale" && (
+                <Badge tone="warning">Awaiting update</Badge>
+              )}
               <span>
                 Updated{" "}
                 <time dateTime={summary.created_at}>
                   {summaryDate(summary.created_at)}
                 </time>
               </span>
+            </div>
+          )}
+          {summary && (
+            <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
+              {summary.origin_session_id && (
+                <Button asChild size="sm" variant="ghost">
+                  <Link
+                    href={`/?session_id=${encodeURIComponent(summary.origin_session_id)}`}
+                  >
+                    {summary.origin_session_title || "Open origin session"}
+                  </Link>
+                </Button>
+              )}
             </div>
           )}
         </header>
@@ -118,6 +137,22 @@ export function SecretarySummaryDetail({
           ) : (
             summary && (
               <div className="mx-auto min-w-0 max-w-3xl">
+                <SecretarySummaryHistory
+                  userId={userId}
+                  summaryId={summary.summary_id}
+                  selectedRevision={summary.revision}
+                  onSelect={onSelect}
+                  onAccessDenied={onAccessDenied}
+                />
+                {summary.node_status === "empty" && (
+                  <p
+                    role="status"
+                    className="mb-4 text-sm leading-6 text-ink-tertiary"
+                  >
+                    No retained content in this version. Earlier versions remain
+                    subject to current source permissions.
+                  </p>
+                )}
                 <SummaryContent
                   summary={summary}
                   onSelect={selectSource}
