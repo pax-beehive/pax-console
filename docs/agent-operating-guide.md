@@ -2515,7 +2515,10 @@ The settings page lists pending sources in compact responsive cards. Task IDs ar
 source IDs; batch and attempt IDs remain separate in the expanded details.
 Task and history pages request 20 records and use only server cursors. Refresh
 tasks / Reload details resets pagination. Poll the list and open details every
-five seconds. Hide cached task/history data after authentication failures.
+five seconds. Authentication failures or a detail 404 replace that card with
+an unavailable notice and Refresh tasks, hiding cached metadata, history,
+execution links, actions, and restart confirmation. A transient 5xx keeps the
+previous readable data with its retry notice.
 
 Check existing result only inspects the same execution. Explain recovered,
 still unknown, and invalid saved results without implying a new model call.

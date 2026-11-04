@@ -2245,6 +2245,8 @@ GET `/secretary/tasks/:task_id`，并向 POST `/secretary/tasks/:task_id/actions
 三个身份在详情中分别展示。列表只含待处理任务，详情按 cursor 分页读取历史 attempts；
 每页 20 条，用户展开或点击 More 才继续读取。列表和展开的详情每五秒检查持久状态。
 TanStack Query 按用户及任务隔离数据，不保存原始 prompt、模型输出或 capability。
+展开详情若返回鉴权失败或 404，整张卡隐藏旧的标题、来源、执行链接、历史及控制，
+仅提供不可用提示和 Refresh tasks；暂时性 5xx 保留已读数据及重试提示。
 
 每行提供来源 session、View execution、Check existing result、Retry this task 和
 Pause future retries / Resume。执行链接仅使用后端明确提供且已鉴权的 session ID，

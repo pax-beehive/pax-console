@@ -155,6 +155,9 @@ export function SecretaryTaskList({
             userId={userId}
             enabled={enabled}
             notify={notify}
+            refreshTasks={() => {
+              void list.restart();
+            }}
           />
         ))}
       </div>
@@ -179,11 +182,13 @@ function SecretaryTaskRow({
   userId,
   enabled,
   notify,
+  refreshTasks,
 }: {
   task: SecretaryTask;
   userId: string;
   enabled: boolean;
   notify: (result?: SecretaryTaskActionResult, error?: Error) => void;
+  refreshTasks: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [restart, setRestart] = useState<SecretaryTask>();
@@ -193,13 +198,36 @@ function SecretaryTaskRow({
     expanded && !detail.isError
       ? (detail.data?.pages[0]?.task ?? listed)
       : listed;
-  const taskDenied = expanded && detail.error instanceof AuthError;
+  const taskDenied =
+    expanded &&
+    (detail.error instanceof AuthError ||
+      (detail.error instanceof ApiError && detail.error.status === 404));
+  if (taskDenied)
+    return (
+      <article
+        aria-label="Unavailable task"
+        className="min-w-0 rounded-md border border-hairline bg-surface-1 p-3"
+      >
+        <p className="text-xs leading-5 text-warning" role="alert">
+          {detail.error instanceof AuthError
+            ? "Sign in again to view this task."
+            : "This task is no longer available. Refresh tasks to load the current list."}
+        </p>
+        <Button
+          className="mt-2 min-h-11 sm:min-h-8"
+          size="sm"
+          onClick={refreshTasks}
+        >
+          Refresh tasks
+        </Button>
+      </article>
+    );
   const canCheck =
     Boolean(task.attempt_id) &&
     ["unknown", "needs_recovery", "running", "output_received"].includes(
       task.execution_state,
     );
-  const disabled = action.isPending || taskDenied;
+  const disabled = action.isPending;
   const needsRestartConfirmation = [
     "unknown",
     "needs_recovery",

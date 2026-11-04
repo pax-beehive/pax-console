@@ -398,4 +398,135 @@ describe("Secretary per-task controls", () => {
       "Model connection failed",
     );
   });
+  it.each([404, 503])(
+    "handles HTTP %s after loading warm task detail without confusing transient errors with revocation",
+    (status) => {
+      const warm = {
+        data: {
+          pages: [
+            {
+              task: { ...task, title: "Cached private title" },
+              attempts: [
+                {
+                  attempt_id: "cached-private-attempt",
+                  batch_id: "cached-private-batch",
+                  state: "unknown",
+                  not_dispatched: false,
+                  has_output: false,
+                },
+              ],
+            },
+          ],
+        },
+        isPending: false,
+        isError: false,
+        error: null as Error | null,
+        isFetching: false,
+        isFetchingNextPage: false,
+        hasNextPage: false,
+        restart: vi.fn(),
+        fetchNextPage: vi.fn(),
+      };
+      vi.mocked(useSecretaryTaskDetail).mockReturnValue(
+        warm as unknown as ReturnType<typeof useSecretaryTaskDetail>,
+      );
+      const view = setup();
+      fireEvent.click(
+        within(
+          screen.getByRole("article", { name: "Database design" }),
+        ).getByRole("button", { name: "Task details" }),
+      );
+      expect(screen.getByText("cached-private-attempt")).toBeInTheDocument();
+      vi.mocked(useSecretaryTaskDetail).mockReturnValue({
+        ...warm,
+        isError: true,
+        error: new ApiError("raw private failure", status, null),
+      } as unknown as ReturnType<typeof useSecretaryTaskDetail>);
+      view.rerender(
+        <TooltipProvider>
+          <SecretaryTaskList userId="owner" enabled />
+        </TooltipProvider>,
+      );
+      if (status === 404) {
+        expect(
+          screen.queryByText("cached-private-attempt"),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByText("cached-private-batch"),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByText("Cached private title"),
+        ).not.toBeInTheDocument();
+        expect(screen.queryByText("Database design")).not.toBeInTheDocument();
+        expect(
+          screen.getByRole("article", { name: "Unavailable task" }),
+        ).toHaveTextContent("This task is no longer available");
+      } else {
+        expect(screen.getByText("cached-private-attempt")).toBeInTheDocument();
+        expect(
+          screen.getByRole("article", { name: "Database design" }),
+        ).toHaveTextContent("Attempt history is unavailable");
+      }
+    },
+  );
+  it("removes stale action and execution controls after a warm detail becomes unavailable", () => {
+    const state = query();
+    vi.mocked(useSecretaryTasks).mockReturnValue(
+      state as unknown as ReturnType<typeof useSecretaryTasks>,
+    );
+    const warm = {
+      data: { pages: [{ task, attempts: [] }] },
+      isPending: false,
+      isError: false,
+      error: null as Error | null,
+      isFetching: false,
+      isFetchingNextPage: false,
+      hasNextPage: false,
+      restart: vi.fn(),
+      fetchNextPage: vi.fn(),
+    };
+    vi.mocked(useSecretaryTaskDetail).mockReturnValue(
+      warm as unknown as ReturnType<typeof useSecretaryTaskDetail>,
+    );
+    const view = setup();
+    const row = screen.getByRole("article", { name: "Database design" });
+    fireEvent.click(within(row).getByRole("button", { name: "Task details" }));
+    fireEvent.click(
+      within(row).getByRole("button", { name: "Retry this task" }),
+    );
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    vi.mocked(useSecretaryTaskDetail).mockReturnValue({
+      ...warm,
+      isError: true,
+      error: new ApiError("gone", 404, null),
+    } as unknown as ReturnType<typeof useSecretaryTaskDetail>);
+    view.rerender(
+      <TooltipProvider>
+        <SecretaryTaskList userId="owner" enabled />
+      </TooltipProvider>,
+    );
+    const unavailable = screen.getByRole("article", {
+      name: "Unavailable task",
+    });
+    expect(within(unavailable).queryByRole("link")).not.toBeInTheDocument();
+    expect(
+      within(unavailable).queryByRole("button", { name: "Retry this task" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(unavailable).queryByRole("button", {
+        name: "Check existing result",
+      }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(unavailable).queryByRole("button", {
+        name: "Pause future retries",
+      }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(
+      within(unavailable).getByRole("button", { name: "Refresh tasks" }),
+    );
+    expect(state.restart).toHaveBeenCalledOnce();
+    expect(actions.get("42")!.mutate).not.toHaveBeenCalled();
+  });
 });
