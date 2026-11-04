@@ -2507,6 +2507,38 @@ An inventory authentication failure hides cached agent names. The progress jump
 scrolls only the inner settings panel; it must not scroll the fixed Console shell
 or move mobile navigation away from the bottom of the viewport.
 
+### Individual Secretary tasks
+
+`features/api/secretary-tasks.ts` owns same-origin user-scoped GET `/secretary/tasks`,
+GET `/secretary/tasks/:task_id`, and POST `/secretary/tasks/:task_id/actions`.
+The settings page lists pending sources in compact responsive cards. Task IDs are
+source IDs; batch and attempt IDs remain separate in the expanded details.
+Task and history pages request 20 records and use only server cursors. Refresh
+tasks / Reload details resets pagination. Poll the list and open details every
+five seconds. Hide cached task/history data after authentication failures.
+
+Check existing result only inspects the same execution. Explain recovered,
+still unknown, and invalid saved results without implying a new model call.
+View execution is available only when Manager supplies an accessible execution
+session ID. Map safe error codes to fixed text, including model_connection_failed;
+never render raw error_message, prompts, model output, receipts, or tokens.
+
+Control requests echo the observed control revision, batch ID, attempt ID, retry
+epoch, and settings revision. Retry affects only that source's current input.
+Unknown/expired-running retry requires the duplicate-work confirmation and
+confirm_restart=true. Active leases disable retry and recheck; pause/resume
+affect future scheduling and allow a current execution to finish. Bulk retry
+always confirms its wider scope, preserves per-source pauses, skips active
+leases, and explains late unknown results and duplicate model charges.
+
+Every control mutation has retry=false and its own pending state. Refetch tasks,
+details, settings, progress, and summaries after success or failure, including a
+409 or a lost response. Do not silently retry a POST or route a per-task action
+through `/secretary/run`. Keep action notices outside an individual row so a
+success remains visible when the completed source disappears from the list.
+Use wrapping actions with 44px mobile targets and shared UI/confirmation/ID
+primitives. `secretary-tasks.test.tsx` and its API counterpart cover these boundaries.
+
 `scripts/secretary-smoke/run.mjs` verifies real settings HTTP behavior with an
 explicit isolated test agent. It enables/disables and restores that fixture's
 configuration, checks reload and mobile navigation, and captures screenshots.
@@ -2655,6 +2687,6 @@ needs_recovery、unknown、blocked。Current status 卡只使用固定解释，�
 兼容 execution_unknown、lease_expired、invalid_output、execution_failed、canceled、retry_required，
 并接受 retry_exhausted/execution_canceled 的安全别名。`waiting` 配合
 `connection_backoff` 显示连接暂不可用、后台将自动重试；此时不显示旧错误或声称正在运行。
-`blocked` 配合 `connection_retries_exhausted` 显示连接重试已耗尽，并保留 Retry run，
+`blocked` 配合 `connection_retries_exhausted` 显示连接重试已耗尽，并保留批量重试入口，
 agent 不可用时该操作仍禁用。原始连接错误不回显，页面不推断重试次数或倒计时。
 关闭优先；普通 agent 不可用及旧响应维持原有展示，不新增诊断页面或浏览器调度循环。

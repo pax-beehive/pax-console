@@ -2225,7 +2225,7 @@ needs_recovery、unknown 和 blocked，`blocked_reason` 只使用安全白名单
 关闭优先展示原有状态。新增连接等待使用 `state: waiting`、`execution_state: waiting`
 及 `blocked_reason: connection_backoff`，固定说明后台将自动重试，不能显示为错误或正在运行。
 连接重试耗尽使用 `state: error`、`execution_state: blocked` 及
-`blocked_reason: connection_retries_exhausted`，固定说明连接失败并提供 Retry run；
+`blocked_reason: connection_retries_exhausted`，固定说明连接失败并提供批量重试；
 agent 不可用时操作仍禁用。没有重试次数或下次重试时间字段，前端不生成计数或倒计时。
 普通 agent 不可用及旧响应省略新字段时沿用原有行为，不回显原始连接错误。
 
@@ -2233,9 +2233,35 @@ agent 不可用时操作仍禁用。没有重试次数或下次重试时间字�
 上次完成时间和有界安全错误。启用时每五秒刷新，关闭时每十五秒刷新。
 仍在 processing 时，将错误明确描述为先前任务失败，说明其他会话仍在处理，
 避免将历史错误误认为当前任务停止。
-选中的 agent 失效或列表读取失败时仍允许关闭。Run now / Retry run 只请求后台调度；
+选中的 agent 失效或列表读取失败时仍允许关闭。Bulk retry unpaused tasks 只请求后台调度；
 HTTP 接受请求不等于总结已完成。Agent 可用性、原文权限、实际模型调用、自动调度和不可变总结
 发布均由 Manager 负责，浏览器不运行采集或生成循环，也不重启旧的本地实验流水线。
+
+### 逐任务查看与控制
+
+`features/api/secretary-tasks.ts` 通过同源用户路径读取 GET `/secretary/tasks`、
+GET `/secretary/tasks/:task_id`，并向 POST `/secretary/tasks/:task_id/actions` 提交动作。
+`task_id` 是来源 session 的持久 source ID；batch 是固定输入，attempt 是实际执行，
+三个身份在详情中分别展示。列表只含待处理任务，详情按 cursor 分页读取历史 attempts；
+每页 20 条，用户展开或点击 More 才继续读取。列表和展开的详情每五秒检查持久状态。
+TanStack Query 按用户及任务隔离数据，不保存原始 prompt、模型输出或 capability。
+
+每行提供来源 session、View execution、Check existing result、Retry this task 和
+Pause future retries / Resume。执行链接仅使用后端明确提供且已鉴权的 session ID，
+不能从 attempt ID 推导。Check 只检查并发布同一执行的已有结果，不调用新模型；UI
+区分 recovered、still_unknown 与 result_invalid。已知模型连接错误显示固定
+model_connection_failed 说明，其余错误代码按白名单解释，不回显原始错误。
+
+每次控制提交当前 control revision、batch/attempt、retry epoch 和 settings revision。
+POST 关闭自动重试；409、网络失败或丢失响应后重读任务、配置、进度及总结，不能盲目
+重发。每个任务单独禁用自己的 pending 控件。有效 lease 时禁用 restart/check，仍可
+暂停或恢复未来调度；pause 不取消当前执行。unknown、needs_recovery 或过期 running
+的 restart 必须确认旧执行可能仍运行、产生重复工作，随后才发送 confirm_restart。
+批量重试也始终确认，明确仅影响未暂停的待处理任务、不重启有效 lease 的执行、未知
+执行可能迟到并产生重复费用。逐任务动作不调用全局 `/secretary/run`。
+
+手机沿用设置内容的滚动区域，任务卡片标题截断、动作自动换行且触控区域至少 44px；
+详情 ID 使用共享 MonoId，历史在卡片内展开，不创建额外全局导航。
 
 `scripts/secretary-smoke/run.mjs` 使用隔离测试 agent 验证真实设置请求、启用和关闭
 后的刷新持久性、手机导航与布局，并恢复初始配置。它不 mock 请求，也不将配置保存

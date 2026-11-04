@@ -11,6 +11,7 @@ import {
 import { settingsSection } from "@/components/settings/settings-catalog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { MonoId } from "@/components/ui/text";
 import { Switch } from "@/components/ui/switch";
 import { useAgents } from "@/features/api/resources";
@@ -29,6 +30,7 @@ import {
   SecretaryProgressOverview,
   SecretarySessionProgressList,
 } from "./secretary-progress";
+import { SecretaryTaskList } from "./secretary-tasks";
 
 const stateLabels: Record<SecretaryState, string> = {
   disabled: "Off",
@@ -64,6 +66,7 @@ export function SecretarySettingsPage({ user }: { user: User }) {
 }
 
 export function SecretarySettingsPanel({ userId }: { userId: string }) {
+  const [bulkRevision, setBulkRevision] = useState<number>();
   const settings = useSecretarySettings(userId);
   const agents = useAgents(userId, "owned");
   const save = useUpdateSecretarySettings(userId);
@@ -147,6 +150,7 @@ export function SecretarySettingsPanel({ userId }: { userId: string }) {
               settings={settings.data}
               pending={save.isPending}
               onSave={(input) => {
+                setBulkRevision(undefined);
                 run.reset();
                 save.mutate(input);
               }}
@@ -155,8 +159,9 @@ export function SecretarySettingsPanel({ userId }: { userId: string }) {
               <section className="border-t border-hairline pt-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <p className="max-w-md text-xs leading-5 text-ink-tertiary">
-                    Secretary checks for new and changed conversations
-                    automatically. You can also request a run now.
+                    Bulk retry queues all pending tasks that are not paused.
+                    Per-task pauses remain in place. Use the task controls below
+                    to check or restart one execution.
                   </p>
                   <Button
                     disabled={
@@ -172,18 +177,35 @@ export function SecretarySettingsPanel({ userId }: { userId: string }) {
                       />
                     }
                     onClick={() => {
-                      save.reset();
-                      run.mutate();
+                      setBulkRevision(settings.data.revision);
                     }}
                     size="sm"
                   >
                     {run.isPending
                       ? "Requesting…"
-                      : settings.data.state === "error"
-                        ? "Retry run"
-                        : "Run now"}
+                      : "Bulk retry unpaused tasks"}
                   </Button>
                 </div>
+                <ConfirmDialog
+                  open={bulkRevision === settings.data.revision}
+                  onOpenChange={(open) => {
+                    if (!open) setBulkRevision(undefined);
+                  }}
+                  title="Retry all unpaused tasks?"
+                  confirmLabel="Retry unpaused tasks"
+                  disabled={
+                    run.isPending ||
+                    save.isPending ||
+                    !settings.data.agent_available ||
+                    settings.data.state === "processing"
+                  }
+                  description="This queues every unpaused pending task. Paused tasks stay paused, and active leased executions are not restarted. An unknown execution may still return a late result; restarting it can create duplicate work and model charges. Use an individual task's controls to check an existing result first."
+                  onConfirm={() => {
+                    setBulkRevision(undefined);
+                    save.reset();
+                    run.mutate();
+                  }}
+                />
                 {!settings.data.agent_available && (
                   <p className="mt-2 text-xs text-ink-tertiary">
                     A run will wait until the selected agent reconnects.
@@ -197,11 +219,15 @@ export function SecretarySettingsPanel({ userId }: { userId: string }) {
                 )}
                 {run.isSuccess && (
                   <p className="mt-2 text-xs text-success" role="status">
-                    Run requested.
+                    Bulk retry requested. Paused tasks remain paused.
                   </p>
                 )}
               </section>
             )}
+            <SecretaryTaskList
+              userId={userId}
+              enabled={settings.data.enabled}
+            />
             <SecretarySessionProgressList
               progress={progress}
               agents={ownedAgents}

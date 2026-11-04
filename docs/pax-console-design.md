@@ -462,6 +462,17 @@ the source returns to the same reading position. Keep empty/loading/retry and
 permission states explicit; this product reader is separate from the admin JSON
 inspection page.
 
+The Secretary settings task list uses compact source-session cards. Keep the
+session title and status on the first line, a safe failure reason below, then
+attempt counts/retry time and wrapping task actions. Expand fixed batch and
+attempt identities plus bounded history inside the same card. Mobile controls
+have 44px targets; IDs and long titles must not widen the panel. Check existing
+result explains that no new model request is sent. Retry this task confirms
+duplicate-work risk for unknown executions, while pause affects future retries.
+The bulk retry action always confirms its scope and duplicate-charge risk and
+keeps individually paused sources paused. Preserve completion notices above
+the cards when a recovered task leaves the pending list.
+
 Avoid dynamic Tailwind `grid-cols-[...]` strings for shell collapse behavior. The sidebar uses explicit width because local development through `paxworkspace.net` and Turbopack can otherwise make stale chunk/class behavior hard to diagnose.
 
 ## Existing API Model

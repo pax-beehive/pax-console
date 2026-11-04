@@ -106,6 +106,7 @@ export function useUpdateSecretarySettings(userId: string) {
       }),
     onSuccess: (data) => {
       client.setQueryData(secretaryKeys.settings(userId), data);
+      void client.invalidateQueries({ queryKey: ["secretary-tasks", userId] });
     },
     onError: () => {
       // A lost response may follow a committed write; reload persisted state.
@@ -133,6 +134,7 @@ export function useRunSecretaryNow(userId: string) {
       }),
     onSuccess: (data) => {
       client.setQueryData(secretaryKeys.settings(userId), data);
+      void client.invalidateQueries({ queryKey: ["secretary-tasks", userId] });
     },
     onError: () => {
       void client.invalidateQueries({
