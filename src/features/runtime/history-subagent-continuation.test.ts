@@ -60,6 +60,23 @@ describe("history text continuation across passive subagent completion", () => {
     expect(html).not.toContain("**");
   });
 
+  it("keeps punctuation-ending strong emphasis when a completion no longer separates the text", () => {
+    const events = normalizeHistoryMessages([
+      segment("first", "这是**说明：**", 10),
+      completion("completion", 11),
+      segment("second", "后文", 12),
+    ]);
+    const text = events.filter((event) => event.type === "agent_message");
+
+    expect(text).toHaveLength(1);
+    expect(text[0].content).toBe("这是**说明：**后文");
+    const html = renderToStaticMarkup(
+      createElement(MarkdownMessage, { content: text[0].content }),
+    );
+    expect(html).toMatch(/<strong\b[^>]*>说明：<\/strong>后文/);
+    expect(html).not.toContain("**");
+  });
+
   it("keeps multiple completion notices inspectable after the uninterrupted answer", () => {
     const events = normalizeHistoryMessages([
       segment("first", "现有 ", 10),

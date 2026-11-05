@@ -1,8 +1,31 @@
 import { describe, expect, it } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { MarkdownMessage } from "@/components/ui/markdown-message";
 import { mergeEvents } from "./merge-session-events";
 import { SessionEvent } from "./session-events";
 
 describe("mergeEvents", () => {
+  it("keeps punctuation-ending strong emphasis when live text continues across a completion", () => {
+    const events = mergeEvents([
+      answerChunk("这是**说明：**"),
+      subagentCompletion(),
+      answerChunk("后文"),
+    ]);
+    const text = events.filter((event) => event.type === "agent_message");
+
+    expect(text).toHaveLength(1);
+    expect(text[0].content).toBe("这是**说明：**后文");
+    const html = renderToStaticMarkup(
+      createElement(MarkdownMessage, {
+        content: text[0].content,
+        streaming: true,
+      }),
+    );
+    expect(html).toMatch(/<strong\b[^>]*>说明：<\/strong>后文/);
+    expect(html).not.toContain("**");
+  });
+
   it.each(["structured", "compact"])(
     "keeps an answer continuous across a %s subagent completion notice",
     (shape) => {

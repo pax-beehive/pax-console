@@ -1381,6 +1381,15 @@ and hints within the composer width. Markdown blocks keep 6px paragraph
 spacing. Agent-message and work-group items add no extra vertical padding, so
 adjacent text-to-work spacing stays at that 8px gap.
 
+The shared `MarkdownMessage` enables `remark-cjk-friendly/parseOnly` after
+`remark-gfm`, so strong emphasis next to CJK text and punctuation (for example,
+`这是**（加粗）**文本`) renders consistently in streaming and final messages.
+Code blocks, code spans, and escaped asterisks remain literal; use the parser
+extension rather than rewriting message text or inserting spacing characters.
+History and live-stream regression tests cover settings changes and subagent
+completion notices: joining `**说明：**` with following CJK text must preserve
+strong emphasis that previously rendered at the end of a separate block.
+
 ACP permission prompts are JSON-RPC requests, not `session/update` notifications:
 
 ```txt

@@ -140,6 +140,108 @@ describe("MarkdownMessage links", () => {
 });
 
 describe("MarkdownMessage GFM syntax", () => {
+  it.each([
+    ["这是**加粗：**文本", "加粗：", "这是加粗：文本"],
+    ["这是**（加粗）**文本", "（加粗）", "这是（加粗）文本"],
+    ["这是**“加粗”**文本", "“加粗”", "这是“加粗”文本"],
+    ['这是**"加粗"**文本', '"加粗"', '这是"加粗"文本'],
+    ["**说明。**接着说明", "说明。", "说明。接着说明"],
+    ["前文**(bold)**后文", "(bold)", "前文(bold)后文"],
+  ])(
+    "renders punctuation next to CJK strong delimiters in streaming and final text: %s",
+    (content, strongText, visibleText) => {
+      const { container, rerender } = render(
+        <MarkdownMessage content={content} streaming />,
+      );
+
+      expect(container.querySelector("strong")).toHaveTextContent(strongText);
+      expect(container.textContent).toBe(visibleText);
+
+      rerender(<MarkdownMessage content={content} />);
+
+      expect(container.querySelector("strong")).toHaveTextContent(strongText);
+      expect(container.textContent).toBe(visibleText);
+    },
+  );
+
+  it("keeps strong emphasis when streamed CJK text follows its closing delimiter", () => {
+    const prefix = "这是**说明：**";
+    const { container, rerender } = render(
+      <MarkdownMessage content={prefix} streaming />,
+    );
+    expect(container.querySelector("strong")).toHaveTextContent("说明：");
+
+    rerender(<MarkdownMessage content={`${prefix}后文`} streaming />);
+    expect(container.querySelector("strong")).toHaveTextContent("说明：");
+    expect(container.textContent).toBe("这是说明：后文");
+
+    rerender(<MarkdownMessage content={`${prefix}后文`} />);
+    expect(container.querySelector("strong")).toHaveTextContent("说明：");
+    expect(container.textContent).toBe("这是说明：后文");
+  });
+
+  it("preserves nested code and links inside CJK strong emphasis", () => {
+    const content =
+      "前文**（运行 `pnpm test`，参见[文档](https://example.com/docs)）**后文";
+    const { container, rerender } = render(
+      <MarkdownMessage content={content} streaming />,
+    );
+
+    for (const streaming of [true, false]) {
+      rerender(<MarkdownMessage content={content} streaming={streaming} />);
+      const strong = container.querySelector("strong");
+      expect(strong).toHaveTextContent("（运行 pnpm test，参见文档）");
+      expect(strong?.querySelector("code")).toHaveTextContent("pnpm test");
+      expect(strong?.querySelector("a")).toHaveAttribute(
+        "href",
+        "https://example.com/docs",
+      );
+    }
+  });
+
+  it("renders CJK strong emphasis in GFM table cells", () => {
+    const { container } = render(
+      <MarkdownMessage
+        content={"| 说明 |\n| --- |\n| 前文**（加粗）**后文 |"}
+      />,
+    );
+
+    expect(container.querySelector("td strong")).toHaveTextContent("（加粗）");
+    expect(container.querySelector("td")).toHaveTextContent("前文（加粗）后文");
+  });
+
+  it("keeps escaped asterisks and code examples literal", () => {
+    const example = "这是**（加粗）**文本";
+    const content = `这是\\*\\*（加粗）\\*\\*文本\n\n\`${example}\`\n\n\`\`\`text\n${example}\n\`\`\``;
+    const { container, rerender } = render(
+      <MarkdownMessage content={content} streaming />,
+    );
+
+    for (const streaming of [true, false]) {
+      rerender(<MarkdownMessage content={content} streaming={streaming} />);
+      expect(container.querySelector("strong")).not.toBeInTheDocument();
+      expect(container.querySelector("p")).toHaveTextContent(example);
+      expect(container.querySelectorAll("code")).toHaveLength(2);
+      for (const code of container.querySelectorAll("code")) {
+        expect(code).toHaveTextContent(example);
+      }
+    }
+  });
+
+  it("preserves English strong emphasis and nested emphasis", () => {
+    const { container } = render(
+      <MarkdownMessage content="**bold** and __strong__ and **bold *italic***" />,
+    );
+
+    expect(
+      Array.from(
+        container.querySelectorAll("strong"),
+        (node) => node.textContent,
+      ),
+    ).toEqual(["bold", "strong", "bold italic"]);
+    expect(container.querySelector("strong em")).toHaveTextContent("italic");
+  });
+
   it("preserves literal template backticks and backslashes in streaming and final text", () => {
     const content = "代码 `` String.raw`C:\\temp` ``，然后继续。";
     const { container, rerender } = render(
