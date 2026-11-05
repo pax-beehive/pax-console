@@ -1220,6 +1220,11 @@ durable turn boundary 之前。`text_layout=segment` 的相邻记录如果 `sess
 可见工作事件及选中的搜索目标仍保留分段边界。实时流仍按接收顺序展示。
 这项前端归一化也适用于已有历史，不修改持久化消息。
 
+后台 subagent 完成通知也不切断同一条回复。前端通过 adapter 生命周期元数据识别，
+精简历史则要求完成事件 ID 和标题同时匹配；通知保留在拼接后的正文之后供查看。
+仅含此类通知的活动组显示 `Subagent completed`，不生成工作耗时。历史仍要求同一
+session/turn 中记录序号连续；真实工具、缺失记录和选中的搜索目标继续保留边界。
+
 manager 负责代理 ACP initialize / session/new / session/prompt。续聊时必须传
 已有且属于当前用户、URL 中 node/agent 下的 `sess_*`，并且后端已有 native id 绑定。
 

@@ -7,6 +7,7 @@ import {
 } from "./invocation-display";
 import { normalizeTunnelFrame } from "./normalize-tunnel-frame";
 import { SessionEvent, type SessionMessageAttachment } from "./session-events";
+import { isSubagentCompletion } from "./subagent-lifecycle";
 
 export function normalizeHistoryMessages(
   messages: HistoryMessage[],
@@ -36,29 +37,36 @@ function mergeConsecutiveHistoryTextSegments(
   targetMessageId?: string,
 ) {
   const merged: HistoryMessage[] = [];
+  let previousTextIndex = -1;
   let previousSequence: number | undefined;
 
   for (const message of messages) {
-    const previous = merged.at(-1);
+    const previous = merged[previousTextIndex];
     const consecutive =
       Number.isSafeInteger(previousSequence) &&
       Number.isSafeInteger(message.session_seq) &&
       message.session_seq === previousSequence! + 1;
     previousSequence = message.session_seq;
 
-    // Configuration records can split stored text while the agent is still
-    // emitting the same answer. Only bridge boundaries fully present here.
+    // Settings and background completions can split stored text while the
+    // same answer is still streaming. Only bridge fully loaded boundaries.
     if (
       previous &&
       consecutive &&
+      previous.message_id !== targetMessageId &&
       message.message_id !== targetMessageId &&
       previous.session_id === message.session_id &&
       previous.turn_id &&
       (!message.turn_id || message.turn_id === previous.turn_id) &&
-      previous.raw_json?.text_layout === "segment" &&
-      isHistoryTextContinuationControl(message)
+      previous.raw_json?.text_layout === "segment"
     ) {
-      continue;
+      if (isHistoryTextContinuationControl(message)) continue;
+      if (isHistorySubagentCompletion(message)) {
+        // Keep the notice inspectable after the complete answer rather than
+        // placing a work group in the middle of a word or Markdown span.
+        merged.push(message);
+        continue;
+      }
     }
 
     if (
@@ -68,6 +76,7 @@ function mergeConsecutiveHistoryTextSegments(
       !canMergeConsecutiveHistoryTextSegments(previous, message, consecutive)
     ) {
       merged.push(message);
+      previousTextIndex = merged.length - 1;
       continue;
     }
 
@@ -81,6 +90,7 @@ function mergeConsecutiveHistoryTextSegments(
     );
     if (!appendedText || targetIndex < 0) {
       merged.push(message);
+      previousTextIndex = merged.length - 1;
       continue;
     }
 
@@ -90,7 +100,7 @@ function mergeConsecutiveHistoryTextSegments(
       text: `${target.text ?? ""}${appendedText}`,
       updated_at: message.updated_at ?? target.updated_at,
     };
-    merged[merged.length - 1] = {
+    merged[previousTextIndex] = {
       ...previous,
       parts,
       revision: Math.max(previous.revision ?? 0, message.revision ?? 0),
@@ -144,6 +154,11 @@ function isHistoryTextContinuationControl(message: HistoryMessage) {
     },
   );
   return configurationFrame && normalizeHistoryMessage(message).length === 0;
+}
+
+function isHistorySubagentCompletion(message: HistoryMessage) {
+  const events = normalizeHistoryMessage(message);
+  return events.length > 0 && events.every(isSubagentCompletion);
 }
 
 /**

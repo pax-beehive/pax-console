@@ -1218,6 +1218,14 @@ events and a selected search target preserve the segment boundary. Live streams
 continue to use receipt order. This display normalization also repairs existing
 history without rewriting stored messages.
 
+Background subagent completion notices also leave an uninterrupted answer in
+one text block. Identify them from adapter lifecycle metadata, or the matching
+adapter-generated completion ID and title in compact history. Keep the notice
+inspectable after the assembled answer and label completion-only activity as
+`Subagent completed`, without a synthetic work duration. History must still
+have consecutive sequence values in the same session/turn; real tools, missing
+records and selected search targets retain their boundaries.
+
 Session names are updated through the existing node/agent-scoped endpoint:
 
 ```txt
