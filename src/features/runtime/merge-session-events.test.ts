@@ -3,6 +3,101 @@ import { mergeEvents } from "./merge-session-events";
 import { SessionEvent } from "./session-events";
 
 describe("mergeEvents", () => {
+  it.each(["structured", "compact"])(
+    "keeps an answer continuous across a %s subagent completion notice",
+    (shape) => {
+      const notice = subagentCompletion();
+      if (shape === "structured") {
+        notice.input = {
+          rawInput: { activityKind: "completed", agentThreadId: "child-1" },
+        };
+      }
+      const merged = mergeEvents([
+        answerChunk("**放在 pax"),
+        notice,
+        answerChunk("/paxl 的本机适配层**。"),
+      ]);
+
+      expect(merged).toMatchObject([
+        { type: "agent_message", content: "**放在 pax/paxl 的本机适配层**。" },
+        { type: "tool_call", toolCallId: notice.toolCallId },
+      ]);
+      expect(merged).toHaveLength(2);
+      expect(mergeEvents(merged)).toEqual(merged);
+    },
+  );
+
+  it("keeps subagent completion evidence and tool updates across successive stream batches", () => {
+    const notice = subagentCompletion();
+    let merged = mergeEvents([answerChunk("放在 pax")]);
+    merged = mergeEvents([...merged, notice]);
+    merged = mergeEvents([...merged, answerChunk("/paxl")]);
+    merged = mergeEvents([
+      ...merged,
+      { ...notice, output: "Finished reading capabilities" },
+      answerChunk(" 的本机适配层。"),
+    ]);
+
+    expect(merged).toHaveLength(2);
+    expect(merged).toMatchObject([
+      { type: "agent_message", content: "放在 pax/paxl 的本机适配层。" },
+      { type: "tool_call", output: "Finished reading capabilities" },
+    ]);
+  });
+
+  it.each([
+    { toolCallId: "ordinary-tool" },
+    { name: "Run tests" },
+    { toolCallId: "subagent-completed-" },
+    { name: "Complete subagent " },
+    {
+      input: {
+        rawInput: { activityKind: "started", agentThreadId: "child-1" },
+      },
+    },
+    { input: { rawInput: { activityKind: "completed", agentThreadId: " " } } },
+    { input: { rawInput: "invalid" } },
+    { input: { rawInput: null } },
+    { turnId: "another-turn" },
+    { sessionId: "another-session" },
+  ])(
+    "preserves a tool boundary for an unverified or unrelated completion: %j",
+    (changes) => {
+      const merged = mergeEvents([
+        answerChunk("Before "),
+        { ...subagentCompletion(), ...changes },
+        answerChunk("after"),
+      ]);
+
+      expect(merged.map((event) => event.type)).toEqual([
+        "agent_message",
+        "tool_call",
+        "agent_message",
+      ]);
+    },
+  );
+
+  it("still separates an answer when a real tool follows a completion notice", () => {
+    const merged = mergeEvents([
+      answerChunk("Before tool"),
+      subagentCompletion(),
+      {
+        ...subagentCompletion(),
+        id: "real-tool",
+        toolCallId: "read-1",
+        name: "Read file",
+      },
+      answerChunk("After tool"),
+    ]);
+
+    expect(merged.map((event) => event.type)).toEqual([
+      "agent_message",
+      "tool_call",
+      "tool_call",
+      "agent_message",
+    ]);
+  });
+
   it("does not merge reused tool call ids across business turns", () => {
     const events: SessionEvent[] = [
       {
@@ -754,3 +849,31 @@ describe("mergeEvents", () => {
     ]);
   });
 });
+
+function answerChunk(
+  content: string,
+): Extract<SessionEvent, { type: "agent_message" }> {
+  return {
+    type: "agent_message",
+    id: "session-1:agent_message_chunk:turn-1",
+    sessionId: "session-1",
+    turnId: "turn-1",
+    content,
+    streaming: true,
+    sessionUpdate: "agent_message_chunk",
+    createdAt: "2026-11-04T23:19:00Z",
+  };
+}
+
+function subagentCompletion(): Extract<SessionEvent, { type: "tool_call" }> {
+  return {
+    type: "tool_call",
+    id: "completion-1",
+    sessionId: "session-1",
+    turnId: "turn-1",
+    toolCallId: "subagent-completed-child-1",
+    name: "Complete subagent agent_capability_discovery",
+    status: "done",
+    createdAt: "2026-11-04T23:19:00Z",
+  };
+}

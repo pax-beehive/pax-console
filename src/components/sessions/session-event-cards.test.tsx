@@ -489,6 +489,41 @@ describe("session event cards", () => {
     expect(screen.queryByText("24s", { exact: true })).not.toBeInTheDocument();
   });
 
+  it.each([1, 2])(
+    "labels %i completion notices as subagent updates and keeps their evidence",
+    (count) => {
+      const item = activityGroup(false);
+      item.events = Array.from({ length: count }, (_, index) => ({
+        type: "tool_call" as const,
+        id: `completion-${index}`,
+        sessionId: item.sessionId,
+        toolCallId: `subagent-completed-child-${index}`,
+        name: `Complete subagent discovery-${index}`,
+        status: "done" as const,
+        createdAt: item.createdAt,
+      }));
+      item.completedAt = item.createdAt;
+      const { container } = renderItem(item);
+
+      expect(
+        screen.getByText(
+          count === 1 ? "Subagent completed" : "Subagents completed",
+        ),
+      ).toBeVisible();
+      expect(screen.queryByText("Worked for 0s")).not.toBeInTheDocument();
+      expect(container.querySelector(".animate-spin")).not.toBeInTheDocument();
+
+      const group = container.querySelector("details")!;
+      group.open = true;
+      fireEvent(group, new Event("toggle"));
+      for (let index = 0; index < count; index += 1) {
+        expect(
+          screen.getByText(`Complete subagent discovery-${index}`),
+        ).toBeVisible();
+      }
+    },
+  );
+
   it("does not invent elapsed time for activity without a valid boundary", () => {
     renderItem({ ...activityGroup(true), completedAt: "invalid" });
     expect(screen.getByText("Worked")).toBeVisible();

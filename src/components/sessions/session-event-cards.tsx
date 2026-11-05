@@ -44,6 +44,7 @@ import {
   WorkstreamItem,
 } from "@/features/runtime/session-events";
 import { invocationBodyContent } from "@/features/runtime/invocation-body-content";
+import { isSubagentCompletion } from "@/features/runtime/subagent-lifecycle";
 import {
   CodePatch,
   codePatchGroupStats,
@@ -1056,6 +1057,8 @@ function WorkGroupCard({
     ).values(),
   ];
   const needsApproval = pendingPermissions.length > 0;
+  const onlySubagentCompletions =
+    events.length > 0 && events.every(isSubagentCompletion);
   const start = Date.parse(events[0]?.createdAt ?? "");
   const end = Date.parse(completedAt ?? "");
   const elapsedSeconds =
@@ -1072,11 +1075,15 @@ function WorkGroupCard({
   // Do not infer "retrying" until another tool invocation actually arrives.
   const label = needsApproval
     ? "Waiting for approval"
-    : complete
-      ? durationLabel
-        ? `Worked for ${durationLabel}`
-        : "Worked"
-      : liveActivityLabel(events);
+    : onlySubagentCompletions
+      ? events.length === 1
+        ? "Subagent completed"
+        : "Subagents completed"
+      : complete
+        ? durationLabel
+          ? `Worked for ${durationLabel}`
+          : "Worked"
+        : liveActivityLabel(events);
 
   return (
     <section aria-label="Agent activity" className="min-w-0">
@@ -1090,7 +1097,7 @@ function WorkGroupCard({
               aria-hidden="true"
               className="h-4 w-4 shrink-0 text-warning"
             />
-          ) : !complete ? (
+          ) : !complete && !onlySubagentCompletions ? (
             <LoaderCircle
               aria-hidden="true"
               className="h-4 w-4 shrink-0 animate-spin text-primary-hover motion-reduce:animate-none"

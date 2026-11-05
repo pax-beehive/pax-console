@@ -2,6 +2,7 @@ import { SessionEvent } from "./session-events";
 import { reconcilePermissionDecisions } from "./permission-decisions";
 import { CodePatch, coalesceCodePatches } from "./tool-patches";
 import { mergeToolCallOutput, textFromToolPayload } from "./tool-call-output";
+import { isSubagentCompletion } from "./subagent-lifecycle";
 
 export function mergeEvents(events: SessionEvent[]) {
   // REST history and tunnel notifications can overlap. Keep replacement-style
@@ -49,12 +50,13 @@ export function mergeEvents(events: SessionEvent[]) {
         previousChunkIndex === undefined
           ? undefined
           : merged[previousChunkIndex];
-      const previousVisible = lastVisibleEvent(merged);
+      const previousVisible = lastVisibleEvent(merged, event);
 
       if (
         previousChunk &&
         previousChunk === previousVisible &&
         previousChunk.type === event.type &&
+        previousChunk.sessionId === event.sessionId &&
         isContiguousTextChunk(previousChunk)
       ) {
         merged[previousChunkIndex!] = {
@@ -436,9 +438,18 @@ function mergeCodePatches(
   return patches.length > 0 ? patches : undefined;
 }
 
-function lastVisibleEvent(events: SessionEvent[]) {
+function lastVisibleEvent(events: SessionEvent[], incoming: TextChunkEvent) {
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index];
+    // Lifecycle updates can arrive while an answer is streaming. Preserve
+    // their evidence after the answer without splitting its words or Markdown.
+    if (
+      isSubagentCompletion(event) &&
+      event.sessionId === incoming.sessionId &&
+      event.turnId === incoming.turnId
+    ) {
+      continue;
+    }
     if (
       event.type !== "run_status" &&
       event.type !== "turn_done" &&
