@@ -326,25 +326,40 @@ try {
   await page
     .getByRole("region", { name: "Secretary status", exact: true })
     .waitFor();
-  const runButton = page.getByRole("button", { name: /^(Run now|Retry run)$/ });
+  const runButton = page.getByRole("button", {
+    name: /^Bulk retry unpaused tasks$/,
+  });
   await runButton.waitFor();
   if (await runButton.isEnabled()) {
     const requested = await actionResponse(
       page,
       "POST",
-      () => page.getByRole("button", { name: /^(Run now|Retry run)$/ }).click(),
+      async () => {
+        await page
+          .getByRole("button", { name: /^Bulk retry unpaused tasks$/ })
+          .click();
+        await page
+          .getByRole("button", { name: "Retry unpaused tasks", exact: true })
+          .click();
+      },
       "secretary/run",
     );
     assert.equal(requested.enabled, true);
-    await page.getByText("Run requested.", { exact: true }).waitFor();
+    await page
+      .getByText("Bulk retry requested. Paused tasks remain paused.", {
+        exact: true,
+      })
+      .waitFor();
     console.log(
       "PASS real HTTP manual run request accepted without claiming completion",
     );
   } else {
-    await page.getByRole("button", { name: /^(Run now|Retry run)$/ }).waitFor();
+    await page
+      .getByRole("button", { name: /^Bulk retry unpaused tasks$/ })
+      .waitFor();
     assert(
       await page
-        .getByRole("button", { name: /^(Run now|Retry run)$/ })
+        .getByRole("button", { name: /^Bulk retry unpaused tasks$/ })
         .isDisabled(),
       "Disconnected or processing agents must not accept another manual run",
     );
@@ -392,7 +407,7 @@ try {
     fullPage: true,
   });
   const mobileRun = mobile.getByRole("button", {
-    name: /^(Run now|Retry run)$/,
+    name: /^Bulk retry unpaused tasks$/,
   });
   await mobileRun.scrollIntoViewIfNeeded();
   const runBounds = await mobileRun.boundingBox();

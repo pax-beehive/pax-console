@@ -8,6 +8,7 @@ import { queryKeys } from "./query-keys";
 export type SecretaryState =
   | "disabled"
   | "idle"
+  | "waiting"
   | "waiting_for_agent"
   | "processing"
   | "error";
@@ -26,6 +27,8 @@ export type SecretaryBlockedReason =
   | "execution_failed"
   | "canceled"
   | "retry_required"
+  | "connection_backoff"
+  | "connection_retries_exhausted"
   | "retry_exhausted"
   | "execution_canceled";
 export type SecretarySettings = {
@@ -103,6 +106,7 @@ export function useUpdateSecretarySettings(userId: string) {
       }),
     onSuccess: (data) => {
       client.setQueryData(secretaryKeys.settings(userId), data);
+      void client.invalidateQueries({ queryKey: ["secretary-tasks", userId] });
     },
     onError: () => {
       // A lost response may follow a committed write; reload persisted state.
@@ -130,6 +134,7 @@ export function useRunSecretaryNow(userId: string) {
       }),
     onSuccess: (data) => {
       client.setQueryData(secretaryKeys.settings(userId), data);
+      void client.invalidateQueries({ queryKey: ["secretary-tasks", userId] });
     },
     onError: () => {
       void client.invalidateQueries({

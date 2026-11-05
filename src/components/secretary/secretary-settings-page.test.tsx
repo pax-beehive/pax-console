@@ -22,6 +22,14 @@ import {
 import { SecretarySettingsPanel } from "./secretary-settings-page";
 import { useSecretaryProgress } from "@/features/api/secretary-progress";
 
+vi.mock("./secretary-tasks", () => ({
+  SecretaryTaskList: ({ enabled }: { enabled: boolean }) => (
+    <section aria-label="Secretary tasks">
+      {enabled ? "Task controls enabled" : "Task controls paused"}
+    </section>
+  ),
+}));
+
 vi.mock("@/features/api/resources", () => ({ useAgents: vi.fn() }));
 vi.mock("@/features/api/secretary-progress", () => ({
   useSecretaryProgress: vi.fn(),
@@ -165,6 +173,55 @@ afterEach(() => {
 });
 
 describe("Secretary settings", () => {
+  it("explains connection backoff as automatic waiting without exposing a raw failure", () => {
+    setSettings(
+      settingsState({
+        ...configured,
+        state: "waiting",
+        execution_state: "waiting",
+        blocked_reason: "connection_backoff",
+        last_error: "raw private tunnel failure",
+      }),
+    );
+    setup();
+    const status = screen.getByRole("region", { name: "Secretary status" });
+    expect(status).toHaveTextContent("Waiting to reconnect");
+    expect(status).toHaveTextContent("Secretary will retry automatically");
+    expect(status).not.toHaveTextContent("raw private tunnel failure");
+    expect(status).not.toHaveTextContent("Attempt in progress");
+    expect(status).not.toHaveTextContent("source session to finish");
+  });
+  it("offers a manual retry after connection retries are exhausted", () => {
+    const run = mutationState();
+    setRun(run);
+    setSettings(
+      settingsState({
+        ...configured,
+        state: "error",
+        execution_state: "blocked",
+        blocked_reason: "connection_retries_exhausted",
+        last_error: "raw private tunnel failure",
+      }),
+    );
+    setup();
+    const status = screen.getByRole("region", { name: "Secretary status" });
+    expect(status).toHaveTextContent("Connection retries exhausted");
+    expect(status).toHaveTextContent(
+      "could not connect after automatic retries",
+    );
+    expect(status).not.toHaveTextContent("raw private tunnel failure");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Bulk retry unpaused tasks" }),
+    );
+    expect(run.mutate).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      "duplicate work and model charges",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Retry unpaused tasks" }),
+    );
+    expect(run.mutate).toHaveBeenCalledOnce();
+  });
   it.each([
     [
       "unknown",
@@ -308,7 +365,7 @@ describe("Secretary settings", () => {
       screen.getByRole("button", { name: "Save settings" }),
     ).toBeDisabled();
     expect(
-      screen.queryByRole("button", { name: "Run now" }),
+      screen.queryByRole("button", { name: "Bulk retry unpaused tasks" }),
     ).not.toBeInTheDocument();
     expect(mutation.mutate).not.toHaveBeenCalled();
   });
@@ -465,7 +522,7 @@ describe("Secretary settings", () => {
       screen.getByRole("button", { name: "Save settings" }),
     ).toBeDisabled();
     expect(
-      screen.queryByRole("button", { name: "Run now" }),
+      screen.queryByRole("button", { name: "Bulk retry unpaused tasks" }),
     ).not.toBeInTheDocument();
   });
   it("retains saved state and the editable draft when saving fails", () => {
@@ -551,7 +608,9 @@ describe("Secretary settings", () => {
       "Other conversations are still being processed",
     );
     expect(within(status).queryByText(/x{30}/)).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Run now" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Bulk retry unpaused tasks" }),
+    ).toBeDisabled();
   });
   it("bounds the safe error text when processing has stopped", () => {
     setSettings(
@@ -564,18 +623,28 @@ describe("Secretary settings", () => {
     setup();
     const status = screen.getByRole("region", { name: "Secretary status" });
     expect(within(status).getByText(/x{30}/).textContent).toHaveLength(400);
-    expect(screen.getByRole("button", { name: "Retry run" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Bulk retry unpaused tasks" }),
+    ).toBeEnabled();
   });
   it("requests and retries work only when the persisted settings allow it", () => {
     setSettings(settingsState(configured));
     const mutation = mutationState();
     setRun(mutation);
     const view = setup();
-    fireEvent.click(screen.getByRole("button", { name: "Run now" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Bulk retry unpaused tasks" }),
+    );
+    expect(mutation.mutate).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Retry unpaused tasks" }),
+    );
     expect(mutation.mutate).toHaveBeenCalledOnce();
     setSettings(settingsState({ ...configured, state: "error" }));
     view.rerender(<SecretarySettingsPanel userId="owner" />);
-    expect(screen.getByRole("button", { name: "Retry run" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Bulk retry unpaused tasks" }),
+    ).toBeEnabled();
     setSettings(
       settingsState({
         ...configured,
@@ -584,7 +653,9 @@ describe("Secretary settings", () => {
       }),
     );
     view.rerender(<SecretarySettingsPanel userId="owner" />);
-    expect(screen.getByRole("button", { name: "Run now" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Bulk retry unpaused tasks" }),
+    ).toBeDisabled();
     expect(
       screen.getByText(/A run will wait until the selected agent reconnects/),
     ).toBeInTheDocument();
