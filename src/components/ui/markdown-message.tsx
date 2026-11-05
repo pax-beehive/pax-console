@@ -14,6 +14,7 @@ import {
 import { Check, Code2, Copy, Eye } from "lucide-react";
 import ReactMarkdown, { Components, defaultUrlTransform } from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
+import remarkCjkFriendly from "remark-cjk-friendly/parseOnly";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 import { isLocalFileHref } from "@/features/local-files/local-file-href";
@@ -193,7 +194,12 @@ const highlightedMarkdownPlugins: NonNullable<
 
 const markdownRemarkPlugins: NonNullable<
   ComponentProps<typeof ReactMarkdown>["remarkPlugins"]
-> = [[remarkGfm, { singleTilde: false }], remarkVisualizeFiles];
+> = [
+  [remarkGfm, { singleTilde: false }],
+  // CJK prose does not separate **（punctuation）** from adjacent words.
+  remarkCjkFriendly,
+  remarkVisualizeFiles,
+];
 
 let mermaidModulePromise: Promise<typeof import("mermaid").default> | undefined;
 

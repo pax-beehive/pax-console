@@ -6,6 +6,23 @@ import { describe, expect, it } from "vitest";
 import { normalizeHistoryMessages } from "./normalize-history-message";
 
 describe("history text continuation across configuration changes", () => {
+  it("keeps punctuation-ending strong emphasis when a settings change no longer separates the text", () => {
+    const events = normalizeHistoryMessages([
+      segment("first", "这是**说明：**", 10),
+      configRequest("reasoning", 11),
+      segment("second", "后文", 12),
+    ]);
+    const text = events.filter((event) => event.type === "agent_message");
+
+    expect(text).toHaveLength(1);
+    expect(text[0].content).toBe("这是**说明：**后文");
+    const html = renderToStaticMarkup(
+      createElement(MarkdownMessage, { content: text[0].content }),
+    );
+    expect(html).toMatch(/<strong\b[^>]*>说明：<\/strong>后文/);
+    expect(html).not.toContain("**");
+  });
+
   it.each([false, true])(
     "restores one Markdown answer across two settings changes (notification: %s)",
     (includeNotification) => {
