@@ -14,7 +14,7 @@ src/features/local-files/remark-visualize-files.ts  complete visualize blocks be
 src/features/local-files/local-file-link-context.ts LocalFileLinkContext
 src/features/local-files/local-file-fetch-store.ts  session-local "already fetched" map (Zustand)
 src/features/local-files/local-file-fetch-messages.ts denial / failure / HTTP error copy
-src/components/ui/local-file-link.tsx               link text + copy button
+src/components/ui/local-file-link.tsx               inline filename + copy-only path dialog
 src/components/local-files/local-file-fetch-provider.tsx  provider + fetch dialog
 src/components/artifacts/publication-artifact-viewer.tsx  shared publication viewer
 ```
@@ -58,6 +58,10 @@ Scenario Outline: href forms resolve to a clean absolute path
 Scenario: copy is always available
   Given a local file link is rendered anywhere (chat, artifact viewer, tool card, diff header)
   And the session may be E2EE, offline, or absent
+  Then the prose contains only the file label, without an inline copy control or reserved space
+  When I activate the filename
+  Then the session fetch dialog opens if fetching is enabled
+  And otherwise a copy-only dialog shows the full path and any disabled reason
   When I activate the "Copy path" button
   Then the clipboard contains only the absolute path, without "file://" or a line suffix
   And the icon shows a check for about 1.5 seconds
@@ -89,16 +93,18 @@ Scenario: unfinished or literal visualization reference
   Then the original text remains visible
   And it does not start a fetch
 
-Scenario: no session context keeps the link inert
+Scenario: no session context opens copy-only details
   Given a local file link without LocalFileLinkContext (for example the artifact viewer)
   When I click the link text
-  Then nothing opens
-  And the copy button still works
+  Then a dialog shows the full path and offers "Copy path"
+  And no network request is made
 
-Scenario: E2EE or offline sessions keep the link inert
+Scenario: E2EE or offline sessions open copy-only details
   Given the session is E2EE or its node is offline
-  Then the link text uses the dotted inert style and its tooltip explains why
-  And the copy button still works
+  Then the link text uses a dotted underline and its tooltip explains why
+  When I activate the filename
+  Then a dialog shows the full path, the disabled reason, and "Copy path"
+  And fetching remains unavailable without making a network request
 
 Scenario: allowed fetch
   Given a non-E2EE session whose node is online
