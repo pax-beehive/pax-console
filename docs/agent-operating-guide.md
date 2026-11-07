@@ -1,5 +1,7 @@
 # Agent Operating Guide
 
+External-session notices have a dismiss button. The dedicated Zustand session-notice store persists only dismissal choices, scoped by user, agent, and session in browser storage; hiding a notice never changes session source, sync policy, or runtime behavior. Other sessions and accounts retain their notices.
+
 ## WorkOS authentication
 
 Production login starts at `/auth/login`. The region-directory gateway (Worker or direct regional service) owns

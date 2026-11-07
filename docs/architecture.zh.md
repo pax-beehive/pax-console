@@ -1,5 +1,7 @@
 # PAX Console 代码结构与接入说明
 
+外部创建会话的提示条可以关闭。独立的 Zustand session-notice store 仅在浏览器中按用户、agent、session 保存隐藏选择；不保存正文或会话元数据，也不改变 source、同步策略或运行行为。其他会话和账号仍显示各自提示。
+
 ## Settings 设置工作区
 
 桌面 `/settings` 默认展示通知设置内容，使用专用侧栏与右侧内容区。

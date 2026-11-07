@@ -1,5 +1,6 @@
 "use client";
 
+import { ExternalSessionNotice } from "./external-session-notice";
 import { CronOriginBadge } from "@/components/sessions/cron-origin-badge";
 import { cronSessionOrigin } from "@/features/sessions/session-origin";
 import { stageEncryptedAttachment } from "@/features/e2ee/attachments";
@@ -2769,17 +2770,12 @@ export function SessionWorkbench({
           </div>
         </div>
 
-        {isExternallyCreatedSession && (
-          <div className="border-t border-warning/30 bg-warning/10 px-3 py-2 text-xs text-ink-muted sm:px-4">
-            <div className="mx-auto flex w-full max-w-4xl items-start gap-2">
-              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
-              <p>
-                This session was started outside Pax. You can continue chatting
-                here, but messages sent from Pax may not appear in the original
-                app.
-              </p>
-            </div>
-          </div>
+        {isExternallyCreatedSession && activeAgentId && currentSessionId && (
+          <ExternalSessionNotice
+            userId={user.user_id}
+            agentId={activeAgentId}
+            sessionId={currentSessionId}
+          />
         )}
 
         {encryptedRuntime.uploadProgress && (
