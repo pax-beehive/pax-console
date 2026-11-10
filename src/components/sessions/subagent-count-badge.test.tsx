@@ -27,9 +27,12 @@ describe("SubagentCountBadge", () => {
       </TooltipProvider>,
     );
 
+    expect(screen.getByLabelText("2 sub agent active")).toHaveTextContent(
+      "2 sub agent active",
+    );
     expect(
-      screen.getByRole("button", { name: "2 sub agent active" }),
-    ).toHaveTextContent("2 sub agent active");
+      screen.queryByRole("button", { name: "2 sub agent active" }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders nothing while no subagent runs", () => {
@@ -48,9 +51,7 @@ describe("SubagentCountBadge", () => {
         <SubagentCountBadge count={1} label="1 sub agent active" />
       </TooltipProvider>,
     );
-    expect(
-      screen.getByRole("button", { name: "1 sub agent active" }),
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText("1 sub agent active")).toBeInTheDocument();
 
     rerender(
       <TooltipProvider>
@@ -58,6 +59,6 @@ describe("SubagentCountBadge", () => {
       </TooltipProvider>,
     );
 
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/sub agent active/)).not.toBeInTheDocument();
   });
 });
