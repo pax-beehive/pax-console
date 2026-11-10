@@ -6,6 +6,7 @@ declare module "@novnc/novnc/lib/rfb" {
     viewOnly: boolean;
     qualityLevel: number;
     compressionLevel: number;
+    sendKey(keysym: number, code?: string | null, down?: boolean): void;
     disconnect(): void;
   }
 }

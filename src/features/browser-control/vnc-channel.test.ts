@@ -6,6 +6,80 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.mocked(browserControl).mockReset();
 });
+
+it("sends UTF-8 text once through the current control session and sequence fence", async () => {
+  vi.mocked(browserControl).mockResolvedValue({});
+  vi.mocked(browserControl).mockResolvedValueOnce({ id: "control" });
+  const channel = new VNCChannel("u", "n");
+  await channel.connect();
+  // connect already allocated sequence 0 to its first framebuffer exchange.
+  vi.mocked(browserControl).mockResolvedValueOnce({ ok: true });
+  await channel.sendText("aA!中文\n");
+  expect(browserControl).toHaveBeenCalledWith("u", "n", "view", {
+    source: "docker",
+    action: { type: "text", vncID: "control", seq: 1, text: "aA!中文\n" },
+  });
+  channel.close();
+});
+
+it("retires the connection after ambiguous text delivery instead of replaying it", async () => {
+  vi.mocked(browserControl).mockResolvedValue({});
+  vi.mocked(browserControl).mockResolvedValueOnce({ id: "text-failure" });
+  const channel = new VNCChannel("u", "n");
+  await channel.connect();
+  vi.mocked(browserControl).mockRejectedValueOnce(Error("network failure"));
+  await expect(channel.sendText("private text")).rejects.toThrow(
+    "inspect the remote field",
+  );
+  expect(channel.readyState).toBe(3);
+  await expect(channel.sendText("private text")).rejects.toThrow(
+    "disconnected",
+  );
+  expect(
+    vi.mocked(browserControl).mock.calls.filter((call) => call[2] === "view"),
+  ).toHaveLength(1);
+});
+
+it("delivers queued pointer input before dispatching a paste", async () => {
+  let acknowledge!: (value: object) => void;
+  vi.mocked(browserControl).mockResolvedValue({});
+  vi.mocked(browserControl)
+    .mockResolvedValueOnce({ id: "pointer-first" })
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          acknowledge = resolve;
+        }),
+    )
+    .mockResolvedValueOnce({ ok: true });
+  const channel = new VNCChannel("u", "n");
+  channel.onopen = () => channel.send(new Uint8Array([5, 1, 0, 1, 0, 1]));
+  await channel.connect();
+  const sending = channel.sendText("你好");
+  await Promise.resolve();
+  expect(
+    vi.mocked(browserControl).mock.calls.filter((call) => call[2] === "view"),
+  ).toHaveLength(0);
+  acknowledge({});
+  await sending;
+  expect(
+    vi.mocked(browserControl).mock.calls.filter((call) => call[2] === "view"),
+  ).toHaveLength(1);
+  channel.close();
+});
+
+it("keeps a sanitized upgrade reason visible after an unsupported text command", async () => {
+  vi.mocked(browserControl).mockResolvedValue({});
+  vi.mocked(browserControl).mockResolvedValueOnce({ id: "old-node" });
+  const channel = new VNCChannel("u", "n");
+  await channel.connect();
+  vi.mocked(browserControl).mockRejectedValueOnce(
+    Error("unsupported Docker preview action SECRET_SENTINEL"),
+  );
+  await expect(channel.sendText("private text")).rejects.toThrow();
+  expect(channel.failure).toContain("updated paxd and browser runtime");
+  expect(channel.failure).not.toContain("SECRET_SENTINEL");
+});
 it("copies input buffers and closes without replay after a failed exchange", async () => {
   vi.mocked(browserControl)
     .mockResolvedValueOnce({ id: "test", data: btoa("RFB 003.008\n") })
