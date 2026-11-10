@@ -2414,3 +2414,21 @@ Interactive connection clears stale modifiers; ordinary previews do not. Old
 nodes surface an update/reconnect error rather than falling back to Unicode
 keystrokes. Docker changes require image rebuild/recreation; reconnecting Native
 Chrome MCP does not update the Docker image.
+
+
+The Docker viewer offers Open in new page at `/nodes/{nodeId}/browser`, reusing
+AuthGate and node-scoped APIs without credentials in the URL. Navigation starts
+in preview; opening from an embedded viewer releases that viewer. The standalone
+page owns useConsoleViewport without the app sidebar or bottom navigation. Its
+remote desktop fits a bounded flex region; local text/toolbar scrolling stays
+separate. A bubble-phase, non-passive wheel guard on the interactive frame stops
+letterbox events from scrolling chat, while noVNC handles canvas wheel first.
+Only the interactive frame has touch-action:none; previews and text fields retain
+normal browser gestures. Text entry starts collapsed on the standalone page.
+
+The connection-time modifier reset emits only remote key-up events; it does not
+unify Mac/Windows layouts or toggle CapsLock. noVNC's platform handling remains
+responsible for direct keys and shortcuts. Phone users can watch preview without
+keyboard capture, use two-finger remote scrolling when controlling, and compose
+with their local soft keyboard through Type text. Mobile viewport/touch tests do
+not establish physical iOS/Android/Windows keyboard compatibility.

@@ -14,7 +14,13 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { NodeBrowserVNC } from "./node-browser-vnc";
 
 const mocks = vi.hoisted(() => ({
-  viewers: [] as Array<EventTarget & { sendKey: ReturnType<typeof vi.fn> }>,
+  viewers: [] as Array<
+    EventTarget & {
+      sendKey: ReturnType<typeof vi.fn>;
+      clipViewport?: boolean;
+      scaleViewport?: boolean;
+    }
+  >,
   channels: [] as Array<{
     readyState: number;
     sendText: ReturnType<typeof vi.fn>;
@@ -207,4 +213,73 @@ it("retains oversized drafts for editing instead of truncating or sending them",
   expect(screen.getByText(/Text exceeds 2,000 characters/)).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "Send text" }));
   expect(channel.sendText).not.toHaveBeenCalled();
+});
+
+it("opens the same node in a separate page and releases embedded control", async () => {
+  const { user, channel } = await connect();
+  const link = screen.getByRole("link", { name: "Open in new page" });
+  expect(link).toHaveAttribute("href", "/nodes/n/browser");
+  expect(link).toHaveAttribute("target", "_blank");
+  expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  link.addEventListener("click", (event) => event.preventDefault());
+  await user.click(link);
+  expect(channel.readyState).toBe(3);
+  expect(screen.getByRole("button", { name: "Take control" })).toBeVisible();
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+});
+
+it("contains desktop wheel events without blocking the canvas handler or local controls", async () => {
+  const { view } = await connect();
+  const host = screen.getByRole("region", { name: "Remote Docker desktop" });
+  const surrounding = vi.fn();
+  view.container.addEventListener("wheel", surrounding);
+  const canvas = document.createElement("canvas");
+  host.appendChild(canvas);
+  const remoteWheel = vi.fn();
+  canvas.addEventListener("wheel", remoteWheel);
+  const event = new WheelEvent("wheel", {
+    bubbles: true,
+    cancelable: true,
+    deltaY: 80,
+  });
+  fireEvent(canvas, event);
+  expect(remoteWheel).toHaveBeenCalledOnce();
+  expect(event.defaultPrevented).toBe(true);
+  expect(surrounding).not.toHaveBeenCalled();
+  const local = new WheelEvent("wheel", {
+    bubbles: true,
+    cancelable: true,
+    deltaY: 80,
+  });
+  fireEvent(screen.getByRole("textbox"), local);
+  expect(local.defaultPrevented).toBe(false);
+  expect(surrounding).toHaveBeenCalledOnce();
+  view.unmount();
+  const detached = new WheelEvent("wheel", { cancelable: true });
+  host.dispatchEvent(detached);
+  expect(detached.defaultPrevented).toBe(false);
+});
+
+it("starts the full page in preview and exposes phone text input only on request", async () => {
+  const user = userEvent.setup();
+  render(
+    <TooltipProvider>
+      <NodeBrowserVNC userId="u" nodeId="n" layout="page" />
+    </TooltipProvider>,
+  );
+  expect(mocks.viewers).toHaveLength(0);
+  expect(
+    screen.queryByRole("link", { name: "Open in new page" }),
+  ).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Take control" }));
+  await waitFor(() => expect(mocks.viewers).toHaveLength(1));
+  act(() => mocks.viewers[0].dispatchEvent(new Event("connect")));
+  expect(mocks.viewers[0].scaleViewport).toBe(true);
+  expect(mocks.viewers[0].clipViewport).toBe(true);
+  expect(screen.getByRole("textbox")).not.toBeVisible();
+  await user.click(screen.getByText("Type text with your keyboard"));
+  expect(
+    screen.getByRole("textbox", { name: "Text for remote desktop" }),
+  ).toBeVisible();
+  expect(screen.getByText(/two fingers/)).toBeVisible();
 });
