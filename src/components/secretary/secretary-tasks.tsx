@@ -65,6 +65,8 @@ function outcomeText(outcome?: string) {
       return "The existing result is still unknown. No new model request was sent.";
     case "result_invalid":
       return "The existing result could not be published. No new model request was sent.";
+    case "result_failed":
+      return "The existing execution was confirmed as failed. No new model request was sent by this check. Future retries follow the task's retry limit.";
     case "output_saved":
       return "Existing output is saved and awaiting publication. No new model request was sent.";
     case "queued":
