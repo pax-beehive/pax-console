@@ -758,10 +758,15 @@ Local file links（本地文件链接）
   行为场景见 docs/local-file-links.md。
 
   Complete standalone `visualize` references also become LocalFileLink nodes
-  through `remark-visualize-files.ts`. The Markdown transform consumes a valid
+  through `remark-local-file-references.ts`. The Markdown transform consumes a valid
   local `path` only after the closing U+E201 arrives; the optional `mode` does
   not change the existing fetch dialog. Streaming fragments and code examples
   remain literal text. Rendering never starts a fetch or adds history messages.
+  Complete `:codex-file-citation{path="..." ...}` directives use the same file-link
+  flow, both standalone and inline. Only the local path determines the target;
+  artifact kind, purpose, sheet/range, and page fields do not execute any action.
+  Incomplete/malformed directives, code examples, escaped text, and link labels
+  remain literal; existing Markdown formatting is preserved.
 
 Artifact publications
   Session timeline 识别 `message_type = "pax:artifact"`，从
@@ -2414,7 +2419,6 @@ Interactive connection clears stale modifiers; ordinary previews do not. Old
 nodes surface an update/reconnect error rather than falling back to Unicode
 keystrokes. Docker changes require image rebuild/recreation; reconnecting Native
 Chrome MCP does not update the Docker image.
-
 
 The Docker viewer offers Open in new page at `/nodes/{nodeId}/browser`, reusing
 AuthGate and node-scoped APIs without credentials in the URL. Navigation starts

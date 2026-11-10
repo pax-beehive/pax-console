@@ -10,7 +10,7 @@ Code map:
 
 ```txt
 src/features/local-files/local-file-href.ts        parseLocalFileHref / isLocalFileHref
-src/features/local-files/remark-visualize-files.ts  complete visualize blocks become local-file links
+src/features/local-files/remark-local-file-references.ts  complete visualize/Codex references become file links
 src/features/local-files/local-file-link-context.ts LocalFileLinkContext
 src/features/local-files/local-file-fetch-store.ts  session-local "already fetched" map (Zustand)
 src/features/local-files/local-file-fetch-messages.ts denial / failure / HTTP error copy
@@ -75,6 +75,19 @@ Scenario: the real path is discoverable
 ## Feature: fetch a local file from the node
 
 ```gherkin
+Scenario: Codex file citation
+  Given an agent reply contains :codex-file-citation{path="/Users/me/report.xlsx" artifact_kind="workbook" purpose="output"}
+  When the complete directive including its closing brace arrives
+  Then it becomes a local-file link showing "report.xlsx"
+  And standalone and inline citations use the existing manual check/fetch flow
+  And sheet/range/page metadata does not trigger any upload, execution, or navigation
+  And surrounding emphasis, tables, and lists are preserved
+
+Scenario: incomplete or literal Codex citation
+  Given a citation is incomplete, malformed, non-local, escaped, or inside code or another link
+  Then the original Markdown stays literal
+  And no fetch starts on render
+
 Scenario: complete visualization reference
   Given an agent reply contains a standalone visualize block with a local path
   When the closing U+E201 marker arrives

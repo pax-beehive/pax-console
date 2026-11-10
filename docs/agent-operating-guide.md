@@ -901,6 +901,11 @@ Collaboration and knowledge resources are normal user-scoped REST resources:
   both `{path}` and `{path, mode: "wide"}` payloads are accepted. Incomplete
   streaming output and code examples remain text. Missing/invalid paths are not
   converted. No publication, upload, or visualization execution starts on render.
+  `remark-local-file-references.ts` also converts complete Codex file citations
+  (`:codex-file-citation{path="..." ...}`) into the same manual file links. These
+  may be standalone or inline. Code/link examples, escaped markers, unfinished
+  directives, and invalid/non-local paths remain literal. Citation metadata
+  (kind/purpose/sheet/range/page) does not change the fetch target or start work.
 
 /artifact-uploads, /artifacts, and /sessions/{session_id}/artifacts
   The Session Artifacts panel reads artifacts through TanStack Query and lets
@@ -2755,7 +2760,6 @@ Interactive connection clears stale modifiers; ordinary previews do not. Old
 nodes surface an update/reconnect error rather than falling back to Unicode
 keystrokes. Docker changes require image rebuild/recreation; reconnecting Native
 Chrome MCP does not update the Docker image.
-
 
 The Docker viewer offers Open in new page at `/nodes/{nodeId}/browser`, reusing
 AuthGate and node-scoped APIs without credentials in the URL. Navigation starts
