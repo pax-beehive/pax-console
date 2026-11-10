@@ -11,6 +11,7 @@ import {
   toolCallMayEditFiles,
 } from "./tool-patches";
 import { extractToolCallOutputUpdate } from "./tool-call-output";
+import { codexSubagentActivity } from "./subagent-lifecycle";
 
 type TunnelFrame = {
   id?: string | number;
@@ -262,6 +263,9 @@ function normalizeToolCall(
   );
   const status = normalizeToolStatus(frame.status);
   const toolCallId = toolCallIdFromFrame(frame);
+  const codexSubagent = codexSubagentActivity(
+    asRecord(valueFrom(frame, "rawInput")) ?? valueFrom(frame, "raw_input"),
+  );
   const event: Extract<SessionEvent, { type: "tool_call" }> = {
     type: "tool_call",
     id,
@@ -281,6 +285,7 @@ function normalizeToolCall(
       ? { contextCompaction: true }
       : {}),
     ...subagentFields(frame),
+    ...(codexSubagent ? { codexSubagent } : {}),
     createdAt,
   };
 

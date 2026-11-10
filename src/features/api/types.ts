@@ -393,6 +393,11 @@ export type HistoryMessage = {
       description?: string;
       agent_type?: string;
     };
+    codex_subagent?: {
+      thread_id: string;
+      activity_kind: "started" | "interacted" | "completed" | "interrupted";
+      agent_path?: string;
+    };
     parent_tool_call_id?: string;
   };
   id?: number;

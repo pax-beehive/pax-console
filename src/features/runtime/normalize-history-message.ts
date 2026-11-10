@@ -7,7 +7,10 @@ import {
 } from "./invocation-display";
 import { normalizeTunnelFrame } from "./normalize-tunnel-frame";
 import { SessionEvent, type SessionMessageAttachment } from "./session-events";
-import { isSubagentCompletion } from "./subagent-lifecycle";
+import {
+  codexSubagentActivity,
+  isSubagentCompletion,
+} from "./subagent-lifecycle";
 
 export function normalizeHistoryMessages(
   messages: HistoryMessage[],
@@ -323,6 +326,13 @@ function normalizeHistoryMessageWithoutTurn(
   const id = message.message_id ?? String(message.id ?? crypto.randomUUID());
   if (message.tool) {
     const tool = message.tool;
+    const codexSubagent = tool.codex_subagent
+      ? codexSubagentActivity({
+          agentThreadId: tool.codex_subagent.thread_id,
+          activityKind: tool.codex_subagent.activity_kind,
+          agentPath: tool.codex_subagent.agent_path,
+        })
+      : undefined;
     return [
       {
         type: "tool_call",
@@ -333,6 +343,7 @@ function normalizeHistoryMessageWithoutTurn(
         name: tool.title || tool.tool_call_id || "Tool",
         status: historyToolStatus(tool.status || message.status),
         ...(tool.context_compaction ? { contextCompaction: true } : {}),
+        ...(codexSubagent ? { codexSubagent } : {}),
         ...(tool.subagent
           ? {
               subagent: {
