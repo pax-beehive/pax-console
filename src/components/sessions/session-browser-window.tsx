@@ -140,7 +140,7 @@ export function SessionBrowserWindow({
           Docker desktop
         </Button>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto p-3">
+      <div className="min-h-0 flex-1 overflow-auto overscroll-contain p-3">
         {source === "native" ? (
           <NodeBrowserViewer
             key={`${userId}/${nodeId}`}

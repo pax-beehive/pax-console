@@ -2390,3 +2390,45 @@ Zustand 或浏览器存储。列表、详情或嵌套原文读取返回 401/403 
 `SummaryContent` 和 `SearchSourcePanel`，展示正文、claims、冻结 coverage 和下层
 总结版本，并保留消息 hash。Raw JSON 直接呈现 Manager 返回的数据，以 React 文本
 节点渲染，不解释 HTML。页面只读，不触发总结生成或修改 Secretary 配置。
+
+## Docker desktop keyboard and local input methods
+
+Docker takeover keeps the noVNC canvas for direct keys, shortcuts and pointer
+input. A local text field supports browser/OS composition: candidate updates stay
+local; Send text transmits the exact UTF-8 string through a transient Docker view
+text command. It does not convert Unicode to X11 keycodes or simulated IME keys.
+Newlines and tabs are pasted as text, not Enter/Tab key actions. The 2000-character
+draft lives only in component state, is consumed before sending and removed on
+disconnect/unmount. A pending send disables edits and duplicate submission.
+
+VNCChannel drains earlier pointer/focus input before the paste. The text command
+shares the active VNC connection's owner and sequence fence; an ambiguous failure
+closes the stream without replay. Text never enters ACP history or persistent
+client state. The fixed Docker helper owns a temporary UTF-8 clipboard, checks
+remote window focus, dispatches one paste and releases clipboard ownership.
+A transport ACK does not prove the target webpage accepted the value.
+
+Deploy Console, paxd and the Docker runtime together. The runtime uses client-side
+lock-key state (-skip_lockkeys), startup/exit key clearing, UTF-8 and CJK fonts.
+Interactive connection clears stale modifiers; ordinary previews do not. Old
+nodes surface an update/reconnect error rather than falling back to Unicode
+keystrokes. Docker changes require image rebuild/recreation; reconnecting Native
+Chrome MCP does not update the Docker image.
+
+
+The Docker viewer offers Open in new page at `/nodes/{nodeId}/browser`, reusing
+AuthGate and node-scoped APIs without credentials in the URL. Navigation starts
+in preview; opening from an embedded viewer releases that viewer. The standalone
+page owns useConsoleViewport without the app sidebar or bottom navigation. Its
+remote desktop fits a bounded flex region; local text/toolbar scrolling stays
+separate. A bubble-phase, non-passive wheel guard on the interactive frame stops
+letterbox events from scrolling chat, while noVNC handles canvas wheel first.
+Only the interactive frame has touch-action:none; previews and text fields retain
+normal browser gestures. Text entry starts collapsed on the standalone page.
+
+The connection-time modifier reset emits only remote key-up events; it does not
+unify Mac/Windows layouts or toggle CapsLock. noVNC's platform handling remains
+responsible for direct keys and shortcuts. Phone users can watch preview without
+keyboard capture, use two-finger remote scrolling when controlling, and compose
+with their local soft keyboard through Type text. Mobile viewport/touch tests do
+not establish physical iOS/Android/Windows keyboard compatibility.

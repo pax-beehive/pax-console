@@ -21,6 +21,13 @@ export class VNCChannel {
   private id = "";
   private seq = 0;
   private outgoing: number[] = [];
+  private queuedBytes = 0;
+  private acknowledgedBytes = 0;
+  private flushWaiters: {
+    target: number;
+    resolve: () => void;
+    reject: (error: Error) => void;
+  }[] = [];
   private timer?: ReturnType<typeof setTimeout>;
   constructor(
     private userId: string,
@@ -59,12 +66,65 @@ export class VNCChannel {
     }
     // Copy immediately; noVNC reuses its send buffer after this call.
     for (const byte of data) this.outgoing.push(byte);
+    this.queuedBytes += data.byteLength;
+  }
+  private flush(): Promise<void> {
+    if (this.readyState !== 1)
+      return Promise.reject(Error("VNC connection closed"));
+    if (this.acknowledgedBytes >= this.queuedBytes) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      this.flushWaiters.push({ target: this.queuedBytes, resolve, reject });
+    });
+  }
+  async sendText(text: string): Promise<void> {
+    if (this.readyState !== 1 || !this.id)
+      throw Error("Remote desktop is disconnected");
+    if (!text || Array.from(text).length > 2000 || text.includes("\0"))
+      throw Error("Invalid remote desktop text");
+    const id = this.id;
+    try {
+      // Preserve earlier remote click/focus events before dispatching a paste.
+      await this.flush();
+      if (this.readyState !== 1 || this.id !== id)
+        throw Error("VNC connection closed");
+      const result = await browserControl<{ ok?: boolean }>(
+        this.userId,
+        this.nodeId,
+        "view",
+        {
+          source: "docker",
+          action: { type: "text", vncID: id, seq: this.seq++, text },
+        },
+      );
+      if (result.ok !== true || this.readyState !== 1 || this.id !== id)
+        throw Error("Text delivery could not be confirmed");
+    } catch (error) {
+      // Any ambiguous text command retires the stream and its sequence fence.
+      const upgrade =
+        error instanceof Error &&
+        /unsupported|not supported|update.*runtime/i.test(error.message);
+      this.recordFailure(
+        Error(
+          upgrade
+            ? "Docker text input needs updated paxd and browser runtime; inspect the remote field, update and reconnect"
+            : "Text delivery could not be confirmed; inspect the remote field before sending again",
+        ),
+        "text",
+      );
+      this.close();
+      throw Error(
+        "Text delivery was interrupted; inspect the remote field before sending again",
+      );
+    }
   }
   close() {
     if (this.readyState === 3) return;
     this.readyState = 3;
     clearTimeout(this.timer);
     this.outgoing = [];
+    for (const waiter of this.flushWaiters)
+      waiter.reject(Error("VNC connection closed"));
+    this.flushWaiters = [];
     this.drop();
     this.onclose?.({ code: 1000, reason: "Viewer closed", wasClean: true });
   }
@@ -98,6 +158,13 @@ export class VNCChannel {
         },
       );
       this.deliver(response.data);
+      if (this.readyState !== 1) return;
+      this.acknowledgedBytes += data.length;
+      this.flushWaiters = this.flushWaiters.filter((waiter) => {
+        if (waiter.target > this.acknowledgedBytes) return true;
+        waiter.resolve();
+        return false;
+      });
       if (this.readyState === 1)
         this.timer = setTimeout(
           () => void this.exchange(),
