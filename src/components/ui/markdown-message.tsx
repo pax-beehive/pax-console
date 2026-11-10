@@ -18,7 +18,7 @@ import remarkCjkFriendly from "remark-cjk-friendly/parseOnly";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 import { isLocalFileHref } from "@/features/local-files/local-file-href";
-import { remarkVisualizeFiles } from "@/features/local-files/remark-visualize-files";
+import { remarkLocalFileReferences } from "@/features/local-files/remark-local-file-references";
 import { normalizeStreamingMarkdown } from "@/lib/streaming-markdown";
 import { LocalFileLink } from "./local-file-link";
 
@@ -198,7 +198,7 @@ const markdownRemarkPlugins: NonNullable<
   [remarkGfm, { singleTilde: false }],
   // CJK prose does not separate **（punctuation）** from adjacent words.
   remarkCjkFriendly,
-  remarkVisualizeFiles,
+  remarkLocalFileReferences,
 ];
 
 let mermaidModulePromise: Promise<typeof import("mermaid").default> | undefined;
