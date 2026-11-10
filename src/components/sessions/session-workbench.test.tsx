@@ -15,6 +15,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { queryKeys } from "@/features/api/query-keys";
 import type { AgentSession, HistoryMessage } from "@/features/api/types";
 import { ApiError, AuthError } from "@/features/api/errors";
+import { mergeEvents } from "@/features/runtime/merge-session-events";
+import { normalizeTunnelFrame } from "@/features/runtime/normalize-tunnel-frame";
+import type { SessionEvent } from "@/features/runtime/session-events";
 import type { ConversationRunStatus } from "@/features/runtime/use-conversation-run";
 import { useConsoleStore } from "@/stores/console-store";
 import { SessionWorkbench } from "./session-workbench";
@@ -35,8 +38,11 @@ const fixtures = vi.hoisted(() => ({
   steerTurn: vi.fn().mockResolvedValue(undefined),
   observe: vi.fn(),
   emptyEvents: [],
+  conversationEvents: [] as SessionEvent[],
   emptyQuery: { data: undefined, refetch: vi.fn() },
   history: [] as HistoryMessage[],
+  calibratedTurnIds: [] as string[],
+  refetchHistory: vi.fn().mockResolvedValue(undefined),
   readSource: vi.fn(),
   readHistory: vi.fn(),
   metadataError: null as Error | null,
@@ -56,6 +62,7 @@ vi.mock("@/features/api/resources", async (importOriginal) => ({
   useSessionConfiguration: () => fixtures.emptyQuery,
   useSessionHistory: () => ({
     ...fixtures.emptyQuery,
+    refetch: fixtures.refetchHistory,
     isSuccess: !fixtures.historyError,
     error: fixtures.historyError,
     data: { pages: [{ messages: fixtures.history }] },
@@ -76,7 +83,7 @@ vi.mock("@/features/api/workspace-search", async (importOriginal) => ({
 vi.mock("@/features/runtime/use-conversation-run", () => ({
   useConversationRun: () => ({
     status: fixtures.localStatus,
-    events: fixtures.emptyEvents,
+    events: fixtures.conversationEvents,
     sendMessage: fixtures.sendMessage,
     completedTurnVersion: 0,
   }),
@@ -90,7 +97,7 @@ vi.mock("@/features/runtime/session-observer", () => ({
 vi.mock("@/features/runtime/use-session-history-sync", () => ({
   useSessionHistorySync: () => ({
     messages: fixtures.history,
-    calibratedTurnIds: fixtures.emptyEvents,
+    calibratedTurnIds: fixtures.calibratedTurnIds,
     snapshotTurnIds: fixtures.emptyEvents,
     calibrate: vi.fn(),
   }),
@@ -129,7 +136,10 @@ beforeEach(() => {
   };
   fixtures.localStatus = "idle";
   fixtures.encryptedStatus = "idle";
+  fixtures.conversationEvents = [];
   fixtures.history = [];
+  fixtures.calibratedTurnIds = [];
+  fixtures.refetchHistory.mockClear();
   fixtures.metadataError = null;
   fixtures.historyError = null;
   fixtures.readSource.mockReset();
@@ -161,6 +171,252 @@ function workbench(targetMessageId?: string) {
     </QueryClientProvider>
   );
 }
+
+describe("Codex subagent status in the session workbench", () => {
+  function activity(
+    activityKind: "started" | "completed",
+    toolCallId: string,
+    turnId: string,
+    createdAt: string,
+  ): SessionEvent[] {
+    return normalizeTunnelFrame(
+      {
+        jsonrpc: "2.0",
+        method: "session/update",
+        params: {
+          sessionId: "sess_1",
+          update: {
+            sessionUpdate: "tool_call",
+            toolCallId,
+            title: `${activityKind} subagent worker`,
+            kind: "other",
+            status: "in_progress",
+            rawInput: {
+              activityKind,
+              agentThreadId: "child_1",
+              agentPath: "/root/worker",
+            },
+          },
+        },
+      },
+      { createdAt },
+    ).map((event) => ({ ...event, turnId }));
+  }
+
+  it.each([
+    { localStatus: "idle", mainLabel: "Ready for a prompt", mainText: "idle" },
+    { localStatus: "done", mainLabel: "Run completed", mainText: "done" },
+  ] as const)(
+    "keeps a child active after its start tool completes while the main run is $mainText",
+    ({ localStatus, mainLabel, mainText }) => {
+      fixtures.session = { ...fixtures.session, runtime_status: "idle" };
+      fixtures.localStatus = localStatus;
+      const view = render(workbench());
+      const mainBadges = screen.getAllByLabelText(mainLabel);
+      expect(mainBadges.length).toBeGreaterThan(0);
+      expect(screen.getByRole("button", { name: "Send prompt" })).toBeEnabled();
+
+      fixtures.conversationEvents = mergeEvents([
+        ...activity("started", "start_1", "turn_1", "2026-11-09T12:00:00Z"),
+        ...normalizeTunnelFrame(
+          {
+            jsonrpc: "2.0",
+            method: "session/update",
+            params: {
+              sessionId: "sess_1",
+              update: {
+                sessionUpdate: "tool_call_update",
+                toolCallId: "start_1",
+                status: "completed",
+              },
+            },
+          },
+          { createdAt: "2026-11-09T12:00:01Z" },
+        ).map((event) => ({ ...event, turnId: "turn_1" })),
+      ]);
+      view.rerender(workbench());
+
+      expect(
+        screen.getByRole("button", { name: "1 sub agent active" }),
+      ).toHaveTextContent("1 sub agent active");
+      expect(screen.getAllByLabelText(mainLabel)).toHaveLength(
+        mainBadges.length,
+      );
+      for (const badge of screen.getAllByLabelText(mainLabel)) {
+        expect(badge).toHaveTextContent(mainText);
+      }
+      expect(
+        screen.queryByLabelText("Agent is responding"),
+      ).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Send prompt" })).toBeEnabled();
+      expect(
+        screen.queryByRole("button", { name: "Queue after current turn" }),
+      ).not.toBeInTheDocument();
+
+      // A child completion can arrive in a later turn than the launch.
+      fixtures.conversationEvents = mergeEvents([
+        ...fixtures.conversationEvents,
+        ...activity("completed", "finish_1", "turn_2", "2026-11-09T12:00:02Z"),
+      ]);
+      view.rerender(workbench());
+
+      expect(
+        screen.queryByRole("button", { name: "1 sub agent active" }),
+      ).not.toBeInTheDocument();
+      expect(screen.getAllByLabelText(mainLabel)).toHaveLength(
+        mainBadges.length,
+      );
+      for (const badge of screen.getAllByLabelText(mainLabel)) {
+        expect(badge).toHaveTextContent(mainText);
+      }
+      expect(screen.getByRole("button", { name: "Send prompt" })).toBeEnabled();
+    },
+  );
+
+  it("restores compact child activity history without changing the idle main status", () => {
+    fixtures.session = { ...fixtures.session, runtime_status: "idle" };
+    fixtures.history = [
+      {
+        message_id: "history_start_1",
+        session_id: "sess_1",
+        session_seq: 1,
+        turn_id: "turn_1",
+        message_type: "tool_call",
+        created_at: "2026-11-09T12:00:00Z",
+        has_detail: true,
+        tool: {
+          tool_call_id: "start_1",
+          title: "Start subagent worker",
+          status: "completed",
+          codex_subagent: {
+            thread_id: "child_1",
+            activity_kind: "started",
+            agent_path: "/root/worker",
+          },
+        },
+      },
+    ];
+    render(workbench());
+
+    expect(
+      screen.getByRole("button", { name: "1 sub agent active" }),
+    ).toHaveTextContent("1 sub agent active");
+    expect(
+      screen.getAllByLabelText("Ready for a prompt").length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.queryByLabelText("Agent is responding"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send prompt" })).toBeEnabled();
+  });
+
+  it("applies a late child completion even after its main turn has been calibrated into history", () => {
+    fixtures.session = { ...fixtures.session, runtime_status: "idle" };
+    fixtures.calibratedTurnIds = ["turn_1"];
+    fixtures.history = [
+      {
+        message_id: "history_start_1",
+        session_id: "sess_1",
+        session_seq: 1,
+        turn_id: "turn_1",
+        message_type: "tool_call",
+        created_at: "2026-11-09T12:00:00Z",
+        has_detail: true,
+        tool: {
+          tool_call_id: "start_1",
+          title: "Start subagent worker",
+          status: "completed",
+          codex_subagent: {
+            thread_id: "child_1",
+            activity_kind: "started",
+            agent_path: "/root/worker",
+          },
+        },
+      },
+      {
+        message_id: "main_turn_done",
+        session_id: "sess_1",
+        session_seq: 2,
+        turn_id: "turn_1",
+        message_type: "turn_done",
+        created_at: "2026-11-09T12:00:01Z",
+      },
+    ];
+    const view = render(workbench());
+    expect(
+      screen.getByRole("button", { name: "1 sub agent active" }),
+    ).toBeInTheDocument();
+
+    fixtures.conversationEvents = activity(
+      "completed",
+      "finish_1",
+      "turn_1",
+      "2026-11-09T12:00:02Z",
+    );
+    view.rerender(workbench());
+
+    expect(
+      screen.queryByRole("button", { name: "1 sub agent active" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getAllByLabelText("Ready for a prompt").length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Send prompt" })).toBeEnabled();
+  });
+
+  it("refreshes late lifecycle history only while a child remains active", async () => {
+    vi.useFakeTimers();
+    const visibility = vi
+      .spyOn(document, "visibilityState", "get")
+      .mockReturnValue("visible");
+    const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+    try {
+      fixtures.session = { ...fixtures.session, runtime_status: "idle" };
+      const view = render(workbench());
+      await act(async () => {
+        vi.advanceTimersByTime(6_000);
+      });
+      expect(fixtures.refetchHistory).not.toHaveBeenCalled();
+
+      fixtures.conversationEvents = activity(
+        "started",
+        "start_1",
+        "turn_1",
+        "2026-11-09T12:00:00Z",
+      );
+      view.rerender(workbench());
+      await act(async () => {
+        vi.advanceTimersByTime(3_000);
+      });
+      expect(fixtures.refetchHistory).toHaveBeenCalled();
+      expect(screen.getByRole("button", { name: "Send prompt" })).toBeEnabled();
+      expect(fixtures.observe).toHaveBeenLastCalledWith(
+        expect.objectContaining({ enabled: false }),
+      );
+
+      fixtures.conversationEvents = mergeEvents([
+        ...fixtures.conversationEvents,
+        ...activity("completed", "finish_1", "turn_2", "2026-11-09T12:00:02Z"),
+      ]);
+      view.rerender(workbench());
+      const refetchesAfterCompletion =
+        fixtures.refetchHistory.mock.calls.length;
+      await act(async () => {
+        vi.advanceTimersByTime(6_000);
+      });
+      expect(fixtures.refetchHistory).toHaveBeenCalledTimes(
+        refetchesAfterCompletion,
+      );
+      expect(
+        screen.getAllByLabelText("Ready for a prompt").length,
+      ).toBeGreaterThan(0);
+    } finally {
+      visibility.mockRestore();
+      online.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+});
 
 describe("Search message navigation in the session workbench", () => {
   function historyMessage(
@@ -281,7 +537,7 @@ describe("Search message navigation in the session workbench", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText("Finding message…")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Retry message" }));
-    expect(fixtures.emptyQuery.refetch).toHaveBeenCalled();
+    expect(fixtures.refetchHistory).toHaveBeenCalled();
     expect(fixtures.readSource).not.toHaveBeenCalled();
   });
 

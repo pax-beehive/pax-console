@@ -64,6 +64,13 @@ export type SubagentCall = {
   agentType?: string;
 };
 
+/** A Codex child lifecycle notice, independent of the enclosing tool call. */
+export type CodexSubagentActivity = {
+  threadId: string;
+  activityKind: "started" | "interacted" | "completed" | "interrupted";
+  agentPath?: string;
+};
+
 export type SessionMessageAttachment = {
   attachmentId?: string;
   filename: string;
@@ -155,6 +162,7 @@ export type SessionEvent = (
       durationMs?: number;
       contextCompaction?: boolean;
       subagent?: SubagentCall;
+      codexSubagent?: CodexSubagentActivity;
       parentToolCallId?: string;
       createdAt: string;
     }

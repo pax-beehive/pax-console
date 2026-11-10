@@ -1228,6 +1228,20 @@ inspectable after the assembled answer and label completion-only activity as
 have consecutive sequence values in the same session/turn; real tools, missing
 records and selected search targets retain their boundaries.
 
+The Codex header separately shows `N sub agent active` for direct children.
+Normalize `rawInput`/`raw_input` lifecycle notices into `codexSubagent`; compact
+history preserves them as `tool.codex_subagent`. `started` adds a child and
+`completed`/`interrupted` removes it, keyed by session and child thread ID.
+Interactions and tool-operation completion do not change the count. Deduplicate
+lifecycle call IDs across history/live replay, including tasks on a reused child.
+Count the underlying history, conversation and observer events rather than the
+visual timeline, which can hide late notices after main-turn completion. While
+plain-session children remain active, refresh history every three seconds on a
+visible, online page so completion is received after the main observer closes.
+Stop refreshing when the count reaches zero, access is denied or the session is
+left. This counter never updates the main agent's status or keeps its turn open;
+the existing Claude counter is unchanged.
+
 Session names are updated through the existing node/agent-scoped endpoint:
 
 ```txt

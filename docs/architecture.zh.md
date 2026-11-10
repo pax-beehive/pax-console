@@ -1233,6 +1233,16 @@ durable turn boundary 之前。`text_layout=segment` 的相邻记录如果 `sess
 仅含此类通知的活动组显示 `Subagent completed`，不生成工作耗时。历史仍要求同一
 session/turn 中记录序号连续；真实工具、缺失记录和选中的搜索目标继续保留边界。
 
+Codex header 的 `N sub agent active` 独立统计当前 session 的直接子 agent。
+工具事件的 `codexSubagent` 保存子线程 ID、activity kind 和可选 path；精简历史通过
+`tool.codex_subagent` 保留同一信息。`started` 加入活跃集合，`completed/interrupted`
+移除；交互、工具调用自身完成以及主回合结束都不改变计数。按稳定 lifecycle call ID
+去重，避免重放旧完成事件结束子线程上的新任务。计数读取原始 history/conversation/
+observer 归一化事件，不依赖会过滤已完成主回合迟到事件的可见 timeline。明文会话仍有
+活跃子 agent 时，每三秒刷新 history，页面不可见或离线时跳过，数量归零、权限拒绝或
+离开会话时停止。它不改变主 agent 的 runtime status、composer 或 observer 生命周期，
+也不修改 Claude 现有计数语义。
+
 manager 负责代理 ACP initialize / session/new / session/prompt。续聊时必须传
 已有且属于当前用户、URL 中 node/agent 下的 `sess_*`，并且后端已有 native id 绑定。
 

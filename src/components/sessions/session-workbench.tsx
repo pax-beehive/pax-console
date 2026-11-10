@@ -124,7 +124,10 @@ import {
   latestRuntimeTurnId,
   reconcileSessionTimeline,
 } from "@/features/runtime/reconcile-session-timeline";
-import { countRunningSubagents } from "@/features/runtime/running-subagents";
+import {
+  countActiveCodexSubagents,
+  countRunningSubagents,
+} from "@/features/runtime/running-subagents";
 import { SubagentCountBadge } from "./subagent-count-badge";
 import {
   groupWorkstreamEvents,
@@ -1618,6 +1621,65 @@ export function SessionWorkbench({
     timelineRuntime,
   ]);
   const { timeline } = reconciledTimeline;
+  const activeCodexSubagents = useMemo(
+    () =>
+      countActiveCodexSubagents(
+        // A completed main turn can still receive child lifecycle updates.
+        // Count the underlying evidence even after visual history owns that turn.
+        mergeEvents([
+          ...historyEvents,
+          ...(usesEncryptedTransport
+            ? encryptedRuntime.events
+            : [...conversationRun.events, ...sessionObserver.events]),
+        ]),
+        currentSessionId ?? "",
+      ),
+    [
+      historyEvents,
+      conversationRun.events,
+      sessionObserver.events,
+      encryptedRuntime.events,
+      usesEncryptedTransport,
+      currentSessionId,
+    ],
+  );
+  const refetchSubagentHistory = plainHistoryQuery.refetch;
+  useEffect(() => {
+    if (
+      usesEncryptedTransport ||
+      !currentSessionId ||
+      !activeCodexSubagents ||
+      historyAccessError
+    ) {
+      return;
+    }
+    // The main-turn observer may already be closed. Refresh only the history
+    // while children remain active, without reviving the main turn or observer.
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const refresh = async () => {
+      try {
+        if (document.visibilityState === "visible" && navigator.onLine) {
+          await refetchSubagentHistory();
+        }
+      } catch {
+        // The history query owns its existing error/retry presentation.
+      } finally {
+        if (!cancelled) timer = setTimeout(refresh, 3_000);
+      }
+    };
+    timer = setTimeout(refresh, 3_000);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [
+    activeCodexSubagents,
+    currentSessionId,
+    historyAccessError,
+    refetchSubagentHistory,
+    usesEncryptedTransport,
+  ]);
   const runningSubagents = useMemo(
     () =>
       usesEncryptedTransport
@@ -2597,6 +2659,10 @@ export function SessionWorkbench({
               status={displayedRunStatus}
             />
             <SubagentCountBadge count={runningSubagents} />
+            <SubagentCountBadge
+              count={activeCodexSubagents}
+              label={`${activeCodexSubagents} sub agent active`}
+            />
             <SessionRuntimeActions
               canReset={Boolean(
                 activeSession?.runtime_turn_instance_id &&

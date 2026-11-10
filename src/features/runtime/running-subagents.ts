@@ -1,6 +1,42 @@
 import { SessionEvent } from "./session-events";
 
 /**
+ * Count direct Codex children across main-agent turns. Tool completion only
+ * acknowledges the lifecycle notice; the child's activity determines its state.
+ */
+export function countActiveCodexSubagents(
+  timeline: SessionEvent[],
+  sessionId: string,
+) {
+  const active = new Set<string>();
+  const seen = new Set<string>();
+  for (const event of timeline) {
+    if (
+      event.type !== "tool_call" ||
+      event.sessionId !== sessionId ||
+      !event.codexSubagent
+    ) {
+      continue;
+    }
+    const { threadId, activityKind, agentPath } = event.codexSubagent;
+    if (agentPath) {
+      const path = agentPath.split("/").filter(Boolean);
+      if (path.length !== 2 || path[0] !== "root") continue;
+    }
+    const activityId = event.toolCallId ?? event.id;
+    if (seen.has(activityId)) continue;
+    seen.add(activityId);
+
+    if (activityKind === "started") {
+      active.add(threadId);
+    } else if (activityKind === "completed" || activityKind === "interrupted") {
+      active.delete(threadId);
+    }
+  }
+  return active.size;
+}
+
+/**
  * The subagents of the active turn that are still working.
  *
  * A foreground subagent works until its Agent call ends. A background one
