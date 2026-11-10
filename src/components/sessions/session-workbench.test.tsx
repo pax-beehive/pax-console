@@ -237,7 +237,7 @@ describe("Codex subagent status in the session workbench", () => {
       view.rerender(workbench());
 
       expect(screen.getByLabelText("1 sub agent active")).toHaveTextContent(
-        "1 sub agent active",
+        /^1$/,
       );
       expect(screen.getAllByLabelText(mainLabel)).toHaveLength(
         mainBadges.length,
@@ -299,7 +299,7 @@ describe("Codex subagent status in the session workbench", () => {
     render(workbench());
 
     expect(screen.getByLabelText("1 sub agent active")).toHaveTextContent(
-      "1 sub agent active",
+      /^1$/,
     );
     expect(
       screen.getAllByLabelText("Ready for a prompt").length,

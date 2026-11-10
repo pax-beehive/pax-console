@@ -1,7 +1,6 @@
 "use client";
 
 import { Tooltip } from "@/components/ui/tooltip";
-import { TruncatedText } from "@/components/ui/text";
 
 /** Subagent activity beside the run status. */
 export function SubagentCountBadge({
@@ -14,18 +13,9 @@ export function SubagentCountBadge({
   if (count <= 0) {
     return null;
   }
-  if (label) {
-    return (
-      <TruncatedText
-        aria-label={label}
-        className="mx-1 shrink-0 text-[11px] leading-5 text-ink-subtle"
-      >
-        {label}
-      </TruncatedText>
-    );
-  }
   const description =
-    count === 1 ? "1 subagent running" : `${count} subagents running`;
+    label ??
+    (count === 1 ? "1 subagent running" : `${count} subagents running`);
 
   return (
     <Tooltip content={description} openOnClick>
