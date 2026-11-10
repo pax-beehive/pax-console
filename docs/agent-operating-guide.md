@@ -2722,6 +2722,13 @@ Manager/PG API and same-origin Console proxy rather than intercepted responses.
 
 ### Summary 与执行状态兼容
 
+Task result checks accept `result_failed` when Manager has durable proof that
+the original execution failed or was canceled. This notice does not claim that
+a summary was published. The check itself sends no new model request; future
+scheduling follows Manager's task retry budget and pause state. Unknown results
+retain their separate check-or-confirm-restart flow. Raw execution errors are
+never displayed.
+
 成果的可选 `node_status: stale` 显示 Awaiting update，仍可查看被授权的旧正文与确切证据，
 不能当成 empty。历史 revision 的状态由 Manager 对该版确定，不套用 current 状态。
 撤权后的正文由后端拒绝，不能只加一个过时标记。

@@ -270,6 +270,7 @@ describe("Secretary per-task controls", () => {
     ["recovered", "Existing result recovered"],
     ["still_unknown", "still unknown"],
     ["result_invalid", "could not be published"],
+    ["result_failed", "confirmed as failed"],
     [
       "resumed",
       "Unconfirmed executions still require a result check or an explicit retry",

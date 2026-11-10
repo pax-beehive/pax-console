@@ -2270,6 +2270,13 @@ HTTP 接受请求不等于总结已完成。Agent 可用性、原文权限、实
 
 ### 逐任务查看与控制
 
+Manager may return `result_failed` after checking a durably correlated failure
+or cancellation of the existing execution. Console displays a fixed failure
+notice without treating it as a published result or an unknown outcome. The
+check dispatches no model request; Manager owns any later bounded retry and
+honors per-task pauses. The optional outcome remains compatible with older
+Managers, and no raw runtime error is rendered.
+
 `features/api/secretary-tasks.ts` 通过同源用户路径读取 GET `/secretary/tasks`、
 GET `/secretary/tasks/:task_id`，并向 POST `/secretary/tasks/:task_id/actions` 提交动作。
 `task_id` 是来源 session 的持久 source ID；batch 是固定输入，attempt 是实际执行，
