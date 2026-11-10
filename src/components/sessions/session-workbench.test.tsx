@@ -236,9 +236,9 @@ describe("Codex subagent status in the session workbench", () => {
       ]);
       view.rerender(workbench());
 
-      expect(
-        screen.getByRole("button", { name: "1 sub agent active" }),
-      ).toHaveTextContent("1 sub agent active");
+      expect(screen.getByLabelText("1 sub agent active")).toHaveTextContent(
+        /^1$/,
+      );
       expect(screen.getAllByLabelText(mainLabel)).toHaveLength(
         mainBadges.length,
       );
@@ -261,7 +261,7 @@ describe("Codex subagent status in the session workbench", () => {
       view.rerender(workbench());
 
       expect(
-        screen.queryByRole("button", { name: "1 sub agent active" }),
+        screen.queryByLabelText("1 sub agent active"),
       ).not.toBeInTheDocument();
       expect(screen.getAllByLabelText(mainLabel)).toHaveLength(
         mainBadges.length,
@@ -298,9 +298,9 @@ describe("Codex subagent status in the session workbench", () => {
     ];
     render(workbench());
 
-    expect(
-      screen.getByRole("button", { name: "1 sub agent active" }),
-    ).toHaveTextContent("1 sub agent active");
+    expect(screen.getByLabelText("1 sub agent active")).toHaveTextContent(
+      /^1$/,
+    );
     expect(
       screen.getAllByLabelText("Ready for a prompt").length,
     ).toBeGreaterThan(0);
@@ -343,9 +343,7 @@ describe("Codex subagent status in the session workbench", () => {
       },
     ];
     const view = render(workbench());
-    expect(
-      screen.getByRole("button", { name: "1 sub agent active" }),
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText("1 sub agent active")).toBeInTheDocument();
 
     fixtures.conversationEvents = activity(
       "completed",
@@ -356,7 +354,7 @@ describe("Codex subagent status in the session workbench", () => {
     view.rerender(workbench());
 
     expect(
-      screen.queryByRole("button", { name: "1 sub agent active" }),
+      screen.queryByLabelText("1 sub agent active"),
     ).not.toBeInTheDocument();
     expect(
       screen.getAllByLabelText("Ready for a prompt").length,
