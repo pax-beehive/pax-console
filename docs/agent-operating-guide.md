@@ -2608,6 +2608,11 @@ Do not derive universe counts from the loaded page. Use the authoritative
 Updating progress must not remount an unsaved Secretary configuration form.
 The Current status Queued count is queued work, not remaining summary coverage;
 the Summary progress section separately counts the entire eligible universe.
+HTTP 503 with the exact message `Secretary progress is updating. Please try
+again shortly.` indicates that current progress is being prepared. Show an
+updating status in both progress sections, hiding cached counts and rows until
+the next complete response. Keep automatic polling and manual refresh enabled;
+ordinary 503 responses and other errors retain their existing error treatment.
 Home, resource/monitor lists, and agent-detail lists also filter internal work
 from cached list pages using the shared
 `isInternalSecretarySession` predicate: exact `source: secretary_internal` or the
