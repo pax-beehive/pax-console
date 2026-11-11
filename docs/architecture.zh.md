@@ -2448,11 +2448,25 @@ not establish physical iOS/Android/Windows keyboard compatibility.
 
 The shared artifact renderer uses MIT-licensed Media Chrome React controls for
 audio/video in embedded and standalone previews, styled with the Console theme.
-Media MIME types and common file extensions select these renderers, including
-generic download hints from older Managers. Existing MIME precedence is
-preserved for misleading filenames. Playback uses the existing
-permission-checked, bounded Blob fetch (25 MiB maximum), with no autoplay.
-Collapse (including switching to a sibling preview) pauses playback; Close
-releases the Blob URL. Artifact fullscreen preserves playback position and
-settings across its portal remount. Unsupported codecs show an error directing
-users to Download. This does not add transcoding or large-file streaming.
+Media MIME types and common file extensions select native stream renderers,
+including generic download hints from older Managers. Existing MIME precedence
+is preserved for misleading filenames.
+
+Media sources use the permission-checked signed URL directly. The browser
+handles HTTP Range requests to object storage, without a JavaScript fetch or a
+whole-file Blob allocation. The 25 MiB Blob limit continues to apply to image,
+PDF, and HTML previews; audio/video have no whole-file preview size limit.
+The media element uses preload="metadata" and no crossorigin attribute; it
+needs no Manager cookies or Authorization header at the storage origin.
+
+All preview loaders retain the existing content API's expires_at. Active media
+previews renew expiring links through the same authenticated Manager endpoint
+and preserve position, volume, mute, speed, and paused state across URL changes.
+Renewal is bounded, deduplicated, and suspended for collapsed previews. A failed
+renewal offers retry and download guidance. No new endpoint or auth mechanism
+is introduced; object storage remains private.
+
+Collapse (including switching to a sibling preview) pauses playback. Artifact
+fullscreen preserves playback state, while closing and reopening starts a fresh
+preview without autoplay. This uses Range playback of original media files;
+it does not add HLS packaging, transcoding, or adaptive quality selection.

@@ -133,6 +133,7 @@ function ArtifactPreviewPage({
         filename: data.content?.filename,
         previewKind: data.preview_kind,
         url: data.url,
+        expiresAt: data.expires_at,
       };
     }
 
@@ -149,6 +150,7 @@ function ArtifactPreviewPage({
       contentType: data.content.content_type,
       filename: data.content.filename,
       url: data.url,
+      expiresAt: data.expires_at,
     };
   }, [
     artifactId,

@@ -230,3 +230,14 @@ describe("media artifact resolution", () => {
     ).toBe("html");
   });
 });
+
+describe("media stream source", () => {
+  it.each(["video/mp4", "audio/mpeg"])(
+    "loads %s as a native stream",
+    (contentType) => {
+      expect(resolveArtifactRenderer({ contentType }).dataSource).toBe(
+        "stream",
+      );
+    },
+  );
+});

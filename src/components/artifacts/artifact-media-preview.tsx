@@ -3,6 +3,7 @@
 import {
   type RefObject,
   useCallback,
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -20,10 +21,12 @@ import {
   MediaVolumeRange,
 } from "media-chrome/react";
 import { AudioLines } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import styles from "./artifact-media-preview.module.css";
 
 export type ArtifactMediaPlaybackState = {
   src: string;
+  sourceId?: string;
   currentTime: number;
   volume: number;
   muted: boolean;
@@ -32,23 +35,164 @@ export type ArtifactMediaPlaybackState = {
 };
 
 export function ArtifactMediaPreview({
+  active = true,
+  expiresAt,
   kind,
+  onRefreshSource,
   playbackRef,
   src,
+  sourceId,
   title,
 }: {
+  active?: boolean;
+  expiresAt?: string;
   kind: "video" | "audio";
+  onRefreshSource?: () => Promise<void>;
   playbackRef?: RefObject<ArtifactMediaPlaybackState | undefined>;
   src: string;
+  sourceId?: string;
   title: string;
 }) {
-  const [failed, setFailed] = useState(false);
+  const sourceVersion = JSON.stringify([src, sourceId, expiresAt]);
+  const [failedVersion, setFailedVersion] = useState<string>();
+  const [renewalErrorVersion, setRenewalErrorVersion] = useState<string>();
+  const [renewingVersion, setRenewingVersion] = useState<string>();
   const mediaRef = useRef<HTMLMediaElement>(null);
+  const activeRef = useRef(active);
   const restoredRef = useRef(false);
+  const playingIntentRef = useRef(false);
+  const resumeAfterRenewalRef = useRef(false);
+  const mountedRef = useRef(true);
+  const failedRef = useRef<string>(undefined);
+  const renewalRef = useRef({ version: "", attempted: false, pending: false });
+  const renewalTimeRef = useRef<{ version: string; at: number }>(undefined);
+
+  useLayoutEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    activeRef.current = active;
+    if (!active) {
+      playingIntentRef.current = false;
+      resumeAfterRenewalRef.current = false;
+      const saved = playbackRef?.current;
+      const sameSource =
+        sourceId !== undefined
+          ? saved?.sourceId === sourceId
+          : saved?.src === src;
+      if (saved && sameSource && playbackRef) {
+        playbackRef.current = { ...saved, paused: true };
+      }
+    }
+  }, [active, playbackRef, sourceId, src]);
+
+  const renewSource = useCallback(
+    (manual = false) => {
+      if (
+        !active ||
+        !onRefreshSource ||
+        !mountedRef.current ||
+        (!manual && failedRef.current === sourceVersion)
+      ) {
+        return false;
+      }
+      if (renewalRef.current.version !== sourceVersion) {
+        renewalRef.current = {
+          version: sourceVersion,
+          attempted: false,
+          pending: false,
+        };
+      }
+      const request = renewalRef.current;
+      if (request.pending) return true;
+      if (request.attempted && !manual) return false;
+      request.attempted = true;
+      request.pending = true;
+      setRenewingVersion(sourceVersion);
+      void (async () => {
+        try {
+          await onRefreshSource();
+          if (mountedRef.current && renewalRef.current === request)
+            setRenewalErrorVersion(undefined);
+        } catch {
+          if (mountedRef.current && renewalRef.current === request)
+            setRenewalErrorVersion(sourceVersion);
+        } finally {
+          request.pending = false;
+          if (mountedRef.current && renewalRef.current === request)
+            setRenewingVersion(undefined);
+        }
+      })();
+      return true;
+    },
+    [active, onRefreshSource, sourceVersion],
+  );
+
+  useEffect(() => {
+    if (renewalTimeRef.current?.version !== sourceVersion) {
+      const expiration = expiresAt ? Date.parse(expiresAt) : NaN;
+      if (!Number.isFinite(expiration)) {
+        renewalTimeRef.current = undefined;
+        return;
+      }
+      const remaining = Math.max(0, expiration - Date.now());
+      renewalTimeRef.current = {
+        version: sourceVersion,
+        at: expiration - Math.min(30_000, remaining / 2),
+      };
+    }
+    if (!active || !onRefreshSource) return;
+    const timer = window.setTimeout(
+      () => renewSource(),
+      Math.max(0, renewalTimeRef.current.at - Date.now()),
+    );
+    return () => window.clearTimeout(timer);
+  }, [active, expiresAt, onRefreshSource, renewSource, sourceVersion]);
+
+  const sourceNeedsRenewal = () => {
+    const renewal = renewalTimeRef.current;
+    return renewal?.version === sourceVersion && Date.now() >= renewal.at;
+  };
+  const handleSourceActivity = () => {
+    if (sourceNeedsRenewal()) renewSource();
+  };
+  const handlePlayback = () => {
+    playingIntentRef.current = true;
+    handleSourceActivity();
+  };
+  const handlePause = () => {
+    if (!mediaRef.current?.error) {
+      playingIntentRef.current = false;
+      resumeAfterRenewalRef.current = false;
+    }
+  };
+  const handleError = () => {
+    // Expired HTTP responses may surface as NETWORK or SRC_NOT_SUPPORTED.
+    // MediaError exposes no HTTP status, so only retry them around known expiry.
+    const code = mediaRef.current?.error?.code;
+    if ((code === 2 || code === 4) && onRefreshSource && sourceNeedsRenewal()) {
+      // An expiry failure can pause the element after the user's Play request.
+      resumeAfterRenewalRef.current = playingIntentRef.current;
+      if (active && !renewSource()) setRenewalErrorVersion(sourceVersion);
+      return;
+    }
+    resumeAfterRenewalRef.current = false;
+    failedRef.current = sourceVersion;
+    setFailedVersion(sourceVersion);
+  };
+
   const restorePlayback = useCallback(() => {
     const media = mediaRef.current;
     const saved = playbackRef?.current;
-    if (!media || !saved || saved.src !== src || restoredRef.current) {
+    const sameSource =
+      sourceId !== undefined
+        ? saved?.sourceId === sourceId
+        : saved?.src === src;
+    if (!media || !saved || !sameSource || restoredRef.current) {
       return;
     }
     restoredRef.current = true;
@@ -56,7 +200,8 @@ export function ArtifactMediaPreview({
     media.volume = saved.volume;
     media.muted = saved.muted;
     media.playbackRate = saved.playbackRate;
-    if (!saved.paused) {
+    if (!saved.paused && activeRef.current) {
+      playingIntentRef.current = true;
       try {
         void media.play()?.catch(() => {
           // Browser playback policies may require using the Play control.
@@ -65,7 +210,7 @@ export function ArtifactMediaPreview({
         // Keep playback controls available if resuming playback is unsupported.
       }
     }
-  }, [playbackRef, src]);
+  }, [playbackRef, sourceId, src]);
 
   useLayoutEffect(() => {
     const media = mediaRef.current;
@@ -75,17 +220,40 @@ export function ArtifactMediaPreview({
     }
     return () => {
       if (media && playbackRef) {
+        const previous = playbackRef.current;
+        const sameSource =
+          sourceId !== undefined
+            ? previous?.sourceId === sourceId
+            : previous?.src === src;
+        if (
+          previous &&
+          sameSource &&
+          media.readyState < media.HAVE_METADATA &&
+          !restoredRef.current &&
+          media.currentTime === 0
+        ) {
+          // A replacement may unmount before metadata; retain its pending seek.
+          playbackRef.current = {
+            ...previous,
+            src,
+            paused: activeRef.current ? previous.paused : true,
+          };
+          return;
+        }
         playbackRef.current = {
           src,
+          ...(sourceId !== undefined ? { sourceId } : {}),
           currentTime: media.currentTime,
           volume: media.volume,
           muted: media.muted,
           playbackRate: media.playbackRate,
-          paused: media.paused,
+          paused:
+            !activeRef.current ||
+            (resumeAfterRenewalRef.current ? false : media.paused),
         };
       }
     };
-  }, [playbackRef, restorePlayback, src]);
+  }, [playbackRef, restorePlayback, sourceId, src]);
 
   const label = `${kind === "video" ? "Video" : "Audio"} player: ${title}`;
   const props = {
@@ -93,7 +261,11 @@ export function ArtifactMediaPreview({
     slot: "media",
     preload: "metadata",
     src,
-    onError: () => setFailed(true),
+    onError: handleError,
+    onPlay: handlePlayback,
+    onPlaying: handlePlayback,
+    onPause: handlePause,
+    onSeeking: handleSourceActivity,
     onLoadedMetadata: restorePlayback,
   };
 
@@ -148,11 +320,32 @@ export function ArtifactMediaPreview({
           </MediaControlBar>
         </div>
       </MediaController>
-      {failed && (
-        <p role="alert" className={styles.error}>
-          Unable to play this media. Your browser may not support its format or
-          codec. Download the file to play it locally.
-        </p>
+      {renewalErrorVersion === sourceVersion ? (
+        <div
+          role="alert"
+          className={styles.error}
+          aria-busy={renewingVersion === sourceVersion}
+        >
+          <p>
+            Unable to renew this playback link. Retry or use Download to play
+            the file locally.
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            disabled={renewingVersion === sourceVersion}
+            onClick={() => renewSource(true)}
+          >
+            Retry playback
+          </Button>
+        </div>
+      ) : (
+        failedVersion === sourceVersion && (
+          <p role="alert" className={styles.error}>
+            Unable to play this media. Your browser may not support its format
+            or codec. Download the file to play it locally.
+          </p>
+        )
       )}
     </div>
   );

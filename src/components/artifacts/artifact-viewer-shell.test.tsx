@@ -52,6 +52,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   window.history.replaceState({}, "", "/");
@@ -1011,7 +1012,7 @@ describe("ArtifactViewerShell", () => {
 
 describe("media artifact preview", () => {
   it.each(["video", "audio"] as const)(
-    "given a %s artifact, loads a bounded blob with styled controls and reports decode failure",
+    "given a large %s artifact, streams its signed URL without fetching a blob and reports decode failure",
     async (kind) => {
       vi.stubGlobal(
         "fetch",
@@ -1035,6 +1036,7 @@ describe("media artifact preview", () => {
               ...artifact,
               contentType: `${kind}/mp4`,
               filename: "clip.mp4",
+              sizeBytes: ARTIFACT_PREVIEW_BUDGET.maxBlobBytes + 1,
             }}
             loadPreview={async () => ({
               url: "https://signed.example/media",
@@ -1050,7 +1052,10 @@ describe("media artifact preview", () => {
       expect(player.tagName.toLowerCase()).toBe(kind);
       expect(player.closest("media-controller")).toBeInTheDocument();
       expect(player).not.toHaveAttribute("controls");
-      expect(player).toHaveAttribute("src", "blob:media-preview");
+      expect(player).toHaveAttribute("src", "https://signed.example/media");
+      expect(player).toHaveAttribute("preload", "metadata");
+      expect(fetch).not.toHaveBeenCalled();
+      expect(createObjectURL).not.toHaveBeenCalled();
       expect(player).not.toHaveAttribute("autoplay");
       const pause = vi
         .spyOn(player as HTMLMediaElement, "pause")
@@ -1067,7 +1072,7 @@ describe("media artifact preview", () => {
         "Unable to play this media",
       );
       fireEvent.click(screen.getByRole("button", { name: "Close preview" }));
-      expect(revokeObjectURL).toHaveBeenCalledWith("blob:media-preview");
+      expect(revokeObjectURL).not.toHaveBeenCalled();
     },
   );
 });
@@ -1180,5 +1185,222 @@ describe("media artifact fullscreen", () => {
     fireEvent.loadedMetadata(inline);
     expect(inline.currentTime).toBe(12);
     expect(inline.volume).toBe(0.4);
+  });
+});
+
+describe("media preview lifetime", () => {
+  it("starts paused at the beginning when a closed media preview is opened again", async () => {
+    const loadPreview = vi.fn(async () => ({
+      url: "https://signed.example/same-media",
+    }));
+    render(
+      <TooltipProvider>
+        <ArtifactViewerShell
+          artifact={{
+            ...artifact,
+            contentType: "video/mp4",
+            filename: "clip.mp4",
+          }}
+          loadPreview={loadPreview}
+        />
+      </TooltipProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    const first = (await screen.findByLabelText(
+      "Video player: Result",
+    )) as HTMLVideoElement;
+    first.currentTime = 12;
+    Object.defineProperty(first, "paused", {
+      configurable: true,
+      value: false,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Close preview" }));
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    const second = (await screen.findByLabelText(
+      "Video player: Result",
+    )) as HTMLVideoElement;
+    const play = vi.spyOn(second, "play").mockResolvedValue();
+    fireEvent.loadedMetadata(second);
+    expect(second.currentTime).toBe(0);
+    expect(play).not.toHaveBeenCalled();
+  });
+});
+
+describe("signed media source renewal", () => {
+  it("renews through the existing loader and retains position without a blob fetch", async () => {
+    vi.useFakeTimers();
+    const now = new Date("2026-11-11T06:00:00Z").getTime();
+    vi.setSystemTime(now);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const loadPreview = vi
+      .fn()
+      .mockResolvedValueOnce({
+        url: "https://signed.example/old",
+        expiresAt: new Date(now + 60_000).toISOString(),
+      })
+      .mockResolvedValue({
+        url: "https://signed.example/new",
+        expiresAt: new Date(now + 600_000).toISOString(),
+      });
+    render(
+      <TooltipProvider>
+        <ArtifactViewerShell
+          artifact={{
+            ...artifact,
+            contentType: "video/mp4",
+            filename: "clip.mp4",
+          }}
+          loadPreview={loadPreview}
+        />
+      </TooltipProvider>,
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    });
+    const first = screen.getByLabelText(
+      "Video player: Result",
+    ) as HTMLVideoElement;
+    first.currentTime = 12;
+    first.volume = 0.4;
+    Object.defineProperty(first, "paused", {
+      configurable: true,
+      value: false,
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    const replacement = screen.getByLabelText(
+      "Video player: Result",
+    ) as HTMLVideoElement;
+    expect(replacement).toHaveAttribute("src", "https://signed.example/new");
+    const play = vi.spyOn(replacement, "play").mockResolvedValue();
+    fireEvent.loadedMetadata(replacement);
+    expect(replacement.currentTime).toBe(12);
+    expect(replacement.volume).toBe(0.4);
+    expect(play).toHaveBeenCalledOnce();
+    expect(loadPreview).toHaveBeenCalledTimes(2);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("ignores a renewed URL that arrives after closing the preview", async () => {
+    vi.useFakeTimers();
+    const now = new Date("2026-11-11T06:00:00Z").getTime();
+    vi.setSystemTime(now);
+    let resolveRenewal!: (value: { url: string; expiresAt: string }) => void;
+    const loadPreview = vi
+      .fn()
+      .mockResolvedValueOnce({
+        url: "https://signed.example/old",
+        expiresAt: new Date(now + 60_000).toISOString(),
+      })
+      .mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveRenewal = resolve;
+          }),
+      );
+    render(
+      <TooltipProvider>
+        <ArtifactViewerShell
+          artifact={{
+            ...artifact,
+            contentType: "video/mp4",
+            filename: "clip.mp4",
+          }}
+          loadPreview={loadPreview}
+        />
+      </TooltipProvider>,
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    expect(loadPreview).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByRole("button", { name: "Close preview" }));
+    await act(async () => {
+      resolveRenewal({
+        url: "https://signed.example/new",
+        expiresAt: new Date(now + 600_000).toISOString(),
+      });
+    });
+    expect(screen.queryByLabelText("Video player: Result")).toBeNull();
+    expect(screen.getByRole("button", { name: "Preview" })).toBeVisible();
+    expect(loadPreview).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("manual media refresh", () => {
+  it("allows fresh renewals after a manual refresh supersedes a pending renewal", async () => {
+    vi.useFakeTimers();
+    const now = new Date("2026-11-11T06:00:00Z").getTime();
+    vi.setSystemTime(now);
+    let resolveOld!: (value: { url: string; expiresAt: string }) => void;
+    const loadPreview = vi
+      .fn()
+      .mockResolvedValueOnce({
+        url: "https://signed.example/old",
+        expiresAt: new Date(now + 60_000).toISOString(),
+      })
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveOld = resolve;
+          }),
+      )
+      .mockResolvedValueOnce({
+        url: "https://signed.example/manual",
+        expiresAt: new Date(now + 120_000).toISOString(),
+      })
+      .mockResolvedValue({
+        url: "https://signed.example/renewed",
+        expiresAt: new Date(now + 600_000).toISOString(),
+      });
+    render(
+      <TooltipProvider>
+        <ArtifactViewerShell
+          artifact={{
+            ...artifact,
+            contentType: "video/mp4",
+            filename: "clip.mp4",
+          }}
+          loadPreview={loadPreview}
+        />
+      </TooltipProvider>,
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    expect(loadPreview).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    });
+    expect(screen.getByLabelText("Video player: Result")).toHaveAttribute(
+      "src",
+      "https://signed.example/manual",
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(loadPreview).toHaveBeenCalledTimes(4);
+    expect(screen.getByLabelText("Video player: Result")).toHaveAttribute(
+      "src",
+      "https://signed.example/renewed",
+    );
+    await act(async () => {
+      resolveOld({
+        url: "https://signed.example/stale",
+        expiresAt: new Date(now + 600_000).toISOString(),
+      });
+    });
+    expect(screen.getByLabelText("Video player: Result")).toHaveAttribute(
+      "src",
+      "https://signed.example/renewed",
+    );
   });
 });

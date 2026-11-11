@@ -73,6 +73,7 @@ export function PublicationArtifactViewer({
       filename: data.content?.filename,
       previewKind: data.preview_kind,
       url: data.url,
+      expiresAt: data.expires_at,
     };
   }, [contentRef, publicationId, userId]);
 
