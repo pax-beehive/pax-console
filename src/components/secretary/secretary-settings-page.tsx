@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import Link from "next/link";
 import { BookOpen, ChevronDown, RefreshCw } from "lucide-react";
 import { ConsoleLayout } from "@/components/shell/console-layout";
@@ -100,6 +100,7 @@ export function SecretarySettingsPanel({ userId }: { userId: string }) {
             <Link href="/settings/secretary/summaries">View summaries</Link>
           </Button>
         </div>
+        <SecretaryRetryFeedback run={run} />
         {settings.isPending ? (
           <p className="text-sm text-ink-tertiary" role="status">
             Loading Secretary settings…
@@ -159,9 +160,10 @@ export function SecretarySettingsPanel({ userId }: { userId: string }) {
               <section className="border-t border-hairline pt-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <p className="max-w-md text-xs leading-5 text-ink-tertiary">
-                    Bulk retry queues all pending tasks that are not paused.
-                    Per-task pauses remain in place. Use the task controls below
-                    to check or restart one execution.
+                    Bulk retry requests background scheduling for eligible
+                    pending tasks. Paused, running, and unknown executions stay
+                    unchanged. Use task controls to check or restart one
+                    execution.
                   </p>
                   <Button
                     disabled={
@@ -199,7 +201,7 @@ export function SecretarySettingsPanel({ userId }: { userId: string }) {
                     !settings.data.agent_available ||
                     settings.data.state === "processing"
                   }
-                  description="This queues every unpaused pending task. Paused tasks stay paused, and tasks with an operation in progress are not restarted. An unknown execution may still return a late result; restarting it can create duplicate work and model charges. Use an individual task's controls to check an existing result first."
+                  description="This requests background scheduling for eligible unpaused tasks. Paused, running, and unknown executions stay unchanged. Use an individual task's controls to check or restart an execution."
                   onConfirm={() => {
                     setBulkRevision(undefined);
                     save.reset();
@@ -209,17 +211,6 @@ export function SecretarySettingsPanel({ userId }: { userId: string }) {
                 {!settings.data.agent_available && (
                   <p className="mt-2 text-xs text-ink-tertiary">
                     A run will wait until the selected agent reconnects.
-                  </p>
-                )}
-                {run.isError && (
-                  <Notice>
-                    Could not confirm the run request. Refresh settings before
-                    trying again.
-                  </Notice>
-                )}
-                {run.isSuccess && (
-                  <p className="mt-2 text-xs text-success" role="status">
-                    Bulk retry requested. Paused tasks remain paused.
                   </p>
                 )}
               </section>
@@ -239,6 +230,38 @@ export function SecretarySettingsPanel({ userId }: { userId: string }) {
       </div>
     </div>
   );
+}
+
+function SecretaryRetryFeedback({
+  run,
+}: {
+  run: ReturnType<typeof useRunSecretaryNow>;
+}) {
+  if (run.isPending) {
+    return (
+      <p className="text-xs text-ink-tertiary" role="status">
+        Submitting retry request...
+      </p>
+    );
+  }
+  if (run.isSuccess) {
+    return (
+      <p className="text-xs text-success" role="status">
+        Retry request accepted. Eligible tasks will be queued in the background.
+      </p>
+    );
+  }
+  if (run.isError || run.hasUnconfirmedRequest) {
+    return (
+      <Notice>
+        Retry request not confirmed. Try again with the same request ID.
+        <Button className="ml-2" onClick={() => run.mutate()} size="sm">
+          Retry same request
+        </Button>
+      </Notice>
+    );
+  }
+  return null;
 }
 
 function SecretaryForm({
@@ -549,7 +572,7 @@ function blockedDescription(reason: SecretarySettings["blocked_reason"]) {
   }
 }
 
-function Notice({ children }: { children: string }) {
+function Notice({ children }: { children: ReactNode }) {
   return (
     <div
       className="rounded-md border border-warning/30 p-3 text-xs leading-5 text-warning"

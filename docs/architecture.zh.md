@@ -2340,6 +2340,26 @@ agent 不可用时操作仍禁用。没有重试次数或下次重试时间字�
 HTTP 接受请求不等于总结已完成。Agent 可用性、原文权限、实际模型调用、自动调度和不可变总结
 发布均由 Manager 负责，浏览器不运行采集或生成循环，也不重启旧的本地实验流水线。
 
+Bulk retry posts `{request_id}` through the existing user scope. Pending IDs
+belong to the real authenticated `User.user_id` in a Zustand store persisted to
+sessionStorage, independently of the `self` route alias. A timeout retains the
+same ID for explicit retry and reload; only a matching validated acknowledgement
+clears it. If storage is unavailable, the ID survives only in memory. Mutation
+callbacks keep the original owner and ID so a late response cannot clear another
+account's pending request. POST retries are never automatic.
+
+HTTP 202 now returns `{request_id,state:accepted,accepted_at}`. The decoder also
+recognizes legacy Secretary settings acknowledgements. A receipt never enters
+the settings cache. Acceptance is displayed outside the settings-loading branch;
+settings and task invalidation run independently and cannot turn an acknowledged
+request into a failed submission. Bulk scheduling preserves paused, running,
+and unknown executions; per-task controls remain responsible for restarts.
+
+Rollout order: deploy Console first, then receipt-only Manager. Old Console may
+interpret a receipt as settings. Full owner/request-ID deduplication and preserved
+unknown executions require both deployments; legacy Manager ignores the new
+request body and retains its previous behavior during the transition.
+
 ### 逐任务查看与控制
 
 Manager may return `result_failed` after checking a durably correlated failure
@@ -2369,8 +2389,8 @@ POST 关闭自动重试；409、网络失败或丢失响应后重读任务、配
 重发。每个任务单独禁用自己的 pending 控件。有效 lease 时禁用 restart/check，仍可
 暂停或恢复未来调度；pause 不取消当前执行。unknown、needs_recovery 或过期 running
 的 restart 必须确认旧执行可能仍运行、产生重复工作，随后才发送 confirm_restart。
-批量重试也始终确认，明确仅影响未暂停的待处理任务、不重启有效 lease 的执行、未知
-执行可能迟到并产生重复费用。逐任务动作不调用全局 `/secretary/run`。
+批量重试确认后仅请求后台调度，保留暂停、运行中和结果未知的执行；重启仍由逐任务
+控制处理。逐任务动作不调用全局 `/secretary/run`。
 
 手机沿用设置内容的滚动区域，任务卡片标题截断、动作自动换行且触控区域至少 44px；
 详情 ID 使用共享 MonoId，历史在卡片内展开，不创建额外全局导航。

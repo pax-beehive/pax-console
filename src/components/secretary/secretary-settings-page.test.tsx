@@ -94,6 +94,7 @@ function mutationState() {
     isPending: false,
     isError: false,
     isSuccess: false,
+    hasUnconfirmedRequest: false,
     error: null as Error | null,
     mutate: vi.fn(),
     reset: vi.fn(),
@@ -281,7 +282,7 @@ describe("Secretary settings", () => {
     );
     expect(run.mutate).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog")).toHaveTextContent(
-      "duplicate work and model charges",
+      "unknown executions stay unchanged",
     );
     fireEvent.click(
       screen.getByRole("button", { name: "Retry unpaused tasks" }),
@@ -651,6 +652,77 @@ describe("Secretary settings", () => {
     expect(screen.queryByRole("switch")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Retry settings" }));
     expect(state.refetch).toHaveBeenCalledOnce();
+  });
+  it("keeps accepted retry feedback visible when the independent settings refresh fails", () => {
+    setSettings({
+      ...settingsState(configured),
+      isError: true,
+      error: new ApiError("status unavailable", 503, {}),
+    });
+    setRun({ ...mutationState(), isSuccess: true });
+    setup();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Retry request accepted",
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "queued in the background",
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Secretary is unavailable",
+    );
+    expect(
+      screen.queryByText(/Retry request not confirmed/),
+    ).not.toBeInTheDocument();
+  });
+  it.each([false, true])(
+    "allows the same uncertain retry request after failure or reload (reloaded: %s)",
+    (reloaded) => {
+      setSettings({
+        ...settingsState(configured),
+        isError: true,
+        error: new ApiError("status unavailable", 503, {}),
+      });
+      const run = {
+        ...mutationState(),
+        isError: !reloaded,
+        hasUnconfirmedRequest: true,
+        error: reloaded ? null : new DOMException("timeout", "TimeoutError"),
+      };
+      setRun(run);
+      setup();
+      expect(screen.getByText(/Retry request not confirmed/)).toHaveTextContent(
+        "same request",
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Retry same request" }),
+      );
+      expect(run.mutate).toHaveBeenCalledOnce();
+      expect(
+        screen.queryByText(/summary task.*failed/i),
+      ).not.toBeInTheDocument();
+    },
+  );
+  it("keeps submission pending distinct from accepted or failed processing when settings cannot refresh", () => {
+    setSettings({
+      ...settingsState(configured),
+      isError: true,
+      error: new ApiError("status unavailable", 503, {}),
+    });
+    setRun({
+      ...mutationState(),
+      isPending: true,
+      hasUnconfirmedRequest: true,
+    });
+    setup();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Submitting retry request",
+    );
+    expect(
+      screen.queryByText(/Retry request not confirmed/),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Retry request accepted/),
+    ).not.toBeInTheDocument();
   });
   it("distinguishes a previous failed task from ongoing processing", () => {
     setSettings(
