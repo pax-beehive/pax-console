@@ -8,6 +8,8 @@ export type ArtifactSourceType = "publication" | "session_artifact";
 
 export type DocumentRendererKind =
   | "image"
+  | "video"
+  | "audio"
   | "pdf"
   | "html"
   | "mermaid"
@@ -50,6 +52,8 @@ export type ArtifactPreviewDescriptor = {
 
 export type BuiltinArtifactRenderer = {
   id:
+    | "builtin:video"
+    | "builtin:audio"
     | "builtin:image"
     | "builtin:pdf"
     | "builtin:html"
@@ -70,6 +74,8 @@ const rendererDefinitions: Record<
   BuiltinArtifactRenderer
 > = {
   image: renderer("image", "url"),
+  video: renderer("video", "url"),
+  audio: renderer("audio", "url"),
   pdf: renderer("pdf", "url"),
   html: renderer("html", "url"),
   mermaid: renderer("mermaid", "text"),
@@ -221,6 +227,8 @@ function kindFromPreview(
   const normalized = value?.toLowerCase().replace(/[-_ ]/g, "");
   const map: Record<string, DocumentRendererKind> = {
     image: "image",
+    video: "video",
+    audio: "audio",
     pdf: "pdf",
     html: "html",
     mermaid: "mermaid",
@@ -243,6 +251,8 @@ function kindFromContentType(value?: string): DocumentRendererKind | undefined {
   if (!contentType) {
     return undefined;
   }
+  if (contentType.startsWith("video/")) return "video";
+  if (contentType.startsWith("audio/")) return "audio";
   if (contentType.startsWith("image/")) {
     return "image";
   }
@@ -292,6 +302,11 @@ function kindFromFilename(value?: string): DocumentRendererKind | undefined {
         ".svg",
       ],
       "image",
+    ],
+    [[".mp4", ".m4v", ".webm", ".mov", ".ogv"], "video"],
+    [
+      [".mp3", ".m4a", ".wav", ".ogg", ".oga", ".opus", ".aac", ".flac"],
+      "audio",
     ],
     [[".pdf"], "pdf"],
     [[".html", ".htm"], "html"],

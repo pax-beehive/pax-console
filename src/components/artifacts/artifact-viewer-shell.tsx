@@ -6,6 +6,7 @@ import {
   CSSProperties,
   Dispatch,
   ReactNode,
+  RefObject,
   SetStateAction,
   useCallback,
   useEffect,
@@ -48,6 +49,10 @@ import { LocalFileLinkContext } from "@/features/local-files/local-file-link-con
 import { cn } from "@/lib/utils";
 import { compactDate } from "@/lib/format";
 import { useArtifactPreviewStore } from "@/stores/artifact-preview-store";
+import {
+  ArtifactMediaPreview,
+  type ArtifactMediaPlaybackState,
+} from "./artifact-media-preview";
 import {
   ArtifactImagePreview,
   type ArtifactImageState,
@@ -140,6 +145,9 @@ function ArtifactViewer({
   const isFullscreen = fullscreen && expanded;
   const autoLoadedArtifactRef = useRef<string | undefined>(undefined);
   const previewObjectUrlRef = useRef<string | undefined>(undefined);
+  const mediaPlaybackRef = useRef<ArtifactMediaPlaybackState | undefined>(
+    undefined,
+  );
   const previewRequestRef = useRef(0);
   const renderer = resolveArtifactRenderer(artifact, preview);
   const title =
@@ -201,6 +209,15 @@ function ArtifactViewer({
       previewButtonRef.current?.focus();
     }
   }, [visibility]);
+
+  useEffect(() => {
+    if (!expanded) {
+      shellRef.current?.querySelectorAll("video, audio").forEach((element) => {
+        const media = element as HTMLMediaElement;
+        if (!media.paused) media.pause();
+      });
+    }
+  }, [expanded]);
 
   const openPreview = useCallback(() => {
     setVisibility("open");
@@ -698,6 +715,7 @@ function ArtifactViewer({
             preview={preview}
             rendererKind={renderer.kind}
             standalone={standalone || isFullscreen}
+            playbackRef={mediaPlaybackRef}
             imageState={imageState}
             onImageChange={setImageState}
           />
@@ -751,6 +769,7 @@ function ArtifactViewerBody({
   preview,
   rendererKind,
   standalone,
+  playbackRef,
   imageState,
   onImageChange,
 }: {
@@ -760,6 +779,7 @@ function ArtifactViewerBody({
   preview?: LoadedArtifactPreview;
   rendererKind: DocumentRendererKind;
   standalone: boolean;
+  playbackRef: RefObject<ArtifactMediaPlaybackState | undefined>;
   imageState: ArtifactImageState;
   onImageChange: Dispatch<SetStateAction<ArtifactImageState>>;
 }) {
@@ -807,6 +827,7 @@ function ArtifactViewerBody({
         kind={rendererKind}
         preview={preview}
         standalone={standalone}
+        playbackRef={playbackRef}
         imageState={imageState}
         onImageChange={onImageChange}
       />
@@ -819,6 +840,7 @@ function DocumentRenderer({
   kind,
   preview,
   standalone,
+  playbackRef,
   imageState,
   onImageChange,
 }: {
@@ -826,9 +848,21 @@ function DocumentRenderer({
   kind: DocumentRendererKind;
   preview: LoadedArtifactPreview;
   standalone: boolean;
+  playbackRef: RefObject<ArtifactMediaPlaybackState | undefined>;
   imageState: ArtifactImageState;
   onImageChange: Dispatch<SetStateAction<ArtifactImageState>>;
 }) {
+  if ((kind === "video" || kind === "audio") && preview.url) {
+    return (
+      <ArtifactMediaPreview
+        key={preview.url}
+        kind={kind}
+        playbackRef={playbackRef}
+        src={preview.url}
+        title={artifact.title}
+      />
+    );
+  }
   if (kind === "image" && preview.url) {
     return (
       <ArtifactImagePreview
