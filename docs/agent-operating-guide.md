@@ -2784,3 +2784,16 @@ responsible for direct keys and shortcuts. Phone users can watch preview without
 keyboard capture, use two-finger remote scrolling when controlling, and compose
 with their local soft keyboard through Type text. Mobile viewport/touch tests do
 not establish physical iOS/Android/Windows keyboard compatibility.
+
+### Artifact audio/video preview
+
+The shared artifact renderer uses MIT-licensed Media Chrome React controls for
+audio/video in embedded and standalone previews, styled with the Console theme.
+Media MIME types and common file extensions select these renderers, including
+generic download hints from older Managers. Existing MIME precedence is
+preserved for misleading filenames. Playback uses the existing
+permission-checked, bounded Blob fetch (25 MiB maximum), with no autoplay.
+Collapse (including switching to a sibling preview) pauses playback; Close
+releases the Blob URL. Artifact fullscreen preserves playback position and
+settings across its portal remount. Unsupported codecs show an error directing
+users to Download. This does not add transcoding or large-file streaming.

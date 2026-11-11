@@ -1008,3 +1008,177 @@ describe("ArtifactViewerShell", () => {
     expect(loadPreview).not.toHaveBeenCalled();
   });
 });
+
+describe("media artifact preview", () => {
+  it.each(["video", "audio"] as const)(
+    "given a %s artifact, loads a bounded blob with styled controls and reports decode failure",
+    async (kind) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(
+          async () =>
+            new Response("media", {
+              headers: { "content-type": `${kind}/mp4` },
+            }),
+        ),
+      );
+      const createObjectURL = vi.fn(() => "blob:media-preview");
+      const revokeObjectURL = vi.fn();
+      vi.stubGlobal(
+        "URL",
+        Object.assign(URL, { createObjectURL, revokeObjectURL }),
+      );
+      render(
+        <TooltipProvider>
+          <ArtifactViewerShell
+            artifact={{
+              ...artifact,
+              contentType: `${kind}/mp4`,
+              filename: "clip.mp4",
+            }}
+            loadPreview={async () => ({
+              url: "https://signed.example/media",
+              previewKind: "download",
+            })}
+          />
+        </TooltipProvider>,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+      const player = await screen.findByLabelText(
+        `${kind === "video" ? "Video" : "Audio"} player: Result`,
+      );
+      expect(player.tagName.toLowerCase()).toBe(kind);
+      expect(player.closest("media-controller")).toBeInTheDocument();
+      expect(player).not.toHaveAttribute("controls");
+      expect(player).toHaveAttribute("src", "blob:media-preview");
+      expect(player).not.toHaveAttribute("autoplay");
+      const pause = vi
+        .spyOn(player as HTMLMediaElement, "pause")
+        .mockImplementation(() => {});
+      Object.defineProperty(player, "paused", {
+        configurable: true,
+        value: false,
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Collapse preview" }));
+      expect(pause).toHaveBeenCalledOnce();
+      fireEvent.click(screen.getByRole("button", { name: "Expand preview" }));
+      fireEvent.error(player);
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Unable to play this media",
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Close preview" }));
+      expect(revokeObjectURL).toHaveBeenCalledWith("blob:media-preview");
+    },
+  );
+});
+
+describe("media preview visibility", () => {
+  it("pauses an audio preview when another preview opens in the same session", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response("media", { headers: { "content-type": "audio/mpeg" } }),
+      ),
+    );
+    vi.stubGlobal(
+      "URL",
+      Object.assign(URL, {
+        createObjectURL: vi.fn(() => "blob:audio"),
+        revokeObjectURL: vi.fn(),
+      }),
+    );
+    render(
+      <TooltipProvider>
+        {["First audio", "Second audio"].map((title) => (
+          <ArtifactViewerShell
+            key={title}
+            artifact={{
+              ...artifact,
+              id: title,
+              title,
+              filename: "voice.mp3",
+              contentType: "audio/mpeg",
+            }}
+            previewScope="media-pause-session"
+            loadPreview={async () => ({ url: "https://signed.example/audio" })}
+          />
+        ))}
+      </TooltipProvider>,
+    );
+    const first = within(screen.getByLabelText("Artifact viewer: First audio"));
+    const second = within(
+      screen.getByLabelText("Artifact viewer: Second audio"),
+    );
+    fireEvent.click(first.getByRole("button", { name: "Preview" }));
+    const audio = await first.findByLabelText("Audio player: First audio");
+    const pause = vi
+      .spyOn(audio as HTMLMediaElement, "pause")
+      .mockImplementation(() => {});
+    Object.defineProperty(audio, "paused", {
+      configurable: true,
+      value: false,
+    });
+    fireEvent.click(second.getByRole("button", { name: "Preview" }));
+    await second.findByLabelText("Audio player: Second audio");
+    expect(audio).not.toBeVisible();
+    expect(pause).toHaveBeenCalledOnce();
+  });
+});
+
+describe("media artifact fullscreen", () => {
+  it("preserves playback position and volume when entering and leaving artifact fullscreen", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response("media", { headers: { "content-type": "video/mp4" } }),
+      ),
+    );
+    vi.stubGlobal(
+      "URL",
+      Object.assign(URL, {
+        createObjectURL: vi.fn(() => "blob:fullscreen-video"),
+        revokeObjectURL: vi.fn(),
+      }),
+    );
+    render(
+      <TooltipProvider>
+        <ArtifactViewerShell
+          artifact={{
+            ...artifact,
+            contentType: "video/mp4",
+            filename: "clip.mp4",
+          }}
+          loadPreview={async () => ({ url: "https://signed.example/video" })}
+        />
+      </TooltipProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    const first = (await screen.findByLabelText(
+      "Video player: Result",
+    )) as HTMLVideoElement;
+    first.currentTime = 12;
+    first.volume = 0.4;
+    first.playbackRate = 1.25;
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open artifact fullscreen" }),
+    );
+    const fullscreen = (await screen.findByLabelText(
+      "Video player: Result",
+    )) as HTMLVideoElement;
+    fireEvent.loadedMetadata(fullscreen);
+    expect(fullscreen.currentTime).toBe(12);
+    expect(fullscreen.volume).toBe(0.4);
+    expect(fullscreen.playbackRate).toBe(1.25);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Exit artifact fullscreen" }),
+    );
+    const inline = (await screen.findByLabelText(
+      "Video player: Result",
+    )) as HTMLVideoElement;
+    fireEvent.loadedMetadata(inline);
+    expect(inline.currentTime).toBe(12);
+    expect(inline.volume).toBe(0.4);
+  });
+});

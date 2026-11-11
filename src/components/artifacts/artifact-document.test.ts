@@ -143,7 +143,7 @@ describe("artifact document renderer registry", () => {
   it("registers every builtin document renderer exactly once", () => {
     expect(
       new Set(builtinArtifactRendererRegistry.map(({ id }) => id)).size,
-    ).toBe(10);
+    ).toBe(12);
   });
 
   it("adapts session artifacts to the shared document contract", () => {
@@ -199,5 +199,34 @@ describe("structured artifact preview parsing", () => {
       ],
       truncated: false,
     });
+  });
+});
+
+describe("media artifact resolution", () => {
+  it.each([
+    ["video/mp4", "clip.bin", "video"],
+    ["audio/mpeg", "song.bin", "audio"],
+    ["application/octet-stream", "CLIP.MP4", "video"],
+    ["application/octet-stream", "voice.mp3", "audio"],
+    ["video/webm", "clip.webm", "video"],
+    ["audio/ogg; codecs=opus", "voice.ogg", "audio"],
+  ])(
+    "given %s / %s, previews as %s despite generic download metadata",
+    (contentType, filename, kind) => {
+      expect(
+        resolveArtifactRenderer(
+          { contentType, filename },
+          { previewKind: "download" },
+        ).kind,
+      ).toBe(kind);
+    },
+  );
+  it("prefers the declared MIME type over a misleading media filename", () => {
+    expect(
+      resolveArtifactRenderer(
+        { contentType: "text/html", filename: "clip.mp4" },
+        { previewKind: "download" },
+      ).kind,
+    ).toBe("html");
   });
 });
