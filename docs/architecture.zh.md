@@ -1876,6 +1876,10 @@ Quick connect 通过同源 API 创建当前用户的一次性注册 token，不�
 生产 US/HK 下载及注册地址按已认证 bootstrap 的账号分区选择，不被 WebSocket 配置覆盖。
 自定义域名及本地端口保留。已安装设备可切换到短 paxd setup 命令，复用同一 token，
 不重新下载工具；完整安装命令使用多行 quoted heredoc，避免嵌套引号。
+两种命令都展示 `--name default`，并提示运行前将 `default` 改为设备名称，
+含空格的名称使用引号。完整安装通过 `bash -s -- --name default` 将名称传给
+installer，再透传至 `paxd setup`；短命令直接指定 `paxd setup --name default`。
+发布 Console 前需先发布支持名称参数及 installer 参数透传的 paxd。
 完整下载并检查 Shell shebang 后执行；HTML、空响应及中断下载停止且不执行。
 返回下载/安装错误。Browser sign-in 使用相同的完整安装命令，
 显式清空环境中可能残留的 `PAX_REGISTRATION_TOKEN`，继续使用终端登录链接和

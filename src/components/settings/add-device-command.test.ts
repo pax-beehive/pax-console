@@ -25,6 +25,7 @@ describe("device install command", () => {
     expect(command).toContain("PAX_CLOUD_URL='https://staging.example.test'");
     expect(command).toContain("PAX_SETUP_AFTER_INSTALL=1");
     expect(command).toContain("PAX_REGISTRATION_TOKEN='one-time-token'");
+    expect(command).toContain('bash -s -- --name default <<< "$script"');
   });
   it.each([
     [
@@ -98,6 +99,7 @@ cat <<'SCRIPT'
 [ "$PAX_CLOUD_URL" = https://staging.example.test ] || exit 95
 [ "$PAX_SETUP_AFTER_INSTALL" = 1 ] || exit 96
 [ "$PAX_REGISTRATION_TOKEN" = "$PAX_TEST_EXPECTED_TOKEN" ] || exit 97
+[ "$1" = --name ] && [ "$2" = default ] || exit 98
 printf 'paxd-install\\n' >> "$PAX_TEST_LOG"
 [ "$PAX_TEST_FAIL" != paxd-install ] || exit 8
 printf 'setup\\n' >> "$PAX_TEST_LOG"
@@ -257,10 +259,10 @@ describe("regional registration commands", () => {
           `PAX_CLOUD_URL='https://${prefix}wsapi.paxworkspace.net'`,
         );
         expect(buildDeviceSetupCommand("fake-token")).toBe(
-          `PAX_REGISTRATION_TOKEN='fake-token' paxd setup --cloud-url 'https://${prefix}wsapi.paxworkspace.net' --registration-token-env`,
+          `PAX_REGISTRATION_TOKEN='fake-token' paxd setup --cloud-url 'https://${prefix}wsapi.paxworkspace.net' --name default --registration-token-env`,
         );
         expect(buildDeviceSetupCommand()).toBe(
-          `PAX_REGISTRATION_TOKEN='' paxd setup --cloud-url 'https://${prefix}wsapi.paxworkspace.net'`,
+          `PAX_REGISTRATION_TOKEN='' paxd setup --cloud-url 'https://${prefix}wsapi.paxworkspace.net' --name default`,
         );
       } finally {
         vi.stubGlobal(
@@ -300,6 +302,8 @@ it.each(["", "fake'$(exit 81)\n`exit 82`"])(
         "setup",
         "--cloud-url",
         "https://wsapi.paxworkspace.net",
+        "--name",
+        "default",
         ...(token ? ["--registration-token-env"] : []),
       ]);
     } finally {

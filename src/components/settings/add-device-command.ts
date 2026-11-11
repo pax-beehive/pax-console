@@ -27,7 +27,7 @@ function installerScript(product: "paxl" | "paxd", variable: string) {
     `url="$${variable}/api/v1/public/${product}/install.sh"`,
     'script=$(curl -fsSL --max-redirs 1 "$url") || exit $?',
     'case "${script%%$\'\\n\'*}" in "#!/usr/bin/env bash"|"#!/bin/bash"|"#!/bin/sh") ;; *) printf "Expected a shell installer from %s; check the API URL or login redirect.\\n" "$url" >&2; exit 1 ;; esac',
-    'bash <<< "$script"',
+    'bash -s -- --name default <<< "$script"',
   ].join("\n");
 }
 
@@ -50,7 +50,7 @@ function deviceOrigins() {
 
 export function buildDeviceSetupCommand(token = "") {
   const { cloud } = deviceOrigins();
-  return `PAX_REGISTRATION_TOKEN=${shellQuote(token)} paxd setup --cloud-url ${shellQuote(cloud)}${token ? " --registration-token-env" : ""}`;
+  return `PAX_REGISTRATION_TOKEN=${shellQuote(token)} paxd setup --cloud-url ${shellQuote(cloud)} --name default${token ? " --registration-token-env" : ""}`;
 }
 
 export function buildDeviceInstallCommand(token = "") {

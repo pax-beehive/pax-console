@@ -164,6 +164,11 @@ export function DeviceConnectStep({
             key={installed ? attempt.setupCommand : attempt.command}
             command={installed ? attempt.setupCommand : attempt.command}
           />
+          <p className="text-sm text-ink-muted">
+            Change <code>--name default</code> to your preferred device name
+            before running the command, for example{" "}
+            <code>--name &quot;My MacBook&quot;</code>.
+          </p>
         </div>
       )}
       {expired && (
