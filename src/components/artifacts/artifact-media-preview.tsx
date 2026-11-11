@@ -15,14 +15,22 @@ import {
   MediaFullscreenButton,
   MediaMuteButton,
   MediaPlayButton,
-  MediaPlaybackRateButton,
   MediaTimeDisplay,
   MediaTimeRange,
   MediaVolumeRange,
 } from "media-chrome/react";
-import { AudioLines } from "lucide-react";
+import { AudioLines, ChevronUp, Pause, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import styles from "./artifact-media-preview.module.css";
+
+const playbackRates = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 export type ArtifactMediaPlaybackState = {
   src: string;
@@ -57,6 +65,10 @@ export function ArtifactMediaPreview({
   const [failedVersion, setFailedVersion] = useState<string>();
   const [renewalErrorVersion, setRenewalErrorVersion] = useState<string>();
   const [renewingVersion, setRenewingVersion] = useState<string>();
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const [rateMenuOpen, setRateMenuOpen] = useState(false);
+  const [rateControlFocused, setRateControlFocused] = useState(false);
+  const [menuContainer, setMenuContainer] = useState<Element>();
   const mediaRef = useRef<HTMLMediaElement>(null);
   const activeRef = useRef(active);
   const restoredRef = useRef(false);
@@ -66,6 +78,14 @@ export function ArtifactMediaPreview({
   const failedRef = useRef<string>(undefined);
   const renewalRef = useRef({ version: "", attempted: false, pending: false });
   const renewalTimeRef = useRef<{ version: string; at: number }>(undefined);
+
+  useEffect(() => {
+    const handleFullscreenChange = () =>
+      setMenuContainer(document.fullscreenElement ?? undefined);
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () =>
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
 
   useLayoutEffect(() => {
     mountedRef.current = true;
@@ -267,13 +287,17 @@ export function ArtifactMediaPreview({
     onPause: handlePause,
     onSeeking: handleSourceActivity,
     onLoadedMetadata: restorePlayback,
+    onRateChange: () => setPlaybackRate(mediaRef.current?.playbackRate ?? 1),
   };
 
   return (
     <div className={styles.preview}>
       <MediaController
         audio={kind === "audio"}
-        autohide={kind === "audio" ? "-1" : "3"}
+        noHotkeys={rateMenuOpen || rateControlFocused}
+        autohide={
+          kind === "audio" || rateMenuOpen || rateControlFocused ? "-1" : "3"
+        }
         className={`${styles.player} ${kind === "audio" ? styles.audio : ""}`}
         aria-label={`${kind === "video" ? "Video" : "Audio"} playback controls`}
       >
@@ -310,12 +334,70 @@ export function ArtifactMediaPreview({
         <div className={styles.chrome}>
           <MediaTimeRange className={styles.timeline} aria-label="Seek" />
           <MediaControlBar className={styles.controls}>
-            <MediaPlayButton className={styles.playButton} />
+            <MediaPlayButton className={styles.playButton}>
+              <Play
+                slot="play"
+                aria-hidden="true"
+                fill="currentColor"
+                strokeWidth={0}
+              />
+              <Pause
+                slot="pause"
+                aria-hidden="true"
+                fill="currentColor"
+                strokeWidth={0}
+              />
+            </MediaPlayButton>
             <MediaMuteButton />
             <MediaVolumeRange className={styles.volume} />
             <MediaTimeDisplay showDuration className={styles.time} />
             <span className={styles.spacer} />
-            <MediaPlaybackRateButton rates={[0.5, 0.75, 1, 1.25, 1.5, 2]} />
+            <DropdownMenu
+              modal={false}
+              open={active && rateMenuOpen}
+              onOpenChange={setRateMenuOpen}
+            >
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className={styles.rateButton}
+                  aria-label={`Playback speed: ${playbackRate}×`}
+                  onFocus={() => setRateControlFocused(true)}
+                  onBlur={() => setRateControlFocused(false)}
+                >
+                  <span className={styles.rateLabel}>
+                    {playbackRate}×
+                    <ChevronUp size={12} aria-hidden="true" />
+                  </span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                container={menuContainer}
+                side="top"
+                align="end"
+                avoidCollisions={false}
+                className={styles.rateMenu}
+                aria-label="Playback speed"
+              >
+                <DropdownMenuRadioGroup
+                  value={String(playbackRate)}
+                  onValueChange={(value) => {
+                    const media = mediaRef.current;
+                    if (!media) return;
+                    media.playbackRate = Number(value);
+                    setPlaybackRate(media.playbackRate);
+                  }}
+                >
+                  {playbackRates.map((rate) => (
+                    <DropdownMenuRadioItem key={rate} value={String(rate)}>
+                      {rate}×
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
             {kind === "video" && <MediaFullscreenButton />}
           </MediaControlBar>
         </div>

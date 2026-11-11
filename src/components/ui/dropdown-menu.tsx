@@ -1,20 +1,27 @@
 "use client";
 
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
+import { Check } from "lucide-react";
 import { ComponentPropsWithoutRef } from "react";
 import { cn } from "@/lib/utils";
 
 export const DropdownMenu = DropdownMenuPrimitive.Root;
 export const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
+export const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
 
 export function DropdownMenuContent({
   align = "end",
   className,
+  container,
   sideOffset = 8,
   ...props
-}: ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>) {
+}: ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content> & {
+  container?: ComponentPropsWithoutRef<
+    typeof DropdownMenuPrimitive.Portal
+  >["container"];
+}) {
   return (
-    <DropdownMenuPrimitive.Portal>
+    <DropdownMenuPrimitive.Portal container={container}>
       <DropdownMenuPrimitive.Content
         align={align}
         className={cn(
@@ -43,5 +50,30 @@ export function DropdownMenuItem({
       )}
       {...props}
     />
+  );
+}
+
+export function DropdownMenuRadioItem({
+  children,
+  className,
+  ...props
+}: ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.RadioItem>) {
+  return (
+    <DropdownMenuPrimitive.RadioItem
+      className={cn(
+        "flex min-h-8 cursor-pointer items-center gap-2 rounded-md px-2.5 text-sm",
+        "text-ink-muted outline-none transition hover:bg-surface-3 hover:text-ink",
+        "focus:bg-surface-3 focus:text-ink data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50",
+        className,
+      )}
+      {...props}
+    >
+      <span className="flex size-4 shrink-0 items-center justify-center">
+        <DropdownMenuPrimitive.ItemIndicator>
+          <Check aria-hidden="true" size={14} />
+        </DropdownMenuPrimitive.ItemIndicator>
+      </span>
+      {children}
+    </DropdownMenuPrimitive.RadioItem>
   );
 }
