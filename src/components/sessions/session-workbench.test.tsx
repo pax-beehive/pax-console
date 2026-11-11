@@ -14,7 +14,11 @@ import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { queryKeys } from "@/features/api/query-keys";
-import type { AgentSession, HistoryMessage } from "@/features/api/types";
+import type {
+  AgentSession,
+  HistoryMessage,
+  TurnSearchAccess,
+} from "@/features/api/types";
 import { ApiError, AuthError } from "@/features/api/errors";
 import { mergeEvents } from "@/features/runtime/merge-session-events";
 import { normalizeTunnelFrame } from "@/features/runtime/normalize-tunnel-frame";
@@ -200,6 +204,7 @@ function workbench(
   initialAttachments?: ComponentProps<
     typeof SessionWorkbench
   >["initialAttachments"],
+  searchAccess?: TurnSearchAccess,
 ) {
   return (
     <QueryClientProvider client={queryClient}>
@@ -209,6 +214,7 @@ function workbench(
           sessionId="sess_1"
           targetMessageId={targetMessageId}
           initialAttachments={initialAttachments}
+          initialSearchAccess={searchAccess}
           user={{ user_id: "user_1" }}
         />
       </TooltipProvider>
@@ -819,6 +825,59 @@ describe("Search message navigation in the session workbench", () => {
 });
 
 describe("SessionWorkbench composer status", () => {
+  it("consumes search preauthorization after acceptance instead of applying it to the next turn", async () => {
+    fixtures.session = { ...fixtures.session, runtime_status: "idle" };
+    const access = {
+      queries: ["cicd"],
+      agent_ids: ["agent_other"],
+      session_ids: ["*"],
+    };
+    fixtures.sendMessage.mockImplementationOnce(async (_input, options) => {
+      options?.onAccepted?.();
+      return { sessionId: "sess_1" };
+    });
+    render(workbench(undefined, undefined, access));
+    fireEvent.click(screen.getByRole("button", { name: "Send prompt" }));
+    await waitFor(() =>
+      expect(fixtures.sendMessage).toHaveBeenCalledWith(
+        "next prompt",
+        expect.objectContaining({ searchAccess: access }),
+      ),
+    );
+    await waitFor(() =>
+      expect(useConsoleStore.getState().composerDrafts.sess_1).toBe(""),
+    );
+    act(() =>
+      useConsoleStore.getState().setComposerDraft("sess_1", "second prompt"),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send prompt" }));
+    await waitFor(() =>
+      expect(fixtures.sendMessage).toHaveBeenLastCalledWith(
+        "second prompt",
+        expect.objectContaining({ searchAccess: undefined }),
+      ),
+    );
+  });
+
+  it("retains search preauthorization when the prompt fails before acceptance", async () => {
+    fixtures.session = { ...fixtures.session, runtime_status: "idle" };
+    const access = {
+      queries: ["*"],
+      agent_ids: ["self"],
+      session_ids: ["sess_a"],
+    };
+    fixtures.sendMessage.mockRejectedValueOnce(new Error("not accepted"));
+    render(workbench(undefined, undefined, access));
+    fireEvent.click(screen.getByRole("button", { name: "Send prompt" }));
+    await screen.findByText(/not accepted/);
+    fireEvent.click(screen.getByRole("button", { name: "Send prompt" }));
+    await waitFor(() => expect(fixtures.sendMessage).toHaveBeenCalledTimes(2));
+    expect(fixtures.sendMessage).toHaveBeenLastCalledWith(
+      "next prompt",
+      expect.objectContaining({ searchAccess: access }),
+    );
+  });
+
   it("steers directly from the composer and clears the accepted draft", async () => {
     render(workbench());
     const steer = screen.getByRole("button", {

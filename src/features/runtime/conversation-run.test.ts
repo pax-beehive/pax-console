@@ -104,6 +104,43 @@ describe("streamConversationRun", () => {
     ]);
   });
 
+  it("sends search preauthorization for new and existing turns but not initialization or permission resumes", async () => {
+    const fetchMock = vi.fn(
+      async () => new Response(streamFromChunks([]), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const base = {
+      agentId: "agent_1",
+      nodeId: "node_1",
+      userId: "self",
+      onEnvelope: vi.fn(),
+      searchAccess: {
+        queries: ["cicd"],
+        agent_ids: ["agent_other"],
+        session_ids: ["*"],
+      },
+    };
+    await streamConversationRun({ ...base, input: "find CI/CD" });
+    await streamConversationRun({
+      ...base,
+      input: "find CI/CD",
+      sessionId: "sess_existing",
+    });
+    await streamConversationRun({ ...base, initializeOnly: true });
+    await streamConversationRun({
+      ...base,
+      sessionId: "sess_existing",
+      resume: { approvalId: "appr_1" },
+    });
+    const bodies = (fetchMock as Mock).mock.calls.map(([, init]) =>
+      JSON.parse((init as RequestInit).body as string),
+    );
+    expect(bodies[0].search_access).toEqual(base.searchAccess);
+    expect(bodies[1].search_access).toEqual(base.searchAccess);
+    expect(bodies[2]).not.toHaveProperty("search_access");
+    expect(bodies[3]).not.toHaveProperty("search_access");
+  });
+
   it("posts initialize_only without manufacturing prompt content", async () => {
     const fetchMock = vi.fn(
       async () =>

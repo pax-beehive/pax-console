@@ -18,7 +18,11 @@ import {
   appendSessionEvents,
   useBufferedSessionEvents,
 } from "./use-buffered-session-events";
-import type { ApprovalOption, SessionApprovalMode } from "../api/types";
+import type {
+  ApprovalOption,
+  SessionApprovalMode,
+  TurnSearchAccess,
+} from "../api/types";
 import { ApiError } from "../api/errors";
 import { isConversationObserverRecoverableError } from "./session-display-status";
 
@@ -41,6 +45,7 @@ type UseConversationRunOptions = {
 };
 
 type SendMessageOptions = {
+  searchAccess?: TurnSearchAccess;
   approvalMode?: SessionApprovalMode;
   attachmentIds?: string[];
   attachments?: SessionMessageAttachment[];
@@ -53,7 +58,7 @@ type SendMessageOptions = {
 
 type InitializeSessionOptions = Omit<
   SendMessageOptions,
-  "attachmentIds" | "attachments" | "onAccepted"
+  "attachmentIds" | "attachments" | "onAccepted" | "searchAccess"
 >;
 
 export function useConversationRun({
@@ -211,6 +216,7 @@ export function useConversationRun({
             ? undefined
             : options?.projectTargetId,
           sessionId: promptSessionId,
+          searchAccess: options?.searchAccess,
           signal: abortController.signal,
           userId,
         });

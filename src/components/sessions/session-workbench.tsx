@@ -51,6 +51,7 @@ import { showPendingActivity } from "./activity-label";
 import { SessionPendingActivity } from "./session-pending-activity";
 import { SessionHistoryPagination } from "./session-history-pagination";
 import { SessionBrowserApprovals } from "./session-browser-approvals";
+import { SessionSearchApprovals } from "./session-search-approvals";
 import { SessionBrowserWindow } from "./session-browser-window";
 import { SessionMobileWindow } from "./session-mobile-window";
 import { MOBILE_PREPARATION_PROMPT } from "@/features/mobile-control/preparation";
@@ -113,6 +114,7 @@ import {
   SessionKnowledgeInjection,
   SessionApprovalMode,
   SessionPaxConfig,
+  TurnSearchAccess,
   User,
 } from "@/features/api/types";
 import {
@@ -190,6 +192,7 @@ type SessionWorkbenchProps = {
   embedded?: boolean;
   initialApprovalMode?: SessionApprovalMode;
   initialPermissionChoiceId?: string;
+  initialSearchAccess?: TurnSearchAccess;
   initialAttachments?: ComposerAttachment[];
   initialCwd?: string;
   initialInitializeOnly?: boolean;
@@ -239,6 +242,7 @@ export function SessionWorkbench({
   embedded = false,
   initialApprovalMode,
   initialPermissionChoiceId,
+  initialSearchAccess,
   initialAttachments,
   initialCwd,
   initialInitializeOnly = false,
@@ -310,6 +314,9 @@ export function SessionWorkbench({
     );
   const [pendingSessionPaxConfig, setPendingSessionPaxConfig] =
     useState<SessionPaxConfig | null>(null);
+  const [searchAccess, setSearchAccess] = useState<
+    TurnSearchAccess | undefined
+  >(initialSearchAccess);
   const pendingInitialPromptRef = useRef(
     readInitialPrompt(initialPrompt, initialPromptKey),
   );
@@ -1422,13 +1429,20 @@ export function SessionWorkbench({
     },
   });
   const queueTurn = useMutation({
-    mutationFn: async (input: string) => {
+    mutationFn: async ({
+      input,
+      access,
+    }: {
+      input: string;
+      access?: TurnSearchAccess;
+    }) => {
       if (!activeAgentId || !currentSessionId) {
         throw new Error("Wait for the session id before queuing the turn.");
       }
 
       return queueSessionTurn(user.user_id, activeAgentId, currentSessionId, {
         input,
+        ...(access ? { search_access: access } : {}),
       });
     },
     onMutate: () => {
@@ -1463,7 +1477,15 @@ export function SessionWorkbench({
         user.user_id,
         activeAgentId,
         currentSessionId,
-        { input },
+        {
+          input,
+          ...((searchAccess ?? queuedTurnQuery.data?.search_access)
+            ? {
+                search_access:
+                  searchAccess ?? queuedTurnQuery.data?.search_access,
+              }
+            : {}),
+        },
       );
     },
     onMutate: () => {
@@ -1504,13 +1526,20 @@ export function SessionWorkbench({
     },
   });
   const steerTurn = useMutation({
-    mutationFn: async (input: string) => {
+    mutationFn: async ({
+      input,
+      access,
+    }: {
+      input: string;
+      access?: TurnSearchAccess;
+    }) => {
       if (!activeAgentId || !currentSessionId) {
         throw new Error("Wait for the session id before steering the turn.");
       }
 
       return steerSessionTurn(user.user_id, activeAgentId, currentSessionId, {
         input,
+        ...(access ? { search_access: access } : {}),
       });
     },
     onMutate: () => {
@@ -1988,6 +2017,14 @@ export function SessionWorkbench({
     );
     setComposerAttachmentError(null);
   }, []);
+  const clearSentSearchAccess = useCallback(
+    (sentAccess: TurnSearchAccess | undefined) => {
+      setSearchAccess((current) =>
+        current === sentAccess ? undefined : current,
+      );
+    },
+    [setSearchAccess],
+  );
   const submitDraft = useCallback(
     async (content: string, onAccepted?: () => void) => {
       if (
@@ -2040,7 +2077,8 @@ export function SessionWorkbench({
             return false;
           }
           if (messageTarget) backToLatest();
-          await queueDraft(content);
+          await queueDraft({ input: content, access: searchAccess });
+          clearSentSearchAccess(searchAccess);
           return true;
         }
 
@@ -2052,6 +2090,7 @@ export function SessionWorkbench({
         }
         if (messageTarget) backToLatest();
         await sendConversationMessage(content, {
+          searchAccess,
           ...(isNewSession
             ? {
                 approvalMode: effectiveNewSessionApprovalMode,
@@ -2068,6 +2107,7 @@ export function SessionWorkbench({
           attachments: composerAttachments,
           onAccepted: () => {
             clearSentAttachments(attachmentIds);
+            clearSentSearchAccess(searchAccess);
             onAccepted?.();
           },
         });
@@ -2094,6 +2134,8 @@ export function SessionWorkbench({
       messageTarget,
       composerAttachments,
       clearSentAttachments,
+      clearSentSearchAccess,
+      searchAccess,
       usesEncryptedTransport,
       isNewSession,
       isTurnRunning,
@@ -2136,13 +2178,20 @@ export function SessionWorkbench({
     async (content: string) => {
       try {
         if (messageTarget) backToLatest();
-        await steerDraft(content);
+        await steerDraft({ input: content, access: searchAccess });
+        clearSentSearchAccess(searchAccess);
         return true;
       } catch {
         return false;
       }
     },
-    [steerDraft, messageTarget, backToLatest],
+    [
+      steerDraft,
+      messageTarget,
+      backToLatest,
+      searchAccess,
+      clearSentSearchAccess,
+    ],
   );
   const handleStopTurn = useCallback(() => {
     if (usesEncryptedTransport) {
@@ -2159,12 +2208,13 @@ export function SessionWorkbench({
     async (content: string) => {
       try {
         await updateQueuedDraft(content);
+        clearSentSearchAccess(searchAccess);
         return true;
       } catch {
         return false;
       }
     },
-    [updateQueuedDraft],
+    [updateQueuedDraft, searchAccess, clearSentSearchAccess],
   );
 
   const mutatePermissionDecision = decidePermission.mutate;
@@ -2254,6 +2304,7 @@ export function SessionWorkbench({
       );
       let initialAccepted = false;
       void sendConversationMessage(content, {
+        searchAccess: initialSearchAccess,
         approvalMode: initialPromptPermission.approvalMode,
         cwd: normalizedNewSessionCwd || undefined,
         permissionChoiceId:
@@ -2267,6 +2318,7 @@ export function SessionWorkbench({
         onAccepted: () => {
           initialAccepted = true;
           clearSentAttachments(attachmentIds);
+          clearSentSearchAccess(initialSearchAccess);
           removeStoredInitialPrompt(initialPromptKey);
         },
       })
@@ -2309,10 +2361,12 @@ export function SessionWorkbench({
     activeNodeId,
     composerAttachments,
     clearSentAttachments,
+    clearSentSearchAccess,
     conversationRun.status,
     composerDraftKey,
     encryptedRuntime.keyLoading,
     initialPromptKey,
+    initialSearchAccess,
     initialPermissionChoiceId,
     initialPrimaryProjectId,
     initialProjectTargetId,
@@ -2747,6 +2801,15 @@ export function SessionWorkbench({
             userId={user.user_id}
           />
         )}
+        {!usesEncryptedTransport && currentSessionId && activeAgentId && (
+          <SessionSearchApprovals
+            key={`${user.user_id}/${activeAgentId}/${currentSessionId}`}
+            userId={user.user_id}
+            agentId={activeAgentId}
+            sessionId={currentSessionId}
+            turnId={activeTimelineTurnId(timelineRuntime)}
+          />
+        )}
 
         {messageTarget && (
           <SessionMessageTargetNotice
@@ -2945,6 +3008,8 @@ export function SessionWorkbench({
           onSubmitDraft={submitDraft}
           onSelectPermissionChoice={selectPermissionChoice}
           onToggleApprovalMode={toggleApprovalMode}
+          onSearchAccessChange={setSearchAccess}
+          searchAccess={searchAccess}
           onUpdateQueuedTurn={handleUpdateQueuedTurn}
           queueTurnPending={queueTurn.isPending}
           queuedTurn={queuedTurnQuery.data}

@@ -708,6 +708,12 @@ export type ArtifactPublicationContentState = {
 
 export type SessionApprovalMode = "manual" | "auto_approve_all";
 
+export type TurnSearchAccess = {
+  queries: string[];
+  agent_ids: string[];
+  session_ids: string[];
+};
+
 export type AgentPermissionChoice = {
   choice_id: string;
   label: string;

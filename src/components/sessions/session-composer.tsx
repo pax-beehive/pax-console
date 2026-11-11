@@ -33,6 +33,7 @@ import { SettingsToggle } from "@/components/ui/settings-controls";
 import { SessionPermissionSelector } from "@/components/sessions/session-permission-selector";
 import { SessionSettings, SessionSettingsHome } from "./session-settings";
 import { SessionSecretDialog } from "./session-secret-dialog";
+import { TurnSearchAccessSettings } from "./turn-search-access-settings";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,6 +46,7 @@ import type {
   AgentPermissionChoice,
   SessionApprovalMode,
   SessionAvailableCommand,
+  TurnSearchAccess,
 } from "@/features/api/types";
 import { compactId } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -84,6 +86,8 @@ type SessionComposerProps = {
   onSubmitDraft: (content: string, onAccepted?: () => void) => Promise<boolean>;
   onSelectPermissionChoice?: (choiceId: string) => void;
   onToggleApprovalMode: () => void;
+  onSearchAccessChange?: (access: TurnSearchAccess | undefined) => void;
+  searchAccess?: TurnSearchAccess;
   onUpdateQueuedTurn: (content: string) => Promise<boolean>;
   queueTurnPending: boolean;
   queuedTurn: QueuedSessionTurnData | null | undefined;
@@ -129,6 +133,8 @@ export const SessionComposer = memo(function SessionComposer({
   onSubmitDraft,
   onSelectPermissionChoice,
   onToggleApprovalMode,
+  onSearchAccessChange,
+  searchAccess,
   onUpdateQueuedTurn,
   queueTurnPending,
   queuedTurn,
@@ -380,6 +386,11 @@ export const SessionComposer = memo(function SessionComposer({
                 variant="ghost"
               />
             </div>
+            {queuedTurn.search_access && (
+              <p className="text-xs text-ink-muted">
+                Expanded search scope is preauthorized for this queued turn.
+              </p>
+            )}
             {queuedTurn.state === "uncertain" && (
               <p className="text-xs text-warning">
                 Delivery could not be confirmed. Check the conversation before
@@ -551,6 +562,7 @@ export const SessionComposer = memo(function SessionComposer({
           <SessionSettings
             summary={[
               configurationSummary,
+              !secure && searchAccess ? "Expanded search next turn" : undefined,
               permissionChoices?.find(
                 (choice) => choice.choice_id === permissionChoiceId,
               )?.label ??
@@ -560,6 +572,17 @@ export const SessionComposer = memo(function SessionComposer({
               .join(" · ")}
           >
             {configurationControl}
+            {onSearchAccessChange && (
+              <TurnSearchAccessSettings
+                autoApprove={
+                  approvalMode === "auto_approve_all" &&
+                  permissionChoiceId === "pax:auto_approve"
+                }
+                disabled={secure}
+                value={searchAccess}
+                onChange={onSearchAccessChange}
+              />
+            )}
             {permissionChoices?.length &&
             permissionChoiceId &&
             onSelectPermissionChoice ? (
