@@ -1381,6 +1381,61 @@ describe("Individual matches during group migration", () => {
   });
 });
 
+describe("Summary origin navigation", () => {
+  function openSummary(data: WorkspaceSummaryVersion) {
+    sourceResult(sourceState(data));
+    render(
+      <SearchSourcePanel
+        userId="user_1"
+        sourceRef={{
+          kind: "summary",
+          id: data.summary_id,
+          revision: data.revision,
+        }}
+        onSelect={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+  }
+
+  it("opens the summary's canonical origin session with an encoded URL", () => {
+    openSummary({ ...summary, origin_session_id: "session/one?&two" });
+
+    expect(screen.getByRole("link", { name: "Open session" })).toHaveAttribute(
+      "href",
+      "/?session_id=session%2Fone%3F%26two",
+    );
+  });
+
+  it("does not infer a session from a summary subject or message coverage", () => {
+    openSummary({ ...summary, subject_id: "sess_not_a_verified_origin" });
+
+    expect(
+      screen.queryByRole("link", { name: "Open session" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides a cached origin link when summary access is denied", () => {
+    sourceResult({
+      ...sourceState({ ...summary, origin_session_id: "sess_private" }),
+      isError: true,
+      error: new ApiError("Access denied", 403, {}),
+    });
+    render(
+      <SearchSourcePanel
+        userId="user_1"
+        sourceRef={{ kind: "summary", id: summary.summary_id }}
+        onSelect={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("link", { name: "Open session" }),
+    ).not.toBeInTheDocument();
+  });
+});
+
 describe("Literal highlighting", () => {
   it.each([
     "port 数据库",
