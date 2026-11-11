@@ -133,14 +133,16 @@
 }
 
 .playButton {
+  --media-icon-color: var(--canvas);
+  --media-button-icon-height: 24px;
   --media-control-background: var(--accent);
   --media-control-hover-background: color-mix(
     in srgb,
     var(--accent),
     white 15%
   );
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   margin-right: 4px;
   border-radius: 50%;
 }
@@ -161,6 +163,27 @@
 .spacer {
   flex: 1;
   min-width: 0;
+}
+
+.rateButton {
+  height: 36px;
+  min-width: 62px;
+  padding-inline: 8px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.rateLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rateMenu {
+  min-width: 112px;
+  max-height: min(240px, var(--radix-dropdown-menu-content-available-height));
+  overflow-y: auto;
+  font-variant-numeric: tabular-nums;
 }
 
 .error {
@@ -196,7 +219,19 @@
 }
 
 @container (max-width: 300px) {
-  .controls :global(media-playback-rate-button) {
-    display: none;
+  .playButton {
+    --media-button-icon-height: 20px;
+    width: 36px;
+    height: 36px;
+  }
+
+  .rateButton {
+    min-width: 50px;
+    padding-inline: 4px;
+  }
+
+  .time {
+    --media-control-padding: 4px;
+    --media-font-size: 10px;
   }
 }
