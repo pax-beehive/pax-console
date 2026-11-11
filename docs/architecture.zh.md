@@ -1589,6 +1589,36 @@ state and must not render a chat message or complete a turn. Explicit resume
 requests retain the original response result. Commands still arrive through
 independent `available_commands_update` notifications.
 
+## Pax Android 模拟器控制
+
+节点详情新增显式展开的 Android 面板，会话资源栏可以打开独立、非模态的手机浮窗。
+`src/features/mobile-control` 复用已有同源 `/api/pax`，请求
+`POST /api/v1/user/{user_id}/nodes/{node_id}/daemon/mobile`。Manager 验证节点归属后，
+通过已有节点控制通道发送固定 `mobile.control` 操作。运行时 token、SDK 路径、
+gRPC 地址只保留在节点；前端不提供地址、代理路径或 WebRTC SDP 透传入口。
+
+手机准备由当前 Agent 负责。会话手机窗口中的准备按钮只把可编辑说明和
+[准备手册](https://github.com/CCGV2/agent-mobile-runtime/blob/main/docs/agent-preparation.md)
+写入当前聊天输入框，保留已有草稿与附件。用户自己检查、编辑并点击发送后，才走已有
+普通/E2EE 消息流程交给 Agent。打开窗口或点击准备按钮都不会自动发消息或启动 Agent。
+Agent 收到用户发送的请求后读取说明、检查依赖、按授权完成安装和启动，在聊天中报告
+进度。写入草稿或消息被接受都不表示手机已就绪。
+
+Console 不安装 SDK，也不提供手机创建、启动、停止、销毁按钮，不通过长 HTTP 请求
+等待 Android 开机。共享 API 默认超时与取消机制保持不变。节点详情没有当前 Agent
+上下文，只引导用户回到会话准备。状态和真实画面仍由节点桥接读取，不能从写入草稿或发送成功推断。
+
+必须明确选择手机，不跟随最近活动设备。
+接管后才能点击、滑动、输入或导航，每次操作消费一张新截图的引用，失败不重发。
+窗口 blur/隐藏停止读取并清除预览、本地输入权限，文件加载会取消；重新聚焦不自动接管。
+运行时的人工 hold 保持到用户明确 Release control，关闭浮窗不会自动恢复 Agent。
+
+设备、模板及录制元数据由 TanStack Query 管理；截图、输入正文及媒体文件仅在组件
+临时内存中，不进入 Query/mutation cache、聊天、URL、localStorage 或 ACP 历史。
+完成的录制按设备/录制 ID 读取有界 256 KiB 分块，校验 offset、大小、MIME 和 EOF，
+音频按需加载播放，MKV 下载后使用适合的播放器；替换/关闭时撤销 Object URL。
+Pax 远程预览使用截图，不传实时声音；运行时的本机 WebRTC 安全边界保持不变。
+
 ## Pax 浏览器控制 MVP
 
 节点详情的 Browser 面板通过同源 `/api/pax` 调用新增

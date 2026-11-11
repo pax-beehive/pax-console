@@ -1,4 +1,9 @@
-export type SessionSidePanelId = "tool" | "artifacts" | "browser" | "knowledge";
+export type SessionSidePanelId =
+  | "tool"
+  | "artifacts"
+  | "browser"
+  | "mobile"
+  | "knowledge";
 
 export function canSeeSessionSidePanel(
   panelId: SessionSidePanelId,
