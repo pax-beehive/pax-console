@@ -29,9 +29,18 @@ export function coverageText(counts: SecretaryCoverageCounts) {
 }
 
 function visiblePage(progress: ProgressQuery) {
-  return progress.error instanceof AuthError
+  return progress.error instanceof AuthError || progressIsUpdating(progress)
     ? undefined
     : progress.data?.pages[0];
+}
+
+function progressIsUpdating(progress: ProgressQuery) {
+  return (
+    progress.error instanceof ApiError &&
+    progress.error.status === 503 &&
+    progress.error.message ===
+      "Secretary progress is updating. Please try again shortly."
+  );
 }
 
 export function SecretaryProgressOverview({
@@ -66,7 +75,11 @@ export function SecretaryProgressOverview({
           Refresh progress
         </Button>
       </div>
-      {!page ? (
+      {progressIsUpdating(progress) ? (
+        <p className="mt-3 text-xs leading-5 text-ink-tertiary" role="status">
+          Summary progress is updating. Counts will refresh automatically.
+        </p>
+      ) : !page ? (
         progress.isError ? (
           <div className="mt-3 text-xs leading-5 text-warning" role="alert">
             {progress.error instanceof AuthError
@@ -162,6 +175,20 @@ export function SecretarySessionProgressList({
   agents: Agent[];
 }) {
   const page = visiblePage(progress);
+  if (progressIsUpdating(progress)) {
+    return (
+      <section
+        aria-label="Session summary progress"
+        className="scroll-mt-4 border-t border-hairline pt-4"
+        id="secretary-session-progress"
+      >
+        <h2 className="text-sm font-medium text-ink">Sessions</h2>
+        <p className="mt-3 text-xs leading-5 text-ink-tertiary" role="status">
+          Session progress is updating. The list will refresh automatically.
+        </p>
+      </section>
+    );
+  }
   if (!page) return null;
   const rows = new Map<string, SecretarySessionProgress>();
   for (const item of progress.data?.pages ?? [])

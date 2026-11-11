@@ -247,6 +247,68 @@ describe("Secretary progress", () => {
     fireEvent.click(screen.getByRole("button", { name: "Refresh progress" }));
     expect(failed.restart).toHaveBeenCalledOnce();
   });
+  it.each([false, true])(
+    "shows updating progress without presenting unavailable or stale counts (cached: %s)",
+    (cached) => {
+      const state = query({
+        data: cached ? { pages: [page] } : undefined,
+        isError: true,
+        error: new ApiError(
+          "Secretary progress is updating. Please try again shortly.",
+          503,
+          {},
+        ),
+      });
+      render(
+        <>
+          <SecretaryProgressOverview progress={state} />
+          <SecretarySessionProgressList progress={state} agents={[]} />
+        </>,
+      );
+      const overview = screen.getByRole("region", { name: "Summary progress" });
+      expect(within(overview).getByRole("status")).toHaveTextContent(
+        "Summary progress is updating",
+      );
+      expect(within(overview).getByRole("status")).toHaveTextContent(
+        "refresh automatically",
+      );
+      const sessions = screen.getByRole("region", {
+        name: "Session summary progress",
+      });
+      expect(within(sessions).getByRole("status")).toHaveTextContent(
+        "Session progress is updating",
+      );
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.queryByText("Sessions tracked")).not.toBeInTheDocument();
+      expect(screen.queryByText("Database design")).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("No sessions with readable messages yet."),
+      ).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Refresh progress" }));
+      expect(state.restart).toHaveBeenCalledOnce();
+    },
+  );
+  it.each([
+    new ApiError("temporarily unavailable", 503, {}),
+    new ApiError(
+      "Secretary progress is updating. Please try again shortly.",
+      500,
+      {},
+    ),
+  ])(
+    "keeps ordinary service failures distinct from updating progress",
+    (error) => {
+      render(
+        <SecretaryProgressOverview
+          progress={query({ data: undefined, isError: true, error })}
+        />,
+      );
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Summary progress is unavailable",
+      );
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    },
+  );
   it("replaces loading with an explicit timeout and an available refresh action", () => {
     const state = query({
       data: undefined,

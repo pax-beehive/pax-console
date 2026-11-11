@@ -224,10 +224,12 @@ export function SecretarySettingsPanel({ userId }: { userId: string }) {
                 )}
               </section>
             )}
-            <SecretaryTaskList
-              userId={userId}
-              enabled={settings.data.enabled}
-            />
+            <div id="secretary-tasks" className="scroll-mt-4">
+              <SecretaryTaskList
+                userId={userId}
+                enabled={settings.data.enabled}
+              />
+            </div>
             <SecretarySessionProgressList
               progress={progress}
               agents={ownedAgents}
@@ -411,6 +413,12 @@ function SecretaryStatus({ settings }: { settings: SecretarySettings }) {
     ? new Date(settings.last_completed_at)
     : undefined;
   const execution = executionStatus(settings);
+  const processing = settings.state === "processing";
+  const needsAttention =
+    execution &&
+    ["unknown", "needs_recovery", "blocked"].includes(
+      settings.execution_state ?? "",
+    );
   return (
     <section
       aria-label="Secretary status"
@@ -427,11 +435,13 @@ function SecretaryStatus({ settings }: { settings: SecretarySettings }) {
                 : "neutral"
           }
         >
-          {execution?.label || stateLabels[settings.state] || "Unknown"}
+          {processing
+            ? "Processing"
+            : execution?.label || stateLabels[settings.state] || "Unknown"}
         </Badge>
       </div>
       <dl className="mt-3 grid grid-cols-[auto_minmax(0,1fr)] gap-x-5 gap-y-2 text-xs">
-        <dt className="text-ink-tertiary">Queued</dt>
+        <dt className="text-ink-tertiary">Unfinished</dt>
         <dd className="text-ink-muted">
           {settings.pending_count}{" "}
           {settings.pending_count === 1 ? "conversation" : "conversations"}
@@ -444,9 +454,21 @@ function SecretaryStatus({ settings }: { settings: SecretarySettings }) {
         </dd>
       </dl>
       {execution && (
-        <p className="mt-3 text-xs leading-5 text-ink-muted">
-          {execution.description}
-        </p>
+        <div className="mt-3 space-y-2">
+          <p
+            className={`text-xs leading-5 ${needsAttention ? "text-warning" : "text-ink-muted"}`}
+          >
+            {processing && needsAttention && (
+              <strong className="font-medium">{execution.label}: </strong>
+            )}
+            {execution.description}
+          </p>
+          {needsAttention && (
+            <Button asChild size="sm" variant="ghost">
+              <a href="#secretary-tasks">Review tasks</a>
+            </Button>
+          )}
+        </div>
       )}
       {!execution && settings.last_error && (
         <p className="mt-3 line-clamp-3 whitespace-pre-wrap text-xs leading-5 text-warning [overflow-wrap:anywhere]">
@@ -466,13 +488,13 @@ function executionStatus(settings: SecretarySettings) {
       return {
         label: "Outcome unknown",
         description:
-          "The previous result could not be confirmed. Automatic retries are paused.",
+          "Automatic retries are paused for a conversation whose result could not be confirmed. Other conversations can continue.",
       };
     case "needs_recovery":
       return {
         label: "Awaiting recovery",
         description:
-          "The previous lease expired. The saved attempt must be checked before continuing.",
+          "The previous lease expired for a conversation. Check that conversation's saved attempt before restarting it. Other conversations can continue.",
       };
     case "output_received":
       return {
@@ -513,17 +535,17 @@ function executionStatus(settings: SecretarySettings) {
 function blockedDescription(reason: SecretarySettings["blocked_reason"]) {
   switch (reason) {
     case "connection_retries_exhausted":
-      return "Secretary could not connect after automatic retries. Use Retry run when the agent is available.";
+      return "Secretary could not connect after automatic retries for a conversation. Review that task when the agent is available. Other conversations can continue.";
     case "invalid_output":
-      return "Automatic retries stopped after invalid output. Use Retry run to try again.";
+      return "Automatic retries stopped after invalid output for a conversation. Review that task before retrying it. Other conversations can continue.";
     case "execution_failed":
     case "retry_exhausted":
-      return "Automatic retries reached their limit. Use Retry run to try again.";
+      return "Automatic retries reached their limit for a conversation. Review that task before retrying it. Other conversations can continue.";
     case "canceled":
     case "execution_canceled":
-      return "The previous attempt was canceled. Use Retry run when ready.";
+      return "The previous attempt was canceled for a conversation. Review that task when ready. Other conversations can continue.";
     default:
-      return "Automatic processing is paused. Use Retry run after checking the source session.";
+      return "Automatic processing is paused for a conversation. Review that task before retrying it. Other conversations can continue.";
   }
 }
 

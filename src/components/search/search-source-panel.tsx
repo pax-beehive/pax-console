@@ -92,7 +92,8 @@ export function SearchSourcePanel({
       : sourceRef.kind === "summary"
         ? "Summary"
         : "Session");
-  const sessionId = message?.session_id ?? session?.session_id;
+  const sessionId =
+    message?.session_id ?? session?.session_id ?? summary?.origin_session_id;
 
   function readPage(
     offset: number,

@@ -2334,6 +2334,12 @@ AbortSignal 不会替代该期限，调用方取消仍立即传递。超时返�
 原有每三十秒轮询保留。请求结束后清理定时器和取消监听。
 Current status 中的 Queued 只是队列任务数；它与全量会话的剩余总结覆盖数不同。
 
+Manager can return HTTP 503 with the exact message `Secretary progress is
+updating. Please try again shortly.` while preparing current counts. The
+overview and session list show an updating status and hide cached counts and
+rows until a complete response arrives. This state preserves automatic polling
+and manual refresh; other errors retain their existing error presentation.
+
 Home、Resources/Monitor 和 agent 详情的会话列表额外过滤 source 为
 `secretary_internal` 或保留前缀
 `sess_secretary_` 的后台执行会话，旧列表缓存也遵守该规则。普通用户讨论 Secretary
