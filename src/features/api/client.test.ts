@@ -33,6 +33,53 @@ it("times out requests even when a query supplies its own cancellation signal", 
   expect(vi.getTimerCount()).toBe(0);
 });
 
+it("keeps a cold Android boot request alive beyond the default deadline while bounding its full duration", async () => {
+  vi.useFakeTimers();
+  const fetch = stalledFetch();
+  vi.stubGlobal("fetch", fetch);
+  const pending = apiFetch(
+    "/nodes/node/daemon/mobile",
+    { method: "POST" },
+    { timeoutMs: 720_000 },
+  );
+  const failure = expect(pending).rejects.toMatchObject({
+    name: "TimeoutError",
+  });
+  await vi.advanceTimersByTimeAsync(12_000);
+  expect(fetch.mock.calls[0][1]?.signal?.aborted).toBe(false);
+  await vi.advanceTimersByTimeAsync(708_000);
+  await failure;
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it("still cancels a long-running Android request immediately when its caller closes the panel", async () => {
+  vi.useFakeTimers();
+  vi.stubGlobal("fetch", stalledFetch());
+  const caller = new AbortController();
+  const pending = apiFetch(
+    "/nodes/node/daemon/mobile",
+    { signal: caller.signal },
+    { timeoutMs: 720_000 },
+  );
+  const failure = expect(pending).rejects.toMatchObject({ name: "AbortError" });
+  await vi.advanceTimersByTimeAsync(500);
+  caller.abort();
+  await failure;
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it.each([0, -1, Infinity, 720_001])(
+  "refuses unbounded or invalid request deadlines: %s",
+  async (timeoutMs) => {
+    const fetch = stalledFetch();
+    vi.stubGlobal("fetch", fetch);
+    await expect(
+      apiFetch("/nodes/node/daemon/mobile", {}, { timeoutMs }),
+    ).rejects.toThrow(RangeError);
+    expect(fetch).not.toHaveBeenCalled();
+  },
+);
+
 it("forwards caller cancellation immediately and removes its listener", async () => {
   vi.useFakeTimers();
   vi.stubGlobal("fetch", stalledFetch());

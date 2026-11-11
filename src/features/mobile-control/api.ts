@@ -77,11 +77,15 @@ export function mobileControl<T>(
     const result = await apiFetch<{
       mobile_control?: T;
       error?: { message?: string };
-    }>(userPath(userId, `/nodes/${encodeURIComponent(nodeId)}/daemon/mobile`), {
-      method: "POST",
-      body: JSON.stringify({ operation, payload }),
-      signal: signal ? AbortSignal.any([signal, deadline]) : deadline,
-    });
+    }>(
+      userPath(userId, `/nodes/${encodeURIComponent(nodeId)}/daemon/mobile`),
+      {
+        method: "POST",
+        body: JSON.stringify({ operation, payload }),
+        signal: signal ? AbortSignal.any([signal, deadline]) : deadline,
+      },
+      { timeoutMs: timeout },
+    );
     if (result.error || result.mobile_control == null)
       throw Error(result.error?.message ?? "Android control unavailable");
     if (

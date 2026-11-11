@@ -51,9 +51,15 @@ const routingErrors: Record<string, string> = {
 export async function apiFetch<T>(
   path: string,
   init?: RequestInit,
+  options?: { timeoutMs?: number },
 ): Promise<T> {
   // Browser code should call the same-origin proxy by default. That keeps
   // Cloudflare Access and CORS handling on the Next server side in local dev.
+  const timeoutMs = options?.timeoutMs ?? 12_000;
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 720_000)
+    throw new RangeError(
+      "API timeout must be between 1 and 720000 milliseconds",
+    );
   const controller = new AbortController();
   const callerSignal = init?.signal;
   const cancel = () => controller.abort(callerSignal?.reason);
@@ -64,7 +70,7 @@ export async function apiFetch<T>(
       controller.abort(
         new DOMException("PAX API request timed out", "TimeoutError"),
       ),
-    12_000,
+    timeoutMs,
   );
   const headers = new Headers(init?.headers);
   const method = init?.method ?? "GET";

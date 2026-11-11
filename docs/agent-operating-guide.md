@@ -1860,8 +1860,9 @@ frame-bound tap/swipe/text/navigation; each input consumes a fresh screenshot
 reference and is never retried. Blur/hide pauses reads, clears preview and local
 input ownership, and cancels file loading and operations still queued for dispatch.
 An operation already sent may have completed; never retry it automatically.
-Cold boot gets an explicit twelve-minute deadline instead of the shared API
-helper's twelve-second timeout. Focus does not retake control. The
+Cold boot passes an explicit twelve-minute `timeoutMs` to the shared API
+helper, whose default remains twelve seconds for other callers. Caller
+cancellation still aborts long requests immediately. Focus does not retake control. The
 runtime's human hold persists until explicit Release control, including after
 closing the window; the UI does not silently resume the agent.
 

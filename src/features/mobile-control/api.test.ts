@@ -145,6 +145,7 @@ it("gives cold boot its bounded deadline while retaining caller cancellation", a
   const caller = new AbortController();
   await mobileControl("u", "n", "start", { sessionId: "phone" }, caller.signal);
   expect(timeout).toHaveBeenLastCalledWith(720000);
+  expect(fetch.mock.calls[0][2]).toEqual({ timeoutMs: 720000 });
   const signal = fetch.mock.calls[0][1].signal as AbortSignal;
   expect(signal.aborted).toBe(false);
   caller.abort();

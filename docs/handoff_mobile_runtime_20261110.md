@@ -77,12 +77,33 @@ PATH=/usr/local/opt/node@24/bin:$PATH node node_modules/vitest/vitest.mjs run \
   src/components/sessions/session-browser-window.test.tsx
 ```
 
-The worktree reuses the main checkout's dependencies through an ignored
-`node_modules` symlink. Next's default Turbopack rejects that outside-root
-symlink, so local acceptance used the official `next dev --webpack` option,
-bound only to `127.0.0.1:3344`. That acceptance service was stopped afterward.
+The original browser acceptance reused the main checkout's dependencies through
+an ignored `node_modules` symlink. Next's default Turbopack rejects that
+outside-root symlink, so that acceptance used the official `next dev --webpack`
+option, bound only to `127.0.0.1:3344`. That acceptance service was stopped afterward.
 The main Pax services and separately owned SDK runtime on port 7342 were not
 stopped by the Console cleanup.
+
+## PR preparation on 2026-11-11
+
+The feature was rebased onto current `origin/main` without the unrelated
+installer commit inherited by the original worktree. Validation now uses a
+separate `node_modules` installed from the frozen pnpm lockfile; the main
+checkout's dependencies were not modified. The 44 relevant mobile, browser
+window, side-panel and shared API client tests passed, along with TypeScript,
+ESLint, Prettier and diff checks.
+
+Current main enforces a twelve-second deadline even when a caller supplies a
+cancellation signal. Mobile requests now pass an explicit bounded `timeoutMs`
+to the shared helper: cold boot can wait twelve minutes, while the helper's
+default remains twelve seconds and caller cancellation still takes effect
+immediately. Regression tests exercise both long-request timeout and panel
+cancellation. The opt-in browser script explicitly enables the Chromium
+sandbox; real SDK/browser acceptance was not repeated during PR preparation.
+
+This UI still requires the companion Manager and paxd adapters. It does not
+add remote WebRTC, third-party streaming providers, or automatic selection of
+the current Pax session's keyed phone.
 
 `scripts/test-mobile-preview.mjs` requires a private test-harness socket and an
 explicit owned running SDK session. `PAX_MOBILE_SCREENSHOT_ONLY=1` skips input
