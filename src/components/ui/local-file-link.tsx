@@ -1,16 +1,20 @@
 "use client";
 
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, FileText } from "lucide-react";
 import {
   KeyboardEvent,
   MouseEvent,
   ReactNode,
   SyntheticEvent,
   useMemo,
+  useRef,
+  useState,
 } from "react";
 import { parseLocalFileHref } from "@/features/local-files/local-file-href";
 import { useLocalFileLinkContext } from "@/features/local-files/local-file-link-context";
 import { cn } from "@/lib/utils";
+import { Button } from "./button";
+import { Dialog, DialogBody, DialogFooter, DialogHeader } from "./dialog";
 import { useCopyFeedback } from "./use-copy-feedback";
 
 type LocalFileLinkProps = {
@@ -24,8 +28,8 @@ type LocalFileLinkProps = {
 
 /**
  * A reference to a file on the agent's machine. The real path is always the
- * tooltip and always copyable. Inside an enabled LocalFileLinkContext the text
- * opens the session fetch dialog; otherwise it is inert.
+ * tooltip and copyable from its dialog. Inside an enabled LocalFileLinkContext
+ * the text opens the session fetch dialog; otherwise it opens path details.
  */
 export function LocalFileLink({
   children,
@@ -39,6 +43,8 @@ export function LocalFileLink({
     [href],
   );
   const { copied, copy } = useCopyFeedback();
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const labelRef = useRef<HTMLSpanElement>(null);
   const requestFetch =
     context?.enabled && context.requestFetch ? context.requestFetch : undefined;
   const disabledReason =
@@ -52,14 +58,18 @@ export function LocalFileLink({
     event.stopPropagation();
   }
 
-  function openFetch(event: SyntheticEvent) {
+  function openFile(event: SyntheticEvent) {
     stop(event);
-    requestFetch?.({ ...target, label: plainText(label) });
+    if (requestFetch) {
+      requestFetch({ ...target, label: plainText(label) });
+    } else {
+      setDetailsOpen(true);
+    }
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLSpanElement>) {
     if (event.key === "Enter" || event.key === " ") {
-      openFetch(event);
+      openFile(event);
     }
   }
 
@@ -69,53 +79,87 @@ export function LocalFileLink({
   }
 
   return (
-    <span className={cn("group/local-file inline", className)}>
-      {requestFetch ? (
+    <>
+      <span className={cn("inline", className)}>
         <span
+          aria-haspopup="dialog"
           className={cn(
-            "cursor-pointer break-words rounded-sm text-primary-hover underline decoration-primary-hover/40 underline-offset-4 outline-none hover:decoration-primary-hover focus-visible:ring-1 focus-visible:ring-primary-hover/60",
+            "cursor-pointer break-words rounded-sm underline underline-offset-4 outline-none focus-visible:ring-1 focus-visible:ring-primary-hover/60",
+            requestFetch
+              ? "text-primary-hover decoration-primary-hover/40 hover:decoration-primary-hover"
+              : "text-ink-subtle decoration-dotted hover:text-ink",
             textClassName,
           )}
-          onClick={openFetch}
+          onClick={openFile}
           onKeyDown={handleKeyDown}
+          ref={labelRef}
           role="button"
           tabIndex={0}
-          title={target.path}
-        >
-          {label}
-        </span>
-      ) : (
-        <span
-          className={cn(
-            "break-words text-ink-subtle underline decoration-dotted underline-offset-4",
-            textClassName,
-          )}
           title={
             disabledReason ? `${target.path}\n${disabledReason}` : target.path
           }
         >
           {label}
         </span>
+      </span>
+      {detailsOpen && (
+        <Dialog
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            labelRef.current?.focus();
+          }}
+          onOpenChange={setDetailsOpen}
+          open
+        >
+          <DialogHeader
+            description={
+              disabledReason ?? "This file is on the agent's machine."
+            }
+            icon={<FileText aria-hidden className="h-4 w-4" />}
+            title="Local file"
+          />
+          <DialogBody>
+            <code className="block break-all rounded-md border border-hairline bg-canvas px-2.5 py-2 font-mono text-xs leading-5 text-ink">
+              {target.path}
+            </code>
+            {target.line !== undefined && (
+              <p className="mt-1 text-xs text-ink-tertiary">
+                Referenced at line {target.line}
+              </p>
+            )}
+          </DialogBody>
+          <DialogFooter>
+            <Button
+              aria-label={copied ? "Copied path" : "Copy path"}
+              className="mr-auto"
+              icon={
+                copied ? (
+                  <Check aria-hidden className="h-4 w-4" />
+                ) : (
+                  <Copy aria-hidden className="h-4 w-4" />
+                )
+              }
+              onClick={handleCopy}
+              size="sm"
+              type="button"
+            >
+              {copied ? "Copied" : "Copy path"}
+            </Button>
+            <Button
+              onClick={(event) => {
+                stop(event);
+                setDetailsOpen(false);
+              }}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </Dialog>
       )}
-      <button
-        aria-label={copied ? "Copied path" : "Copy path"}
-        className={cn(
-          "ml-0.5 inline-flex h-5 w-5 shrink-0 -translate-y-px items-center justify-center rounded align-middle text-ink-tertiary outline-none transition",
-          "hover:bg-surface-2 hover:text-ink focus-visible:ring-1 focus-visible:ring-primary-hover/60",
-          "opacity-0 focus-visible:opacity-100 group-focus-within/local-file:opacity-100 group-hover/local-file:opacity-100 [@media(hover:none)]:opacity-100",
-          copied && "text-success opacity-100",
-        )}
-        onClick={handleCopy}
-        title={copied ? "Copied" : "Copy path"}
-        type="button"
-      >
-        {copied ? (
-          <Check aria-hidden className="h-3 w-3" />
-        ) : (
-          <Copy aria-hidden className="h-3 w-3" />
-        )}
-      </button>
-    </span>
+    </>
   );
 }
 
