@@ -109,7 +109,9 @@ it("leaves phone preparation to the agent and offers a setup guide outside a ses
     screen.queryByRole("combobox", { name: "Android template" }),
   ).not.toBeInTheDocument();
   expect(
-    screen.queryByRole("button", { name: "Ask agent to prepare phone" }),
+    screen.queryByRole("button", {
+      name: "Add preparation instructions to chat",
+    }),
   ).not.toBeInTheDocument();
   expect(
     screen.getByRole("link", { name: "Android setup guide" }),
@@ -124,7 +126,7 @@ it("leaves phone preparation to the agent and offers a setup guide outside a ses
   ).toBe(false);
 });
 
-it("sends preparation to the agent only on request even when the runtime is unavailable", async () => {
+it("adds preparation instructions to the chat draft only on request even when the runtime is unavailable", async () => {
   state.available = false;
   state.sessions = [];
   const onPrepare = vi.fn().mockResolvedValue(true);
@@ -132,11 +134,13 @@ it("sends preparation to the agent only on request even when the runtime is unav
   await screen.findByText(/Android runtime is not ready/);
   expect(onPrepare).not.toHaveBeenCalled();
   await user.click(
-    screen.getByRole("button", { name: "Ask agent to prepare phone" }),
+    screen.getByRole("button", {
+      name: "Add preparation instructions to chat",
+    }),
   );
   expect(onPrepare).toHaveBeenCalledOnce();
   expect(await screen.findByRole("status")).toHaveTextContent(
-    "Preparation request sent to the agent. Follow progress in chat.",
+    "Preparation instructions added to the chat input. Review them, then send when ready.",
   );
   expect(
     control.mock.calls.some((call) =>
@@ -145,18 +149,20 @@ it("sends preparation to the agent only on request even when the runtime is unav
   ).toBe(false);
 });
 
-it("keeps the agent preparation action available when runtime status cannot be loaded", async () => {
+it("keeps adding preparation instructions available when runtime status cannot be loaded", async () => {
   control.mockRejectedValue(new Error("Runtime status is unavailable"));
   const onPrepare = vi.fn().mockResolvedValue(true);
   const { user } = setup({ onPrepare });
   await screen.findByText(/Runtime status is unavailable/);
   await user.click(
-    screen.getByRole("button", { name: "Ask agent to prepare phone" }),
+    screen.getByRole("button", {
+      name: "Add preparation instructions to chat",
+    }),
   );
   expect(onPrepare).toHaveBeenCalledOnce();
 });
 
-it("fences repeated preparation clicks and other phone actions until the prompt is accepted", async () => {
+it("fences repeated preparation clicks and other phone actions until instructions are added", async () => {
   let finish!: (value: boolean) => void;
   const pending = new Promise<boolean>((resolve) => {
     finish = resolve;
@@ -169,11 +175,13 @@ it("fences repeated preparation clicks and other phone actions until the prompt 
   );
   await screen.findByRole("img", { name: "Android phone screenshot" });
   await user.dblClick(
-    screen.getByRole("button", { name: "Ask agent to prepare phone" }),
+    screen.getByRole("button", {
+      name: "Add preparation instructions to chat",
+    }),
   );
   expect(onPrepare).toHaveBeenCalledOnce();
   expect(
-    screen.getByRole("button", { name: "Sending preparation request…" }),
+    screen.getByRole("button", { name: "Adding preparation instructions…" }),
   ).toBeDisabled();
   expect(screen.getByRole("button", { name: "Take control" })).toBeDisabled();
   expect(
@@ -187,7 +195,7 @@ it("fences repeated preparation clicks and other phone actions until the prompt 
     await pending;
   });
   expect(await screen.findByRole("status")).toHaveTextContent(
-    "Preparation request sent",
+    "Preparation instructions added",
   );
   expect(
     control.mock.calls.some((call) =>
@@ -197,7 +205,7 @@ it("fences repeated preparation clicks and other phone actions until the prompt 
 });
 
 it.each([false, "reject"])(
-  "shows an unaccepted preparation request (%s) without automatically retrying",
+  "shows instructions were not added (%s) without automatically retrying",
   async (result) => {
     const onPrepare = vi.fn();
     if (result === "reject")
@@ -207,29 +215,33 @@ it.each([false, "reject"])(
     const { user } = setup({ onPrepare });
     await screen.findByRole("combobox", { name: "Android phone" });
     await user.click(
-      screen.getByRole("button", { name: "Ask agent to prepare phone" }),
+      screen.getByRole("button", {
+        name: "Add preparation instructions to chat",
+      }),
     );
     await screen.findByText(/Check the session, then try again/);
     expect(onPrepare).toHaveBeenCalledOnce();
     expect(
-      screen.queryByText(/Preparation request sent to the agent/),
+      screen.queryByText(/Preparation instructions added to the chat input/),
     ).not.toBeInTheDocument();
     await user.click(
-      screen.getByRole("button", { name: "Ask agent to prepare phone" }),
+      screen.getByRole("button", {
+        name: "Add preparation instructions to chat",
+      }),
     );
     expect(onPrepare).toHaveBeenCalledTimes(2);
     expect(await screen.findByRole("status")).toHaveTextContent(
-      "Preparation request sent",
+      "Preparation instructions added",
     );
   },
 );
 
-it("does not send preparation while the current session is unavailable for prompts", async () => {
+it("does not add preparation instructions while the chat draft is unavailable", async () => {
   const onPrepare = vi.fn();
   const { user } = setup({ onPrepare, prepareDisabled: true });
   await screen.findByRole("combobox", { name: "Android phone" });
   const prepare = screen.getByRole("button", {
-    name: "Ask agent to prepare phone",
+    name: "Add preparation instructions to chat",
   });
   expect(prepare).toBeDisabled();
   await user.click(prepare);

@@ -13,9 +13,10 @@ checkout or deploy a production Console.
 - Manager checks node ownership and sends fixed `mobile.control` queries;
   paxd owns local credentials and runtime discovery.
 - The UI supports explicit phone selection, takeover, screenshot-bound input,
-  recording controls and bounded artifact download. Preparation is requested
-  from the current Agent through a normal visible message linking the runtime
-  playbook; the UI does not install SDKs or create/start/stop/destroy phones.
+  recording controls and bounded artifact download. The preparation button adds
+  an editable request linking the runtime playbook to the current chat draft.
+  The user reviews and sends it; the button does not invoke the Agent. The UI
+  does not install SDKs or create/start/stop/destroy phones.
 - Screenshots, text and media bytes remain ephemeral. Device and recording
   metadata use TanStack Query. Inputs are never automatically retried.
 - Blur, hiding and unmount cancel operations still queued for dispatch. A
@@ -114,16 +115,18 @@ the current Pax session's keyed phone.
 
 ## Agent-driven preparation follow-up
 
-The preparation action sends a visible ordinary conversation task through the
-session's existing transport. It points the Agent to
+The preparation action only adds an editable request to the current chat
+composer. It links
 [agent-mobile-runtime's playbook](https://github.com/CCGV2/agent-mobile-runtime/blob/main/docs/agent-preparation.md).
-The Agent inspects/reuses the configured runtime, reads the OS-specific setup
-instructions, prepares missing dependencies within task authorization and
-starts its assigned phone through MCP or the authorized CLI. It reports the
-actual device ID and remaining blockers in chat. The Console request completes
-when the message is accepted; readiness still comes from runtime state and real
-frames. Opening a window does not send a preparation task automatically, and
-the task does not consume unsent composer text or attachments.
+The user reviews, edits and sends that draft through the session's existing
+normal/E2EE transport. Opening the window and clicking preparation do not send
+a message or start Agent work. Existing draft text and attachments are retained.
+After receiving the user's message, the Agent inspects/reuses the configured
+runtime, reads the OS-specific setup instructions, prepares missing dependencies
+within task authorization and starts its assigned phone through MCP or the
+authorized CLI. It reports the actual device ID and remaining blockers in chat.
+Neither adding a draft nor message acceptance establishes readiness; that still
+comes from runtime state and real frames.
 
 Console retains observation, explicit device selection, human takeover/input
 and recording/download controls. Node detail has no current Agent context and
@@ -133,13 +136,14 @@ deadline and cancellation behavior; no twelve-minute boot wait is introduced.
 The backend operator lifecycle API remains available independently, but this
 UI does not call it for preparation.
 
-Follow-up validation passed 81 tests across the shared API helper, mobile
-adapter/viewer/window, browser and side-panel regressions, and real Workbench
-message routing components with mocked normal/encrypted transports. The checks
-cover explicit-only preparation, early message acceptance, duplicate fencing,
-draft/attachment/error preservation, and removal of lifecycle requests. Full
-TypeScript, changed-code ESLint, Prettier and diff checks passed. No real Agent
-bootstrap, SDK installation or emulator execution was performed by these tests.
+Draft-only validation passed 81 tests across the shared API helper, mobile
+adapter/viewer/window, browser and side-panel regressions, and Workbench
+components with mocked normal/encrypted transports. The checks cover no
+automatic messages, current-draft and attachment/error preservation, duplicate
+clicks, insertion while sending is unavailable, and manual normal/encrypted Send
+with attachments. Full TypeScript, changed-code ESLint, Prettier and diff checks
+passed. No real Agent bootstrap, SDK installation or emulator execution was
+performed by these tests.
 
 Runtime setup does not register its generated config with paxd automatically.
 The Agent must verify that the node bridge selects the same config/data/port,

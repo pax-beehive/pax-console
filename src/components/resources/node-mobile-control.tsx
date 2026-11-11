@@ -77,6 +77,7 @@ export function NodeMobileViewer({
 }: {
   nodeId: string;
   userId: string;
+  // True means instructions were added to the chat draft, not sent.
   onPrepare?: () => Promise<boolean>;
   prepareDisabled?: boolean;
 }) {
@@ -88,7 +89,7 @@ export function NodeMobileViewer({
   const busyRef = useRef(false);
   const [preparing, setPreparing] = useState(false);
   const preparingRef = useRef(false);
-  const [preparationRequested, setPreparationRequested] = useState(false);
+  const [preparationDraftAdded, setPreparationDraftAdded] = useState(false);
   const [preparationError, setPreparationError] = useState<Error>();
   const busy = operationBusy || preparing;
   const selectionVersion = useRef(0);
@@ -234,7 +235,7 @@ export function NodeMobileViewer({
     await refreshFrame();
   }
 
-  async function prepareWithAgent() {
+  async function addPreparationInstructions() {
     if (
       !onPrepare ||
       prepareDisabled ||
@@ -245,20 +246,20 @@ export function NodeMobileViewer({
       return;
     preparingRef.current = true;
     setPreparing(true);
-    setPreparationRequested(false);
+    setPreparationDraftAdded(false);
     setPreparationError(undefined);
     try {
-      if (await onPrepare()) setPreparationRequested(true);
+      if (await onPrepare()) setPreparationDraftAdded(true);
       else
         setPreparationError(
           new Error(
-            "Preparation request was not accepted. Check the session, then try again.",
+            "Preparation instructions were not added. Check the session, then try again.",
           ),
         );
     } catch {
       setPreparationError(
         new Error(
-          "Could not send the preparation request. Check the session, then try again.",
+          "Could not add preparation instructions to chat. Check the session, then try again.",
         ),
       );
     } finally {
@@ -447,19 +448,20 @@ export function NodeMobileViewer({
           <Button
             size="sm"
             disabled={prepareDisabled || busy || !active}
-            onClick={() => void prepareWithAgent()}
+            onClick={() => void addPreparationInstructions()}
           >
             {preparing
-              ? "Sending preparation request…"
-              : "Ask agent to prepare phone"}
+              ? "Adding preparation instructions…"
+              : "Add preparation instructions to chat"}
           </Button>
           <p className="text-xs text-ink-tertiary">
-            The agent reads the setup guide and prepares the phone. Follow its
-            progress in chat, then choose the prepared phone here.
+            Add the setup instructions to the chat input. Review and send them
+            to let the agent prepare the phone, then follow progress in chat.
           </p>
-          {preparationRequested && (
+          {preparationDraftAdded && (
             <p className="text-xs text-ink-muted" role="status">
-              Preparation request sent to the agent. Follow progress in chat.
+              Preparation instructions added to the chat input. Review them,
+              then send when ready.
             </p>
           )}
           {preparationError && <InlineError error={preparationError} />}

@@ -142,7 +142,7 @@ vi.mock("./session-mobile-window", () => ({
     fixtures.preparePhone = onPrepare ?? null;
     return (
       <button disabled={prepareDisabled} onClick={() => void onPrepare?.()}>
-        Ask agent to prepare phone
+        Add preparation instructions to chat
       </button>
     );
   },
@@ -229,17 +229,23 @@ describe("agent-owned Android preparation", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Watch Android phone" }),
     );
-    return screen.getByRole("button", { name: "Ask agent to prepare phone" });
+    return screen.getByRole("button", {
+      name: "Add preparation instructions to chat",
+    });
+  }
+  function expectNoPromptSent() {
+    expect(fixtures.sendMessage).not.toHaveBeenCalled();
+    expect(fixtures.sendEncryptedMessage).not.toHaveBeenCalled();
+    expect(fixtures.queueTurn).not.toHaveBeenCalled();
   }
 
-  it("sends an ordinary visible guide-reading prompt only on request and leaves the user's draft, files and upload error alone", async () => {
+  it("adds instructions only on click and preserves the latest draft, files and upload error", async () => {
     fixtures.session = { ...fixtures.session, runtime_status: "idle" };
-    fixtures.sendMessage.mockImplementation(async (_content, options) => {
-      options.onAccepted();
-      return { sessionId: "sess_1" };
-    });
     const view = render(workbench(undefined, [attachment]));
-    expect(fixtures.sendMessage).not.toHaveBeenCalled();
+    expectNoPromptSent();
+    expect(useConsoleStore.getState().composerDrafts.sess_1).toBe(
+      "next prompt",
+    );
     const fileInput = view.container.querySelector('input[type="file"]')!;
     fireEvent.change(fileInput, {
       target: {
@@ -248,53 +254,58 @@ describe("agent-owned Android preparation", () => {
     });
     await screen.findByText("Couldn’t attach files");
     const prepare = openPhone();
-    expect(fixtures.sendMessage).not.toHaveBeenCalled();
-    fireEvent.click(prepare);
-    await waitFor(() => expect(fixtures.sendMessage).toHaveBeenCalledOnce());
-    expect(fixtures.sendMessage).toHaveBeenCalledWith(
-      MOBILE_PREPARATION_PROMPT,
-      expect.objectContaining({
-        attachments: [],
-        onAccepted: expect.any(Function),
-      }),
-    );
-    expect(fixtures.sendMessage.mock.calls[0][1]).not.toHaveProperty(
-      "attachmentIds",
-    );
-    expect(MOBILE_PREPARATION_PROMPT).toContain("/AGENTS.md");
-    expect(MOBILE_PREPARATION_PROMPT).toContain("/docs/agent-preparation.md");
+    expectNoPromptSent();
     expect(useConsoleStore.getState().composerDrafts.sess_1).toBe(
       "next prompt",
     );
+    const latestDraft = "  user notes\n\n";
+    act(() => {
+      useConsoleStore.getState().setComposerDraft("sess_1", latestDraft);
+      useConsoleStore
+        .getState()
+        .setComposerDraft("another-session", "leave alone");
+    });
+    fireEvent.click(prepare);
+    const expected = `${latestDraft}\n\n${MOBILE_PREPARATION_PROMPT}`;
+    expect(useConsoleStore.getState().composerDrafts.sess_1).toBe(expected);
+    expect(screen.getByRole("textbox", { name: "Message" })).toHaveValue(
+      expected,
+    );
+    expect(useConsoleStore.getState().composerDrafts["another-session"]).toBe(
+      "leave alone",
+    );
+    expect(MOBILE_PREPARATION_PROMPT).toContain("/AGENTS.md");
+    expect(MOBILE_PREPARATION_PROMPT).toContain("/docs/agent-preparation.md");
     expect(
       screen.getByRole("button", { name: "Remove private-notes.txt" }),
     ).toBeVisible();
     expect(screen.getByText("Couldn’t attach files")).toBeVisible();
-    expect(fixtures.sendEncryptedMessage).not.toHaveBeenCalled();
-    expect(fixtures.queueTurn).not.toHaveBeenCalled();
+    expectNoPromptSent();
   });
 
-  it("uses the existing encrypted send path without consuming staged attachments or the composer draft", async () => {
+  it("fills an empty encrypted draft once even after repeated clicks without sending it", async () => {
     fixtures.session = {
       ...fixtures.session,
       runtime_status: "idle",
       transport: "e2ee",
     };
+    useConsoleStore.setState({ composerDrafts: {} });
     render(workbench(undefined, [attachment]));
-    fireEvent.click(openPhone());
-    await waitFor(() =>
-      expect(fixtures.sendEncryptedMessage).toHaveBeenCalledWith(
-        MOBILE_PREPARATION_PROMPT,
-        [],
-      ),
-    );
-    expect(fixtures.sendMessage).not.toHaveBeenCalled();
+    const prepare = openPhone();
+    expect(useConsoleStore.getState().composerDrafts.sess_1).toBeUndefined();
+    fireEvent.click(prepare);
+    fireEvent.click(prepare);
+    await act(async () => {
+      await expect(fixtures.preparePhone!()).resolves.toBe(true);
+    });
     expect(useConsoleStore.getState().composerDrafts.sess_1).toBe(
-      "next prompt",
+      MOBILE_PREPARATION_PROMPT,
     );
+    expect(screen.getByDisplayValue(MOBILE_PREPARATION_PROMPT)).toBeVisible();
     expect(
       screen.getByRole("button", { name: "Remove private-notes.txt" }),
     ).toBeVisible();
+    expectNoPromptSent();
   });
 
   it.each([
@@ -304,8 +315,8 @@ describe("agent-owned Android preparation", () => {
     { transport: "e2ee", missingKey: true },
     { transport: "manager", offline: true },
   ] as const)(
-    "blocks preparation when the current agent cannot accept an ordinary prompt: %j",
-    async (condition) => {
+    "allows draft insertion while ordinary sending is unavailable: %j",
+    (condition) => {
       fixtures.session = {
         ...fixtures.session,
         runtime_status:
@@ -320,63 +331,66 @@ describe("agent-owned Android preparation", () => {
       );
       fixtures.nodeOnline = !("offline" in condition && condition.offline);
       render(workbench());
-      expect(openPhone()).toBeDisabled();
-      await expect(fixtures.preparePhone?.()).resolves.toBe(false);
-      expect(fixtures.sendMessage).not.toHaveBeenCalled();
-      expect(fixtures.sendEncryptedMessage).not.toHaveBeenCalled();
-      expect(fixtures.queueTurn).not.toHaveBeenCalled();
+      const prepare = openPhone();
+      expect(prepare).toBeEnabled();
+      fireEvent.click(prepare);
+      expect(useConsoleStore.getState().composerDrafts.sess_1).toBe(
+        `next prompt\n\n${MOBILE_PREPARATION_PROMPT}`,
+      );
+      if ("running" in condition && condition.running) {
+        expect(
+          screen.queryByRole("button", { name: "Send prompt" }),
+        ).not.toBeInTheDocument();
+      }
+      expectNoPromptSent();
     },
   );
 
-  it("fences duplicate requests and acknowledges acceptance without waiting for the agent's entire turn", async () => {
-    fixtures.session = { ...fixtures.session, runtime_status: "idle" };
-    let acknowledge!: () => void;
-    let finish!: (value: { sessionId: string }) => void;
-    fixtures.sendMessage.mockImplementation(
-      (_content, options) =>
-        new Promise((resolve) => {
-          acknowledge = options.onAccepted;
-          finish = resolve;
-        }),
-    );
-    render(workbench());
-    openPhone();
-    let pending!: Promise<boolean>;
-    act(() => {
-      pending = fixtures.preparePhone!();
-    });
-    await expect(fixtures.preparePhone?.()).resolves.toBe(false);
-    expect(fixtures.sendMessage).toHaveBeenCalledOnce();
-    act(() => acknowledge());
-    await expect(pending).resolves.toBe(true);
-    expect(useConsoleStore.getState().composerDrafts.sess_1).toBe(
-      "next prompt",
-    );
-    await act(async () => finish({ sessionId: "sess_1" }));
-  });
-
-  it("does not automatically retry a failed preparation message", async () => {
-    fixtures.session = { ...fixtures.session, runtime_status: "idle" };
-    fixtures.sendMessage.mockRejectedValueOnce(
-      new Error("Message was not accepted"),
-    );
-    render(workbench());
-    openPhone();
-    let result!: boolean;
-    await act(async () => {
-      result = await fixtures.preparePhone!();
-    });
-    expect(result).toBe(false);
-    expect(fixtures.sendMessage).toHaveBeenCalledOnce();
-    expect(useConsoleStore.getState().composerDrafts.sess_1).toBe(
-      "next prompt",
-    );
-    await act(async () => {
-      result = await fixtures.preparePhone!();
-    });
-    expect(result).toBe(true);
-    expect(fixtures.sendMessage).toHaveBeenCalledTimes(2);
-  });
+  it.each(["manager", "e2ee"] as const)(
+    "sends the combined draft and staged attachments only when the user presses Send (%s)",
+    async (transport) => {
+      fixtures.session = {
+        ...fixtures.session,
+        runtime_status: "idle",
+        transport,
+      };
+      fixtures.sendMessage.mockImplementation(async (_content, options) => {
+        options.onAccepted();
+        return { sessionId: "sess_1" };
+      });
+      render(workbench(undefined, [attachment]));
+      fireEvent.click(openPhone());
+      expectNoPromptSent();
+      fireEvent.click(screen.getByRole("button", { name: "Send prompt" }));
+      const expected = `next prompt\n\n${MOBILE_PREPARATION_PROMPT}`;
+      if (transport === "e2ee") {
+        await waitFor(() =>
+          expect(fixtures.sendEncryptedMessage).toHaveBeenCalledWith(expected, [
+            attachment,
+          ]),
+        );
+        expect(fixtures.sendMessage).not.toHaveBeenCalled();
+      } else {
+        await waitFor(() =>
+          expect(fixtures.sendMessage).toHaveBeenCalledWith(
+            expected,
+            expect.objectContaining({
+              attachmentIds: [attachment.attachmentId],
+              attachments: [attachment],
+            }),
+          ),
+        );
+        expect(fixtures.sendEncryptedMessage).not.toHaveBeenCalled();
+      }
+      await waitFor(() =>
+        expect(useConsoleStore.getState().composerDrafts.sess_1).toBe(""),
+      );
+      expect(
+        screen.queryByRole("button", { name: "Remove private-notes.txt" }),
+      ).not.toBeInTheDocument();
+      expect(fixtures.queueTurn).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe("Codex subagent status in the session workbench", () => {

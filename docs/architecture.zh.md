@@ -1597,15 +1597,16 @@ independent `available_commands_update` notifications.
 通过已有节点控制通道发送固定 `mobile.control` 操作。运行时 token、SDK 路径、
 gRPC 地址只保留在节点；前端不提供地址、代理路径或 WebRTC SDP 透传入口。
 
-手机准备由当前 Agent 负责。会话手机窗口中的显式准备操作走已有普通/E2EE 消息流程，
-向 Agent 发送可见任务说明和
-[准备手册](https://github.com/CCGV2/agent-mobile-runtime/blob/main/docs/agent-preparation.md)；
-Agent 读取说明、检查依赖、按授权完成安装和启动，在聊天中报告进度。打开窗口不会自动
-发送消息，准备消息也不能夹带或清空用户尚未发送的草稿、附件。消息被接受不表示手机已就绪。
+手机准备由当前 Agent 负责。会话手机窗口中的准备按钮只把可编辑说明和
+[准备手册](https://github.com/CCGV2/agent-mobile-runtime/blob/main/docs/agent-preparation.md)
+写入当前聊天输入框，保留已有草稿与附件。用户自己检查、编辑并点击发送后，才走已有
+普通/E2EE 消息流程交给 Agent。打开窗口或点击准备按钮都不会自动发消息或启动 Agent。
+Agent 收到用户发送的请求后读取说明、检查依赖、按授权完成安装和启动，在聊天中报告
+进度。写入草稿或消息被接受都不表示手机已就绪。
 
 Console 不安装 SDK，也不提供手机创建、启动、停止、销毁按钮，不通过长 HTTP 请求
 等待 Android 开机。共享 API 默认超时与取消机制保持不变。节点详情没有当前 Agent
-上下文，只引导用户回到会话准备。状态和真实画面仍由节点桥接读取，不能从发送成功推断。
+上下文，只引导用户回到会话准备。状态和真实画面仍由节点桥接读取，不能从写入草稿或发送成功推断。
 
 必须明确选择手机，不跟随最近活动设备。
 接管后才能点击、滑动、输入或导航，每次操作消费一张新截图的引用，失败不重发。

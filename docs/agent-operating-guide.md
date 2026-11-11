@@ -1854,22 +1854,24 @@ names map to `mobile.control` node queries. Local service addresses, credentials
 SDK paths, installation and gRPC stay on the node; no browser-supplied target,
 path, token or raw WebRTC SDP is supported.
 
-Phone preparation belongs to the current Agent. An explicit preparation action
-in the session surface sends a normal visible message through the existing
-conversation/E2EE send flow, linking the
+Phone preparation belongs to the current Agent. The session surface's explicit
+preparation action adds editable instructions to the current chat composer,
+linking the
 [runtime preparation playbook](https://github.com/CCGV2/agent-mobile-runtime/blob/main/docs/agent-preparation.md).
-The Agent reads the instructions, checks or installs authorized dependencies,
-starts the assigned phone and reports progress in chat. Opening a panel never
-sends this message automatically. Preserve unsent composer text and attachments;
-the preparation message must not consume them. An accepted message is not a
-claim that Android is ready.
+The user reviews, edits and sends the draft through the existing normal/E2EE
+conversation flow. Neither opening the panel nor clicking preparation sends a
+message or invokes the Agent. Preserve existing composer text and attachments.
+After the user sends the request, the Agent reads the instructions, checks or
+installs authorized dependencies, starts the assigned phone and reports progress
+in chat. Adding the draft or accepting the eventual message does not mean
+Android is ready.
 
 Console has no SDK installer or create/start/stop/destroy phone controls. It
 does not wait for boot or extend the shared API deadline for preparation. Node
 detail has no current Agent context, so it directs the user to a session and
 the playbook. Device choice stays explicit and never follows another phone.
-The displayed state and real frames come from the node bridge, not a successful
-preparation-message send.
+The displayed state and real frames come from the node bridge, not from adding
+a draft or sending a preparation message.
 
 Take control is required for frame-bound tap/swipe/text/navigation; each input
 consumes a fresh screenshot reference and is never retried. Blur/hide pauses

@@ -62,10 +62,13 @@ Current implementation note: the project currently uses local primitives in `src
 
 Android viewing reuses the node browser bridge layout: an explicitly opened
 node panel and a separate nonmodal session window. Phone preparation belongs
-to the Agent. The session's explicit preparation action sends a normal message
-with the runtime playbook; do not send on mount, consume an existing draft or
-attachments, run an installer in the UI, or treat message acceptance as phone
-readiness. Node detail directs the user to an Agent session. The viewer has no
+to the Agent. The session's preparation action only adds editable instructions
+with the runtime playbook to the chat composer. Preserve existing draft text
+and attachments; the user reviews, edits and sends through the ordinary message
+flow. Opening the surface or clicking preparation must not send a message,
+invoke the Agent or run an installer. Neither draft creation nor message
+acceptance establishes phone readiness. Node detail directs the user to an
+Agent session. The viewer has no
 create/start/stop/destroy controls or long boot request.
 
 Keep device selection explicit and require takeover before frame-bound input.

@@ -1989,17 +1989,9 @@ export function SessionWorkbench({
     setComposerAttachmentError(null);
   }, []);
   const submitDraft = useCallback(
-    async (
-      content: string,
-      onAccepted?: () => void,
-      options?: { includeAttachments?: boolean },
-    ) => {
-      const includeAttachments = options?.includeAttachments !== false;
-      const submittedAttachments = includeAttachments
-        ? composerAttachments
-        : [];
+    async (content: string, onAccepted?: () => void) => {
       if (
-        (!content && submittedAttachments.length === 0) ||
+        (!content && composerAttachments.length === 0) ||
         !activeAgentId ||
         !activeNodeId ||
         newSessionCwdInvalid
@@ -2007,7 +1999,7 @@ export function SessionWorkbench({
         return false;
       }
 
-      const attachmentIds = submittedAttachments.map(
+      const attachmentIds = composerAttachments.map(
         (attachment) => attachment.attachmentId,
       );
 
@@ -2027,16 +2019,14 @@ export function SessionWorkbench({
             );
             return false;
           }
-          if (includeAttachments)
-            setComposerAttachmentUploadPending(submittedAttachments.length > 0);
+          setComposerAttachmentUploadPending(composerAttachments.length > 0);
           try {
-            await sendEncryptedMessage(content, submittedAttachments);
-            if (includeAttachments) clearSentAttachments(attachmentIds);
+            await sendEncryptedMessage(content, composerAttachments);
+            clearSentAttachments(attachmentIds);
           } finally {
-            if (includeAttachments) setComposerAttachmentUploadPending(false);
+            setComposerAttachmentUploadPending(false);
           }
-          if (includeAttachments) setComposerAttachmentError(null);
-          onAccepted?.();
+          setComposerAttachmentError(null);
           return true;
         }
 
@@ -2075,9 +2065,9 @@ export function SessionWorkbench({
               }
             : {}),
           ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
-          attachments: submittedAttachments,
+          attachments: composerAttachments,
           onAccepted: () => {
-            if (includeAttachments) clearSentAttachments(attachmentIds);
+            clearSentAttachments(attachmentIds);
             onAccepted?.();
           },
         });
@@ -2120,58 +2110,19 @@ export function SessionWorkbench({
     ],
   );
 
-  const mobilePreparationRequests = useRef(new Set<string>());
-  const mobilePreparationDisabled =
-    !currentSessionId ||
-    !activeAgentId ||
-    !activeNodeId ||
-    isNewSession ||
-    isTurnRunning ||
-    newSessionCwdInvalid ||
-    composerAttachmentUploadPending ||
-    activeNode?.online === false ||
-    activeAgent?.online === false ||
-    (usesEncryptedTransport &&
-      (encryptedRuntime.keyLoading || !encryptedRuntime.rootKeyAvailable));
-  const prepareMobilePhone = useCallback(async () => {
-    if (mobilePreparationDisabled || !currentSessionId || !activeNodeId)
-      return false;
-    const route = JSON.stringify([
-      user.user_id,
-      currentSessionId,
-      activeNodeId,
-    ]);
-    const pending = mobilePreparationRequests.current;
-    if (pending.has(route)) return false;
-    pending.add(route);
-    try {
-      return await new Promise<boolean>((resolve) => {
-        let accepted = false;
-        const onAccepted = () => {
-          accepted = true;
-          resolve(true);
-        };
-        void submitDraft(MOBILE_PREPARATION_PROMPT, onAccepted, {
-          includeAttachments: false,
-        }).then(
-          (submitted) => {
-            if (!accepted) resolve(submitted);
-          },
-          () => {
-            if (!accepted) resolve(false);
-          },
-        );
-      });
-    } finally {
-      pending.delete(route);
+  const addMobilePreparationToDraft = useCallback(async () => {
+    const consoleStore = useConsoleStore.getState();
+    const draft = consoleStore.composerDrafts[composerDraftKey] ?? "";
+    if (!draft.includes(MOBILE_PREPARATION_PROMPT)) {
+      consoleStore.setComposerDraft(
+        composerDraftKey,
+        draft
+          ? `${draft}\n\n${MOBILE_PREPARATION_PROMPT}`
+          : MOBILE_PREPARATION_PROMPT,
+      );
     }
-  }, [
-    activeNodeId,
-    currentSessionId,
-    mobilePreparationDisabled,
-    submitDraft,
-    user.user_id,
-  ]);
+    return true;
+  }, [composerDraftKey]);
 
   const deleteQueuedDraft = deleteQueuedTurn.mutate;
   const steerDraft = steerTurn.mutateAsync;
@@ -3126,11 +3077,10 @@ export function SessionWorkbench({
       )}
       {mobileOpen && activeNodeId && (
         <SessionMobileWindow
-          key={JSON.stringify([user.user_id, currentSessionId, activeNodeId])}
+          key={JSON.stringify([user.user_id, composerDraftKey, activeNodeId])}
           nodeId={activeNodeId}
           userId={user.user_id}
-          onPrepare={prepareMobilePhone}
-          prepareDisabled={mobilePreparationDisabled}
+          onPrepare={addMobilePreparationToDraft}
           onClose={() => setMobileOpen(false)}
         />
       )}

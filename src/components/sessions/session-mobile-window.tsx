@@ -16,6 +16,7 @@ export function SessionMobileWindow({
   nodeId: string;
   userId: string;
   onClose: () => void;
+  // Adds preparation instructions to the existing chat draft for manual send.
   onPrepare?: () => Promise<boolean>;
   prepareDisabled?: boolean;
 }) {
