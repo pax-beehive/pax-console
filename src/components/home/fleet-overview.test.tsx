@@ -100,6 +100,7 @@ vi.mock("@/components/sessions/session-workbench", () => ({
     initialCwd,
     initialInitializeOnly,
     initialPermissionChoiceId,
+    initialSearchAccess,
     initialPrimaryProjectId,
     initialPrompt,
     initialProjectTargetId,
@@ -116,6 +117,11 @@ vi.mock("@/components/sessions/session-workbench", () => ({
     initialCwd?: string;
     initialInitializeOnly?: boolean;
     initialPermissionChoiceId?: string;
+    initialSearchAccess?: {
+      queries: string[];
+      agent_ids: string[];
+      session_ids: string[];
+    };
     initialPrimaryProjectId?: string;
     initialPrompt?: string;
     initialProjectTargetId?: string;
@@ -135,6 +141,9 @@ vi.mock("@/components/sessions/session-workbench", () => ({
       data-initial-cwd={initialCwd}
       data-initial-initialize-only={String(Boolean(initialInitializeOnly))}
       data-initial-permission-choice-id={initialPermissionChoiceId}
+      data-initial-search-access={
+        initialSearchAccess ? JSON.stringify(initialSearchAccess) : undefined
+      }
       data-primary-project-id={initialPrimaryProjectId}
       data-initial-prompt={initialPrompt}
       data-initial-transport={initialTransport}
@@ -2134,6 +2143,31 @@ describe("FleetOverview session rail", () => {
     expect(componentPreventedNavigation).toBe(false);
     expect(window.location.pathname).toBe("/");
     expect(window.location.search).toBe("");
+  });
+
+  it("passes an explicit one-turn search authorization into the first Home prompt", async () => {
+    const user = userEvent.setup();
+    renderOverview();
+    const composer = await screen.findByPlaceholderText(
+      "Ask an agent to do something",
+    );
+    await openSettings();
+    await user.click(
+      screen.getByRole("button", { name: /Expand search scope/ }),
+    );
+    await user.click(
+      screen.getByRole("switch", { name: "Expand scope for next turn" }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Apply for next turn" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Close settings" }));
+    fireEvent.change(composer, { target: { value: "Find CI/CD" } });
+    fireEvent.submit(composer.closest("form")!);
+    expect(await screen.findByTestId("session-workbench")).toHaveAttribute(
+      "data-initial-search-access",
+      JSON.stringify({ queries: ["*"], agent_ids: ["*"], session_ids: ["*"] }),
+    );
   });
 
   it("starts a new chat inside Home without navigating to the session route", async () => {

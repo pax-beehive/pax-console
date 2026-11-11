@@ -2,6 +2,43 @@
 
 External-session notices have a dismiss button. The dedicated Zustand session-notice store persists only dismissal choices, scoped by user, agent, and session in browser storage; hiding a notice never changes session source, sync policy, or runtime behavior. Other sessions and accounts retain their notices.
 
+## Search scope and turn authorization
+
+An agent can search all its own sessions without requesting access. Every
+ordinary tool search supplies `scope: {agent_ids: ["self"], session_ids: ["*"]}`;
+Manager resolves `self` from the authenticated caller. Searching other agents
+or the entire workspace requires temporary access for the active turn.
+
+Session settings includes Expand search scope for preauthorizing the next
+prompt. Queries, agent IDs and session IDs accept either a single `*` or one
+explicit value per line. Agent scope also accepts `self`. A query entry is a
+complete search query, not one term authorizing unrelated additional terms.
+These limits govern extra access; the default own-agent access stays available.
+The scope travels as `search_access: {queries: [...], agent_ids: [...],
+session_ids: [...]}` on `/conversation`, queued turn creation/updates and
+steering. Initialization and permission resumes do not carry this field.
+
+The Home composer passes its choice into the first Workbench prompt. A choice
+is consumed after a prompt is accepted or a queued/steering request succeeds;
+an error retains it for retry. Changes made while sending belong to the next
+prompt and are not cleared by an older acceptance. Editing a queued prompt
+preserves its selected scope unless a new scope is supplied.
+
+Manager expires extra access with the business turn, including cancellation.
+Explicit `search_access` preauthorization creates the extra grant before dispatch.
+Without it, search starts within the calling agent, including under PAX auto
+approve (`pax:auto_approve`). A wider search without a matching grant returns
+403. PAX auto approve immediately approves an explicit `workspace_request_access`
+request; it never creates a whole-workspace grant merely because a turn starts.
+The unexpanded automatic setting reads Auto expansion. Agent-native permissions
+or a legacy approval mode alone do not promise that policy. Mid-turn expansion
+requests appear in a separate panel. It uses server-side workspace/search and
+current agent/session/turn filters with a separate turn-scoped cache, and submits
+Allow this turn or Deny without a native permission-resume conversation. The
+panel shows agents, queries and sessions; legacy records without agent scope
+mean all the user's agents. Search scope expansion is unavailable in encrypted
+sessions. The Console keeps no capability secrets and adds no per-search audit.
+
 ## WorkOS authentication
 
 Production login starts at `/auth/login`. The region-directory gateway (Worker or direct regional service) owns

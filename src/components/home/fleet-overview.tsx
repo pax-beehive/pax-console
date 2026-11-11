@@ -66,6 +66,8 @@ import {
 import { WorkspacePicker } from "@/components/sessions/workspace-picker";
 import { SettingsToggle } from "@/components/ui/settings-controls";
 import { SessionPermissionSelector } from "@/components/sessions/session-permission-selector";
+import { TurnSearchAccessSettings } from "@/components/sessions/turn-search-access-settings";
+import { isTurnSearchApproval } from "@/components/sessions/session-search-approvals";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -109,6 +111,7 @@ import {
   Node,
   Project,
   SessionApprovalMode,
+  TurnSearchAccess,
   TeamInvite,
   User,
 } from "@/features/api/types";
@@ -179,6 +182,7 @@ type EmbeddedSessionTarget = {
   agentId?: string;
   initialApprovalMode?: SessionApprovalMode;
   initialPermissionChoiceId?: string;
+  initialSearchAccess?: TurnSearchAccess;
   initialAttachments?: ComposerAttachment[];
   initialCwd?: string;
   initialInitializeOnly?: boolean;
@@ -234,6 +238,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   } | null>(null);
   const [newSessionTransport, setNewSessionTransport] =
     useState<NonNullable<AgentSession["transport"]>>("manager");
+  const [searchAccess, setSearchAccess] = useState<TurnSearchAccess>();
   const [
     newSessionPermissionChoiceByAgent,
     setNewSessionPermissionChoiceByAgent,
@@ -780,6 +785,8 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       agentId: activeAgent.agent_id,
       initialApprovalMode: effectiveNewSessionApprovalMode,
       initialPermissionChoiceId: effectiveNewSessionPermissionChoiceId,
+      initialSearchAccess:
+        newSessionTransport === "manager" ? searchAccess : undefined,
       initialAttachments: composerAttachments,
       initialCwd: normalizedNewSessionCwd || undefined,
       initialPrompt: initialPrompt || undefined,
@@ -801,6 +808,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     setComposerMode("clean");
     setDraft("");
     setNewSessionTransport("manager");
+    setSearchAccess(undefined);
     setComposerAttachments([]);
     setComposerAttachmentError(null);
   }
@@ -1050,6 +1058,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 initialPermissionChoiceId={
                   activeSessionTarget.initialPermissionChoiceId
                 }
+                initialSearchAccess={activeSessionTarget.initialSearchAccess}
                 initialAttachments={activeSessionTarget.initialAttachments}
                 initialCwd={activeSessionTarget.initialCwd}
                 initialInitializeOnly={
@@ -1418,6 +1427,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                       </DropdownMenu>
                       <SessionSettings
                         summary={[
+                          newSessionTransport === "manager" && searchAccess
+                            ? "Expanded search next turn"
+                            : undefined,
                           newSessionTransport === "e2ee"
                             ? encryptionReady
                               ? "Encrypted"
@@ -1432,6 +1444,17 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                           .filter(Boolean)
                           .join(" · ")}
                       >
+                        <TurnSearchAccessSettings
+                          autoApprove={
+                            effectiveNewSessionApprovalMode ===
+                              "auto_approve_all" &&
+                            effectiveNewSessionPermissionChoiceId ===
+                              "pax:auto_approve"
+                          }
+                          disabled={newSessionTransport === "e2ee"}
+                          value={searchAccess}
+                          onChange={setSearchAccess}
+                        />
                         <SessionSettingsHome>
                           <SettingsToggle
                             label="End-to-end encryption"
@@ -2499,6 +2522,12 @@ function buildWorkItems({
 }
 
 function homeApprovalOptions(approval: AgentApproval) {
+  if (isTurnSearchApproval(approval)) {
+    return [
+      { label: "Allow this turn", optionId: "allow_once" },
+      { label: "Deny", optionId: "deny" },
+    ];
+  }
   const options = (approval.options ?? [])
     .filter(
       (option) =>

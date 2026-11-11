@@ -49,6 +49,7 @@ const {
   listProjects,
   listProjectTargets,
   listSessionHistory,
+  listTurnSearchApprovals,
   listTeamAuditEvents,
   listTeams,
   listUserSessions,
@@ -80,6 +81,51 @@ const {
 afterEach(() => {
   apiFetch.mockReset();
   vi.unstubAllGlobals();
+});
+
+it("filters pending search approvals on the server by agent, session and turn", async () => {
+  apiFetch.mockResolvedValue({ approvals: [] });
+  const signal = new AbortController().signal;
+  await listTurnSearchApprovals(
+    "self",
+    "agent/a",
+    "session&b",
+    "turn/c",
+    signal,
+  );
+  const [path, options] = apiFetch.mock.calls[0];
+  const url = new URL(path, "https://pax.example");
+  expect(url.pathname).toBe("/api/v1/user/self/approvals");
+  expect(Object.fromEntries(url.searchParams)).toEqual({
+    domain: "workspace",
+    operation: "search",
+    resource_type: "turn",
+    resource_ref: "turn/c",
+    request_agent_id: "agent/a",
+    request_session_id: "session&b",
+    status: "pending",
+    limit: "100",
+  });
+  expect(options.signal).toBe(signal);
+});
+
+it("preserves explicit turn search scope through queue, queued edits and steering", async () => {
+  apiFetch.mockResolvedValue({});
+  const input = {
+    input: "find deployment",
+    search_access: {
+      queries: ["cicd"],
+      agent_ids: ["agent_other"],
+      session_ids: ["*"],
+    },
+  };
+  await queueSessionTurn("self", "agent", "session", input);
+  await updateQueuedSessionTurn("self", "agent", "session", input);
+  await steerSessionTurn("self", "agent", "session", input);
+  expect(apiFetch).toHaveBeenCalledTimes(3);
+  for (const [, options] of apiFetch.mock.calls) {
+    expect(JSON.parse(options.body)).toEqual(input);
+  }
 });
 
 describe("uploadUserAttachmentFile", () => {

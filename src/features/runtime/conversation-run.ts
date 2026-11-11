@@ -1,6 +1,10 @@
 import { API_BASE_URL, userPath } from "../api/client";
 import { ApiError, AuthError } from "../api/errors";
-import type { AgentApproval, SessionApprovalMode } from "../api/types";
+import type {
+  AgentApproval,
+  SessionApprovalMode,
+  TurnSearchAccess,
+} from "../api/types";
 
 export type ConversationRunEnvelope =
   | {
@@ -93,6 +97,7 @@ export type StreamConversationRunOptions = {
     approvalId: string;
   };
   sessionId?: string;
+  searchAccess?: TurnSearchAccess;
   signal?: AbortSignal;
   userId: string;
 };
@@ -111,6 +116,7 @@ export async function streamConversationRun({
   projectTargetId,
   resume,
   sessionId,
+  searchAccess,
   signal,
   userId,
 }: StreamConversationRunOptions) {
@@ -139,6 +145,9 @@ export async function streamConversationRun({
           ? { project_target_id: projectTargetId }
           : {}),
         ...(resume ? { resume: { approval_id: resume.approvalId } } : {}),
+        ...(!initializeOnly && !resume && searchAccess
+          ? { search_access: searchAccess }
+          : {}),
       }),
       credentials: "include",
       headers: {

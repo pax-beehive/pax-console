@@ -53,6 +53,21 @@ export const queryKeys = {
   projectTarget: (userId: string, projectId: string, targetId: string) =>
     ["users", userId, "projects", projectId, "targets", targetId] as const,
   approvals: (userId: string) => ["users", userId, "approvals"] as const,
+  turnSearchApprovals: (
+    userId: string,
+    agentId: string,
+    sessionId: string,
+    turnId: string,
+  ) =>
+    [
+      "users",
+      userId,
+      "approvals",
+      "workspace-search",
+      agentId,
+      sessionId,
+      turnId,
+    ] as const,
   approvalGrants: (userId: string) =>
     ["users", userId, "approval-grants"] as const,
   nodes: (userId: string) => ["users", userId, "nodes"] as const,

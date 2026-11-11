@@ -55,6 +55,7 @@ import {
   Project,
   ProjectTarget,
   SessionApprovalMode,
+  TurnSearchAccess,
   SessionConfiguration,
   SessionArtifact,
   UserAttachment,
@@ -248,6 +249,7 @@ export type ResetSessionRuntimeData = {
 
 type QueueSessionTurnInput = {
   input: string;
+  search_access?: TurnSearchAccess;
 };
 
 type QueueSessionTurnData = {
@@ -266,6 +268,7 @@ export type QueuedSessionTurnData = {
   command_id: string;
   created_at: string;
   input: string;
+  search_access?: TurnSearchAccess;
   node_id?: string;
   queued_turn_id: string;
   session_id: string;
@@ -285,6 +288,7 @@ type DeleteQueuedSessionTurnData = {
 
 type SteerSessionTurnInput = {
   input: string;
+  search_access?: TurnSearchAccess;
 };
 
 type SteerSessionTurnData = {
@@ -1530,6 +1534,28 @@ export function toPaxdConnectPreview(
 
 export function listApprovals(userId: string) {
   return apiFetch<ApprovalListData>(userPath(userId, "/approvals"));
+}
+
+export function listTurnSearchApprovals(
+  userId: string,
+  agentId: string,
+  sessionId: string,
+  turnId: string,
+  signal?: AbortSignal,
+) {
+  const params = new URLSearchParams({
+    domain: "workspace",
+    operation: "search",
+    resource_type: "turn",
+    resource_ref: turnId,
+    request_agent_id: agentId,
+    request_session_id: sessionId,
+    status: "pending",
+    limit: "100",
+  });
+  return apiFetch<ApprovalListData>(userPath(userId, `/approvals?${params}`), {
+    signal,
+  });
 }
 
 export function listApprovalGrants(userId: string) {
