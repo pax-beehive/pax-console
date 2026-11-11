@@ -1844,6 +1844,53 @@ state and must not render a chat message or complete a turn. Explicit resume
 requests retain the original response result. Commands still arrive through
 independent `available_commands_update` notifications.
 
+## Android emulator control
+
+Node detail exposes an explicitly opened Android panel. The session resource
+panel also opens a separate, nonmodal phone window. `src/features/mobile-control`
+uses the existing same-origin proxy and owner-checked Manager endpoint
+`POST /api/v1/user/{user_id}/nodes/{node_id}/daemon/mobile`. Its fixed operation
+names map to `mobile.control` node queries. Local service addresses, credentials,
+SDK paths, installation and gRPC stay on the node; no browser-supplied target,
+path, token or raw WebRTC SDP is supported.
+
+Device choice is explicit and never follows another phone. Create selects only
+the newly created phone and does not start it. Take control is required for
+frame-bound tap/swipe/text/navigation; each input consumes a fresh screenshot
+reference and is never retried. Blur/hide pauses reads, clears preview and local
+input ownership, and cancels file loading and operations still queued for dispatch.
+An operation already sent may have completed; never retry it automatically.
+Cold boot gets an explicit twelve-minute deadline instead of the shared API
+helper's twelve-second timeout. Focus does not retake control. The
+runtime's human hold persists until explicit Release control, including after
+closing the window; the UI does not silently resume the agent.
+
+TanStack Query owns device/template and recording metadata only. Screenshots,
+typed text and assembled recordings stay in transient component memory, never
+query/mutation caches, chat, URLs, local storage or ACP history. File reads use
+bounded 256 KiB chunks tied to the selected device and recording; changed IDs,
+offsets, size, MIME or EOF fail. Only completed audio can be loaded for playback;
+MKV screen recordings are downloaded. Object URLs are revoked on replacement or
+close. The remote preview uses screenshots and has no live audio. The runtime's
+separately configured local WebRTC remains same-host only and is not proxied.
+
+`scripts/test-mobile-preview.mjs` is opt-in browser acceptance for the actual
+Node detail page. It requires `PAX_MOBILE_HARNESS_SOCKET` (the private paxd test
+harness), `PAX_MOBILE_SESSION_ID` (an explicitly selected, running SDK test phone),
+and a local Console origin (`PAX_MOBILE_CONSOLE_ORIGIN`, default port 3344).
+It intercepts Manager identity/node metadata only inside the isolated test browser;
+mobile operations pass through the real node Client and runtime. It verifies
+PNG decoding, takeover, one Back input and release, then saves a screenshot.
+It does not prove a deployed Manager connection or change production auth.
+Set `PAX_MOBILE_SCREENSHOT_ONLY=1` for final read-only capture: it checks real
+state and PNG pixels without takeover, input or release.
+`PAX_MOBILE_TEST_RECORDING=1` is a separate opt-in write acceptance for the
+dedicated SDK tone phone. It skips input/takeover, records five seconds of
+internal audio through the real panel, waits for completion, downloads through
+the bounded chunk API, and uses ffprobe/ffmpeg to verify non-silent decoded PCM.
+The private completed test recording is retained; an unfinished recording is
+stopped once during cleanup. Do not run this while another acceptance owns media.
+
 ## Node browser control
 
 Node detail includes an explicitly opened Browser panel. Its API adapter lives

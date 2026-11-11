@@ -21,6 +21,7 @@ import {
   ArrowLeft,
   Brain,
   Monitor,
+  Smartphone,
   Check,
   FileText,
   LoaderCircle,
@@ -51,6 +52,7 @@ import { SessionPendingActivity } from "./session-pending-activity";
 import { SessionHistoryPagination } from "./session-history-pagination";
 import { SessionBrowserApprovals } from "./session-browser-approvals";
 import { SessionBrowserWindow } from "./session-browser-window";
+import { SessionMobileWindow } from "./session-mobile-window";
 import { WorkspacePicker } from "./workspace-picker";
 import { SessionWorkspaceDetails } from "./session-workspace-details";
 import { SessionComposer } from "@/components/sessions/session-composer";
@@ -349,6 +351,7 @@ export function SessionWorkbench({
     anchor?: TimelineAnchor;
   } | null>(null);
   const [browserOpen, setBrowserOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [activeSidePanelId, setActiveSidePanelId] =
     useState<SessionSidePanelId | null>(null);
   const [selectedToolEvidence, setSelectedToolEvidence] =
@@ -2370,6 +2373,24 @@ export function SessionWorkbench({
     </Button>
   ) : null;
 
+  const mobileButton = activeNodeId ? (
+    <Button
+      aria-label="Watch Android phone"
+      tooltip="Watch Android phone"
+      aria-expanded={mobileOpen}
+      size="sm"
+      className="w-full justify-start text-ink-muted"
+      variant="ghost"
+      icon={<Smartphone className="h-4 w-4" />}
+      onClick={() => {
+        setMobileOpen(true);
+        setActiveSidePanelId(null);
+      }}
+    >
+      Open Android phone
+    </Button>
+  ) : null;
+
   const sidePanels = (
     [
       {
@@ -2430,6 +2451,15 @@ export function SessionWorkbench({
         description: "Browser on this session’s device",
         icon: <Monitor className="h-4 w-4" />,
         content: browserButton ?? (
+          <p className="text-sm text-ink-tertiary">No device available.</p>
+        ),
+      },
+      {
+        id: "mobile",
+        label: "Android",
+        description: "Emulated phones on this session's device",
+        icon: <Smartphone className="h-4 w-4" />,
+        content: mobileButton ?? (
           <p className="text-sm text-ink-tertiary">No device available.</p>
         ),
       },
@@ -3028,6 +3058,13 @@ export function SessionWorkbench({
           nodeId={activeNodeId}
           userId={user.user_id}
           onClose={() => setBrowserOpen(false)}
+        />
+      )}
+      {mobileOpen && activeNodeId && (
+        <SessionMobileWindow
+          nodeId={activeNodeId}
+          userId={user.user_id}
+          onClose={() => setMobileOpen(false)}
         />
       )}
     </SessionWorkbenchFrame>

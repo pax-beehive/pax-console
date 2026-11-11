@@ -37,6 +37,7 @@ import { NodeHarnessUpgrade } from "./node-harness-upgrade";
 import { NodeMaintenanceActions } from "./node-maintenance-actions";
 import { NodeDaemonControl } from "./node-daemon-control";
 import { NodeBrowserControl } from "./node-browser-control";
+import { NodeMobileControl } from "./node-mobile-control";
 import { NodeSecretChannelPush } from "./node-secret-channel-push";
 
 type NodeDetailPageClientProps = {
@@ -107,6 +108,8 @@ export function NodeDetailPageClient({
         <NodeDaemonControl nodeId={nodeId} userId={user.user_id} />
 
         <NodeBrowserControl nodeId={nodeId} userId={user.user_id} />
+
+        <NodeMobileControl nodeId={nodeId} userId={user.user_id} />
 
         <details className="rounded-lg border border-hairline bg-surface-1 p-4">
           <summary className="cursor-pointer text-sm font-medium">

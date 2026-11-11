@@ -58,6 +58,18 @@ Package Manager  pnpm
 
 Current implementation note: the project currently uses local primitives in `src/components/ui` on top of Radix where needed. `Tooltip` uses Radix Tooltip, `Button` uses Radix Slot for composition, and `Badge` / `SearchBox` / `TruncatedText` / `MonoId` are local wrappers. Use `compactId` from `src/lib/format.ts` when node, agent, and session ids should be recognizable but not visually dominant. Do not replace these with ad hoc Tailwind copies; if shadcn components are introduced later, adapt these primitives deliberately.
 
+### Android phone surfaces
+
+Android control reuses the node browser bridge layout: an explicitly opened node
+panel and a separate nonmodal session window. Keep device selection explicit,
+never auto-start a phone, and require takeover before frame-bound input. Labels
+distinguish screenshot preview from completed audio/video recordings. Only the
+local runtime can offer same-host WebRTC; the remote Console does not broaden
+that transport policy. Hidden or blurred windows stop reading and lose local
+input ownership; releasing the runtime's human hold remains an explicit action.
+Device/recording metadata belongs in TanStack Query, while screenshots, typed
+text and media bytes remain ephemeral within the active surface.
+
 ### Library Boundaries
 
 TanStack Query owns server state:
