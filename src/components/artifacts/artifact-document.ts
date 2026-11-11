@@ -30,6 +30,7 @@ export type ArtifactDocument = {
   id: string;
   sourceType: ArtifactSourceType;
   previewMode: "document";
+  contentRef?: string;
   title: string;
   sessionId?: string;
   agentId?: string;
@@ -44,6 +45,7 @@ export type ArtifactDocument = {
 };
 
 export type ArtifactPreviewDescriptor = {
+  expiresAt?: string;
   url?: string;
   previewKind?: ArtifactPreviewKind;
   contentType?: string;
@@ -66,7 +68,7 @@ export type BuiltinArtifactRenderer = {
     | "builtin:download";
   kind: DocumentRendererKind;
   capabilities: ArtifactViewerCapability[];
-  dataSource: "url" | "text" | "none";
+  dataSource: "url" | "stream" | "text" | "none";
 };
 
 const rendererDefinitions: Record<
@@ -74,8 +76,8 @@ const rendererDefinitions: Record<
   BuiltinArtifactRenderer
 > = {
   image: renderer("image", "url"),
-  video: renderer("video", "url"),
-  audio: renderer("audio", "url"),
+  video: renderer("video", "stream"),
+  audio: renderer("audio", "stream"),
   pdf: renderer("pdf", "url"),
   html: renderer("html", "url"),
   mermaid: renderer("mermaid", "text"),
@@ -145,6 +147,7 @@ export function artifactDocumentFromPublication({
   return {
     id: publicationId,
     sourceType: "publication",
+    contentRef: content?.ref ?? contentRef,
     sessionId: publication?.session_id || artifact?.session_id,
     agentId: publication?.agent_id || artifact?.agent_id,
     previewMode: "document",
@@ -174,6 +177,7 @@ export function artifactDocumentFromSessionArtifact(
   return {
     id: artifact.artifact_id,
     sourceType: "session_artifact",
+    contentRef: content?.ref ?? preferredRef,
     sessionId: artifact.session_id,
     agentId: artifact.agent_id,
     previewMode: "document",
@@ -211,7 +215,7 @@ export function primaryArtifactContent(
 
 function renderer(
   kind: Exclude<DocumentRendererKind, "download">,
-  dataSource: "url" | "text",
+  dataSource: "url" | "stream" | "text",
 ): BuiltinArtifactRenderer {
   return {
     id: `builtin:${kind}`,

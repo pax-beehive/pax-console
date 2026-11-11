@@ -96,6 +96,7 @@ export function ArtifactViewerShell(props: ArtifactViewerShellProps) {
       key={JSON.stringify([
         props.artifact.sourceType,
         props.artifact.id,
+        props.artifact.contentRef,
         props.previewScope,
       ])}
       {...props}
@@ -149,6 +150,7 @@ function ArtifactViewer({
     undefined,
   );
   const previewRequestRef = useRef(0);
+  const mediaRefreshRef = useRef<Promise<void> | undefined>(undefined);
   const renderer = resolveArtifactRenderer(artifact, preview);
   const title =
     artifact.title.trim() || artifact.filename || "Untitled artifact";
@@ -219,6 +221,10 @@ function ArtifactViewer({
     }
   }, [expanded]);
 
+  useEffect(() => {
+    if (visibility === "closed") mediaPlaybackRef.current = undefined;
+  }, [visibility]);
+
   const openPreview = useCallback(() => {
     setVisibility("open");
     if (scope) {
@@ -229,6 +235,7 @@ function ArtifactViewer({
   const closePreview = useCallback(() => {
     autoLoadedArtifactRef.current = artifact.id;
     previewRequestRef.current += 1;
+    mediaRefreshRef.current = undefined;
     clearPreviewObjectUrl();
     setPreview(undefined);
     setPreviewError(null);
@@ -249,6 +256,7 @@ function ArtifactViewer({
     }
 
     const requestId = ++previewRequestRef.current;
+    mediaRefreshRef.current = undefined;
     autoLoadedArtifactRef.current = artifact.id;
     openPreview();
     setPreviewPending(true);
@@ -328,6 +336,35 @@ function ArtifactViewer({
     openPreview,
     revokePreviewObjectUrl,
   ]);
+
+  const refreshMediaSource = useCallback((): Promise<void> => {
+    if (mediaRefreshRef.current) return mediaRefreshRef.current;
+    if (!loadPreview)
+      return Promise.reject(new Error("Playback link is unavailable."));
+    const requestId = previewRequestRef.current;
+    const request = (async () => {
+      const descriptor = await loadPreview();
+      if (requestId !== previewRequestRef.current) return;
+      const resolved = resolveArtifactRenderer(artifact, descriptor);
+      if (
+        resolved.dataSource !== "stream" ||
+        !descriptor.url ||
+        (descriptor.expiresAt &&
+          (!Number.isFinite(Date.parse(descriptor.expiresAt)) ||
+            Date.parse(descriptor.expiresAt) <= Date.now()))
+      ) {
+        throw new Error("Playback link could not be refreshed.");
+      }
+      setPreview(descriptor);
+    })();
+    mediaRefreshRef.current = request;
+    const clear = () => {
+      if (mediaRefreshRef.current === request)
+        mediaRefreshRef.current = undefined;
+    };
+    void request.then(clear, clear);
+    return request;
+  }, [artifact, loadPreview]);
 
   useEffect(() => {
     if (
@@ -709,6 +746,8 @@ function ArtifactViewer({
           role="region"
         >
           <ArtifactViewerBody
+            active={expanded}
+            onRefreshSource={refreshMediaSource}
             artifact={artifact}
             error={previewError ?? sourceError}
             pending={previewPending}
@@ -763,6 +802,8 @@ function ArtifactViewer({
 }
 
 function ArtifactViewerBody({
+  active,
+  onRefreshSource,
   artifact,
   error,
   pending,
@@ -773,6 +814,8 @@ function ArtifactViewerBody({
   imageState,
   onImageChange,
 }: {
+  active: boolean;
+  onRefreshSource: () => Promise<void>;
   artifact: ArtifactDocument;
   error?: Error | null;
   pending: boolean;
@@ -823,6 +866,8 @@ function ArtifactViewerBody({
         </div>
       )}
       <DocumentRenderer
+        active={active}
+        onRefreshSource={onRefreshSource}
         artifact={artifact}
         kind={rendererKind}
         preview={preview}
@@ -836,6 +881,8 @@ function ArtifactViewerBody({
 }
 
 function DocumentRenderer({
+  active,
+  onRefreshSource,
   artifact,
   kind,
   preview,
@@ -844,6 +891,8 @@ function DocumentRenderer({
   imageState,
   onImageChange,
 }: {
+  active: boolean;
+  onRefreshSource: () => Promise<void>;
   artifact: ArtifactDocument;
   kind: DocumentRendererKind;
   preview: LoadedArtifactPreview;
@@ -857,6 +906,14 @@ function DocumentRenderer({
       <ArtifactMediaPreview
         key={preview.url}
         kind={kind}
+        active={active}
+        expiresAt={preview.expiresAt}
+        onRefreshSource={onRefreshSource}
+        sourceId={JSON.stringify([
+          artifact.sourceType,
+          artifact.id,
+          artifact.contentRef ?? "main",
+        ])}
         playbackRef={playbackRef}
         src={preview.url}
         title={artifact.title}

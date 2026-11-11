@@ -2417,6 +2417,7 @@ export function SessionWorkbench({
                 contentType: data.content.content_type,
                 filename: data.content.filename,
                 url: data.url,
+                expiresAt: data.expires_at,
               };
             }}
             onRefresh={refreshArtifacts}
