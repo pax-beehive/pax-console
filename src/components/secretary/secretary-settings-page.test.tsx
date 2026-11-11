@@ -173,6 +173,72 @@ afterEach(() => {
 });
 
 describe("Secretary settings", () => {
+  it.each([
+    ["unknown", "execution_unknown", "Outcome unknown"],
+    ["needs_recovery", "lease_expired", "Awaiting recovery"],
+    ["blocked", "invalid_output", "Retry required"],
+  ] as const)(
+    "keeps overall processing visible alongside the affected conversation's %s state",
+    (executionState, reason, label) => {
+      setSettings(
+        settingsState({
+          ...configured,
+          state: "processing",
+          pending_count: 13,
+          execution_state: executionState,
+          blocked_reason: reason,
+          last_error: "raw private execution detail",
+        }),
+      );
+      setup();
+      const status = screen.getByRole("region", { name: "Secretary status" });
+      expect(within(status).getByText("Processing")).toBeInTheDocument();
+      expect(status).toHaveTextContent(label);
+      expect(status).toHaveTextContent("for a conversation");
+      expect(status).toHaveTextContent("Other conversations can continue");
+      expect(status).toHaveTextContent("Unfinished");
+      expect(status).toHaveTextContent("13 conversations");
+      expect(status).not.toHaveTextContent("Queued");
+      expect(status).not.toHaveTextContent("raw private execution detail");
+      const review = within(status).getByRole("link", { name: "Review tasks" });
+      const target = document.querySelector(review.getAttribute("href")!);
+      expect(target).toContainElement(
+        screen.getByRole("region", { name: "Secretary tasks" }),
+      );
+    },
+  );
+  it("scopes an unknown outcome to its conversation when no other work is processing", () => {
+    setSettings(
+      settingsState({
+        ...configured,
+        state: "error",
+        execution_state: "unknown",
+        blocked_reason: "execution_unknown",
+      }),
+    );
+    setup();
+    const status = screen.getByRole("region", { name: "Secretary status" });
+    expect(status).toHaveTextContent("Outcome unknown");
+    expect(status).toHaveTextContent(
+      "Automatic retries are paused for a conversation",
+    );
+    expect(status).not.toHaveTextContent("Processing");
+    expect(
+      within(status).getByRole("link", { name: "Review tasks" }),
+    ).toBeVisible();
+  });
+  it("shows normal unfinished work without an attention warning or task shortcut", () => {
+    setSettings(settingsState({ ...configured, pending_count: 2 }));
+    setup();
+    const status = screen.getByRole("region", { name: "Secretary status" });
+    expect(status).toHaveTextContent("Ready");
+    expect(status).toHaveTextContent("Unfinished");
+    expect(status).toHaveTextContent("2 conversations");
+    expect(status).not.toHaveTextContent("Other conversations can continue");
+    expect(
+      within(status).queryByRole("link", { name: "Review tasks" }),
+    ).toBeNull();
+  });
   it("explains connection backoff as automatic waiting without exposing a raw failure", () => {
     setSettings(
       settingsState({
