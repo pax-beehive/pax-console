@@ -1854,15 +1854,28 @@ names map to `mobile.control` node queries. Local service addresses, credentials
 SDK paths, installation and gRPC stay on the node; no browser-supplied target,
 path, token or raw WebRTC SDP is supported.
 
-Device choice is explicit and never follows another phone. Create selects only
-the newly created phone and does not start it. Take control is required for
-frame-bound tap/swipe/text/navigation; each input consumes a fresh screenshot
-reference and is never retried. Blur/hide pauses reads, clears preview and local
-input ownership, and cancels file loading and operations still queued for dispatch.
-An operation already sent may have completed; never retry it automatically.
-Cold boot passes an explicit twelve-minute `timeoutMs` to the shared API
-helper, whose default remains twelve seconds for other callers. Caller
-cancellation still aborts long requests immediately. Focus does not retake control. The
+Phone preparation belongs to the current Agent. An explicit preparation action
+in the session surface sends a normal visible message through the existing
+conversation/E2EE send flow, linking the
+[runtime preparation playbook](https://github.com/CCGV2/agent-mobile-runtime/blob/main/docs/agent-preparation.md).
+The Agent reads the instructions, checks or installs authorized dependencies,
+starts the assigned phone and reports progress in chat. Opening a panel never
+sends this message automatically. Preserve unsent composer text and attachments;
+the preparation message must not consume them. An accepted message is not a
+claim that Android is ready.
+
+Console has no SDK installer or create/start/stop/destroy phone controls. It
+does not wait for boot or extend the shared API deadline for preparation. Node
+detail has no current Agent context, so it directs the user to a session and
+the playbook. Device choice stays explicit and never follows another phone.
+The displayed state and real frames come from the node bridge, not a successful
+preparation-message send.
+
+Take control is required for frame-bound tap/swipe/text/navigation; each input
+consumes a fresh screenshot reference and is never retried. Blur/hide pauses
+reads, clears preview and local input ownership, and cancels file loading and
+operations still queued for dispatch. An operation already sent may have
+completed; never retry it automatically. Focus does not retake control. The
 runtime's human hold persists until explicit Release control, including after
 closing the window; the UI does not silently resume the agent.
 

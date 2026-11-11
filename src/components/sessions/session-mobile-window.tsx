@@ -10,10 +10,14 @@ export function SessionMobileWindow({
   nodeId,
   userId,
   onClose,
+  onPrepare,
+  prepareDisabled,
 }: {
   nodeId: string;
   userId: string;
   onClose: () => void;
+  onPrepare?: () => Promise<boolean>;
+  prepareDisabled?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [position, setPosition] = useState<{ left: number; top: number }>();
@@ -127,6 +131,8 @@ export function SessionMobileWindow({
           key={`${userId}/${nodeId}`}
           nodeId={nodeId}
           userId={userId}
+          onPrepare={onPrepare}
+          prepareDisabled={prepareDisabled}
         />
       </div>
     </section>,

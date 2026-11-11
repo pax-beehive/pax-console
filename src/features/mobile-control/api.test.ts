@@ -38,7 +38,7 @@ it("serializes node operations and discards an aborted read before it reaches th
         release = resolve;
       }),
   );
-  const first = mobileControl("u", "n", "start", { sessionId: "phone" });
+  const first = mobileControl("u", "n", "takeover", { sessionId: "phone" });
   const abort = new AbortController();
   const second = mobileControl(
     "u",
@@ -113,7 +113,7 @@ describe("response boundary", () => {
     ]) {
       fetch.mockResolvedValueOnce({ mobile_control: value });
       await expect(mobileControl("u", "n", "state")).rejects.toThrow(
-        "Update and restart",
+        "Ask the agent",
       );
     }
   });
@@ -139,13 +139,16 @@ describe("response boundary", () => {
   });
 });
 
-it("gives cold boot its bounded deadline while retaining caller cancellation", async () => {
-  const timeout = vi.spyOn(AbortSignal, "timeout");
+it("retains caller cancellation without extending the shared request deadline", async () => {
   fetch.mockResolvedValue({ mobile_control: {} });
   const caller = new AbortController();
-  await mobileControl("u", "n", "start", { sessionId: "phone" }, caller.signal);
-  expect(timeout).toHaveBeenLastCalledWith(720000);
-  expect(fetch.mock.calls[0][2]).toEqual({ timeoutMs: 720000 });
+  await mobileControl(
+    "u",
+    "n",
+    "release",
+    { sessionId: "phone" },
+    caller.signal,
+  );
   const signal = fetch.mock.calls[0][1].signal as AbortSignal;
   expect(signal.aborted).toBe(false);
   caller.abort();

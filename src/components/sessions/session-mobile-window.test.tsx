@@ -7,8 +7,23 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SessionMobileWindow } from "./session-mobile-window";
 
 vi.mock("@/components/resources/node-mobile-control", () => ({
-  NodeMobileViewer: ({ nodeId }: { nodeId: string }) => (
-    <div>Phone device {nodeId}</div>
+  NodeMobileViewer: ({
+    nodeId,
+    onPrepare,
+    prepareDisabled,
+  }: {
+    nodeId: string;
+    onPrepare?: () => Promise<boolean>;
+    prepareDisabled?: boolean;
+  }) => (
+    <div>
+      Phone device {nodeId}
+      {onPrepare && (
+        <button disabled={prepareDisabled} onClick={() => void onPrepare()}>
+          Prepare from session
+        </button>
+      )}
+    </div>
   ),
 }));
 afterEach(cleanup);
@@ -41,4 +56,38 @@ it("keeps chat usable in a separate nonmodal phone surface with expand and close
     screen.getByRole("button", { name: "Close Android preview" }),
   );
   expect(close).toHaveBeenCalledOnce();
+});
+
+it("passes the current session's preparation action and availability into the phone viewer", async () => {
+  const user = userEvent.setup();
+  const onPrepare = vi.fn().mockResolvedValue(true);
+  const { rerender } = render(
+    <TooltipProvider>
+      <SessionMobileWindow
+        nodeId="node-1"
+        userId="u"
+        onClose={vi.fn()}
+        onPrepare={onPrepare}
+        prepareDisabled
+      />
+    </TooltipProvider>,
+  );
+  expect(onPrepare).not.toHaveBeenCalled();
+  expect(
+    screen.getByRole("button", { name: "Prepare from session" }),
+  ).toBeDisabled();
+  rerender(
+    <TooltipProvider>
+      <SessionMobileWindow
+        nodeId="node-1"
+        userId="u"
+        onClose={vi.fn()}
+        onPrepare={onPrepare}
+      />
+    </TooltipProvider>,
+  );
+  await user.click(
+    screen.getByRole("button", { name: "Prepare from session" }),
+  );
+  expect(onPrepare).toHaveBeenCalledOnce();
 });

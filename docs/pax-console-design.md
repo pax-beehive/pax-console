@@ -60,15 +60,21 @@ Current implementation note: the project currently uses local primitives in `src
 
 ### Android phone surfaces
 
-Android control reuses the node browser bridge layout: an explicitly opened node
-panel and a separate nonmodal session window. Keep device selection explicit,
-never auto-start a phone, and require takeover before frame-bound input. Labels
-distinguish screenshot preview from completed audio/video recordings. Only the
-local runtime can offer same-host WebRTC; the remote Console does not broaden
-that transport policy. Hidden or blurred windows stop reading and lose local
-input ownership; releasing the runtime's human hold remains an explicit action.
-Device/recording metadata belongs in TanStack Query, while screenshots, typed
-text and media bytes remain ephemeral within the active surface.
+Android viewing reuses the node browser bridge layout: an explicitly opened
+node panel and a separate nonmodal session window. Phone preparation belongs
+to the Agent. The session's explicit preparation action sends a normal message
+with the runtime playbook; do not send on mount, consume an existing draft or
+attachments, run an installer in the UI, or treat message acceptance as phone
+readiness. Node detail directs the user to an Agent session. The viewer has no
+create/start/stop/destroy controls or long boot request.
+
+Keep device selection explicit and require takeover before frame-bound input.
+Labels distinguish screenshot preview from completed audio/video recordings.
+Only the local runtime can offer same-host WebRTC; the remote Console does not
+broaden that transport policy. Hidden or blurred windows stop reading and lose
+local input ownership; releasing the runtime's human hold remains an explicit
+action. Device/recording metadata belongs in TanStack Query, while screenshots,
+typed text and media bytes remain ephemeral within the active surface.
 
 ### Library Boundaries
 

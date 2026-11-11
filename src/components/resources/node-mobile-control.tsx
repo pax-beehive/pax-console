@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { InlineError } from "@/components/ui/inline-error";
 import { MonoId } from "@/components/ui/text";
 import {
@@ -27,7 +26,6 @@ import {
   type MobileFrame,
   type MobileOperation,
   type MobileRecording,
-  type MobileSession,
 } from "@/features/mobile-control/api";
 import {
   mobileStateKey,
@@ -74,17 +72,25 @@ export function NodeMobileControl({
 export function NodeMobileViewer({
   nodeId,
   userId,
+  onPrepare,
+  prepareDisabled = false,
 }: {
   nodeId: string;
   userId: string;
+  onPrepare?: () => Promise<boolean>;
+  prepareDisabled?: boolean;
 }) {
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState("");
-  const [template, setTemplate] = useState("");
   const [controlSession, setControlSession] = useState("");
   const [consumedFrame, setConsumedFrame] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [operationBusy, setBusy] = useState(false);
   const busyRef = useRef(false);
+  const [preparing, setPreparing] = useState(false);
+  const preparingRef = useRef(false);
+  const [preparationRequested, setPreparationRequested] = useState(false);
+  const [preparationError, setPreparationError] = useState<Error>();
+  const busy = operationBusy || preparing;
   const selectionVersion = useRef(0);
   const [image, setImage] = useState<{
     sessionId: string;
@@ -95,7 +101,6 @@ export function NodeMobileViewer({
   const frameAbort = useRef<AbortController | null>(null);
   const operationAbort = useRef<AbortController | null>(null);
   const [error, setError] = useState<Error>();
-  const [destroyOpen, setDestroyOpen] = useState(false);
   const [text, setText] = useState("");
   const [recordKind, setRecordKind] = useState<"screen" | "audio">("screen");
   const [duration, setDuration] = useState(30);
@@ -229,14 +234,47 @@ export function NodeMobileViewer({
     await refreshFrame();
   }
 
+  async function prepareWithAgent() {
+    if (
+      !onPrepare ||
+      prepareDisabled ||
+      preparingRef.current ||
+      busyRef.current ||
+      !active
+    )
+      return;
+    preparingRef.current = true;
+    setPreparing(true);
+    setPreparationRequested(false);
+    setPreparationError(undefined);
+    try {
+      if (await onPrepare()) setPreparationRequested(true);
+      else
+        setPreparationError(
+          new Error(
+            "Preparation request was not accepted. Check the session, then try again.",
+          ),
+        );
+    } catch {
+      setPreparationError(
+        new Error(
+          "Could not send the preparation request. Check the session, then try again.",
+        ),
+      );
+    } finally {
+      preparingRef.current = false;
+      setPreparing(false);
+    }
+  }
+
   async function run(
     operation: MobileOperation,
     args: Record<string, unknown> = {},
   ) {
-    if (busyRef.current || !active) return;
+    if (busyRef.current || preparingRef.current || !active) return;
     const id = selectedId;
     const version = selectionVersion.current;
-    if (operation !== "create" && !session) return;
+    if (!session) return;
     busyRef.current = true;
     const controller = new AbortController();
     operationAbort.current = controller;
@@ -246,26 +284,16 @@ export function NodeMobileViewer({
     // Every operation may invalidate the server's last input reference.
     if (frame) setConsumedFrame(frame.frameId);
     try {
-      const result = await mobileControl<MobileSession>(
+      await mobileControl(
         userId,
         nodeId,
         operation,
-        operation === "create" ? args : { sessionId: id, ...args },
+        { sessionId: id, ...args },
         controller.signal,
       );
-      if (operation === "create" && version === selectionVersion.current) {
-        setSelectedId(result.id);
-        setControlSession("");
-      }
       if (operation === "takeover" && version === selectionVersion.current)
         setControlSession(id);
-      if (["release", "stop", "destroy"].includes(operation))
-        setControlSession("");
-      if (operation === "destroy") {
-        setSelectedId("");
-        setFile(undefined);
-        setDestroyOpen(false);
-      }
+      if (operation === "release") setControlSession("");
     } catch (cause) {
       setError(
         controller.signal.aborted
@@ -414,14 +442,50 @@ export function NodeMobileViewer({
         Android emulator on this device. Screenshot preview; audio is available
         in completed recordings.
       </p>
+      {onPrepare ? (
+        <div className="grid gap-2">
+          <Button
+            size="sm"
+            disabled={prepareDisabled || busy || !active}
+            onClick={() => void prepareWithAgent()}
+          >
+            {preparing
+              ? "Sending preparation request…"
+              : "Ask agent to prepare phone"}
+          </Button>
+          <p className="text-xs text-ink-tertiary">
+            The agent reads the setup guide and prepares the phone. Follow its
+            progress in chat, then choose the prepared phone here.
+          </p>
+          {preparationRequested && (
+            <p className="text-xs text-ink-muted" role="status">
+              Preparation request sent to the agent. Follow progress in chat.
+            </p>
+          )}
+          {preparationError && <InlineError error={preparationError} />}
+        </div>
+      ) : (
+        <p className="text-xs text-ink-tertiary">
+          Ask the agent in a session to prepare the phone using the{" "}
+          <a
+            className="underline underline-offset-2"
+            href="https://github.com/CCGV2/agent-mobile-runtime/blob/main/docs/agent-preparation.md"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Android setup guide
+          </a>
+          .
+        </p>
+      )}
       {(error || query.error) && <InlineError error={error ?? query.error!} />}
       {query.isPending && (
         <p className="text-sm text-ink-tertiary">Checking Android runtime…</p>
       )}
       {state && !state.available && (
         <p className="text-sm text-ink-muted">
-          Android runtime is unavailable on this device. Start its configured
-          mobile service, then refresh.
+          Android runtime is not ready on this device. Ask the agent to prepare
+          it, then refresh to check its progress.
         </p>
       )}
       <div className="flex flex-wrap gap-2">
@@ -432,33 +496,6 @@ export function NodeMobileViewer({
         >
           Refresh
         </Button>
-        {state?.available && (
-          <>
-            <select
-              className={inputClass}
-              aria-label="Android template"
-              value={template}
-              disabled={busy}
-              onChange={(event) => setTemplate(event.target.value)}
-            >
-              <option value="">Choose a clean template</option>
-              {state.templates
-                .filter((value) => value.available)
-                .map((value) => (
-                  <option key={value.name} value={value.name}>
-                    {value.name}
-                  </option>
-                ))}
-            </select>
-            <Button
-              size="sm"
-              disabled={busy || !template || !active}
-              onClick={() => void run("create", { template })}
-            >
-              Create phone
-            </Button>
-          </>
-        )}
       </div>
       {state?.available && (
         <>
@@ -481,7 +518,8 @@ export function NodeMobileViewer({
           </label>
           {!state.sessions.length && (
             <p className="text-sm text-ink-tertiary">
-              No phones yet. Create one from a configured clean template.
+              No phones yet. Ask the agent to read the setup guide and prepare
+              one for this session.
             </p>
           )}
           {selectedId && !session && (
@@ -500,29 +538,11 @@ export function NodeMobileViewer({
           </div>
           {session.recoveryRequired && (
             <p className="text-xs text-warning">
-              This phone needs recovery on its host before it can start again.
+              Ask the agent to inspect the recovery state on the device host
+              before preparing it again.
             </p>
           )}
           <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              disabled={
-                busy ||
-                session.state !== "stopped" ||
-                !active ||
-                session.recoveryRequired
-              }
-              onClick={() => void run("start")}
-            >
-              Start phone
-            </Button>
-            <Button
-              size="sm"
-              disabled={busy || !running || !active}
-              onClick={() => void run("stop")}
-            >
-              Stop phone
-            </Button>
             <Button
               size="sm"
               disabled={busy || !running || controlling || !active}
@@ -536,14 +556,6 @@ export function NodeMobileViewer({
               onClick={() => void run("release")}
             >
               Release control
-            </Button>
-            <Button
-              size="sm"
-              variant="danger"
-              disabled={busy || !active}
-              onClick={() => setDestroyOpen(true)}
-            >
-              Destroy phone
             </Button>
           </div>
           <p className="text-xs text-ink-tertiary">
@@ -581,7 +593,7 @@ export function NodeMobileViewer({
               <p className="self-center text-xs text-ink-tertiary">
                 {running
                   ? "Waiting for a fresh screenshot…"
-                  : "Start this phone to view its screen."}
+                  : "The agent needs to start this phone before its screen is available."}
               </p>
             )}
           </div>
@@ -744,7 +756,7 @@ export function NodeMobileViewer({
                     <Button
                       size="sm"
                       icon={<Download className="h-3.5 w-3.5" />}
-                      disabled={fileProgress !== undefined || !active}
+                      disabled={busy || fileProgress !== undefined || !active}
                       onClick={() => void loadRecording(record, true)}
                     >
                       Download {record.kind === "audio" ? "audio" : "MKV"}
@@ -752,7 +764,7 @@ export function NodeMobileViewer({
                     {record.kind === "audio" && (
                       <Button
                         size="sm"
-                        disabled={fileProgress !== undefined || !active}
+                        disabled={busy || fileProgress !== undefined || !active}
                         onClick={() => void loadRecording(record, false)}
                       >
                         Load audio
@@ -780,15 +792,6 @@ export function NodeMobileViewer({
               external player. Runtime credentials remain on the device.
             </p>
           </div>
-          <ConfirmDialog
-            open={destroyOpen}
-            onOpenChange={setDestroyOpen}
-            title="Destroy this Android phone?"
-            description="This deletes this phone's private app data and recordings. Other phones are unaffected."
-            disabled={busy || !active}
-            confirmLabel={busy ? "Destroying…" : "Destroy phone"}
-            onConfirm={() => void run("destroy")}
-          />
         </>
       )}
     </div>

@@ -76,19 +76,182 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function setup() {
+function setup(
+  props: {
+    onPrepare?: () => Promise<boolean>;
+    prepareDisabled?: boolean;
+  } = {},
+) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   const view = render(
     <QueryClientProvider client={client}>
       <TooltipProvider>
-        <NodeMobileViewer userId="u" nodeId="n" />
+        <NodeMobileViewer userId="u" nodeId="n" {...props} />
       </TooltipProvider>
     </QueryClientProvider>,
   );
   return { ...view, client, user: userEvent.setup() };
 }
+
+it("leaves phone preparation to the agent and offers a setup guide outside a session", async () => {
+  setup();
+  await screen.findByRole("combobox", { name: "Android phone" });
+  for (const name of [
+    "Create phone",
+    "Start phone",
+    "Stop phone",
+    "Destroy phone",
+  ])
+    expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("combobox", { name: "Android template" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Ask agent to prepare phone" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("link", { name: "Android setup guide" }),
+  ).toHaveAttribute(
+    "href",
+    "https://github.com/CCGV2/agent-mobile-runtime/blob/main/docs/agent-preparation.md",
+  );
+  expect(
+    control.mock.calls.some((call) =>
+      ["create", "start", "stop", "destroy"].includes(call[2]),
+    ),
+  ).toBe(false);
+});
+
+it("sends preparation to the agent only on request even when the runtime is unavailable", async () => {
+  state.available = false;
+  state.sessions = [];
+  const onPrepare = vi.fn().mockResolvedValue(true);
+  const { user } = setup({ onPrepare });
+  await screen.findByText(/Android runtime is not ready/);
+  expect(onPrepare).not.toHaveBeenCalled();
+  await user.click(
+    screen.getByRole("button", { name: "Ask agent to prepare phone" }),
+  );
+  expect(onPrepare).toHaveBeenCalledOnce();
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "Preparation request sent to the agent. Follow progress in chat.",
+  );
+  expect(
+    control.mock.calls.some((call) =>
+      ["create", "start", "stop", "destroy"].includes(call[2]),
+    ),
+  ).toBe(false);
+});
+
+it("keeps the agent preparation action available when runtime status cannot be loaded", async () => {
+  control.mockRejectedValue(new Error("Runtime status is unavailable"));
+  const onPrepare = vi.fn().mockResolvedValue(true);
+  const { user } = setup({ onPrepare });
+  await screen.findByText(/Runtime status is unavailable/);
+  await user.click(
+    screen.getByRole("button", { name: "Ask agent to prepare phone" }),
+  );
+  expect(onPrepare).toHaveBeenCalledOnce();
+});
+
+it("fences repeated preparation clicks and other phone actions until the prompt is accepted", async () => {
+  let finish!: (value: boolean) => void;
+  const pending = new Promise<boolean>((resolve) => {
+    finish = resolve;
+  });
+  const onPrepare = vi.fn(() => pending);
+  const { user } = setup({ onPrepare });
+  await user.selectOptions(
+    await screen.findByRole("combobox", { name: "Android phone" }),
+    PHONE,
+  );
+  await screen.findByRole("img", { name: "Android phone screenshot" });
+  await user.dblClick(
+    screen.getByRole("button", { name: "Ask agent to prepare phone" }),
+  );
+  expect(onPrepare).toHaveBeenCalledOnce();
+  expect(
+    screen.getByRole("button", { name: "Sending preparation request…" }),
+  ).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Take control" })).toBeDisabled();
+  expect(
+    screen.getByRole("button", { name: "Start recording" }),
+  ).toBeDisabled();
+  expect(
+    screen.getByRole("combobox", { name: "Android phone" }),
+  ).toBeDisabled();
+  await act(async () => {
+    finish(true);
+    await pending;
+  });
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "Preparation request sent",
+  );
+  expect(
+    control.mock.calls.some((call) =>
+      ["create", "start", "stop", "destroy"].includes(call[2]),
+    ),
+  ).toBe(false);
+});
+
+it.each([false, "reject"])(
+  "shows an unaccepted preparation request (%s) without automatically retrying",
+  async (result) => {
+    const onPrepare = vi.fn();
+    if (result === "reject")
+      onPrepare.mockRejectedValueOnce(new Error("Session offline"));
+    else onPrepare.mockResolvedValueOnce(false);
+    onPrepare.mockResolvedValueOnce(true);
+    const { user } = setup({ onPrepare });
+    await screen.findByRole("combobox", { name: "Android phone" });
+    await user.click(
+      screen.getByRole("button", { name: "Ask agent to prepare phone" }),
+    );
+    await screen.findByText(/Check the session, then try again/);
+    expect(onPrepare).toHaveBeenCalledOnce();
+    expect(
+      screen.queryByText(/Preparation request sent to the agent/),
+    ).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Ask agent to prepare phone" }),
+    );
+    expect(onPrepare).toHaveBeenCalledTimes(2);
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Preparation request sent",
+    );
+  },
+);
+
+it("does not send preparation while the current session is unavailable for prompts", async () => {
+  const onPrepare = vi.fn();
+  const { user } = setup({ onPrepare, prepareDisabled: true });
+  await screen.findByRole("combobox", { name: "Android phone" });
+  const prepare = screen.getByRole("button", {
+    name: "Ask agent to prepare phone",
+  });
+  expect(prepare).toBeDisabled();
+  await user.click(prepare);
+  expect(onPrepare).not.toHaveBeenCalled();
+});
+
+it("shows a stopped phone as agent preparation work without dispatching a lifecycle request", async () => {
+  state.sessions[0].state = "stopped";
+  const { user } = setup();
+  await user.selectOptions(
+    await screen.findByRole("combobox", { name: "Android phone" }),
+    PHONE,
+  );
+  expect(
+    await screen.findByText(/The agent needs to start this phone/),
+  ).toBeVisible();
+  expect(
+    control.mock.calls.some((call) =>
+      ["create", "start", "stop", "destroy"].includes(call[2]),
+    ),
+  ).toBe(false);
+});
 
 it("requires explicit phone selection and takeover before any input", async () => {
   const { user, client } = setup();

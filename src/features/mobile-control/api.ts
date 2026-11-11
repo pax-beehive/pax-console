@@ -36,10 +36,6 @@ export type MobileRecording = {
 export type MobileOperation =
   | "state"
   | "templates"
-  | "create"
-  | "start"
-  | "stop"
-  | "destroy"
   | "takeover"
   | "release"
   | "screenshot"
@@ -65,27 +61,14 @@ export function mobileControl<T>(
   const key = `${userId}/${nodeId}`;
   const work = (tails.get(key) ?? Promise.resolve()).then(async () => {
     signal?.throwIfAborted();
-    const timeout =
-      operation === "start"
-        ? 720000
-        : ["create", "stop", "destroy", "takeover", "release"].includes(
-              operation,
-            )
-          ? 120000
-          : 30000;
-    const deadline = AbortSignal.timeout(timeout);
     const result = await apiFetch<{
       mobile_control?: T;
       error?: { message?: string };
-    }>(
-      userPath(userId, `/nodes/${encodeURIComponent(nodeId)}/daemon/mobile`),
-      {
-        method: "POST",
-        body: JSON.stringify({ operation, payload }),
-        signal: signal ? AbortSignal.any([signal, deadline]) : deadline,
-      },
-      { timeoutMs: timeout },
-    );
+    }>(userPath(userId, `/nodes/${encodeURIComponent(nodeId)}/daemon/mobile`), {
+      method: "POST",
+      body: JSON.stringify({ operation, payload }),
+      signal,
+    });
     if (result.error || result.mobile_control == null)
       throw Error(result.error?.message ?? "Android control unavailable");
     if (
@@ -98,7 +81,9 @@ export function mobileControl<T>(
         ) ||
         (result.mobile_control as Partial<MobileState>).remoteWebRTC !== false)
     )
-      throw Error("Update and restart the node's Android adapter.");
+      throw Error(
+        "Android preview is unavailable. Ask the agent to check this node's setup.",
+      );
     if (operation === "screenshot") {
       const frame = result.mobile_control as unknown as MobileFrame;
       if (

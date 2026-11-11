@@ -10,6 +10,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { queryKeys } from "@/features/api/query-keys";
@@ -21,6 +22,7 @@ import type { SessionEvent } from "@/features/runtime/session-events";
 import type { ConversationRunStatus } from "@/features/runtime/use-conversation-run";
 import { useConsoleStore } from "@/stores/console-store";
 import { SessionWorkbench } from "./session-workbench";
+import { MOBILE_PREPARATION_PROMPT } from "@/features/mobile-control/preparation";
 
 const fixtures = vi.hoisted(() => ({
   session: {
@@ -47,6 +49,13 @@ const fixtures = vi.hoisted(() => ({
   readHistory: vi.fn(),
   metadataError: null as Error | null,
   historyError: null as Error | null,
+  nodeOnline: true,
+  keyLoading: false,
+  rootKeyAvailable: true,
+  preparePhone: null as (() => Promise<boolean>) | null,
+  createAttachment: vi
+    .fn()
+    .mockRejectedValue(new Error("Attachment upload failed")),
 }));
 
 vi.mock("@/features/api/resources", async (importOriginal) => ({
@@ -55,7 +64,9 @@ vi.mock("@/features/api/resources", async (importOriginal) => ({
     data: fixtures.session,
     error: fixtures.metadataError,
   }),
-  useNodes: () => ({ data: { nodes: [{ node_id: "node_1", online: true }] } }),
+  useNodes: () => ({
+    data: { nodes: [{ node_id: "node_1", online: fixtures.nodeOnline }] },
+  }),
   useNodeAgents: () => ({ data: { agents: [{ agent_id: "agent_1" }] } }),
   useAgentSessions: () => fixtures.emptyQuery,
   useAgentPermissionCatalog: () => fixtures.emptyQuery,
@@ -75,6 +86,7 @@ vi.mock("@/features/api/resources", async (importOriginal) => ({
   getQueuedSessionTurn: vi.fn().mockResolvedValue(null),
   queueSessionTurn: fixtures.queueTurn,
   steerSessionTurn: fixtures.steerTurn,
+  createUserAttachment: fixtures.createAttachment,
 }));
 vi.mock("@/features/api/workspace-search", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/features/api/workspace-search")>()),
@@ -108,7 +120,8 @@ vi.mock("@/features/e2ee/use-e2ee-session-runtime", () => ({
     events: fixtures.emptyEvents,
     historyEvents: fixtures.emptyEvents,
     historyQuery: fixtures.emptyQuery,
-    rootKeyAvailable: true,
+    rootKeyAvailable: fixtures.rootKeyAvailable,
+    keyLoading: fixtures.keyLoading,
     sendMessage: fixtures.sendEncryptedMessage,
   }),
 }));
@@ -117,6 +130,22 @@ vi.mock("./session-browser-approvals", () => ({
 }));
 vi.mock("./session-browser-window", () => ({
   SessionBrowserWindow: () => null,
+}));
+vi.mock("./session-mobile-window", () => ({
+  SessionMobileWindow: ({
+    onPrepare,
+    prepareDisabled,
+  }: {
+    onPrepare?: () => Promise<boolean>;
+    prepareDisabled?: boolean;
+  }) => {
+    fixtures.preparePhone = onPrepare ?? null;
+    return (
+      <button disabled={prepareDisabled} onClick={() => void onPrepare?.()}>
+        Ask agent to prepare phone
+      </button>
+    );
+  },
 }));
 
 let queryClient: QueryClient;
@@ -142,6 +171,15 @@ beforeEach(() => {
   fixtures.refetchHistory.mockClear();
   fixtures.metadataError = null;
   fixtures.historyError = null;
+  fixtures.nodeOnline = true;
+  fixtures.keyLoading = false;
+  fixtures.rootKeyAvailable = true;
+  fixtures.preparePhone = null;
+  fixtures.sendMessage.mockReset().mockResolvedValue({ sessionId: "sess_1" });
+  fixtures.sendEncryptedMessage.mockReset().mockResolvedValue(undefined);
+  fixtures.createAttachment
+    .mockReset()
+    .mockRejectedValue(new Error("Attachment upload failed"));
   fixtures.readSource.mockReset();
   fixtures.readHistory.mockReset();
   useConsoleStore.setState({ composerDrafts: { sess_1: "next prompt" } });
@@ -157,7 +195,12 @@ afterEach(() => {
   useConsoleStore.setState({ composerDrafts: {} });
 });
 
-function workbench(targetMessageId?: string) {
+function workbench(
+  targetMessageId?: string,
+  initialAttachments?: ComponentProps<
+    typeof SessionWorkbench
+  >["initialAttachments"],
+) {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
@@ -165,12 +208,176 @@ function workbench(targetMessageId?: string) {
           embedded
           sessionId="sess_1"
           targetMessageId={targetMessageId}
+          initialAttachments={initialAttachments}
           user={{ user_id: "user_1" }}
         />
       </TooltipProvider>
     </QueryClientProvider>
   );
 }
+
+describe("agent-owned Android preparation", () => {
+  const attachment = {
+    attachmentId: "unsent-file",
+    filename: "private-notes.txt",
+    contentType: "text/plain",
+    sizeBytes: 12,
+  };
+  function openPhone() {
+    fireEvent.click(screen.getByRole("button", { name: "Open session panel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Android" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Watch Android phone" }),
+    );
+    return screen.getByRole("button", { name: "Ask agent to prepare phone" });
+  }
+
+  it("sends an ordinary visible guide-reading prompt only on request and leaves the user's draft, files and upload error alone", async () => {
+    fixtures.session = { ...fixtures.session, runtime_status: "idle" };
+    fixtures.sendMessage.mockImplementation(async (_content, options) => {
+      options.onAccepted();
+      return { sessionId: "sess_1" };
+    });
+    const view = render(workbench(undefined, [attachment]));
+    expect(fixtures.sendMessage).not.toHaveBeenCalled();
+    const fileInput = view.container.querySelector('input[type="file"]')!;
+    fireEvent.change(fileInput, {
+      target: {
+        files: [new File(["new file"], "failed.txt", { type: "text/plain" })],
+      },
+    });
+    await screen.findByText("Couldn’t attach files");
+    const prepare = openPhone();
+    expect(fixtures.sendMessage).not.toHaveBeenCalled();
+    fireEvent.click(prepare);
+    await waitFor(() => expect(fixtures.sendMessage).toHaveBeenCalledOnce());
+    expect(fixtures.sendMessage).toHaveBeenCalledWith(
+      MOBILE_PREPARATION_PROMPT,
+      expect.objectContaining({
+        attachments: [],
+        onAccepted: expect.any(Function),
+      }),
+    );
+    expect(fixtures.sendMessage.mock.calls[0][1]).not.toHaveProperty(
+      "attachmentIds",
+    );
+    expect(MOBILE_PREPARATION_PROMPT).toContain("/AGENTS.md");
+    expect(MOBILE_PREPARATION_PROMPT).toContain("/docs/agent-preparation.md");
+    expect(useConsoleStore.getState().composerDrafts.sess_1).toBe(
+      "next prompt",
+    );
+    expect(
+      screen.getByRole("button", { name: "Remove private-notes.txt" }),
+    ).toBeVisible();
+    expect(screen.getByText("Couldn’t attach files")).toBeVisible();
+    expect(fixtures.sendEncryptedMessage).not.toHaveBeenCalled();
+    expect(fixtures.queueTurn).not.toHaveBeenCalled();
+  });
+
+  it("uses the existing encrypted send path without consuming staged attachments or the composer draft", async () => {
+    fixtures.session = {
+      ...fixtures.session,
+      runtime_status: "idle",
+      transport: "e2ee",
+    };
+    render(workbench(undefined, [attachment]));
+    fireEvent.click(openPhone());
+    await waitFor(() =>
+      expect(fixtures.sendEncryptedMessage).toHaveBeenCalledWith(
+        MOBILE_PREPARATION_PROMPT,
+        [],
+      ),
+    );
+    expect(fixtures.sendMessage).not.toHaveBeenCalled();
+    expect(useConsoleStore.getState().composerDrafts.sess_1).toBe(
+      "next prompt",
+    );
+    expect(
+      screen.getByRole("button", { name: "Remove private-notes.txt" }),
+    ).toBeVisible();
+  });
+
+  it.each([
+    { transport: "manager", running: true },
+    { transport: "e2ee", running: true },
+    { transport: "e2ee", loading: true },
+    { transport: "e2ee", missingKey: true },
+    { transport: "manager", offline: true },
+  ] as const)(
+    "blocks preparation when the current agent cannot accept an ordinary prompt: %j",
+    async (condition) => {
+      fixtures.session = {
+        ...fixtures.session,
+        runtime_status:
+          "running" in condition && condition.running ? "running" : "idle",
+        transport: condition.transport,
+      };
+      fixtures.keyLoading = Boolean(
+        "loading" in condition && condition.loading,
+      );
+      fixtures.rootKeyAvailable = !(
+        "missingKey" in condition && condition.missingKey
+      );
+      fixtures.nodeOnline = !("offline" in condition && condition.offline);
+      render(workbench());
+      expect(openPhone()).toBeDisabled();
+      await expect(fixtures.preparePhone?.()).resolves.toBe(false);
+      expect(fixtures.sendMessage).not.toHaveBeenCalled();
+      expect(fixtures.sendEncryptedMessage).not.toHaveBeenCalled();
+      expect(fixtures.queueTurn).not.toHaveBeenCalled();
+    },
+  );
+
+  it("fences duplicate requests and acknowledges acceptance without waiting for the agent's entire turn", async () => {
+    fixtures.session = { ...fixtures.session, runtime_status: "idle" };
+    let acknowledge!: () => void;
+    let finish!: (value: { sessionId: string }) => void;
+    fixtures.sendMessage.mockImplementation(
+      (_content, options) =>
+        new Promise((resolve) => {
+          acknowledge = options.onAccepted;
+          finish = resolve;
+        }),
+    );
+    render(workbench());
+    openPhone();
+    let pending!: Promise<boolean>;
+    act(() => {
+      pending = fixtures.preparePhone!();
+    });
+    await expect(fixtures.preparePhone?.()).resolves.toBe(false);
+    expect(fixtures.sendMessage).toHaveBeenCalledOnce();
+    act(() => acknowledge());
+    await expect(pending).resolves.toBe(true);
+    expect(useConsoleStore.getState().composerDrafts.sess_1).toBe(
+      "next prompt",
+    );
+    await act(async () => finish({ sessionId: "sess_1" }));
+  });
+
+  it("does not automatically retry a failed preparation message", async () => {
+    fixtures.session = { ...fixtures.session, runtime_status: "idle" };
+    fixtures.sendMessage.mockRejectedValueOnce(
+      new Error("Message was not accepted"),
+    );
+    render(workbench());
+    openPhone();
+    let result!: boolean;
+    await act(async () => {
+      result = await fixtures.preparePhone!();
+    });
+    expect(result).toBe(false);
+    expect(fixtures.sendMessage).toHaveBeenCalledOnce();
+    expect(useConsoleStore.getState().composerDrafts.sess_1).toBe(
+      "next prompt",
+    );
+    await act(async () => {
+      result = await fixtures.preparePhone!();
+    });
+    expect(result).toBe(true);
+    expect(fixtures.sendMessage).toHaveBeenCalledTimes(2);
+  });
+});
 
 describe("Codex subagent status in the session workbench", () => {
   function activity(

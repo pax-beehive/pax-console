@@ -53,6 +53,7 @@ import { SessionHistoryPagination } from "./session-history-pagination";
 import { SessionBrowserApprovals } from "./session-browser-approvals";
 import { SessionBrowserWindow } from "./session-browser-window";
 import { SessionMobileWindow } from "./session-mobile-window";
+import { MOBILE_PREPARATION_PROMPT } from "@/features/mobile-control/preparation";
 import { WorkspacePicker } from "./workspace-picker";
 import { SessionWorkspaceDetails } from "./session-workspace-details";
 import { SessionComposer } from "@/components/sessions/session-composer";
@@ -1988,9 +1989,17 @@ export function SessionWorkbench({
     setComposerAttachmentError(null);
   }, []);
   const submitDraft = useCallback(
-    async (content: string, onAccepted?: () => void) => {
+    async (
+      content: string,
+      onAccepted?: () => void,
+      options?: { includeAttachments?: boolean },
+    ) => {
+      const includeAttachments = options?.includeAttachments !== false;
+      const submittedAttachments = includeAttachments
+        ? composerAttachments
+        : [];
       if (
-        (!content && composerAttachments.length === 0) ||
+        (!content && submittedAttachments.length === 0) ||
         !activeAgentId ||
         !activeNodeId ||
         newSessionCwdInvalid
@@ -1998,7 +2007,7 @@ export function SessionWorkbench({
         return false;
       }
 
-      const attachmentIds = composerAttachments.map(
+      const attachmentIds = submittedAttachments.map(
         (attachment) => attachment.attachmentId,
       );
 
@@ -2018,14 +2027,16 @@ export function SessionWorkbench({
             );
             return false;
           }
-          setComposerAttachmentUploadPending(composerAttachments.length > 0);
+          if (includeAttachments)
+            setComposerAttachmentUploadPending(submittedAttachments.length > 0);
           try {
-            await sendEncryptedMessage(content, composerAttachments);
-            clearSentAttachments(attachmentIds);
+            await sendEncryptedMessage(content, submittedAttachments);
+            if (includeAttachments) clearSentAttachments(attachmentIds);
           } finally {
-            setComposerAttachmentUploadPending(false);
+            if (includeAttachments) setComposerAttachmentUploadPending(false);
           }
-          setComposerAttachmentError(null);
+          if (includeAttachments) setComposerAttachmentError(null);
+          onAccepted?.();
           return true;
         }
 
@@ -2064,9 +2075,9 @@ export function SessionWorkbench({
               }
             : {}),
           ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
-          attachments: composerAttachments,
+          attachments: submittedAttachments,
           onAccepted: () => {
-            clearSentAttachments(attachmentIds);
+            if (includeAttachments) clearSentAttachments(attachmentIds);
             onAccepted?.();
           },
         });
@@ -2108,6 +2119,59 @@ export function SessionWorkbench({
       sendConversationMessage,
     ],
   );
+
+  const mobilePreparationRequests = useRef(new Set<string>());
+  const mobilePreparationDisabled =
+    !currentSessionId ||
+    !activeAgentId ||
+    !activeNodeId ||
+    isNewSession ||
+    isTurnRunning ||
+    newSessionCwdInvalid ||
+    composerAttachmentUploadPending ||
+    activeNode?.online === false ||
+    activeAgent?.online === false ||
+    (usesEncryptedTransport &&
+      (encryptedRuntime.keyLoading || !encryptedRuntime.rootKeyAvailable));
+  const prepareMobilePhone = useCallback(async () => {
+    if (mobilePreparationDisabled || !currentSessionId || !activeNodeId)
+      return false;
+    const route = JSON.stringify([
+      user.user_id,
+      currentSessionId,
+      activeNodeId,
+    ]);
+    const pending = mobilePreparationRequests.current;
+    if (pending.has(route)) return false;
+    pending.add(route);
+    try {
+      return await new Promise<boolean>((resolve) => {
+        let accepted = false;
+        const onAccepted = () => {
+          accepted = true;
+          resolve(true);
+        };
+        void submitDraft(MOBILE_PREPARATION_PROMPT, onAccepted, {
+          includeAttachments: false,
+        }).then(
+          (submitted) => {
+            if (!accepted) resolve(submitted);
+          },
+          () => {
+            if (!accepted) resolve(false);
+          },
+        );
+      });
+    } finally {
+      pending.delete(route);
+    }
+  }, [
+    activeNodeId,
+    currentSessionId,
+    mobilePreparationDisabled,
+    submitDraft,
+    user.user_id,
+  ]);
 
   const deleteQueuedDraft = deleteQueuedTurn.mutate;
   const steerDraft = steerTurn.mutateAsync;
@@ -3062,8 +3126,11 @@ export function SessionWorkbench({
       )}
       {mobileOpen && activeNodeId && (
         <SessionMobileWindow
+          key={JSON.stringify([user.user_id, currentSessionId, activeNodeId])}
           nodeId={activeNodeId}
           userId={user.user_id}
+          onPrepare={prepareMobilePhone}
+          prepareDisabled={mobilePreparationDisabled}
           onClose={() => setMobileOpen(false)}
         />
       )}
