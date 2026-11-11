@@ -2176,6 +2176,11 @@ browser API. Use the authenticated bootstrap account region for production US/HK
 install and setup commands even when a browser tunnel override is configured.
 Custom origins and local ports are preserved. The "PAX is already installed"
 option reuses the same token in a short paxd setup command without reinstalling.
+Both commands include `--name default`, with guidance to replace `default` with
+the desired device name before running; quote names containing spaces. The full
+command passes the option through `bash -s -- --name default` to the installer,
+which forwards it to `paxd setup`. Release paxd with name support and installer
+argument forwarding before deploying this Console change.
 The full command uses a quoted heredoc rather than nested shell quoting.
 Fully download and check the shell shebang before executing: HTML, empty bodies,
 and partial downloads must stop without execution. Propagate download/install
