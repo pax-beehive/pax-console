@@ -43,6 +43,14 @@ export type HarnessLoginMethod =
   | "api-key"
   | "access-token";
 
+/** Optional account metadata reported by the native CLI, without credentials. */
+export type HarnessAuthAccount = {
+  email?: string;
+  display_name?: string;
+  organization?: string;
+  plan?: string;
+};
+
 /** Ephemeral native CLI status. Never persist challenges or credentials. */
 export type HarnessAuthView = {
   harness: LoginHarness;
@@ -54,6 +62,7 @@ export type HarnessAuthView = {
   expires_at?: string;
   logged_in?: boolean;
   auth_method?: string;
+  account?: HarnessAuthAccount;
   error_code?: string;
 };
 

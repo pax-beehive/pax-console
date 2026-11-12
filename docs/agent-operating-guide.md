@@ -142,6 +142,16 @@ the user explicitly starts, submits, or cancels an attempt. A `logged_in` result
 still offers Sign in again because local credential presence does not establish
 that a provider will accept the next request.
 
+Successful status responses may include optional native `account` metadata with
+`email`, `display_name`, `organization`, and `plan`. The green credential status
+shows the reported email (or display name) and optional account details; it never
+infers the harness account from the signed-in PAX user or credential method.
+API-key/access-token methods without identity show “This sign-in method does not
+report account details.” Older or incomplete status responses show “Account
+details are unavailable on this device.” Account details stay in the mounted
+login state and disappear while starting a new login, in non-success states,
+after status errors, and when the selected device or agent type changes.
+
 `agent-sign-in-settings.tsx` owns device/method selection and password inputs;
 `agent-sign-in-flow.ts` owns ephemeral status, polling, cancellation and expiration.
 Nodes remain in TanStack Query. Login challenges, authorization codes, keys and
