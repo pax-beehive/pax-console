@@ -260,7 +260,9 @@ function UsageWindowRow({
           style={{ width: `${percent}%` }}
         />
       </div>
-      <span className="text-right tabular-nums text-ink-muted">{percent}%</span>
+      <span className="whitespace-nowrap text-right tabular-nums text-ink-muted">
+        {percent}% used
+      </span>
       {countdown ? (
         <time
           dateTime={window.resets_at}
