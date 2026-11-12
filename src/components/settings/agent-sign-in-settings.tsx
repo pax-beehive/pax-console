@@ -7,7 +7,11 @@ import { Button } from "@/components/ui/button";
 import { MonoId, TruncatedText } from "@/components/ui/text";
 import { compactId } from "@/lib/format";
 import { useNodes } from "@/features/api/resources";
-import type { HarnessLoginMethod, LoginHarness } from "@/features/api/types";
+import type {
+  HarnessAuthAccount,
+  HarnessLoginMethod,
+  LoginHarness,
+} from "@/features/api/types";
 import {
   isActiveNode,
   isDeviceNode,
@@ -206,7 +210,7 @@ function HarnessSignIn({
   const pending = loginPending(flow.view);
   const signedIn =
     flow.view?.state === "logged_in" || flow.view?.state === "succeeded";
-  const credentialsDetected = signedIn && !flow.error;
+  const credentialsDetected = signedIn && !flow.error && !flow.busy;
   const secretMethod = method === "api-key" || method === "access-token";
   const challenge = pending
     ? safeAuthorizationUrl(harness, flow.view?.authorization_url)
@@ -257,6 +261,12 @@ function HarnessSignIn({
                     : "Sign-in status could not be checked."}
             </span>
           </p>
+          {credentialsDetected && (
+            <AccountDetails
+              account={flow.view?.account}
+              authMethod={flow.view?.auth_method ?? flow.view?.method}
+            />
+          )}
           {credentialsDetected && (
             <p className="mt-1 text-sm leading-6 text-ink-muted">
               Sign in again if a session reports expired credentials or an
@@ -473,5 +483,53 @@ function HarnessSignIn({
         is idle if the error continues.
       </p>
     </section>
+  );
+}
+
+function AccountDetails({
+  account,
+  authMethod,
+}: {
+  account?: HarnessAuthAccount;
+  authMethod?: string;
+}) {
+  const email = account?.email?.trim();
+  const displayName = account?.display_name?.trim();
+  const identity = email || displayName;
+  const details = [
+    email && displayName !== email ? displayName : undefined,
+    account?.organization?.trim(),
+    account?.plan?.trim(),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const method = authMethod?.replaceAll(/[-_]/g, "").toLowerCase();
+  const secretMethod = method === "apikey" || method === "accesstoken";
+
+  return (
+    <div
+      className="mt-1 min-w-0"
+      aria-label={identity ? "Signed-in account" : undefined}
+    >
+      {identity ? (
+        <div className="flex min-w-0 items-baseline gap-2 text-sm leading-6">
+          <span className="shrink-0 text-ink-muted">Account</span>
+          <TruncatedText className="font-medium text-ink">
+            {identity}
+          </TruncatedText>
+        </div>
+      ) : (
+        <p className="text-sm leading-6 text-ink-muted">
+          {secretMethod
+            ? "This sign-in method does not report account details."
+            : "Account details are unavailable on this device."}
+        </p>
+      )}
+      {details && (
+        <TruncatedText className="text-xs leading-5 text-ink-tertiary">
+          {details}
+        </TruncatedText>
+      )}
+    </div>
   );
 }
