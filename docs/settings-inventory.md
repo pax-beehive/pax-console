@@ -1,6 +1,6 @@
 # Settings inventory and organization
 
-Settings has nine primary sections. The desktop navigation shows all sections
+Settings has ten primary sections. The desktop navigation shows all sections
 in four groups; `/settings` opens Notifications directly on desktop. Mobile keeps
 the original Settings directory, Advanced settings list, and per-page back links;
 it has no section selector. Account reload/sign-out remain in the
@@ -13,6 +13,7 @@ the workspace administrator navigation.
 | Workspace         | Devices & agents    | Connect a device, add an agent, switch between device and agent lists, filter active resources, inspect details                            | `/settings/devices` (`?view=agents` for agents) |
 | Workspace         | Secretary           | Choose one owned agent, enable automatic summaries, inspect published coverage and remaining conversations                                 | `/settings/secretary`                           |
 | Workspace         | Projects            | Create/edit/archive projects, organize hierarchy, configure reusable agent and working-folder targets                                      | `/settings/projects`                            |
+| Security & access | Agent sign-in       | Claude subscription/Console authorization; Codex device code, API key or access token; renew expired access on a connected device          | `/settings/agent-sign-in`                       |
 | Security & access | Allowed actions     | Review persistent agent grants, inspect scope, revoke permission                                                                           | `/settings/advanced/permissions`                |
 | Security & access | Encrypted chats     | Save/remove browser encryption keys, manage encrypted-device access and pairing                                                            | `/settings/advanced/encryption`                 |
 | Developer tools   | API keys            | Create named keys, copy the secret at creation, revoke keys                                                                                | `/settings/advanced/api-keys`                   |

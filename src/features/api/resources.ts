@@ -40,6 +40,9 @@ import {
   Envelope,
   Friend,
   Health,
+  HarnessAuthData,
+  HarnessLoginInput,
+  LoginHarness,
   HistoryMessage,
   KnowledgeCapsule,
   MailboxMessage,
@@ -440,6 +443,42 @@ export function upgradeNodeHarness(
   return apiFetch<NodeDaemonCommandData>(
     userPath(userId, `/nodes/${nodeId}/harness/upgrade`),
     { method: "POST", body: JSON.stringify(input) },
+  );
+}
+
+/** These operations deliberately do not use TanStack caches or durable commands. */
+export function getNodeHarnessAuth(
+  userId: string,
+  nodeId: string,
+  harness: LoginHarness,
+  loginSessionId?: string,
+  signal?: AbortSignal,
+) {
+  const query = loginSessionId
+    ? `?${new URLSearchParams({ session_id: loginSessionId })}`
+    : "";
+  return apiFetch<HarnessAuthData>(
+    userPath(
+      userId,
+      `/nodes/${encodeURIComponent(nodeId)}/harnesses/${harness}/auth/status${query}`,
+    ),
+    { cache: "no-store", signal },
+  );
+}
+
+export function loginNodeHarness(
+  userId: string,
+  nodeId: string,
+  harness: LoginHarness,
+  input: HarnessLoginInput,
+  signal?: AbortSignal,
+) {
+  return apiFetch<HarnessAuthData>(
+    userPath(
+      userId,
+      `/nodes/${encodeURIComponent(nodeId)}/harnesses/${harness}/auth/login`,
+    ),
+    { method: "POST", cache: "no-store", body: JSON.stringify(input), signal },
   );
 }
 

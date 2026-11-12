@@ -27,8 +27,7 @@ preserves its selected scope unless a new scope is supplied.
 Manager expires extra access with the business turn, including cancellation.
 Explicit `search_access` preauthorization creates the extra grant before dispatch.
 Without it, search starts within the calling agent, including under PAX auto
-approve (`pax:auto_approve`). A wider search without a matching grant returns
-403. PAX auto approve immediately approves an explicit `workspace_request_access`
+approve (`pax:auto_approve`). A wider search without a matching grant returns 403. PAX auto approve immediately approves an explicit `workspace_request_access`
 request; it never creates a whole-workspace grant merely because a turn starts.
 The unexpanded automatic setting reads Auto expansion. Agent-native permissions
 or a legacy approval mode alone do not promise that policy. Mid-turn expansion
@@ -102,7 +101,7 @@ Homebrew and npx wrappers remain unsupported.
 ## Settings workspace
 
 On desktop, `/settings` opens the actual Notifications page.
-`settings/settings-catalog.ts` owns the four desktop navigation groups, nine
+`settings/settings-catalog.ts` owns the four desktop navigation groups, ten
 sections, descriptions, and legacy-route matching. Desktop Settings uses a dedicated 272px sidebar with a Back to workspace
 link; it replaces the ordinary app navigation rather than adding another rail.
 The workspace sidebar's persisted collapsed state is preserved and restored on
@@ -121,13 +120,59 @@ Devices retain their Devices/Agents segmented view and detail workflows.
 settings directory on mobile; existing deep links continue
 to work. See `docs/settings-inventory.md` for the feature inventory.
 
-`node scripts/settings-workspace-browser.mjs` checks all nine sections at desktop
+`node scripts/settings-workspace-browser.mjs` checks the original nine sections at desktop
 and mobile widths, active links, legacy Advanced navigation, and overflow. It
 uses fictional account/API data and saves screenshots under
 `PAX_SETTINGS_SCREENSHOTS` (default `/tmp/pax-settings-workspace`).
 `PAX_SETTINGS_PREVIEW_URL` defaults to `http://127.0.0.1:3375`.
 The push audit retains its original mobile Settings list/back-link flow while
 keeping warm query caches. Real push-provider and OS display claims remain excluded.
+
+### Agent sign-in and session authentication recovery
+
+Settings > Agent sign-in (`/settings/agent-sign-in`) signs in the installed Claude
+Code or Codex CLI on an owned, connected device. Claude supports subscription
+(default) and Anthropic Console authorization. Codex supports a ChatGPT device
+code (default), API key, and access token. Opening the page only checks status;
+the user explicitly starts, submits, or cancels an attempt. A `logged_in` result
+still offers Sign in again because local credential presence does not establish
+that a provider will accept the next request.
+
+`agent-sign-in-settings.tsx` owns device/method selection and password inputs;
+`agent-sign-in-flow.ts` owns ephemeral status, polling, cancellation and expiration.
+Nodes remain in TanStack Query. Login challenges, authorization codes, keys and
+tokens stay outside query/mutation caches, browser storage and durable command
+records. Inputs clear immediately on dispatch, attempt changes, terminal states
+and errors, and disappear on unmount. Requests use `cache: no-store`; provider
+links allow only the native supported HTTPS hosts/paths, open with no referrer,
+and never serve as arbitrary redirects. Native error bodies are not displayed.
+
+The same-origin API forwards GET
+`/api/v1/user/:user_id/nodes/:node_id/harnesses/:harness/auth/status` and POST
+`.../auth/login`. Status accepts an optional native login `session_id`; login
+accepts `command_id`, `operation`, and method/code/session fields appropriate to
+start, submit or cancel. A successful operation response means accepted, not
+verified login. Poll the returned handle until a terminal state. Refresh status
+reconciles the latest owned attempt, including after a daemon restart. Manager
+must authorize node ownership and forward over authenticated node control without
+persisting secrets. Old Manager/paxd versions, offline nodes, conflicts and timeouts
+have explicit recovery text.
+
+Session recovery links carry `node_id`, `harness`, and the original conversation's
+`session_id`. The page never substitutes a different device for a missing linked
+device. The original conversation ID is used only for the fixed
+`/?session_id=<encoded ID>` return link; it is distinct from the native login
+attempt handle. Authentication notices inspect actual session/runtime error
+records only: generic JSON-RPC `-32000` alone is insufficient; established
+`Authentication required` errors and explicit OAuth failures can trigger recovery.
+Assistant prose and tool output do not create a sign-in notice.
+
+Credentials belong to the OS account/environment running paxd. Other system
+accounts or configurations may need their own sign-in. Existing agent/ACP
+processes can require a restart to pick up new credentials; this page never
+restarts active conversations. Return to the session and retry, then restart its
+idle agent explicitly if required. Real-account provider authorization remains
+a manual check; component tests use fictional challenges and credentials.
 
 ## Customer analytics and focus-only polling
 

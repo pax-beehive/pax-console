@@ -42,16 +42,47 @@ introduced.
 
 ## Settings 设置工作区
 
+### Agent sign-in 与会话认证恢复
+
+`/settings/agent-sign-in` 在 Settings 的 Security & access 分组提供设备上的
+Claude Code / Codex 登录。Claude 支持 subscription / console；Codex 支持
+device / api-key / access-token。页面打开只读取状态，开始、提交和取消均需用户操作；
+即使本地返回 logged_in，也保留 Sign in again，因为这不能证明 provider 会接受请求。
+设备来自用户授权的 `useNodes`；深链指定的设备不存在或离线时不会改选其他设备。
+
+`agent-sign-in-settings.tsx` 管理选择和密码输入，`agent-sign-in-flow.ts` 管理当前页面
+临时状态和轮询。普通设备数据仍由 TanStack Query 管理；登录 challenge URL、设备码、
+授权码、API key 和 access token 不进入 Query/Mutation cache、Zustand 持久化、
+浏览器存储或 durable command。密码输入在发送前立即清空；状态/attempt 变化、错误和卸载
+也会清除。只展示已知错误文案，链接仅允许原生流程支持的 HTTPS provider host/path，
+并使用 `noopener noreferrer` 和 no-referrer。
+
+同源 API helper 使用 no-store，调用用户下的
+`nodes/:node_id/harnesses/:harness/auth/status`（GET）和 `.../auth/login`（POST）。
+Manager 验证设备所有权后转发已认证的 node-control；start/submit/cancel 的成功响应仅表示
+操作已接受，最终登录结果通过临时 login handle 轮询。主动刷新按当前拥有者的最新 attempt
+重新查询，以兼容 daemon 重启后旧 handle 消失。无需也不能查询 durable command journal。
+
+会话中的实际 session/runtime error 可链接到此页面，携带 `node_id`、`harness` 和原始
+会话 `session_id`；只有原始会话 ID 用来生成固定的 Home `/?session_id=...` 返回链接，
+绝不能混用原生登录 attempt handle。检测不读取 assistant 正文或 tool output；仅有通用
+JSON-RPC `-32000` 不算认证失败，必须匹配已知 Authentication required 或明确 OAuth
+错误。凭据范围是 paxd 的系统账号/配置环境；登录不会自动重启或打断 agent，会提示用户
+回原会话重试，必要时等 agent 空闲后显式重启。
+
+### 设置布局与导航
+
 桌面 `/settings` 默认展示通知设置内容，使用专用侧栏与右侧内容区。
-`settings-catalog.ts` 统一维护桌面四组、九项设置及用途说明。手机保留原来的 Settings
+`settings-catalog.ts` 统一维护桌面四组、十项设置及用途说明。手机保留原来的 Settings
 入口列表、Advanced settings 列表与逐页返回，不增加设置选择器。`useDesktopSettings`
 使用与 `lg` 一致的 1024px 媒体查询，按视口挂载入口内容，手机入口不会挂载通知设置控件。
 桌面设置页面复用 `SettingsPageHeader`，明确标题、用途与操作范围，手机保留原有标题布局。
 设备/Agent 详情和加密配对旧路径仍保持所属分组高亮；`/settings/advanced` 在桌面直接
 展示 Allowed actions，在手机展示原有高级设置目录。
 项目保留内部项目列表和工作目录目标面板，通知订阅的核对中状态保持原有防闪烁规则。
-设置项及子功能清单见 `docs/settings-inventory.md`；此调整不新增 API 或服务端状态。
-浏览器回归覆盖桌面/手机全部九项、当前入口、手机逐页返回以及横向溢出；数据使用明确夹具。
+设置项及子功能清单见 `docs/settings-inventory.md`。
+原布局浏览器回归覆盖桌面/手机九项、当前入口、手机逐页返回以及横向溢出；新增 Agent
+sign-in 另有五种登录方式的组件回归与桌面/手机流程检查。数据使用明确夹具。
 
 ## 通知订阅管理看板
 

@@ -18,6 +18,7 @@ export const settingsLinks = {
   secretary: "/settings/secretary",
   status: "/settings/service-status",
   notifications: "/settings/notifications",
+  agentSignIn: "/settings/agent-sign-in",
   advanced: "/settings/advanced",
   permissions: "/settings/advanced/permissions",
   encryption: "/settings/advanced/encryption",
@@ -86,6 +87,15 @@ export const settingsGroups: readonly {
   {
     title: "Security & access",
     items: [
+      {
+        id: "agentSignIn",
+        href: settingsLinks.agentSignIn,
+        title: "Agent sign-in",
+        icon: KeyRound,
+        caption: "Claude Code and Codex accounts",
+        description:
+          "Sign in to Claude Code or Codex on a connected device, or renew access after a session reports an authentication error.",
+      },
       {
         id: "permissions",
         href: settingsLinks.permissions,
