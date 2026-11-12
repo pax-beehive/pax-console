@@ -67,7 +67,10 @@ import { WorkspacePicker } from "@/components/sessions/workspace-picker";
 import { SettingsToggle } from "@/components/ui/settings-controls";
 import { SessionPermissionSelector } from "@/components/sessions/session-permission-selector";
 import { TurnSearchAccessSettings } from "@/components/sessions/turn-search-access-settings";
-import { isTurnSearchApproval } from "@/components/sessions/session-search-approvals";
+import {
+  isPendingTurnSearchApproval,
+  isTurnSearchApproval,
+} from "@/components/sessions/session-search-approvals";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -515,6 +518,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       buildWorkItems({
         agents,
         approvals: approvalsQuery.data?.approvals ?? [],
+        approvalsCheckedAt: approvalsQuery.dataUpdatedAt,
         envelopes: envelopesQuery.data?.envelopes ?? [],
         invites: invitesQuery.data?.invites ?? [],
         nodes,
@@ -524,6 +528,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     [
       agents,
       approvalsQuery.data?.approvals,
+      approvalsQuery.dataUpdatedAt,
       envelopesQuery.data?.envelopes,
       invitesQuery.data?.invites,
       nodes,
@@ -2387,6 +2392,7 @@ function ApiState({ error }: { error: Error }) {
 function buildWorkItems({
   agents,
   approvals,
+  approvalsCheckedAt = 0,
   envelopes,
   invites,
   nodes,
@@ -2395,6 +2401,7 @@ function buildWorkItems({
 }: {
   agents: Agent[];
   approvals: AgentApproval[];
+  approvalsCheckedAt?: number;
   envelopes: Envelope[];
   invites: TeamInvite[];
   nodes: Node[];
@@ -2403,8 +2410,10 @@ function buildWorkItems({
 }) {
   const agentsById = new Map(agents.map((agent) => [agent.agent_id, agent]));
   const nodesById = new Map(nodes.map((node) => [node.node_id, node]));
-  const pendingApprovals = approvals.filter(
-    (approval) => (approval.status ?? "pending") === "pending",
+  const pendingApprovals = approvals.filter((approval) =>
+    isTurnSearchApproval(approval)
+      ? isPendingTurnSearchApproval(approval, approvalsCheckedAt)
+      : (approval.status ?? "pending") === "pending",
   );
   const pendingInvites = invites.filter(
     (invite) => invite.status === "pending",

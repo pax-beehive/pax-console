@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { InlineError } from "@/components/ui/inline-error";
@@ -24,6 +24,7 @@ export function SessionSearchApprovals({
 }) {
   const queryClient = useQueryClient();
   const [resolved, setResolved] = useState<string[]>([]);
+  const [deadlineTime, setDeadlineTime] = useState(0);
   const query = useQuery({
     queryKey: queryKeys.turnSearchApprovals(
       userId,
@@ -58,16 +59,29 @@ export function SessionSearchApprovals({
     !query.isError && turnId
       ? (query.data?.approvals ?? []).filter(
           (approval) =>
-            isTurnSearchApproval(approval) &&
-            approval.status === "pending" &&
+            isPendingTurnSearchApproval(
+              approval,
+              Math.max(query.dataUpdatedAt, deadlineTime),
+            ) &&
             approval.request_agent_id === agentId &&
             approval.request_session_id === sessionId &&
             approval.resource_ref === turnId &&
-            (!approval.expires_at ||
-              Date.parse(approval.expires_at) > query.dataUpdatedAt) &&
             !resolved.includes(approval.approval_id),
         )
       : [];
+  const nextExpiry = Math.min(
+    ...requests.flatMap((approval) =>
+      approval.expires_at ? [Date.parse(approval.expires_at)] : [],
+    ),
+  );
+  useEffect(() => {
+    if (!Number.isFinite(nextExpiry)) return;
+    const timer = window.setTimeout(
+      () => setDeadlineTime(Date.now()),
+      Math.max(0, nextExpiry - Date.now()),
+    );
+    return () => window.clearTimeout(timer);
+  }, [nextExpiry]);
   if (!requests.length) return null;
   return (
     <section
@@ -77,7 +91,8 @@ export function SessionSearchApprovals({
       <h3 className="text-sm font-medium">Search scope requests</h3>
       <p className="mt-1 text-xs leading-5 text-ink-muted">
         Extra access applies only to this turn and ends when it finishes or is
-        stopped. The agent can continue while you decide.
+        stopped. The agent can continue working or cancel the request while you
+        decide.
       </p>
       {requests.map((approval) => {
         const scope = approval.request_body?.scope;
@@ -160,6 +175,18 @@ export function isTurnSearchApproval(approval: AgentApproval) {
     approval.domain === "workspace" &&
     approval.operation === "search" &&
     approval.resource_type === "turn"
+  );
+}
+
+export function isPendingTurnSearchApproval(
+  approval: AgentApproval,
+  observedAt: number,
+) {
+  return (
+    isTurnSearchApproval(approval) &&
+    approval.status === "pending" &&
+    !approval.grant_revoked_at &&
+    (!approval.expires_at || Date.parse(approval.expires_at) > observedAt)
   );
 }
 

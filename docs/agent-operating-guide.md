@@ -36,8 +36,12 @@ requests appear in a separate panel. It uses server-side workspace/search and
 current agent/session/turn filters with a separate turn-scoped cache, and submits
 Allow this turn or Deny without a native permission-resume conversation. The
 panel shows agents, queries and sessions; legacy records without agent scope
-mean all the user's agents. Search scope expansion is unavailable in encrypted
-sessions. The Console keeps no capability secrets and adds no per-search audit.
+mean all the user's agents. Cancelled/revoked and expired pending requests are
+removed on refresh in both the session panel and Home Inbox. A request without
+`expires_at` has no pending time limit, but still ends with its turn. The agent
+can continue working or cancel a request while awaiting a decision.
+Search scope expansion is unavailable in encrypted sessions. The Console keeps
+no capability secrets and adds no per-search audit.
 
 ## WorkOS authentication
 

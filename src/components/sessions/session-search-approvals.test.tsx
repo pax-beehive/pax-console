@@ -1,10 +1,12 @@
 /* @vitest-environment jsdom */
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { queryKeys } from "@/features/api/query-keys";
+import type { AgentApproval } from "@/features/api/types";
 import { SessionSearchApprovals } from "./session-search-approvals";
 
 const mocks = vi.hoisted(() => ({ list: vi.fn(), decide: vi.fn() }));
@@ -15,10 +17,14 @@ vi.mock("@/features/api/resources", () => ({
 afterEach(() => {
   cleanup();
   vi.resetAllMocks();
+  vi.useRealTimers();
 });
 
-function setup(turnId: string | undefined) {
-  const approval = {
+function setup(
+  turnId: string | undefined,
+  records?: (approval: AgentApproval) => AgentApproval[],
+) {
+  const approval: AgentApproval = {
     approval_id: "access_current",
     status: "pending",
     domain: "workspace",
@@ -30,20 +36,22 @@ function setup(turnId: string | undefined) {
     request_body: { scope: { queries: ["cicd"], session_ids: ["*"] } },
   };
   mocks.list.mockResolvedValue({
-    approvals: [
-      approval,
-      { ...approval, approval_id: "old", resource_ref: "turn_old" },
-      {
-        ...approval,
-        approval_id: "other_session",
-        request_session_id: "other",
-      },
-      {
-        ...approval,
-        approval_id: "expired",
-        expires_at: "2020-01-01T00:00:00Z",
-      },
-    ],
+    approvals: records
+      ? records(approval)
+      : [
+          approval,
+          { ...approval, approval_id: "old", resource_ref: "turn_old" },
+          {
+            ...approval,
+            approval_id: "other_session",
+            request_session_id: "other",
+          },
+          {
+            ...approval,
+            approval_id: "expired",
+            expires_at: "2020-01-01T00:00:00Z",
+          },
+        ],
   });
   mocks.decide.mockResolvedValue({
     approval: { ...approval, status: "approved" },
@@ -64,8 +72,106 @@ function setup(turnId: string | undefined) {
     </QueryClientProvider>
   );
   const view = render(renderTurn(turnId));
-  return { client, view, renderTurn };
+  return { approval, client, view, renderTurn };
 }
+
+it("hides revoked and expired pending requests while preserving a request without a time limit", async () => {
+  const { client } = setup("turn_current", (approval) => [
+    {
+      ...approval,
+      title: "No time limit",
+      request_body: { ...approval.request_body, timeout_seconds: 0 },
+    },
+    {
+      ...approval,
+      approval_id: "revoked",
+      title: "Cancelled pending request",
+      grant_revoked_at: "2026-11-11T00:00:00Z",
+    },
+    {
+      ...approval,
+      approval_id: "expired",
+      title: "Expired pending request",
+      expires_at: "2020-01-01T00:00:00Z",
+    },
+    {
+      ...approval,
+      approval_id: "cancelled_status",
+      title: "Cancelled request",
+      status: "cancelled",
+    },
+    {
+      ...approval,
+      approval_id: "expired_status",
+      title: "Expired request",
+      status: "expired",
+    },
+  ]);
+  expect(await screen.findByText("No time limit")).toBeVisible();
+  expect(
+    screen.queryByText("Cancelled pending request"),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByText("Expired pending request")).not.toBeInTheDocument();
+  expect(screen.queryByText("Cancelled request")).not.toBeInTheDocument();
+  expect(screen.queryByText("Expired request")).not.toBeInTheDocument();
+  expect(
+    screen.getAllByRole("button", { name: "Allow this turn" }),
+  ).toHaveLength(1);
+  client.clear();
+});
+
+it("removes a cached pending request when the agent cancels it", async () => {
+  const { approval, client } = setup("turn_current", (approval) => [
+    { ...approval, title: "Cancel while pending" },
+  ]);
+  expect(await screen.findByText("Cancel while pending")).toBeVisible();
+  mocks.list.mockResolvedValue({
+    approvals: [
+      {
+        ...approval,
+        title: "Cancel while pending",
+        grant_revoked_at: "2026-11-11T00:00:00Z",
+      },
+      {
+        ...approval,
+        approval_id: "replacement",
+        title: "Another pending request",
+      },
+    ],
+  });
+  await act(async () => {
+    await client.invalidateQueries({ queryKey: queryKeys.approvals("user") });
+  });
+  expect(await screen.findByText("Another pending request")).toBeVisible();
+  expect(screen.queryByText("Cancel while pending")).not.toBeInTheDocument();
+  expect(
+    screen.getAllByRole("button", { name: "Allow this turn" }),
+  ).toHaveLength(1);
+  expect(mocks.decide).not.toHaveBeenCalled();
+  client.clear();
+});
+
+it("removes an expiring request at its deadline without waiting for another poll", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-11-11T00:00:00Z"));
+  const expires = new Date(Date.now() + 2_000).toISOString();
+  const { client } = setup("turn_current", (approval) => [
+    { ...approval, title: "Short request", expires_at: expires },
+  ]);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(0);
+  });
+  expect(screen.getByText("Short request")).toBeVisible();
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(2_000);
+  });
+  expect(screen.queryByText("Short request")).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Allow this turn" }),
+  ).not.toBeInTheDocument();
+  expect(mocks.list).toHaveBeenCalledTimes(1);
+  client.clear();
+});
 
 it("decides only the current turn request without a conversation resume", async () => {
   const user = userEvent.setup();

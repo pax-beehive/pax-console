@@ -40,6 +40,15 @@ ACP permission is paused. Expiry follows active-turn identity, not only
 `expires_at`. Authorization records belong to Manager; no per-search audit is
 introduced.
 
+Both the session panel and Home Inbox exclude pending search requests with
+`grant_revoked_at`, terminal status, or `expires_at` at/before the latest query
+snapshot. The session panel also schedules its next pending deadline so expired
+controls disappear without waiting for another poll. Missing `expires_at`
+permits a request without a pending time limit; the turn boundary remains
+authoritative. The filter reads `approval.expires_at`, not an earlier deadline
+in `request_body`; approved records are not pending cards. No timeout setting is
+added to the preauthorization editor.
+
 ## Settings 设置工作区
 
 桌面 `/settings` 默认展示通知设置内容，使用专用侧栏与右侧内容区。
