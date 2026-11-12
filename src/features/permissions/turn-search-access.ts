@@ -4,9 +4,13 @@ export function parseTurnSearchAccess(
   queries: string,
   sessions: string,
   agents = "*",
+  nodes?: string,
 ): TurnSearchAccess {
   return {
     queries: parseEntries(queries, "Queries", 256),
+    ...(nodes === undefined
+      ? {}
+      : { node_ids: parseEntries(nodes, "Node IDs", 4096) }),
     agent_ids: parseEntries(agents, "Agent IDs", 4096),
     session_ids: parseEntries(sessions, "Session IDs", 4096),
   };

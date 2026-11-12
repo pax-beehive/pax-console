@@ -5,27 +5,36 @@
 ## Agent search scope and turn authorization
 
 Ordinary agent tool searches explicitly carry
-`scope: {agent_ids: ["self"], session_ids: ["*"]}`. The authenticated caller's own
-sessions are available by default. Cross-agent or workspace searches need a
+`scope: {node_ids: ["self"], agent_ids: ["*"], session_ids: ["*"]}`. All the user's
+agents and sessions on the authenticated caller's node are available by default.
+Cross-node or workspace searches need a
 turn-scoped expansion. This tool request scope is separate from the user-facing
 conversation request's `search_access` preauthorization field.
+Node-scoped turn grants apply to ordinary agent tools only. Human workspace
+search/read retains owner authorization, and Secretary APIs keep their separate
+contract.
 
-`TurnSearchAccess` carries `queries`, `agent_ids` and `session_ids`, each a single
-`*` or a bounded explicit list. Agent scope also accepts `self`. Expansion scopes
-and old authorization records missing `agent_ids` default to all the user's
-agents, matching Manager. `TurnSearchAccessSettings` appears as Expand search
-scope in Home and SessionComposer; its unexpanded state reads Own agent or
+`TurnSearchAccess` carries `queries`, optional `node_ids`, `agent_ids` and
+`session_ids`, each a single `*` or a bounded explicit list. Node `self` means the
+calling node; agent `self` means the calling agent. Missing `node_ids` preserves
+legacy all-node (`["*"]`) scope, and old authorization records missing `agent_ids`
+mean all the user's agents, matching Manager. `parseTurnSearchAccess` accepts
+nodes as its optional fourth argument, preserving old calls. The editor defaults
+Allowed nodes to `*` and sends it explicitly, including when editing legacy scope.
+`TurnSearchAccessSettings` appears as Expand search
+scope in Home and SessionComposer; its unexpanded state reads Own node or
 Auto expansion when explicit PAX auto approve handles requests.
 The selection is local draft state for the next prompt, not a session permission
 or a browser credential. Home passes it to SessionWorkbench. Normal sends,
-queued prompts, queued edits and steering carry `search_access`; initialization
+queued prompts, queued edits and steering carry all selected `search_access`
+dimensions, including `node_ids`; initialization
 and native approval resumes do not. Acceptance clears only the captured scope,
 preserving later edits and failed-send retries.
 
 Manager approves explicit `search_access` before dispatch and revokes extra
-access at turn end while leaving default own-agent access available. Without
+access at turn end while leaving default calling-node access available. Without
 explicit preauthorization, PAX auto approve does not create a wider grant at turn
-start. Cross-agent search still returns 403 until an explicit
+start. Cross-node search still returns 403 until an explicit
 `workspace_request_access` is approved. Explicit `pax:auto_approve` immediately
 approves those expansion requests; a narrower initial scope is not an upper
 limit under that automatic request policy. E2EE requests do not carry this
@@ -34,7 +43,7 @@ Manager-visible permission.
 `SessionSearchApprovals` uses server-side workspace/search, pending status and
 agent/session/turn filters. Its query key includes all identities under the
 approvals invalidation prefix and cancels old-turn fetches. A separate
-nonblocking panel displays the requested agents, queries and sessions and offers
+nonblocking panel displays requested nodes, agents, queries and sessions and offers
 Allow this turn / Deny. Decisions never call `resumePermission` because no native
 ACP permission is paused. Expiry follows active-turn identity, not only
 `expires_at`. Authorization records belong to Manager; no per-search audit is

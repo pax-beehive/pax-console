@@ -29,6 +29,19 @@ describe("parseTurnSearchAccess", () => {
     expect(() => parseTurnSearchAccess("*", "*", "*\nagent_a")).toThrow();
     expect(() => parseTurnSearchAccess("*", "*", "")).toThrow();
   });
+  it("accepts explicit node scopes without narrowing legacy scopes", () => {
+    expect(parseTurnSearchAccess("*", "*", "*")).not.toHaveProperty("node_ids");
+    expect(parseTurnSearchAccess("*", "*", "*", "*").node_ids).toEqual(["*"]);
+    expect(parseTurnSearchAccess("cicd", "*", "*", "self").node_ids).toEqual([
+      "self",
+    ]);
+    expect(
+      parseTurnSearchAccess("cicd", "*", "*", "node_a\nnode_b\nnode_a")
+        .node_ids,
+    ).toEqual(["node_a", "node_b"]);
+    expect(() => parseTurnSearchAccess("*", "*", "*", "*\nnode_a")).toThrow();
+    expect(() => parseTurnSearchAccess("*", "*", "*", "")).toThrow();
+  });
   it("rejects empty, oversized and ambiguous wildcard scopes", () => {
     expect(() => parseTurnSearchAccess("", "*")).toThrow();
     expect(() => parseTurnSearchAccess("*\nsecret", "*")).toThrow();

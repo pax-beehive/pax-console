@@ -866,6 +866,7 @@ describe("SessionWorkbench composer status", () => {
     fixtures.session = { ...fixtures.session, runtime_status: "idle" };
     const access = {
       queries: ["cicd"],
+      node_ids: ["node_other"],
       agent_ids: ["agent_other"],
       session_ids: ["*"],
     };
@@ -900,6 +901,7 @@ describe("SessionWorkbench composer status", () => {
     fixtures.session = { ...fixtures.session, runtime_status: "idle" };
     const access = {
       queries: ["*"],
+      node_ids: ["self"],
       agent_ids: ["self"],
       session_ids: ["sess_a"],
     };
@@ -914,6 +916,51 @@ describe("SessionWorkbench composer status", () => {
       expect.objectContaining({ searchAccess: access }),
     );
   });
+
+  it.each([
+    ["Queue after current turn", "queueTurn"],
+    ["Steer with this prompt", "steerTurn"],
+  ] as const)(
+    "consumes node search preauthorization once with %s",
+    async (button, mutation) => {
+      const access = {
+        queries: ["cicd"],
+        node_ids: ["node_other"],
+        agent_ids: ["*"],
+        session_ids: ["*"],
+      };
+      render(workbench(undefined, undefined, access));
+      fireEvent.click(screen.getByRole("button", { name: button }));
+      await waitFor(() =>
+        expect(fixtures[mutation]).toHaveBeenCalledWith(
+          "user_1",
+          "agent_1",
+          "sess_1",
+          {
+            input: "next prompt",
+            search_access: access,
+          },
+        ),
+      );
+      await waitFor(() =>
+        expect(useConsoleStore.getState().composerDrafts.sess_1).toBe(""),
+      );
+      act(() =>
+        useConsoleStore.getState().setComposerDraft("sess_1", "second prompt"),
+      );
+      fireEvent.click(screen.getByRole("button", { name: button }));
+      await waitFor(() =>
+        expect(fixtures[mutation]).toHaveBeenLastCalledWith(
+          "user_1",
+          "agent_1",
+          "sess_1",
+          {
+            input: "second prompt",
+          },
+        ),
+      );
+    },
+  );
 
   it("steers directly from the composer and clears the accepted draft", async () => {
     render(workbench());

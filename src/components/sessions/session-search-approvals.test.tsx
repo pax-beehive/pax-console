@@ -177,6 +177,7 @@ it("decides only the current turn request without a conversation resume", async 
   const user = userEvent.setup();
   const { client } = setup("turn_current");
   expect(await screen.findByText("Queries: cicd")).toBeVisible();
+  expect(screen.getByText("Nodes: All your nodes")).toBeVisible();
   expect(screen.getByText("Agents: All your agents")).toBeVisible();
   expect(mocks.list).toHaveBeenCalledWith(
     "user",
@@ -220,7 +221,12 @@ it("isolates request data and fetches a new scope when the active turn changes",
         request_agent_id: "agent",
         request_session_id: "session",
         request_body: {
-          scope: { agent_ids: ["self"], queries: ["cicd"], session_ids: ["*"] },
+          scope: {
+            node_ids: ["self"],
+            agent_ids: ["self"],
+            queries: ["cicd"],
+            session_ids: ["*"],
+          },
         },
       },
     ],
@@ -228,6 +234,7 @@ it("isolates request data and fetches a new scope when the active turn changes",
   view.rerender(renderTurn("turn_next"));
   expect(screen.queryByText("Queries: cicd")).not.toBeInTheDocument();
   expect(await screen.findByText("Next turn request")).toBeVisible();
+  expect(screen.getByText("Nodes: Calling node")).toBeVisible();
   expect(screen.getByText("Agents: Calling agent")).toBeVisible();
   expect(mocks.list).toHaveBeenLastCalledWith(
     "user",

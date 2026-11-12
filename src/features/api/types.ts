@@ -743,6 +743,8 @@ export type SessionApprovalMode = "manual" | "auto_approve_all";
 
 export type TurnSearchAccess = {
   queries: string[];
+  /** Omitted legacy scopes allow all the user's nodes, matching ["*"]. */
+  node_ids?: string[];
   agent_ids: string[];
   session_ids: string[];
 };
