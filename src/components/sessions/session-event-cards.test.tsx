@@ -483,6 +483,76 @@ describe("session event cards", () => {
     expect(screen.getByText("done")).toBeVisible();
   });
 
+  it("folds decided approvals into the work run and counts them", () => {
+    const sessionId = "session-approvals";
+    const permission = (
+      id: string,
+      createdAt: string,
+      decided: boolean,
+    ): SessionEvent => ({
+      type: "permission_request",
+      id,
+      sessionId,
+      turnId: "turn",
+      approvalId: `approval-${id}`,
+      requestId: `request-${id}`,
+      title: `Edit ${id}.kt`,
+      toolKind: "edit",
+      options: [{ optionId: "allow_once", name: "Allow once" }],
+      ...(decided
+        ? {
+            decision: {
+              decisionOption: "allow-once",
+              source: "auto" as const,
+              status: "approved" as const,
+            },
+          }
+        : {}),
+      createdAt,
+    });
+    const tool = (id: string, createdAt: string): SessionEvent => ({
+      type: "tool_call",
+      id,
+      sessionId,
+      turnId: "turn",
+      name: "Edit",
+      status: "done",
+      createdAt,
+    });
+    const items = groupWorkstreamEvents([
+      tool("t1", "2026-11-12T00:00:00Z"),
+      permission("p1", "2026-11-12T00:00:02Z", true),
+      tool("t2", "2026-11-12T00:00:03Z"),
+      permission("p2", "2026-11-12T00:00:05Z", true),
+      {
+        type: "agent_message",
+        id: "answer",
+        sessionId,
+        turnId: "turn",
+        content: "Edited both files.",
+        createdAt: "2026-11-12T00:00:12Z",
+      },
+      permission("p3", "2026-11-12T00:00:13Z", false),
+    ]);
+
+    expect(items.map((item) => item.type)).toEqual([
+      "work_group",
+      "event",
+      "event",
+    ]);
+    const group = items[0] as Extract<WorkstreamItem, { type: "work_group" }>;
+    expect(group.events.map((event) => event.id)).toEqual(["t1", "t2"]);
+    expect(group.approvals?.map((event) => event.id)).toEqual(["p1", "p2"]);
+
+    const { container } = renderItem(group);
+    expect(screen.getByText("Worked for 12s · 2 approvals")).toBeVisible();
+    expect(screen.queryByText("Edit p1.kt")).not.toBeInTheDocument();
+    const details = container.querySelector("details")!;
+    details.open = true;
+    fireEvent(details, new Event("toggle"));
+    expect(screen.getByText("Edit p1.kt")).toBeVisible();
+  });
+
   it("shows elapsed time from the real completed activity boundary", () => {
     renderItem({ ...activityGroup(true), completedAt: "2026-09-25T00:00:24Z" });
     expect(screen.getByText("Worked for 24s")).toBeVisible();

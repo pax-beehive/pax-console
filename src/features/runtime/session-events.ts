@@ -248,6 +248,8 @@ export type WorkstreamItem =
       complete: boolean;
       completedAt?: string;
       events: WorkActivityEvent[];
+      /** Already-decided permission requests folded into this run of work. */
+      approvals?: PermissionRequestEvent[];
     }
   | {
       type: "turn_footer";
@@ -501,6 +503,26 @@ export function groupWorkstreamEvents(
 
     if (event.type === "permission_request") {
       accumulator.proposedPatches.push(...permissionRequestCodePatches(event));
+      // A decided request (auto or user approved, or denied) needs no action,
+      // so it stays inside the work run instead of splitting it. Undecided
+      // requests remain standalone so their buttons stay visible.
+      if (event.decision) {
+        if (!workGroup) {
+          workGroup = {
+            type: "work_group",
+            id: `work_group:${event.id}`,
+            sessionId: event.sessionId,
+            createdAt: event.createdAt,
+            complete: false,
+            events: [],
+          };
+          items.push(workGroup);
+          workGroupTurnKey = turnKey;
+          lastWorkGroupByTurn.set(turnKey, workGroup);
+        }
+        (workGroup.approvals ??= []).push(event);
+        continue;
+      }
     }
 
     endWorkGroup(event.type === "user_message" ? undefined : event.createdAt);
