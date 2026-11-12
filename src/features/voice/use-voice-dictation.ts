@@ -73,6 +73,7 @@ export function useVoiceDictation({
 }: Options) {
   const [status, setStatus] = useState<DictationStatus>("idle");
   const [error, setError] = useState<string>();
+  const [notice, setNotice] = useState<string>();
   const [startedAt, setStartedAt] = useState<number>();
   const [level] = useState(createVoiceLevel);
   const sessionRef = useRef<VoiceSession | undefined>(undefined);
@@ -105,6 +106,7 @@ export function useVoiceDictation({
       );
       textareaRef.current = textarea ?? null;
       setError(undefined);
+      setNotice(undefined);
       level.set(0);
       const session = new VoiceSession({
         ...sessionOptions,
@@ -120,6 +122,7 @@ export function useVoiceDictation({
           write(joinTranscript(final, partial));
         },
         onLevel: level.set,
+        onNotice: setNotice,
         onEnd: ({ text, error: failure }) => {
           if (sessionRef.current === session) sessionRef.current = undefined;
           const caret = text === undefined ? undefined : write(text);
@@ -176,5 +179,8 @@ export function useVoiceDictation({
     stop,
     cancel,
     dismissError: useCallback(() => setError(undefined), []),
+    /** Shown until dismissed or the next dictation, e.g. a switched device. */
+    notice,
+    dismissNotice: useCallback(() => setNotice(undefined), []),
   };
 }

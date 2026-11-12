@@ -32,6 +32,8 @@ export type VoiceSessionOptions = {
   onPhase: (phase: VoicePhase) => void;
   onTranscript: (final: string, partial: string) => void;
   onLevel?: (level: number) => void;
+  /** Something the user should know that does not stop dictation. */
+  onNotice?: (message: string) => void;
   /** Called exactly once, after which the session holds no resources. */
   onEnd: (result: VoiceSessionResult) => void;
   createSocket?: (url: string) => WebSocket;
@@ -93,6 +95,7 @@ export class VoiceSession {
       return;
     }
     this.microphone = microphone;
+    if (microphone.notice) this.options.onNotice?.(microphone.notice);
     this.connect();
   }
 

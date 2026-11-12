@@ -31,6 +31,7 @@ import { ComposerAttachmentStatus } from "./composer-attachment-status";
 import {
   ComposerVoiceControl,
   ComposerVoiceError,
+  ComposerVoiceNotice,
 } from "./composer-voice-control";
 import { SettingsToggle } from "@/components/ui/settings-controls";
 import { SessionPermissionSelector } from "@/components/sessions/session-permission-selector";
@@ -551,6 +552,12 @@ export const SessionComposer = memo(function SessionComposer({
           <ComposerVoiceError
             message={voice.error}
             onDismiss={voice.dismissError}
+          />
+        )}
+        {voice.notice && !voice.error && (
+          <ComposerVoiceNotice
+            message={voice.notice}
+            onDismiss={voice.dismissNotice}
           />
         )}
         <SessionDraftInput
