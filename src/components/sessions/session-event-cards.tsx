@@ -606,6 +606,11 @@ function ArtifactPublicationCard({
   );
 }
 
+// File-change summaries ("Changed N files") are inferred from tool payloads and
+// misread shell commands as file lists (Codex sessions also lose them). Hidden
+// until the inference is reliable; patch extraction itself is left intact.
+const SHOW_FILE_CHANGE_SUMMARIES = false;
+
 function TurnFooterCard({
   actionsContent,
   contextCompaction,
@@ -625,7 +630,8 @@ function TurnFooterCard({
   tokenUsage?: Extract<WorkstreamItem, { type: "turn_footer" }>["tokenUsage"];
   turnPatches?: CodePatch[];
 }) {
-  const shouldShowTurnPatches = (turnPatches?.length ?? 0) > 0;
+  const shouldShowTurnPatches =
+    SHOW_FILE_CHANGE_SUMMARIES && (turnPatches?.length ?? 0) > 0;
   const shouldShowActions = Boolean(actionsContent?.trim());
   const shouldShowUsage = Boolean(
     tokenUsage || contextUsage || contextCompaction,
@@ -1283,7 +1289,7 @@ function ToolEventRow({
           onSelectToolEvidence={onSelectToolEvidence}
           permissionDecision={permissionDecision}
         />
-        {compact && codePatches.length > 0 && (
+        {SHOW_FILE_CHANGE_SUMMARIES && compact && codePatches.length > 0 && (
           <ToolPatchSection patches={codePatches} />
         )}
         {event.historyDetails?.length ? (
