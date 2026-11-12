@@ -2504,6 +2504,9 @@ GET `/secretary/summaries/:summary_id/revisions?limit=20&cursor=...`，返回与
 历史入口只列出 Manager 当前授权可读的版本，选择后仍经原文读取接口检查确切 revision。
 详情复用 `/search/read` 的总结读取协议，使用安全
 Markdown 渲染完整正文，展示结论、引文、冻结 coverage 以及下层总结版本引用。
+摘要证据的 `view` 元数据可为 `head_tail`，表示 Secretary 初始提示只展示长用户消息的
+首尾；这不是公开读取视图。原文 read/expand 请求仍只支持 `first`、`last`、`full`，
+证据跳转保留确切原文版本引用，不把该元数据作为读取视图传递。
 点击证据或来源消息，在共享 `SearchSourcePanel` 中读取确切正文版本；该读取成功后
 才使用服务端返回的真实 session/message ID 提供工作台定位链接。内部 subject ID
 不能当作 session ID。历史正文不可用时明确提示，不替换为当前正文。
