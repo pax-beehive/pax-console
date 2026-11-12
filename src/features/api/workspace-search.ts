@@ -82,7 +82,7 @@ export type WorkspaceSummaryRef = {
 export type WorkspaceSummaryEvidence = {
   message: WorkspaceMessageVersionRef;
   quote: string;
-  view?: WorkspaceMessageView;
+  view?: WorkspaceMessageView | "head_tail";
   read_receipt?: string;
 };
 
