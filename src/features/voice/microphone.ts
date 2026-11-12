@@ -1,3 +1,8 @@
+import {
+  DEFAULT_MICROPHONE_MODE,
+  microphoneConstraints,
+  type MicrophoneMode,
+} from "./microphone-preference";
 import { VoiceInputError } from "./voice-errors";
 
 export type MicrophoneCapture = {
@@ -7,6 +12,7 @@ export type MicrophoneCapture = {
 
 export type StartMicrophone = (
   onSamples: (samples: Float32Array) => void,
+  mode?: MicrophoneMode,
 ) => Promise<MicrophoneCapture>;
 
 // Batches render quanta (128 frames) into ~40 ms chunks before posting them
@@ -36,7 +42,10 @@ class PaxVoiceCapture extends AudioWorkletProcessor {
 registerProcessor("pax-voice-capture", PaxVoiceCapture);
 `;
 
-export const startMicrophone: StartMicrophone = async (onSamples) => {
+export const startMicrophone: StartMicrophone = async (
+  onSamples,
+  mode = DEFAULT_MICROPHONE_MODE,
+) => {
   if (
     typeof window === "undefined" ||
     !navigator.mediaDevices?.getUserMedia ||
@@ -54,12 +63,7 @@ export const startMicrophone: StartMicrophone = async (onSamples) => {
   let stream: MediaStream | undefined;
   try {
     stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        channelCount: 1,
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-      },
+      audio: microphoneConstraints(mode),
     });
     const moduleUrl = URL.createObjectURL(
       new Blob([CAPTURE_WORKLET_SOURCE], { type: "application/javascript" }),

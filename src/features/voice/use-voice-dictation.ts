@@ -8,6 +8,7 @@ import {
   joinTranscript,
   type DictationAnchor,
 } from "./dictation-text";
+import { readMicrophoneMode } from "./microphone-preference";
 import { getVoiceStreamUrl } from "./voice-url";
 import {
   VoiceSession,
@@ -108,6 +109,8 @@ export function useVoiceDictation({
       const session = new VoiceSession({
         ...sessionOptions,
         url: getVoiceStreamUrl(),
+        // Read at start so a change in Settings applies to the next dictation.
+        microphoneMode: readMicrophoneMode(),
         hints: getHints?.(),
         onPhase: (phase) => {
           setStatus(phase);

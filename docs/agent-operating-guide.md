@@ -3068,6 +3068,13 @@ than re-implementing send-while-dictating.
   focus to the textarea, because that opens the keyboard on phones. Level
   updates go through the `VoiceLevel` external store, so the composer does
   not re-render for them.
+- Microphone choice lives on the Settings "Voice input" page, stored per
+  device in localStorage (`microphone-preference.ts`) and read when
+  dictation starts. The default "Keep music playing" turns off echo
+  cancellation, noise suppression, and auto gain so Android keeps Bluetooth
+  earbuds in their music profile and uses the built-in microphone.
+  "Headset microphone" enables them and uses the headset microphone at the
+  cost of interrupting music.
 - Recognition hints come from `buildVoiceHints(timeline)`: file names,
   identifiers, code spans, and the last eight messages. The workbench passes a
   stable getter so streaming timeline updates do not re-render the composer.

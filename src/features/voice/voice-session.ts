@@ -3,6 +3,7 @@ import {
   type MicrophoneCapture,
   type StartMicrophone,
 } from "./microphone";
+import type { MicrophoneMode } from "./microphone-preference";
 import { audioLevel, concatPcm, PcmResampler } from "./pcm";
 import { serverVoiceError, VoiceInputError } from "./voice-errors";
 import {
@@ -26,6 +27,7 @@ export type VoiceSessionResult = {
 
 export type VoiceSessionOptions = {
   url: string;
+  microphoneMode?: MicrophoneMode;
   hints?: VoiceHints;
   onPhase: (phase: VoicePhase) => void;
   onTranscript: (final: string, partial: string) => void;
@@ -74,7 +76,10 @@ export class VoiceSession {
       this.options.startMicrophone ?? defaultStartMicrophone;
     let microphone: MicrophoneCapture;
     try {
-      microphone = await startMicrophone((samples) => this.capture(samples));
+      microphone = await startMicrophone(
+        (samples) => this.capture(samples),
+        this.options.microphoneMode,
+      );
     } catch (error) {
       this.end({ error: asVoiceError(error) });
       return;

@@ -5,6 +5,7 @@ import {
   FolderTree,
   KeyRound,
   LockKeyhole,
+  Mic,
   Server,
   ShieldCheck,
   TerminalSquare,
@@ -18,6 +19,7 @@ export const settingsLinks = {
   secretary: "/settings/secretary",
   status: "/settings/service-status",
   notifications: "/settings/notifications",
+  voice: "/settings/voice",
   agentSignIn: "/settings/agent-sign-in",
   advanced: "/settings/advanced",
   permissions: "/settings/advanced/permissions",
@@ -53,6 +55,15 @@ export const settingsGroups: readonly {
         caption: "Alerts on this device",
         description:
           "Choose when this browser or Android app should notify you. Each device has its own subscription.",
+      },
+      {
+        id: "voice",
+        href: settingsLinks.voice,
+        title: "Voice input",
+        icon: Mic,
+        caption: "Microphone for dictation",
+        description:
+          "Choose which microphone dictation uses on this device, so music in your earbuds can keep playing.",
       },
       {
         id: "devices",
