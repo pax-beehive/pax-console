@@ -1880,6 +1880,14 @@ GET queue 增加可选 state：queued / sending / uncertain。前端在队列非
 用户删除 uncertain 记录仅移除跟踪，不会取消可能已到达 paxd 的消息。
 Observer 只观察，等待下一轮的重试窗口覆盖一个周期上报间隔。先部署 Manager。
 
+排队和 steer 也可以带附件。只有文字时仍然发送 `input`；有文件时由
+`turnPromptBody` 改为和普通发送相同的 `content` 块（text 加 attachment），可以只有文件
+没有文字，最多 20 个。Manager 在请求返回前把文件同步到节点，并在队列里保存文件名等
+信息；排队卡片用 `attachments` 列出文件。编辑排队消息（PATCH）只改文字，保留文件。
+旧版 Manager 会忽略 `content` 里的文件，响应里也没有 `attachments`；
+`assertQueuedAttachments` 据此报错，文件留在输入框里，不会被静默丢掉。同样需要先部署
+Manager。
+
 ## 后续 turn 的发现
 
 打开的 workbench 每 5 秒检查 session 详情；其他详情消费者保持 30 秒默认间隔。

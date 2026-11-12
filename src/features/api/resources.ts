@@ -250,14 +250,68 @@ export type ResetSessionRuntimeData = {
   status: "accepted_pending" | string;
 };
 
+/** Prompt body shared with conversation sends: text and attachment blocks. */
+export type TurnPromptContent =
+  | { type: "text"; text: string }
+  | { type: "attachment"; attachment_id: string };
+
 type QueueSessionTurnInput = {
-  input: string;
+  input?: string;
+  content?: TurnPromptContent[];
   search_access?: TurnSearchAccess;
+};
+
+/**
+ * Builds a queue or steer prompt. Text alone stays in `input`, so older
+ * Managers keep working; files use the conversation `content` blocks.
+ */
+export function turnPromptBody(
+  input: string,
+  attachmentIds: readonly string[],
+): Pick<QueueSessionTurnInput, "input" | "content"> {
+  if (attachmentIds.length === 0) return { input };
+  return {
+    content: [
+      ...(input ? [{ type: "text" as const, text: input }] : []),
+      ...attachmentIds.map((attachmentId) => ({
+        type: "attachment" as const,
+        attachment_id: attachmentId,
+      })),
+    ],
+  };
+}
+
+/**
+ * A Manager that predates queued attachments ignores `content` files and
+ * returns no `attachments`; treat that as a failure instead of losing files.
+ */
+export function assertQueuedAttachments(
+  attachmentIds: readonly string[],
+  response: { attachments?: QueuedTurnAttachment[] },
+) {
+  if (
+    attachmentIds.length > 0 &&
+    (response.attachments?.length ?? 0) < attachmentIds.length
+  ) {
+    throw new Error(
+      "This Manager cannot queue files yet. Any text was queued without them; the files are still attached here.",
+    );
+  }
+}
+
+/** A file queued with a pending prompt, as stored by the manager. */
+export type QueuedTurnAttachment = {
+  attachment_id: string;
+  filename: string;
+  content_type?: string;
+  size_bytes?: number;
 };
 
 type QueueSessionTurnData = {
   active_prompt_request_id?: string;
   agent_id: string;
+  /** Absent from Managers that predate queued attachments. */
+  attachments?: QueuedTurnAttachment[];
   command_id: string;
   effect: "queued" | "replaced" | string;
   node_id?: string;
@@ -268,6 +322,7 @@ type QueueSessionTurnData = {
 
 export type QueuedSessionTurnData = {
   agent_id: string;
+  attachments?: QueuedTurnAttachment[];
   command_id: string;
   created_at: string;
   input: string;
@@ -289,14 +344,13 @@ type DeleteQueuedSessionTurnData = {
   status: string;
 };
 
-type SteerSessionTurnInput = {
-  input: string;
-  search_access?: TurnSearchAccess;
-};
+type SteerSessionTurnInput = QueueSessionTurnInput;
 
 type SteerSessionTurnData = {
   active_prompt_request_id?: string;
   agent_id: string;
+  /** Absent from Managers that predate queued attachments. */
+  attachments?: QueuedTurnAttachment[];
   command_id: string;
   effect: "steering" | string;
   node_id?: string;

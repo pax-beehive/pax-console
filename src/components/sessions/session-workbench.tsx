@@ -91,6 +91,8 @@ import {
   setSessionConfigOption,
   steerSessionTurn,
   stopSessionTurn,
+  assertQueuedAttachments,
+  turnPromptBody,
   updateAgentSession,
   setAgentSessionPermission,
   updateQueuedSessionTurn,
@@ -1435,16 +1437,18 @@ export function SessionWorkbench({
     mutationFn: async ({
       input,
       access,
+      attachmentIds = [],
     }: {
       input: string;
       access?: TurnSearchAccess;
+      attachmentIds?: string[];
     }) => {
       if (!activeAgentId || !currentSessionId) {
         throw new Error("Wait for the session id before queuing the turn.");
       }
 
       return queueSessionTurn(user.user_id, activeAgentId, currentSessionId, {
-        input,
+        ...turnPromptBody(input, attachmentIds),
         ...(access ? { search_access: access } : {}),
       });
     },
@@ -1532,16 +1536,18 @@ export function SessionWorkbench({
     mutationFn: async ({
       input,
       access,
+      attachmentIds = [],
     }: {
       input: string;
       access?: TurnSearchAccess;
+      attachmentIds?: string[];
     }) => {
       if (!activeAgentId || !currentSessionId) {
         throw new Error("Wait for the session id before steering the turn.");
       }
 
       return steerSessionTurn(user.user_id, activeAgentId, currentSessionId, {
-        input,
+        ...turnPromptBody(input, attachmentIds),
         ...(access ? { search_access: access } : {}),
       });
     },
@@ -2089,16 +2095,15 @@ export function SessionWorkbench({
         }
 
         if (isTurnRunning) {
-          if (attachmentIds.length > 0) {
-            setComposerAttachmentError(
-              new Error(
-                "Attachments can only be sent on a fresh turn. Wait for the current run to finish or remove the files.",
-              ),
-            );
-            return false;
-          }
           if (messageTarget) backToLatest();
-          await queueDraft({ input: content, access: searchAccess });
+          const queued = await queueDraft({
+            input: content,
+            access: searchAccess,
+            attachmentIds,
+          });
+          // Keeps the files here if the Manager could not queue them.
+          assertQueuedAttachments(attachmentIds, queued);
+          clearSentAttachments(attachmentIds);
           clearSentSearchAccess(searchAccess);
           return true;
         }
@@ -2197,10 +2202,25 @@ export function SessionWorkbench({
   );
   const handleSteerTurn = useCallback(
     async (content: string) => {
+      const attachmentIds = composerAttachments.map(
+        (attachment) => attachment.attachmentId,
+      );
       try {
         if (messageTarget) backToLatest();
-        await steerDraft({ input: content, access: searchAccess });
+        const steered = await steerDraft({
+          input: content,
+          access: searchAccess,
+          attachmentIds,
+        });
         clearSentSearchAccess(searchAccess);
+        try {
+          assertQueuedAttachments(attachmentIds, steered);
+        } catch (caught) {
+          // The mutation succeeded, so its own error handler did not run.
+          setSendError(caught as Error);
+          return false;
+        }
+        clearSentAttachments(attachmentIds);
         return true;
       } catch {
         return false;
@@ -2211,7 +2231,9 @@ export function SessionWorkbench({
       messageTarget,
       backToLatest,
       searchAccess,
+      clearSentAttachments,
       clearSentSearchAccess,
+      composerAttachments,
     ],
   );
   const handleStopTurn = useCallback(() => {

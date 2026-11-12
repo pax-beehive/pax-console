@@ -1,16 +1,14 @@
-import { AlertCircle, Clock3, LoaderCircle, X } from "lucide-react";
+import { AlertCircle, LoaderCircle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function ComposerAttachmentStatus({
   uploading,
   error,
   onDismissError,
-  waitingForTurn,
 }: {
   uploading: boolean;
   error: Error | null;
   onDismissError?: () => void;
-  waitingForTurn?: boolean;
 }) {
   return (
     <>
@@ -56,15 +54,6 @@ export function ComposerAttachmentStatus({
               variant="ghost"
             />
           )}
-        </div>
-      )}
-      {!uploading && !error && waitingForTurn && (
-        <div
-          role="status"
-          className="mb-2 flex items-start gap-2 px-1 text-xs text-ink-muted"
-        >
-          <Clock3 aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          Attachments ready. Send when this turn finishes.
         </div>
       )}
     </>
