@@ -2,6 +2,7 @@
 
 import "@testing-library/jest-dom/vitest";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -26,7 +27,12 @@ import { useConsoleStore } from "@/stores/console-store";
 import type { AgentSession, Project, User } from "@/features/api/types";
 import { ApiError } from "@/features/api/errors";
 import { queryKeys } from "@/features/api/query-keys";
+import { FakeVoiceSocket } from "@/features/voice/test-fakes";
 import { FleetOverview } from "./fleet-overview";
+
+vi.mock("@/features/voice/microphone", () => ({
+  startMicrophone: async () => ({ sampleRate: 16_000, stop: () => {} }),
+}));
 
 const localStorageValues = new Map<string, string>();
 const localStorageMock: Storage = {
@@ -2425,3 +2431,87 @@ async function openPath() {
   );
   await userEvent.click(screen.getByRole("tab", { name: "Enter a path" }));
 }
+
+describe("FleetOverview voice input", () => {
+  function renderWithVoice(enabled = true) {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    queryClient.setQueryData(queryKeys.voiceConfig(), {
+      enabled,
+      provider: "fake",
+      sample_rate: 16_000,
+      encoding: "pcm_s16le",
+      max_duration_seconds: 300,
+    });
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <FleetOverview user={{ user_id: "user_1" } as User} />
+        </TooltipProvider>
+      </QueryClientProvider>,
+    );
+  }
+
+  async function withFakeVoiceSockets(
+    run: (sockets: FakeVoiceSocket[]) => Promise<void>,
+  ) {
+    const original = globalThis.WebSocket;
+    const sockets: FakeVoiceSocket[] = [];
+    globalThis.WebSocket = class extends FakeVoiceSocket {
+      constructor(url: string) {
+        super(url);
+        sockets.push(this);
+      }
+    } as unknown as typeof WebSocket;
+    try {
+      await run(sockets);
+    } finally {
+      globalThis.WebSocket = original;
+    }
+  }
+
+  it("hides the Mic when the instance has no voice input", async () => {
+    renderWithVoice(false);
+    await screen.findByRole("button", { name: "Pi agent" });
+    expect(
+      screen.queryByRole("button", { name: "Dictate" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("starts a session with the final transcript when Start is pressed while dictating", async () => {
+    await withFakeVoiceSockets(async (sockets) => {
+      renderWithVoice();
+      await screen.findByRole("button", { name: "Pi agent" });
+      await userEvent.click(screen.getByRole("button", { name: "Dictate" }));
+      await waitFor(() => expect(sockets).toHaveLength(1));
+      const socket = sockets[0];
+      act(() => {
+        socket.open();
+        socket.receive({
+          type: "ready",
+          provider: "fake",
+          sample_rate: 16_000,
+        });
+        socket.receive({ type: "transcript", final: "", partial: "fix the" });
+      });
+      const composer = screen.getByPlaceholderText(
+        "Ask an agent to do something",
+      );
+      expect(composer).toHaveValue("fix the");
+      expect(composer).toHaveAttribute("readonly");
+
+      await userEvent.click(
+        screen.getByRole("button", { name: "Start session" }),
+      );
+      expect(socket.json().at(-1)).toEqual({ type: "stop" });
+      expect(screen.queryByTestId("session-workbench")).not.toBeInTheDocument();
+
+      act(() => socket.receive({ type: "done", final: "fix the login bug" }));
+      expect(await screen.findByTestId("session-workbench")).toHaveAttribute(
+        "data-initial-prompt",
+        "fix the login bug",
+      );
+    });
+  });
+});

@@ -2611,9 +2611,9 @@ it does not add HLS packaging, transcoding, or adaptive quality selection.
 
 ## 语音输入（流式听写）
 
-会话输入框的 Mic 按钮把语音实时转成文字写进草稿，说话过程中文字逐步出现并在原处修正，结束后不会自动发送。
+会话输入框和首页新建会话的输入框都有 Mic 按钮，把语音实时转成文字写进草稿，说话过程中文字逐步出现并在原处修正，结束后不会自动发送。两个输入框共用 `useComposerDictation`，行为一致。
 
-- 可用性由服务端决定：workbench 用 `useVoiceConfig` 读取区域 Manager 的
+- 可用性由服务端决定：workbench 和首页用 `useVoiceConfig` 读取区域 Manager 的
   `GET /api/v1/user/self/voice/config`，`enabled: true` 时才显示按钮。每个 Manager
   实例用 `VOICE_PROVIDER` 选择服务商（美国 OpenAI，香港 Qwen），`VOICE_ADMIN_ONLY`
   默认只对管理员开放。没有这个接口的 Manager 等同于关闭。加密会话中按钮禁用。
@@ -2634,6 +2634,7 @@ it does not add HLS packaging, transcoding, or adaptive quality selection.
 - 识别提示：`buildVoiceHints(timeline)` 从时间线提取文件名、标识符、反引号里的代码和
   最近 8 条消息。workbench 通过稳定的 getter 提供，开始听写时才计算。
 - 模块：`src/features/voice/`（microphone、pcm、voice-protocol、voice-session、
-  voice-hints、use-voice-dictation、use-voice-config、voice-url）和
+  voice-hints、use-voice-dictation、use-composer-dictation、use-voice-config、
+  voice-url）和
   `src/components/sessions/composer-voice-control.tsx`。React 组件不直接构造
   WebSocket 帧或处理音频数据。

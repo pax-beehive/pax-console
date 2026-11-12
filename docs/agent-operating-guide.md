@@ -2999,9 +2999,11 @@ it does not add HLS packaging, transcoding, or adaptive quality selection.
 
 ## Voice input
 
-The composer Mic streams dictation into the draft through the manager. Text
-appears while the user speaks, is revised in place, and is never sent
-automatically.
+The Mic in the session composer and in the Home new-session composer streams
+dictation into the draft through the manager. Text appears while the user
+speaks, is revised in place, and is never sent automatically. Both composers
+use `useComposerDictation`, so a new prompt input should use it too rather
+than re-implementing send-while-dictating.
 
 - Endpoints: `GET /api/v1/user/{user_id}/voice/config` is a normal REST call
   through `/api/pax`. `GET /api/v1/user/{user_id}/voice/stream` is a WebSocket
@@ -3012,7 +3014,7 @@ automatically.
   If the config call fails, as on a manager without the endpoint, the Mic is
   hidden. Encrypted sessions disable it.
 - Keep microphone capture, resampling, and protocol frames inside
-  `src/features/voice/`. Components use `useVoiceDictation` and
+  `src/features/voice/`. Components use `useComposerDictation` and
   `ComposerVoiceControl`. Dictation writes the composer draft through the
   console store, and the draft is read-only while it runs. Esc and the stop
   button only stop. Send, queue, or Enter during dictation stops it and sends
