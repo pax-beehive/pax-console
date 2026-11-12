@@ -142,6 +142,37 @@ the user explicitly starts, submits, or cancels an attempt. A `logged_in` result
 still offers Sign in again because local credential presence does not establish
 that a provider will accept the next request.
 
+Successful status responses may include optional native `account` metadata with
+`email`, `display_name`, `organization`, and `plan`. The green credential status
+shows the reported email (or display name) and optional account details; it never
+infers the harness account from the signed-in PAX user or credential method.
+API-key/access-token methods without identity show “This sign-in method does not
+report account details.” Older or incomplete status responses show “Account
+details are unavailable on this device.” Account details stay in the mounted
+login state and disappear while starting a new login, in non-success states,
+after status errors, and when the selected device or agent type changes.
+
+When credentials are detected, the section also mounts Plan usage
+(`agent-usage.tsx`) at full width below the status row. `useNodeHarnessUsage` reads GET
+`/api/v1/user/:user_id/nodes/:node_id/harnesses/:harness/usage` with
+`cache: no-store` through TanStack Query, keyed by user, device and agent type,
+with a 60-second stale time, no focus refetch, no retries and no persistence; a
+refresh button refetches on demand. Usage contains no credentials, so it may use
+the Query cache, but it never joins the ephemeral sign-in state. `available`
+shows one compact row per window: a short label from `window_minutes` (300 is
+5-hour, 10080 weekly) and optional model `scope`, an accessible meter named with
+the full limit label, the percent used and the time until reset (the "resets in"
+prefix is visible only from the `sm` breakpoint, and always available to screen
+readers). The heading row carries `observed_at` freshness, the refresh button and,
+for Claude, `extra_usage.enabled` as on/off. `unsupported` means the sign-in method
+has no plan limits. `unavailable` uses `error_code`: `cli_unsupported` asks to
+update Claude Code or Codex, `daemon_unsupported` asks to update PAX, and other
+codes show a generic unavailable message. Loading or failed usage never changes
+the sign-in status line, the green check or Sign in again, and switching the
+device or agent type never shows the previous device's usage. paxd and the
+native CLI each cache usage for about a minute, so values can be up to about two
+minutes old; `observed_at` is when paxd completed its read.
+
 `agent-sign-in-settings.tsx` owns device/method selection and password inputs;
 `agent-sign-in-flow.ts` owns ephemeral status, polling, cancellation and expiration.
 Nodes remain in TanStack Query. Login challenges, authorization codes, keys and

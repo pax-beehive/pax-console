@@ -2,12 +2,16 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ExternalLink, RefreshCw } from "lucide-react";
+import { CheckCircle2, ExternalLink, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MonoId, TruncatedText } from "@/components/ui/text";
 import { compactId } from "@/lib/format";
 import { useNodes } from "@/features/api/resources";
-import type { HarnessLoginMethod, LoginHarness } from "@/features/api/types";
+import type {
+  HarnessAuthAccount,
+  HarnessLoginMethod,
+  LoginHarness,
+} from "@/features/api/types";
 import {
   isActiveNode,
   isDeviceNode,
@@ -21,6 +25,7 @@ import {
   useAgentSignIn,
   validLoginSecret,
 } from "./agent-sign-in-flow";
+import { HarnessUsagePanel } from "./agent-usage";
 
 const fieldClass =
   "min-h-11 min-w-0 w-full rounded-md border border-hairline bg-surface-2 px-3 py-2 text-sm text-ink focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50";
@@ -167,8 +172,8 @@ export function AgentSignInSettings({
 }
 
 const stateLabels: Record<string, string> = {
-  logged_in: "Signed in on this device.",
-  succeeded: "Signed in on this device.",
+  logged_in: "Sign-in credentials found on this device.",
+  succeeded: "Sign-in credentials found on this device.",
   logged_out: "Not signed in on this device.",
   starting: "Starting sign-in on the device…",
   awaiting_code:
@@ -206,6 +211,7 @@ function HarnessSignIn({
   const pending = loginPending(flow.view);
   const signedIn =
     flow.view?.state === "logged_in" || flow.view?.state === "succeeded";
+  const credentialsDetected = signedIn && !flow.error && !flow.busy;
   const secretMethod = method === "api-key" || method === "access-token";
   const challenge = pending
     ? safeAuthorizationUrl(harness, flow.view?.authorization_url)
@@ -233,16 +239,42 @@ function HarnessSignIn({
           <p
             role="status"
             aria-live="polite"
-            className="text-sm leading-6 text-ink"
+            className={
+              credentialsDetected
+                ? "flex items-start gap-2 text-sm font-medium leading-6 text-success"
+                : "text-sm leading-6 text-ink"
+            }
           >
-            {flow.view
-              ? (stateLabels[flow.view.state] ??
-                "The device returned an unknown sign-in state. Refresh status before continuing.")
-              : flow.checking
-                ? "Checking sign-in status…"
-                : "Sign-in status could not be checked."}
+            {credentialsDetected && (
+              <CheckCircle2
+                aria-hidden="true"
+                className="mt-0.5 h-5 w-5 shrink-0"
+              />
+            )}
+            <span>
+              {flow.error
+                ? "Sign-in status could not be checked."
+                : flow.view
+                  ? (stateLabels[flow.view.state] ??
+                    "The device returned an unknown sign-in state. Refresh status before continuing.")
+                  : flow.checking
+                    ? "Checking sign-in status…"
+                    : "Sign-in status could not be checked."}
+            </span>
           </p>
-          {flow.view?.auth_method && signedIn && (
+          {credentialsDetected && (
+            <AccountDetails
+              account={flow.view?.account}
+              authMethod={flow.view?.auth_method ?? flow.view?.method}
+            />
+          )}
+          {credentialsDetected && (
+            <p className="mt-1 text-sm leading-6 text-ink-muted">
+              Sign in again if a session reports expired credentials or an
+              authentication error.
+            </p>
+          )}
+          {flow.view?.auth_method && credentialsDetected && (
             <p className="mt-1 text-xs text-ink-tertiary">
               Credential method: {flow.view.auth_method}
             </p>
@@ -259,6 +291,10 @@ function HarnessSignIn({
           Refresh status
         </Button>
       </div>
+      {/* Full section width, so usage rows are not squeezed beside Refresh status on phones. */}
+      {credentialsDetected && (
+        <HarnessUsagePanel userId={userId} nodeId={nodeId} harness={harness} />
+      )}
       {flow.error && (
         <p role="alert" className="text-sm leading-6 text-warning">
           {flow.error}
@@ -452,5 +488,53 @@ function HarnessSignIn({
         is idle if the error continues.
       </p>
     </section>
+  );
+}
+
+function AccountDetails({
+  account,
+  authMethod,
+}: {
+  account?: HarnessAuthAccount;
+  authMethod?: string;
+}) {
+  const email = account?.email?.trim();
+  const displayName = account?.display_name?.trim();
+  const identity = email || displayName;
+  const details = [
+    email && displayName !== email ? displayName : undefined,
+    account?.organization?.trim(),
+    account?.plan?.trim(),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const method = authMethod?.replaceAll(/[-_]/g, "").toLowerCase();
+  const secretMethod = method === "apikey" || method === "accesstoken";
+
+  return (
+    <div
+      className="mt-1 min-w-0"
+      aria-label={identity ? "Signed-in account" : undefined}
+    >
+      {identity ? (
+        <div className="flex min-w-0 items-baseline gap-2 text-sm leading-6">
+          <span className="shrink-0 text-ink-muted">Account</span>
+          <TruncatedText className="font-medium text-ink">
+            {identity}
+          </TruncatedText>
+        </div>
+      ) : (
+        <p className="text-sm leading-6 text-ink-muted">
+          {secretMethod
+            ? "This sign-in method does not report account details."
+            : "Account details are unavailable on this device."}
+        </p>
+      )}
+      {details && (
+        <TruncatedText className="text-xs leading-5 text-ink-tertiary">
+          {details}
+        </TruncatedText>
+      )}
+    </div>
   );
 }

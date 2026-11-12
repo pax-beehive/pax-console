@@ -43,6 +43,14 @@ export type HarnessLoginMethod =
   | "api-key"
   | "access-token";
 
+/** Optional account metadata reported by the native CLI, without credentials. */
+export type HarnessAuthAccount = {
+  email?: string;
+  display_name?: string;
+  organization?: string;
+  plan?: string;
+};
+
 /** Ephemeral native CLI status. Never persist challenges or credentials. */
 export type HarnessAuthView = {
   harness: LoginHarness;
@@ -54,10 +62,43 @@ export type HarnessAuthView = {
   expires_at?: string;
   logged_in?: boolean;
   auth_method?: string;
+  account?: HarnessAuthAccount;
   error_code?: string;
 };
 
 export type HarnessAuthData = { harness_auth: HarnessAuthView };
+
+/** One plan rate-limit window reported by the native CLI on the device. */
+export type HarnessUsageWindow = {
+  id: string;
+  /** Rolling window length, such as 300 (5 hours) or 10080 (1 week). */
+  window_minutes: number;
+  /** Model bucket name for model-scoped limits. */
+  scope?: string;
+  /** Share of the window used, from 0 to 100. */
+  used_percent: number;
+  resets_at?: string;
+};
+
+/**
+ * Plan usage read by the device's native CLI. It contains no credentials, so it
+ * may use the Query cache, but it never joins the ephemeral sign-in state.
+ */
+export type HarnessUsageView = {
+  harness: LoginHarness;
+  /** available, unsupported (no plan limits for this sign-in) or unavailable. */
+  state: string;
+  /** When the device read the data; values can be about a minute old. */
+  observed_at?: string;
+  plan?: string;
+  windows?: HarnessUsageWindow[];
+  /** Claude only: whether paid extra usage is turned on for the account. */
+  extra_usage?: { enabled: boolean };
+  /** For unavailable: cli_unsupported, daemon_unsupported, timeout or read_failed. */
+  error_code?: string;
+};
+
+export type HarnessUsageData = { harness_usage: HarnessUsageView };
 
 export type HarnessLoginInput = {
   command_id: string;

@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 import "@testing-library/jest-dom/vitest";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ApiError } from "@/features/api/errors";
@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   useNodes: vi.fn(),
   getNodeHarnessAuth: vi.fn(),
   loginNodeHarness: vi.fn(),
+  useNodeHarnessUsage: vi.fn(),
 }));
 vi.mock("@/features/api/resources", () => mocks);
 
@@ -36,7 +37,19 @@ beforeEach(() => {
     harness_auth: { harness: "claude", state: "logged_out", logged_in: false },
   });
   mocks.loginNodeHarness.mockResolvedValue({ harness_auth: awaitingCode });
+  mocks.useNodeHarnessUsage.mockReturnValue(usageQuery());
 });
+
+function usageQuery(overrides: Record<string, unknown> = {}) {
+  return {
+    data: undefined,
+    error: null,
+    isPending: true,
+    isFetching: true,
+    refetch: vi.fn(),
+    ...overrides,
+  };
+}
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
@@ -123,7 +136,7 @@ it.each(["subscription", "console"])(
       },
     });
     await user.click(screen.getByRole("button", { name: "Complete sign-in" }));
-    await screen.findByText("Signed in on this device.");
+    await screen.findByText("Sign-in credentials found on this device.");
     expect(mocks.loginNodeHarness.mock.calls[1][3]).toMatchObject({
       operation: "submit",
       session_id: "login-one",
@@ -301,7 +314,9 @@ it("polls the login handle after an accepted start and stops after success", asy
   await act(async () => {
     await vi.advanceTimersByTimeAsync(2000);
   });
-  expect(screen.getByText("Signed in on this device.")).toBeInTheDocument();
+  expect(
+    screen.getByText("Sign-in credentials found on this device."),
+  ).toBeInTheDocument();
   expect(mocks.getNodeHarnessAuth).toHaveBeenLastCalledWith(
     "self",
     "node-one",
@@ -316,16 +331,39 @@ it("polls the login handle after an accepted start and stops after success", asy
   expect(mocks.getNodeHarnessAuth).toHaveBeenCalledTimes(calls);
 });
 
-it("keeps reauthentication available when local credentials still report logged in", async () => {
-  mocks.getNodeHarnessAuth.mockResolvedValue({
+it.each(["logged_in", "succeeded"])(
+  "makes saved credentials clear in the %s state and keeps reauthentication available",
+  async (state) => {
+    mocks.getNodeHarnessAuth.mockResolvedValue({
+      harness_auth: { harness: "claude", state, logged_in: true },
+    });
+    const user = userEvent.setup();
+    mount();
+    await screen.findByText("Sign-in credentials found on this device.");
+    expect(
+      screen.getByText(
+        "Sign in again if a session reports expired credentials or an authentication error.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign in again" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Sign in again" }));
+    expect(mocks.loginNodeHarness).toHaveBeenCalledOnce();
+  },
+);
+
+it("does not keep claiming credentials are present after the status check fails", async () => {
+  mocks.getNodeHarnessAuth.mockResolvedValueOnce({
     harness_auth: { harness: "claude", state: "logged_in", logged_in: true },
   });
   const user = userEvent.setup();
   mount();
-  await screen.findByText("Signed in on this device.");
-  expect(screen.getByRole("button", { name: "Sign in again" })).toBeEnabled();
-  await user.click(screen.getByRole("button", { name: "Sign in again" }));
-  expect(mocks.loginNodeHarness).toHaveBeenCalledOnce();
+  await screen.findByText("Sign-in credentials found on this device.");
+  mocks.getNodeHarnessAuth.mockRejectedValue(new Error("unavailable"));
+  await user.click(screen.getByRole("button", { name: "Refresh status" }));
+  await screen.findByText("Sign-in status could not be checked.");
+  expect(
+    screen.queryByText("Sign-in credentials found on this device."),
+  ).not.toBeInTheDocument();
 });
 
 it("reconciles the latest status after a login handle disappears", async () => {
@@ -420,4 +458,272 @@ it("recovers an ambiguously accepted start through status without starting a dup
     undefined,
     expect.any(AbortSignal),
   );
+});
+
+it.each(["claude", "codex"] as const)(
+  "shows the native %s account email with optional name, organization and plan",
+  async (harness) => {
+    mocks.getNodeHarnessAuth.mockResolvedValue({
+      harness_auth: {
+        harness,
+        state: "logged_in",
+        logged_in: true,
+        account: {
+          email: "agent@example.test",
+          display_name: "Agent Account",
+          organization: "Example Workspace",
+          plan: "Pro",
+        },
+      },
+    });
+    mount({ initialHarness: harness });
+    await screen.findByText("agent@example.test");
+    expect(screen.getByLabelText("Signed-in account")).toHaveTextContent(
+      "Account",
+    );
+    expect(
+      screen.getByText("Agent Account · Example Workspace · Pro"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign in again" })).toBeEnabled();
+  },
+);
+
+it("uses a reported display name when no account email is available", async () => {
+  mocks.getNodeHarnessAuth.mockResolvedValue({
+    harness_auth: {
+      harness: "codex",
+      state: "succeeded",
+      logged_in: true,
+      account: { display_name: "Reported Account" },
+    },
+  });
+  mount({ initialHarness: "codex" });
+  await screen.findByText("Reported Account");
+  expect(
+    screen.queryByText(/Account details are unavailable/),
+  ).not.toBeInTheDocument();
+});
+
+it.each(["claude", "codex"] as const)(
+  "handles older %s status responses without account metadata",
+  async (harness) => {
+    mocks.getNodeHarnessAuth.mockResolvedValue({
+      harness_auth: { harness, state: "logged_in", logged_in: true },
+    });
+    mount({ initialHarness: harness });
+    await screen.findByText("Account details are unavailable on this device.");
+    expect(
+      screen.queryByLabelText("Signed-in account"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("self")).not.toBeInTheDocument();
+  },
+);
+
+it.each(["api_key", "access_token"])(
+  "does not infer an account from the %s credential method",
+  async (auth_method) => {
+    mocks.getNodeHarnessAuth.mockResolvedValue({
+      harness_auth: {
+        harness: "codex",
+        state: "logged_in",
+        logged_in: true,
+        auth_method,
+      },
+    });
+    mount({ initialHarness: "codex" });
+    await screen.findByText(
+      "This sign-in method does not report account details.",
+    );
+    expect(
+      screen.queryByLabelText("Signed-in account"),
+    ).not.toBeInTheDocument();
+  },
+);
+
+it.each([
+  "logged_out",
+  "starting",
+  "awaiting_code",
+  "awaiting_browser",
+  "exchanging",
+  "failed",
+  "expired",
+  "cancelled",
+])("hides stale account metadata in the %s state", async (state) => {
+  mocks.getNodeHarnessAuth.mockResolvedValue({
+    harness_auth: {
+      harness: "claude",
+      state,
+      account: { email: "stale@example.test" },
+    },
+  });
+  mount();
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(screen.queryByText("stale@example.test")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Signed-in account")).not.toBeInTheDocument();
+  expect(
+    screen.queryByText("Account details are unavailable on this device."),
+  ).not.toBeInTheDocument();
+});
+
+it("hides a previously reported account when the status check fails", async () => {
+  mocks.getNodeHarnessAuth.mockResolvedValueOnce({
+    harness_auth: {
+      harness: "claude",
+      state: "logged_in",
+      logged_in: true,
+      account: { email: "stale@example.test" },
+    },
+  });
+  const user = userEvent.setup();
+  mount();
+  await screen.findByText("stale@example.test");
+  mocks.getNodeHarnessAuth.mockRejectedValue(new Error("offline"));
+  await user.click(screen.getByRole("button", { name: "Refresh status" }));
+  await screen.findByText("Sign-in status could not be checked.");
+  expect(screen.queryByLabelText("Signed-in account")).not.toBeInTheDocument();
+  expect(screen.queryByText("stale@example.test")).not.toBeInTheDocument();
+});
+
+it.each([
+  ["Device", "node-two"],
+  ["Agent type", "codex"],
+])(
+  "hides the previous account immediately when %s changes",
+  async (label, value) => {
+    mocks.getNodeHarnessAuth.mockResolvedValueOnce({
+      harness_auth: {
+        harness: "claude",
+        state: "logged_in",
+        logged_in: true,
+        account: { email: "previous@example.test" },
+      },
+    });
+    const user = userEvent.setup();
+    mount();
+    await screen.findByText("previous@example.test");
+    mocks.getNodeHarnessAuth.mockReturnValue(new Promise(() => {}));
+    await user.selectOptions(screen.getByLabelText(label), value);
+    expect(screen.queryByText("previous@example.test")).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Signed-in account"),
+    ).not.toBeInTheDocument();
+  },
+);
+
+it("hides the previous account while a new sign-in is being started", async () => {
+  mocks.getNodeHarnessAuth.mockResolvedValueOnce({
+    harness_auth: {
+      harness: "claude",
+      state: "logged_in",
+      logged_in: true,
+      account: { email: "previous@example.test" },
+    },
+  });
+  const user = userEvent.setup();
+  mount();
+  await screen.findByText("previous@example.test");
+  mocks.loginNodeHarness.mockReturnValue(new Promise(() => {}));
+  await user.click(screen.getByRole("button", { name: "Sign in again" }));
+  expect(screen.queryByText("previous@example.test")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Signed-in account")).not.toBeInTheDocument();
+});
+
+it.each(["logged_out", "awaiting_code", "failed"])(
+  "does not read plan usage without detected credentials (%s)",
+  async (state) => {
+    mocks.getNodeHarnessAuth.mockResolvedValue({
+      harness_auth: { ...awaitingCode, state },
+    });
+    mount();
+    await screen.findByText(
+      state === "logged_out"
+        ? "Not signed in on this device."
+        : state === "failed"
+          ? /Sign-in failed/
+          : /Complete authorization in your browser/,
+    );
+    expect(screen.queryByLabelText("Plan usage")).not.toBeInTheDocument();
+    expect(mocks.useNodeHarnessUsage).not.toHaveBeenCalled();
+  },
+);
+
+it.each(["claude", "codex"] as const)(
+  "shows %s plan usage for the selected device once credentials are detected",
+  async (harness) => {
+    mocks.getNodeHarnessAuth.mockResolvedValue({
+      harness_auth: { harness, state: "logged_in", logged_in: true },
+    });
+    mocks.useNodeHarnessUsage.mockReturnValue(
+      usageQuery({
+        isPending: false,
+        isFetching: false,
+        data: {
+          harness_usage: {
+            harness,
+            state: "available",
+            observed_at: new Date().toISOString(),
+            windows: [{ id: "primary", window_minutes: 300, used_percent: 41 }],
+          },
+        },
+      }),
+    );
+    mount({ initialHarness: harness });
+    const panel = await screen.findByLabelText("Plan usage");
+    expect(panel).toHaveTextContent("5-hour");
+    expect(panel).toHaveTextContent("41%");
+    expect(
+      within(panel).getByRole("meter", { name: "5-hour limit" }),
+    ).toHaveAttribute("aria-valuenow", "41");
+    expect(mocks.useNodeHarnessUsage).toHaveBeenLastCalledWith(
+      "self",
+      "node-one",
+      harness,
+    );
+  },
+);
+
+it("keeps the credential indicator and reauthentication when plan usage fails", async () => {
+  mocks.getNodeHarnessAuth.mockResolvedValue({
+    harness_auth: {
+      harness: "claude",
+      state: "logged_in",
+      logged_in: true,
+      account: { email: "agent@example.test" },
+    },
+  });
+  mocks.useNodeHarnessUsage.mockReturnValue(
+    usageQuery({
+      isPending: false,
+      isFetching: false,
+      error: new ApiError("upstream body must not render", 502, {}),
+    }),
+  );
+  mount();
+  const status = await screen.findByText(
+    "Sign-in credentials found on this device.",
+  );
+  expect(status.closest("p")).toHaveClass("text-success");
+  expect(
+    screen.getByText("Plan usage could not be loaded."),
+  ).toBeInTheDocument();
+  expect(screen.queryByText(/upstream body/)).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Signed-in account")).toHaveTextContent(
+    "agent@example.test",
+  );
+  expect(screen.getByRole("button", { name: "Sign in again" })).toBeEnabled();
+});
+
+it("hides plan usage while a new sign-in is being started", async () => {
+  mocks.getNodeHarnessAuth.mockResolvedValueOnce({
+    harness_auth: { harness: "claude", state: "logged_in", logged_in: true },
+  });
+  const user = userEvent.setup();
+  mount();
+  await screen.findByLabelText("Plan usage");
+  mocks.loginNodeHarness.mockReturnValue(new Promise(() => {}));
+  await user.click(screen.getByRole("button", { name: "Sign in again" }));
+  expect(screen.queryByLabelText("Plan usage")).not.toBeInTheDocument();
 });

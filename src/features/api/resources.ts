@@ -42,6 +42,7 @@ import {
   Health,
   HarnessAuthData,
   HarnessLoginInput,
+  HarnessUsageData,
   LoginHarness,
   HistoryMessage,
   KnowledgeCapsule,
@@ -533,6 +534,22 @@ export function loginNodeHarness(
       `/nodes/${encodeURIComponent(nodeId)}/harnesses/${harness}/auth/login`,
     ),
     { method: "POST", cache: "no-store", body: JSON.stringify(input), signal },
+  );
+}
+
+/** Plan usage is non-secret device metadata, read separately from sign-in. */
+export function getNodeHarnessUsage(
+  userId: string,
+  nodeId: string,
+  harness: LoginHarness,
+  signal?: AbortSignal,
+) {
+  return apiFetch<HarnessUsageData>(
+    userPath(
+      userId,
+      `/nodes/${encodeURIComponent(nodeId)}/harnesses/${harness}/usage`,
+    ),
+    { cache: "no-store", signal },
   );
 }
 
@@ -2229,6 +2246,34 @@ export function useNodeDaemonCommand(
       // polling slowly until the node reconnects.
       return query.state.error || query.state.data?.stale ? 3_000 : 1_000;
     },
+  });
+}
+
+export function useNodeHarnessUsage(
+  userId?: string,
+  nodeId?: string,
+  harness?: LoginHarness,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: queryKeys.nodeHarnessUsage(
+      userId ?? "pending",
+      nodeId ?? "pending",
+      harness ?? "pending",
+    ),
+    queryFn: ({ signal }) =>
+      getNodeHarnessUsage(
+        userId as string,
+        nodeId as string,
+        harness as LoginHarness,
+        signal,
+      ),
+    enabled: Boolean(userId && nodeId && harness && enabled),
+    // The device and its native CLI already cache plan usage for about a
+    // minute, so faster reads cannot return newer numbers.
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
 }
 

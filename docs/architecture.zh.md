@@ -59,6 +59,27 @@ device / api-key / access-token。页面打开只读取状态，开始、提交�
 即使本地返回 logged_in，也保留 Sign in again，因为这不能证明 provider 会接受请求。
 设备来自用户授权的 `useNodes`；深链指定的设备不存在或离线时不会改选其他设备。
 
+成功状态可选携带原生工具返回的 `account`：`email`、`display_name`、`organization` 和
+`plan`。绿色凭据状态下优先展示账号邮箱，否则展示姓名；组织与套餐为可选次要说明。
+不能拿 PAX 用户或 auth_method 推断登录身份。API key / access token 未提供账号时明确
+提示该登录方式不报告账号信息；旧 daemon 或缺少元数据时显示账号信息不可用。账号数据
+仅留在当前挂载的临时登录状态中，开始新登录、非成功状态、查询错误以及设备/Agent 类型
+切换后不再展示旧身份；不增加持久化或 Query/Mutation cache。
+
+检测到凭据（绿色状态）后，同一区域在状态行下方以整行宽度挂载 Plan usage（`agent-usage.tsx`）。它通过
+TanStack Query 的 `useNodeHarnessUsage` 单独读取
+`nodes/:node_id/harnesses/:harness/usage`（GET，no-store）；query key 含用户、设备和
+Agent 类型，staleTime 60 秒，窗口聚焦不重取、不重试、不持久化，刷新按钮手动重取。用量不含
+凭据，可以进入 Query cache，但不混入登录 challenge、授权码或密码等临时状态。`available`
+每个窗口紧凑地占一行：由 `window_minutes`（300 为 5 小时，10080 为每周）和可选模型
+`scope` 得到的短标签、以完整额度名命名的无障碍 meter、已用百分比和距重置时间（"resets in"
+前缀仅在 `sm` 断点以上可见，读屏始终可读）；标题行放 `observed_at` 更新时间、刷新按钮，以及
+Claude 的 `extra_usage.enabled` 开/关；`unsupported` 表示该登录方式没有套餐额度；`unavailable`
+按 `error_code` 提示更新 Claude Code/Codex（`cli_unsupported`）、更新 PAX
+（`daemon_unsupported`），其余显示暂不可用。用量加载中或失败都不改变登录状态文案、绿色勾和
+Sign in again；切换设备或 Agent 类型不会显示上一台设备的用量。paxd 与原生 CLI 各自缓存约
+一分钟，数值最多可能延迟约两分钟；`observed_at` 是 paxd 完成读取的时间。
+
 `agent-sign-in-settings.tsx` 管理选择和密码输入，`agent-sign-in-flow.ts` 管理当前页面
 临时状态和轮询。普通设备数据仍由 TanStack Query 管理；登录 challenge URL、设备码、
 授权码、API key 和 access token 不进入 Query/Mutation cache、Zustand 持久化、
