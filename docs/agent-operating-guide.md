@@ -2641,7 +2641,8 @@ agent availability, work scheduling, source permissions, model calls, and
 immutable summary publication; this page does not run a browser processing loop.
 
 Do not optimistically mark a save or run successful. Cancel stale settings reads
-before mutations and use the returned server state. A 409 refetches settings and
+before mutations. Settings saves use returned server state; bulk retry uses the
+separate acceptance receipt described below. A 409 refetches settings and
 requires the user to review the new revision. Runtime-only updates must not
 change the settings CAS revision or reset an unsaved form. Poll status every
 five seconds while enabled and fifteen seconds while disabled. Disable remains
@@ -2654,6 +2655,31 @@ remains a separate, read-only view of persisted summaries and their exact source
 An inventory authentication failure hides cached agent names. The progress jump
 scrolls only the inner settings panel; it must not scroll the fixed Console shell
 or move mobile navigation away from the bottom of the viewport.
+
+Bulk retry sends POST `/secretary/run` with `{request_id}` through the existing
+same-origin user scope. The namespace for local state is the real authenticated
+`User.user_id`, never the route selector `self`. `secretary-retry-requests.ts`
+keeps unacknowledged IDs in a Zustand store persisted to sessionStorage per tab
+and owner. A lost response retains that ID for an explicit retry and reload;
+only a matching validated acknowledgement clears it. Storage failure preserves
+the in-memory ID but cannot guarantee recovery after a reload. Writes have
+`retry: false`; no browser loop retries a command automatically.
+
+The new Manager returns an immutable HTTP 202 receipt with `request_id`,
+`state: accepted`, and `accepted_at`. Validate that the ID matches the request;
+never store a receipt as Secretary settings. Show acceptance independently of
+settings and task refreshes, which run without delaying the mutation result.
+The acknowledgement and unconfirmed-request controls remain visible if settings
+refresh fails. Request acceptance does not indicate task or model completion.
+Bulk scheduling preserves paused, running, and unknown executions; individual
+controls retain responsibility for explicit execution restarts.
+
+Deploy Console first, then Manager. Console explicitly accepts both the legacy
+Secretary settings response and the new receipt. Old Console can mistake a
+receipt for settings and must be upgraded before receipt-only Manager is
+deployed. Owner/request-ID deduplication and preserved unknown executions are
+guaranteed only after both deployments; an older Manager ignores the new body
+and an explicit retry during the transition retains its old behavior.
 
 ### Individual Secretary tasks
 
@@ -2679,8 +2705,8 @@ epoch, and settings revision. Retry affects only that source's current input.
 Unknown/expired-running retry requires the duplicate-work confirmation and
 confirm_restart=true. Active leases disable retry and recheck; pause/resume
 affect future scheduling and allow a current execution to finish. Bulk retry
-always confirms its wider scope, preserves per-source pauses, skips active
-leases, and explains late unknown results and duplicate model charges.
+confirms its wider scope and requests background scheduling while preserving
+per-source pauses, active leases, and unknown executions.
 
 Every control mutation has retry=false and its own pending state. Refetch tasks,
 details, settings, progress, and summaries after success or failure, including a

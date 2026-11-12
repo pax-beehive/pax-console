@@ -1,9 +1,11 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiFetch, userPath } from "./client";
+import { useStore } from "zustand";
+import { apiFetch, API_USER_SCOPE, userPath } from "./client";
 import { ApiError, AuthError } from "./errors";
 import { queryKeys } from "./query-keys";
+import { secretaryRetryRequests } from "./secretary-retry-requests";
 
 export type SecretaryState =
   | "disabled"
@@ -48,6 +50,17 @@ export type UpdateSecretarySettings = {
   enabled: boolean;
   expected_revision: number;
 };
+export type SecretaryRetryReceipt = {
+  request_id: string;
+  state: "accepted";
+  accepted_at: string;
+};
+export type SecretaryRetryResponse = SecretaryRetryReceipt | SecretarySettings;
+
+type SecretaryRetryRequest = {
+  owner: string;
+  requestId: string;
+};
 
 export const secretaryKeys = {
   settings: (userId: string) => ["secretary", userId, "settings"] as const,
@@ -73,10 +86,55 @@ export function updateSecretarySettings(
   });
 }
 
-export function runSecretaryNow(userId: string) {
-  return apiFetch<SecretarySettings>(userPath(userId, "/secretary/run"), {
+export async function runSecretaryNow(userId: string, requestId: string) {
+  const data = await apiFetch<unknown>(userPath(userId, "/secretary/run"), {
     method: "POST",
+    body: JSON.stringify({ request_id: requestId }),
   });
+  return decodeSecretaryRetryResponse(data, requestId);
+}
+
+function decodeSecretaryRetryResponse(
+  value: unknown,
+  requestId: string,
+): SecretaryRetryResponse {
+  if (value && typeof value === "object") {
+    const data = value as Record<string, unknown>;
+    if (
+      data.request_id === requestId &&
+      data.state === "accepted" &&
+      typeof data.accepted_at === "string" &&
+      /^\d{4}-\d{2}-\d{2}T/.test(data.accepted_at) &&
+      Number.isFinite(Date.parse(data.accepted_at))
+    ) {
+      return {
+        request_id: requestId,
+        state: "accepted",
+        accepted_at: data.accepted_at,
+      };
+    }
+    // Older Managers acknowledged this endpoint with the current settings.
+    if (
+      typeof data.enabled === "boolean" &&
+      Number.isInteger(data.revision) &&
+      Number(data.revision) >= 0 &&
+      Number.isInteger(data.pending_count) &&
+      Number(data.pending_count) >= 0 &&
+      typeof data.agent_available === "boolean" &&
+      typeof data.state === "string" &&
+      [
+        "disabled",
+        "idle",
+        "waiting",
+        "waiting_for_agent",
+        "processing",
+        "error",
+      ].includes(data.state)
+    ) {
+      return data as SecretarySettings;
+    }
+  }
+  throw new ApiError("Unexpected Secretary retry response.", 502, null);
 }
 
 export function useSecretarySettings(userId: string | undefined) {
@@ -122,25 +180,57 @@ export function useUpdateSecretarySettings(userId: string) {
   });
 }
 
-export function useRunSecretaryNow(userId: string) {
+// The namespace is the authenticated User.user_id, not the route scope "self".
+export function useRunSecretaryNow(ownerUserId: string) {
   const client = useQueryClient();
-  return useMutation({
-    mutationFn: () => runSecretaryNow(userId),
+  const pendingRequest = useStore(
+    secretaryRetryRequests,
+    (state) => state.pending[ownerUserId],
+  );
+  const mutation = useMutation({
+    mutationKey: ["secretary", ownerUserId, "retry"],
+    mutationFn: ({ requestId }: SecretaryRetryRequest) =>
+      runSecretaryNow(API_USER_SCOPE, requestId),
     retry: false,
-    onMutate: () =>
+    onMutate: ({ owner }) =>
       client.cancelQueries({
-        queryKey: secretaryKeys.settings(userId),
+        queryKey: secretaryKeys.settings(owner),
         exact: true,
       }),
-    onSuccess: (data) => {
-      client.setQueryData(secretaryKeys.settings(userId), data);
-      void client.invalidateQueries({ queryKey: ["secretary-tasks", userId] });
+    onSuccess: (data, { owner, requestId }) => {
+      secretaryRetryRequests.getState().acknowledge(owner, requestId);
+      if (data.state !== "accepted")
+        client.setQueryData(secretaryKeys.settings(owner), data);
+      void client
+        .invalidateQueries({
+          queryKey: secretaryKeys.settings(owner),
+          exact: true,
+        })
+        .catch(() => {});
+      void client
+        .invalidateQueries({ queryKey: ["secretary-tasks", owner] })
+        .catch(() => {});
     },
-    onError: () => {
-      void client.invalidateQueries({
-        queryKey: secretaryKeys.settings(userId),
-        exact: true,
-      });
+    onError: (_error, { owner }) => {
+      void client
+        .invalidateQueries({
+          queryKey: secretaryKeys.settings(owner),
+          exact: true,
+        })
+        .catch(() => {});
+      void client
+        .invalidateQueries({ queryKey: ["secretary-tasks", owner] })
+        .catch(() => {});
     },
   });
+  const request = () => ({
+    owner: ownerUserId,
+    requestId: secretaryRetryRequests.getState().acquire(ownerUserId),
+  });
+  return {
+    ...mutation,
+    hasUnconfirmedRequest: Boolean(pendingRequest),
+    mutate: () => mutation.mutate(request()),
+    mutateAsync: () => mutation.mutateAsync(request()),
+  };
 }
