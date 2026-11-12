@@ -30,11 +30,11 @@ describe("settings navigation", () => {
     expect(settingsSectionForPath("/settings/secretary")?.id).toBe("secretary");
   });
 
-  it("exposes all nine settings with descriptions and one selected section", () => {
+  it("exposes all ten settings with descriptions and one selected section", () => {
     route.pathname = "/settings";
     render(<SettingsSidebar />);
     const navigation = screen.getByRole("navigation", { name: "Settings" });
-    expect(within(navigation).getAllByRole("link")).toHaveLength(9);
+    expect(within(navigation).getAllByRole("link")).toHaveLength(10);
     expect(
       within(navigation).getByRole("link", { name: /Notifications/ }),
     ).toHaveAttribute("aria-current", "page");
@@ -77,5 +77,14 @@ describe("settings navigation", () => {
     expect(
       screen.getByRole("link", { name: /Back to workspace/ }),
     ).toBeInTheDocument();
+  });
+
+  it("selects the harness sign-in recovery destination", () => {
+    route.pathname = "/settings/agent-sign-in";
+    render(<SettingsSidebar />);
+    expect(screen.getByRole("link", { name: /Agent sign-in/ })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
   });
 });

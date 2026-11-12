@@ -90,6 +90,12 @@ export function SettingsPage({ advanced = false }: { advanced?: boolean }) {
                     <>
                       <SettingsGroup>
                         <SettingsLink
+                          href={settingsLinks.agentSignIn}
+                          icon={KeyRound}
+                          title="Agent sign-in"
+                          description="Sign in to Claude Code or Codex on a device and renew expired access."
+                        />
+                        <SettingsLink
                           href={settingsLinks.notifications}
                           icon={Bell}
                           title="Notifications"

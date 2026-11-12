@@ -35,6 +35,39 @@ export type Node = {
   latest_daemon_commands?: DaemonCommandRecord[];
 };
 
+export type LoginHarness = "claude" | "codex";
+export type HarnessLoginMethod =
+  | "subscription"
+  | "console"
+  | "device"
+  | "api-key"
+  | "access-token";
+
+/** Ephemeral native CLI status. Never persist challenges or credentials. */
+export type HarnessAuthView = {
+  harness: LoginHarness;
+  session_id?: string;
+  state: string;
+  authorization_url?: string;
+  user_code?: string;
+  method?: HarnessLoginMethod;
+  expires_at?: string;
+  logged_in?: boolean;
+  auth_method?: string;
+  error_code?: string;
+};
+
+export type HarnessAuthData = { harness_auth: HarnessAuthView };
+
+export type HarnessLoginInput = {
+  command_id: string;
+  operation: "start" | "submit" | "cancel";
+  session_id?: string;
+  method?: HarnessLoginMethod;
+  /** One-time code, API key or access token. Never place in query/mutation caches. */
+  code?: string;
+};
+
 export type DaemonCommandState = "in_progress" | "succeeded" | "failed";
 
 export type NodeDaemonMaintenanceConfirmation = {

@@ -37,6 +37,7 @@ const fixtures = vi.hoisted(() => ({
     transport: "manager",
   } as AgentSession,
   localStatus: "idle" as ConversationRunStatus,
+  conversationError: null as Error | null,
   encryptedStatus: "idle" as ConversationRunStatus,
   sendMessage: vi.fn().mockResolvedValue({ sessionId: "sess_1" }),
   sendEncryptedMessage: vi.fn().mockResolvedValue(undefined),
@@ -71,7 +72,9 @@ vi.mock("@/features/api/resources", async (importOriginal) => ({
   useNodes: () => ({
     data: { nodes: [{ node_id: "node_1", online: fixtures.nodeOnline }] },
   }),
-  useNodeAgents: () => ({ data: { agents: [{ agent_id: "agent_1" }] } }),
+  useNodeAgents: () => ({
+    data: { agents: [{ agent_id: "agent_1", agent_type: "claude-code" }] },
+  }),
   useAgentSessions: () => fixtures.emptyQuery,
   useAgentPermissionCatalog: () => fixtures.emptyQuery,
   useSessionConfiguration: () => fixtures.emptyQuery,
@@ -99,6 +102,7 @@ vi.mock("@/features/api/workspace-search", async (importOriginal) => ({
 vi.mock("@/features/runtime/use-conversation-run", () => ({
   useConversationRun: () => ({
     status: fixtures.localStatus,
+    error: fixtures.conversationError,
     events: fixtures.conversationEvents,
     sendMessage: fixtures.sendMessage,
     completedTurnVersion: 0,
@@ -168,6 +172,7 @@ beforeEach(() => {
     transport: "manager",
   };
   fixtures.localStatus = "idle";
+  fixtures.conversationError = null;
   fixtures.encryptedStatus = "idle";
   fixtures.conversationEvents = [];
   fixtures.history = [];
@@ -221,6 +226,38 @@ function workbench(
     </QueryClientProvider>
   );
 }
+
+describe("agent sign-in recovery", () => {
+  it("offers Settings sign-in after an explicit agent authentication failure", () => {
+    fixtures.localStatus = "error";
+    fixtures.conversationError = new Error("Authentication required");
+    render(workbench());
+    const href = screen
+      .getByRole("link", { name: "Open Agent sign-in" })
+      .getAttribute("href")!;
+    const url = new URL(href, "https://paxworkspace.net");
+    expect(url.searchParams.get("node_id")).toBe("node_1");
+    expect(url.searchParams.get("session_id")).toBe("sess_1");
+    expect(url.searchParams.get("harness")).toBe("claude");
+  });
+
+  it("does not infer failure from an ordinary assistant message about authentication", () => {
+    fixtures.conversationEvents = [
+      {
+        type: "agent_message",
+        id: "explanation",
+        sessionId: "sess_1",
+        content:
+          "Failed to authenticate: OAuth session expired and could not be refreshed",
+        createdAt: "2026-11-12T05:39:48Z",
+      },
+    ];
+    render(workbench());
+    expect(
+      screen.queryByRole("link", { name: "Open Agent sign-in" }),
+    ).not.toBeInTheDocument();
+  });
+});
 
 describe("agent-owned Android preparation", () => {
   const attachment = {

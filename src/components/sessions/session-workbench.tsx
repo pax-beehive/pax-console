@@ -1,6 +1,7 @@
 "use client";
 
 import { ExternalSessionNotice } from "./external-session-notice";
+import { SessionAuthenticationNotice } from "./session-authentication-notice";
 import { CronOriginBadge } from "@/components/sessions/cron-origin-badge";
 import { cronSessionOrigin } from "@/features/sessions/session-origin";
 import { stageEncryptedAttachment } from "@/features/e2ee/attachments";
@@ -2858,6 +2859,16 @@ export function SessionWorkbench({
               hasError={displayedHistoryQuery.isError}
               onLoadEarlier={requestEarlierHistory}
               autoLoad={!focusedHistory}
+            />
+            <SessionAuthenticationNotice
+              error={
+                usesEncryptedTransport
+                  ? encryptedRuntime.error
+                  : (conversationRun.error ?? sessionObserver.error)
+              }
+              nodeId={activeNodeId}
+              sessionId={currentSessionId}
+              agentType={activeAgent?.agent_type}
             />
             <SessionErrors
               messagesError={
