@@ -181,13 +181,29 @@ export const SessionComposer = memo(function SessionComposer({
     getHints: getVoiceHints,
     maxDurationSeconds: voiceInput?.maxDurationSeconds,
   });
-  // The draft is still being written by dictation; nothing may send it yet.
+  // The draft is still being written by dictation. Sending now means "stop
+  // and send once the final transcript is in"; this holds the draft key the
+  // send was requested for.
   const dictating = voice.status !== "idle";
+  const [sendAfterDictation, setSendAfterDictation] = useState<string | null>(
+    null,
+  );
   const cancelDictation = voice.cancel;
   useEffect(() => {
     if (secure) cancelDictation();
   }, [cancelDictation, secure]);
   const hasAttachments = attachments.length > 0;
+  const canSendDictation =
+    dictating &&
+    !sendAfterDictation &&
+    !newSessionCwdInvalid &&
+    !attachmentUploadPending &&
+    (isTurnRunning
+      ? supportsQueuedTurns &&
+        Boolean(activeAgentId && currentSessionId) &&
+        !hasAttachments &&
+        !queueTurnPending
+      : Boolean(activeAgentId && activeNodeId));
   const canSend =
     Boolean(activeAgentId && activeNodeId) &&
     !isTurnRunning &&
@@ -244,6 +260,13 @@ export const SessionComposer = memo(function SessionComposer({
 
   function submit(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
+    if (dictating) {
+      if (canSendDictation) {
+        setSendAfterDictation(draftKey);
+        voice.stop();
+      }
+      return;
+    }
     const submittedDraft =
       useConsoleStore.getState().composerDrafts[draftKey] ?? "";
     const content = submittedDraft.trim();
@@ -294,13 +317,9 @@ export const SessionComposer = memo(function SessionComposer({
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (dictating) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        voice.stop();
-      } else if (event.key === "Enter") {
-        event.preventDefault();
-      }
+    if (dictating && event.key === "Escape") {
+      event.preventDefault();
+      voice.stop();
       return;
     }
     if (
@@ -328,6 +347,22 @@ export const SessionComposer = memo(function SessionComposer({
       }
     });
   }
+
+  const submitRef = useRef(submit);
+  useEffect(() => {
+    submitRef.current = submit;
+  });
+  const dictationError = voice.error;
+  useEffect(() => {
+    if (!sendAfterDictation || dictating) return;
+    setSendAfterDictation(null);
+    // A failed dictation keeps its text for review instead of sending a
+    // possibly truncated message; a cancelled one (session switch or
+    // encryption) must not send another draft.
+    if (sendAfterDictation === draftKey && !dictationError && !secure) {
+      submitRef.current();
+    }
+  }, [dictating, dictationError, draftKey, secure, sendAfterDictation]);
 
   return (
     <form
@@ -680,9 +715,9 @@ export const SessionComposer = memo(function SessionComposer({
                     ? "Queue after current turn"
                     : "Waiting for session id"
                 }
-                disabled={!canQueueTurn}
+                disabled={!canQueueTurn && !canSendDictation}
                 icon={
-                  queueTurnPending ? (
+                  queueTurnPending || sendAfterDictation ? (
                     <LoaderCircle className="h-4 w-4 animate-spin" />
                   ) : (
                     <Send className="h-4 w-4" />
@@ -690,9 +725,11 @@ export const SessionComposer = memo(function SessionComposer({
                 }
                 size="icon"
                 tooltip={
-                  currentSessionId
-                    ? "Queue after current turn"
-                    : "Waiting for session id"
+                  !currentSessionId
+                    ? "Waiting for session id"
+                    : dictating
+                      ? "Queue when dictation finishes"
+                      : "Queue after current turn"
                 }
                 type="submit"
                 variant="primary"
@@ -757,10 +794,20 @@ export const SessionComposer = memo(function SessionComposer({
                   secure &&
                     "border-emerald-400/60 bg-emerald-400 text-emerald-950 shadow-[0_0_18px_rgba(52,211,153,0.16)] hover:bg-emerald-300",
                 )}
-                disabled={!canSend && !canCreateEmptySession}
-                icon={<ArrowUp className="h-5 w-5" />}
+                disabled={
+                  !canSend && !canCreateEmptySession && !canSendDictation
+                }
+                icon={
+                  sendAfterDictation ? (
+                    <LoaderCircle className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <ArrowUp className="h-5 w-5" />
+                  )
+                }
                 size="icon"
-                tooltip="Send prompt"
+                tooltip={
+                  dictating ? "Send when dictation finishes" : "Send prompt"
+                }
                 type="submit"
                 variant="primary"
               />
