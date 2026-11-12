@@ -194,7 +194,6 @@ export const SessionComposer = memo(function SessionComposer({
     (isTurnRunning
       ? supportsQueuedTurns &&
         Boolean(activeAgentId && currentSessionId) &&
-        !hasAttachments &&
         !queueTurnPending
       : Boolean(activeAgentId && activeNodeId));
   const canSend =
@@ -208,8 +207,7 @@ export const SessionComposer = memo(function SessionComposer({
     isTurnRunning &&
     supportsQueuedTurns &&
     Boolean(activeAgentId && currentSessionId) &&
-    hasContent &&
-    !hasAttachments &&
+    (hasContent || hasAttachments) &&
     !attachmentUploadPending &&
     !dictating &&
     !queueTurnPending;
@@ -217,8 +215,7 @@ export const SessionComposer = memo(function SessionComposer({
     isTurnRunning &&
     supportsQueuedTurns &&
     Boolean(activeAgentId && currentSessionId) &&
-    hasContent &&
-    !hasAttachments &&
+    (hasContent || hasAttachments) &&
     !attachmentUploadPending &&
     !dictating &&
     !steerTurnPending;
@@ -328,7 +325,7 @@ export const SessionComposer = memo(function SessionComposer({
   function steer() {
     const content =
       useConsoleStore.getState().composerDrafts[draftKey]?.trim() ?? "";
-    if (!canSteerTurn || !content) {
+    if (!canSteerTurn || (!content && !hasAttachments)) {
       return;
     }
     void onSteer(content).then((accepted) => {
@@ -495,9 +492,32 @@ export const SessionComposer = memo(function SessionComposer({
                 </div>
               </div>
             ) : (
-              <p className="max-h-24 overflow-auto whitespace-pre-wrap text-sm leading-5 text-ink-muted">
-                {queuedTurn.input}
-              </p>
+              queuedTurn.input && (
+                <p className="max-h-24 overflow-auto whitespace-pre-wrap text-sm leading-5 text-ink-muted">
+                  {queuedTurn.input}
+                </p>
+              )
+            )}
+            {queuedTurn.attachments && queuedTurn.attachments.length > 0 && (
+              <div
+                aria-label="Queued files"
+                className="flex flex-wrap gap-1.5"
+                role="group"
+              >
+                {queuedTurn.attachments.map((file) => (
+                  <Badge
+                    className="max-w-full"
+                    key={file.attachment_id}
+                    tooltip={file.filename}
+                  >
+                    <Paperclip
+                      aria-hidden="true"
+                      className="h-3 w-3 shrink-0"
+                    />
+                    <span className="max-w-44 truncate">{file.filename}</span>
+                  </Badge>
+                ))}
+              </div>
             )}
           </div>
         )}
@@ -526,7 +546,6 @@ export const SessionComposer = memo(function SessionComposer({
           uploading={attachmentUploadPending}
           error={attachmentError}
           onDismissError={onDismissAttachmentError}
-          waitingForTurn={isTurnRunning && hasAttachments}
         />
         {voice.error && (
           <ComposerVoiceError

@@ -66,6 +66,8 @@ const {
   stopNodeDaemonAgentConnection,
   stopSessionTurn,
   toPaxdConnectPreview,
+  turnPromptBody,
+  assertQueuedAttachments,
   updateAgentSession,
   updateQueuedSessionTurn,
   updateNodeAgentProfile,
@@ -126,6 +128,37 @@ it("preserves explicit turn search scope through queue, queued edits and steerin
   for (const [, options] of apiFetch.mock.calls) {
     expect(JSON.parse(options.body)).toEqual(input);
   }
+});
+
+describe("queued turn prompts with files", () => {
+  it("keeps text-only prompts in input and sends files as content blocks", () => {
+    expect(turnPromptBody("hi", [])).toEqual({ input: "hi" });
+    expect(turnPromptBody("read these", ["att_1", "att_2"])).toEqual({
+      content: [
+        { type: "text", text: "read these" },
+        { type: "attachment", attachment_id: "att_1" },
+        { type: "attachment", attachment_id: "att_2" },
+      ],
+    });
+    expect(turnPromptBody("", ["att_1"])).toEqual({
+      content: [{ type: "attachment", attachment_id: "att_1" }],
+    });
+  });
+
+  it("rejects a Manager response that dropped the queued files", () => {
+    expect(() => assertQueuedAttachments([], {})).not.toThrow();
+    expect(() =>
+      assertQueuedAttachments(["att_1"], {
+        attachments: [{ attachment_id: "att_1", filename: "notes.txt" }],
+      }),
+    ).not.toThrow();
+    expect(() => assertQueuedAttachments(["att_1"], {})).toThrow(
+      /cannot queue files/,
+    );
+    expect(() =>
+      assertQueuedAttachments(["att_1"], { attachments: [] }),
+    ).toThrow(/cannot queue files/);
+  });
 });
 
 describe("uploadUserAttachmentFile", () => {

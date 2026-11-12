@@ -2208,6 +2208,15 @@ or overwrite it. Explicit deletion removes tracking, not an already received
 prompt. The observer remains read-only and waits across one periodic snapshot
 interval; it does not own queue dispatch. Deploy Manager before Console.
 
+Queue and steer accept attachments too. Build the body with `turnPromptBody`:
+text alone stays in `input`, and files use the conversation `content` blocks.
+Files-only prompts are allowed, up to 20 files. The manager localizes files on
+the node before responding and stores their metadata; the queued card lists
+`attachments`. PATCH edits only the text and keeps the files. Older managers
+ignore `content` files and omit `attachments` from the response.
+`assertQueuedAttachments` turns that into an error and keeps the files in the
+composer instead of dropping them, so deploy the manager first here as well.
+
 ## Discovering subsequent turns
 
 The open workbench polls session metadata every five seconds (other consumers
