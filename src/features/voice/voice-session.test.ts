@@ -155,7 +155,10 @@ describe("VoiceSession", () => {
   });
 
   it("ends at once when stopped while the microphone is still opening", async () => {
-    let open: (value: { sampleRate: number; stop: () => void }) => void = () => {};
+    let open: (value: {
+      sampleRate: number;
+      stop: () => void;
+    }) => void = () => {};
     const stops: number[] = [];
     const t = setup({
       startMicrophone: () =>
@@ -172,5 +175,20 @@ describe("VoiceSession", () => {
     expect(stops).toHaveLength(1);
     expect(t.sockets).toHaveLength(0);
     expect(t.results).toHaveLength(1);
+  });
+
+  it("passes on a microphone notice", async () => {
+    const notices: string[] = [];
+    const t = setup({
+      startMicrophone: async () => ({
+        sampleRate: 48_000,
+        stop: () => undefined,
+        notice: "switched",
+      }),
+      onNotice: (message) => notices.push(message),
+    });
+    await t.session.start();
+    expect(notices).toEqual(["switched"]);
+    expect(t.sockets).toHaveLength(1);
   });
 });

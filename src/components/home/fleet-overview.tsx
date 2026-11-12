@@ -14,6 +14,7 @@ import { ComposerAttachmentStatus } from "@/components/sessions/composer-attachm
 import {
   ComposerVoiceControl,
   ComposerVoiceError,
+  ComposerVoiceNotice,
 } from "@/components/sessions/composer-voice-control";
 import { useComposerDictation } from "@/features/voice/use-composer-dictation";
 import { useVoiceConfig } from "@/features/voice/use-voice-config";
@@ -1421,6 +1422,12 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                       <ComposerVoiceError
                         message={dictation.error}
                         onDismiss={dictation.dismissError}
+                      />
+                    )}
+                    {dictation.notice && !dictation.error && (
+                      <ComposerVoiceNotice
+                        message={dictation.notice}
+                        onDismiss={dictation.dismissNotice}
                       />
                     )}
                     <SessionDraftInput

@@ -2,6 +2,7 @@
 
 import {
   AlertCircle,
+  Info,
   LoaderCircle,
   Mic,
   MicOff,
@@ -167,6 +168,36 @@ export function ComposerVoiceError({
       </div>
       <Button
         aria-label="Dismiss voice input error"
+        className="h-6 w-6"
+        icon={<X className="h-3.5 w-3.5" />}
+        onClick={onDismiss}
+        size="icon"
+        type="button"
+        variant="ghost"
+      />
+    </div>
+  );
+}
+
+export function ComposerVoiceNotice({
+  message,
+  onDismiss,
+}: {
+  message: string;
+  onDismiss: () => void;
+}) {
+  return (
+    <div
+      className="mb-2 flex items-start gap-2 rounded-xl border border-hairline bg-surface-2 px-3 py-2"
+      role="status"
+    >
+      <Info
+        aria-hidden="true"
+        className="mt-0.5 h-4 w-4 shrink-0 text-ink-muted"
+      />
+      <p className="min-w-0 flex-1 text-xs text-ink-muted">{message}</p>
+      <Button
+        aria-label="Dismiss voice input notice"
         className="h-6 w-6"
         icon={<X className="h-3.5 w-3.5" />}
         onClick={onDismiss}
