@@ -49,6 +49,8 @@ type Options = {
   getHints?: () => VoiceHints;
   /** Recording stops on its own shortly before the server limit. */
   maxDurationSeconds?: number;
+  /** Called when a dictation ends, after the final text is in the draft. */
+  onEnd?: () => void;
   /** Test seam for the socket and microphone. */
   sessionOptions?: Pick<
     VoiceSessionOptions,
@@ -65,6 +67,7 @@ export function useVoiceDictation({
   draftKey,
   getHints,
   maxDurationSeconds,
+  onEnd,
   sessionOptions,
 }: Options) {
   const [status, setStatus] = useState<DictationStatus>("idle");
@@ -74,6 +77,10 @@ export function useVoiceDictation({
   const sessionRef = useRef<VoiceSession | undefined>(undefined);
   const anchorRef = useRef<DictationAnchor | undefined>(undefined);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const onEndRef = useRef(onEnd);
+  useEffect(() => {
+    onEndRef.current = onEnd;
+  });
 
   const write = useCallback(
     (spoken: string) => {
@@ -127,6 +134,7 @@ export function useVoiceDictation({
           ) {
             requestAnimationFrame(() => field.setSelectionRange(caret, caret));
           }
+          onEndRef.current?.();
         },
       });
       sessionRef.current = session;

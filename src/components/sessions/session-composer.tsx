@@ -6,7 +6,6 @@ import {
   ReactNode,
   memo,
   useCallback,
-  useEffect,
   useRef,
   useState,
 } from "react";
@@ -52,7 +51,7 @@ import type {
   SessionAvailableCommand,
   TurnSearchAccess,
 } from "@/features/api/types";
-import { useVoiceDictation } from "@/features/voice/use-voice-dictation";
+import { useComposerDictation } from "@/features/voice/use-composer-dictation";
 import type { VoiceHints } from "@/features/voice/voice-session";
 import { compactId } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -176,22 +175,16 @@ export const SessionComposer = memo(function SessionComposer({
     queue: { pending: false, lastStartedAt: -Infinity },
   });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const voice = useVoiceDictation({
+  const voice = useComposerDictation({
     draftKey,
     getHints: getVoiceHints,
     maxDurationSeconds: voiceInput?.maxDurationSeconds,
+    blocked: secure,
+    send: () => submit(),
   });
-  // The draft is still being written by dictation. Sending now means "stop
-  // and send once the final transcript is in"; this holds the draft key the
-  // send was requested for.
-  const dictating = voice.status !== "idle";
-  const [sendAfterDictation, setSendAfterDictation] = useState<string | null>(
-    null,
-  );
-  const cancelDictation = voice.cancel;
-  useEffect(() => {
-    if (secure) cancelDictation();
-  }, [cancelDictation, secure]);
+  // While dictating, the draft is still being written; sending means "stop
+  // and send once the final transcript is in".
+  const { dictating, sendPending: sendAfterDictation } = voice;
   const hasAttachments = attachments.length > 0;
   const canSendDictation =
     dictating &&
@@ -261,10 +254,7 @@ export const SessionComposer = memo(function SessionComposer({
   function submit(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     if (dictating) {
-      if (canSendDictation) {
-        setSendAfterDictation(draftKey);
-        voice.stop();
-      }
+      if (canSendDictation) voice.sendWhenDone();
       return;
     }
     const submittedDraft =
@@ -347,22 +337,6 @@ export const SessionComposer = memo(function SessionComposer({
       }
     });
   }
-
-  const submitRef = useRef(submit);
-  useEffect(() => {
-    submitRef.current = submit;
-  });
-  const dictationError = voice.error;
-  useEffect(() => {
-    if (!sendAfterDictation || dictating) return;
-    setSendAfterDictation(null);
-    // A failed dictation keeps its text for review instead of sending a
-    // possibly truncated message; a cancelled one (session switch or
-    // encryption) must not send another draft.
-    if (sendAfterDictation === draftKey && !dictationError && !secure) {
-      submitRef.current();
-    }
-  }, [dictating, dictationError, draftKey, secure, sendAfterDictation]);
 
   return (
     <form

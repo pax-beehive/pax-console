@@ -11,11 +11,18 @@ import { stageEncryptedAttachment } from "@/features/e2ee/attachments";
 import { SessionDraftInput } from "@/components/sessions/session-draft-input";
 import { ComposerDropZone } from "@/components/sessions/composer-drop-zone";
 import { ComposerAttachmentStatus } from "@/components/sessions/composer-attachment-status";
+import {
+  ComposerVoiceControl,
+  ComposerVoiceError,
+} from "@/components/sessions/composer-voice-control";
+import { useComposerDictation } from "@/features/voice/use-composer-dictation";
+import { useVoiceConfig } from "@/features/voice/use-voice-config";
 import Link from "next/link";
 import {
   FormEvent,
   KeyboardEvent,
   UIEvent,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -674,6 +681,24 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const mobilePaneOpen = mobileDetailOpen || mobileComposerOpen;
   const secureComposerActive =
     !activeSessionTarget && newSessionTransport === "e2ee" && encryptionReady;
+  const voiceConfig = useVoiceConfig().data;
+  // Home has no timeline yet; the chosen workspace folder is the one name the
+  // user is likely to say.
+  const workspaceFolder = normalizedNewSessionCwd
+    .split("/")
+    .filter(Boolean)
+    .at(-1);
+  const getHomeVoiceHints = useCallback(
+    () => (workspaceFolder ? { keywords: [workspaceFolder] } : {}),
+    [workspaceFolder],
+  );
+  const dictation = useComposerDictation({
+    draftKey: homeDraftKey,
+    getHints: getHomeVoiceHints,
+    maxDurationSeconds: voiceConfig?.max_duration_seconds,
+    blocked: secureComposerActive,
+    send: () => submit(),
+  });
 
   useEffect(() => {
     if (!canonicalUrlSessionId && legacyUrlSessionId) {
@@ -745,8 +770,12 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     setNewSessionTransport("manager");
   }
 
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function submit(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    if (dictation.dictating) {
+      dictation.sendWhenDone();
+      return;
+    }
     const draft = useConsoleStore.getState().composerDrafts[homeDraftKey] ?? "";
     if (composerMode === "summarize-note" && selectedInquiry) {
       setGeneratedDrafts((current) => ({
@@ -896,6 +925,11 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   }
 
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (dictation.dictating && event.key === "Escape") {
+      event.preventDefault();
+      dictation.stop();
+      return;
+    }
     if (
       event.key !== "Enter" ||
       event.shiftKey ||
@@ -1383,11 +1417,19 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                       error={composerAttachmentError}
                       onDismissError={() => setComposerAttachmentError(null)}
                     />
+                    {dictation.error && (
+                      <ComposerVoiceError
+                        message={dictation.error}
+                        onDismiss={dictation.dismissError}
+                      />
+                    )}
                     <SessionDraftInput
                       draftKey={homeDraftKey}
                       className="max-h-40 min-h-10 w-full resize-none overflow-y-auto bg-transparent px-1 py-1 text-base leading-6 text-ink outline-none [field-sizing:content] placeholder:text-ink-tertiary sm:text-sm sm:leading-5"
+                      data-composer-draft=""
                       enterKeyHint="send"
                       onKeyDown={handleComposerKeyDown}
+                      readOnly={dictation.dictating}
                       placeholder={
                         secureComposerActive
                           ? "Send an end-to-end encrypted message"
@@ -1510,6 +1552,26 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                         </Badge>
                       )}
                       <div className="ml-auto flex shrink-0 items-center gap-2">
+                        {voiceConfig?.enabled && (
+                          <ComposerVoiceControl
+                            disabledReason={
+                              secureComposerActive
+                                ? "Voice input is off in encrypted sessions"
+                                : undefined
+                            }
+                            level={dictation.level}
+                            onStart={(trigger) =>
+                              dictation.start(
+                                trigger.form?.querySelector<HTMLTextAreaElement>(
+                                  "textarea[data-composer-draft]",
+                                ),
+                              )
+                            }
+                            onStop={dictation.stop}
+                            startedAt={dictation.startedAt}
+                            status={dictation.status}
+                          />
+                        )}
                         <Button
                           aria-label="Start session"
                           className={cn(
@@ -1526,11 +1588,22 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                             encryptionBlocked ||
                             workspaceLoading ||
                             newSessionCwdInvalid ||
-                            composerAttachmentUploadPending
+                            composerAttachmentUploadPending ||
+                            dictation.sendPending
                           }
-                          icon={<ArrowUp className="h-5 w-5" />}
+                          icon={
+                            dictation.sendPending ? (
+                              <LoaderCircle className="h-5 w-5 animate-spin" />
+                            ) : (
+                              <ArrowUp className="h-5 w-5" />
+                            )
+                          }
                           size="icon"
-                          tooltip="Start session"
+                          tooltip={
+                            dictation.dictating
+                              ? "Start when dictation finishes"
+                              : "Start session"
+                          }
                           type="submit"
                           variant="primary"
                         />
