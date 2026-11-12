@@ -6,6 +6,7 @@ import {
   Bot,
   FolderTree,
   KeyRound,
+  Mic,
   Server,
   Settings2,
   ShieldCheck,
@@ -100,6 +101,12 @@ export function SettingsPage({ advanced = false }: { advanced?: boolean }) {
                           icon={Bell}
                           title="Notifications"
                           description="Enable push notifications and test this device."
+                        />
+                        <SettingsLink
+                          href={settingsLinks.voice}
+                          icon={Mic}
+                          title="Voice input"
+                          description="Choose the microphone dictation uses on this device."
                         />
                         <SettingsLink
                           href={settingsLinks.devices}

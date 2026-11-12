@@ -2663,6 +2663,7 @@ it does not add HLS packaging, transcoding, or adaptive quality selection.
   Enter，会先停止录音，等最终结果写进草稿后再自动发送；识别失败时不发送，保留已识别的
   文字并显示内联错误。steer 在听写期间禁用。切换草稿或进入加密会话会取消听写，且不会
   发送。听写结束时不会把焦点放回输入框，避免手机弹出键盘。
+- 麦克风选择：设置里的“Voice input”页面，按设备保存在 localStorage（`microphone-preference.ts`）。默认“Keep music playing”：关闭回声消除、降噪、自动增益，Android 不会把蓝牙耳机切到通话模式，音乐不中断，用手机自带麦克风。“Headset microphone”：打开这些处理，使用耳机麦克风，但音乐会被打断。每次开始听写时读取。
 - 识别提示：`buildVoiceHints(timeline)` 从时间线提取文件名、标识符、反引号里的代码和
   最近 8 条消息。workbench 通过稳定的 getter 提供，开始听写时才计算。
 - 模块：`src/features/voice/`（microphone、pcm、voice-protocol、voice-session、

@@ -30,17 +30,20 @@ describe("settings navigation", () => {
     expect(settingsSectionForPath("/settings/secretary")?.id).toBe("secretary");
   });
 
-  it("exposes all ten settings with descriptions and one selected section", () => {
+  it("exposes all eleven settings with descriptions and one selected section", () => {
     route.pathname = "/settings";
     render(<SettingsSidebar />);
     const navigation = screen.getByRole("navigation", { name: "Settings" });
-    expect(within(navigation).getAllByRole("link")).toHaveLength(10);
+    expect(within(navigation).getAllByRole("link")).toHaveLength(11);
     expect(
       within(navigation).getByRole("link", { name: /Notifications/ }),
     ).toHaveAttribute("aria-current", "page");
     expect(
       within(navigation).getByText("Alerts on this device"),
     ).toBeInTheDocument();
+    expect(
+      within(navigation).getByRole("link", { name: /Voice input/ }),
+    ).toHaveAttribute("href", "/settings/voice");
     expect(
       within(navigation).getByText("Security & access"),
     ).toBeInTheDocument();
