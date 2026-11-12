@@ -36,6 +36,7 @@ import { isAbsoluteLocalPath } from "@/features/local-files/local-file-href";
 import {
   PermissionDecision,
   permissionRequestCodePatches,
+  PermissionRequestEvent,
   SessionEvent,
   toolCallAppliedPatches,
   toolCallProposedPatches,
@@ -114,6 +115,7 @@ export const WorkstreamItemCard = memo(function WorkstreamItemCard({
       <WorkGroupCard
         userId={userId}
         complete={item.complete}
+        approvals={item.approvals}
         completedAt={item.completedAt}
         events={item.events}
         onSelectToolEvidence={onSelectToolEvidence}
@@ -176,7 +178,11 @@ function areWorkstreamItemsEqual(
       previous.complete === next.complete &&
       previous.completedAt === next.completedAt &&
       previous.events.length === next.events.length &&
-      previous.events.every((event, index) => event === next.events[index])
+      previous.events.every((event, index) => event === next.events[index]) &&
+      (previous.approvals?.length ?? 0) === (next.approvals?.length ?? 0) &&
+      (previous.approvals ?? []).every(
+        (event, index) => event === next.approvals?.[index],
+      )
     );
   }
   if (previous.type === "turn_footer" && next.type === "turn_footer") {
@@ -1024,6 +1030,7 @@ function ownerDisplayName(ownerInfo: AgentOwnerInfo | undefined) {
 }
 
 function WorkGroupCard({
+  approvals = [],
   complete,
   completedAt,
   events,
@@ -1031,6 +1038,7 @@ function WorkGroupCard({
   permissionDecision,
   userId,
 }: {
+  approvals?: PermissionRequestEvent[];
   complete: boolean;
   completedAt?: string;
   events: WorkActivityEvent[];
@@ -1059,7 +1067,11 @@ function WorkGroupCard({
   const needsApproval = pendingPermissions.length > 0;
   const onlySubagentCompletions =
     events.length > 0 && events.every(isSubagentCompletion);
-  const start = Date.parse(events[0]?.createdAt ?? "");
+  const start = Date.parse(
+    [events[0]?.createdAt, approvals[0]?.createdAt]
+      .filter((value): value is string => Boolean(value))
+      .sort()[0] ?? "",
+  );
   const end = Date.parse(completedAt ?? "");
   const elapsedSeconds =
     complete && Number.isFinite(start) && Number.isFinite(end) && end >= start
@@ -1073,7 +1085,7 @@ function WorkGroupCard({
         : `${Math.floor(elapsedSeconds / 60)}m ${elapsedSeconds % 60}s`;
   // A tool error is evidence for the agent, not a terminal error for the turn.
   // Do not infer "retrying" until another tool invocation actually arrives.
-  const label = needsApproval
+  const baseLabel = needsApproval
     ? "Waiting for approval"
     : onlySubagentCompletions
       ? events.length === 1
@@ -1084,6 +1096,10 @@ function WorkGroupCard({
           ? `Worked for ${durationLabel}`
           : "Worked"
         : liveActivityLabel(events);
+  const label =
+    approvals.length > 0 && !needsApproval
+      ? `${baseLabel} · ${approvals.length} ${approvals.length === 1 ? "approval" : "approvals"}`
+      : baseLabel;
 
   return (
     <section aria-label="Agent activity" className="min-w-0">
@@ -1137,6 +1153,14 @@ function WorkGroupCard({
                 />
               ),
             )}
+            {approvals.map((permission) => (
+              <PermissionRequestCard
+                event={permission}
+                key={permission.approvalId ?? permission.id}
+                onSelectToolEvidence={onSelectToolEvidence}
+                permissionDecision={permissionDecision}
+              />
+            ))}
           </div>
         )}
       </details>
