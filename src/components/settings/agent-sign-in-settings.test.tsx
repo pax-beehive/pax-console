@@ -673,7 +673,7 @@ it.each(["claude", "codex"] as const)(
     mount({ initialHarness: harness });
     const panel = await screen.findByLabelText("Plan usage");
     expect(panel).toHaveTextContent("5-hour");
-    expect(panel).toHaveTextContent("41%");
+    expect(panel).toHaveTextContent("41% used");
     expect(
       within(panel).getByRole("meter", { name: "5-hour limit" }),
     ).toHaveAttribute("aria-valuenow", "41");

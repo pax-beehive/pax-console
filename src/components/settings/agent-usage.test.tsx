@@ -161,7 +161,7 @@ it("renders each window with an accessible meter, reset time and freshness", asy
   expect(fiveHour).toHaveAttribute("aria-valuemax", "100");
   expect(fiveHour).toHaveAttribute("aria-valuetext", "12% used");
   expect(screen.getByText("5-hour")).toBeInTheDocument();
-  expect(screen.getByText("12%")).toBeInTheDocument();
+  expect(screen.getByText("12% used")).toBeInTheDocument();
   expect(screen.getByText("3h 20m")).toHaveTextContent("resets in 3h 20m");
   expect(screen.getByRole("meter", { name: "Weekly limit" })).toHaveAttribute(
     "aria-valuenow",
@@ -302,7 +302,7 @@ it("refetches on refresh, disables the button meanwhile and keeps data on failur
       }),
     );
   });
-  expect(await screen.findByText("9%")).toBeInTheDocument();
+  expect(await screen.findByText("9% used")).toBeInTheDocument();
   expect(screen.getByText("Updated just now")).toBeInTheDocument();
   expect(refresh).toBeEnabled();
 
@@ -311,7 +311,7 @@ it("refetches on refresh, disables the button meanwhile and keeps data on failur
   expect(
     await screen.findByText("Plan usage could not be refreshed."),
   ).toBeInTheDocument();
-  expect(screen.getByText("9%")).toBeInTheDocument();
+  expect(screen.getByText("9% used")).toBeInTheDocument();
 });
 
 it.each([
@@ -326,11 +326,11 @@ it.each([
       }),
     );
     const view = mount();
-    await screen.findByText("3%");
+    await screen.findByText("3% used");
     const next = deferred();
     fetchUsage.mockReturnValueOnce(next.promise as never);
     view.rerender(nodeId, harness);
-    expect(screen.queryByText("3%")).not.toBeInTheDocument();
+    expect(screen.queryByText("3% used")).not.toBeInTheDocument();
     expect(screen.getByText("Checking plan usage…")).toBeInTheDocument();
     expect(fetchUsage).toHaveBeenLastCalledWith(
       `/api/v1/user/self/nodes/${nodeId}/harnesses/${harness}/usage`,
@@ -345,8 +345,8 @@ it.each([
       );
     });
     const section = screen.getByLabelText("Plan usage");
-    expect(await within(section).findByText("61%")).toBeInTheDocument();
-    expect(within(section).queryByText("3%")).not.toBeInTheDocument();
+    expect(await within(section).findByText("61% used")).toBeInTheDocument();
+    expect(within(section).queryByText("3% used")).not.toBeInTheDocument();
   },
 );
 
@@ -433,5 +433,5 @@ it("ignores a response for a different harness", async () => {
   expect(
     await screen.findByText("Plan usage is unavailable right now."),
   ).toBeInTheDocument();
-  expect(screen.queryByText("61%")).not.toBeInTheDocument();
+  expect(screen.queryByText("61% used")).not.toBeInTheDocument();
 });
