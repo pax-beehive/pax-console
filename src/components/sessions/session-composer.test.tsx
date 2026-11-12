@@ -111,7 +111,6 @@ describe("SessionComposer", () => {
           onUpdateQueuedTurn={async () => true}
           queueTurnPending={false}
           queuedTurn={null}
-          showAdminFeatures={false}
           steerTurnPending={false}
           stopTurnPending={false}
           updateQueuedTurnPending={false}
@@ -155,7 +154,6 @@ describe("SessionComposer", () => {
           queueTurnPending={false}
           queuedTurn={null}
           secure
-          showAdminFeatures={false}
           steerTurnPending={false}
           stopTurnPending={false}
           supportsQueuedTurns={false}
@@ -201,7 +199,6 @@ describe("SessionComposer", () => {
           onUpdateQueuedTurn={async () => true}
           queueTurnPending={false}
           queuedTurn={null}
-          showAdminFeatures={false}
           steerTurnPending={false}
           stopTurnPending={false}
           updateQueuedTurnPending={false}
@@ -257,7 +254,6 @@ describe("SessionComposer", () => {
           onUpdateQueuedTurn={async () => true}
           queueTurnPending={false}
           queuedTurn={null}
-          showAdminFeatures={false}
           steerTurnPending={false}
           stopTurnPending={false}
           updateQueuedTurnPending={false}
@@ -277,7 +273,7 @@ describe("SessionComposer", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText("Open artifacts")).not.toBeInTheDocument();
     expect(
-      screen.queryByLabelText("Voice input is not available yet"),
+      screen.queryByRole("button", { name: "Dictate" }),
     ).not.toBeInTheDocument();
     fireEvent.change(textarea, { target: { value: "hello" } });
 
@@ -324,7 +320,6 @@ describe("SessionComposer", () => {
           onUpdateQueuedTurn={async () => true}
           queueTurnPending={false}
           queuedTurn={null}
-          showAdminFeatures
           steerTurnPending={false}
           stopTurnPending={false}
           updateQueuedTurnPending={false}
@@ -372,7 +367,6 @@ describe("SessionComposer", () => {
           queuedTurn={null}
           userId="user_1"
           secure
-          showAdminFeatures={false}
           steerTurnPending={false}
           stopTurnPending={false}
           updateQueuedTurnPending={false}
@@ -475,7 +469,6 @@ describe("SessionComposer", () => {
           ]}
           queueTurnPending={false}
           queuedTurn={null}
-          showAdminFeatures={false}
           steerTurnPending={false}
           stopTurnPending={false}
           updateQueuedTurnPending={false}
@@ -544,7 +537,6 @@ describe("SessionComposer", () => {
             queued_turn_id: "queued_1",
             session_id: "sess_1",
           }}
-          showAdminFeatures={false}
           steerTurnPending={false}
           stopTurnPending={false}
           updateQueuedTurnPending={false}
@@ -592,7 +584,6 @@ const creationProps = {
   onUpdateQueuedTurn: async () => true,
   queueTurnPending: false,
   queuedTurn: null,
-  showAdminFeatures: false,
   steerTurnPending: false,
   stopTurnPending: false,
   updateQueuedTurnPending: false,

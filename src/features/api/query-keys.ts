@@ -1,6 +1,7 @@
 export const queryKeys = {
   health: () => ["health"] as const,
   me: () => ["me"] as const,
+  voiceConfig: () => ["voice-config"] as const,
   user: (userId: string) => ["users", userId] as const,
   apiKeys: (userId: string) => ["users", userId, "api-keys"] as const,
   envelopes: (userId: string, filters?: Record<string, string | undefined>) =>
