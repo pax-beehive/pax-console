@@ -2627,8 +2627,10 @@ it does not add HLS packaging, transcoding, or adaptive quality selection.
 - 状态归属：识别文字直接写入 Zustand `composerDrafts[draftKey]`，插在开始听写时的
   光标或选区位置；听写状态在 composer 内的 `useVoiceDictation`；音量走外部 store 加
   `useSyncExternalStore`，只刷新音量条，不重渲染 composer。
-- 听写期间输入框只读，发送、排队和 steer 都禁用；Esc 或停止按钮结束；出错时保留已识别
-  的文字并显示内联错误；切换草稿或进入加密会话会取消听写。
+- 听写期间输入框只读。Esc 或停止按钮只停止录音，不发送。录音中点发送（或排队）或按
+  Enter，会先停止录音，等最终结果写进草稿后再自动发送；识别失败时不发送，保留已识别的
+  文字并显示内联错误。steer 在听写期间禁用。切换草稿或进入加密会话会取消听写，且不会
+  发送。听写结束时不会把焦点放回输入框，避免手机弹出键盘。
 - 识别提示：`buildVoiceHints(timeline)` 从时间线提取文件名、标识符、反引号里的代码和
   最近 8 条消息。workbench 通过稳定的 getter 提供，开始听写时才计算。
 - 模块：`src/features/voice/`（microphone、pcm、voice-protocol、voice-session、

@@ -117,7 +117,7 @@ describe("SessionComposer voice input", () => {
     expect(screen.getByRole("button", { name: "Dictate" })).toBeEnabled();
   });
 
-  it("writes dictation into the draft, holds sending, and stops with Escape", async () => {
+  it("writes dictation into the draft and stops with Escape without sending", async () => {
     const onSubmitDraft = vi.fn().mockResolvedValue(true);
     useConsoleStore.getState().setComposerDraft("sess_voice", "");
     render(
@@ -141,9 +141,6 @@ describe("SessionComposer voice input", () => {
     const textarea = screen.getByRole("textbox");
     expect(textarea).toHaveValue("run the");
     expect(textarea).toHaveAttribute("readonly");
-    expect(screen.getByRole("button", { name: "Send prompt" })).toBeDisabled();
-    fireEvent.keyDown(textarea, { key: "Enter" });
-    expect(onSubmitDraft).not.toHaveBeenCalled();
 
     fireEvent.keyDown(textarea, { key: "Escape" });
     expect(socket.json().at(-1)).toEqual({ type: "stop" });
@@ -152,8 +149,101 @@ describe("SessionComposer voice input", () => {
     act(() => socket.receive({ type: "done", final: "run the tests" }));
     expect(textarea).toHaveValue("run the tests");
     expect(textarea).not.toHaveAttribute("readonly");
+    // Focusing the field would pop the keyboard open on phones.
+    expect(textarea).not.toHaveFocus();
     expect(screen.getByRole("button", { name: "Send prompt" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Dictate" })).toBeVisible();
+    expect(onSubmitDraft).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["the Send button", "click"],
+    ["Enter", "enter"],
+  ] as const)(
+    "sends the final transcript when %s is used while recording",
+    async (_label, action) => {
+      const onSubmitDraft = vi.fn().mockResolvedValue(true);
+      render(
+        <TooltipProvider>
+          <SessionComposer
+            {...props}
+            onSubmitDraft={onSubmitDraft}
+            voiceInput={{}}
+          />
+        </TooltipProvider>,
+      );
+      const socket = await startDictation();
+      act(() =>
+        socket.receive({ type: "transcript", final: "", partial: "run the" }),
+      );
+      const send = screen.getByRole("button", { name: "Send prompt" });
+      expect(send).toBeEnabled();
+      if (action === "click") await userEvent.click(send);
+      else fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" });
+
+      expect(socket.json().at(-1)).toEqual({ type: "stop" });
+      // Waiting for the last sentence; a second press does nothing.
+      expect(send).toBeDisabled();
+      expect(onSubmitDraft).not.toHaveBeenCalled();
+
+      act(() => socket.receive({ type: "done", final: "run the tests" }));
+      await waitFor(() =>
+        expect(onSubmitDraft).toHaveBeenCalledExactlyOnceWith(
+          "run the tests",
+          expect.any(Function),
+        ),
+      );
+      await waitFor(() => expect(screen.getByRole("textbox")).toHaveValue(""));
+    },
+  );
+
+  it("queues the final transcript when a turn is already running", async () => {
+    const onSubmitDraft = vi.fn().mockResolvedValue(true);
+    render(
+      <TooltipProvider>
+        <SessionComposer
+          {...props}
+          isTurnRunning
+          onSubmitDraft={onSubmitDraft}
+          voiceInput={{}}
+        />
+      </TooltipProvider>,
+    );
+    const socket = await startDictation();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Queue after current turn" }),
+    );
+    expect(socket.json().at(-1)).toEqual({ type: "stop" });
+    act(() => socket.receive({ type: "done", final: "next step" }));
+    await waitFor(() =>
+      expect(onSubmitDraft).toHaveBeenCalledExactlyOnceWith(
+        "next step",
+        expect.any(Function),
+      ),
+    );
+  });
+
+  it("keeps the text instead of sending when dictation fails after Send", async () => {
+    const onSubmitDraft = vi.fn().mockResolvedValue(true);
+    render(
+      <TooltipProvider>
+        <SessionComposer
+          {...props}
+          onSubmitDraft={onSubmitDraft}
+          voiceInput={{}}
+        />
+      </TooltipProvider>,
+    );
+    const socket = await startDictation();
+    act(() =>
+      socket.receive({ type: "transcript", final: "half a", partial: "" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Send prompt" }));
+    act(() => socket.receive({ type: "error", code: "provider_failed" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Speech recognition stopped unexpectedly",
+    );
+    expect(screen.getByRole("textbox")).toHaveValue("half a");
     expect(onSubmitDraft).not.toHaveBeenCalled();
   });
 

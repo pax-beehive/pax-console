@@ -117,12 +117,15 @@ export function useVoiceDictation({
           setStatus("idle");
           setStartedAt(undefined);
           level.set(0);
+          // Never focus the field: on phones that opens the keyboard. Only
+          // move the caret when the user is already in it.
           const field = textareaRef.current;
-          if (caret !== undefined && field?.isConnected) {
-            requestAnimationFrame(() => {
-              field.focus({ preventScroll: true });
-              field.setSelectionRange(caret, caret);
-            });
+          if (
+            caret !== undefined &&
+            field &&
+            document.activeElement === field
+          ) {
+            requestAnimationFrame(() => field.setSelectionRange(caret, caret));
           }
         },
       });

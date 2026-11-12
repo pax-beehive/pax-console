@@ -3014,9 +3014,13 @@ automatically.
 - Keep microphone capture, resampling, and protocol frames inside
   `src/features/voice/`. Components use `useVoiceDictation` and
   `ComposerVoiceControl`. Dictation writes the composer draft through the
-  console store and blocks send, queue, and steer until it ends. Level updates
-  go through the `VoiceLevel` external store, so the composer does not
-  re-render for them.
+  console store, and the draft is read-only while it runs. Esc and the stop
+  button only stop. Send, queue, or Enter during dictation stops it and sends
+  once the final transcript is in the draft. A failed dictation is kept
+  rather than sent. Steer is disabled while dictating. Dictation never moves
+  focus to the textarea, because that opens the keyboard on phones. Level
+  updates go through the `VoiceLevel` external store, so the composer does
+  not re-render for them.
 - Recognition hints come from `buildVoiceHints(timeline)`: file names,
   identifiers, code spans, and the last eight messages. The workbench passes a
   stable getter so streaming timeline updates do not re-render the composer.
