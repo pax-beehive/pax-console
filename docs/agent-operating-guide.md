@@ -2843,6 +2843,11 @@ Selecting a history row still reads the pinned version through Manager.
 Details use
 the owner-authorized `/search/read` protocol and safely render the complete
 Markdown body, claims, evidence, frozen coverage, and exact child-summary refs.
+Summary evidence may carry `view: "head_tail"` metadata when the Secretary's
+initial prompt exposed only the beginning and end of a long user message.
+This is not a public read view: read/expand requests still use only `first`,
+`last`, or `full`. Evidence navigation retains the exact message version and
+does not forward this metadata as the requested view.
 Evidence opens in the shared source reader while retaining the summary pane and
 its reading position underneath. Closing the source returns to the same summary.
 Only successful source reads supply real session/message IDs for workbench links;
