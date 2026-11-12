@@ -28,7 +28,7 @@ export function TurnSearchAccessSettings(props: Props) {
               ? "Next turn"
               : props.autoApprove
                 ? "Auto expansion"
-                : "Own agent"
+                : "Own node"
         }
         disabled={props.disabled}
         tooltip={
@@ -56,6 +56,7 @@ function SearchAccessEditor({
   const id = useId();
   const [enabled, setEnabled] = useState(Boolean(value));
   const [queries, setQueries] = useState(value?.queries.join("\n") ?? "*");
+  const [nodes, setNodes] = useState(value?.node_ids?.join("\n") ?? "*");
   const [agents, setAgents] = useState(value?.agent_ids?.join("\n") ?? "*");
   const [sessions, setSessions] = useState(
     value?.session_ids.join("\n") ?? "*",
@@ -66,13 +67,13 @@ function SearchAccessEditor({
   return (
     <div className="grid gap-4">
       <p className="px-3 text-sm leading-6 text-ink-muted">
-        Agents can search their own sessions by default. Preauthorize a wider
-        scope for the next prompt. Extra access ends when that turn finishes or
-        is stopped.
+        Search across all your agents and sessions on the calling node is
+        available by default. Preauthorize cross-node access for the next
+        prompt. Extra access ends when that turn finishes or is stopped.
       </p>
       {autoApprove && (
         <p className="px-3 text-sm leading-6 text-ink-muted">
-          Without preauthorization, search stays within the calling agent. PAX
+          Without preauthorization, search stays within the calling node. PAX
           auto approve approves expansion requests when the agent asks.
         </p>
       )}
@@ -85,8 +86,8 @@ function SearchAccessEditor({
       {enabled && (
         <div className="grid gap-4 px-3">
           <p className="text-xs leading-5 text-ink-muted">
-            These limits apply to extra access. The calling agent can still
-            search its own sessions.
+            These limits apply to extra access. Search across your agents and
+            sessions on the calling node stays available.
           </p>
           <label className="text-sm text-ink" htmlFor={`${id}-queries`}>
             Allowed queries
@@ -102,6 +103,21 @@ function SearchAccessEditor({
               One complete query per line. Use * to allow any query.
             </span>
           </label>
+          <label className="text-sm text-ink" htmlFor={`${id}-nodes`}>
+            Allowed nodes
+            <textarea
+              id={`${id}-nodes`}
+              aria-label="Allowed nodes"
+              className={inputClass}
+              value={nodes}
+              disabled={disabled}
+              onChange={(event) => setNodes(event.target.value)}
+            />
+            <span className="mt-1 block text-xs leading-5 text-ink-muted">
+              Use * for all your nodes, self for the calling node, or one node
+              ID per line.
+            </span>
+          </label>
           <label className="text-sm text-ink" htmlFor={`${id}-agents`}>
             Agents
             <textarea
@@ -113,8 +129,8 @@ function SearchAccessEditor({
               onChange={(event) => setAgents(event.target.value)}
             />
             <span className="mt-1 block text-xs leading-5 text-ink-muted">
-              Use * for all your agents, self for the calling agent, or one
-              agent ID per line.
+              Use * for all your agents within the allowed nodes, self for the
+              calling agent, or one agent ID per line.
             </span>
           </label>
           <label className="text-sm text-ink" htmlFor={`${id}-sessions`}>
@@ -151,7 +167,7 @@ function SearchAccessEditor({
             try {
               onChange(
                 enabled
-                  ? parseTurnSearchAccess(queries, sessions, agents)
+                  ? parseTurnSearchAccess(queries, sessions, agents, nodes)
                   : undefined,
               );
               onDone();

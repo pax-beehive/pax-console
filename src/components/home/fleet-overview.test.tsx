@@ -125,6 +125,7 @@ vi.mock("@/components/sessions/session-workbench", () => ({
     initialPermissionChoiceId?: string;
     initialSearchAccess?: {
       queries: string[];
+      node_ids?: string[];
       agent_ids: string[];
       session_ids: string[];
     };
@@ -2172,7 +2173,12 @@ describe("FleetOverview session rail", () => {
     fireEvent.submit(composer.closest("form")!);
     expect(await screen.findByTestId("session-workbench")).toHaveAttribute(
       "data-initial-search-access",
-      JSON.stringify({ queries: ["*"], agent_ids: ["*"], session_ids: ["*"] }),
+      JSON.stringify({
+        queries: ["*"],
+        node_ids: ["*"],
+        agent_ids: ["*"],
+        session_ids: ["*"],
+      }),
     );
   });
 

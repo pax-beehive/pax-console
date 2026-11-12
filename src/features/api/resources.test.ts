@@ -115,6 +115,7 @@ it("preserves explicit turn search scope through queue, queued edits and steerin
     input: "find deployment",
     search_access: {
       queries: ["cicd"],
+      node_ids: ["node_other"],
       agent_ids: ["agent_other"],
       session_ids: ["*"],
     },

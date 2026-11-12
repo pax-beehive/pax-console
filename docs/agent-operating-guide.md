@@ -4,19 +4,28 @@ External-session notices have a dismiss button. The dedicated Zustand session-no
 
 ## Search scope and turn authorization
 
-An agent can search all its own sessions without requesting access. Every
-ordinary tool search supplies `scope: {agent_ids: ["self"], session_ids: ["*"]}`;
-Manager resolves `self` from the authenticated caller. Searching other agents
-or the entire workspace requires temporary access for the active turn.
+An agent can search all the user's agents and sessions on its calling node
+without requesting access. Every ordinary tool search supplies
+`scope: {node_ids: ["self"], agent_ids: ["*"], session_ids: ["*"]}`; Manager
+resolves node `self` from the authenticated caller. Searching other nodes or
+the entire workspace requires temporary access for the active turn.
+These scopes apply to ordinary agent search tools and their turn grants. Human
+workspace search/read keeps its existing owner permissions; Secretary APIs are
+separate.
 
 Session settings includes Expand search scope for preauthorizing the next
-prompt. Queries, agent IDs and session IDs accept either a single `*` or one
-explicit value per line. Agent scope also accepts `self`. A query entry is a
+prompt. Queries, node IDs, agent IDs and session IDs accept either a single `*`
+or one explicit value per line. Node scope accepts `self` for the calling node;
+agent scope accepts `self` for the calling agent. A query entry is a
 complete search query, not one term authorizing unrelated additional terms.
-These limits govern extra access; the default own-agent access stays available.
-The scope travels as `search_access: {queries: [...], agent_ids: [...],
-session_ids: [...]}` on `/conversation`, queued turn creation/updates and
+These limits govern extra access; default access on the calling node stays
+available. The unexpanded setting reads Own node. The scope travels as
+`search_access: {queries: [...], node_ids: [...], agent_ids: [...], session_ids: [...]}`
+on `/conversation`, queued turn creation/updates and
 steering. Initialization and permission resumes do not carry this field.
+Legacy scopes omitting `node_ids` mean all the user's nodes (`["*"]`), not
+the calling node. Editing one keeps that meaning; the editor starts Allowed
+nodes at `*` and sends the selected node scope explicitly.
 
 The Home composer passes its choice into the first Workbench prompt. A choice
 is consumed after a prompt is accepted or a queued/steering request succeeds;
@@ -26,7 +35,7 @@ preserves its selected scope unless a new scope is supplied.
 
 Manager expires extra access with the business turn, including cancellation.
 Explicit `search_access` preauthorization creates the extra grant before dispatch.
-Without it, search starts within the calling agent, including under PAX auto
+Without it, search starts within the calling node, including under PAX auto
 approve (`pax:auto_approve`). A wider search without a matching grant returns 403. PAX auto approve immediately approves an explicit `workspace_request_access`
 request; it never creates a whole-workspace grant merely because a turn starts.
 The unexpanded automatic setting reads Auto expansion. Agent-native permissions
@@ -34,8 +43,9 @@ or a legacy approval mode alone do not promise that policy. Mid-turn expansion
 requests appear in a separate panel. It uses server-side workspace/search and
 current agent/session/turn filters with a separate turn-scoped cache, and submits
 Allow this turn or Deny without a native permission-resume conversation. The
-panel shows agents, queries and sessions; legacy records without agent scope
-mean all the user's agents. Cancelled/revoked and expired pending requests are
+panel shows nodes, agents, queries and sessions; legacy records without node
+or agent scope mean all the user's nodes or agents respectively.
+Cancelled/revoked and expired pending requests are
 removed on refresh in both the session panel and Home Inbox. A request without
 `expires_at` has no pending time limit, but still ends with its turn. The agent
 can continue working or cancel a request while awaiting a decision.

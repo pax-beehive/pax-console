@@ -116,6 +116,7 @@ describe("streamConversationRun", () => {
       onEnvelope: vi.fn(),
       searchAccess: {
         queries: ["cicd"],
+        node_ids: ["node_other"],
         agent_ids: ["agent_other"],
         session_ids: ["*"],
       },

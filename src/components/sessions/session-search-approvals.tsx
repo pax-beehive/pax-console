@@ -101,6 +101,10 @@ export function SessionSearchApprovals({
             ? (scope as Record<string, unknown>)
             : {};
         const queries = scopeLabel(fields.queries, "Any query");
+        const nodes =
+          scopeLabel(fields.node_ids ?? ["*"], "All your nodes", {
+            self: "Calling node",
+          }) || "Unknown node scope";
         const agents =
           scopeLabel(fields.agent_ids ?? ["*"], "All your agents", {
             self: "Calling agent",
@@ -127,6 +131,7 @@ export function SessionSearchApprovals({
                 Queries: {queries}
               </p>
             )}
+            <p className="break-words text-xs text-ink-muted">Nodes: {nodes}</p>
             <p className="break-words text-xs text-ink-muted">
               Agents: {agents}
             </p>
