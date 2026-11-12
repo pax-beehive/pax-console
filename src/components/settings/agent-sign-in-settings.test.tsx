@@ -123,7 +123,7 @@ it.each(["subscription", "console"])(
       },
     });
     await user.click(screen.getByRole("button", { name: "Complete sign-in" }));
-    await screen.findByText("Signed in on this device.");
+    await screen.findByText("Sign-in credentials found on this device.");
     expect(mocks.loginNodeHarness.mock.calls[1][3]).toMatchObject({
       operation: "submit",
       session_id: "login-one",
@@ -301,7 +301,9 @@ it("polls the login handle after an accepted start and stops after success", asy
   await act(async () => {
     await vi.advanceTimersByTimeAsync(2000);
   });
-  expect(screen.getByText("Signed in on this device.")).toBeInTheDocument();
+  expect(
+    screen.getByText("Sign-in credentials found on this device."),
+  ).toBeInTheDocument();
   expect(mocks.getNodeHarnessAuth).toHaveBeenLastCalledWith(
     "self",
     "node-one",
@@ -316,16 +318,39 @@ it("polls the login handle after an accepted start and stops after success", asy
   expect(mocks.getNodeHarnessAuth).toHaveBeenCalledTimes(calls);
 });
 
-it("keeps reauthentication available when local credentials still report logged in", async () => {
-  mocks.getNodeHarnessAuth.mockResolvedValue({
+it.each(["logged_in", "succeeded"])(
+  "makes saved credentials clear in the %s state and keeps reauthentication available",
+  async (state) => {
+    mocks.getNodeHarnessAuth.mockResolvedValue({
+      harness_auth: { harness: "claude", state, logged_in: true },
+    });
+    const user = userEvent.setup();
+    mount();
+    await screen.findByText("Sign-in credentials found on this device.");
+    expect(
+      screen.getByText(
+        "Sign in again if a session reports expired credentials or an authentication error.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign in again" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Sign in again" }));
+    expect(mocks.loginNodeHarness).toHaveBeenCalledOnce();
+  },
+);
+
+it("does not keep claiming credentials are present after the status check fails", async () => {
+  mocks.getNodeHarnessAuth.mockResolvedValueOnce({
     harness_auth: { harness: "claude", state: "logged_in", logged_in: true },
   });
   const user = userEvent.setup();
   mount();
-  await screen.findByText("Signed in on this device.");
-  expect(screen.getByRole("button", { name: "Sign in again" })).toBeEnabled();
-  await user.click(screen.getByRole("button", { name: "Sign in again" }));
-  expect(mocks.loginNodeHarness).toHaveBeenCalledOnce();
+  await screen.findByText("Sign-in credentials found on this device.");
+  mocks.getNodeHarnessAuth.mockRejectedValue(new Error("unavailable"));
+  await user.click(screen.getByRole("button", { name: "Refresh status" }));
+  await screen.findByText("Sign-in status could not be checked.");
+  expect(
+    screen.queryByText("Sign-in credentials found on this device."),
+  ).not.toBeInTheDocument();
 });
 
 it("reconciles the latest status after a login handle disappears", async () => {
