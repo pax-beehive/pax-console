@@ -6,13 +6,13 @@ import {
   ReactNode,
   memo,
   useCallback,
+  useEffect,
   useRef,
   useState,
 } from "react";
 import {
   ArrowUp,
   LoaderCircle,
-  Mic,
   Paperclip,
   Pencil,
   Plus,
@@ -29,6 +29,10 @@ import { SessionCommandInput } from "@/components/sessions/session-command-input
 import { SessionDraftInput } from "./session-draft-input";
 import { ComposerDropZone } from "./composer-drop-zone";
 import { ComposerAttachmentStatus } from "./composer-attachment-status";
+import {
+  ComposerVoiceControl,
+  ComposerVoiceError,
+} from "./composer-voice-control";
 import { SettingsToggle } from "@/components/ui/settings-controls";
 import { SessionPermissionSelector } from "@/components/sessions/session-permission-selector";
 import { SessionSettings, SessionSettingsHome } from "./session-settings";
@@ -48,6 +52,8 @@ import type {
   SessionAvailableCommand,
   TurnSearchAccess,
 } from "@/features/api/types";
+import { useVoiceDictation } from "@/features/voice/use-voice-dictation";
+import type { VoiceHints } from "@/features/voice/voice-session";
 import { compactId } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useConsoleStore } from "@/stores/console-store";
@@ -99,11 +105,13 @@ type SessionComposerProps = {
   configurationControl?: ReactNode;
   configurationSummary?: string;
   secure?: boolean;
-  showAdminFeatures: boolean;
   steerTurnPending: boolean;
   stopTurnPending: boolean;
   supportsQueuedTurns?: boolean;
   updateQueuedTurnPending: boolean;
+  /** Present when the manager instance offers voice input to this user. */
+  voiceInput?: { maxDurationSeconds?: number };
+  getVoiceHints?: () => VoiceHints;
 };
 
 export const SessionComposer = memo(function SessionComposer({
@@ -146,11 +154,12 @@ export const SessionComposer = memo(function SessionComposer({
   configurationControl,
   configurationSummary,
   secure = false,
-  showAdminFeatures,
   steerTurnPending,
   stopTurnPending,
   supportsQueuedTurns = true,
   updateQueuedTurnPending,
+  voiceInput,
+  getVoiceHints,
 }: SessionComposerProps) {
   const hasContent = useConsoleStore((state) =>
     Boolean(state.composerDrafts[draftKey]?.trim()),
@@ -167,12 +176,24 @@ export const SessionComposer = memo(function SessionComposer({
     queue: { pending: false, lastStartedAt: -Infinity },
   });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const voice = useVoiceDictation({
+    draftKey,
+    getHints: getVoiceHints,
+    maxDurationSeconds: voiceInput?.maxDurationSeconds,
+  });
+  // The draft is still being written by dictation; nothing may send it yet.
+  const dictating = voice.status !== "idle";
+  const cancelDictation = voice.cancel;
+  useEffect(() => {
+    if (secure) cancelDictation();
+  }, [cancelDictation, secure]);
   const hasAttachments = attachments.length > 0;
   const canSend =
     Boolean(activeAgentId && activeNodeId) &&
     !isTurnRunning &&
     !newSessionCwdInvalid &&
     !attachmentUploadPending &&
+    !dictating &&
     (hasContent || hasAttachments);
   const canQueueTurn =
     isTurnRunning &&
@@ -181,6 +202,7 @@ export const SessionComposer = memo(function SessionComposer({
     hasContent &&
     !hasAttachments &&
     !attachmentUploadPending &&
+    !dictating &&
     !queueTurnPending;
   const canSteerTurn =
     isTurnRunning &&
@@ -189,6 +211,7 @@ export const SessionComposer = memo(function SessionComposer({
     hasContent &&
     !hasAttachments &&
     !attachmentUploadPending &&
+    !dictating &&
     !steerTurnPending;
   const canStopTurn =
     isTurnRunning &&
@@ -201,6 +224,7 @@ export const SessionComposer = memo(function SessionComposer({
     !newSessionCwdInvalid &&
     !attachmentUploadPending &&
     !hasAttachments &&
+    !dictating &&
     !createEmptySessionPending;
 
   const clearDraft = useCallback(() => {
@@ -270,6 +294,15 @@ export const SessionComposer = memo(function SessionComposer({
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (dictating) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        voice.stop();
+      } else if (event.key === "Enter") {
+        event.preventDefault();
+      }
+      return;
+    }
     if (
       event.key !== "Enter" ||
       event.shiftKey ||
@@ -486,14 +519,22 @@ export const SessionComposer = memo(function SessionComposer({
           onDismissError={onDismissAttachmentError}
           waitingForTurn={isTurnRunning && hasAttachments}
         />
+        {voice.error && (
+          <ComposerVoiceError
+            message={voice.error}
+            onDismiss={voice.dismissError}
+          />
+        )}
         <SessionDraftInput
           key={draftKey}
           draftKey={draftKey}
-          commands={secure ? undefined : availableCommands}
+          commands={secure || dictating ? undefined : availableCommands}
           className="max-h-40 min-h-10 w-full resize-none overflow-y-auto bg-transparent px-1 py-1 text-base leading-6 text-ink outline-none [field-sizing:content] placeholder:text-ink-tertiary sm:text-sm sm:leading-5"
+          data-composer-draft=""
           disabled={!activeAgentId}
           enterKeyHint="send"
           onKeyDown={handleKeyDown}
+          readOnly={dictating}
           placeholder={
             secure
               ? "Send an end-to-end encrypted message"
@@ -608,16 +649,27 @@ export const SessionComposer = memo(function SessionComposer({
             )}
           </SessionSettings>
           <div className="min-w-0 flex-1" />
-          {showAdminFeatures && (
-            <Button
-              aria-label="Voice input is not available yet"
-              className="hidden sm:inline-flex"
-              disabled
-              icon={<Mic className="h-4 w-4" />}
-              size="icon"
-              tooltip="Voice input is not available yet"
-              type="button"
-              variant="ghost"
+          {voiceInput && (
+            <ComposerVoiceControl
+              disabledReason={
+                secure
+                  ? "Voice input is off in encrypted sessions"
+                  : !activeAgentId
+                    ? "Select an agent before dictating"
+                    : undefined
+              }
+              level={voice.level}
+              onStart={(trigger) =>
+                // The queued-turn editor can render another textarea first.
+                voice.start(
+                  trigger.form?.querySelector<HTMLTextAreaElement>(
+                    "textarea[data-composer-draft]",
+                  ),
+                )
+              }
+              onStop={voice.stop}
+              startedAt={voice.startedAt}
+              status={voice.status}
             />
           )}
           {isTurnRunning ? (

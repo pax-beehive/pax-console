@@ -15,7 +15,8 @@ export function resolveHostedWsBaseUrl(hostname?: string) {
     : DEFAULT_WS_BASE_URL;
 }
 
-export function getAgentTunnelUrl(agentId: string, sessionId?: string) {
+/** A manager WebSocket URL on the browser's regional WebSocket origin. */
+export function browserWebSocketUrl(pathname: string) {
   const wsBaseUrl =
     (isDirectRegion() ? getRegionalOrigin() : undefined) ??
     getPublicRuntimeConfig()?.wsBaseUrl ??
@@ -29,8 +30,15 @@ export function getAgentTunnelUrl(agentId: string, sessionId?: string) {
   if (baseUrl.protocol === "https:") {
     baseUrl.protocol = "wss:";
   }
-  baseUrl.pathname = `/api/v1/user/self/agents/${agentId}/tunnel`;
+  baseUrl.pathname = pathname;
   baseUrl.search = "";
+  return baseUrl;
+}
+
+export function getAgentTunnelUrl(agentId: string, sessionId?: string) {
+  const baseUrl = browserWebSocketUrl(
+    `/api/v1/user/self/agents/${agentId}/tunnel`,
+  );
   if (sessionId) {
     baseUrl.searchParams.set("session_id", sessionId);
   }

@@ -182,6 +182,8 @@ import {
   NODE_OFFLINE_MESSAGE,
 } from "@/features/local-files/local-file-fetch-messages";
 import { LocalFileFetchProvider } from "@/components/local-files/local-file-fetch-provider";
+import { useVoiceConfig } from "@/features/voice/use-voice-config";
+import { buildVoiceHints } from "@/features/voice/voice-hints";
 import { useConsoleStore } from "@/stores/console-store";
 
 type SessionWorkbenchProps = {
@@ -1655,6 +1657,24 @@ export function SessionWorkbench({
     timelineRuntime,
   ]);
   const { timeline } = reconciledTimeline;
+  const voiceConfig = useVoiceConfig().data;
+  const voiceInput = useMemo(
+    () =>
+      voiceConfig?.enabled
+        ? { maxDurationSeconds: voiceConfig.max_duration_seconds }
+        : undefined,
+    [voiceConfig],
+  );
+  // Hints are read when dictation starts; a stable getter keeps the memoized
+  // composer from re-rendering on every streamed timeline update.
+  const voiceTimelineRef = useRef(timeline);
+  useEffect(() => {
+    voiceTimelineRef.current = timeline;
+  }, [timeline]);
+  const getVoiceHints = useCallback(
+    () => buildVoiceHints(voiceTimelineRef.current),
+    [],
+  );
   const activeCodexSubagents = useMemo(
     () =>
       countActiveCodexSubagents(
@@ -3007,8 +3027,9 @@ export function SessionWorkbench({
           draftKey={composerDraftKey}
           isNewSession={isNewSession}
           isTurnRunning={isTurnRunning}
-          showAdminFeatures={showAdminFeatures}
           newSessionCwdInvalid={newSessionCwdInvalid}
+          voiceInput={voiceInput}
+          getVoiceHints={getVoiceHints}
           onAddAttachments={handleAddComposerAttachments}
           onDismissAttachmentError={handleDismissAttachmentError}
           onCreateEmptySession={isNewSession ? createEmptySession : undefined}

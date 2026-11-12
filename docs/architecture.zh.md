@@ -2608,3 +2608,30 @@ Collapse (including switching to a sibling preview) pauses playback. Artifact
 fullscreen preserves playback state, while closing and reopening starts a fresh
 preview without autoplay. This uses Range playback of original media files;
 it does not add HLS packaging, transcoding, or adaptive quality selection.
+
+## 语音输入（流式听写）
+
+会话输入框的 Mic 按钮把语音实时转成文字写进草稿，说话过程中文字逐步出现并在原处修正，结束后不会自动发送。
+
+- 可用性由服务端决定：workbench 用 `useVoiceConfig` 读取区域 Manager 的
+  `GET /api/v1/user/self/voice/config`，`enabled: true` 时才显示按钮。每个 Manager
+  实例用 `VOICE_PROVIDER` 选择服务商（美国 OpenAI，香港 Qwen），`VOICE_ADMIN_ONLY`
+  默认只对管理员开放。没有这个接口的 Manager 等同于关闭。加密会话中按钮禁用。
+- 链路：麦克风 → AudioWorklet 采集 → `PcmResampler` 转成服务商采样率的 `pcm_s16le`
+  → WebSocket `/api/v1/user/self/voice/stream` → Manager 转发给服务商。WebSocket 地址
+  由 `browserWebSocketUrl` 解析，和 agent tunnel 使用同一条区域 WebSocket origin 链；
+  Next route handler 不能代理 WebSocket。
+- 协议：客户端先发 `start`（热词 + 最近对话作为识别提示），然后发约 100ms 一帧的
+  二进制 PCM，最后发 `stop`；服务端回 `ready`（采样率）、`transcript {final, partial}`、
+  `done` 或 `error`。每个 transcript 都是整段快照，前端整段替换，不做增量拼接。
+- 状态归属：识别文字直接写入 Zustand `composerDrafts[draftKey]`，插在开始听写时的
+  光标或选区位置；听写状态在 composer 内的 `useVoiceDictation`；音量走外部 store 加
+  `useSyncExternalStore`，只刷新音量条，不重渲染 composer。
+- 听写期间输入框只读，发送、排队和 steer 都禁用；Esc 或停止按钮结束；出错时保留已识别
+  的文字并显示内联错误；切换草稿或进入加密会话会取消听写。
+- 识别提示：`buildVoiceHints(timeline)` 从时间线提取文件名、标识符、反引号里的代码和
+  最近 8 条消息。workbench 通过稳定的 getter 提供，开始听写时才计算。
+- 模块：`src/features/voice/`（microphone、pcm、voice-protocol、voice-session、
+  voice-hints、use-voice-dictation、use-voice-config、voice-url）和
+  `src/components/sessions/composer-voice-control.tsx`。React 组件不直接构造
+  WebSocket 帧或处理音频数据。

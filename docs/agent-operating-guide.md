@@ -2996,3 +2996,33 @@ Collapse (including switching to a sibling preview) pauses playback. Artifact
 fullscreen preserves playback state, while closing and reopening starts a fresh
 preview without autoplay. This uses Range playback of original media files;
 it does not add HLS packaging, transcoding, or adaptive quality selection.
+
+## Voice input
+
+The composer Mic streams dictation into the draft through the manager. Text
+appears while the user speaks, is revised in place, and is never sent
+automatically.
+
+- Endpoints: `GET /api/v1/user/{user_id}/voice/config` is a normal REST call
+  through `/api/pax`. `GET /api/v1/user/{user_id}/voice/stream` is a WebSocket
+  on the regional WebSocket origin from `browserWebSocketUrl`, the same
+  resolution as the agent tunnel. Next route handlers cannot proxy it.
+- Availability is server-driven. Each manager instance picks a provider with
+  `VOICE_PROVIDER` (US: OpenAI, HK: Qwen). `VOICE_ADMIN_ONLY` defaults to true.
+  If the config call fails, as on a manager without the endpoint, the Mic is
+  hidden. Encrypted sessions disable it.
+- Keep microphone capture, resampling, and protocol frames inside
+  `src/features/voice/`. Components use `useVoiceDictation` and
+  `ComposerVoiceControl`. Dictation writes the composer draft through the
+  console store and blocks send, queue, and steer until it ends. Level updates
+  go through the `VoiceLevel` external store, so the composer does not
+  re-render for them.
+- Recognition hints come from `buildVoiceHints(timeline)`: file names,
+  identifiers, code spans, and the last eight messages. The workbench passes a
+  stable getter so streaming timeline updates do not re-render the composer.
+- Local development needs a WebSocket origin that reaches the manager directly
+  (regional origin or `NEXT_PUBLIC_PAX_WS_BASE_URL`). The microphone needs a
+  secure context (https or localhost).
+- Tests: `src/features/voice/test-fakes.ts` provides a fake socket and
+  microphone. Composer tests stub the global `WebSocket` and mock
+  `@/features/voice/microphone`.
