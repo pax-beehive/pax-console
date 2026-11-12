@@ -48,6 +48,8 @@ const MAX_EARLY_SECONDS = 5;
 // The manager gives the provider 15 seconds to finish; this only guards
 // against a connection that silently stops responding.
 const FINISH_TIMEOUT_MS = 25_000;
+// From opening the socket until the manager reports ready.
+export const READY_TIMEOUT_MS = 10_000;
 
 /**
  * One dictation: microphone capture, PCM conversion, and the manager voice
@@ -67,6 +69,7 @@ export class VoiceSession {
   private stopRequested = false;
   private ended = false;
   private finishTimer?: ReturnType<typeof setTimeout>;
+  private readyTimer?: ReturnType<typeof setTimeout>;
 
   constructor(private readonly options: VoiceSessionOptions) {}
 
@@ -97,7 +100,13 @@ export class VoiceSession {
   stop() {
     if (this.ended || this.stopRequested) return;
     this.stopRequested = true;
-    this.microphone?.stop();
+    // Still waiting for the microphone: nothing was recorded, so end now
+    // instead of waiting for a device that may never open.
+    if (!this.microphone) {
+      this.end({});
+      return;
+    }
+    this.microphone.stop();
     this.options.onPhase("finishing");
     this.finishTimer = setTimeout(
       () =>
@@ -128,6 +137,16 @@ export class VoiceSession {
     const socket = createSocket(this.options.url);
     socket.binaryType = "arraybuffer";
     this.socket = socket;
+    this.readyTimer = setTimeout(
+      () =>
+        this.end({
+          error: new VoiceInputError(
+            "connection_failed",
+            "Voice input did not respond. Try again",
+          ),
+        }),
+      READY_TIMEOUT_MS,
+    );
     socket.onopen = () => {
       this.socketOpened = true;
       const start: VoiceStartMessage = { type: "start", ...this.options.hints };
@@ -168,6 +187,7 @@ export class VoiceSession {
   private onReady(sampleRate: number) {
     if (this.ready || !this.microphone) return;
     this.ready = true;
+    clearTimeout(this.readyTimer);
     this.resampler = new PcmResampler(this.microphone.sampleRate, sampleRate);
     this.frameSamples = Math.max(1, Math.round(sampleRate * FRAME_SECONDS));
     const early = this.early;
@@ -219,6 +239,7 @@ export class VoiceSession {
     if (this.ended) return;
     this.ended = true;
     clearTimeout(this.finishTimer);
+    clearTimeout(this.readyTimer);
     this.microphone?.stop();
     const socket = this.socket;
     if (socket) {

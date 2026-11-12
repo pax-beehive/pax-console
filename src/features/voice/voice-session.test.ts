@@ -142,4 +142,35 @@ describe("VoiceSession", () => {
     vi.advanceTimersByTime(25_000);
     expect(t.results[0].error?.code).toBe("timeout");
   });
+
+  it("gives up when the server never becomes ready", async () => {
+    vi.useFakeTimers();
+    const t = setup();
+    await t.session.start();
+    t.sockets[0].open();
+    vi.advanceTimersByTime(10_000);
+    expect(t.results[0].error?.code).toBe("connection_failed");
+    expect(t.stops).toHaveLength(1);
+    expect(t.sockets[0].readyState).toBe(3);
+  });
+
+  it("ends at once when stopped while the microphone is still opening", async () => {
+    let open: (value: { sampleRate: number; stop: () => void }) => void = () => {};
+    const stops: number[] = [];
+    const t = setup({
+      startMicrophone: () =>
+        new Promise((resolve) => {
+          open = resolve;
+        }),
+    });
+    const started = t.session.start();
+    t.session.stop();
+    expect(t.results).toEqual([{}]);
+    // A microphone that opens later is released and never connects.
+    open({ sampleRate: 48_000, stop: () => stops.push(1) });
+    await started;
+    expect(stops).toHaveLength(1);
+    expect(t.sockets).toHaveLength(0);
+    expect(t.results).toHaveLength(1);
+  });
 });
