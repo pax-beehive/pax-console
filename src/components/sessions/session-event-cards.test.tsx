@@ -716,7 +716,7 @@ describe("session event cards", () => {
     expect(container.querySelector("article")).toHaveClass("py-0");
   });
 
-  it("portals the turn footer patch drawer outside the timeline item", () => {
+  it("hides the inferred file-change summary in the turn footer", () => {
     const { container } = renderItem({
       type: "turn_footer",
       id: "turn-footer-1",
@@ -724,24 +724,15 @@ describe("session event cards", () => {
       createdAt: "2026-07-17T20:00:00Z",
       turnPatches: [
         {
-          operation: "patch",
-          path: "src/example.ts",
-          oldText: "const value = 1;",
-          newText: "const value = 2;",
+          operation: "delete",
+          path: "node_modules",
         },
       ],
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Review" }));
-
-    const drawer = screen.getByRole("complementary");
-    expect(document.body).toContainElement(drawer);
-    expect(container).not.toContainElement(drawer);
-    expect(drawer).toHaveClass("overscroll-contain");
-    expect(drawer.querySelector(".overflow-auto")).toHaveClass(
-      "overscroll-contain",
-    );
-    expect(drawer).toHaveTextContent("src/example.ts");
+    expect(screen.queryByText(/files?$/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Review" })).toBeNull();
+    expect(container).toBeEmptyDOMElement();
   });
 
   it("shows turn usage details from a dashboard icon beside Done", () => {
