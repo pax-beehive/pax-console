@@ -25,6 +25,7 @@ import {
   useAgentSignIn,
   validLoginSecret,
 } from "./agent-sign-in-flow";
+import { HarnessUsagePanel } from "./agent-usage";
 
 const fieldClass =
   "min-h-11 min-w-0 w-full rounded-md border border-hairline bg-surface-2 px-3 py-2 text-sm text-ink focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50";
@@ -290,6 +291,10 @@ function HarnessSignIn({
           Refresh status
         </Button>
       </div>
+      {/* Full section width, so usage rows are not squeezed beside Refresh status on phones. */}
+      {credentialsDetected && (
+        <HarnessUsagePanel userId={userId} nodeId={nodeId} harness={harness} />
+      )}
       {flow.error && (
         <p role="alert" className="text-sm leading-6 text-warning">
           {flow.error}

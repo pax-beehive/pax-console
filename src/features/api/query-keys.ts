@@ -80,6 +80,8 @@ export const queryKeys = {
     ["users", userId, "nodes", nodeId, "daemon", "status"] as const,
   nodeDaemonHarnesses: (userId: string, nodeId: string) =>
     ["users", userId, "nodes", nodeId, "daemon", "harnesses"] as const,
+  nodeHarnessUsage: (userId: string, nodeId: string, harness: string) =>
+    ["users", userId, "nodes", nodeId, "harnesses", harness, "usage"] as const,
   nodeDaemonAgentConnections: (userId: string, nodeId: string) =>
     ["users", userId, "nodes", nodeId, "daemon", "agent-connections"] as const,
   nodeDaemonCommand: (userId: string, nodeId: string, commandId: string) =>
