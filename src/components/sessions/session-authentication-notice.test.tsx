@@ -36,7 +36,7 @@ describe("session agent sign-in notice", () => {
     );
     expect(url.pathname).toBe("/settings/agent-sign-in");
     expect(url.searchParams.get("node_id")).toBe("node & one");
-    expect(url.searchParams.get("harness")).toBe("claude");
+    expect(url.searchParams.get("harness")).toBe("claude-code");
     expect(url.searchParams.get("session_id")).toBe("session & one");
     expect(screen.getByRole("alert")).toHaveTextContent("Sign-in required");
   });
@@ -54,13 +54,24 @@ describe("session agent sign-in notice", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it.each(["gemini", "opencode", ""])(
-    "does not offer Claude sign-in for unsupported or unknown agent type %s",
-    (agentType) => {
+  it.each([
+    ["opencode", "opencode"],
+    ["Kimi", "kimi"],
+    ["claude", "claude-code"],
+  ])(
+    "links agent type %s to its own sign-in page as %s",
+    (agentType, harness) => {
       render(notice(new Error("Authentication required"), "node_1", agentType));
-      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: "Open Agent sign-in" }),
+      ).toHaveAttribute("href", expect.stringContaining(`harness=${harness}`));
     },
   );
+
+  it("does not guess an agent type when the session has none", () => {
+    render(notice(new Error("Authentication required"), "node_1", ""));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
 
   it("selects Codex for a Codex authentication error", () => {
     render(notice(new Error("Authentication required"), "node_1", "codex"));

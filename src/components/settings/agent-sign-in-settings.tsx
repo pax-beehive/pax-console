@@ -6,7 +6,7 @@ import { CheckCircle2, ExternalLink, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MonoId, TruncatedText } from "@/components/ui/text";
 import { compactId } from "@/lib/format";
-import { useNodes } from "@/features/api/resources";
+import { useNodeAgents, useNodes } from "@/features/api/resources";
 import type {
   HarnessAuthAccount,
   HarnessLoginMethod,
@@ -26,6 +26,7 @@ import {
   validLoginSecret,
 } from "./agent-sign-in-flow";
 import { HarnessUsagePanel } from "./agent-usage";
+import { agentTypeLabel, registeredAgentTypes } from "./agent-types";
 
 const fieldClass =
   "min-h-11 min-w-0 w-full rounded-md border border-hairline bg-surface-2 px-3 py-2 text-sm text-ink focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50";
@@ -33,6 +34,7 @@ const fieldClass =
 export type AgentSignInProps = {
   userId: string;
   initialNodeId?: string;
+  /** Preferred agent type; the first registered type is used when absent. */
   initialHarness?: LoginHarness;
   /** The original PAX conversation, never the native login attempt handle. */
   returnSessionId?: string;
@@ -41,17 +43,26 @@ export type AgentSignInProps = {
 export function AgentSignInSettings({
   userId,
   initialNodeId = "",
-  initialHarness = "claude",
+  initialHarness,
   returnSessionId,
 }: AgentSignInProps) {
   const nodes = useNodes(userId);
   const [nodeId, setNodeId] = useState(initialNodeId);
-  const [harness, setHarness] = useState(initialHarness);
+  const [preferredHarness, setHarness] = useState(initialHarness);
   const devices = nodes.error
     ? []
     : (nodes.data?.nodes ?? []).filter(isDeviceNode);
   const selected = devices.find((node) => node.node_id === nodeId);
   const available = selected && isActiveNode(selected);
+  // Agent types come from agents registered in PAX for this device only.
+  const agents = useNodeAgents(userId, selected ? nodeId : undefined);
+  const agentTypes = agents.data
+    ? registeredAgentTypes(agents.data.agents ?? [], nodeId)
+    : [];
+  const harness =
+    preferredHarness && agentTypes.includes(preferredHarness)
+      ? preferredHarness
+      : agentTypes[0];
   const section = settingsSection("agentSignIn");
 
   return (
@@ -103,13 +114,22 @@ export function AgentSignInSettings({
               <select
                 className={fieldClass}
                 aria-label="Agent type"
-                value={harness}
-                onChange={(event) =>
-                  setHarness(event.target.value as LoginHarness)
-                }
+                value={harness ?? ""}
+                disabled={agentTypes.length === 0}
+                onChange={(event) => setHarness(event.target.value)}
               >
-                <option value="claude">Claude Code</option>
-                <option value="codex">Codex</option>
+                {agentTypes.length === 0 && (
+                  <option value="">
+                    {selected && agents.isLoading
+                      ? "Loading agents…"
+                      : "No registered agents"}
+                  </option>
+                )}
+                {agentTypes.map((type) => (
+                  <option key={type} value={type}>
+                    {agentTypeLabel(type)}
+                  </option>
+                ))}
               </select>
             </label>
           </div>
@@ -153,7 +173,25 @@ export function AgentSignInSettings({
               This device is offline. Reconnect it before checking or changing
               its sign-in.
             </p>
-          ) : available ? (
+          ) : available && agents.isLoading ? (
+            <p role="status" className="text-sm text-ink-tertiary">
+              Loading agents…
+            </p>
+          ) : available && agents.error ? (
+            <div className="grid justify-items-start gap-3">
+              <p role="alert" className="text-sm text-warning">
+                Could not load the agents registered on this device.
+              </p>
+              <Button size="sm" onClick={() => void agents.refetch()}>
+                Refresh agents
+              </Button>
+            </div>
+          ) : available && !harness ? (
+            <p role="status" className="text-sm text-ink-muted">
+              No agents are registered on this device. Add an agent to it in PAX
+              before signing in.
+            </p>
+          ) : available && harness ? (
             <HarnessSignIn
               key={`${userId}:${nodeId}:${harness}`}
               userId={userId}
@@ -198,8 +236,10 @@ function HarnessSignIn({
   harness: LoginHarness;
 }) {
   const flow = useAgentSignIn(userId, nodeId, harness);
+  const label = agentTypeLabel(harness);
+  const claude = harness === "claude-code";
   const [method, setMethod] = useState<HarnessLoginMethod>(
-    harness === "claude" ? "subscription" : "device",
+    claude ? "subscription" : "device",
   );
   const [secret, setSecret] = useState("");
   const secretScope = `${flow.view?.session_id ?? ""}:${flow.view?.state ?? ""}:${flow.error}`;
@@ -212,6 +252,8 @@ function HarnessSignIn({
   const signedIn =
     flow.view?.state === "logged_in" || flow.view?.state === "succeeded";
   const credentialsDetected = signedIn && !flow.error && !flow.busy;
+  // Agent types without native sign-in support on the device.
+  const unsupported = flow.view?.state === "unsupported" && !flow.error;
   const secretMethod = method === "api-key" || method === "access-token";
   const challenge = pending
     ? safeAuthorizationUrl(harness, flow.view?.authorization_url)
@@ -219,7 +261,7 @@ function HarnessSignIn({
   const unsupportedLink =
     pending && Boolean(flow.view?.authorization_url) && !challenge;
   const canSubmitCode =
-    harness === "claude" && flow.view?.state === "awaiting_code" && challenge;
+    claude && flow.view?.state === "awaiting_code" && challenge;
   const canStart =
     !pending &&
     !flow.busy &&
@@ -231,7 +273,7 @@ function HarnessSignIn({
 
   return (
     <section
-      aria-label={`${harness === "claude" ? "Claude Code" : "Codex"} sign-in`}
+      aria-label={`${label} sign-in`}
       className="grid gap-5 border-t border-hairline pt-5"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -254,12 +296,14 @@ function HarnessSignIn({
             <span>
               {flow.error
                 ? "Sign-in status could not be checked."
-                : flow.view
-                  ? (stateLabels[flow.view.state] ??
-                    "The device returned an unknown sign-in state. Refresh status before continuing.")
-                  : flow.checking
-                    ? "Checking sign-in status…"
-                    : "Sign-in status could not be checked."}
+                : unsupported
+                  ? `Sign-in is not available for ${label} yet.`
+                  : flow.view
+                    ? (stateLabels[flow.view.state] ??
+                      "The device returned an unknown sign-in state. Refresh status before continuing.")
+                    : flow.checking
+                      ? "Checking sign-in status…"
+                      : "Sign-in status could not be checked."}
             </span>
           </p>
           {credentialsDetected && (
@@ -292,7 +336,7 @@ function HarnessSignIn({
         </Button>
       </div>
       {/* Full section width, so usage rows are not squeezed beside Refresh status on phones. */}
-      {credentialsDetected && (
+      {(credentialsDetected || unsupported) && (
         <HarnessUsagePanel userId={userId} nodeId={nodeId} harness={harness} />
       )}
       {flow.error && (
@@ -300,186 +344,193 @@ function HarnessSignIn({
           {flow.error}
         </p>
       )}
-      <label className="grid gap-2 text-sm text-ink-muted sm:max-w-sm">
-        Sign-in method
-        <select
-          className={fieldClass}
-          aria-label="Sign-in method"
-          value={pending ? (flow.view?.method ?? method) : method}
-          disabled={blocked}
-          onChange={(event) => {
-            setMethod(event.target.value as HarnessLoginMethod);
-            setSecret("");
-          }}
-        >
-          {harness === "claude" ? (
-            <>
-              <option value="subscription">Claude subscription</option>
-              <option value="console">Anthropic Console</option>
-            </>
-          ) : (
-            <>
-              <option value="device">ChatGPT account (device code)</option>
-              <option value="api-key">API key</option>
-              <option value="access-token">Access token</option>
-            </>
-          )}
-        </select>
-      </label>
-      {!pending && (
-        <form
-          className="grid justify-items-start gap-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!canStart || (secretMethod && !validLoginSecret(secret)))
-              return;
-            const code = secretMethod ? secret : undefined;
-            setSecret("");
-            void flow.run({
-              operation: "start",
-              method,
-              ...(code ? { code } : {}),
-            });
-          }}
-        >
-          {secretMethod && (
-            <label className="grid w-full gap-2 text-sm text-ink-muted">
-              {secretLabel}
-              <input
-                aria-label={secretLabel}
-                type="password"
-                autoComplete="off"
-                spellCheck={false}
-                autoCapitalize="none"
-                maxLength={4096}
-                className={fieldClass}
-                value={secret}
-                disabled={blocked}
-                onChange={(event) => setSecret(event.target.value)}
-              />
-              <span className="text-xs leading-5 text-ink-tertiary">
-                Enter one complete line without surrounding spaces. The
-                credential is sent to the device only when you start sign-in and
-                is then cleared from this form.
-              </span>
-            </label>
-          )}
-          <Button
-            className="min-h-11"
-            variant="primary"
-            type="submit"
-            disabled={!canStart || (secretMethod && !validLoginSecret(secret))}
-          >
-            {signedIn ? "Sign in again" : "Start sign-in"}
-          </Button>
-        </form>
-      )}
-      {unsupportedLink && (
-        <p role="alert" className="text-sm leading-6 text-warning">
-          The device returned an unsupported authorization link. Cancel this
-          attempt and update paxd before trying again.
-        </p>
-      )}
-      {challenge && (
-        <div className="grid justify-items-start gap-3">
-          <Button
-            asChild
-            className="min-h-11"
-            icon={<ExternalLink className="h-4 w-4" />}
-          >
-            <a
-              href={challenge}
-              target="_blank"
-              rel="noopener noreferrer"
-              referrerPolicy="no-referrer"
-            >
-              Open {harness === "claude" ? "Claude" : "Codex"} authorization
-            </a>
-          </Button>
-          {flow.view?.state === "awaiting_browser" && flow.view.user_code && (
-            <div className="grid gap-1">
-              <p className="text-xs text-ink-tertiary">Device code</p>
-              <MonoId className="text-lg text-ink">
-                {flow.view.user_code}
-              </MonoId>
-            </div>
-          )}
-        </div>
-      )}
-      {canSubmitCode && (
-        <form
-          className="grid justify-items-start gap-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (
-              flow.busy ||
-              !validLoginSecret(secret) ||
-              !flow.view?.session_id
-            )
-              return;
-            const code = secret;
-            setSecret("");
-            void flow.run({
-              operation: "submit",
-              session_id: flow.view.session_id,
-              code,
-            });
-          }}
-        >
-          <label className="grid w-full gap-2 text-sm text-ink-muted">
-            Full authorization code
-            <input
-              type="password"
-              aria-label="Full authorization code"
-              autoComplete="off"
-              spellCheck={false}
-              autoCapitalize="none"
-              maxLength={4096}
+      {!unsupported && (
+        <>
+          <label className="grid gap-2 text-sm text-ink-muted sm:max-w-sm">
+            Sign-in method
+            <select
               className={fieldClass}
-              value={secret}
-              disabled={flow.busy}
-              onChange={(event) => setSecret(event.target.value)}
-            />
-            <span className="text-xs leading-5 text-ink-tertiary">
-              Paste the complete CLI authorization code, including its state
-              suffix when present. Use the authorization result, not an email
-              verification code.
-            </span>
+              aria-label="Sign-in method"
+              value={pending ? (flow.view?.method ?? method) : method}
+              disabled={blocked}
+              onChange={(event) => {
+                setMethod(event.target.value as HarnessLoginMethod);
+                setSecret("");
+              }}
+            >
+              {claude ? (
+                <>
+                  <option value="subscription">Claude subscription</option>
+                  <option value="console">Anthropic Console</option>
+                </>
+              ) : (
+                <>
+                  <option value="device">ChatGPT account (device code)</option>
+                  <option value="api-key">API key</option>
+                  <option value="access-token">Access token</option>
+                </>
+              )}
+            </select>
           </label>
-          <Button
-            type="submit"
-            className="min-h-11"
-            variant="primary"
-            disabled={
-              flow.busy || Boolean(flow.error) || !validLoginSecret(secret)
-            }
-          >
-            Complete sign-in
-          </Button>
-        </form>
-      )}
-      {pending && flow.view?.session_id && (
-        <div className="flex flex-wrap items-center gap-3">
-          <Button
-            size="sm"
-            className="min-h-11"
-            disabled={flow.busy}
-            onClick={() => {
-              setSecret("");
-              void flow.run({
-                operation: "cancel",
-                session_id: flow.view!.session_id,
-              });
-            }}
-          >
-            Cancel sign-in
-          </Button>
-          {flow.view.expires_at && (
-            <p className="text-xs text-ink-tertiary">
-              Expires {new Date(flow.view.expires_at).toLocaleTimeString()}.
+          {!pending && (
+            <form
+              className="grid justify-items-start gap-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!canStart || (secretMethod && !validLoginSecret(secret)))
+                  return;
+                const code = secretMethod ? secret : undefined;
+                setSecret("");
+                void flow.run({
+                  operation: "start",
+                  method,
+                  ...(code ? { code } : {}),
+                });
+              }}
+            >
+              {secretMethod && (
+                <label className="grid w-full gap-2 text-sm text-ink-muted">
+                  {secretLabel}
+                  <input
+                    aria-label={secretLabel}
+                    type="password"
+                    autoComplete="off"
+                    spellCheck={false}
+                    autoCapitalize="none"
+                    maxLength={4096}
+                    className={fieldClass}
+                    value={secret}
+                    disabled={blocked}
+                    onChange={(event) => setSecret(event.target.value)}
+                  />
+                  <span className="text-xs leading-5 text-ink-tertiary">
+                    Enter one complete line without surrounding spaces. The
+                    credential is sent to the device only when you start sign-in
+                    and is then cleared from this form.
+                  </span>
+                </label>
+              )}
+              <Button
+                className="min-h-11"
+                variant="primary"
+                type="submit"
+                disabled={
+                  !canStart || (secretMethod && !validLoginSecret(secret))
+                }
+              >
+                {signedIn ? "Sign in again" : "Start sign-in"}
+              </Button>
+            </form>
+          )}
+          {unsupportedLink && (
+            <p role="alert" className="text-sm leading-6 text-warning">
+              The device returned an unsupported authorization link. Cancel this
+              attempt and update paxd before trying again.
             </p>
           )}
-        </div>
+          {challenge && (
+            <div className="grid justify-items-start gap-3">
+              <Button
+                asChild
+                className="min-h-11"
+                icon={<ExternalLink className="h-4 w-4" />}
+              >
+                <a
+                  href={challenge}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  referrerPolicy="no-referrer"
+                >
+                  Open {label} authorization
+                </a>
+              </Button>
+              {flow.view?.state === "awaiting_browser" &&
+                flow.view.user_code && (
+                  <div className="grid gap-1">
+                    <p className="text-xs text-ink-tertiary">Device code</p>
+                    <MonoId className="text-lg text-ink">
+                      {flow.view.user_code}
+                    </MonoId>
+                  </div>
+                )}
+            </div>
+          )}
+          {canSubmitCode && (
+            <form
+              className="grid justify-items-start gap-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (
+                  flow.busy ||
+                  !validLoginSecret(secret) ||
+                  !flow.view?.session_id
+                )
+                  return;
+                const code = secret;
+                setSecret("");
+                void flow.run({
+                  operation: "submit",
+                  session_id: flow.view.session_id,
+                  code,
+                });
+              }}
+            >
+              <label className="grid w-full gap-2 text-sm text-ink-muted">
+                Full authorization code
+                <input
+                  type="password"
+                  aria-label="Full authorization code"
+                  autoComplete="off"
+                  spellCheck={false}
+                  autoCapitalize="none"
+                  maxLength={4096}
+                  className={fieldClass}
+                  value={secret}
+                  disabled={flow.busy}
+                  onChange={(event) => setSecret(event.target.value)}
+                />
+                <span className="text-xs leading-5 text-ink-tertiary">
+                  Paste the complete CLI authorization code, including its state
+                  suffix when present. Use the authorization result, not an
+                  email verification code.
+                </span>
+              </label>
+              <Button
+                type="submit"
+                className="min-h-11"
+                variant="primary"
+                disabled={
+                  flow.busy || Boolean(flow.error) || !validLoginSecret(secret)
+                }
+              >
+                Complete sign-in
+              </Button>
+            </form>
+          )}
+          {pending && flow.view?.session_id && (
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                size="sm"
+                className="min-h-11"
+                disabled={flow.busy}
+                onClick={() => {
+                  setSecret("");
+                  void flow.run({
+                    operation: "cancel",
+                    session_id: flow.view!.session_id,
+                  });
+                }}
+              >
+                Cancel sign-in
+              </Button>
+              {flow.view.expires_at && (
+                <p className="text-xs text-ink-tertiary">
+                  Expires {new Date(flow.view.expires_at).toLocaleTimeString()}.
+                </p>
+              )}
+            </div>
+          )}
+        </>
       )}
       <p className="text-xs leading-5 text-ink-tertiary">
         Existing agent processes may need to be restarted to use the new

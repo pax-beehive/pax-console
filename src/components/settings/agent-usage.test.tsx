@@ -11,9 +11,8 @@ import type { HarnessUsageView, LoginHarness } from "@/features/api/types";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import {
   formatResetCountdown,
+  formatUsageAmount,
   HarnessUsagePanel,
-  usageWindowLabel,
-  usageWindowShortLabel,
 } from "./agent-usage";
 
 vi.mock("@/features/api/client", async (load) => ({
@@ -28,7 +27,7 @@ const clients: QueryClient[] = [];
 function usage(view: Partial<HarnessUsageView> = {}) {
   return {
     harness_usage: {
-      harness: "claude",
+      harness: "claude-code",
       state: "available",
       observed_at: new Date(now - 5 * 60_000).toISOString(),
       ...view,
@@ -50,7 +49,7 @@ function panel(nodeId: string, harness: LoginHarness) {
   return <HarnessUsagePanel userId="self" nodeId={nodeId} harness={harness} />;
 }
 
-function mount(nodeId = "node-one", harness: LoginHarness = "claude") {
+function mount(nodeId = "node-one", harness: LoginHarness = "claude-code") {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -78,24 +77,25 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("usageWindowLabel", () => {
+const weekly = (used_percent: number) => ({
+  id: "seven_day",
+  label: "Weekly",
+  kind: "percent" as const,
+  used_percent,
+});
+
+describe("formatUsageAmount", () => {
   it.each([
-    [300, undefined, "5-hour limit", "5-hour"],
-    [10080, undefined, "Weekly limit", "Weekly"],
-    [10080, "Fable", "Weekly limit · Fable", "Weekly · Fable"],
-    [120, undefined, "2-hour limit", "2-hour"],
-    [2880, undefined, "2-day limit", "2-day"],
-    [90, undefined, "90-minute limit", "90-minute"],
-    [1500, undefined, "1500-minute limit", "1500-minute"],
-    [0, "Opus", "Usage limit · Opus", "Usage · Opus"],
-  ])(
-    "labels %d minutes with scope %s as %s (row: %s)",
-    (minutes, scope, label, short) => {
-      const window = { window_minutes: minutes, scope };
-      expect(usageWindowLabel(window)).toBe(label);
-      expect(usageWindowShortLabel(window)).toBe(short);
-    },
-  );
+    [{ used: 12.4, limit: 50, unit: "usd" }, "12.40 / 50.00 USD"],
+    [{ used: 12.4, unit: "eur" }, "12.40 EUR"],
+    [{ used: 1234.5, limit: 2000, unit: "cny" }, "1,234.50 / 2,000.00 CNY"],
+    [{ used: 1500.6, limit: 5000, unit: "credits" }, "1,501 / 5,000 credits"],
+    [{ used: 300, unit: "tokens" }, "300 tokens"],
+    [{ used: 7, limit: 10, unit: "requests" }, "7 / 10 requests"],
+    [{ used: 3 }, "3"],
+  ])("formats %j as %s", (item, text) => {
+    expect(formatUsageAmount(item)).toBe(text);
+  });
 });
 
 describe("formatResetCountdown", () => {
@@ -128,73 +128,138 @@ it("reads usage for the device and harness and shows checking until it arrives",
   );
 });
 
-it("renders each window with an accessible meter, reset time and freshness", async () => {
+it("renders percent items with an accessible meter, reset time and freshness", async () => {
   fetchUsage.mockResolvedValue(
     usage({
-      windows: [
+      items: [
         {
           id: "five_hour",
-          window_minutes: 300,
+          label: "5-hour",
+          kind: "percent",
           used_percent: 12.4,
+          window_minutes: 300,
           resets_at: new Date(now + (3 * 60 + 20) * 60_000).toISOString(),
         },
         {
           id: "seven_day",
-          window_minutes: 10080,
+          label: "Weekly",
+          kind: "percent",
           used_percent: 83,
           resets_at: new Date(now + (2 * 24 + 4) * 3_600_000).toISOString(),
         },
         {
           id: "seven_day_fable",
-          window_minutes: 10080,
-          scope: "Fable",
+          label: "Weekly · Fable",
+          kind: "percent",
           used_percent: 100,
         },
       ],
-      extra_usage: { enabled: false },
     }),
   );
   mount();
-  const fiveHour = await screen.findByRole("meter", { name: "5-hour limit" });
+  const fiveHour = await screen.findByRole("meter", { name: "5-hour" });
   expect(fiveHour).toHaveAttribute("aria-valuenow", "12");
   expect(fiveHour).toHaveAttribute("aria-valuemin", "0");
   expect(fiveHour).toHaveAttribute("aria-valuemax", "100");
   expect(fiveHour).toHaveAttribute("aria-valuetext", "12% used");
-  expect(screen.getByText("5-hour")).toBeInTheDocument();
   expect(screen.getByText("12% used")).toBeInTheDocument();
   expect(screen.getByText("3h 20m")).toHaveTextContent("resets in 3h 20m");
-  expect(screen.getByRole("meter", { name: "Weekly limit" })).toHaveAttribute(
+  expect(screen.getByRole("meter", { name: "Weekly" })).toHaveAttribute(
     "aria-valuenow",
     "83",
   );
   expect(screen.getByText("2d 4h")).toHaveTextContent("resets in 2d 4h");
-  expect(
-    screen.getByRole("meter", { name: "Weekly limit · Fable" }),
-  ).toHaveAttribute("aria-valuenow", "100");
-  expect(screen.getByText("Weekly · Fable")).toBeInTheDocument();
+  expect(screen.getByRole("meter", { name: "Weekly · Fable" })).toHaveAttribute(
+    "aria-valuenow",
+    "100",
+  );
   expect(screen.getAllByText("resets in")).toHaveLength(2);
-  // Extra usage and freshness share the heading row instead of extra lines.
-  expect(
-    screen.getByText("Extra usage off · Updated 5m ago"),
-  ).toBeInTheDocument();
+  expect(screen.getByText("Updated 5m ago")).toBeInTheDocument();
 });
 
-it("reports extra usage that is turned on", async () => {
+it("colours bars by reported severity, falling back to the share used", async () => {
   fetchUsage.mockResolvedValue(
     usage({
-      observed_at: new Date(now - 10_000).toISOString(),
-      windows: [{ id: "seven_day", window_minutes: 10080, used_percent: 3 }],
-      extra_usage: { enabled: true },
+      items: [
+        { id: "a", label: "Low", kind: "percent", used_percent: 10 },
+        { id: "b", label: "High", kind: "percent", used_percent: 85 },
+        { id: "c", label: "Full", kind: "percent", used_percent: 100 },
+        {
+          id: "d",
+          label: "Flagged",
+          kind: "percent",
+          used_percent: 20,
+          severity: "critical",
+        },
+      ],
     }),
   );
   mount();
-  expect(
-    await screen.findByText("Extra usage on · Updated just now"),
-  ).toBeInTheDocument();
+  const bar = async (name: string) =>
+    (await screen.findByRole("meter", { name })).firstElementChild;
+  expect(await bar("Low")).toHaveClass("bg-primary");
+  expect(await bar("High")).toHaveClass("bg-warning");
+  expect(await bar("Full")).toHaveClass("bg-danger");
+  expect(await bar("Flagged")).toHaveClass("bg-danger");
 });
 
-it("explains when the plan has not reported any window yet", async () => {
-  fetchUsage.mockResolvedValue(usage({ windows: [] }));
+it("renders amount items with and without a limit", async () => {
+  fetchUsage.mockResolvedValue(
+    usage({
+      items: [
+        {
+          id: "api_credits",
+          label: "API credits",
+          kind: "amount",
+          used: 12.4,
+          limit: 50,
+          unit: "usd",
+        },
+        {
+          id: "tokens",
+          label: "Tokens",
+          kind: "amount",
+          used: 300,
+          unit: "tokens",
+        },
+      ],
+    }),
+  );
+  mount();
+  const credits = await screen.findByRole("meter", { name: "API credits" });
+  expect(credits).toHaveAttribute("aria-valuenow", "25");
+  expect(credits).toHaveAttribute("aria-valuetext", "12.40 / 50.00 USD");
+  expect(screen.getByText("12.40 / 50.00 USD")).toBeInTheDocument();
+  expect(screen.getByText("300 tokens")).toBeInTheDocument();
+  expect(
+    screen.queryByRole("meter", { name: "Tokens" }),
+  ).not.toBeInTheDocument();
+});
+
+it("renders status items and skips unknown kinds", async () => {
+  fetchUsage.mockResolvedValue(
+    usage({
+      items: [
+        weekly(3),
+        {
+          id: "extra_usage",
+          label: "Extra usage",
+          kind: "status",
+          value: "off",
+        },
+        { id: "future", label: "Future", kind: "histogram" } as never,
+      ],
+    }),
+  );
+  mount();
+  expect(await screen.findByText("Extra usage")).toBeInTheDocument();
+  expect(screen.getByText("off")).toBeInTheDocument();
+  expect(screen.queryByText("Future")).not.toBeInTheDocument();
+  expect(screen.getAllByRole("listitem")).toHaveLength(2);
+});
+
+it("explains when the plan has not reported any usage yet", async () => {
+  fetchUsage.mockResolvedValue(usage({ items: [] }));
   mount();
   expect(
     await screen.findByText("No plan usage reported yet."),
@@ -212,28 +277,41 @@ it("explains sign-in methods without plan limits", async () => {
 
 it.each([
   [
-    "claude",
+    "claude-code",
+    "Claude Code",
     "cli_unsupported",
     "Update Claude Code on this device to see plan usage.",
   ],
   [
-    "codex",
+    "opencode",
+    "OpenCode",
     "cli_unsupported",
-    "Update Codex on this device to see plan usage.",
+    "Update OpenCode on this device to see plan usage.",
   ],
   [
-    "claude",
+    "kimi",
+    undefined,
+    "cli_unsupported",
+    "Update Kimi on this device to see plan usage.",
+  ],
+  [
+    "claude-code",
+    undefined,
     "daemon_unsupported",
     "Update PAX on this device to see plan usage.",
   ],
-  ["codex", "timeout", "Plan usage is unavailable right now."],
-  ["claude", "read_failed", "Plan usage is unavailable right now."],
-  ["claude", "something_new", "Plan usage is unavailable right now."],
+  ["codex", "Codex", "timeout", "Plan usage is unavailable right now."],
+  ["codex", "Codex", "something_new", "Plan usage is unavailable right now."],
 ] as const)(
-  "explains unavailable %s usage with %s",
-  async (harness, errorCode, text) => {
+  "explains unavailable %s usage (label %s) with %s",
+  async (harness, label, errorCode, text) => {
     fetchUsage.mockResolvedValue(
-      usage({ harness, state: "unavailable", error_code: errorCode }),
+      usage({
+        harness,
+        ...(label ? { harness_label: label } : {}),
+        state: "unavailable",
+        error_code: errorCode,
+      }),
     );
     mount("node-one", harness);
     expect(await screen.findByText(text)).toBeInTheDocument();
@@ -243,10 +321,7 @@ it.each([
 
 it("treats an unknown state as unavailable instead of showing numbers", async () => {
   fetchUsage.mockResolvedValue(
-    usage({
-      state: "unexpected",
-      windows: [{ id: "seven_day", window_minutes: 10080, used_percent: 3 }],
-    }),
+    usage({ state: "unexpected", items: [weekly(3)] }),
   );
   mount();
   expect(
@@ -265,14 +340,10 @@ it("shows only safe copy when the request fails and can retry", async () => {
     await screen.findByText("Plan usage could not be loaded."),
   ).toBeInTheDocument();
   expect(screen.queryByText(/private/)).not.toBeInTheDocument();
-  fetchUsage.mockResolvedValue(
-    usage({
-      windows: [{ id: "seven_day", window_minutes: 10080, used_percent: 3 }],
-    }),
-  );
+  fetchUsage.mockResolvedValue(usage({ items: [weekly(3)] }));
   await user.click(screen.getByRole("button", { name: "Refresh plan usage" }));
   expect(
-    await screen.findByRole("meter", { name: "Weekly limit" }),
+    await screen.findByRole("meter", { name: "Weekly" }),
   ).toBeInTheDocument();
   expect(
     screen.queryByText("Plan usage could not be loaded."),
@@ -280,14 +351,10 @@ it("shows only safe copy when the request fails and can retry", async () => {
 });
 
 it("refetches on refresh, disables the button meanwhile and keeps data on failure", async () => {
-  fetchUsage.mockResolvedValueOnce(
-    usage({
-      windows: [{ id: "seven_day", window_minutes: 10080, used_percent: 3 }],
-    }),
-  );
+  fetchUsage.mockResolvedValueOnce(usage({ items: [weekly(3)] }));
   const user = userEvent.setup();
   mount();
-  await screen.findByRole("meter", { name: "Weekly limit" });
+  await screen.findByRole("meter", { name: "Weekly" });
   const next = deferred();
   fetchUsage.mockReturnValueOnce(next.promise as never);
   const refresh = screen.getByRole("button", { name: "Refresh plan usage" });
@@ -296,10 +363,7 @@ it("refetches on refresh, disables the button meanwhile and keeps data on failur
   expect(refresh).toBeDisabled();
   await act(async () => {
     next.resolve(
-      usage({
-        observed_at: new Date(now).toISOString(),
-        windows: [{ id: "seven_day", window_minutes: 10080, used_percent: 9 }],
-      }),
+      usage({ observed_at: new Date(now).toISOString(), items: [weekly(9)] }),
     );
   });
   expect(await screen.findByText("9% used")).toBeInTheDocument();
@@ -315,16 +379,12 @@ it("refetches on refresh, disables the button meanwhile and keeps data on failur
 });
 
 it.each([
-  ["device", "node-two", "claude"],
+  ["device", "node-two", "claude-code"],
   ["agent type", "node-one", "codex"],
 ] as const)(
   "never shows the previous usage after the %s changes",
   async (_label, nodeId, harness) => {
-    fetchUsage.mockResolvedValueOnce(
-      usage({
-        windows: [{ id: "seven_day", window_minutes: 10080, used_percent: 3 }],
-      }),
-    );
+    fetchUsage.mockResolvedValueOnce(usage({ items: [weekly(3)] }));
     const view = mount();
     await screen.findByText("3% used");
     const next = deferred();
@@ -340,7 +400,14 @@ it.each([
       next.resolve(
         usage({
           harness,
-          windows: [{ id: "primary", window_minutes: 300, used_percent: 61 }],
+          items: [
+            {
+              id: "primary",
+              label: "5-hour",
+              kind: "percent",
+              used_percent: 61,
+            },
+          ],
         }),
       );
     });
@@ -350,86 +417,16 @@ it.each([
   },
 );
 
-// Exact Manager responses for views paxd read from real Claude Code and Codex CLIs.
-it.each([
-  {
-    harness: "claude" as const,
-    view: {
-      harness: "claude" as const,
-      state: "available",
-      observed_at: "2026-11-12T19:14:20Z",
-      plan: "max",
-      windows: [
-        {
-          id: "seven_day",
-          window_minutes: 10080,
-          used_percent: 4,
-          resets_at: "2026-11-16T09:00:00Z",
-        },
-        {
-          id: "seven_day_fable",
-          window_minutes: 10080,
-          scope: "Fable",
-          used_percent: 0,
-          resets_at: "2026-11-16T09:00:00Z",
-        },
-      ],
-      extra_usage: { enabled: false },
-    },
-    meters: [
-      ["Weekly limit", "4"],
-      ["Weekly limit · Fable", "0"],
-    ],
-    resets: "3d 13h",
-    meta: "Extra usage off · Updated 5m ago",
-  },
-  {
-    harness: "codex" as const,
-    view: {
-      harness: "codex" as const,
-      state: "available",
-      observed_at: "2026-11-12T19:14:22Z",
-      plan: "pro",
-      windows: [
-        {
-          id: "primary",
-          window_minutes: 10080,
-          used_percent: 31,
-          resets_at: "2026-11-18T08:58:18Z",
-        },
-      ],
-    },
-    meters: [["Weekly limit", "31"]],
-    resets: "5d 13h",
-    meta: "Updated 5m ago",
-  },
-])(
-  "renders the real $harness device response",
-  async ({ harness, view, meters, resets, meta }) => {
-    vi.setSystemTime(Date.parse(view.observed_at) + 5 * 60_000);
-    fetchUsage.mockResolvedValue({ harness_usage: view });
-    mount("node-one", harness);
-    for (const [name, value] of meters) {
-      expect(await screen.findByRole("meter", { name })).toHaveAttribute(
-        "aria-valuenow",
-        value,
-      );
-    }
-    expect(screen.getAllByText(resets)).toHaveLength(meters.length);
-    expect(screen.getByText(meta)).toBeInTheDocument();
-    if (harness === "codex")
-      expect(screen.queryByText(/Extra usage/)).not.toBeInTheDocument();
-  },
-);
-
 it("ignores a response for a different harness", async () => {
   fetchUsage.mockResolvedValue(
     usage({
       harness: "codex",
-      windows: [{ id: "primary", window_minutes: 300, used_percent: 61 }],
+      items: [
+        { id: "primary", label: "5-hour", kind: "percent", used_percent: 61 },
+      ],
     }),
   );
-  mount("node-one", "claude");
+  mount("node-one", "claude-code");
   expect(
     await screen.findByText("Plan usage is unavailable right now."),
   ).toBeInTheDocument();

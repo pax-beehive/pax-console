@@ -134,10 +134,18 @@ keeping warm query caches. Real push-provider and OS display claims remain exclu
 
 ### Agent sign-in and session authentication recovery
 
-Settings > Agent sign-in (`/settings/agent-sign-in`) signs in the installed Claude
-Code or Codex CLI on an owned, connected device. Claude supports subscription
+Settings > Agent sign-in (`/settings/agent-sign-in`) signs in native agent CLIs on
+an owned, connected device. The Agent type options are the distinct `agent_type`
+values of agents registered in PAX for the selected device (`useNodeAgents`, a
+Manager record); the page never lists or probes tools installed on the device.
+Agent types are PAX ids such as `claude-code`, `codex` or `kimi`; the legacy
+`harness=claude` URL value maps to `claude-code`. A missing or unregistered linked
+agent type falls back to the first registered one, and a device without
+registered agents shows an empty state. Claude Code supports subscription
 (default) and Anthropic Console authorization. Codex supports a ChatGPT device
-code (default), API key, and access token. Opening the page only checks status;
+code (default), API key, and access token. When auth status reports
+`unsupported`, the page says sign-in is not available for that agent type yet and
+hides the sign-in controls. Opening the page only checks status;
 the user explicitly starts, submits, or cancels an attempt. A `logged_in` result
 still offers Sign in again because local credential presence does not establish
 that a provider will accept the next request.
@@ -152,26 +160,38 @@ details are unavailable on this device.” Account details stay in the mounted
 login state and disappear while starting a new login, in non-success states,
 after status errors, and when the selected device or agent type changes.
 
-When credentials are detected, the section also mounts Plan usage
-(`agent-usage.tsx`) at full width below the status row. `useNodeHarnessUsage` reads GET
+When credentials are detected, or sign-in is unsupported for the agent type, the
+section also mounts Plan usage (`agent-usage.tsx`) at full width below the status
+row. `useNodeHarnessUsage` reads GET
 `/api/v1/user/:user_id/nodes/:node_id/harnesses/:harness/usage` with
 `cache: no-store` through TanStack Query, keyed by user, device and agent type,
 with a 60-second stale time, no focus refetch, no retries and no persistence; a
 refresh button refetches on demand. Usage contains no credentials, so it may use
-the Query cache, but it never joins the ephemeral sign-in state. `available`
-shows one compact row per window: a short label from `window_minutes` (300 is
-5-hour, 10080 weekly) and optional model `scope`, an accessible meter named with
-the full limit label, the percent used and the time until reset (the "resets in"
-prefix is visible only from the `sm` breakpoint, and always available to screen
-readers). The heading row carries `observed_at` freshness, the refresh button and,
-for Claude, `extra_usage.enabled` as on/off. `unsupported` means the sign-in method
-has no plan limits. `unavailable` uses `error_code`: `cli_unsupported` asks to
-update Claude Code or Codex, `daemon_unsupported` asks to update PAX, and other
-codes show a generic unavailable message. Loading or failed usage never changes
-the sign-in status line, the green check or Sign in again, and switching the
-device or agent type never shows the previous device's usage. paxd and the
-native CLI each cache usage for about a minute, so values can be up to about two
-minutes old; `observed_at` is when paxd completed its read.
+the Query cache, but it never joins the ephemeral sign-in state.
+
+Plan usage is data-driven: the console has no per-harness usage code. An
+`available` view lists `items`, one compact row each, using the item's own
+English `label`:
+
+- `percent`: an accessible meter named by the label, `N% used`, and the time until
+  `resets_at` (the "resets in" prefix shows from the `sm` breakpoint and is always
+  available to screen readers).
+- `amount`: `used / limit unit` with a meter when a limit is present, otherwise
+  `used unit`. `usd`, `eur` and `cny` show two decimals and the currency code;
+  `credits`, `tokens` and `requests` show whole numbers and the unit word.
+- `status`: the label and its short `value`, such as Extra usage `off`.
+
+Unknown item kinds are skipped. Bars use the item `severity` when present, else
+warning from 80% and critical at 100%. The heading row carries `observed_at`
+freshness and the refresh button. `unsupported` means the sign-in method has no
+plan limits. `unavailable` uses `error_code`: `cli_unsupported` asks to update the
+agent named by `harness_label` (fallback: the formatted agent type),
+`daemon_unsupported` asks to update PAX, and other codes show a generic
+unavailable message. Loading or failed usage never changes the sign-in status
+line, the green check or Sign in again, and switching the device or agent type
+never shows the previous device's usage. paxd and the native CLI each cache usage
+for about a minute, so values can be up to about two minutes old; `observed_at` is
+when paxd completed its read.
 
 `agent-sign-in-settings.tsx` owns device/method selection and password inputs;
 `agent-sign-in-flow.ts` owns ephemeral status, polling, cancellation and expiration.
@@ -193,7 +213,7 @@ must authorize node ownership and forward over authenticated node control withou
 persisting secrets. Old Manager/paxd versions, offline nodes, conflicts and timeouts
 have explicit recovery text.
 
-Session recovery links carry `node_id`, `harness`, and the original conversation's
+Session recovery links carry `node_id`, `harness` (the session's agent type), and the original conversation's
 `session_id`. The page never substitutes a different device for a missing linked
 device. The original conversation ID is used only for the fixed
 `/?session_id=<encoded ID>` return link; it is distinct from the native login

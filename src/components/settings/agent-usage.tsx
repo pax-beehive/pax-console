@@ -1,50 +1,44 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TruncatedText } from "@/components/ui/text";
 import { useNodeHarnessUsage } from "@/features/api/resources";
 import type {
+  HarnessUsageAmountItem,
+  HarnessUsageItem,
+  HarnessUsagePercentItem,
   HarnessUsageView,
-  HarnessUsageWindow,
   LoginHarness,
 } from "@/features/api/types";
 import { compactDateTime, formatAge } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { agentTypeLabel } from "./agent-types";
 
-const harnessNames: Record<LoginHarness, string> = {
-  claude: "Claude Code",
-  codex: "Codex",
-};
+const currencyUnits = new Set(["usd", "eur", "cny"]);
+const countUnits = new Set(["credits", "tokens", "requests"]);
 
-type WindowShape = Pick<HarnessUsageWindow, "window_minutes" | "scope">;
-
-function windowLength(minutes: number) {
-  if (!Number.isInteger(minutes) || minutes <= 0) return undefined;
-  if (minutes === 10080) return "Weekly";
-  if (minutes % 1440 === 0) return `${minutes / 1440}-day`;
-  if (minutes % 60 === 0 && minutes < 1440) return `${minutes / 60}-hour`;
-  return `${minutes}-minute`;
-}
-
-function withScope(label: string, scope?: string) {
-  const trimmed = scope?.trim();
-  return trimmed ? `${label} · ${trimmed}` : label;
-}
-
-/** Accessible window name, such as "5-hour limit" or "Weekly limit · Fable". */
-export function usageWindowLabel(window: WindowShape) {
-  const length = windowLength(window.window_minutes);
-  return withScope(length ? `${length} limit` : "Usage limit", window.scope);
-}
-
-/** Row label, such as "5-hour" or "Weekly · Fable". */
-export function usageWindowShortLabel(window: WindowShape) {
-  return withScope(
-    windowLength(window.window_minutes) ?? "Usage",
-    window.scope,
-  );
+/** Value text for an amount item, such as "12.40 / 50.00 USD" or "300 tokens". */
+export function formatUsageAmount(
+  item: Pick<HarnessUsageAmountItem, "used" | "limit" | "unit">,
+) {
+  const unit = item.unit?.toLowerCase();
+  const currency = unit !== undefined && currencyUnits.has(unit);
+  const format = (value: number) =>
+    currency
+      ? value.toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      : Math.round(value).toLocaleString("en-US");
+  const amount =
+    item.limit !== undefined
+      ? `${format(item.used)} / ${format(item.limit)}`
+      : format(item.used);
+  if (currency) return `${amount} ${unit!.toUpperCase()}`;
+  if (unit && countUnits.has(unit)) return `${amount} ${unit}`;
+  return amount;
 }
 
 /** Compact time until a window resets, such as "3h 20m", or "soon". */
@@ -74,19 +68,30 @@ function updatedLabel(observedAt: string | undefined, now: number) {
   return `Updated ${formatAge(observedAt, now)} ago`;
 }
 
-function usableWindows(view: HarnessUsageView) {
-  return (view.windows ?? []).filter(
-    (window) =>
-      Number.isFinite(window.used_percent) &&
-      Number.isFinite(window.window_minutes) &&
-      window.window_minutes > 0,
-  );
+function usableItems(view: HarnessUsageView): HarnessUsageItem[] {
+  return (view.items ?? []).filter((item) => {
+    if (!item?.id || !item.label) return false;
+    switch (item.kind) {
+      case "percent":
+        return Number.isFinite(item.used_percent);
+      case "amount":
+        return (
+          Number.isFinite(item.used) &&
+          (item.limit === undefined || Number.isFinite(item.limit))
+        );
+      case "status":
+        return Boolean(item.value);
+      default:
+        // Newer devices may report kinds this console does not know yet.
+        return false;
+    }
+  });
 }
 
-function unavailableMessage(harness: LoginHarness, errorCode?: string) {
+function unavailableMessage(label: string, errorCode?: string) {
   switch (errorCode) {
     case "cli_unsupported":
-      return `Update ${harnessNames[harness]} on this device to see plan usage.`;
+      return `Update ${label} on this device to see plan usage.`;
     case "daemon_unsupported":
       return "Update PAX on this device to see plan usage.";
     default:
@@ -121,20 +126,14 @@ export function HarnessUsagePanel({
   const now = useClock(30_000);
   const view = usage.data?.harness_usage;
   const current = view?.harness === harness ? view : undefined;
-  const extra =
-    current?.state === "available" && current.extra_usage
-      ? `Extra usage ${current.extra_usage.enabled ? "on" : "off"}`
-      : undefined;
-  const meta = [extra, current && updatedLabel(current.observed_at, now)]
-    .filter(Boolean)
-    .join(" · ");
+  const updated = current && updatedLabel(current.observed_at, now);
 
   return (
     <section aria-label="Plan usage" className="grid min-w-0 gap-1.5">
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3">
         <h2 className="text-sm font-medium text-ink">Plan usage</h2>
         <div className="flex min-w-0 items-center gap-1 text-xs text-ink-tertiary">
-          {meta && <span>{meta}</span>}
+          {updated && <span>{updated}</span>}
           {/* Keeps a 44px touch target without making the heading row taller. */}
           <Button
             size="icon"
@@ -158,7 +157,7 @@ export function HarnessUsagePanel({
       </div>
       {current ? (
         <>
-          <UsageDetails view={current} harness={harness} now={now} />
+          <UsageDetails view={current} now={now} />
           {usage.error && !usage.isFetching && (
             <p role="alert" className="text-sm leading-6 text-warning">
               Plan usage could not be refreshed.
@@ -182,15 +181,7 @@ export function HarnessUsagePanel({
   );
 }
 
-function UsageDetails({
-  view,
-  harness,
-  now,
-}: {
-  view: HarnessUsageView;
-  harness: LoginHarness;
-  now: number;
-}) {
+function UsageDetails({ view, now }: { view: HarnessUsageView; now: number }) {
   if (view.state === "unsupported") {
     return (
       <p className="text-sm leading-6 text-ink-muted">
@@ -201,83 +192,153 @@ function UsageDetails({
   if (view.state !== "available") {
     return (
       <p className="text-sm leading-6 text-ink-muted">
-        {unavailableMessage(harness, view.error_code)}
+        {unavailableMessage(
+          view.harness_label?.trim() || agentTypeLabel(view.harness),
+          view.error_code,
+        )}
       </p>
     );
   }
-  const windows = usableWindows(view);
-  if (windows.length === 0) {
+  const items = usableItems(view);
+  if (items.length === 0) {
     return (
       <p className="text-sm leading-6 text-ink-muted">
         No plan usage reported yet.
       </p>
     );
   }
-  // One row per window; subgrid keeps the bars and numbers aligned across rows.
+  // One row per item; subgrid keeps the bars and numbers aligned across rows.
   return (
     <ul className="grid min-w-0 grid-cols-[minmax(0,max-content)_minmax(2.5rem,1fr)_auto_auto] items-center gap-x-3 gap-y-1">
-      {windows.map((window) => (
-        <UsageWindowRow key={window.id} window={window} now={now} />
+      {items.map((item) => (
+        <UsageItemRow key={item.id} item={item} now={now} />
       ))}
     </ul>
   );
 }
 
-function UsageWindowRow({
-  window,
-  now,
-}: {
-  window: HarnessUsageWindow;
-  now: number;
-}) {
-  const label = usageWindowLabel(window);
-  const percent = Math.min(100, Math.max(0, Math.round(window.used_percent)));
-  const countdown = formatResetCountdown(window.resets_at, now);
+function barColor(item: HarnessUsageItem, percent: number) {
+  const severity =
+    item.severity ??
+    (percent >= 100 ? "critical" : percent >= 80 ? "warning" : "normal");
+  return severity === "critical"
+    ? "bg-danger"
+    : severity === "warning"
+      ? "bg-warning"
+      : "bg-primary";
+}
 
+function UsageMeter({
+  item,
+  percent,
+  valueText,
+}: {
+  item: HarnessUsageItem;
+  percent: number;
+  valueText: string;
+}) {
   return (
-    <li className="col-span-4 grid grid-cols-subgrid items-center text-sm leading-6">
-      <TruncatedText className="max-w-40 text-ink">
-        {usageWindowShortLabel(window)}
-      </TruncatedText>
+    <div
+      role="meter"
+      aria-label={item.label}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={percent}
+      aria-valuetext={valueText}
+      className="h-1 w-full overflow-hidden rounded-full bg-surface-3"
+    >
       <div
-        role="meter"
-        aria-label={label}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={percent}
-        aria-valuetext={`${percent}% used`}
-        className="h-1 w-full overflow-hidden rounded-full bg-surface-3"
-      >
-        <div
-          className={cn(
-            "h-full rounded-full",
-            percent >= 100
-              ? "bg-danger"
-              : percent >= 80
-                ? "bg-warning"
-                : "bg-primary",
-          )}
-          style={{ width: `${percent}%` }}
-        />
-      </div>
-      <span className="whitespace-nowrap text-right tabular-nums text-ink-muted">
-        {percent}% used
+        className={cn("h-full rounded-full", barColor(item, percent))}
+        style={{ width: `${percent}%` }}
+      />
+    </div>
+  );
+}
+
+function ResetCountdown({ resetsAt, now }: { resetsAt?: string; now: number }) {
+  const countdown = formatResetCountdown(resetsAt, now);
+  if (!countdown) return <span aria-hidden="true" />;
+  return (
+    <time
+      dateTime={resetsAt}
+      title={compactDateTime(resetsAt)}
+      className="whitespace-nowrap text-xs text-ink-tertiary"
+    >
+      {/* Narrow screens show only the countdown; screen readers keep the prefix. */}
+      <span className="sr-only sm:not-sr-only">
+        {countdown === "soon" ? "resets " : "resets in "}
       </span>
-      {countdown ? (
-        <time
-          dateTime={window.resets_at}
-          title={compactDateTime(window.resets_at)}
-          className="whitespace-nowrap text-xs text-ink-tertiary"
-        >
-          {/* Narrow screens show only the countdown; screen readers keep the prefix. */}
-          <span className="sr-only sm:not-sr-only">
-            {countdown === "soon" ? "resets " : "resets in "}
-          </span>
-          {countdown}
-        </time>
+      {countdown}
+    </time>
+  );
+}
+
+const clampPercent = (value: number) =>
+  Math.min(100, Math.max(0, Math.round(value)));
+
+function UsageItemRow({ item, now }: { item: HarnessUsageItem; now: number }) {
+  const label = (
+    <TruncatedText className="max-w-40 text-ink">{item.label}</TruncatedText>
+  );
+  const rowClass =
+    "col-span-4 grid grid-cols-subgrid items-center text-sm leading-6";
+
+  if (item.kind === "status") {
+    return (
+      <li className={rowClass}>
+        {label}
+        <span className="col-span-3 min-w-0 text-ink-muted">{item.value}</span>
+      </li>
+    );
+  }
+  if (item.kind === "percent") {
+    return (
+      <PercentRow item={item} label={label} now={now} rowClass={rowClass} />
+    );
+  }
+  const text = formatUsageAmount(item);
+  const limited = item.limit !== undefined && item.limit > 0;
+  const percent = limited ? clampPercent((item.used / item.limit!) * 100) : 0;
+  return (
+    <li className={rowClass}>
+      {label}
+      {limited ? (
+        <UsageMeter item={item} percent={percent} valueText={text} />
       ) : (
         <span aria-hidden="true" />
       )}
+      <span className="whitespace-nowrap text-right tabular-nums text-ink-muted">
+        {text}
+      </span>
+      <ResetCountdown resetsAt={item.resets_at} now={now} />
+    </li>
+  );
+}
+
+function PercentRow({
+  item,
+  label,
+  now,
+  rowClass,
+}: {
+  item: HarnessUsagePercentItem;
+  label: ReactNode;
+  now: number;
+  rowClass: string;
+}) {
+  const percent = clampPercent(item.used_percent);
+  return (
+    <li className={rowClass}>
+      {label}
+      <UsageMeter
+        item={item}
+        percent={percent}
+        valueText={`${percent}% used`}
+      />
+      <span className="whitespace-nowrap text-right tabular-nums text-ink-muted">
+        {percent}% used
+      </span>
+      <ResetCountdown resetsAt={item.resets_at} now={now} />
     </li>
   );
 }

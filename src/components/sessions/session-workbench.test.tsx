@@ -238,7 +238,7 @@ describe("agent sign-in recovery", () => {
     const url = new URL(href, "https://paxworkspace.net");
     expect(url.searchParams.get("node_id")).toBe("node_1");
     expect(url.searchParams.get("session_id")).toBe("sess_1");
-    expect(url.searchParams.get("harness")).toBe("claude");
+    expect(url.searchParams.get("harness")).toBe("claude-code");
   });
 
   it("does not infer failure from an ordinary assistant message about authentication", () => {

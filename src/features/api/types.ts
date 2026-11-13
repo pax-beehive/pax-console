@@ -35,7 +35,8 @@ export type Node = {
   latest_daemon_commands?: DaemonCommandRecord[];
 };
 
-export type LoginHarness = "claude" | "codex";
+/** PAX agent type of a registered agent, such as "claude-code" or "codex". */
+export type LoginHarness = string;
 export type HarnessLoginMethod =
   | "subscription"
   | "console"
@@ -68,32 +69,59 @@ export type HarnessAuthView = {
 
 export type HarnessAuthData = { harness_auth: HarnessAuthView };
 
-/** One plan rate-limit window reported by the native CLI on the device. */
-export type HarnessUsageWindow = {
+type HarnessUsageItemBase = {
+  /** Stable within one harness; use as the row key. */
   id: string;
-  /** Rolling window length, such as 300 (5 hours) or 10080 (1 week). */
-  window_minutes: number;
-  /** Model bucket name for model-scoped limits. */
-  scope?: string;
-  /** Share of the window used, from 0 to 100. */
+  /** English display text chosen by the device's harness adapter. */
+  label: string;
+  severity?: "normal" | "warning" | "critical";
+};
+
+/** A share of a limit window, such as a weekly plan limit. */
+export type HarnessUsagePercentItem = HarnessUsageItemBase & {
+  kind: "percent";
+  /** Share used, from 0 to 100. */
   used_percent: number;
   resets_at?: string;
+  window_minutes?: number;
 };
+
+/** A balance, spend or count, optionally against a limit. */
+export type HarnessUsageAmountItem = HarnessUsageItemBase & {
+  kind: "amount";
+  used: number;
+  limit?: number;
+  /** usd, eur, cny, credits, tokens or requests. */
+  unit?: string;
+  resets_at?: string;
+};
+
+/** A short state, such as extra usage being off. */
+export type HarnessUsageStatusItem = HarnessUsageItemBase & {
+  kind: "status";
+  value: string;
+};
+
+export type HarnessUsageItem =
+  | HarnessUsagePercentItem
+  | HarnessUsageAmountItem
+  | HarnessUsageStatusItem;
 
 /**
  * Plan usage read by the device's native CLI. It contains no credentials, so it
  * may use the Query cache, but it never joins the ephemeral sign-in state.
+ * Render it from items by kind; unknown kinds are skipped.
  */
 export type HarnessUsageView = {
   harness: LoginHarness;
+  /** Display name of the agent type, when the device knows it. */
+  harness_label?: string;
   /** available, unsupported (no plan limits for this sign-in) or unavailable. */
   state: string;
-  /** When the device read the data; values can be about a minute old. */
+  /** When the device read the data; values can be up to about two minutes old. */
   observed_at?: string;
   plan?: string;
-  windows?: HarnessUsageWindow[];
-  /** Claude only: whether paid extra usage is turned on for the account. */
-  extra_usage?: { enabled: boolean };
+  items?: HarnessUsageItem[];
   /** For unavailable: cli_unsupported, daemon_unsupported, timeout or read_failed. */
   error_code?: string;
 };
