@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { MonoId, TruncatedText } from "@/components/ui/text";
 import { ApiError, AuthError } from "@/features/api/errors";
+import { SecretarySessionControl } from "./secretary-user-control";
 import {
   useSecretaryTasks,
   useSecretaryTaskDetail,
@@ -297,6 +298,11 @@ function SecretaryTaskRow({
         {task.lease_active ? " · Operation in progress" : ""}
       </p>
       <div data-testid="task-controls" className="mt-2 flex flex-wrap gap-1.5">
+        <SecretarySessionControl
+          userId={userId}
+          sourceId={task.task_id}
+          operationId={task.operation_id}
+        />
         {task.execution_session_id && (
           <Button
             asChild

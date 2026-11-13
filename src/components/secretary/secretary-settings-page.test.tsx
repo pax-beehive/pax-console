@@ -22,6 +22,12 @@ import {
 import { SecretarySettingsPanel } from "./secretary-settings-page";
 import { useSecretaryProgress } from "@/features/api/secretary-progress";
 
+vi.mock("./secretary-user-control", () => ({
+  SecretaryGuidanceEditor: () => (
+    <section aria-label="Default summary requirements" />
+  ),
+}));
+
 vi.mock("./secretary-tasks", () => ({
   SecretaryTaskList: ({ enabled }: { enabled: boolean }) => (
     <section aria-label="Secretary tasks">

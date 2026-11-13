@@ -31,6 +31,7 @@ import {
   SecretarySessionProgressList,
 } from "./secretary-progress";
 import { SecretaryTaskList } from "./secretary-tasks";
+import { SecretaryGuidanceEditor } from "./secretary-user-control";
 
 const stateLabels: Record<SecretaryState, string> = {
   disabled: "Off",
@@ -100,6 +101,7 @@ export function SecretarySettingsPanel({ userId }: { userId: string }) {
             <Link href="/settings/secretary/summaries">View summaries</Link>
           </Button>
         </div>
+        <SecretaryGuidanceEditor userId={userId} />
         <SecretaryRetryFeedback run={run} />
         {settings.isPending ? (
           <p className="text-sm text-ink-tertiary" role="status">
@@ -222,6 +224,7 @@ export function SecretarySettingsPanel({ userId }: { userId: string }) {
               />
             </div>
             <SecretarySessionProgressList
+              userId={userId}
               progress={progress}
               agents={ownedAgents}
             />

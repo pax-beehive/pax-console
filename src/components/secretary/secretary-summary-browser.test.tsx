@@ -262,7 +262,7 @@ describe("Secretary summary reading", () => {
     ];
     detail = { ...detail, data: { ...summary, node_status: "stale" } };
     show({ id: item.summary_id, revision: 4 });
-    expect(screen.getAllByText("Awaiting update")).toHaveLength(2);
+    expect(screen.getAllByText("Source changed")).toHaveLength(2);
     expect(
       screen.getByRole("heading", { name: "Storage" }),
     ).toBeInTheDocument();
@@ -301,6 +301,16 @@ describe("Secretary summary reading", () => {
       screen.getByRole("link", { name: "Original conversation" }),
     ).toHaveAttribute("href", "/?session_id=sess%20origin%2F%26");
   });
+  it.each(["user", "agent", "legacy_unknown", undefined] as const)(
+    "labels only explicit user authorship (%s)",
+    (authorKind) => {
+      detail = { ...detail, data: { ...summary, author_kind: authorKind } };
+      show({ id: item.summary_id, revision: 4 });
+      if (authorKind === "user")
+        expect(screen.getByText("Written by you")).toBeInTheDocument();
+      else expect(screen.queryByText("Written by you")).not.toBeInTheDocument();
+    },
+  );
   it("loads revision history only when requested and navigates to an exact version", () => {
     vi.mocked(useSecretarySummaryRevisions).mockReturnValue({
       data: { pages: [{ items: [{ ...item, revision: 2 }] }] },

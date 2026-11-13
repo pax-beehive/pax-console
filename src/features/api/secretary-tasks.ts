@@ -20,6 +20,7 @@ export type SecretaryTaskState =
   | "blocked"
   | "completed";
 export type SecretaryTask = {
+  operation_id?: string;
   task_id: string;
   session_id: string;
   source_agent_id: string;
