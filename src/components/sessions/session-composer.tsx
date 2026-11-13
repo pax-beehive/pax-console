@@ -176,12 +176,16 @@ export const SessionComposer = memo(function SessionComposer({
     queue: { pending: false, lastStartedAt: -Infinity },
   });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // Which button asked to send once dictation finishes.
+  const [afterDictation, setAfterDictation] = useState<"submit" | "steer">(
+    "submit",
+  );
   const voice = useComposerDictation({
     draftKey,
     getHints: getVoiceHints,
     maxDurationSeconds: voiceInput?.maxDurationSeconds,
     blocked: secure,
-    send: () => submit(),
+    send: () => (afterDictation === "steer" ? steer() : submit()),
   });
   // While dictating, the draft is still being written; sending means "stop
   // and send once the final transcript is in".
@@ -197,6 +201,14 @@ export const SessionComposer = memo(function SessionComposer({
         Boolean(activeAgentId && currentSessionId) &&
         !queueTurnPending
       : Boolean(activeAgentId && activeNodeId));
+  const canSteerDictation =
+    dictating &&
+    !sendAfterDictation &&
+    isTurnRunning &&
+    supportsQueuedTurns &&
+    Boolean(activeAgentId && currentSessionId) &&
+    !attachmentUploadPending &&
+    !steerTurnPending;
   const canSend =
     Boolean(activeAgentId && activeNodeId) &&
     !isTurnRunning &&
@@ -252,7 +264,10 @@ export const SessionComposer = memo(function SessionComposer({
   function submit(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     if (dictating) {
-      if (canSendDictation) voice.sendWhenDone();
+      if (canSendDictation) {
+        setAfterDictation("submit");
+        voice.sendWhenDone();
+      }
       return;
     }
     const submittedDraft =
@@ -324,6 +339,13 @@ export const SessionComposer = memo(function SessionComposer({
   }
 
   function steer() {
+    if (dictating) {
+      if (canSteerDictation) {
+        setAfterDictation("steer");
+        voice.sendWhenDone();
+      }
+      return;
+    }
     const content =
       useConsoleStore.getState().composerDrafts[draftKey]?.trim() ?? "";
     if (!canSteerTurn || (!content && !hasAttachments)) {
@@ -717,7 +739,8 @@ export const SessionComposer = memo(function SessionComposer({
                 }
                 disabled={!canQueueTurn && !canSendDictation}
                 icon={
-                  queueTurnPending || sendAfterDictation ? (
+                  queueTurnPending ||
+                  (sendAfterDictation && afterDictation === "submit") ? (
                     <LoaderCircle className="h-4 w-4 animate-spin" />
                   ) : (
                     <Send className="h-4 w-4" />
@@ -740,9 +763,10 @@ export const SessionComposer = memo(function SessionComposer({
                     ? "Steer with this prompt"
                     : "Waiting for session id"
                 }
-                disabled={!canSteerTurn}
+                disabled={!canSteerTurn && !canSteerDictation}
                 icon={
-                  steerTurnPending ? (
+                  steerTurnPending ||
+                  (sendAfterDictation && afterDictation === "steer") ? (
                     <LoaderCircle className="h-4 w-4 animate-spin" />
                   ) : (
                     <RefreshCw className="h-4 w-4" />
@@ -751,9 +775,11 @@ export const SessionComposer = memo(function SessionComposer({
                 onClick={steer}
                 size="icon"
                 tooltip={
-                  currentSessionId
-                    ? "Steer with this prompt"
-                    : "Waiting for session id"
+                  !currentSessionId
+                    ? "Waiting for session id"
+                    : dictating
+                      ? "Steer when dictation finishes"
+                      : "Steer with this prompt"
                 }
                 type="button"
                 variant="ghost"
