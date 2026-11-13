@@ -1,7 +1,13 @@
 /* @vitest-environment jsdom */
 import "@testing-library/jest-dom/vitest";
-import { act, cleanup, render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import {
+  act,
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -45,8 +51,15 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-function panel(nodeId: string, harness: LoginHarness) {
-  return <HarnessUsagePanel userId="self" nodeId={nodeId} harness={harness} />;
+function panel(nodeId: string, harness: LoginHarness, refreshKey = 0) {
+  return (
+    <HarnessUsagePanel
+      userId="self"
+      nodeId={nodeId}
+      harness={harness}
+      refreshKey={refreshKey}
+    />
+  );
 }
 
 function mount(nodeId = "node-one", harness: LoginHarness = "claude-code") {
@@ -60,9 +73,12 @@ function mount(nodeId = "node-one", harness: LoginHarness = "claude-code") {
     </QueryClientProvider>
   );
   const view = render(wrap(panel(nodeId, harness)));
+  let refreshKey = 0;
   return {
     rerender: (nextNode: string, nextHarness: LoginHarness) =>
       view.rerender(wrap(panel(nextNode, nextHarness))),
+    // The account card's Refresh bumps refreshKey to re-read usage.
+    refresh: () => view.rerender(wrap(panel(nodeId, harness, ++refreshKey))),
   };
 }
 
@@ -330,18 +346,17 @@ it("treats an unknown state as unavailable instead of showing numbers", async ()
   expect(screen.queryByRole("meter")).not.toBeInTheDocument();
 });
 
-it("shows only safe copy when the request fails and can retry", async () => {
+it("shows only safe copy when the request fails and retries on refresh", async () => {
   fetchUsage.mockRejectedValueOnce(
     new ApiError("node said something private", 502, {}),
   );
-  const user = userEvent.setup();
-  mount();
+  const view = mount();
   expect(
     await screen.findByText("Plan usage could not be loaded."),
   ).toBeInTheDocument();
   expect(screen.queryByText(/private/)).not.toBeInTheDocument();
   fetchUsage.mockResolvedValue(usage({ items: [weekly(3)] }));
-  await user.click(screen.getByRole("button", { name: "Refresh plan usage" }));
+  view.refresh();
   expect(
     await screen.findByRole("meter", { name: "Weekly" }),
   ).toBeInTheDocument();
@@ -350,17 +365,15 @@ it("shows only safe copy when the request fails and can retry", async () => {
   ).not.toBeInTheDocument();
 });
 
-it("refetches on refresh, disables the button meanwhile and keeps data on failure", async () => {
+it("refetches when refreshKey changes, shows updating meanwhile and keeps data on failure", async () => {
   fetchUsage.mockResolvedValueOnce(usage({ items: [weekly(3)] }));
-  const user = userEvent.setup();
-  mount();
+  const view = mount();
   await screen.findByRole("meter", { name: "Weekly" });
   const next = deferred();
   fetchUsage.mockReturnValueOnce(next.promise as never);
-  const refresh = screen.getByRole("button", { name: "Refresh plan usage" });
-  await user.click(refresh);
-  expect(fetchUsage).toHaveBeenCalledTimes(2);
-  expect(refresh).toBeDisabled();
+  view.refresh();
+  await waitFor(() => expect(fetchUsage).toHaveBeenCalledTimes(2));
+  expect(screen.getByText("Updating…")).toBeInTheDocument();
   await act(async () => {
     next.resolve(
       usage({ observed_at: new Date(now).toISOString(), items: [weekly(9)] }),
@@ -368,10 +381,9 @@ it("refetches on refresh, disables the button meanwhile and keeps data on failur
   });
   expect(await screen.findByText("9% used")).toBeInTheDocument();
   expect(screen.getByText("Updated just now")).toBeInTheDocument();
-  expect(refresh).toBeEnabled();
 
   fetchUsage.mockRejectedValueOnce(new ApiError("boom", 504, {}));
-  await user.click(refresh);
+  view.refresh();
   expect(
     await screen.findByText("Plan usage could not be refreshed."),
   ).toBeInTheDocument();

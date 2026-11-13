@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useState } from "react";
 import { CheckCircle2, ExternalLink, RefreshCw } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MonoId, TruncatedText } from "@/components/ui/text";
 import { compactId } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { useNodeAgents, useNodes } from "@/features/api/resources";
 import type {
   HarnessAuthAccount,
@@ -210,21 +212,93 @@ export function AgentSignInSettings({
 }
 
 const stateLabels: Record<string, string> = {
-  logged_in: "Sign-in credentials found on this device.",
-  succeeded: "Sign-in credentials found on this device.",
+  logged_in: "Signed in",
+  succeeded: "Signed in",
   logged_out: "Not signed in on this device.",
   starting: "Starting sign-in on the device…",
   awaiting_code:
-    "Complete authorization in your browser, then paste the full authorization code below.",
+    "Approve access in your browser, then paste the full authorization code below.",
   awaiting_browser:
-    "Enter the device code in your browser. This page will update when sign-in completes.",
+    "Approve access in your browser. This page updates when sign-in completes.",
   exchanging: "Verifying sign-in on the device…",
   cancelled: "Sign-in was cancelled.",
-  expired:
-    "Sign-in expired. Start again to get a new authorization link or code.",
-  failed:
-    "Sign-in failed. Start again and use a new authorization link or code.",
+  expired: "Sign-in expired. Start again to get a new link or code.",
+  failed: "Sign-in failed. Start again to get a new link or code.",
 };
+
+type MethodOption = {
+  value: HarnessLoginMethod;
+  label: string;
+  hint: string;
+};
+
+/** Native sign-in methods, named by the account the user signs in with. */
+const methodOptions: Record<string, MethodOption[]> = {
+  "claude-code": [
+    {
+      value: "subscription",
+      label: "Claude account (Pro / Max)",
+      hint: "Opens claude.ai to approve this device.",
+    },
+    {
+      value: "console",
+      label: "Anthropic Console (API billing)",
+      hint: "Uses your Console organization's API credits.",
+    },
+  ],
+  codex: [
+    {
+      value: "device",
+      label: "ChatGPT account",
+      hint: "Opens a ChatGPT page. Enter the code shown here to approve this device.",
+    },
+    {
+      value: "api-key",
+      label: "OpenAI API key",
+      hint: "Paste a key from platform.openai.com.",
+    },
+    {
+      value: "access-token",
+      label: "Access token",
+      hint: "For tokens issued by your organization.",
+    },
+  ],
+};
+
+/**
+ * The sign-in method that produced the current credential, from the native
+ * auth_method (`claude auth status`: claude.ai or api_key for a Console login;
+ * Codex: chatgpt, api_key, or access_token).
+ */
+export function defaultSignInMethod(
+  harness: LoginHarness,
+  authMethod?: string,
+): HarnessLoginMethod {
+  const byCredential: Record<string, HarnessLoginMethod> =
+    harness === "claude-code"
+      ? { "claude.ai": "subscription", api_key: "console" }
+      : { chatgpt: "device", api_key: "api-key", access_token: "access-token" };
+  return (
+    (authMethod ? byCredential[authMethod] : undefined) ??
+    methodOptions[harness]?.[0]?.value ??
+    "subscription"
+  );
+}
+
+const credentialLabels: Record<string, string> = {
+  "claude.ai": "Claude account",
+  api_key: "API key",
+  chatgpt: "ChatGPT",
+  access_token: "Access token",
+};
+
+const providerNames: Record<string, string> = {
+  "claude-code": "Claude",
+  codex: "ChatGPT",
+};
+
+const cardClass =
+  "grid min-w-0 gap-4 rounded-xl border border-hairline bg-surface-1 p-4 sm:p-5";
 
 function HarnessSignIn({
   userId,
@@ -236,11 +310,19 @@ function HarnessSignIn({
   harness: LoginHarness;
 }) {
   const flow = useAgentSignIn(userId, nodeId, harness);
+  // Bumped by Refresh so the usage card re-reads together with sign-in status.
+  const [usageRefresh, setUsageRefresh] = useState(0);
   const label = agentTypeLabel(harness);
+  const provider = providerNames[harness] ?? label;
   const claude = harness === "claude-code";
-  const [method, setMethod] = useState<HarnessLoginMethod>(
-    claude ? "subscription" : "device",
-  );
+  const options = methodOptions[harness] ?? [];
+  const [chosenMethod, setChosenMethod] = useState<HarnessLoginMethod>();
+  const method =
+    chosenMethod ?? defaultSignInMethod(harness, flow.view?.auth_method);
+  const option = options.find((candidate) => candidate.value === method);
+  // Signed-in devices keep sign-in controls collapsed until asked for.
+  const [expanded, setExpanded] = useState(false);
+  const [choosing, setChoosing] = useState(false);
   const [secret, setSecret] = useState("");
   const secretScope = `${flow.view?.session_id ?? ""}:${flow.view?.state ?? ""}:${flow.error}`;
   const [previousSecretScope, setPreviousSecretScope] = useState(secretScope);
@@ -270,146 +352,168 @@ function HarnessSignIn({
     !flow.error;
   const secretLabel = method === "api-key" ? "API key" : "Access token";
   const blocked = flow.busy || pending;
+  const showForm =
+    !unsupported && !pending && (!credentialsDetected || expanded);
+  const actionLabel = credentialsDetected ? "Re-authenticate" : "Sign in";
+
+  const start = () => {
+    if (!canStart || (secretMethod && !validLoginSecret(secret))) return;
+    const code = secretMethod ? secret : undefined;
+    setSecret("");
+    void flow.run({ operation: "start", method, ...(code ? { code } : {}) });
+  };
+  const refresh = () => {
+    void flow.refresh();
+    setUsageRefresh((count) => count + 1);
+  };
 
   return (
-    <section
-      aria-label={`${label} sign-in`}
-      className="grid gap-5 border-t border-hairline pt-5"
-    >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
+    <section aria-label={`${label} sign-in`} className="grid gap-4">
+      <div className={cardClass}>
+        <div className="flex min-w-0 items-start justify-between gap-3">
           <p
             role="status"
             aria-live="polite"
-            className={
-              credentialsDetected
-                ? "flex items-start gap-2 text-sm font-medium leading-6 text-success"
-                : "text-sm leading-6 text-ink"
-            }
+            className="flex min-w-0 items-start gap-2 text-sm leading-6 text-ink"
           >
             {credentialsDetected && (
               <CheckCircle2
                 aria-hidden="true"
-                className="mt-0.5 h-5 w-5 shrink-0"
+                className="mt-0.5 h-5 w-5 shrink-0 text-success"
               />
             )}
-            <span>
-              {flow.error
-                ? "Sign-in status could not be checked."
-                : unsupported
-                  ? `Sign-in is not available for ${label} yet.`
-                  : flow.view
-                    ? (stateLabels[flow.view.state] ??
-                      "The device returned an unknown sign-in state. Refresh status before continuing.")
-                    : flow.checking
-                      ? "Checking sign-in status…"
-                      : "Sign-in status could not be checked."}
-            </span>
+            {credentialsDetected ? (
+              <span>
+                <span className="font-medium">{label}</span>
+                <span className="text-ink-muted"> · Signed in</span>
+              </span>
+            ) : (
+              <span>
+                {flow.error
+                  ? "Sign-in status could not be checked."
+                  : unsupported
+                    ? `Sign-in is not available for ${label} yet.`
+                    : flow.view
+                      ? (stateLabels[flow.view.state] ??
+                        "The device returned an unknown sign-in state. Refresh before continuing.")
+                      : flow.checking
+                        ? "Checking sign-in status…"
+                        : "Sign-in status could not be checked."}
+              </span>
+            )}
           </p>
-          {credentialsDetected && (
-            <AccountDetails
-              account={flow.view?.account}
-              authMethod={flow.view?.auth_method ?? flow.view?.method}
-            />
-          )}
-          {credentialsDetected && (
-            <p className="mt-1 text-sm leading-6 text-ink-muted">
-              Sign in again if a session reports expired credentials or an
-              authentication error.
-            </p>
-          )}
-          {flow.view?.auth_method && credentialsDetected && (
-            <p className="mt-1 text-xs text-ink-tertiary">
-              Credential method: {flow.view.auth_method}
-            </p>
-          )}
+          <Button
+            size="sm"
+            className="-my-1.5 min-h-11 shrink-0"
+            variant="ghost"
+            icon={<RefreshCw className="h-3.5 w-3.5" />}
+            disabled={flow.busy || flow.checking}
+            onClick={refresh}
+          >
+            Refresh
+          </Button>
         </div>
-        <Button
-          size="sm"
-          className="min-h-11"
-          variant="ghost"
-          icon={<RefreshCw className="h-3.5 w-3.5" />}
-          disabled={flow.busy || flow.checking}
-          onClick={flow.refresh}
-        >
-          Refresh status
-        </Button>
-      </div>
-      {/* Full section width, so usage rows are not squeezed beside Refresh status on phones. */}
-      {(credentialsDetected || unsupported) && (
-        <HarnessUsagePanel userId={userId} nodeId={nodeId} harness={harness} />
-      )}
-      {flow.error && (
-        <p role="alert" className="text-sm leading-6 text-warning">
-          {flow.error}
-        </p>
-      )}
-      {!unsupported && (
-        <>
-          <label className="grid gap-2 text-sm text-ink-muted sm:max-w-sm">
-            Sign-in method
-            <select
-              className={fieldClass}
-              aria-label="Sign-in method"
-              value={pending ? (flow.view?.method ?? method) : method}
-              disabled={blocked}
-              onChange={(event) => {
-                setMethod(event.target.value as HarnessLoginMethod);
-                setSecret("");
-              }}
-            >
-              {claude ? (
-                <>
-                  <option value="subscription">Claude subscription</option>
-                  <option value="console">Anthropic Console</option>
-                </>
-              ) : (
-                <>
-                  <option value="device">ChatGPT account (device code)</option>
-                  <option value="api-key">API key</option>
-                  <option value="access-token">Access token</option>
-                </>
-              )}
-            </select>
-          </label>
-          {!pending && (
-            <form
-              className="grid justify-items-start gap-4"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (!canStart || (secretMethod && !validLoginSecret(secret)))
-                  return;
-                const code = secretMethod ? secret : undefined;
-                setSecret("");
-                void flow.run({
-                  operation: "start",
-                  method,
-                  ...(code ? { code } : {}),
-                });
-              }}
-            >
-              {secretMethod && (
-                <label className="grid w-full gap-2 text-sm text-ink-muted">
-                  {secretLabel}
-                  <input
-                    aria-label={secretLabel}
-                    type="password"
-                    autoComplete="off"
-                    spellCheck={false}
-                    autoCapitalize="none"
-                    maxLength={4096}
-                    className={fieldClass}
-                    value={secret}
-                    disabled={blocked}
-                    onChange={(event) => setSecret(event.target.value)}
-                  />
-                  <span className="text-xs leading-5 text-ink-tertiary">
-                    Enter one complete line without surrounding spaces. The
-                    credential is sent to the device only when you start sign-in
-                    and is then cleared from this form.
-                  </span>
-                </label>
-              )}
+        {credentialsDetected && (
+          <AccountDetails
+            account={flow.view?.account}
+            authMethod={flow.view?.auth_method ?? flow.view?.method}
+          />
+        )}
+        {flow.error && (
+          <p role="alert" className="text-sm leading-6 text-warning">
+            {flow.error}
+          </p>
+        )}
+        {credentialsDetected && !expanded && (
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-hairline pt-3">
+            <span className="text-xs text-ink-tertiary">
+              Credentials expired?
+            </span>
+            <div className="flex flex-wrap items-center gap-1">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="min-h-11"
+                onClick={() => {
+                  setChoosing(true);
+                  setExpanded(true);
+                }}
+              >
+                Use a different method
+              </Button>
+              <Button
+                size="sm"
+                className="min-h-11"
+                disabled={!canStart}
+                onClick={() => (secretMethod ? setExpanded(true) : start())}
+              >
+                Re-authenticate
+              </Button>
+            </div>
+          </div>
+        )}
+        {showForm && (
+          <form
+            className={cn(
+              "grid justify-items-start gap-4",
+              credentialsDetected && "border-t border-hairline pt-4",
+            )}
+            onSubmit={(event) => {
+              event.preventDefault();
+              start();
+            }}
+          >
+            {!credentialsDetected || choosing ? (
+              <label className="grid w-full gap-2 text-sm text-ink-muted sm:max-w-sm">
+                Sign in with
+                <select
+                  className={fieldClass}
+                  aria-label="Sign-in method"
+                  value={method}
+                  disabled={blocked}
+                  onChange={(event) => {
+                    setChosenMethod(event.target.value as HarnessLoginMethod);
+                    setSecret("");
+                  }}
+                >
+                  {options.map((candidate) => (
+                    <option key={candidate.value} value={candidate.value}>
+                      {candidate.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <p className="text-sm text-ink">{option?.label}</p>
+            )}
+            {option && (
+              <p className="-mt-2 text-xs leading-5 text-ink-tertiary">
+                {option.hint}
+              </p>
+            )}
+            {secretMethod && (
+              <label className="grid w-full gap-2 text-sm text-ink-muted">
+                {secretLabel}
+                <input
+                  aria-label={secretLabel}
+                  type="password"
+                  autoComplete="off"
+                  spellCheck={false}
+                  autoCapitalize="none"
+                  maxLength={4096}
+                  className={fieldClass}
+                  value={secret}
+                  disabled={blocked}
+                  onChange={(event) => setSecret(event.target.value)}
+                />
+                <span className="text-xs leading-5 text-ink-tertiary">
+                  Enter one complete line without surrounding spaces. It is sent
+                  to the device only when you start and is then cleared from
+                  this form.
+                </span>
+              </label>
+            )}
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 className="min-h-11"
                 variant="primary"
@@ -418,126 +522,152 @@ function HarnessSignIn({
                   !canStart || (secretMethod && !validLoginSecret(secret))
                 }
               >
-                {signedIn ? "Sign in again" : "Start sign-in"}
+                {actionLabel}
               </Button>
-            </form>
-          )}
-          {unsupportedLink && (
-            <p role="alert" className="text-sm leading-6 text-warning">
-              The device returned an unsupported authorization link. Cancel this
-              attempt and update paxd before trying again.
-            </p>
-          )}
-          {challenge && (
-            <div className="grid justify-items-start gap-3">
-              <Button
-                asChild
-                className="min-h-11"
-                icon={<ExternalLink className="h-4 w-4" />}
-              >
-                <a
-                  href={challenge}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  referrerPolicy="no-referrer"
+              {credentialsDetected && (
+                <Button
+                  className="min-h-11"
+                  variant="ghost"
+                  onClick={() => {
+                    setExpanded(false);
+                    setChoosing(false);
+                    setChosenMethod(undefined);
+                    setSecret("");
+                  }}
                 >
-                  Open {label} authorization
-                </a>
-              </Button>
-              {flow.view?.state === "awaiting_browser" &&
-                flow.view.user_code && (
-                  <div className="grid gap-1">
-                    <p className="text-xs text-ink-tertiary">Device code</p>
-                    <MonoId className="text-lg text-ink">
-                      {flow.view.user_code}
-                    </MonoId>
-                  </div>
-                )}
+                  Cancel
+                </Button>
+              )}
             </div>
-          )}
-          {canSubmitCode && (
-            <form
-              className="grid justify-items-start gap-3"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (
-                  flow.busy ||
-                  !validLoginSecret(secret) ||
-                  !flow.view?.session_id
-                )
-                  return;
-                const code = secret;
+          </form>
+        )}
+        {unsupportedLink && (
+          <p role="alert" className="text-sm leading-6 text-warning">
+            The device returned an unsupported authorization link. Cancel this
+            attempt and update paxd before trying again.
+          </p>
+        )}
+        {challenge && (
+          <div className="grid justify-items-start gap-3">
+            <Button
+              asChild
+              className="min-h-11"
+              icon={<ExternalLink className="h-4 w-4" />}
+            >
+              <a
+                href={challenge}
+                target="_blank"
+                rel="noopener noreferrer"
+                referrerPolicy="no-referrer"
+              >
+                Open {provider} sign-in
+              </a>
+            </Button>
+            {flow.view?.state === "awaiting_browser" && flow.view.user_code && (
+              <div className="grid gap-1">
+                <p className="text-xs text-ink-tertiary">
+                  Enter this code on the {provider} page
+                </p>
+                <MonoId className="text-lg text-ink">
+                  {flow.view.user_code}
+                </MonoId>
+              </div>
+            )}
+          </div>
+        )}
+        {canSubmitCode && (
+          <form
+            className="grid justify-items-start gap-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (
+                flow.busy ||
+                !validLoginSecret(secret) ||
+                !flow.view?.session_id
+              )
+                return;
+              const code = secret;
+              setSecret("");
+              void flow.run({
+                operation: "submit",
+                session_id: flow.view.session_id,
+                code,
+              });
+            }}
+          >
+            <label className="grid w-full gap-2 text-sm text-ink-muted">
+              Full authorization code
+              <input
+                type="password"
+                aria-label="Full authorization code"
+                autoComplete="off"
+                spellCheck={false}
+                autoCapitalize="none"
+                maxLength={4096}
+                className={fieldClass}
+                value={secret}
+                disabled={flow.busy}
+                onChange={(event) => setSecret(event.target.value)}
+              />
+              <span className="text-xs leading-5 text-ink-tertiary">
+                Paste the complete code shown after you approve access,
+                including its state suffix when present. Use the authorization
+                result, not an email verification code.
+              </span>
+            </label>
+            <Button
+              type="submit"
+              className="min-h-11"
+              variant="primary"
+              disabled={
+                flow.busy || Boolean(flow.error) || !validLoginSecret(secret)
+              }
+            >
+              Complete sign-in
+            </Button>
+          </form>
+        )}
+        {pending && flow.view?.session_id && (
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              size="sm"
+              className="min-h-11"
+              disabled={flow.busy}
+              onClick={() => {
                 setSecret("");
                 void flow.run({
-                  operation: "submit",
-                  session_id: flow.view.session_id,
-                  code,
+                  operation: "cancel",
+                  session_id: flow.view!.session_id,
                 });
               }}
             >
-              <label className="grid w-full gap-2 text-sm text-ink-muted">
-                Full authorization code
-                <input
-                  type="password"
-                  aria-label="Full authorization code"
-                  autoComplete="off"
-                  spellCheck={false}
-                  autoCapitalize="none"
-                  maxLength={4096}
-                  className={fieldClass}
-                  value={secret}
-                  disabled={flow.busy}
-                  onChange={(event) => setSecret(event.target.value)}
-                />
-                <span className="text-xs leading-5 text-ink-tertiary">
-                  Paste the complete CLI authorization code, including its state
-                  suffix when present. Use the authorization result, not an
-                  email verification code.
-                </span>
-              </label>
-              <Button
-                type="submit"
-                className="min-h-11"
-                variant="primary"
-                disabled={
-                  flow.busy || Boolean(flow.error) || !validLoginSecret(secret)
-                }
-              >
-                Complete sign-in
-              </Button>
-            </form>
-          )}
-          {pending && flow.view?.session_id && (
-            <div className="flex flex-wrap items-center gap-3">
-              <Button
-                size="sm"
-                className="min-h-11"
-                disabled={flow.busy}
-                onClick={() => {
-                  setSecret("");
-                  void flow.run({
-                    operation: "cancel",
-                    session_id: flow.view!.session_id,
-                  });
-                }}
-              >
-                Cancel sign-in
-              </Button>
-              {flow.view.expires_at && (
-                <p className="text-xs text-ink-tertiary">
-                  Expires {new Date(flow.view.expires_at).toLocaleTimeString()}.
-                </p>
-              )}
-            </div>
-          )}
-        </>
+              Cancel sign-in
+            </Button>
+            {flow.view.expires_at && (
+              <p className="text-xs text-ink-tertiary">
+                Expires {new Date(flow.view.expires_at).toLocaleTimeString()}.
+              </p>
+            )}
+          </div>
+        )}
+        {(pending || expanded || flow.view?.state === "succeeded") && (
+          <p className="text-xs leading-5 text-ink-tertiary">
+            Running agents may need a restart to use new credentials. Sign-in
+            does not interrupt active conversations; retry the request in your
+            session, and restart its agent when idle if the error continues.
+          </p>
+        )}
+      </div>
+      {(credentialsDetected || unsupported) && (
+        <HarnessUsagePanel
+          userId={userId}
+          nodeId={nodeId}
+          harness={harness}
+          className={cardClass}
+          hideWhenUnsupported={unsupported}
+          refreshKey={usageRefresh}
+        />
       )}
-      <p className="text-xs leading-5 text-ink-tertiary">
-        Existing agent processes may need to be restarted to use the new
-        credentials. Sign-in does not interrupt active conversations. After
-        returning to your session, retry the request; restart its agent when it
-        is idle if the error continues.
-      </p>
     </section>
   );
 }
@@ -552,10 +682,13 @@ function AccountDetails({
   const email = account?.email?.trim();
   const displayName = account?.display_name?.trim();
   const identity = email || displayName;
-  const details = [
+  const badges = [
+    account?.plan?.trim(),
+    authMethod ? (credentialLabels[authMethod] ?? authMethod) : undefined,
+  ].filter((value): value is string => Boolean(value));
+  const extra = [
     email && displayName !== email ? displayName : undefined,
     account?.organization?.trim(),
-    account?.plan?.trim(),
   ]
     .filter(Boolean)
     .join(" · ");
@@ -564,26 +697,28 @@ function AccountDetails({
 
   return (
     <div
-      className="mt-1 min-w-0"
+      className="grid min-w-0 gap-1"
       aria-label={identity ? "Signed-in account" : undefined}
     >
-      {identity ? (
-        <div className="flex min-w-0 items-baseline gap-2 text-sm leading-6">
-          <span className="shrink-0 text-ink-muted">Account</span>
+      <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm leading-6">
+        {identity ? (
           <TruncatedText className="font-medium text-ink">
             {identity}
           </TruncatedText>
-        </div>
-      ) : (
-        <p className="text-sm leading-6 text-ink-muted">
-          {secretMethod
-            ? "This sign-in method does not report account details."
-            : "Account details are unavailable on this device."}
-        </p>
-      )}
-      {details && (
+        ) : (
+          <span className="text-ink-muted">
+            {secretMethod
+              ? "This sign-in method does not report account details."
+              : "Account details are unavailable on this device."}
+          </span>
+        )}
+        {badges.map((badge) => (
+          <Badge key={badge}>{badge}</Badge>
+        ))}
+      </div>
+      {extra && (
         <TruncatedText className="text-xs leading-5 text-ink-tertiary">
-          {details}
+          {extra}
         </TruncatedText>
       )}
     </div>

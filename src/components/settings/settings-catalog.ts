@@ -103,9 +103,9 @@ export const settingsGroups: readonly {
         href: settingsLinks.agentSignIn,
         title: "Agent sign-in",
         icon: KeyRound,
-        caption: "Claude Code and Codex accounts",
+        caption: "Agent accounts and plan usage",
         description:
-          "Sign in to Claude Code or Codex on a connected device, or renew access after a session reports an authentication error.",
+          "Sign in to the agents on a connected device, renew expired credentials, and check plan usage.",
       },
       {
         id: "permissions",

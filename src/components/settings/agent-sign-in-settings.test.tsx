@@ -5,7 +5,10 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ApiError } from "@/features/api/errors";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AgentSignInSettings } from "./agent-sign-in-settings";
+import {
+  AgentSignInSettings,
+  defaultSignInMethod,
+} from "./agent-sign-in-settings";
 
 const mocks = vi.hoisted(() => ({
   useNodes: vi.fn(),
@@ -121,9 +124,9 @@ it.each(["subscription", "console"])(
     await screen.findByText("Not signed in on this device.");
     await user.selectOptions(screen.getByLabelText("Sign-in method"), method);
     mocks.getNodeHarnessAuth.mockResolvedValue({ harness_auth: awaitingCode });
-    await user.click(screen.getByRole("button", { name: "Start sign-in" }));
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
     const link = await screen.findByRole("link", {
-      name: "Open Claude Code authorization",
+      name: "Open Claude sign-in",
     });
     expect(link).toHaveAttribute("href", authorizationUrl);
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
@@ -152,7 +155,7 @@ it.each(["subscription", "console"])(
       },
     });
     await user.click(screen.getByRole("button", { name: "Complete sign-in" }));
-    await screen.findByText("Sign-in credentials found on this device.");
+    await screen.findByText("· Signed in");
     expect(mocks.loginNodeHarness.mock.calls[1][3]).toMatchObject({
       operation: "submit",
       session_id: "login-one",
@@ -168,10 +171,10 @@ it.each(["subscription", "console"])(
       screen.queryByLabelText("Full authorization code"),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("link", { name: "Open Claude Code authorization" }),
+      screen.queryByRole("link", { name: "Open Claude sign-in" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByText(/Existing agent processes may need to be restarted/),
+      screen.getByText(/Running agents may need a restart/),
     ).toBeInTheDocument();
   },
 );
@@ -190,10 +193,10 @@ it("shows Codex device instructions and waits for browser completion without a c
   };
   mocks.loginNodeHarness.mockResolvedValue({ harness_auth: challenge });
   mocks.getNodeHarnessAuth.mockResolvedValue({ harness_auth: challenge });
-  await user.click(screen.getByRole("button", { name: "Start sign-in" }));
+  await user.click(screen.getByRole("button", { name: "Sign in" }));
   await screen.findByText("ABCD-EFGH");
   expect(
-    screen.getByRole("link", { name: "Open Codex authorization" }),
+    screen.getByRole("link", { name: "Open ChatGPT sign-in" }),
   ).toHaveAttribute("href", "https://auth.openai.com/codex/device");
   expect(
     screen.queryByLabelText("Full authorization code"),
@@ -226,7 +229,7 @@ it.each([
         reject = fail;
       }),
     );
-    await user.click(screen.getByRole("button", { name: "Start sign-in" }));
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
     expect(secret).toHaveValue("");
     expect(mocks.loginNodeHarness.mock.calls[0][3]).toMatchObject({
       operation: "start",
@@ -256,7 +259,7 @@ it("cancels a pending login and can start a fresh attempt after expiration", asy
   await user.click(screen.getByRole("button", { name: "Cancel sign-in" }));
   await screen.findByText("Sign-in was cancelled.");
   expect(
-    screen.queryByRole("link", { name: "Open Claude Code authorization" }),
+    screen.queryByRole("link", { name: "Open Claude sign-in" }),
   ).not.toBeInTheDocument();
   expect(mocks.loginNodeHarness.mock.calls[0][3]).toMatchObject({
     operation: "cancel",
@@ -268,11 +271,11 @@ it("cancels a pending login and can start a fresh attempt after expiration", asy
   mocks.getNodeHarnessAuth.mockResolvedValue({
     harness_auth: { harness: "claude", state: "expired" },
   });
-  await user.click(screen.getByRole("button", { name: "Start sign-in" }));
+  await user.click(screen.getByRole("button", { name: "Sign in" }));
   await screen.findByText(
-    "Sign-in expired. Start again to get a new authorization link or code.",
+    "Sign-in expired. Start again to get a new link or code.",
   );
-  expect(screen.getByRole("button", { name: "Start sign-in" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled();
 });
 
 it("reports unavailable remote login without showing the API error body", async () => {
@@ -282,8 +285,8 @@ it("reports unavailable remote login without showing the API error body", async 
   mount();
   await screen.findByText(/Remote sign-in is unavailable/);
   expect(screen.queryByText(/secret response/)).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Start sign-in" })).toBeDisabled();
-  expect(screen.getByRole("button", { name: "Refresh status" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Sign in" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Refresh" })).toBeEnabled();
 });
 
 it("rejects untrusted provider URLs instead of rendering an authorization link", async () => {
@@ -296,7 +299,7 @@ it("rejects untrusted provider URLs instead of rendering an authorization link",
   mount();
   await screen.findByText(/unsupported authorization link/);
   expect(
-    screen.queryByRole("link", { name: "Open Claude Code authorization" }),
+    screen.queryByRole("link", { name: "Open Claude sign-in" }),
   ).not.toBeInTheDocument();
   expect(
     screen.queryByLabelText("Full authorization code"),
@@ -330,9 +333,7 @@ it("polls the login handle after an accepted start and stops after success", asy
   await act(async () => {
     await vi.advanceTimersByTimeAsync(2000);
   });
-  expect(
-    screen.getByText("Sign-in credentials found on this device."),
-  ).toBeInTheDocument();
+  expect(screen.getByText("· Signed in")).toBeInTheDocument();
   expect(mocks.getNodeHarnessAuth).toHaveBeenLastCalledWith(
     "self",
     "node-one",
@@ -355,14 +356,12 @@ it.each(["logged_in", "succeeded"])(
     });
     const user = userEvent.setup();
     mount();
-    await screen.findByText("Sign-in credentials found on this device.");
+    await screen.findByText("· Signed in");
+    expect(screen.getByText("Credentials expired?")).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "Sign in again if a session reports expired credentials or an authentication error.",
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Sign in again" })).toBeEnabled();
-    await user.click(screen.getByRole("button", { name: "Sign in again" }));
+      screen.getByRole("button", { name: "Re-authenticate" }),
+    ).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Re-authenticate" }));
     expect(mocks.loginNodeHarness).toHaveBeenCalledOnce();
   },
 );
@@ -373,13 +372,11 @@ it("does not keep claiming credentials are present after the status check fails"
   });
   const user = userEvent.setup();
   mount();
-  await screen.findByText("Sign-in credentials found on this device.");
+  await screen.findByText("· Signed in");
   mocks.getNodeHarnessAuth.mockRejectedValue(new Error("unavailable"));
-  await user.click(screen.getByRole("button", { name: "Refresh status" }));
+  await user.click(screen.getByRole("button", { name: "Refresh" }));
   await screen.findByText("Sign-in status could not be checked.");
-  expect(
-    screen.queryByText("Sign-in credentials found on this device."),
-  ).not.toBeInTheDocument();
+  expect(screen.queryByText("· Signed in")).not.toBeInTheDocument();
 });
 
 it("reconciles the latest status after a login handle disappears", async () => {
@@ -392,12 +389,12 @@ it("reconciles the latest status after a login handle disappears", async () => {
   const user = userEvent.setup();
   mount();
   await screen.findByLabelText("Full authorization code");
-  await user.click(screen.getByRole("button", { name: "Refresh status" }));
+  await user.click(screen.getByRole("button", { name: "Refresh" }));
   await screen.findByText(/Remote sign-in is unavailable/);
   mocks.getNodeHarnessAuth.mockResolvedValue({
     harness_auth: { harness: "claude", state: "logged_out" },
   });
-  await user.click(screen.getByRole("button", { name: "Refresh status" }));
+  await user.click(screen.getByRole("button", { name: "Refresh" }));
   await screen.findByText("Not signed in on this device.");
   expect(mocks.getNodeHarnessAuth).toHaveBeenLastCalledWith(
     "self",
@@ -423,7 +420,7 @@ it("discards a late response after selecting a different device", async () => {
     resolve({ harness_auth: awaitingCode });
   });
   expect(
-    screen.queryByRole("link", { name: "Open Claude Code authorization" }),
+    screen.queryByRole("link", { name: "Open Claude sign-in" }),
   ).not.toBeInTheDocument();
   expect(mocks.getNodeHarnessAuth.mock.calls[0][4].aborted).toBe(true);
 });
@@ -442,13 +439,13 @@ it("removes an expired challenge even if the device cannot be contacted", async 
     await Promise.resolve();
   });
   expect(
-    screen.getByRole("link", { name: "Open Claude Code authorization" }),
+    screen.getByRole("link", { name: "Open Claude sign-in" }),
   ).toBeInTheDocument();
   await act(async () => {
     await vi.advanceTimersByTimeAsync(1000);
   });
   expect(
-    screen.queryByRole("link", { name: "Open Claude Code authorization" }),
+    screen.queryByRole("link", { name: "Open Claude sign-in" }),
   ).not.toBeInTheDocument();
   expect(
     screen.queryByLabelText("Full authorization code"),
@@ -461,10 +458,10 @@ it("recovers an ambiguously accepted start through status without starting a dup
   mount();
   await screen.findByText("Not signed in on this device.");
   mocks.loginNodeHarness.mockRejectedValue(new ApiError("timeout", 504, {}));
-  await user.click(screen.getByRole("button", { name: "Start sign-in" }));
+  await user.click(screen.getByRole("button", { name: "Sign in" }));
   await screen.findByText(/The device did not respond in time/);
   mocks.getNodeHarnessAuth.mockResolvedValue({ harness_auth: awaitingCode });
-  await user.click(screen.getByRole("button", { name: "Refresh status" }));
+  await user.click(screen.getByRole("button", { name: "Refresh" }));
   await screen.findByLabelText("Full authorization code");
   expect(mocks.loginNodeHarness).toHaveBeenCalledOnce();
   expect(mocks.getNodeHarnessAuth).toHaveBeenLastCalledWith(
@@ -495,12 +492,15 @@ it.each(["claude-code", "codex"] as const)(
     mount({ initialHarness: harness });
     await screen.findByText("agent@example.test");
     expect(screen.getByLabelText("Signed-in account")).toHaveTextContent(
-      "Account",
+      "agent@example.test",
     );
     expect(
-      screen.getByText("Agent Account · Example Workspace · Pro"),
+      screen.getByText("Agent Account · Example Workspace"),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Sign in again" })).toBeEnabled();
+    expect(screen.getByText("Pro")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Re-authenticate" }),
+    ).toBeEnabled();
   },
 );
 
@@ -597,7 +597,7 @@ it("hides a previously reported account when the status check fails", async () =
   mount();
   await screen.findByText("stale@example.test");
   mocks.getNodeHarnessAuth.mockRejectedValue(new Error("offline"));
-  await user.click(screen.getByRole("button", { name: "Refresh status" }));
+  await user.click(screen.getByRole("button", { name: "Refresh" }));
   await screen.findByText("Sign-in status could not be checked.");
   expect(screen.queryByLabelText("Signed-in account")).not.toBeInTheDocument();
   expect(screen.queryByText("stale@example.test")).not.toBeInTheDocument();
@@ -642,7 +642,7 @@ it("hides the previous account while a new sign-in is being started", async () =
   mount();
   await screen.findByText("previous@example.test");
   mocks.loginNodeHarness.mockReturnValue(new Promise(() => {}));
-  await user.click(screen.getByRole("button", { name: "Sign in again" }));
+  await user.click(screen.getByRole("button", { name: "Re-authenticate" }));
   expect(screen.queryByText("previous@example.test")).not.toBeInTheDocument();
   expect(screen.queryByLabelText("Signed-in account")).not.toBeInTheDocument();
 });
@@ -659,7 +659,7 @@ it.each(["logged_out", "awaiting_code", "failed"])(
         ? "Not signed in on this device."
         : state === "failed"
           ? /Sign-in failed/
-          : /Complete authorization in your browser/,
+          : /Approve access in your browser/,
     );
     expect(screen.queryByLabelText("Plan usage")).not.toBeInTheDocument();
     expect(mocks.useNodeHarnessUsage).not.toHaveBeenCalled();
@@ -725,10 +725,8 @@ it("keeps the credential indicator and reauthentication when plan usage fails", 
     }),
   );
   mount();
-  const status = await screen.findByText(
-    "Sign-in credentials found on this device.",
-  );
-  expect(status.closest("p")).toHaveClass("text-success");
+  const status = await screen.findByText("· Signed in");
+  expect(status.closest("p")).toHaveTextContent("Claude Code · Signed in");
   expect(
     screen.getByText("Plan usage could not be loaded."),
   ).toBeInTheDocument();
@@ -736,7 +734,7 @@ it("keeps the credential indicator and reauthentication when plan usage fails", 
   expect(screen.getByLabelText("Signed-in account")).toHaveTextContent(
     "agent@example.test",
   );
-  expect(screen.getByRole("button", { name: "Sign in again" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Re-authenticate" })).toBeEnabled();
 });
 
 it("hides plan usage while a new sign-in is being started", async () => {
@@ -747,7 +745,7 @@ it("hides plan usage while a new sign-in is being started", async () => {
   mount();
   await screen.findByLabelText("Plan usage");
   mocks.loginNodeHarness.mockReturnValue(new Promise(() => {}));
-  await user.click(screen.getByRole("button", { name: "Sign in again" }));
+  await user.click(screen.getByRole("button", { name: "Re-authenticate" }));
   expect(screen.queryByLabelText("Plan usage")).not.toBeInTheDocument();
 });
 
@@ -832,4 +830,47 @@ it("hides sign-in controls for agent types without native sign-in and still show
     screen.queryByRole("button", { name: /sign-in|sign in/i }),
   ).not.toBeInTheDocument();
   expect(screen.getByLabelText("Plan usage")).toHaveTextContent("Credits");
+});
+
+it.each([
+  ["claude-code", "claude.ai", "subscription"],
+  ["claude-code", "api_key", "console"],
+  ["claude-code", undefined, "subscription"],
+  ["codex", "chatgpt", "device"],
+  ["codex", "api_key", "api-key"],
+  ["codex", "access_token", "access-token"],
+  ["codex", "unknown", "device"],
+] as const)(
+  "re-authenticates %s with the method that produced %s",
+  (harness, authMethod, method) => {
+    expect(defaultSignInMethod(harness, authMethod)).toBe(method);
+  },
+);
+
+it("asks for a new key before re-authenticating a Codex API-key sign-in", async () => {
+  mocks.getNodeHarnessAuth.mockResolvedValue({
+    harness_auth: {
+      harness: "codex",
+      state: "logged_in",
+      logged_in: true,
+      auth_method: "api_key",
+    },
+  });
+  const user = userEvent.setup();
+  mount({ initialHarness: "codex" });
+  await screen.findByText("· Signed in");
+  expect(screen.queryByLabelText("Sign-in method")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Re-authenticate" }));
+  expect(mocks.loginNodeHarness).not.toHaveBeenCalled();
+  expect(screen.getByText("OpenAI API key")).toBeInTheDocument();
+  expect(screen.getByLabelText("API key")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(screen.queryByLabelText("API key")).not.toBeInTheDocument();
+  await user.click(
+    screen.getByRole("button", { name: "Use a different method" }),
+  );
+  expect(screen.getByLabelText("Sign-in method")).toHaveValue("api-key");
+  expect(
+    screen.getByRole("option", { name: "ChatGPT account" }),
+  ).toBeInTheDocument();
 });

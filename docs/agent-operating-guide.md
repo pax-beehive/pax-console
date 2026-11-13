@@ -141,13 +141,21 @@ Manager record); the page never lists or probes tools installed on the device.
 Agent types are PAX ids such as `claude-code`, `codex` or `kimi`; the legacy
 `harness=claude` URL value maps to `claude-code`. A missing or unregistered linked
 agent type falls back to the first registered one, and a device without
-registered agents shows an empty state. Claude Code supports subscription
-(default) and Anthropic Console authorization. Codex supports a ChatGPT device
-code (default), API key, and access token. When auth status reports
+registered agents shows an empty state. The page shows an account card
+(status, account email, plan and credential badges, and the only Refresh, which
+re-reads sign-in status and plan usage) and a separate Plan usage card. Methods
+are named by account: Claude Code offers "Claude account (Pro / Max)" and
+"Anthropic Console (API billing)"; Codex offers "ChatGPT account" (device code),
+"OpenAI API key", and "Access token", each with a one-line hint. When signed in,
+sign-in controls stay collapsed behind "Re-authenticate", which reuses the method
+that produced the current credential (`auth_method` claude.ai -> subscription,
+api_key -> Console for Claude Code; chatgpt, api_key, access_token for Codex)
+and starts immediately unless a key or token must be pasted; "Use a different
+method" opens the picker. When auth status reports
 `unsupported`, the page says sign-in is not available for that agent type yet and
 hides the sign-in controls. Opening the page only checks status;
 the user explicitly starts, submits, or cancels an attempt. A `logged_in` result
-still offers Sign in again because local credential presence does not establish
+still offers Re-authenticate because local credential presence does not establish
 that a provider will accept the next request.
 
 Successful status responses may include optional native `account` metadata with
@@ -166,7 +174,7 @@ row. `useNodeHarnessUsage` reads GET
 `/api/v1/user/:user_id/nodes/:node_id/harnesses/:harness/usage` with
 `cache: no-store` through TanStack Query, keyed by user, device and agent type,
 with a 60-second stale time, no focus refetch, no retries and no persistence; a
-refresh button refetches on demand. Usage contains no credentials, so it may use
+the account card's Refresh re-reads it through the panel's `refreshKey`. Usage contains no credentials, so it may use
 the Query cache, but it never joins the ephemeral sign-in state.
 
 Plan usage is data-driven: the console has no per-harness usage code. An
@@ -183,12 +191,13 @@ English `label`:
 
 Unknown item kinds are skipped. Bars use the item `severity` when present, else
 warning from 80% and critical at 100%. The heading row carries `observed_at`
-freshness and the refresh button. `unsupported` means the sign-in method has no
+freshness ("Updating…" while re-reading). The card is hidden for agent types
+whose usage is `unsupported` and which also lack native sign-in. `unsupported` means the sign-in method has no
 plan limits. `unavailable` uses `error_code`: `cli_unsupported` asks to update the
 agent named by `harness_label` (fallback: the formatted agent type),
 `daemon_unsupported` asks to update PAX, and other codes show a generic
 unavailable message. Loading or failed usage never changes the sign-in status
-line, the green check or Sign in again, and switching the device or agent type
+line, the green check or Re-authenticate, and switching the device or agent type
 never shows the previous device's usage. paxd and the native CLI each cache usage
 for about a minute, so values can be up to about two minutes old; `observed_at` is
 when paxd completed its read.
