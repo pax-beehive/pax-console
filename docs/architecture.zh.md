@@ -2727,3 +2727,10 @@ it does not add HLS packaging, transcoding, or adaptive quality selection.
 用户和智能体消息、文件正文以及远端原始错误不做自动翻译。界面配置与状态
 标签在显示时翻译，memo/callback 使用 `t` 时需包含相应依赖。公开介绍页
 `/overview` 与 `/zh/overview` 保留独立语言路由。
+
+## Connection onboarding destination
+
+The connected-agent “Start a conversation” link opens `/?agentId=...`.
+Home initializes its composer agent selection from this parameter and retains
+the normal session rail. If the agent is unavailable in the inventory, Home
+uses its existing default-agent fallback.

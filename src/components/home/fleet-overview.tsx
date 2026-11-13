@@ -310,7 +310,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     (agent) => agent.online,
     agentLabel,
   );
-  const [selectedAgentId, setSelectedAgentId] = useState("");
+  const [selectedAgentId, setSelectedAgentId] = useState(
+    () => searchParams.get("agentId") ?? "",
+  );
   const sessionAgentFilterOptions = useMemo(
     () => buildSessionAgentFilterOptions(discoveredAgents, nodes),
     [discoveredAgents, nodes],

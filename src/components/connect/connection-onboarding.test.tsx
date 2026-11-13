@@ -387,7 +387,7 @@ describe("agent connection", () => {
     ).toBeVisible();
     expect(
       screen.getByRole("link", { name: "Start a conversation" }),
-    ).toHaveAttribute("href", "/sessions/new?agentId=agent&nodeId=mac");
+    ).toHaveAttribute("href", "/?agentId=agent");
     expect(
       requests.filter(
         (request) =>

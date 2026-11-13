@@ -347,6 +347,33 @@ afterEach(() => {
 });
 
 describe("FleetOverview session rail", () => {
+  it("selects the connected agent when onboarding returns to Home", async () => {
+    window.history.replaceState(null, "", "/?agentId=agent_2");
+    mocks.listAgents.mockResolvedValue({
+      agents: [
+        {
+          agent_id: "agent_1",
+          name: "First agent",
+          node_id: "node_1",
+          online: true,
+        },
+        {
+          agent_id: "agent_2",
+          name: "Connected agent",
+          node_id: "node_1",
+          online: true,
+        },
+      ],
+    });
+    renderOverview();
+    expect(
+      await screen.findByRole("button", { name: "Connected agent" }),
+    ).toBeVisible();
+    expect(
+      screen.getByPlaceholderText("Ask an agent to do something"),
+    ).toBeVisible();
+  });
+
   it("hides internal Secretary sessions from list responses while retaining ordinary conversations", async () => {
     mocks.listUserSessions.mockResolvedValue({
       pagination: { page_num: 1, page_size: 20, total: 3, total_pages: 1 },
