@@ -1,8 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
-import { RefreshCw } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { TruncatedText } from "@/components/ui/text";
 import { useNodeHarnessUsage } from "@/features/api/resources";
 import type {
@@ -117,43 +115,47 @@ export function HarnessUsagePanel({
   userId,
   nodeId,
   harness,
+  className,
+  hideWhenUnsupported = false,
+  refreshKey = 0,
 }: {
   userId: string;
   nodeId: string;
   harness: LoginHarness;
+  className?: string;
+  /** Hide entirely when the agent type reports no plan usage at all. */
+  hideWhenUnsupported?: boolean;
+  /** Changing this value re-reads usage, e.g. from the account card Refresh. */
+  refreshKey?: number;
 }) {
   const usage = useNodeHarnessUsage(userId, nodeId, harness);
   const now = useClock(30_000);
   const view = usage.data?.harness_usage;
   const current = view?.harness === harness ? view : undefined;
   const updated = current && updatedLabel(current.observed_at, now);
+  const { refetch } = usage;
+  const lastRefresh = useRef(refreshKey);
+  useEffect(() => {
+    if (lastRefresh.current === refreshKey) return;
+    lastRefresh.current = refreshKey;
+    void refetch();
+  }, [refreshKey, refetch]);
+  if (hideWhenUnsupported && current?.state === "unsupported") return null;
 
   return (
-    <section aria-label="Plan usage" className="grid min-w-0 gap-1.5">
+    <section
+      aria-label="Plan usage"
+      className={cn("grid min-w-0 gap-2", className)}
+    >
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3">
         <h2 className="text-sm font-medium text-ink">Plan usage</h2>
-        <div className="flex min-w-0 items-center gap-1 text-xs text-ink-tertiary">
-          {updated && <span>{updated}</span>}
-          {/* Keeps a 44px touch target without making the heading row taller. */}
-          <Button
-            size="icon"
-            variant="ghost"
-            className="-my-3 h-11 w-11"
-            aria-label="Refresh plan usage"
-            tooltip="Refresh plan usage"
-            icon={
-              <RefreshCw
-                aria-hidden="true"
-                className={cn(
-                  "h-3.5 w-3.5",
-                  usage.isFetching && "animate-spin",
-                )}
-              />
-            }
-            disabled={usage.isFetching}
-            onClick={() => void usage.refetch()}
-          />
-        </div>
+        {usage.isFetching && current ? (
+          <span className="text-xs text-ink-tertiary">Updating…</span>
+        ) : (
+          updated && (
+            <span className="text-xs text-ink-tertiary">{updated}</span>
+          )
+        )}
       </div>
       {current ? (
         <>
@@ -209,7 +211,7 @@ function UsageDetails({ view, now }: { view: HarnessUsageView; now: number }) {
   }
   // One row per item; subgrid keeps the bars and numbers aligned across rows.
   return (
-    <ul className="grid min-w-0 grid-cols-[minmax(0,max-content)_minmax(2.5rem,1fr)_auto_auto] items-center gap-x-3 gap-y-1">
+    <ul className="grid min-w-0 max-w-2xl grid-cols-[minmax(0,max-content)_minmax(2.5rem,1fr)_auto_auto] items-center gap-x-3 gap-y-1">
       {items.map((item) => (
         <UsageItemRow key={item.id} item={item} now={now} />
       ))}
