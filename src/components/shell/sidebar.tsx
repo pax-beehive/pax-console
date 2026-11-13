@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Inbox,
   Info,
+  Mail,
   MailPlus,
   Search,
   Settings,
@@ -23,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { PaxLogo } from "@/components/ui/pax-logo";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useConsoleStore } from "@/stores/console-store";
+import { CONTACT_MAILTO } from "@/lib/contact";
 import { isSettingsRoute } from "@/components/settings/settings-catalog";
 import { SettingsSidebar } from "@/components/settings/settings-navigation";
 
@@ -151,6 +153,14 @@ function WorkspaceSidebar({
               href: "/overview",
               icon: Info,
               label: "About PaxWorkspace",
+            }}
+          />
+          <NavEntry
+            collapsed={collapsed}
+            item={{
+              href: CONTACT_MAILTO,
+              icon: Mail,
+              label: "Contact us",
             }}
           />
           {showAdminFeatures && (

@@ -6,6 +6,7 @@ import {
   Bot,
   FolderTree,
   KeyRound,
+  Mail,
   Mic,
   Server,
   Settings2,
@@ -20,6 +21,7 @@ import { ConsoleLayout } from "@/components/shell/console-layout";
 import { useAgents, useHealth, useNodes } from "@/features/api/resources";
 import type { User } from "@/features/api/types";
 import { serviceHealth } from "./service-health";
+import { CONTACT_EMAIL, CONTACT_MAILTO } from "@/lib/contact";
 import {
   SettingsBack,
   SettingsGroup,
@@ -134,6 +136,12 @@ export function SettingsPage({ advanced = false }: { advanced?: boolean }) {
                           icon={Settings2}
                           title="Advanced settings"
                           description="Permissions, encrypted access, and developer tools."
+                        />
+                        <SettingsLink
+                          href={CONTACT_MAILTO}
+                          icon={Mail}
+                          title="Contact us"
+                          description={`Questions or feedback? Email ${CONTACT_EMAIL}.`}
                         />
                       </SettingsGroup>
                     </>

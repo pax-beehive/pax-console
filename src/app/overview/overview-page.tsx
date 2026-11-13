@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { ArrowUpRight, Laptop, Smartphone } from "lucide-react";
+import { ArrowUpRight, Laptop, Mail, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CopyTextButton } from "@/components/ui/copy-text-button";
 import { PaxLogo } from "@/components/ui/pax-logo";
+import { CONTACT_EMAIL, CONTACT_MAILTO } from "@/lib/contact";
 import { ArchitectureDiagram } from "./architecture-diagram";
 
 import { overviewContent, overviewPaths, type OverviewLocale } from "./content";
@@ -57,6 +59,9 @@ export function OverviewPage({ locale }: { locale: OverviewLocale }) {
           >
             中文
           </Link>
+          <a href="#contact" className="ml-2 text-ink-subtle hover:text-ink">
+            {copy.contactLabel}
+          </a>
         </nav>
         <Button asChild variant="secondary">
           <Link prefetch={false} href="/">
@@ -191,10 +196,51 @@ export function OverviewPage({ locale }: { locale: OverviewLocale }) {
             ))}
           </div>
         </section>
+
+        <section
+          id="contact"
+          className="grid gap-8 border-t border-hairline py-14 md:grid-cols-[1fr_2fr]"
+          aria-labelledby="contact-heading"
+        >
+          <h2
+            id="contact-heading"
+            className="text-2xl font-medium tracking-tight"
+          >
+            {copy.contactHeading}
+          </h2>
+          <div>
+            <p className="text-sm leading-7 text-ink-muted">
+              {copy.contactBody}
+            </p>
+            <div className="mt-4 flex items-center gap-1">
+              <a
+                href={CONTACT_MAILTO}
+                className="inline-flex items-center gap-2 text-base font-medium text-ink underline decoration-hairline-strong underline-offset-4 hover:decoration-ink"
+              >
+                <Mail className="h-4 w-4" />
+                {CONTACT_EMAIL}
+              </a>
+              <CopyTextButton
+                copiedLabel={copy.copied}
+                label={copy.copyEmail}
+                text={CONTACT_EMAIL}
+              />
+            </div>
+          </div>
+        </section>
       </main>
 
       <footer className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-5 border-t border-hairline px-6 py-8 text-xs text-ink-subtle sm:px-10">
-        <span>PaxWorkspace · PAX</span>
+        <span className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <span>PaxWorkspace · PAX</span>
+          <a
+            href={CONTACT_MAILTO}
+            className="inline-flex items-center gap-1.5 hover:text-ink"
+          >
+            <Mail className="h-3.5 w-3.5" />
+            {copy.contactLabel}: {CONTACT_EMAIL}
+          </a>
+        </span>
         <Link
           prefetch={false}
           href="/"
@@ -223,6 +269,16 @@ export function OverviewPage({ locale }: { locale: OverviewLocale }) {
               operatingSystem: "Web",
               url,
               description,
+            },
+            publisher: {
+              "@type": "Organization",
+              name: "PAX",
+              email: CONTACT_EMAIL,
+              contactPoint: {
+                "@type": "ContactPoint",
+                contactType: "customer support",
+                email: CONTACT_EMAIL,
+              },
             },
           }).replace(/</g, "\\u003c"),
         }}

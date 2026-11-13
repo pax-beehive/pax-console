@@ -7,6 +7,7 @@ import { PaxlLoginPageClient } from "./paxl-login-page-client";
 import { confirmRegionalLogin } from "@/features/auth/paxl-login";
 import { approvePaxlDeviceLogin } from "@/features/api/resources";
 import { getRegionalOrigin } from "@/features/region/bootstrap";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const state = vi.hoisted(() => ({ query: "us_code=ABC123&hk_code=DEF456" }));
 vi.mock("next/navigation", () => ({
@@ -31,7 +32,9 @@ function mount() {
   });
   render(
     <QueryClientProvider client={client}>
-      <PaxlLoginPageClient />
+      <TooltipProvider>
+        <PaxlLoginPageClient />
+      </TooltipProvider>
     </QueryClientProvider>,
   );
 }
