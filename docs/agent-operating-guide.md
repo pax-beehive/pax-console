@@ -1511,6 +1511,10 @@ recognized running tools use concise actions such as `Reading files…` or
 show `Using tools · N running`; queued or mixed activity is labeled accurately.
 With no active tool or latest live thought, use `Working…` without inferring
 thinking or retries. Raw tool names and payloads stay inside expanded details.
+Native tool summaries select the Tool evidence panel only when opening. Read
+`details.open` before the default toggle: collapsing a tool, including an
+auto-opened approval, must not reopen a closed evidence panel. Preserve native
+mouse, touch, and Enter/Space disclosure behavior.
 During streaming, retain the lightweight pending indicator after commentary
 unless the last item is an active activity row with its own feedback. Do not
 gate it on whether the turn has ever produced output. Idle, terminal, unknown,

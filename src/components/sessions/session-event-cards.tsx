@@ -1276,7 +1276,13 @@ function ToolEventRow({
     >
       <summary
         className="grid min-h-11 cursor-pointer list-none grid-cols-[16px_minmax(0,1fr)_auto_auto] items-center gap-2 px-3 py-1.5 outline-none transition hover:bg-canvas/70 [&::-webkit-details-marker]:hidden"
-        onClick={() => onSelectToolEvidence?.({ type: "tool", event })}
+        onClick={(clickEvent) => {
+          // Read native state before the summary's default toggle. Closing a
+          // tool must not reopen its evidence panel, including auto-opened approvals.
+          if (clickEvent.currentTarget.closest("details")?.open === false) {
+            onSelectToolEvidence?.({ type: "tool", event });
+          }
+        }}
       >
         <ToolStatusMark status={event.status} />
         <span className="min-w-0">
