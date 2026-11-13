@@ -4,6 +4,7 @@ import {
   type StartMicrophone,
 } from "./microphone";
 import type { MicrophoneMode } from "./microphone-preference";
+import { joinTranscript } from "./dictation-text";
 import { audioLevel, concatPcm, PcmResampler } from "./pcm";
 import { serverVoiceError, VoiceInputError } from "./voice-errors";
 import {
@@ -52,6 +53,9 @@ const MAX_EARLY_SECONDS = 5;
 const FINISH_TIMEOUT_MS = 25_000;
 // From opening the socket until the manager reports ready.
 export const READY_TIMEOUT_MS = 10_000;
+// Connections that drop while recording are reopened this many times per
+// dictation. Audio captured meanwhile is buffered like before the first ready.
+export const MAX_RECONNECTS = 3;
 
 /**
  * One dictation: microphone capture, PCM conversion, and the manager voice
@@ -72,6 +76,13 @@ export class VoiceSession {
   private ended = false;
   private finishTimer?: ReturnType<typeof setTimeout>;
   private readyTimer?: ReturnType<typeof setTimeout>;
+  private recording = false;
+  private reconnects = 0;
+  // Text recognized by earlier connections of this dictation.
+  private committed = "";
+  // The latest snapshot from the current connection.
+  private final = "";
+  private partial = "";
 
   constructor(private readonly options: VoiceSessionOptions) {}
 
@@ -160,7 +171,8 @@ export class VoiceSession {
       if (message) this.receive(message);
     };
     // A failed handshake or dropped connection always ends in close.
-    socket.onclose = () =>
+    socket.onclose = () => {
+      if (this.reconnect()) return;
       this.end({
         error: this.socketOpened
           ? new VoiceInputError("connection_lost", "Voice input disconnected")
@@ -169,6 +181,37 @@ export class VoiceSession {
               "Could not connect to voice input",
             ),
       });
+    };
+  }
+
+  /**
+   * Reopens the stream after a drop while recording, keeping what was
+   * recognized so far. After stop the remaining audio already went to the
+   * lost connection, so a drop then still ends the dictation.
+   */
+  private reconnect() {
+    if (
+      this.ended ||
+      this.stopRequested ||
+      !this.ready ||
+      this.reconnects >= MAX_RECONNECTS
+    ) {
+      return false;
+    }
+    this.reconnects += 1;
+    this.committed = this.transcript(this.partial);
+    this.final = "";
+    this.partial = "";
+    this.ready = false;
+    this.socketOpened = false;
+    clearTimeout(this.readyTimer);
+    this.detach(this.socket);
+    this.connect();
+    return true;
+  }
+
+  private transcript(partial: string) {
+    return joinTranscript(this.committed, joinTranscript(this.final, partial));
   }
 
   private receive(message: VoiceServerMessage) {
@@ -177,12 +220,20 @@ export class VoiceSession {
         this.onReady(message.sampleRate);
         return;
       case "transcript":
-        this.options.onTranscript(message.final, message.partial);
+        this.final = message.final;
+        this.partial = message.partial;
+        this.options.onTranscript(
+          joinTranscript(this.committed, message.final),
+          message.partial,
+        );
         return;
       case "done":
-        this.end({ text: message.final });
+        this.end({ text: joinTranscript(this.committed, message.final) });
         return;
       case "error":
+        // The provider dropping mid-dictation is handled like a lost
+        // connection; other errors end the dictation.
+        if (message.code === "provider_failed" && this.reconnect()) return;
         this.end({ error: serverVoiceError(message.code) });
     }
   }
@@ -197,8 +248,13 @@ export class VoiceSession {
     this.early = [];
     this.earlySamples = 0;
     early.forEach((samples) => this.forward(samples));
-    if (this.stopRequested) this.sendStop();
-    else this.options.onPhase("recording");
+    if (this.stopRequested) {
+      this.sendStop();
+    } else if (!this.recording) {
+      // Only once, so a reconnect does not restart the timer.
+      this.recording = true;
+      this.options.onPhase("recording");
+    }
   }
 
   private capture(samples: Float32Array) {
@@ -244,19 +300,22 @@ export class VoiceSession {
     clearTimeout(this.finishTimer);
     clearTimeout(this.readyTimer);
     this.microphone?.stop();
-    const socket = this.socket;
-    if (socket) {
-      socket.onopen = null;
-      socket.onmessage = null;
-      socket.onclose = null;
-      if (
-        socket.readyState === SOCKET_CONNECTING ||
-        socket.readyState === SOCKET_OPEN
-      ) {
-        socket.close();
-      }
-    }
+    this.detach(this.socket);
     this.options.onEnd(result);
+  }
+
+  /** Stops listening to a socket and closes it if it is still open. */
+  private detach(socket: WebSocket | undefined) {
+    if (!socket) return;
+    socket.onopen = null;
+    socket.onmessage = null;
+    socket.onclose = null;
+    if (
+      socket.readyState === SOCKET_CONNECTING ||
+      socket.readyState === SOCKET_OPEN
+    ) {
+      socket.close();
+    }
   }
 }
 
