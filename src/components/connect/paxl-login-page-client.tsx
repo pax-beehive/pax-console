@@ -11,6 +11,7 @@ import {
   TerminalSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CopyTextButton } from "@/components/ui/copy-text-button";
 import { approvePaxlDeviceLogin } from "@/features/api/resources";
 import { User } from "@/features/api/types";
 import { AuthGate } from "@/features/auth/auth-gate";
@@ -20,6 +21,7 @@ import {
   type LoginTarget,
 } from "@/features/auth/paxl-login";
 import { getRegionalOrigin } from "@/features/region/bootstrap";
+import { CONTACT_EMAIL, CONTACT_MAILTO } from "@/lib/contact";
 
 const userCodePattern = /^[A-Z0-9]{6}$/;
 
@@ -215,6 +217,20 @@ function PaxlLoginShell({ target, user }: { target: LoginTarget; user: User }) {
           <div className="border-t border-hairline px-5 py-4 text-xs leading-5 text-ink-tertiary">
             <div>
               Only the paxl process you started can complete this login.
+            </div>
+            <div className="mt-1 flex items-center gap-1">
+              Need help?
+              <a
+                className="text-ink-muted underline underline-offset-2 hover:text-ink"
+                href={CONTACT_MAILTO}
+              >
+                {CONTACT_EMAIL}
+              </a>
+              <CopyTextButton
+                className="h-6 w-6"
+                label="Copy email address"
+                text={CONTACT_EMAIL}
+              />
             </div>
           </div>
         </aside>

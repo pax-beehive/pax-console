@@ -1,3 +1,5 @@
+import { CONTACT_EMAIL } from "@/lib/contact";
+
 export const overviewContent = {
   en: {
     title: "PaxWorkspace — Different agents. One workspace.",
@@ -20,6 +22,12 @@ export const overviewContent = {
     faqHeading: "Common questions",
     languageLabel: "Choose language",
     workbenchNote: "The workspace is currently available in English.",
+    contactHeading: "Get in touch",
+    contactBody:
+      "Questions, feedback, or want help getting set up? Email us and we'll get back to you.",
+    contactLabel: "Contact",
+    copyEmail: "Copy email address",
+    copied: "Copied",
     steps: [
       "Sign in and follow the setup guide to connect your computer or server.",
       "Choose a project directory and a configured agent.",
@@ -78,6 +86,10 @@ export const overviewContent = {
         answer:
           "Open the workspace, sign in, and follow the device setup guide to connect your computer or server. Then choose a project and a configured agent to start your first session.",
       },
+      {
+        question: "How can I contact the PAX team?",
+        answer: `Email ${CONTACT_EMAIL} with questions, feedback, or setup problems.`,
+      },
     ],
     diagram: {
       heading: "One workspace, your devices",
@@ -122,6 +134,12 @@ export const overviewContent = {
     faqHeading: "常见问题",
     languageLabel: "选择语言",
     workbenchNote: "工作台目前为英文。",
+    contactHeading: "联系我们",
+    contactBody:
+      "有问题、建议，或需要帮忙接入？欢迎发邮件给我们，我们会尽快回复。",
+    contactLabel: "联系",
+    copyEmail: "复制邮箱地址",
+    copied: "已复制",
     steps: [
       "登录工作台，按引导连接电脑或服务器。",
       "选择项目目录和已配置的 Agent。",
@@ -179,6 +197,10 @@ export const overviewContent = {
         question: "怎么开始？",
         answer:
           "打开工作台并登录，按设备接入引导连接自己的电脑或服务器，再选择项目和已配置的 Agent，开始第一段会话。",
+      },
+      {
+        question: "怎么联系 PAX 团队？",
+        answer: `有问题、建议或接入遇到困难，请发邮件到 ${CONTACT_EMAIL}。`,
       },
     ],
     diagram: {
