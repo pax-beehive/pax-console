@@ -223,6 +223,41 @@ describe("SessionComposer voice input", () => {
     );
   });
 
+  it("steers with the final transcript when Steer is used while recording", async () => {
+    const onSubmitDraft = vi.fn().mockResolvedValue(true);
+    const onSteer = vi.fn().mockResolvedValue(true);
+    render(
+      <TooltipProvider>
+        <SessionComposer
+          {...props}
+          isTurnRunning
+          onSteer={onSteer}
+          onSubmitDraft={onSubmitDraft}
+          voiceInput={{}}
+        />
+      </TooltipProvider>,
+    );
+    const socket = await startDictation();
+    act(() =>
+      socket.receive({ type: "transcript", final: "", partial: "change" }),
+    );
+    const steer = screen.getByRole("button", {
+      name: "Steer with this prompt",
+    });
+    expect(steer).toBeEnabled();
+    await userEvent.click(steer);
+    expect(socket.json().at(-1)).toEqual({ type: "stop" });
+    expect(steer).toBeDisabled();
+    expect(onSteer).not.toHaveBeenCalled();
+
+    act(() => socket.receive({ type: "done", final: "change of plan" }));
+    await waitFor(() =>
+      expect(onSteer).toHaveBeenCalledExactlyOnceWith("change of plan"),
+    );
+    expect(onSubmitDraft).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByRole("textbox")).toHaveValue(""));
+  });
+
   it("keeps the text instead of sending when dictation fails after Send", async () => {
     const onSubmitDraft = vi.fn().mockResolvedValue(true);
     render(
