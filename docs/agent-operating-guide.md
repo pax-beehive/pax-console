@@ -1516,6 +1516,12 @@ only for the current live thought. Share `isLiveThoughtActivity` with the label;
 tools, approvals, stale thoughts, and completed work must not animate the avatar.
 Honor reduced motion. Serve the transparent asset through Next Image at its
 display size; see [asset provenance and prompt](whale-chan-thinking-asset.md).
+Finished thoughts show `Thought for 1s` (`已深度思考1s` in Chinese), with up to
+one decimal place from observed timestamps. A following tool or approval ends
+the thought before execution or approval wait. Only pure thought groups may
+use their completion boundary; mixed-group final thoughts, legacy aggregates,
+and unavailable boundaries omit duration. Pure thought groups use the same
+finished label and a static avatar; mixed work groups retain their work label.
 Native tool summaries select the Tool evidence panel only when opening. Read
 `details.open` before the default toggle: collapsing a tool, including an
 auto-opened approval, must not reopen a closed evidence panel. Preserve native

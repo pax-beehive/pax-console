@@ -139,7 +139,7 @@ describe("Given Chinese thought indicators", () => {
     createdAt: tool.createdAt,
   };
   it.each([true, false])(
-    "uses 思考中... for a thought with streaming=%s",
+    "distinguishes active and finished Chinese thoughts with streaming=%s",
     (streaming) => {
       useLocaleStore.setState({ locale: "zh-CN" });
       render(
@@ -154,10 +154,69 @@ describe("Given Chinese thought indicators", () => {
           />
         </TooltipProvider>,
       );
-      expect(screen.getByText("思考中...")).toBeVisible();
+      expect(
+        screen.getByText(streaming ? "思考中..." : "已深度思考"),
+      ).toBeVisible();
       expect(screen.queryByText("思考过程")).not.toBeInTheDocument();
     },
   );
+  it.each([
+    ["2026-11-13T20:00:01Z", "已深度思考1s"],
+    ["2026-11-13T20:00:00.100Z", "已深度思考0.1s"],
+    [undefined, "已深度思考"],
+  ] as const)(
+    "labels a completed thought with boundary %s as %s",
+    async (completedAt, label) => {
+      useLocaleStore.setState({ locale: "zh-CN" });
+      const { container } = render(
+        <TooltipProvider>
+          <WorkstreamItemCard
+            item={{
+              type: "work_group",
+              id: "completed-thinking",
+              sessionId: tool.sessionId,
+              createdAt: thought.createdAt,
+              complete: true,
+              completedAt,
+              events: [thought],
+            }}
+            permissionDecision={permissionDecision}
+          />
+        </TooltipProvider>,
+      );
+      expect(screen.getByText(label)).toBeVisible();
+      expect(
+        container.querySelector('[data-slot="thinking-avatar"]'),
+      ).not.toHaveClass("animate-spin");
+      fireEvent.click(container.querySelector("summary")!);
+      await waitFor(() => expect(screen.getAllByText(label)).toHaveLength(2));
+      expect(screen.queryByText("思考中...")).not.toBeInTheDocument();
+    },
+  );
+
+  it("ends an earlier thought at the next tool rather than counting tool execution", async () => {
+    useLocaleStore.setState({ locale: "zh-CN" });
+    const { container } = render(
+      <TooltipProvider>
+        <WorkstreamItemCard
+          item={{
+            type: "work_group",
+            id: "thinking-then-tool",
+            sessionId: tool.sessionId,
+            createdAt: thought.createdAt,
+            complete: true,
+            completedAt: "2026-11-13T20:00:30Z",
+            events: [thought, { ...tool, createdAt: "2026-11-13T20:00:01Z" }],
+          }}
+          permissionDecision={permissionDecision}
+        />
+      </TooltipProvider>,
+    );
+    fireEvent.click(container.querySelector("summary")!);
+    expect(await screen.findByText("已深度思考1s")).toBeVisible();
+    expect(screen.getByText("工作了 30s")).toBeVisible();
+    expect(screen.queryByText("已深度思考30s")).not.toBeInTheDocument();
+  });
   it("uses the same copy on the live activity row", () => {
     useLocaleStore.setState({ locale: "zh-CN" });
     render(

@@ -59,6 +59,7 @@ import {
 import { cn } from "@/lib/utils";
 import { MessageAttachment } from "./message-attachment";
 import { isLiveThoughtActivity, liveActivityLabel } from "./activity-label";
+import { thoughtDurationLabel, thoughtEndAt } from "./thought-duration";
 
 export type PermissionDecisionOption =
   | "deny"
@@ -439,9 +440,11 @@ export function AgentPendingIndicator() {
 function ThoughtCard({
   event,
   active = Boolean(event.streaming),
+  duration,
 }: {
   event: Extract<SessionEvent, { type: "progress" }>;
   active?: boolean;
+  duration?: string;
 }) {
   const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
@@ -452,7 +455,13 @@ function ThoughtCard({
     >
       <summary className="flex cursor-pointer list-none items-center gap-2 text-sm text-ink-muted outline-none transition hover:text-ink [&::-webkit-details-marker]:hidden">
         <WhaleThinkingIcon active={active} />
-        <span>{event.streaming ? t("Thinking") : t("Thought")}</span>
+        <span>
+          {active
+            ? t("Thinking")
+            : duration
+              ? t("Thought for {duration}", { duration })
+              : t("Thought")}
+        </span>
         <ChevronDown className="ml-auto h-3.5 w-3.5 -rotate-90 text-ink-tertiary transition group-open:rotate-0" />
       </summary>
       {expanded && (
@@ -460,7 +469,7 @@ function ThoughtCard({
           className="mt-2 pl-1 text-[13px] leading-5"
           content={event.content}
           muted
-          streaming={event.streaming}
+          streaming={active}
         />
       )}
     </details>
@@ -1098,6 +1107,13 @@ function WorkGroupCard({
   ];
   const needsApproval = pendingPermissions.length > 0;
   const thinking = !complete && !needsApproval && isLiveThoughtActivity(events);
+  const onlyThoughts =
+    events.length > 0 &&
+    events.every((event) => event.type === "progress") &&
+    approvals.length === 0;
+  const completedThoughtDuration = onlyThoughts
+    ? thoughtDurationLabel(events[0].createdAt, completedAt)
+    : undefined;
   const onlySubagentCompletions =
     events.length > 0 && events.every(isSubagentCompletion);
   const start = Date.parse(
@@ -1125,9 +1141,15 @@ function WorkGroupCard({
         ? t("Subagent completed")
         : t("Subagents completed")
       : complete
-        ? durationLabel
-          ? t("Worked for {duration}", { duration: durationLabel })
-          : t("Worked")
+        ? onlyThoughts
+          ? completedThoughtDuration
+            ? t("Thought for {duration}", {
+                duration: completedThoughtDuration,
+              })
+            : t("Thought")
+          : durationLabel
+            ? t("Worked for {duration}", { duration: durationLabel })
+            : t("Worked")
         : liveActivityLabel(events, t);
   const label =
     approvals.length > 0 && !needsApproval
@@ -1151,8 +1173,8 @@ function WorkGroupCard({
               aria-hidden="true"
               className="h-4 w-4 shrink-0 text-warning"
             />
-          ) : thinking ? (
-            <WhaleThinkingIcon active />
+          ) : thinking || (complete && onlyThoughts) ? (
+            <WhaleThinkingIcon active={thinking} />
           ) : !complete && !onlySubagentCompletions ? (
             <LoaderCircle
               aria-hidden="true"
@@ -1167,7 +1189,7 @@ function WorkGroupCard({
           <TruncatedText className="min-w-0 flex-1" tooltip={label}>
             {label}
           </TruncatedText>
-          {(needsApproval || !complete) && (
+          {(needsApproval || !complete || onlyThoughts) && (
             <ChevronDown
               aria-hidden="true"
               className="h-3.5 w-3.5 shrink-0 -rotate-90 text-ink-tertiary transition group-open/work:rotate-0 motion-reduce:transition-none"
@@ -1176,11 +1198,15 @@ function WorkGroupCard({
         </summary>
         {expanded && (
           <div className="ml-2 mt-1 grid min-w-0 gap-1 border-l border-hairline pl-4">
-            {events.map((event) =>
+            {events.map((event, index) =>
               event.type === "progress" ? (
                 <ThoughtCard
                   active={thinking && event === events.at(-1)}
-                  event={complete ? { ...event, streaming: false } : event}
+                  duration={thoughtDurationLabel(
+                    event.createdAt,
+                    thoughtEndAt(events, index, approvals, completedAt),
+                  )}
+                  event={event}
                   key={event.id}
                 />
               ) : (
@@ -2549,7 +2575,7 @@ function WhaleThinkingIcon({ active }: { active: boolean }) {
       alt=""
       aria-hidden="true"
       data-slot="thinking-avatar"
-      src="/whale-chan-thinking.png"
+      src="/whale-chan-thinking-v2.png"
       width={20}
       height={20}
       draggable={false}
