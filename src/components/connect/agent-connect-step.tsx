@@ -449,9 +449,7 @@ export function AgentConnectStep({
         <div className="flex flex-wrap gap-2">
           {ready && agentId && (
             <Button asChild variant="primary">
-              <Link
-                href={`/sessions/new?agentId=${encodeURIComponent(agentId)}&nodeId=${encodeURIComponent(node.node_id)}`}
-              >
+              <Link href={`/?agentId=${encodeURIComponent(agentId)}`}>
                 {t("Start a conversation")}
               </Link>
             </Button>

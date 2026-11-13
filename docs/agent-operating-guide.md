@@ -3184,3 +3184,10 @@ The public `/overview` and `/zh/overview` routes retain their explicit language.
 Run `pnpm typecheck`, `pnpm lint`, and the i18n/component tests. On Node versions
 with native Web Storage, run tests with
 `NODE_OPTIONS=--no-experimental-webstorage` so jsdom owns browser storage.
+
+## Connection onboarding destination
+
+The connected-agent “Start a conversation” link opens `/?agentId=...`.
+Home initializes its composer agent selection from this parameter and retains
+the normal session rail. If the agent is unavailable in the inventory, Home
+uses its existing default-agent fallback.
