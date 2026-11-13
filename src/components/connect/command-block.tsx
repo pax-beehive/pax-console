@@ -1,10 +1,12 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function CommandBlock({ command }: { command: string }) {
+  const { t } = useI18n();
   const [copied, setCopied] = useState("");
   const [error, setError] = useState(false);
   return (
@@ -31,12 +33,12 @@ export function CommandBlock({ command }: { command: string }) {
             }
           }}
         >
-          {copied === command ? "Copied" : "Copy command"}
+          {copied === command ? t("Copied") : t("Copy command")}
         </Button>
       </div>
       {error && (
         <p role="alert" className="text-sm text-warning">
-          Copy is unavailable. Select the command and copy it manually.
+          {t("Copy is unavailable. Select the command and copy it manually.")}
         </p>
       )}
     </div>

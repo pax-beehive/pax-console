@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
+
 import {
   AlertCircle,
   CheckCircle2,
@@ -24,13 +26,16 @@ export function RunBadge({
   paxdOffline?: boolean;
   status: SessionDisplayStatus;
 }) {
+  const { t } = useI18n();
   if (paxdOffline) {
     return (
       <Badge
         tone="warning"
-        tooltip="paxd is offline. The last reported execution state is retained."
+        tooltip={t(
+          "paxd is offline. The last reported execution state is retained.",
+        )}
       >
-        paxd offline
+        {t("paxd offline")}
       </Badge>
     );
   }
@@ -40,56 +45,59 @@ export function RunBadge({
   const statusConfig = {
     idle: {
       icon: <Circle className="h-3.5 w-3.5" />,
-      label: "idle",
+      label: t("idle"),
       tone: "neutral" as const,
-      tooltip: "Ready for a prompt",
+      tooltip: t("Ready for a prompt"),
     },
     streaming: {
       icon: <LoaderCircle className="h-3.5 w-3.5 animate-spin" />,
-      label: "running",
+      label: t("running"),
       tone: "warning" as const,
-      tooltip: "Agent is responding",
+      tooltip: t("Agent is responding"),
     },
     waiting_approval: {
       icon: <ShieldAlert className="h-3.5 w-3.5" />,
-      label: "approval",
+      label: t("approval"),
       tone: "warning" as const,
-      tooltip: "Waiting for approval",
+      tooltip: t("Waiting for approval"),
     },
     unknown: {
       icon: <AlertCircle className="h-3.5 w-3.5" />,
-      label: "status unknown",
+      label: t("status unknown"),
       tone: "warning" as const,
-      tooltip: "No authoritative runtime state is available",
+      tooltip: t("No authoritative runtime state is available"),
     },
     done: {
       icon: <CheckCircle2 className="h-3.5 w-3.5" />,
-      label: "done",
+      label: t("done"),
       tone: "success" as const,
-      tooltip: "Run completed",
+      tooltip: t("Run completed"),
     },
     cancelled: {
       icon: <Circle className="h-3.5 w-3.5" />,
-      label: "cancelled",
+      label: t("cancelled"),
       tone: "neutral" as const,
-      tooltip: "Run cancelled",
+      tooltip: t("Run cancelled"),
     },
     error: {
       icon: <AlertCircle className="h-3.5 w-3.5" />,
-      label: error ? `error · ${error.message}` : "error",
+      label: error ? `${t("error")} · ${error.message}` : t("error"),
       tone: "danger" as const,
-      tooltip: errorDetail ?? "Run failed",
+      tooltip: errorDetail ?? t("Run failed"),
     },
   }[status];
 
   if (status === "error") {
-    const detail = errorDetail ?? "The session stream failed.";
-    const label = isIdleTimeout ? "inactive" : "error";
+    const detail = errorDetail ?? t("The session stream failed.");
+    const label = isIdleTimeout ? t("inactive") : t("error");
 
     return (
       <details className="group relative shrink-0">
         <summary
-          aria-label={`Session ${isIdleTimeout ? "inactive" : "error"}: ${detail}`}
+          aria-label={t("Session {status}: {detail}", {
+            status: label,
+            detail,
+          })}
           className="cursor-pointer list-none rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent [&::-webkit-details-marker]:hidden"
         >
           <Badge

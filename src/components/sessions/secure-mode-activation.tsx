@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
+
 import { useEffect, useState } from "react";
 import { LockKeyhole } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
@@ -9,6 +11,7 @@ export function SecureModeActivation({
 }: {
   showStatus?: boolean;
 }) {
+  const { t } = useI18n();
   const [visible, setVisible] = useState(true);
   const reduceMotion = useReducedMotion();
   useEffect(() => {
@@ -29,7 +32,7 @@ export function SecureModeActivation({
       )}
       {showStatus && (
         <div
-          aria-label="Encryption enabled"
+          aria-label={t("Encryption enabled")}
           className="pointer-events-none absolute inset-x-4 top-28 z-20 mx-auto flex w-fit max-w-[calc(100%-32px)] items-center gap-3 rounded-2xl border border-emerald-400/20 bg-surface-2 px-4 py-3 text-sm font-medium leading-5 text-ink shadow-lg"
           data-testid="secure-activation-animation"
           role="status"
@@ -38,7 +41,7 @@ export function SecureModeActivation({
             aria-hidden="true"
             className="h-5 w-5 shrink-0 text-emerald-400"
           />
-          <span>End-to-end encryption enabled</span>
+          <span>{t("End-to-end encryption enabled")}</span>
         </div>
       )}
     </>

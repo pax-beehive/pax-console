@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
+
 import {
   useCallback,
   useEffect,
@@ -43,19 +45,20 @@ export function NodeMobileControl({
   nodeId: string;
   userId: string;
 }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   return (
     <section
-      aria-label="Android control"
+      aria-label={t("Android control")}
       className="grid min-w-0 gap-3 border-t border-hairline pt-4"
     >
       <div className="flex items-center justify-between gap-2">
-        <h2 className="font-medium">Android</h2>
+        <h2 className="font-medium">{t("Android")}</h2>
         <Button
           icon={<Smartphone className="h-4 w-4" />}
           onClick={() => setOpen(!open)}
         >
-          {open ? "Close Android panel" : "Open Android control"}
+          {open ? t("Close Android panel") : t("Open Android control")}
         </Button>
       </div>
       {open && (
@@ -81,6 +84,7 @@ export function NodeMobileViewer({
   onPrepare?: () => Promise<boolean>;
   prepareDisabled?: boolean;
 }) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState("");
   const [controlSession, setControlSession] = useState("");
@@ -153,12 +157,14 @@ export function NodeMobileViewer({
     } catch (cause) {
       if (!controller.signal.aborted && version === selectionVersion.current)
         setPreviewError(
-          cause instanceof Error ? cause : new Error("Screenshot unavailable."),
+          cause instanceof Error
+            ? cause
+            : new Error(t("Screenshot unavailable.")),
         );
     } finally {
       if (frameAbort.current === controller) frameAbort.current = null;
     }
-  }, [active, running, userId, nodeId, selectedId]);
+  }, [active, running, userId, nodeId, selectedId, t]);
   useEffect(() => {
     if (!active || !running || busy) return;
     let stopped = false;
@@ -253,13 +259,17 @@ export function NodeMobileViewer({
       else
         setPreparationError(
           new Error(
-            "Preparation instructions were not added. Check the session, then try again.",
+            t(
+              "Preparation instructions were not added. Check the session, then try again.",
+            ),
           ),
         );
     } catch {
       setPreparationError(
         new Error(
-          "Could not add preparation instructions to chat. Check the session, then try again.",
+          t(
+            "Could not add preparation instructions to chat. Check the session, then try again.",
+          ),
         ),
       );
     } finally {
@@ -299,12 +309,16 @@ export function NodeMobileViewer({
       setError(
         controller.signal.aborted
           ? new Error(
-              "Request ended without a confirmed result. Refresh state before trying again.",
+              t(
+                "Request ended without a confirmed result. Refresh state before trying again.",
+              ),
             )
           : cause instanceof Error
             ? cause
             : new Error(
-                "Android operation failed. Refresh state before trying again.",
+                t(
+                  "Android operation failed. Refresh state before trying again.",
+                ),
               ),
       );
     } finally {
@@ -334,7 +348,9 @@ export function NodeMobileViewer({
     if (Date.now() - captured.receivedAt > 9000) {
       setConsumedFrame(frame.frameId);
       setError(
-        new Error("Screenshot expired. Refresh before controlling the phone."),
+        new Error(
+          t("Screenshot expired. Refresh before controlling the phone."),
+        ),
       );
       void refreshFrame();
       return;
@@ -427,7 +443,9 @@ export function NodeMobileViewer({
     } catch (cause) {
       if (!abort.signal.aborted)
         setError(
-          cause instanceof Error ? cause : new Error("Recording unavailable."),
+          cause instanceof Error
+            ? cause
+            : new Error(t("Recording unavailable.")),
         );
     } finally {
       if (downloadAbort.current === abort) {
@@ -440,8 +458,9 @@ export function NodeMobileViewer({
   return (
     <div className="grid min-w-0 gap-3">
       <p className="text-xs text-ink-tertiary">
-        Android emulator on this device. Screenshot preview; audio is available
-        in completed recordings.
+        {t(
+          "Android emulator on this device. Screenshot preview; audio is available in completed recordings.",
+        )}
       </p>
       {onPrepare ? (
         <div className="grid gap-2">
@@ -451,43 +470,48 @@ export function NodeMobileViewer({
             onClick={() => void addPreparationInstructions()}
           >
             {preparing
-              ? "Adding preparation instructions…"
-              : "Add preparation instructions to chat"}
+              ? t("Adding preparation instructions…")
+              : t("Add preparation instructions to chat")}
           </Button>
           <p className="text-xs text-ink-tertiary">
-            Add the setup instructions to the chat input. Review and send them
-            to let the agent prepare the phone, then follow progress in chat.
+            {t(
+              "Add the setup instructions to the chat input. Review and send them to let the agent prepare the phone, then follow progress in chat.",
+            )}
           </p>
           {preparationDraftAdded && (
             <p className="text-xs text-ink-muted" role="status">
-              Preparation instructions added to the chat input. Review them,
-              then send when ready.
+              {t(
+                "Preparation instructions added to the chat input. Review them, then send when ready.",
+              )}
             </p>
           )}
           {preparationError && <InlineError error={preparationError} />}
         </div>
       ) : (
         <p className="text-xs text-ink-tertiary">
-          Ask the agent in a session to prepare the phone using the{" "}
+          {t("Ask the agent in a session to prepare the phone using the")}{" "}
           <a
             className="underline underline-offset-2"
             href="https://github.com/CCGV2/agent-mobile-runtime/blob/main/docs/agent-preparation.md"
             target="_blank"
             rel="noopener noreferrer"
           >
-            Android setup guide
+            {t("Android setup guide")}
           </a>
           .
         </p>
       )}
       {(error || query.error) && <InlineError error={error ?? query.error!} />}
       {query.isPending && (
-        <p className="text-sm text-ink-tertiary">Checking Android runtime…</p>
+        <p className="text-sm text-ink-tertiary">
+          {t("Checking Android runtime…")}
+        </p>
       )}
       {state && !state.available && (
         <p className="text-sm text-ink-muted">
-          Android runtime is not ready on this device. Ask the agent to prepare
-          it, then refresh to check its progress.
+          {t(
+            "Android runtime is not ready on this device. Ask the agent to prepare it, then refresh to check its progress.",
+          )}
         </p>
       )}
       <div className="flex flex-wrap gap-2">
@@ -496,37 +520,40 @@ export function NodeMobileViewer({
           disabled={busy || !active}
           onClick={() => void refresh()}
         >
-          Refresh
+          {t("Refresh")}
         </Button>
       </div>
       {state?.available && (
         <>
           <label className="grid gap-1 text-xs text-ink-tertiary">
-            Phone
+            {t("Phone")}{" "}
             <select
-              aria-label="Android phone"
+              aria-label={t("Android phone")}
               className={inputClass}
               value={selectedId}
               disabled={busy}
               onChange={(event) => chooseDevice(event.target.value)}
             >
-              <option value="">Choose a phone</option>
+              <option value="">{t("Choose a phone")}</option>
               {state.sessions.map((value) => (
                 <option key={value.id} value={value.id}>
-                  {value.template} · {value.id.slice(0, 8)} · {value.state}
+                  {value.template} · {value.id.slice(0, 8)} · {t(value.state)}
                 </option>
               ))}
             </select>
           </label>
           {!state.sessions.length && (
             <p className="text-sm text-ink-tertiary">
-              No phones yet. Ask the agent to read the setup guide and prepare
-              one for this session.
+              {t(
+                "No phones yet. Ask the agent to read the setup guide and prepare one for this session.",
+              )}
             </p>
           )}
           {selectedId && !session && (
             <p className="text-sm text-warning">
-              This phone is no longer available. Choose a phone explicitly.
+              {t(
+                "This phone is no longer available. Choose a phone explicitly.",
+              )}
             </p>
           )}
         </>
@@ -535,13 +562,14 @@ export function NodeMobileViewer({
         <>
           <div className="flex flex-wrap items-center gap-2 text-xs text-ink-tertiary">
             <MonoId>{session.id}</MonoId>
-            <Badge>{session.state}</Badge>
-            {session.takeover && <Badge>Human control</Badge>}
+            <Badge>{t(session.state)}</Badge>
+            {session.takeover && <Badge>{t("Human control")}</Badge>}
           </div>
           {session.recoveryRequired && (
             <p className="text-xs text-warning">
-              Ask the agent to inspect the recovery state on the device host
-              before preparing it again.
+              {t(
+                "Ask the agent to inspect the recovery state on the device host before preparing it again.",
+              )}
             </p>
           )}
           <div className="flex flex-wrap gap-2">
@@ -550,23 +578,24 @@ export function NodeMobileViewer({
               disabled={busy || !running || controlling || !active}
               onClick={() => void run("takeover")}
             >
-              Take control
+              {t("Take control")}
             </Button>
             <Button
               size="sm"
               disabled={busy || !session.takeover || !active}
               onClick={() => void run("release")}
             >
-              Release control
+              {t("Release control")}
             </Button>
           </div>
           <p className="text-xs text-ink-tertiary">
-            Take control before tapping or typing. The agent stays paused until
-            you release control. Each input uses one fresh screenshot.
+            {t(
+              "Take control before tapping or typing. The agent stays paused until you release control. Each input uses one fresh screenshot.",
+            )}
           </p>
           {!active && (
             <p className="text-xs text-ink-tertiary">
-              Preview paused while this window is inactive.
+              {t("Preview paused while this window is inactive.")}
             </p>
           )}
           {previewError && active && <InlineError error={previewError} />}
@@ -575,7 +604,7 @@ export function NodeMobileViewer({
               // Captured pixels remain local to this surface, outside image optimization.
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                alt="Android phone screenshot"
+                alt={t("Android phone screenshot")}
                 src={`data:image/png;base64,${frame.data}`}
                 width={frame.width}
                 height={frame.height}
@@ -594,15 +623,17 @@ export function NodeMobileViewer({
             ) : (
               <p className="self-center text-xs text-ink-tertiary">
                 {running
-                  ? "Waiting for a fresh screenshot…"
-                  : "The agent needs to start this phone before its screen is available."}
+                  ? t("Waiting for a fresh screenshot…")
+                  : t(
+                      "The agent needs to start this phone before its screen is available.",
+                    )}
               </p>
             )}
           </div>
           <div
             className="flex flex-wrap gap-2"
             role="group"
-            aria-label="Android navigation"
+            aria-label={t("Android navigation")}
           >
             <Button
               size="sm"
@@ -610,7 +641,7 @@ export function NodeMobileViewer({
               icon={<ArrowLeft className="h-3.5 w-3.5" />}
               onClick={() => input("key", { key: "BACK" })}
             >
-              Back
+              {t("Back")}
             </Button>
             <Button
               size="sm"
@@ -618,7 +649,7 @@ export function NodeMobileViewer({
               icon={<Home className="h-3.5 w-3.5" />}
               onClick={() => input("key", { key: "HOME" })}
             >
-              Home
+              {t("Home")}
             </Button>
             <Button
               size="sm"
@@ -626,7 +657,7 @@ export function NodeMobileViewer({
               icon={<Square className="h-3.5 w-3.5" />}
               onClick={() => input("key", { key: "APP_SWITCH" })}
             >
-              Apps
+              {t("Apps")}
             </Button>
           </div>
           <form
@@ -647,8 +678,8 @@ export function NodeMobileViewer({
           >
             <input
               className={`${inputClass} flex-1`}
-              aria-label="Text for Android phone"
-              placeholder="Printable ASCII text"
+              aria-label={t("Text for Android phone")}
+              placeholder={t("Printable ASCII text")}
               maxLength={2000}
               value={text}
               disabled={!controlling || busy}
@@ -665,28 +696,28 @@ export function NodeMobileViewer({
                 text.includes("%s")
               }
             >
-              Send text
+              {t("Send text")}
             </Button>
           </form>
           <div className="grid gap-2 border-t border-hairline pt-3">
-            <h3 className="text-sm font-medium">Recordings</h3>
+            <h3 className="text-sm font-medium">{t("Recordings")}</h3>
             <div className="flex flex-wrap items-center gap-2">
               <select
                 className={inputClass}
-                aria-label="Android recording type"
+                aria-label={t("Android recording type")}
                 value={recordKind}
                 disabled={busy}
                 onChange={(event) =>
                   setRecordKind(event.target.value as "screen" | "audio")
                 }
               >
-                <option value="screen">Screen + internal audio</option>
-                <option value="audio">Internal audio</option>
+                <option value="screen">{t("Screen + internal audio")}</option>
+                <option value="audio">{t("Internal audio")}</option>
               </select>
               <label className="flex items-center gap-1 text-xs text-ink-tertiary">
                 <input
                   className={`${inputClass} w-16`}
-                  aria-label="Recording duration in seconds"
+                  aria-label={t("Recording duration in seconds")}
                   type="number"
                   min={1}
                   max={300}
@@ -694,7 +725,7 @@ export function NodeMobileViewer({
                   disabled={busy}
                   onChange={(event) => setDuration(Number(event.target.value))}
                 />{" "}
-                seconds
+                {t("seconds")}
               </label>
               <Button
                 size="sm"
@@ -714,30 +745,34 @@ export function NodeMobileViewer({
                   })
                 }
               >
-                Start recording
+                {t("Start recording")}
               </Button>
             </div>
             {recordings.error && <InlineError error={recordings.error} />}
             {recordings.data?.length === 0 && (
               <p className="text-xs text-ink-tertiary">
-                No recordings for this phone.
+                {t("No recordings for this phone.")}
               </p>
             )}
             {recordings.data?.map((record) => (
               <article
                 key={record.id}
-                aria-label={`Android recording ${record.id}`}
+                aria-label={t("Android recording {value1}", {
+                  value1: record.id,
+                })}
                 className="grid gap-2 border-t border-hairline py-2"
               >
                 <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
                   <span>
                     {record.kind === "audio"
-                      ? "Internal audio"
-                      : "Screen + audio"}
+                      ? t("Internal audio")
+                      : t("Screen + audio")}
                   </span>
-                  <span>{record.state}</span>
+                  <span>{t(record.state)}</span>
                   <MonoId>{record.id}</MonoId>
-                  <span>{Math.ceil(record.bytes / 1024)} KiB</span>
+                  <span>
+                    {Math.ceil(record.bytes / 1024)} {t("KiB")}
+                  </span>
                 </div>
                 {record.error && (
                   <p className="text-xs text-warning">{record.error}</p>
@@ -750,7 +785,7 @@ export function NodeMobileViewer({
                       void run("recording_stop", { recordingId: record.id })
                     }
                   >
-                    Stop recording
+                    {t("Stop recording")}
                   </Button>
                 )}
                 {record.state === "completed" && (
@@ -761,7 +796,8 @@ export function NodeMobileViewer({
                       disabled={busy || fileProgress !== undefined || !active}
                       onClick={() => void loadRecording(record, true)}
                     >
-                      Download {record.kind === "audio" ? "audio" : "MKV"}
+                      {t("Download")}{" "}
+                      {record.kind === "audio" ? t("audio") : t("MKV")}
                     </Button>
                     {record.kind === "audio" && (
                       <Button
@@ -769,7 +805,7 @@ export function NodeMobileViewer({
                         disabled={busy || fileProgress !== undefined || !active}
                         onClick={() => void loadRecording(record, false)}
                       >
-                        Load audio
+                        {t("Load audio")}
                       </Button>
                     )}
                   </div>
@@ -779,19 +815,20 @@ export function NodeMobileViewer({
                     controls
                     preload="metadata"
                     src={file.url}
-                    aria-label="Recorded Android internal audio"
+                    aria-label={t("Recorded Android internal audio")}
                   />
                 )}
               </article>
             ))}
             {fileProgress !== undefined && (
               <p className="text-xs text-ink-tertiary" role="status">
-                Loading recording: {fileProgress}%
+                {t("Loading recording:")} {fileProgress}%
               </p>
             )}
             <p className="text-xs text-ink-tertiary">
-              Only completed files can be loaded. MKV downloads may need an
-              external player. Runtime credentials remain on the device.
+              {t(
+                "Only completed files can be loaded. MKV downloads may need an external player. Runtime credentials remain on the device.",
+              )}
             </p>
           </div>
         </>

@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -32,6 +33,7 @@ export function SecretarySummaryDetail({
   onSelect: (selection: SecretarySummarySelection) => void;
   onAccessDenied: () => void;
 }) {
+  const { t, locale } = useI18n();
   const query = useSecretarySummary(userId, selection);
   const denied = isSummaryAccessDenied(query.error);
   const checking = query.isFetching && !query.isFetchedAfterMount;
@@ -55,7 +57,7 @@ export function SecretarySummaryDetail({
 
   return (
     <section
-      aria-label="Summary details"
+      aria-label={t("Summary details")}
       className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
     >
       <div
@@ -69,26 +71,30 @@ export function SecretarySummaryDetail({
             icon={<ArrowLeft aria-hidden="true" className="h-4 w-4" />}
             onClick={onClose}
           >
-            Back to summaries
+            {t("Back to summaries")}
           </Button>
           <h2
             ref={heading}
             tabIndex={-1}
             className="mt-3 break-words text-base font-semibold leading-7 text-ink outline-none [overflow-wrap:anywhere]"
           >
-            {summary?.title || "Summary"}
+            {summary?.title || t("Summary")}
           </h2>
           {summary && (
             <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs leading-5 text-ink-tertiary">
-              <span>Version {summary.revision}</span>
-              {summary.author_kind === "user" && <Badge>Written by you</Badge>}
+              <span>
+                {t("Version")} {summary.revision}
+              </span>
+              {summary.author_kind === "user" && (
+                <Badge>{t("Written by you")}</Badge>
+              )}
               {summary.node_status === "stale" && (
-                <Badge tone="warning">Source changed</Badge>
+                <Badge tone="warning">{t("Source changed")}</Badge>
               )}
               <span>
-                Updated{" "}
+                {t("Updated")}{" "}
                 <time dateTime={summary.created_at}>
-                  {summaryDate(summary.created_at)}
+                  {summaryDate(summary.created_at, locale)}
                 </time>
               </span>
             </div>
@@ -107,7 +113,7 @@ export function SecretarySummaryDetail({
                   <Link
                     href={`/?session_id=${encodeURIComponent(summary.origin_session_id)}`}
                   >
-                    {summary.origin_session_title || "Open origin session"}
+                    {summary.origin_session_title || t("Open origin session")}
                   </Link>
                 </Button>
               )}
@@ -120,16 +126,18 @@ export function SecretarySummaryDetail({
         >
           {query.isPending || checking ? (
             <p role="status" className="text-sm text-ink-tertiary">
-              Loading summary…
+              {t("Loading summary…")}
             </p>
           ) : query.isError ? (
             <div role="alert" className="text-sm leading-6 text-ink-muted">
               <p>
                 {denied
-                  ? "This summary is no longer available to you."
+                  ? t("This summary is no longer available to you.")
                   : unavailable
-                    ? "This summary or its requested version is unavailable. Its sources may have been deleted or become inaccessible."
-                    : "Could not load this summary. Please try again."}
+                    ? t(
+                        "This summary or its requested version is unavailable. Its sources may have been deleted or become inaccessible.",
+                      )
+                    : t("Could not load this summary. Please try again.")}
               </p>
               {!denied && !unavailable && (
                 <Button
@@ -139,7 +147,7 @@ export function SecretarySummaryDetail({
                     void query.refetch();
                   }}
                 >
-                  Retry summary
+                  {t("Retry summary")}
                 </Button>
               )}
             </div>
@@ -158,8 +166,9 @@ export function SecretarySummaryDetail({
                     role="status"
                     className="mb-4 text-sm leading-6 text-ink-tertiary"
                   >
-                    No retained content in this version. Earlier versions remain
-                    subject to current source permissions.
+                    {t(
+                      "No retained content in this version. Earlier versions remain subject to current source permissions.",
+                    )}
                   </p>
                 )}
                 <SummaryContent

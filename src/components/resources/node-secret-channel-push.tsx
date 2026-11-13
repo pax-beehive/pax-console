@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n, type Translator } from "@/features/i18n/use-i18n";
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { InlineError } from "@/components/ui/inline-error";
@@ -49,6 +51,7 @@ export function NodeSecretChannelPush({
   userId,
   onDelivered,
 }: NodeSecretChannelPushProps) {
+  const { t } = useI18n();
   const [value, setValue] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [outcome, setOutcome] = useState<PushOutcome>();
@@ -59,7 +62,7 @@ export function NodeSecretChannelPush({
     setOutcome(undefined);
     setIsSending(true);
     try {
-      const result = await deliverSecret(userId, nodeId, secretValue);
+      const result = await deliverSecret(userId, nodeId, secretValue, t);
       setOutcome(result);
       if (result.kind === "delivered")
         onDelivered?.({ fileRef: result.fileRef, expiresAt: result.expiresAt });
@@ -72,23 +75,25 @@ export function NodeSecretChannelPush({
 
   return (
     <section className="grid min-w-0 gap-3 rounded-lg border border-hairline bg-surface-1 p-3">
-      <h2 className="text-base font-medium">Send a secret to this node</h2>
+      <h2 className="text-base font-medium">
+        {t("Send a secret to this node")}
+      </h2>
       <p className="text-xs text-ink-tertiary">
-        Encrypted in this browser against a one-time key paxd generates on the
-        fly. pax-manager only ever relays ciphertext; paxd decrypts it locally
-        and drops it into a short-lived file for a local program to pick up.
+        {t(
+          "Encrypted in this browser against a one-time key paxd generates on the fly. pax-manager only ever relays ciphertext; paxd decrypts it locally and drops it into a short-lived file for a local program to pick up.",
+        )}
       </p>
       <div className="flex min-w-0 gap-2">
         <input
           autoComplete="off"
-          aria-label="Secret value"
+          aria-label={t("Secret value")}
           className="min-h-9 min-w-0 flex-1 rounded-lg border border-hairline bg-surface-1 px-3 text-base text-ink outline-none placeholder:text-ink-tertiary focus:border-hairline-strong sm:text-sm"
           onKeyDown={(event) => {
             if (event.key === "Enter") event.preventDefault();
           }}
           disabled={isSending}
           onChange={(event) => setValue(event.target.value)}
-          placeholder="Secret value"
+          placeholder={t("Secret value")}
           type="password"
           value={value}
         />
@@ -99,13 +104,14 @@ export function NodeSecretChannelPush({
           type="button"
           variant="primary"
         >
-          {isSending ? "Sending..." : "Send"}
+          {isSending ? t("Sending...") : t("Send")}
         </Button>
       </div>
       {outcome?.kind === "delivered" && (
         <p className="text-xs text-ink-tertiary">
-          Delivered to <span className="font-mono">{outcome.fileRef}</span>{" "}
-          (expires {outcome.expiresAt}).
+          {t("Delivered to")}{" "}
+          <span className="font-mono">{outcome.fileRef}</span> {t("(expires")}{" "}
+          {outcome.expiresAt}).
         </p>
       )}
       {outcome?.kind === "error" && (
@@ -119,26 +125,29 @@ async function deliverSecret(
   userId: string,
   nodeId: string,
   secretValue: string,
+  t: Translator,
 ): Promise<PushOutcome> {
-  const ack = await sealAndPush(userId, nodeId, secretValue);
+  const ack = await sealAndPush(userId, nodeId, secretValue, t);
   if (ack.error?.code === "expired") {
     // paxd also reports unknown channels as expired after losing in-memory
     // state. A new channel could repeat an already-applied delivery.
     return {
       kind: "error",
-      message:
+      message: t(
         "Secret channel expired or is no longer known. Check the node before manually retrying; an earlier delivery may have completed.",
+      ),
     };
   }
-  return interpretAck(ack);
+  return interpretAck(ack, t);
 }
 
 async function sealAndPush(
   userId: string,
   nodeId: string,
   secretValue: string,
+  t: Translator,
 ): Promise<SecretChannelAck> {
-  const channel = await openChannel(userId, nodeId);
+  const channel = await openChannel(userId, nodeId, t);
   // command_id is bound into the AES-GCM additional data (see crypto.ts), so
   // it must be the exact same value sent in the push request body — paxd
   // reconstructs the AAD from the command_id it actually received, not from
@@ -167,15 +176,18 @@ async function sealAndPush(
 async function openChannel(
   userId: string,
   nodeId: string,
+  t: Translator,
 ): Promise<NodeDaemonSecretChannel> {
   const result = await openNodeDaemonSecretChannel(userId, nodeId);
   if (result.error || !result.secret_channel_open) {
-    throw new Error(result.error?.message ?? "Failed to open secret channel");
+    throw new Error(
+      result.error?.message ?? t("Failed to open secret channel"),
+    );
   }
   return result.secret_channel_open;
 }
 
-function interpretAck(ack: SecretChannelAck): PushOutcome {
+function interpretAck(ack: SecretChannelAck, t: Translator): PushOutcome {
   const applied = ack.ok ? ack.result?.secret_channel_push : undefined;
   if (applied?.file_ref && applied.expires_at) {
     return {
@@ -186,6 +198,6 @@ function interpretAck(ack: SecretChannelAck): PushOutcome {
   }
   return {
     kind: "error",
-    message: ack.error?.message ?? "paxd rejected the secret",
+    message: ack.error?.message ?? t("paxd rejected the secret"),
   };
 }

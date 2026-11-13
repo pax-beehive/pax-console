@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import {
   type RefObject,
@@ -61,6 +62,7 @@ export function ArtifactMediaPreview({
   sourceId?: string;
   title: string;
 }) {
+  const { t } = useI18n();
   const sourceVersion = JSON.stringify([src, sourceId, expiresAt]);
   const [failedVersion, setFailedVersion] = useState<string>();
   const [renewalErrorVersion, setRenewalErrorVersion] = useState<string>();
@@ -275,7 +277,10 @@ export function ArtifactMediaPreview({
     };
   }, [playbackRef, restorePlayback, sourceId, src]);
 
-  const label = `${kind === "video" ? "Video" : "Audio"} player: ${title}`;
+  const label = t("{kind} player: {title}", {
+    kind: t(kind === "video" ? "Video" : "Audio"),
+    title,
+  });
   const props = {
     "aria-label": label,
     slot: "media",
@@ -299,7 +304,9 @@ export function ArtifactMediaPreview({
           kind === "audio" || rateMenuOpen || rateControlFocused ? "-1" : "3"
         }
         className={`${styles.player} ${kind === "audio" ? styles.audio : ""}`}
-        aria-label={`${kind === "video" ? "Video" : "Audio"} playback controls`}
+        aria-label={t("{kind} playback controls", {
+          kind: t(kind === "video" ? "Video" : "Audio"),
+        })}
       >
         {kind === "video" ? (
           <video
@@ -308,14 +315,14 @@ export function ArtifactMediaPreview({
             playsInline
             className={styles.video}
           >
-            Your browser does not support video playback.
+            {t("Your browser does not support video playback.")}
           </video>
         ) : (
           <audio
             {...props}
             ref={mediaRef as RefObject<HTMLAudioElement | null>}
           >
-            Your browser does not support audio playback.
+            {t("Your browser does not support audio playback.")}
           </audio>
         )}
         {kind === "audio" && (
@@ -327,12 +334,12 @@ export function ArtifactMediaPreview({
               <div className={styles.audioTitle} title={title}>
                 {title}
               </div>
-              <div className={styles.audioSubtitle}>Audio</div>
+              <div className={styles.audioSubtitle}>{t("Audio")}</div>
             </div>
           </div>
         )}
         <div className={styles.chrome}>
-          <MediaTimeRange className={styles.timeline} aria-label="Seek" />
+          <MediaTimeRange className={styles.timeline} aria-label={t("Seek")} />
           <MediaControlBar className={styles.controls}>
             <MediaPlayButton className={styles.playButton}>
               <Play
@@ -363,7 +370,7 @@ export function ArtifactMediaPreview({
                   variant="ghost"
                   size="sm"
                   className={styles.rateButton}
-                  aria-label={`Playback speed: ${playbackRate}×`}
+                  aria-label={`${t("Playback speed")}: ${playbackRate}×`}
                   onFocus={() => setRateControlFocused(true)}
                   onBlur={() => setRateControlFocused(false)}
                 >
@@ -379,7 +386,7 @@ export function ArtifactMediaPreview({
                 align="end"
                 avoidCollisions={false}
                 className={styles.rateMenu}
-                aria-label="Playback speed"
+                aria-label={t("Playback speed")}
               >
                 <DropdownMenuRadioGroup
                   value={String(playbackRate)}
@@ -409,8 +416,9 @@ export function ArtifactMediaPreview({
           aria-busy={renewingVersion === sourceVersion}
         >
           <p>
-            Unable to renew this playback link. Retry or use Download to play
-            the file locally.
+            {t(
+              "Unable to renew this playback link. Retry or use Download to play the file locally.",
+            )}
           </p>
           <Button
             type="button"
@@ -418,14 +426,15 @@ export function ArtifactMediaPreview({
             disabled={renewingVersion === sourceVersion}
             onClick={() => renewSource(true)}
           >
-            Retry playback
+            {t("Retry playback")}
           </Button>
         </div>
       ) : (
         failedVersion === sourceVersion && (
           <p role="alert" className={styles.error}>
-            Unable to play this media. Your browser may not support its format
-            or codec. Download the file to play it locally.
+            {t(
+              "Unable to play this media. Your browser may not support its format or codec. Download the file to play it locally.",
+            )}
           </p>
         )
       )}

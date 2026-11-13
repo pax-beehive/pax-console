@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import { FormEvent, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -26,6 +27,7 @@ import { CONTACT_EMAIL, CONTACT_MAILTO } from "@/lib/contact";
 const userCodePattern = /^[A-Z0-9]{6}$/;
 
 export function PaxlLoginPageClient() {
+  const { t } = useI18n();
   const searchParams = useSearchParams();
   const parsed = useMemo(() => {
     try {
@@ -33,10 +35,11 @@ export function PaxlLoginPageClient() {
     } catch (error) {
       return {
         target: null,
-        error: error instanceof Error ? error.message : "Invalid login link.",
+        error:
+          error instanceof Error ? error.message : t("Invalid login link."),
       };
     }
-  }, [searchParams]);
+  }, [searchParams, t]);
   if (!parsed.target)
     return (
       <main role="alert" className="p-6 text-ink">
@@ -57,6 +60,7 @@ export function PaxlLoginPageClient() {
 }
 
 function PaxlLoginShell({ target, user }: { target: LoginTarget; user: User }) {
+  const { t } = useI18n();
   const [userCode, setUserCode] = useState(target.code ?? "");
   const isValidCode = !!target.codes || userCodePattern.test(userCode);
   const approve = useMutation({
@@ -67,7 +71,9 @@ function PaxlLoginShell({ target, user }: { target: LoginTarget; user: User }) {
         );
       if (target.codes || target.target_region || target.admin)
         throw new Error(
-          "Regional login is unavailable on this Console. Use the unified Console link.",
+          t(
+            "Regional login is unavailable on this Console. Use the unified Console link.",
+          ),
         );
       return approvePaxlDeviceLogin(user.user_id, userCode);
     },
@@ -85,8 +91,10 @@ function PaxlLoginShell({ target, user }: { target: LoginTarget; user: User }) {
     return (
       <main className="grid min-h-screen place-items-center bg-canvas p-6 text-ink">
         <div className="grid gap-2 text-center">
-          <div className="text-base font-medium">Approval complete</div>
-          <div className="text-sm text-ink-muted">You may close this page</div>
+          <div className="text-base font-medium">{t("Approval complete")}</div>
+          <div className="text-sm text-ink-muted">
+            {t("You may close this page")}
+          </div>
         </div>
       </main>
     );
@@ -98,10 +106,10 @@ function PaxlLoginShell({ target, user }: { target: LoginTarget; user: User }) {
         <section className="min-w-0">
           <header className="border-b border-hairline pb-5">
             <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-ink-tertiary">
-              device approval
+              {t("device approval")}
             </div>
             <div className="mt-4 text-sm text-ink-tertiary">
-              Hello{" "}
+              {t("Hello")}{" "}
               <span className="font-mono italic text-cyan-300">
                 {userLabel}
               </span>
@@ -109,14 +117,15 @@ function PaxlLoginShell({ target, user }: { target: LoginTarget; user: User }) {
             </div>
             <h1 className="mt-2 text-3xl font-medium leading-[1.14] text-ink md:text-[2.6rem]">
               {target.admin
-                ? "Approve administrator login."
-                : "Approve this device."}
+                ? t("Approve administrator login.")
+                : t("Approve this device.")}
             </h1>
             <p className="mt-3 max-w-xl text-sm leading-6 text-ink-muted">
-              Confirm your identity for the paxl process waiting in your
-              terminal.
+              {t(
+                "Confirm your identity for the paxl process waiting in your terminal.",
+              )}
               {target.admin &&
-                ` Administrator access is requested for ${target.target_region === "hk" ? "Hong Kong" : "United States"}.`}
+                ` Administrator access is requested for ${target.target_region === "hk" ? t("Hong Kong") : t("United States")}.`}
             </p>
           </header>
 
@@ -124,27 +133,27 @@ function PaxlLoginShell({ target, user }: { target: LoginTarget; user: User }) {
             <div className="flex items-center justify-between gap-4 py-2.5">
               <div className="flex min-w-0 items-center gap-2 text-[15px] font-medium">
                 <TerminalSquare className="h-4 w-4 text-primary-hover" />
-                CLI identity
+                {t("CLI identity")}
               </div>
               <div className="shrink-0 text-[11px] uppercase tracking-[0.08em] text-ink-tertiary">
-                User scoped
+                {t("User scoped")}
               </div>
             </div>
 
             <div className="grid border-t border-l border-hairline sm:grid-cols-2">
               <DetailRow
                 icon={<TerminalSquare className="h-4 w-4" />}
-                label="Client"
+                label={t("Client")}
                 value="paxl"
               />
               <DetailRow
                 icon={<KeyRound className="h-4 w-4" />}
-                label="Credential"
-                value="User API key"
+                label={t("Credential")}
+                value={t("User API key")}
               />
               <DetailRow
                 icon={<ShieldCheck className="h-4 w-4" />}
-                label="Approving as"
+                label={t("Approving as")}
                 value={userLabel}
               />
             </div>
@@ -154,9 +163,11 @@ function PaxlLoginShell({ target, user }: { target: LoginTarget; user: User }) {
         <aside className="border border-hairline bg-surface-1">
           <div className="border-b border-hairline px-5 py-4">
             <div className="flex items-center justify-between gap-3">
-              <div className="text-[15px] font-medium">Approve device</div>
+              <div className="text-[15px] font-medium">
+                {t("Approve device")}
+              </div>
               <div className="text-[11px] uppercase tracking-[0.08em] text-ink-tertiary">
-                pending
+                {t("pending")}
               </div>
             </div>
           </div>
@@ -164,12 +175,12 @@ function PaxlLoginShell({ target, user }: { target: LoginTarget; user: User }) {
           <form className="grid gap-5 p-5" onSubmit={onSubmit}>
             {target.codes ? (
               <p className="text-sm text-ink-muted">
-                This login will use your account&apos;s region.
+                {t("This login will use your account's region.")}
               </p>
             ) : (
               <div className="grid gap-2.5">
                 <label className="grid gap-2.5 text-xs font-medium text-ink-subtle">
-                  Approval code
+                  {t("Approval code")}
                   <input
                     autoCapitalize="characters"
                     autoComplete="one-time-code"
@@ -186,7 +197,7 @@ function PaxlLoginShell({ target, user }: { target: LoginTarget; user: User }) {
                   />
                 </label>
                 <div className="text-xs leading-5 text-ink-tertiary">
-                  Use the code shown by the paxl process you started.
+                  {t("Use the code shown by the paxl process you started.")}
                 </div>
               </div>
             )}
@@ -210,16 +221,16 @@ function PaxlLoginShell({ target, user }: { target: LoginTarget; user: User }) {
               type="submit"
               variant="primary"
             >
-              {approve.isPending ? "Approving..." : "Approve device"}
+              {approve.isPending ? t("Approving...") : t("Approve device")}
             </Button>
           </form>
 
           <div className="border-t border-hairline px-5 py-4 text-xs leading-5 text-ink-tertiary">
             <div>
-              Only the paxl process you started can complete this login.
+              {t("Only the paxl process you started can complete this login.")}
             </div>
             <div className="mt-1 flex items-center gap-1">
-              Need help?
+              {t("Need help?")}
               <a
                 className="text-ink-muted underline underline-offset-2 hover:text-ink"
                 href={CONTACT_MAILTO}
@@ -228,7 +239,7 @@ function PaxlLoginShell({ target, user }: { target: LoginTarget; user: User }) {
               </a>
               <CopyTextButton
                 className="h-6 w-6"
-                label="Copy email address"
+                label={t("Copy email address")}
                 text={CONTACT_EMAIL}
               />
             </div>

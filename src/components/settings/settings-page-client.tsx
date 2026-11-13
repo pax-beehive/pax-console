@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import {
   Activity,
@@ -30,6 +31,7 @@ import {
 } from "./settings-navigation";
 
 export function SettingsPage({ advanced = false }: { advanced?: boolean }) {
+  const { t } = useI18n();
   const desktop = useDesktopSettings();
   return (
     <AuthGate>
@@ -46,12 +48,16 @@ export function SettingsPage({ advanced = false }: { advanced?: boolean }) {
                   <header>
                     {advanced && <SettingsBack />}
                     <h1 className="text-2xl font-semibold">
-                      {advanced ? "Advanced settings" : "Settings"}
+                      {advanced ? t("Advanced settings") : t("Settings")}
                     </h1>
                     <p className="mt-2 text-sm text-ink-tertiary">
                       {advanced
-                        ? "Permissions and developer tools. Most people can leave these settings as they are."
-                        : "Manage your devices, projects, and service health."}
+                        ? t(
+                            "Permissions and developer tools. Most people can leave these settings as they are.",
+                          )
+                        : t(
+                            "Manage your devices, projects, and service health.",
+                          )}
                     </p>
                   </header>
                   {advanced ? (
@@ -60,33 +66,42 @@ export function SettingsPage({ advanced = false }: { advanced?: boolean }) {
                         <SettingsLink
                           href={settingsLinks.permissions}
                           icon={ShieldCheck}
-                          title="Allowed actions"
-                          description="Review or revoke permissions previously given to agents."
+                          title={t("Allowed actions")}
+                          description={t(
+                            "Review or revoke permissions previously given to agents.",
+                          )}
                         />
                         <SettingsLink
                           href={settingsLinks.encryption}
                           icon={ShieldCheck}
-                          title="Encrypted chats"
-                          description="Give this browser or another device access to encrypted chats."
+                          title={t("Encrypted chats")}
+                          description={t(
+                            "Give this browser or another device access to encrypted chats.",
+                          )}
                         />
                       </SettingsGroup>
                       <SettingsGroup>
                         <SettingsLink
                           href={settingsLinks.apiKeys}
                           icon={KeyRound}
-                          title="API keys"
-                          description="Connect scripts and other apps to PAX."
+                          title={t("API keys")}
+                          description={t(
+                            "Connect scripts and other apps to PAX.",
+                          )}
                         />
                         <SettingsLink
                           href={settingsLinks.registration}
                           icon={TerminalSquare}
-                          title="Manual device registration"
-                          description="Create a registration token for custom installation workflows."
+                          title={t("Manual device registration")}
+                          description={t(
+                            "Create a registration token for custom installation workflows.",
+                          )}
                         />
                       </SettingsGroup>
                       <p className="text-xs text-ink-tertiary">
-                        Device versions, runtime information, browser audit, and
-                        maintenance tools live in each device&apos;s details.
+                        {t(
+                          "Device versions, runtime information, browser audit, and maintenance tools live in each device's details.",
+                        )}
                       </p>
                     </>
                   ) : (
@@ -95,38 +110,50 @@ export function SettingsPage({ advanced = false }: { advanced?: boolean }) {
                         <SettingsLink
                           href={settingsLinks.agentSignIn}
                           icon={KeyRound}
-                          title="Agent sign-in"
-                          description="Sign in to Claude Code or Codex on a device and renew expired access."
+                          title={t("Agent sign-in")}
+                          description={t(
+                            "Sign in to Claude Code or Codex on a device and renew expired access.",
+                          )}
                         />
                         <SettingsLink
                           href={settingsLinks.notifications}
                           icon={Bell}
-                          title="Notifications"
-                          description="Enable push notifications and test this device."
+                          title={t("Notifications")}
+                          description={t(
+                            "Enable push notifications and test this device.",
+                          )}
                         />
                         <SettingsLink
                           href={settingsLinks.voice}
                           icon={Mic}
-                          title="Voice input"
-                          description="Choose the microphone dictation uses on this device."
+                          title={t("Voice input")}
+                          description={t(
+                            "Choose the microphone dictation uses on this device.",
+                          )}
                         />
                         <SettingsLink
                           href={settingsLinks.devices}
                           icon={Server}
-                          title="Devices"
-                          description="Connect computers or servers and manage their agents."
+                          title={t("Devices")}
+                          description={t(
+                            "Connect computers or servers and manage their agents.",
+                          )}
                         />
                         <SettingsLink
                           href={settingsLinks.secretary}
                           icon={Bot}
-                          title="Secretary"
-                          description="Maintain automatic summaries and track conversation progress."
+                          title={t("Secretary")}
+                          description={t(
+                            "Maintain automatic summaries and track conversation progress.",
+                          )}
                         />
                         <SettingsLink
                           href={settingsLinks.projects}
                           icon={FolderTree}
-                          title="Projects"
-                          description="Organize projects and their working folders."
+                          title={t("Projects")}
+                          description={t(
+                            "Organize projects and their working folders.",
+                          )}
                         />
                       </SettingsGroup>
                       <HomeHealth user={user} />
@@ -134,14 +161,19 @@ export function SettingsPage({ advanced = false }: { advanced?: boolean }) {
                         <SettingsLink
                           href={settingsLinks.advanced}
                           icon={Settings2}
-                          title="Advanced settings"
-                          description="Permissions, encrypted access, and developer tools."
+                          title={t("Advanced settings")}
+                          description={t(
+                            "Permissions, encrypted access, and developer tools.",
+                          )}
                         />
                         <SettingsLink
                           href={CONTACT_MAILTO}
                           icon={Mail}
-                          title="Contact us"
-                          description={`Questions or feedback? Email ${CONTACT_EMAIL}.`}
+                          title={t("Contact us")}
+                          description={t(
+                            "Questions or feedback? Email {email}.",
+                            { email: CONTACT_EMAIL },
+                          )}
                         />
                       </SettingsGroup>
                     </>
@@ -157,10 +189,12 @@ export function SettingsPage({ advanced = false }: { advanced?: boolean }) {
 }
 
 function HomeHealth({ user }: { user: User }) {
+  const { t } = useI18n();
   const nodes = useNodes(user.user_id);
   const agents = useAgents(user.user_id, "accessible", 30_000);
   const health = useHealth();
   const summary = serviceHealth({
+    t,
     health: health.data,
     nodes: nodes.data?.nodes,
     agents: agents.data?.agents,
@@ -169,7 +203,7 @@ function HomeHealth({ user }: { user: User }) {
   });
   return (
     <section>
-      <h2 className="mb-2 text-xs text-ink-tertiary">Service status</h2>
+      <h2 className="mb-2 text-xs text-ink-tertiary">{t("Service status")}</h2>
       <SettingsGroup>
         <SettingsLink
           href={settingsLinks.status}

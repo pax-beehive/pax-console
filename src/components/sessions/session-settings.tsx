@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
+
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   createContext,
@@ -39,6 +41,7 @@ export function SessionSettings({
   trigger?: ReactNode;
   initialPage?: SettingsPage;
 }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [pages, setPages] = useState<SettingsPage[]>([initialPage]);
   const page = pages[pages.length - 1];
@@ -63,7 +66,7 @@ export function SessionSettings({
       <Dialog.Trigger asChild>
         {trigger ?? (
           <Button
-            aria-label="Session settings"
+            aria-label={t("Session settings")}
             variant="ghost"
             size="sm"
             type="button"
@@ -102,8 +105,11 @@ export function SessionSettings({
                 size="icon"
                 aria-label={
                   pages[pages.length - 2]?.id === "home"
-                    ? "Back to settings"
-                    : `Back to ${pages[pages.length - 2]?.title.toLowerCase()}`
+                    ? t("Back to settings")
+                    : t("Back to {title}", {
+                        title:
+                          pages[pages.length - 2]?.title.toLowerCase() ?? "",
+                      })
                 }
                 onClick={back}
                 icon={<ArrowLeft className="h-4 w-4" />}
@@ -114,14 +120,20 @@ export function SessionSettings({
               tabIndex={-1}
               className="min-w-0 flex-1 text-base font-medium outline-none"
             >
-              {page.title}
+              {page.id === "home"
+                ? t("Session settings")
+                : page.id === "permissions"
+                  ? t("Permissions")
+                  : page.id === "turn-search"
+                    ? t("Expand search scope")
+                    : page.title}
             </Dialog.Title>
             <Dialog.Close asChild>
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                aria-label="Close settings"
+                aria-label={t("Close settings")}
                 icon={<X className="h-4 w-4" />}
               />
             </Dialog.Close>

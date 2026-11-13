@@ -1,14 +1,21 @@
+"use client";
+
 import { Badge } from "@/components/ui/badge";
+import { useI18n } from "@/features/i18n/use-i18n";
 import type { CronSessionOrigin } from "@/features/sessions/session-origin";
 
 export function CronOriginBadge({ origin }: { origin?: CronSessionOrigin }) {
+  const { t } = useI18n();
   if (!origin) return null;
   return (
     <Badge
-      tooltip={`Scheduled task: ${origin.name}\nCronjob: ${origin.cronjob_id}\nCreated by run: ${origin.run_id}`}
+      tooltip={t(
+        "Scheduled task: {name}\nCronjob: {cronjob}\nCreated by run: {run}",
+        { name: origin.name, cronjob: origin.cronjob_id, run: origin.run_id },
+      )}
       tone="accent"
     >
-      {`Cron: ${origin.name}`}
+      {t("Cron: {name}", { name: origin.name })}
     </Badge>
   );
 }

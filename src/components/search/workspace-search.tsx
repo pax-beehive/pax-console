@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -108,6 +109,7 @@ function WorkspaceSearchContent({
   kind: SearchKindFilter;
   onNavigate: (href: string) => void;
 }) {
+  const { t } = useI18n();
   const [draft, setDraft] = useState(query);
   const [readers, setReaders] = useState<
     {
@@ -209,23 +211,23 @@ function WorkspaceSearchContent({
       <header
         className={`${selected && !authorizationDenied ? "hidden md:block" : ""} shrink-0 border-b border-hairline px-4 pb-3 pt-4 sm:px-5`}
       >
-        <h1 className="text-base font-semibold text-ink">Search</h1>
+        <h1 className="text-base font-semibold text-ink">{t("Search")}</h1>
         <p className="mt-1 hidden text-xs text-ink-tertiary md:block">
           {rawMode
-            ? "Showing individual matches. Best matches first."
-            : "Results grouped by session. Best matches first."}
+            ? t("Showing individual matches. Best matches first.")
+            : t("Results grouped by session. Best matches first.")}
         </p>
         <form
-          aria-label="Workspace search"
+          aria-label={t("Workspace search")}
           className="mt-3 flex min-w-0 gap-2"
           onSubmit={submit}
         >
           <SearchBox
-            aria-label="Search your workspace"
+            aria-label={t("Search your workspace")}
             className="min-h-11 flex-1 md:min-h-9"
             maxLength={512}
             onChange={(event) => setDraft(event.target.value)}
-            placeholder="Search titles and content"
+            placeholder={t("Search titles and content")}
             value={draft}
           />
           <Button
@@ -235,15 +237,16 @@ function WorkspaceSearchContent({
             type="submit"
             variant="primary"
           >
-            Search
+            {t("Search")}
           </Button>
         </form>
         <p className="mt-2 hidden text-xs text-ink-tertiary md:block">
-          Up to 16 distinct terms, separated by spaces. Order doesn&apos;t
-          matter.
+          {t(
+            "Up to 16 distinct terms, separated by spaces. Order doesn't matter.",
+          )}
         </p>
         <nav
-          aria-label="Search result type"
+          aria-label={t("Search result type")}
           className="mt-3 flex gap-1 overflow-x-auto"
         >
           {kinds.map((value) => (
@@ -255,28 +258,30 @@ function WorkspaceSearchContent({
               size="sm"
               variant={kind === value ? "secondary" : "ghost"}
             >
-              {labels[value]}
+              {t(labels[value])}
             </Button>
           ))}
         </nav>
       </header>
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <section
-          aria-label="Search results"
+          aria-label={t("Search results")}
           className={`${selected && !authorizationDenied ? "hidden md:flex md:w-[42%] md:shrink-0" : "flex flex-1"} min-h-0 min-w-0 flex-col overflow-y-auto md:border-r md:border-hairline`}
         >
           {queryTooLong ? (
             <SearchNotice
-              title="Search phrase is too long"
-              text="Use a phrase with 256 characters or fewer."
+              title={t("Search phrase is too long")}
+              text={t("Use a phrase with 256 characters or fewer.")}
             />
           ) : !query ? (
             <SearchNotice
-              title="Search your workspace"
-              text="Separate keywords with spaces. All-keyword results come first, followed by partial matches."
+              title={t("Search your workspace")}
+              text={t(
+                "Separate keywords with spaces. All-keyword results come first, followed by partial matches.",
+              )}
             />
           ) : search.isPending || checking ? (
-            <SearchNotice title="Searching…" loading />
+            <SearchNotice title={t("Searching…")} loading />
           ) : (
             <>
               <div
@@ -286,18 +291,19 @@ function WorkspaceSearchContent({
                 {count}{" "}
                 {count === 1
                   ? rawMode
-                    ? "match"
-                    : "result"
+                    ? t("match")
+                    : t("result")
                   : rawMode
-                    ? "matches"
-                    : "results"}
-                {search.hasNextPage ? " loaded" : ""}
+                    ? t("matches")
+                    : t("results")}
+                {search.hasNextPage ? t(" loaded") : ""}
               </div>
               {rawMode && !authorizationDenied && (
                 <div className="border-b border-hairline px-4 py-2">
                   <p className="text-xs text-ink-tertiary">
-                    Showing individual matches while session grouping is being
-                    prepared.
+                    {t(
+                      "Showing individual matches while session grouping is being prepared.",
+                    )}
                   </p>
                   <Button
                     className="mt-1 min-h-11 md:min-h-8"
@@ -305,7 +311,7 @@ function WorkspaceSearchContent({
                     size="sm"
                     variant="ghost"
                   >
-                    Try grouped search
+                    {t("Try grouped search")}
                   </Button>
                 </div>
               )}
@@ -313,13 +319,13 @@ function WorkspaceSearchContent({
                 <SearchNotice
                   title={
                     search.hasNextPage
-                      ? "No visible matches in this page"
-                      : "No results"
+                      ? t("No visible matches in this page")
+                      : t("No results")
                   }
                   text={
                     search.hasNextPage
-                      ? "Load more to continue searching."
-                      : "Try a shorter phrase or a different result type."
+                      ? t("Load more to continue searching.")
+                      : t("Try a shorter phrase or a different result type.")
                   }
                 />
               )}
@@ -361,16 +367,22 @@ function WorkspaceSearchContent({
                 >
                   <p className="text-sm text-ink-muted">
                     {authorizationDenied
-                      ? "Your session expired. Sign in again to search your workspace."
+                      ? t(
+                          "Your session expired. Sign in again to search your workspace.",
+                        )
                       : expiredCursor
-                        ? "These results have expired. Start the search again to continue."
+                        ? t(
+                            "These results have expired. Start the search again to continue.",
+                          )
                         : invalidInput
-                          ? "Use up to 16 distinct terms and 256 characters."
-                          : "Search is unavailable right now. Please try again."}
+                          ? t("Use up to 16 distinct terms and 256 characters.")
+                          : t(
+                              "Search is unavailable right now. Please try again.",
+                            )}
                   </p>
                   {authorizationDenied ? (
                     <Button asChild className="mt-2" size="sm">
-                      <a href={LOGIN_URL}>Sign in again</a>
+                      <a href={LOGIN_URL}>{t("Sign in again")}</a>
                     </Button>
                   ) : (
                     <Button
@@ -380,7 +392,7 @@ function WorkspaceSearchContent({
                       }}
                       size="sm"
                     >
-                      {expiredCursor ? "Restart search" : "Retry search"}
+                      {expiredCursor ? t("Restart search") : t("Retry search")}
                     </Button>
                   )}
                 </div>
@@ -397,8 +409,8 @@ function WorkspaceSearchContent({
                       }}
                     >
                       {search.isFetchingNextPage
-                        ? "Loading more…"
-                        : "Load more"}
+                        ? t("Loading more…")
+                        : t("Load more")}
                     </Button>
                   </div>
                 )}
@@ -407,7 +419,7 @@ function WorkspaceSearchContent({
                   (page) => page.mode !== "raw" && page.pagination_limited,
                 ) && (
                   <p className="px-4 py-3 text-xs text-ink-tertiary">
-                    Narrow your search to see more results.
+                    {t("Narrow your search to see more results.")}
                   </p>
                 )}
             </>
@@ -415,7 +427,7 @@ function WorkspaceSearchContent({
         </section>
         {selected && !authorizationDenied ? (
           <section
-            aria-label="Selected source"
+            aria-label={t("Selected source")}
             className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
           >
             <div className="shrink-0 border-b border-hairline px-3 py-1">
@@ -427,8 +439,12 @@ function WorkspaceSearchContent({
                 variant="ghost"
               >
                 {readers.length > 1
-                  ? `Back to ${singularLabels[readers[readers.length - 2].ref.kind].toLowerCase()}`
-                  : "Back to results"}
+                  ? t("Back to {value1}", {
+                      value1: t(
+                        singularLabels[readers[readers.length - 2].ref.kind],
+                      ).toLowerCase(),
+                    })
+                  : t("Back to results")}
               </Button>
             </div>
             {readers.map((reader, index) => {

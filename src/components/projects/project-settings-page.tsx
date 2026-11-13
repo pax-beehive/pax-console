@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
+
 import { useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, FolderTree } from "lucide-react";
@@ -18,6 +20,7 @@ import { ProjectSettingsDetail } from "./project-settings-detail";
 import { ProjectSettingsRail } from "./project-settings-rail";
 
 export function ProjectSettingsPage({ user }: { user: User }) {
+  const { t } = useI18n();
   const router = useRouter();
   const searchParams = useSearchParams();
   const projectsQuery = useProjects(user.user_id, true);
@@ -48,9 +51,9 @@ export function ProjectSettingsPage({ user }: { user: User }) {
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="hidden lg:block">
           <SettingsPageHeader
-            title="Projects"
-            category="Workspace"
-            description={settingsSection("projects").description}
+            title={t("Projects")}
+            category={t("Workspace")}
+            description={t(settingsSection("projects").description)}
           />
         </div>
         <div className="grid min-h-0 flex-1 overflow-hidden bg-canvas lg:grid-cols-[minmax(260px,300px)_minmax(0,1fr)]">
@@ -65,21 +68,21 @@ export function ProjectSettingsPage({ user }: { user: User }) {
                 <SettingsBack />
                 <div className="flex items-center gap-2">
                   <FolderTree className="h-4 w-4 text-accent-bright" />
-                  <h1 className="font-medium text-ink">Projects</h1>
+                  <h1 className="font-medium text-ink">{t("Projects")}</h1>
                 </div>
                 <p className="mt-1 text-xs text-ink-tertiary">
-                  Organize work and configure reusable workspace targets.
+                  {t("Organize work and configure reusable workspace targets.")}
                 </p>
               </div>
               <div className="hidden lg:block">
                 <div className="flex items-center gap-2">
                   <FolderTree className="h-4 w-4 text-accent-bright" />
                   <h2 className="text-sm font-medium text-ink">
-                    Your projects
+                    {t("Your projects")}
                   </h2>
                 </div>
                 <p className="mt-1 text-xs text-ink-tertiary">
-                  Choose a project to manage its workspace.
+                  {t("Choose a project to manage its workspace.")}
                 </p>
               </div>
             </div>
@@ -99,20 +102,20 @@ export function ProjectSettingsPage({ user }: { user: User }) {
               <>
                 <div className="flex items-center gap-2 border-b border-hairline bg-surface-1 px-4 py-3 lg:hidden">
                   <Button
-                    aria-label="Back to projects"
+                    aria-label={t("Back to projects")}
                     icon={<ArrowLeft className="h-4 w-4" />}
                     onClick={() => selectProject("")}
                     size="icon"
-                    tooltip="Back to projects"
+                    tooltip={t("Back to projects")}
                     type="button"
                     variant="ghost"
                   />
                   <div className="min-w-0">
                     <div className="text-sm font-medium text-ink">
-                      {selectedProject?.display_name ?? "Project"}
+                      {selectedProject?.display_name ?? t("Project")}
                     </div>
                     <div className="truncate text-xs text-ink-tertiary">
-                      Workspace targets
+                      {t("Workspace targets")}
                     </div>
                   </div>
                 </div>
@@ -125,7 +128,11 @@ export function ProjectSettingsPage({ user }: { user: User }) {
               </>
             ) : (
               <div className="flex min-h-0 flex-1 items-center justify-center p-5">
-                <EmptyState label="Select a project to configure its workspace targets" />
+                <EmptyState
+                  label={t(
+                    "Select a project to configure its workspace targets",
+                  )}
+                />
               </div>
             )}
           </section>

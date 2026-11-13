@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import Link from "next/link";
 import {
@@ -48,11 +49,12 @@ export function MobileNav({
 }: {
   showAdminFeatures: boolean;
 }) {
+  const { t } = useI18n();
   const pathname = usePathname();
 
   return (
     <nav
-      aria-label="Primary"
+      aria-label={t("Primary")}
       className={`absolute inset-x-0 bottom-0 z-50 grid h-[var(--console-mobile-nav-height)] border-t border-hairline bg-surface-1/95 px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] backdrop-blur lg:hidden ${
         showAdminFeatures ? "grid-cols-5" : "grid-cols-3"
       }`}
@@ -76,10 +78,10 @@ export function MobileNav({
                 active ? "text-accent-bright" : "text-ink-tertiary"
               }`}
               href={item.href}
-              key={item.label}
+              key={item.href}
             >
               <item.icon className="h-5 w-5" />
-              <span className="max-w-full truncate">{item.label}</span>
+              <span className="max-w-full truncate">{t(item.label)}</span>
             </Link>
           );
         })}

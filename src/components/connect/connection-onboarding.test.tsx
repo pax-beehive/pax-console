@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useLocaleStore } from "@/features/i18n/locale-store";
 import { queryKeys } from "@/features/api/query-keys";
 import type {
   Node,
@@ -109,6 +110,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  useLocaleStore.setState({ locale: "en" });
   clients.forEach((client) => client.clear());
   vi.unstubAllGlobals();
 });
@@ -472,5 +474,32 @@ describe("agent connection", () => {
     expect(
       screen.getByRole("link", { name: "Manage connections" }),
     ).toHaveAttribute("href", "/nodes/mac");
+  });
+});
+
+describe("Given the connection guide uses Chinese", () => {
+  it("generates the same one-use terminal command through localized quick connect", async () => {
+    useLocaleStore.setState({ locale: "zh-CN" });
+    const { user } = setup();
+    expect(
+      screen.getByRole("heading", { name: "连接你的第一个智能体" }),
+    ).toBeInTheDocument();
+    await user.click(
+      await screen.findByRole("button", { name: "快速连接（推荐）" }),
+    );
+    expect(await screen.findByText(/one-use-secret/)).toHaveTextContent(
+      "one-use-secret",
+    );
+    expect(
+      screen.getByRole("button", { name: "复制命令" }),
+    ).toBeInTheDocument();
+    expect(
+      requests.filter((request) =>
+        request.path.endsWith("/node-registration-tokens"),
+      ),
+    ).toHaveLength(1);
+    expect(requests.some((request) => request.path.includes("连接"))).toBe(
+      false,
+    );
   });
 });

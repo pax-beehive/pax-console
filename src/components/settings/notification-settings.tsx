@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -39,6 +40,7 @@ type DeviceConfirmation = {
 };
 
 export function NotificationSettings({ userId }: { userId: string }) {
+  const { t } = useI18n();
   const desktop = useDesktopSettings();
   const queries = useQueryClient();
   const client = useMemo(() => new PushClient(userId), [userId]);
@@ -52,6 +54,7 @@ export function NotificationSettings({ userId }: { userId: string }) {
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [localError, setLocalError] = useState(false);
   const [notice, setNotice] = useState("");
   const config = useQuery({
     queryKey: ["notification-config", userId],
@@ -101,6 +104,7 @@ export function NotificationSettings({ userId }: { userId: string }) {
           setError(
             "Could not confirm this device's subscription. Retry when you are online.",
           );
+          setLocalError(true);
         }
       });
     return () => {
@@ -153,6 +157,7 @@ export function NotificationSettings({ userId }: { userId: string }) {
           ? cause.message
           : "Could not update notifications. Retry when you are online.",
       );
+      setLocalError(!(cause instanceof Error));
     } finally {
       setBusy(false);
     }
@@ -161,7 +166,7 @@ export function NotificationSettings({ userId }: { userId: string }) {
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="hidden lg:block">
         <SettingsPageHeader
-          title="Notifications"
+          title={t("Notifications")}
           category="Workspace"
           description={settingsSection("notifications").description}
         />
@@ -171,33 +176,35 @@ export function NotificationSettings({ userId }: { userId: string }) {
           <div className="grid gap-5 lg:max-w-3xl">
             <header className="lg:hidden">
               <SettingsBack />
-              <h1 className="text-2xl font-semibold">Notifications</h1>
+              <h1 className="text-2xl font-semibold">{t("Notifications")}</h1>
               <p className="mt-2 text-sm text-ink-tertiary">
-                Manage push notifications for this browser or Android app. Each
-                device is enabled separately.
+                {t(
+                  "Manage push notifications for this browser or Android app. Each device is enabled separately.",
+                )}
               </p>
             </header>
             <section className="grid gap-4 rounded-xl border border-hairline bg-surface-1 p-5 lg:p-6">
               <h2 className="flex items-center gap-2 font-medium">
                 <Bell className="h-4 w-4" />
-                This device
+                {t("This device")}
               </h2>
               <p className="-mt-2 hidden text-sm leading-6 text-ink-tertiary lg:block">
-                Control alerts for this browser or Android app. Enabling another
-                device is a separate choice.
+                {t(
+                  "Control alerts for this browser or Android app. Enabling another device is a separate choice.",
+                )}
               </p>
               <p role="status" className="text-sm text-ink-muted">
                 {loading
-                  ? "Checking notifications..."
+                  ? t("Checking notifications...")
                   : unavailable
-                    ? "Notification status is temporarily unavailable."
+                    ? t("Notification status is temporarily unavailable.")
                     : state === "enabled" && !enabled
-                      ? "Confirming this device's server registration..."
+                      ? t("Confirming this device's server registration...")
                       : !supported
-                        ? descriptions.unsupported
+                        ? t(descriptions.unsupported)
                         : state
-                          ? descriptions[state]
-                          : "Checking notifications..."}
+                          ? t(descriptions[state])
+                          : t("Checking notifications...")}
               </p>
               {!desktop && (
                 <>
@@ -205,24 +212,23 @@ export function NotificationSettings({ userId }: { userId: string }) {
                     config.data &&
                     !config.data.turn_completion_enabled && (
                       <p className="text-sm text-ink-tertiary">
-                        You can enable this device and send a test notification.
-                        Automatic turn alerts are not available yet.
+                        {t(
+                          "You can enable this device and send a test notification. Automatic turn alerts are not available yet.",
+                        )}
                       </p>
                     )}
                   {!loading && config.data?.turn_completion_enabled && (
                     <p className="text-sm text-ink-tertiary">
-                      Automatic notifications are enabled for standard sessions.
-                      Notifications include a short reply preview; tap one to
-                      open its session. Encrypted sessions are not supported
-                      yet.
+                      {t(
+                        "Automatic notifications are enabled for standard sessions. Notifications include a short reply preview; tap one to open its session. Encrypted sessions are not supported yet.",
+                      )}
                     </p>
                   )}
                   {!loading && config.data?.approval_required_enabled && (
                     <p className="text-sm text-ink-tertiary">
-                      Get notified when a session needs your approval. Tap a
-                      notification to open the session and review the request.
-                      Requests handled by Pax Auto Approve or a saved approval
-                      do not trigger notifications.
+                      {t(
+                        "Get notified when a session needs your approval. Tap a notification to open the session and review the request. Requests handled by Pax Auto Approve or a saved approval do not trigger notifications.",
+                      )}
                     </p>
                   )}
                 </>
@@ -248,7 +254,7 @@ export function NotificationSettings({ userId }: { userId: string }) {
                           void act(() => client.enable(config.data!));
                       }}
                     >
-                      Enable notifications
+                      {t("Enable notifications")}
                     </Button>
                   )}
                 {owned && (
@@ -256,7 +262,7 @@ export function NotificationSettings({ userId }: { userId: string }) {
                     disabled={busy}
                     onClick={() => void act(() => client.disable())}
                   >
-                    Turn off on this device
+                    {t("Turn off on this device")}
                   </Button>
                 )}
                 {enabled && (
@@ -269,7 +275,7 @@ export function NotificationSettings({ userId }: { userId: string }) {
                       )
                     }
                   >
-                    Send test notification
+                    {t("Send test notification")}
                   </Button>
                 )}
                 {supported && (
@@ -278,29 +284,31 @@ export function NotificationSettings({ userId }: { userId: string }) {
                     disabled={busy || loading}
                     onClick={() => void refresh()}
                   >
-                    Refresh status
+                    {t("Refresh status")}
                   </Button>
                 )}
               </div>
               {error && (
                 <p role="alert" className="text-sm text-warning">
-                  {error}
+                  {localError ? t(error) : error}
                 </p>
               )}
               {notice && (
                 <p role="status" className="text-sm text-ink-muted">
-                  {notice}
+                  {t(notice)}
                 </p>
               )}
               {receiver?.latest_delivery && (
                 <p className="text-xs text-ink-tertiary">
-                  Latest attempt:{" "}
+                  {t("Latest attempt:")}{" "}
                   {receiver.latest_delivery.status === "accepted"
-                    ? "Accepted by push service; device display is not confirmed."
+                    ? t(
+                        "Accepted by push service; device display is not confirmed.",
+                      )
                     : receiver.latest_delivery.status === "pending" &&
                         receiver.latest_delivery.attempts === 0
-                      ? "Queued; waiting for an attempt."
-                      : receiver.latest_delivery.status}
+                      ? t("Queued; waiting for an attempt.")
+                      : t(receiver.latest_delivery.status)}
                   {receiver.latest_delivery.error_category
                     ? ` (${receiver.latest_delivery.error_category})`
                     : ""}
@@ -313,58 +321,61 @@ export function NotificationSettings({ userId }: { userId: string }) {
                   id="notification-events-title"
                   className="text-base font-medium"
                 >
-                  When notifications arrive
+                  {t("When notifications arrive")}
                 </h2>
                 <p className="mt-1 text-sm leading-6 text-ink-tertiary">
-                  Alerts bring you back to the session that needs your
-                  attention.
+                  {t(
+                    "Alerts bring you back to the session that needs your attention.",
+                  )}
                 </p>
                 <div className="mt-4 divide-y divide-hairline border-y border-hairline">
                   {config.data.turn_completion_enabled && (
                     <div className="grid gap-2 py-5 sm:grid-cols-[160px_minmax(0,1fr)] sm:gap-6">
                       <h3 className="text-sm font-medium text-ink-muted">
-                        Completed replies
+                        {t("Completed replies")}
                       </h3>
                       <p className="text-sm leading-6 text-ink-tertiary">
-                        Automatic notifications are enabled for standard
-                        sessions. Notifications include a short reply preview;
-                        tap one to open its session. Encrypted sessions are not
-                        supported yet.
+                        {t(
+                          "Automatic notifications are enabled for standard sessions. Notifications include a short reply preview; tap one to open its session. Encrypted sessions are not supported yet.",
+                        )}
                       </p>
                     </div>
                   )}
                   {config.data.approval_required_enabled && (
                     <div className="grid gap-2 py-5 sm:grid-cols-[160px_minmax(0,1fr)] sm:gap-6">
                       <h3 className="text-sm font-medium text-ink-muted">
-                        Approval requests
+                        {t("Approval requests")}
                       </h3>
                       <p className="text-sm leading-6 text-ink-tertiary">
-                        Get notified when a session needs your approval. Tap a
-                        notification to open the session and review the request.
-                        Requests handled by Pax Auto Approve or a saved approval
-                        do not trigger notifications.
+                        {t(
+                          "Get notified when a session needs your approval. Tap a notification to open the session and review the request. Requests handled by Pax Auto Approve or a saved approval do not trigger notifications.",
+                        )}
                       </p>
                     </div>
                   )}
                   {!config.data.turn_completion_enabled && (
                     <p className="py-5 text-sm leading-6 text-ink-tertiary">
-                      You can enable this device and send a test notification.
-                      Automatic turn alerts are not available yet.
+                      {t(
+                        "You can enable this device and send a test notification. Automatic turn alerts are not available yet.",
+                      )}
                     </p>
                   )}
                 </div>
               </section>
             )}
             <p className="text-sm leading-6 text-ink-tertiary lg:text-xs lg:leading-5">
-              System and browser settings control whether notifications appear.
+              {t(
+                "System and browser settings control whether notifications appear.",
+              )}
               {!desktop && (
                 <>
                   {" "}
-                  Completed turn notifications include a short reply preview.
-                  Approval reminders contain no request details.
+                  {t(
+                    "Completed turn notifications include a short reply preview. Approval reminders contain no request details.",
+                  )}
                 </>
               )}{" "}
-              Signing out removes this browser&apos;s subscription.
+              {t("Signing out removes this browser's subscription.")}
             </p>
           </div>
         </div>

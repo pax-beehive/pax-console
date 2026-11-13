@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
+
 import {
   FormEvent,
   KeyboardEvent,
@@ -34,7 +36,10 @@ import {
   ComposerVoiceNotice,
 } from "./composer-voice-control";
 import { SettingsToggle } from "@/components/ui/settings-controls";
-import { SessionPermissionSelector } from "@/components/sessions/session-permission-selector";
+import {
+  permissionChoiceLabel,
+  SessionPermissionSelector,
+} from "@/components/sessions/session-permission-selector";
 import { SessionSettings, SessionSettingsHome } from "./session-settings";
 import { SessionSecretDialog } from "./session-secret-dialog";
 import { TurnSearchAccessSettings } from "./turn-search-access-settings";
@@ -161,6 +166,10 @@ export const SessionComposer = memo(function SessionComposer({
   voiceInput,
   getVoiceHints,
 }: SessionComposerProps) {
+  const { t } = useI18n();
+  const selectedPermissionChoice = permissionChoices?.find(
+    (choice) => choice.choice_id === permissionChoiceId,
+  );
   const hasContent = useConsoleStore((state) =>
     Boolean(state.composerDrafts[draftKey]?.trim()),
   );
@@ -360,7 +369,7 @@ export const SessionComposer = memo(function SessionComposer({
 
   return (
     <form
-      aria-label={secure ? "Encrypted session composer" : undefined}
+      aria-label={secure ? t("Encrypted session composer") : undefined}
       className={cn(
         "mobile-safe-bottom relative z-10 border-t p-3 transition-[background-color,border-color] duration-500",
         secure
@@ -387,9 +396,9 @@ export const SessionComposer = memo(function SessionComposer({
       <ComposerDropZone
         disabledReason={
           attachmentUploadPending
-            ? "Upload in progress"
+            ? t("Upload in progress")
             : !activeAgentId
-              ? "Select an agent to upload files"
+              ? t("Select an agent to upload files")
               : undefined
         }
         onFiles={onAddAttachments}
@@ -405,10 +414,10 @@ export const SessionComposer = memo(function SessionComposer({
             <div className="flex min-w-0 items-center gap-2">
               <span className="text-xs font-medium text-primary-hover">
                 {queuedTurn.state === "sending"
-                  ? "Sending queued message"
+                  ? t("Sending queued message")
                   : queuedTurn.state === "uncertain"
-                    ? "Delivery unconfirmed"
-                    : "Queued next"}
+                    ? t("Delivery unconfirmed")
+                    : t("Queued next")}
               </span>
               <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-ink-tertiary">
                 {compactId(queuedTurn.queued_turn_id)}
@@ -416,7 +425,7 @@ export const SessionComposer = memo(function SessionComposer({
               {queuedTurnEditingId !== queuedTurn.queued_turn_id &&
                 (!queuedTurn.state || queuedTurn.state === "queued") && (
                   <Button
-                    aria-label="Edit queued message"
+                    aria-label={t("Edit queued message")}
                     disabled={deleteQueuedTurnPending}
                     icon={<Pencil className="h-3.5 w-3.5" />}
                     onClick={() => {
@@ -424,13 +433,13 @@ export const SessionComposer = memo(function SessionComposer({
                       setQueuedTurnEditingId(queuedTurn.queued_turn_id);
                     }}
                     size="icon"
-                    tooltip="Edit queued message"
+                    tooltip={t("Edit queued message")}
                     type="button"
                     variant="ghost"
                   />
                 )}
               <Button
-                aria-label="Delete queued message"
+                aria-label={t("Delete queued message")}
                 disabled={
                   deleteQueuedTurnPending || queuedTurn.state === "sending"
                 }
@@ -443,21 +452,23 @@ export const SessionComposer = memo(function SessionComposer({
                 }
                 onClick={onDeleteQueuedTurn}
                 size="icon"
-                tooltip="Delete queued message"
+                tooltip={t("Delete queued message")}
                 type="button"
                 variant="ghost"
               />
             </div>
             {queuedTurn.search_access && (
               <p className="text-xs text-ink-muted">
-                Expanded search scope is preauthorized for this queued turn.
+                {t(
+                  "Expanded search scope is preauthorized for this queued turn.",
+                )}
               </p>
             )}
             {queuedTurn.state === "uncertain" && (
               <p className="text-xs text-warning">
-                Delivery could not be confirmed. Check the conversation before
-                sending again. Deleting this entry does not cancel a message
-                already received by paxd.
+                {t(
+                  "Delivery could not be confirmed. Check the conversation before sending again. Deleting this entry does not cancel a message already received by paxd.",
+                )}
               </p>
             )}
             {queuedTurnEditingId === queuedTurn.queued_turn_id &&
@@ -465,7 +476,7 @@ export const SessionComposer = memo(function SessionComposer({
               <div className="grid gap-2">
                 <SessionCommandInput
                   commands={secure ? undefined : availableCommands}
-                  aria-label="Queued message"
+                  aria-label={t("Queued message")}
                   autoFocus
                   className="max-h-32 min-h-16 w-full resize-y rounded-lg border border-hairline bg-canvas px-2.5 py-2 text-base leading-6 text-ink outline-none focus:border-primary-focus focus:ring-2 focus:ring-primary-focus/20 sm:text-sm sm:leading-5"
                   onValueChange={setQueuedTurnDraft}
@@ -482,7 +493,7 @@ export const SessionComposer = memo(function SessionComposer({
                     type="button"
                     variant="ghost"
                   >
-                    Cancel
+                    {t("Cancel")}
                   </Button>
                   <Button
                     disabled={
@@ -510,7 +521,7 @@ export const SessionComposer = memo(function SessionComposer({
                     type="button"
                     variant="primary"
                   >
-                    Save
+                    {t("Save")}
                   </Button>
                 </div>
               </div>
@@ -523,7 +534,7 @@ export const SessionComposer = memo(function SessionComposer({
             )}
             {queuedTurn.attachments && queuedTurn.attachments.length > 0 && (
               <div
-                aria-label="Queued files"
+                aria-label={t("Queued files")}
                 className="flex flex-wrap gap-1.5"
                 role="group"
               >
@@ -554,7 +565,9 @@ export const SessionComposer = memo(function SessionComposer({
               >
                 <span className="max-w-44 truncate">{attachment.filename}</span>
                 <button
-                  aria-label={`Remove ${attachment.filename}`}
+                  aria-label={t("Remove {filename}", {
+                    filename: attachment.filename,
+                  })}
                   className="ml-1 shrink-0 text-ink-tertiary transition hover:text-ink"
                   onClick={() => onRemoveAttachment(attachment.attachmentId)}
                   type="button"
@@ -594,10 +607,10 @@ export const SessionComposer = memo(function SessionComposer({
           readOnly={dictating}
           placeholder={
             secure
-              ? "Send an end-to-end encrypted message"
+              ? t("Send an end-to-end encrypted message")
               : activeAgentId
-                ? "Send a prompt to this agent"
-                : "Select an agent before sending a prompt"
+                ? t("Send a prompt to this agent")
+                : t("Select an agent before sending a prompt")
           }
           rows={1}
         />
@@ -612,8 +625,8 @@ export const SessionComposer = memo(function SessionComposer({
               <Button
                 aria-label={
                   userId && activeNodeId && currentSessionId
-                    ? "Add to conversation"
-                    : "Upload files"
+                    ? t("Add to conversation")
+                    : t("Upload files")
                 }
                 disabled={
                   attachmentUploadPending &&
@@ -629,8 +642,8 @@ export const SessionComposer = memo(function SessionComposer({
                 size="icon"
                 tooltip={
                   userId && activeNodeId && currentSessionId
-                    ? "Add files or securely send a secret"
-                    : "Upload files"
+                    ? t("Add files or securely send a secret")
+                    : t("Upload files")
                 }
                 type="button"
                 variant="ghost"
@@ -647,12 +660,12 @@ export const SessionComposer = memo(function SessionComposer({
                 onSelect={() => fileInputRef.current?.click()}
               >
                 <Paperclip className="h-4 w-4" />
-                Upload
+                {t("Upload")}
               </DropdownMenuItem>
               {userId && activeNodeId && currentSessionId && (
                 <DropdownMenuItem onSelect={() => setSecretDialogOpen(true)}>
                   <ShieldCheck className="h-4 w-4" />
-                  Securely send password / token
+                  {t("Securely send password / token")}
                 </DropdownMenuItem>
               )}
             </DropdownMenuContent>
@@ -660,11 +673,14 @@ export const SessionComposer = memo(function SessionComposer({
           <SessionSettings
             summary={[
               configurationSummary,
-              !secure && searchAccess ? "Expanded search next turn" : undefined,
-              permissionChoices?.find(
-                (choice) => choice.choice_id === permissionChoiceId,
-              )?.label ??
-                (approvalMode === "auto_approve_all" ? "Auto approve" : "Ask"),
+              !secure && searchAccess
+                ? t("Expanded search next turn")
+                : undefined,
+              (selectedPermissionChoice &&
+                permissionChoiceLabel(selectedPermissionChoice, t)) ??
+                (approvalMode === "auto_approve_all"
+                  ? t("Auto approve")
+                  : t("Ask")),
             ]
               .filter(Boolean)
               .join(" · ")}
@@ -697,7 +713,7 @@ export const SessionComposer = memo(function SessionComposer({
             ) : (
               <SessionSettingsHome>
                 <SettingsToggle
-                  label="Auto approve tools"
+                  label={t("Auto approve tools")}
                   checked={approvalMode === "auto_approve_all"}
                   disabled={approvalModePending}
                   onChange={onToggleApprovalMode}
@@ -710,9 +726,9 @@ export const SessionComposer = memo(function SessionComposer({
             <ComposerVoiceControl
               disabledReason={
                 secure
-                  ? "Voice input is off in encrypted sessions"
+                  ? t("Voice input is off in encrypted sessions")
                   : !activeAgentId
-                    ? "Select an agent before dictating"
+                    ? t("Select an agent before dictating")
                     : undefined
               }
               level={voice.level}
@@ -734,8 +750,8 @@ export const SessionComposer = memo(function SessionComposer({
               <Button
                 aria-label={
                   currentSessionId
-                    ? "Queue after current turn"
-                    : "Waiting for session id"
+                    ? t("Queue after current turn")
+                    : t("Waiting for session id")
                 }
                 disabled={!canQueueTurn && !canSendDictation}
                 icon={
@@ -749,10 +765,10 @@ export const SessionComposer = memo(function SessionComposer({
                 size="icon"
                 tooltip={
                   !currentSessionId
-                    ? "Waiting for session id"
+                    ? t("Waiting for session id")
                     : dictating
-                      ? "Queue when dictation finishes"
-                      : "Queue after current turn"
+                      ? t("Queue when dictation finishes")
+                      : t("Queue after current turn")
                 }
                 type="submit"
                 variant="primary"
@@ -760,8 +776,8 @@ export const SessionComposer = memo(function SessionComposer({
               <Button
                 aria-label={
                   currentSessionId
-                    ? "Steer with this prompt"
-                    : "Waiting for session id"
+                    ? t("Steer with this prompt")
+                    : t("Waiting for session id")
                 }
                 disabled={!canSteerTurn && !canSteerDictation}
                 icon={
@@ -776,10 +792,10 @@ export const SessionComposer = memo(function SessionComposer({
                 size="icon"
                 tooltip={
                   !currentSessionId
-                    ? "Waiting for session id"
+                    ? t("Waiting for session id")
                     : dictating
-                      ? "Steer when dictation finishes"
-                      : "Steer with this prompt"
+                      ? t("Steer when dictation finishes")
+                      : t("Steer with this prompt")
                 }
                 type="button"
                 variant="ghost"
@@ -787,8 +803,8 @@ export const SessionComposer = memo(function SessionComposer({
               <Button
                 aria-label={
                   currentSessionId
-                    ? "Stop current turn"
-                    : "Waiting for session id"
+                    ? t("Stop current turn")
+                    : t("Waiting for session id")
                 }
                 disabled={!canStopTurn}
                 icon={
@@ -802,8 +818,8 @@ export const SessionComposer = memo(function SessionComposer({
                 size="icon"
                 tooltip={
                   currentSessionId
-                    ? "Stop current turn"
-                    : "Waiting for session id"
+                    ? t("Stop current turn")
+                    : t("Waiting for session id")
                 }
                 type="button"
                 variant="danger"
@@ -812,7 +828,7 @@ export const SessionComposer = memo(function SessionComposer({
           ) : (
             <>
               <Button
-                aria-label="Send prompt"
+                aria-label={t("Send prompt")}
                 className={cn(
                   "rounded-full",
                   !secure &&
@@ -832,7 +848,9 @@ export const SessionComposer = memo(function SessionComposer({
                 }
                 size="icon"
                 tooltip={
-                  dictating ? "Send when dictation finishes" : "Send prompt"
+                  dictating
+                    ? t("Send when dictation finishes")
+                    : t("Send prompt")
                 }
                 type="submit"
                 variant="primary"

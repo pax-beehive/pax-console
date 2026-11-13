@@ -1,13 +1,17 @@
 /* @vitest-environment jsdom */
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { Node } from "@/features/api/types";
+import { useLocaleStore } from "@/features/i18n/locale-store";
 import { ServiceStatusPanel } from "./service-status-panel";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  useLocaleStore.setState({ locale: "en" });
+});
 
 function renderStatus(nodes: Node[]) {
   render(
@@ -49,4 +53,22 @@ describe("device status", () => {
     expect(screen.getByText("0 / 1")).toBeVisible();
     expect(screen.getByText(/For an offline device/)).toBeVisible();
   });
+});
+
+it("given a connected device, when language changes, then translates status and preserves its server name", () => {
+  renderStatus([{ node_id: "node-1", name: "Settings", online: true }]);
+  act(() => useLocaleStore.setState({ locale: "zh-CN" }));
+  expect(
+    screen.getByRole("heading", { name: "所有系统运行正常" }),
+  ).toBeVisible();
+  expect(screen.getByRole("link", { name: /Settings/ })).toHaveAttribute(
+    "href",
+    "/nodes/node-1",
+  );
+  expect(screen.getByText("未知操作系统 / 未知架构")).toBeVisible();
+  expect(screen.getByText("尚未注册智能体。")).toBeVisible();
+  act(() => useLocaleStore.setState({ locale: "en" }));
+  expect(
+    screen.getByRole("heading", { name: "All systems operational" }),
+  ).toBeVisible();
 });

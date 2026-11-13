@@ -15,6 +15,7 @@ import { ApiError } from "@/features/api/errors";
 import type { PendingPairing } from "@/features/e2ee/device-key-store";
 import type { E2EEPairingRequest } from "@/features/e2ee/key-distribution";
 import { E2EEPairingRoute } from "./e2ee-pairing-page";
+import { useLocaleStore } from "@/features/i18n/locale-store";
 
 const mocks = vi.hoisted(() => ({
   loadRootKey: vi.fn(),
@@ -138,10 +139,27 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  useLocaleStore.setState({ locale: "en" });
   vi.useRealTimers();
 });
 
 describe("pairing recovery and orphan request diagnostics", () => {
+  it("translates a known pairing lifecycle message when the language changes without restarting recovery", async () => {
+    mocks.listPendingPairings.mockResolvedValue([pending("pair_ended")]);
+    mocks.getE2EEPairingStatus.mockResolvedValue({ status: "superseded" });
+    await openPage();
+    const checks = mocks.finishBrowserPairing.mock.calls.length;
+    expect(screen.getByRole("status")).toHaveTextContent("was replaced");
+
+    act(() => useLocaleStore.setState({ locale: "zh-CN" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "此配对请求已被替换。请使用最新请求或创建新请求。",
+    );
+    expect(screen.getByRole("button", { name: "授权此设备" })).toBeEnabled();
+    expect(screen.getByRole("option")).toHaveTextContent("Test agent");
+    expect(mocks.finishBrowserPairing).toHaveBeenCalledTimes(checks);
+  });
   it("allows a browser with no pending request to start pairing", async () => {
     await openPage();
     expect(
@@ -235,7 +253,9 @@ describe("pairing recovery and orphan request diagnostics", () => {
       throw new TypeError("Lost response");
     });
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Authorize this device" }));
+      fireEvent.click(
+        screen.getByRole("button", { name: "Authorize this device" }),
+      );
     });
     expect(screen.getByRole("status")).toHaveTextContent(
       "creation result is unknown",

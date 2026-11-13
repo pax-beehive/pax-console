@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
+
 import { useState, useSyncExternalStore } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -65,6 +67,7 @@ export function NodeHarnessUpgrade({
   node: Node;
   userId: string;
 }) {
+  const { t } = useI18n();
   const [harness, setHarness] =
     useState<HarnessUpgradeInput["harness"]>("claude-code");
   const [component, setComponent] =
@@ -123,7 +126,9 @@ export function NodeHarnessUpgrade({
           | undefined;
         const rejection =
           ackError?.message ??
-          "The daemon rejected this upgrade. Check its version and installation support.";
+          t(
+            "The daemon rejected this upgrade. Check its version and installation support.",
+          );
         try {
           localStorage.setItem(key, JSON.stringify({ ...request, rejection }));
           window.dispatchEvent(new Event(changed));
@@ -161,7 +166,9 @@ export function NodeHarnessUpgrade({
       window.dispatchEvent(new Event(changed));
     } catch {
       setStorageError(
-        "Could not save the upgrade for recovery. Enable browser storage and retry.",
+        t(
+          "Could not save the upgrade for recovery. Enable browser storage and retry.",
+        ),
       );
       return;
     }
@@ -178,26 +185,26 @@ export function NodeHarnessUpgrade({
     command.data?.command?.result?.harness?.target_version;
   const displayedVersion = installedVersion ?? pending?.version ?? "latest";
   return (
-    <section className="grid gap-3 text-sm" aria-label="Harness upgrades">
-      <h2 className="font-medium">Harness and ACP updates</h2>
+    <section className="grid gap-3 text-sm" aria-label={t("Harness upgrades")}>
+      <h2 className="font-medium">{t("Harness and ACP updates")}</h2>
       <p className="text-ink-muted">
-        Leave the version blank to install the latest release. Active tasks
-        finish before the update; new tasks wait. Supports npm installations and
-        native Claude installations with a direct launcher.
+        {t(
+          "Leave the version blank to install the latest release. Active tasks finish before the update; new tasks wait. Supports npm installations and native Claude installations with a direct launcher.",
+        )}
       </p>
       {harness === "pi" && component === "cli" && (
         <p className="text-ink-muted">
-          Requires Pi ACP 0.7.0 or newer. Connected Pi agents restart with the
-          updated Pi SDK. Connections configured with a separate SDK stay on
-          that installation.
+          {t(
+            "Requires Pi ACP 0.7.0 or newer. Connected Pi agents restart with the updated Pi SDK. Connections configured with a separate SDK stay on that installation.",
+          )}
         </p>
       )}
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="grid gap-1">
-          Harness
+          {t("Harness")}{" "}
           <select
             className="rounded border border-hairline bg-surface-2 p-2"
-            aria-label="Harness"
+            aria-label={t("Harness")}
             value={harness}
             disabled={disabled}
             onChange={(e) => {
@@ -205,15 +212,15 @@ export function NodeHarnessUpgrade({
               setConnection("");
             }}
           >
-            <option value="claude-code">Claude</option>
-            <option value="codex">Codex</option>
-            <option value="pi">Pi</option>
+            <option value="claude-code">{t("Claude")}</option>
+            <option value="codex">{t("Codex")}</option>
+            <option value="pi">{t("Pi")}</option>
           </select>
         </label>
         <label className="grid gap-1">
-          Component
+          {t("Component")}{" "}
           <select
-            aria-label="Component"
+            aria-label={t("Component")}
             className="rounded border border-hairline bg-surface-2 p-2"
             value={component}
             disabled={disabled}
@@ -221,21 +228,21 @@ export function NodeHarnessUpgrade({
               setComponent(e.target.value as HarnessUpgradeInput["component"])
             }
           >
-            <option value="cli">Harness CLI</option>
-            <option value="acp">ACP adapter</option>
+            <option value="cli">{t("Harness CLI")}</option>
+            <option value="acp">{t("ACP adapter")}</option>
           </select>
         </label>
         {component === "acp" && (
           <label className="grid gap-1">
-            ACP connection
+            {t("ACP connection")}{" "}
             <select
               className="rounded border border-hairline bg-surface-2 p-2"
-              aria-label="ACP connection"
+              aria-label={t("ACP connection")}
               value={connection}
               disabled={disabled}
               onChange={(e) => setConnection(e.target.value)}
             >
-              <option value="">Select a running connection</option>
+              <option value="">{t("Select a running connection")}</option>
               {eligible.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -245,13 +252,13 @@ export function NodeHarnessUpgrade({
           </label>
         )}
         <label className="grid gap-1">
-          Target version (optional)
+          {t("Target version (optional)")}{" "}
           <input
             className="rounded border border-hairline bg-surface-2 p-2"
             value={version}
             disabled={disabled}
-            aria-label="Target version"
-            placeholder="Latest"
+            aria-label={t("Target version")}
+            placeholder={t("Latest")}
             onChange={(e) => setVersion(e.target.value)}
           />
         </label>
@@ -262,13 +269,22 @@ export function NodeHarnessUpgrade({
         disabled={disabled || !valid}
         onClick={() => setOpen(true)}
       >
-        Upgrade selected component
+        {t("Upgrade selected component")}
       </Button>
       {pending && (
         <div role="status">
           {status === "applied"
-            ? `${pending.harness === "claude-code" ? "Claude" : pending.harness === "pi" ? "Pi" : "Codex"} ${pending.component === "cli" ? "CLI" : "ACP adapter"} ${displayedVersion} verified`
-            : `${phases[phase ?? ""] ?? status ?? "Result pending"} · ${displayedVersion}`}
+            ? t("{value1} {value2} {value3} verified", {
+                value1:
+                  pending.harness === "claude-code"
+                    ? "Claude"
+                    : pending.harness === "pi"
+                      ? "Pi"
+                      : "Codex",
+                value2: pending.component === "cli" ? "CLI" : t("ACP adapter"),
+                value3: displayedVersion,
+              })
+            : `${t(phases[phase ?? ""] ?? status ?? "Result pending")} · ${displayedVersion}`}
           {!terminal && !mutation.isPending && (
             <Button
               size="sm"
@@ -276,7 +292,7 @@ export function NodeHarnessUpgrade({
               disabled={!node.online}
               onClick={() => mutation.mutate(pending)}
             >
-              Retry same upgrade
+              {t("Retry same upgrade")}
             </Button>
           )}
         </div>
@@ -289,9 +305,21 @@ export function NodeHarnessUpgrade({
       <ConfirmDialog
         open={open}
         onOpenChange={setOpen}
-        title="Upgrade selected component"
-        description={`Install ${harness === "claude-code" ? "Claude" : harness === "pi" ? "Pi" : "Codex"} ${component === "cli" ? "CLI" : "ACP adapter"} ${requestedVersion}? Existing installation files are retained for recovery. Affected ACP processes restart and are verified before completion.`}
-        confirmLabel="Install update"
+        title={t("Upgrade selected component")}
+        description={t(
+          "Install {value1} {value2} {value3}? Existing installation files are retained for recovery. Affected ACP processes restart and are verified before completion.",
+          {
+            value1:
+              harness === "claude-code"
+                ? "Claude"
+                : harness === "pi"
+                  ? "Pi"
+                  : "Codex",
+            value2: component === "cli" ? "CLI" : t("ACP adapter"),
+            value3: requestedVersion,
+          },
+        )}
+        confirmLabel={t("Install update")}
         confirmDisabled={!valid || disabled}
         onConfirm={submit}
       />

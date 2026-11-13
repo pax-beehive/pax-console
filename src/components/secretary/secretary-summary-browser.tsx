@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import Link from "next/link";
 import { useCallback, useState } from "react";
@@ -70,6 +71,7 @@ export function SecretarySummaryBrowser({
   invalidSelection?: boolean;
   onNavigate: (href: string) => void;
 }) {
+  const { t, locale } = useI18n();
   const list = useSecretarySummaries(userId);
   const [accessDenied, setAccessDenied] = useState(false);
   const denyAccess = useCallback(() => setAccessDenied(true), []);
@@ -97,17 +99,19 @@ export function SecretarySummaryBrowser({
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <SettingsPageHeader
-        title="Summaries"
-        category="Secretary"
-        description="Browse your published summaries and their original messages."
+        title={t("Summaries")}
+        category={t("Secretary")}
+        description={t(
+          "Browse your published summaries and their original messages.",
+        )}
       >
         <div className="flex flex-wrap items-center gap-2">
           <Button asChild size="sm" variant="ghost">
-            <Link href="/settings/secretary">Secretary settings</Link>
+            <Link href="/settings/secretary">{t("Secretary settings")}</Link>
           </Button>
           <Button
             size="sm"
-            aria-label="Refresh summaries"
+            aria-label={t("Refresh summaries")}
             disabled={list.isFetching}
             icon={
               <RefreshCw
@@ -117,27 +121,31 @@ export function SecretarySummaryBrowser({
             }
             onClick={refresh}
           >
-            Refresh
+            {t("Refresh")}
           </Button>
         </div>
       </SettingsPageHeader>
       {denied ? (
         <p role="alert" className="p-5 text-sm leading-6 text-ink-muted">
-          These summaries are no longer available to you. Refresh to check your
-          access again.
+          {t(
+            "These summaries are no longer available to you. Refresh to check your access again.",
+          )}
         </p>
       ) : (
         <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
           <section
-            aria-label="Your summaries"
+            aria-label={t("Your summaries")}
             data-viewport-scroll
             className={`min-h-0 min-w-0 overflow-y-auto ${selection ? "hidden lg:block lg:w-80 lg:shrink-0 lg:border-r lg:border-hairline" : "flex-1"}`}
           >
             <div className="border-b border-hairline px-4 py-3 sm:px-6">
-              <h2 className="text-sm font-semibold text-ink">Your summaries</h2>
+              <h2 className="text-sm font-semibold text-ink">
+                {t("Your summaries")}
+              </h2>
               <p className="mt-1 text-xs leading-5 text-ink-tertiary">
-                Newest summaries first. Each entry shows its latest published
-                version. A session can have more than one summary.
+                {t(
+                  "Newest summaries first. Each entry shows its latest published version. A session can have more than one summary.",
+                )}
               </p>
             </div>
             {invalidSelection && (
@@ -145,22 +153,23 @@ export function SecretarySummaryBrowser({
                 role="alert"
                 className="px-4 py-3 text-sm text-warning sm:px-6"
               >
-                This summary link has an invalid version. Choose a summary
-                below.
+                {t(
+                  "This summary link has an invalid version. Choose a summary below.",
+                )}
               </p>
             )}
             {list.isPending || checking ? (
               <p role="status" className="p-5 text-sm text-ink-tertiary">
-                Loading summaries…
+                {t("Loading summaries…")}
               </p>
             ) : listFailed ? (
               <p role="alert" className="p-5 text-sm leading-6 text-ink-muted">
-                Could not load summaries. Refresh to try again.
+                {t("Could not load summaries. Refresh to try again.")}
               </p>
             ) : (
               <>
                 <ul
-                  aria-label="Summary list"
+                  aria-label={t("Summary list")}
                   className="divide-y divide-hairline"
                 >
                   {items.map((item) => (
@@ -171,19 +180,23 @@ export function SecretarySummaryBrowser({
                           revision: item.revision,
                         })}
                         scroll={false}
-                        aria-label={`Read ${item.title || "Untitled summary"}, version ${item.revision}`}
+                        aria-label={t("Read {value1}, version {value2}", {
+                          value1: item.title || t("Untitled summary"),
+                          value2: item.revision,
+                        })}
                         aria-current={
                           selection?.id === item.summary_id ? "page" : undefined
                         }
                         className={`block min-w-0 px-4 py-4 transition hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent sm:px-6 ${selection?.id === item.summary_id ? "bg-accent/10" : ""}`}
                       >
                         <span className="block break-words text-sm font-medium leading-6 text-ink [overflow-wrap:anywhere]">
-                          {item.title || "Untitled summary"}
+                          {item.title || t("Untitled summary")}
                         </span>
                         <span className="mt-1 line-clamp-3 block break-words text-xs leading-5 text-ink-muted [overflow-wrap:anywhere]">
                           {item.node_status === "empty"
-                            ? "No retained content in this version."
-                            : item.body_preview || "Open to read this summary."}
+                            ? t("No retained content in this version.")
+                            : item.body_preview ||
+                              t("Open to read this summary.")}
                         </span>
                         {item.origin_session_title && (
                           <span
@@ -195,13 +208,15 @@ export function SecretarySummaryBrowser({
                         )}
                         <span className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-tertiary">
                           <time dateTime={item.created_at}>
-                            {summaryDate(item.created_at)}
+                            {summaryDate(item.created_at, locale)}
                           </time>
                           <span>v{item.revision}</span>
                           {item.node_status === "stale" && (
-                            <Badge tone="warning">Source changed</Badge>
+                            <Badge tone="warning">{t("Source changed")}</Badge>
                           )}
-                          <span>{item.coverage_count} source messages</span>
+                          <span>
+                            {item.coverage_count} {t("source messages")}
+                          </span>
                         </span>
                       </Link>
                     </li>
@@ -209,17 +224,19 @@ export function SecretarySummaryBrowser({
                 </ul>
                 {!items.length && !list.hasNextPage && (
                   <div className="p-5 text-sm leading-6 text-ink-muted">
-                    <p>No published summaries yet.</p>
+                    <p>{t("No published summaries yet.")}</p>
                     <p className="mt-1 text-xs text-ink-tertiary">
-                      Published results appear here after a summary is ready.
-                      You can check progress in Secretary settings.
+                      {t(
+                        "Published results appear here after a summary is ready. You can check progress in Secretary settings.",
+                      )}
                     </p>
                   </div>
                 )}
                 {!items.length && list.hasNextPage && (
                   <p className="px-5 pt-4 text-xs leading-5 text-ink-tertiary">
-                    No readable summaries in this page. More records are
-                    available.
+                    {t(
+                      "No readable summaries in this page. More records are available.",
+                    )}
                   </p>
                 )}
                 {list.isFetchNextPageError && (
@@ -228,8 +245,12 @@ export function SecretarySummaryBrowser({
                     className="px-5 pt-4 text-xs leading-5 text-warning"
                   >
                     {cursorExpired
-                      ? "This list has changed. Refresh summaries to start again."
-                      : "Could not load more summaries. Your loaded results are still shown."}
+                      ? t(
+                          "This list has changed. Refresh summaries to start again.",
+                        )
+                      : t(
+                          "Could not load more summaries. Your loaded results are still shown.",
+                        )}
                   </p>
                 )}
                 {list.hasNextPage && !cursorExpired && (
@@ -242,10 +263,10 @@ export function SecretarySummaryBrowser({
                       }}
                     >
                       {list.isFetchingNextPage
-                        ? "Loading more…"
+                        ? t("Loading more…")
                         : list.isFetchNextPageError
-                          ? "Retry loading more"
-                          : "Load more summaries"}
+                          ? t("Retry loading more")
+                          : t("Load more summaries")}
                     </Button>
                   </div>
                 )}

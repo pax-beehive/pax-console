@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import { useMemo, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -31,9 +32,10 @@ export function TeamAgentsSection({
   teamId: string;
   userId: string;
 }) {
+  const { t } = useI18n();
   return (
     <section className="grid gap-3">
-      {isLoading && <EmptyState label="Loading team agents" />}
+      {isLoading && <EmptyState label={t("Loading team agents")} />}
       <div className="grid overflow-hidden rounded-lg border border-hairline">
         {teamAgents.map((teamAgent) => (
           <TeamAgentRow
@@ -45,7 +47,7 @@ export function TeamAgentsSection({
           />
         ))}
         {!isLoading && teamAgents.length === 0 && (
-          <EmptyState label="No agents added" />
+          <EmptyState label={t("No agents added")} />
         )}
       </div>
     </section>
@@ -61,6 +63,7 @@ export function AddAgentControl({
   teamId: string;
   userId: string;
 }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
 
   return (
@@ -72,7 +75,7 @@ export function AddAgentControl({
         type="button"
         variant="primary"
       >
-        Add agent
+        {t("Add agent")}
       </Button>
       {open && (
         <AddAgentDialog
@@ -97,6 +100,7 @@ function AddAgentDialog({
   teamId: string;
   userId: string;
 }) {
+  const { t } = useI18n();
   const invalidateTeams = useTeamInvalidation(userId);
   // Fetched only while this dialog is mounted, so the agents list loads on
   // demand instead of on every teams page load.
@@ -131,10 +135,10 @@ function AddAgentDialog({
         <Dialog.Content className="fixed left-1/2 top-1/2 z-50 grid w-[min(calc(100vw-32px),440px)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border border-hairline bg-surface-2 p-4 shadow-2xl shadow-black/40 outline-none">
           <div className="grid gap-1">
             <Dialog.Title className="text-base font-medium text-ink">
-              Add agent
+              {t("Add agent")}
             </Dialog.Title>
             <Dialog.Description className="text-sm leading-6 text-ink-muted">
-              Select one of your agents to add to this team.
+              {t("Select one of your agents to add to this team.")}
             </Dialog.Description>
           </div>
           <select
@@ -151,20 +155,21 @@ function AddAgentDialog({
             {availableAgents.length === 0 && (
               <option value="">
                 {agentsQuery.isLoading
-                  ? "Loading agents"
-                  : "No available agents"}
+                  ? t("Loading agents")
+                  : t("No available agents")}
               </option>
             )}
           </select>
           <p className="text-xs leading-5 text-danger">
-            Agents added to a team receive messages from the other agents in the
-            team.
+            {t(
+              "Agents added to a team receive messages from the other agents in the team.",
+            )}
           </p>
           {add.error && <InlineError error={add.error} />}
           <div className="flex justify-end gap-2 border-t border-hairline pt-3">
             <Dialog.Close asChild>
               <Button disabled={add.isPending} type="button" variant="ghost">
-                Cancel
+                {t("Cancel")}
               </Button>
             </Dialog.Close>
             <Button
@@ -174,7 +179,7 @@ function AddAgentDialog({
               type="button"
               variant="primary"
             >
-              Add agent
+              {t("Add agent")}
             </Button>
           </div>
         </Dialog.Content>
@@ -194,6 +199,7 @@ function TeamAgentRow({
   teamId: string;
   userId: string;
 }) {
+  const { t } = useI18n();
   const invalidateTeams = useTeamInvalidation(userId);
   const remove = useMutation({
     mutationFn: () => removeTeamAgent(userId, teamId, teamAgent.agent_id),
@@ -231,7 +237,7 @@ function TeamAgentRow({
       </div>
       <div className="min-w-0">
         <TruncatedText className="text-xs text-ink-tertiary">
-          owner {ownerLabel}
+          {t("owner")} {ownerLabel}
         </TruncatedText>
         {(agentMeta.length > 0 || status) && (
           <div className="flex min-w-0 items-center gap-1.5 text-xs text-ink-tertiary">
@@ -246,7 +252,7 @@ function TeamAgentRow({
                 <span
                   className={`h-1.5 w-1.5 rounded-full ${statusDotClass}`}
                 />
-                <span className={statusTextClass}>{status}</span>
+                <span className={statusTextClass}>{t(status)}</span>
               </span>
             )}
           </div>
@@ -258,13 +264,13 @@ function TeamAgentRow({
         size="sm"
         tooltip={
           canRemove
-            ? "Remove agent"
-            : "Operators can only remove agents they own"
+            ? t("Remove agent")
+            : t("Operators can only remove agents they own")
         }
         type="button"
         variant="danger"
       >
-        Remove
+        {t("Remove")}
       </Button>
       {remove.error && <InlineError error={remove.error} />}
     </article>

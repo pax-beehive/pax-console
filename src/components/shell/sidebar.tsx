@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -91,6 +92,7 @@ function WorkspaceSidebar({
 }: {
   showAdminFeatures: boolean;
 }) {
+  const { t } = useI18n();
   const collapsed = useConsoleStore((state) => state.sidebarCollapsed);
   const setCollapsed = useConsoleStore((state) => state.setSidebarCollapsed);
 
@@ -119,7 +121,7 @@ function WorkspaceSidebar({
           </div>
         )}
         <Button
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-label={collapsed ? t("Expand sidebar") : t("Collapse sidebar")}
           className={collapsed ? "" : "ml-auto h-7 w-7"}
           icon={
             collapsed ? (
@@ -130,7 +132,7 @@ function WorkspaceSidebar({
           }
           onClick={() => setCollapsed(!collapsed)}
           size="icon"
-          tooltip={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          tooltip={collapsed ? t("Expand sidebar") : t("Collapse sidebar")}
           type="button"
           variant="ghost"
         />
@@ -199,6 +201,7 @@ function WorkspaceSidebar({
 }
 
 function NavEntry({ collapsed, item }: { collapsed: boolean; item: NavItem }) {
+  const { t, locale } = useI18n();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const expandedGroups = useConsoleStore(
@@ -214,7 +217,7 @@ function NavEntry({ collapsed, item }: { collapsed: boolean; item: NavItem }) {
   return (
     <div className="grid gap-0.5">
       <div className="flex min-w-0 items-center gap-1">
-        <Tooltip content={collapsed ? item.label : undefined}>
+        <Tooltip content={collapsed ? t(item.label) : undefined}>
           <Link
             aria-current={active ? "page" : undefined}
             className={`flex min-h-9 min-w-0 flex-1 items-center gap-3 rounded-md px-3 text-left text-sm transition ${
@@ -224,20 +227,26 @@ function NavEntry({ collapsed, item }: { collapsed: boolean; item: NavItem }) {
                 ? "bg-accent/10 text-ink shadow-[inset_2px_0_0_var(--color-accent)] hover:bg-accent/15"
                 : "text-ink-subtle hover:bg-surface-2 hover:text-ink"
             }`}
-            href={item.href}
+            href={
+              item.href === "/overview" && locale === "zh-CN"
+                ? "/zh/overview"
+                : item.href
+            }
           >
             <item.icon
               className={`h-4 w-4 shrink-0 ${active ? "text-accent-bright" : ""}`}
             />
             {!collapsed && (
-              <span className="min-w-0 truncate">{item.label}</span>
+              <span className="min-w-0 truncate">{t(item.label)}</span>
             )}
           </Link>
         </Tooltip>
         {!collapsed && item.children && (
           <Button
             aria-label={
-              groupOpen ? `Collapse ${item.label}` : `Expand ${item.label}`
+              groupOpen
+                ? t("Collapse {name}", { name: t(item.label) })
+                : t("Expand {name}", { name: t(item.label) })
             }
             className="h-8 w-8"
             icon={
@@ -250,7 +259,9 @@ function NavEntry({ collapsed, item }: { collapsed: boolean; item: NavItem }) {
             onClick={() => toggleSidebarGroup(item.label)}
             size="icon"
             tooltip={
-              groupOpen ? `Collapse ${item.label}` : `Expand ${item.label}`
+              groupOpen
+                ? t("Collapse {name}", { name: t(item.label) })
+                : t("Expand {name}", { name: t(item.label) })
             }
             type="button"
             variant="ghost"
@@ -293,7 +304,7 @@ function NavEntry({ collapsed, item }: { collapsed: boolean; item: NavItem }) {
                     : ""
                 }`}
               />
-              <span className="min-w-0 truncate">{child.label}</span>
+              <span className="min-w-0 truncate">{t(child.label)}</span>
             </Link>
           ))}
         </div>

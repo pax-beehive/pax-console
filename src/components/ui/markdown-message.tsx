@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import Link from "next/link";
 import {
@@ -232,6 +233,7 @@ function MarkdownPre({
   className,
   ...props
 }: ComponentPropsWithoutRef<"pre">) {
+  const { t } = useI18n();
   const [copied, setCopied] = useState(false);
   const codeText = textFromReactNode(children).replace(/\n$/, "");
   const language = languageFromReactNode(children) ?? "text";
@@ -275,7 +277,7 @@ function MarkdownPre({
           {language}
         </span>
         <button
-          aria-label={copied ? "Copied code" : "Copy code"}
+          aria-label={copied ? t("Copied code") : t("Copy code")}
           className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[#b8b8b8] transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
           disabled={!codeText}
           onClick={copyCode}
@@ -334,6 +336,7 @@ function MermaidBlock({
   preview: boolean;
   preProps: Omit<ComponentPropsWithoutRef<"pre">, "children" | "className">;
 }) {
+  const { t } = useI18n();
   const renderId = `mermaid-${useId().replace(/:/g, "")}`;
   const [renderResult, setRenderResult] = useState({
     code: "",
@@ -380,12 +383,12 @@ function MermaidBlock({
     <div className="my-2 max-w-full overflow-hidden rounded-lg border border-white/10 bg-[#242424] text-[#f4f4f5] shadow-sm">
       <div className="flex h-9 items-center justify-between gap-3 px-3">
         <span className="min-w-0 truncate font-mono text-xs text-[#b8b8b8]">
-          mermaid
+          {t("mermaid")}
         </span>
         <div className="flex shrink-0 items-center gap-1">
           <button
             aria-label={
-              preview ? "Show Mermaid code" : "Preview Mermaid diagram"
+              preview ? t("Show Mermaid code") : t("Preview Mermaid diagram")
             }
             aria-pressed={preview}
             className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs text-[#b8b8b8] transition hover:bg-white/10 hover:text-white"
@@ -397,10 +400,10 @@ function MermaidBlock({
             ) : (
               <Eye className="h-4 w-4" />
             )}
-            {preview ? "Code" : "Preview"}
+            {preview ? t("Code") : t("Preview")}
           </button>
           <button
-            aria-label={copied ? "Copied code" : "Copy code"}
+            aria-label={copied ? t("Copied code") : t("Copy code")}
             className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#b8b8b8] transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
             disabled={!codeText}
             onClick={onCopy}
@@ -416,19 +419,20 @@ function MermaidBlock({
       </div>
       {preview ? (
         <div
-          aria-label="Mermaid diagram preview"
+          aria-label={t("Mermaid diagram preview")}
           className="min-h-24 max-w-full overflow-auto border-t border-white/10 p-3 [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-w-full"
         >
           {currentResult?.error ? (
             <div className="rounded-md border border-danger/30 bg-danger/10 p-3 text-xs text-danger">
-              Could not render this Mermaid diagram. Switch to code to inspect
-              the source.
+              {t(
+                "Could not render this Mermaid diagram. Switch to code to inspect the source.",
+              )}
             </div>
           ) : currentResult?.svg ? (
             <div dangerouslySetInnerHTML={{ __html: currentResult.svg }} />
           ) : (
             <div className="py-6 text-center text-xs text-[#b8b8b8]">
-              Rendering diagram…
+              {t("Rendering diagram…")}
             </div>
           )}
         </div>
@@ -482,6 +486,7 @@ function MarkdownTable({
   className,
   ...props
 }: ComponentPropsWithoutRef<"table">) {
+  const { t } = useI18n();
   const [copied, setCopied] = useState(false);
   const tableText = tableTextFromReactNode(children);
 
@@ -502,7 +507,7 @@ function MarkdownTable({
   return (
     <div className="group relative my-2 max-w-full overflow-auto">
       <button
-        aria-label={copied ? "Copied table" : "Copy table"}
+        aria-label={copied ? t("Copied table") : t("Copy table")}
         className="absolute right-2 top-2 z-10 inline-flex h-7 w-7 items-center justify-center rounded-md border border-hairline bg-surface-1 text-ink-tertiary opacity-0 shadow-sm transition hover:border-hairline-strong hover:bg-surface-2 hover:text-ink focus:opacity-100 group-hover:opacity-100"
         disabled={!tableText}
         onClick={copyTable}

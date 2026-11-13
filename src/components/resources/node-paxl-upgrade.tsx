@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
+
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, Download, Loader2 } from "lucide-react";
@@ -25,6 +27,7 @@ export function NodePaxlUpgrade({
   node: Node;
   userId: string;
 }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const installed = paxlObservation(node);
   const latestUpgrade = node.latest_daemon_commands?.find(
@@ -42,8 +45,10 @@ export function NodePaxlUpgrade({
               .join(" · ") || undefined
           }
         >
-          paxl {installed?.version ?? installed?.status ?? "not reported"}
-          {!node.online && installed ? " · last observed" : ""}
+          {t("paxl")}{" "}
+          {installed?.version ??
+            (installed?.status ? t(installed.status) : t("not reported"))}
+          {!node.online && installed ? t(" · last observed") : ""}
         </span>
         <Button
           disabled={!node.online || installed?.status !== "installed"}
@@ -51,7 +56,7 @@ export function NodePaxlUpgrade({
           size="sm"
           type="button"
         >
-          Upgrade paxl
+          {t("Upgrade paxl")}
         </Button>
       </div>
       {latestUpgrade && (
@@ -69,10 +74,19 @@ export function NodePaxlUpgrade({
           )}
           <span>
             {latestUpgrade.state === "succeeded"
-              ? `paxl ${latestUpgrade.target_version} verified`
+              ? t("paxl {value1} verified", {
+                  value1: latestUpgrade.target_version ?? "",
+                })
               : latestUpgrade.state === "failed"
-                ? `paxl ${latestUpgrade.target_version} upgrade failed${latestUpgrade.error_message ? `: ${latestUpgrade.error_message}` : ""}`
-                : `Upgrading paxl to ${latestUpgrade.target_version}`}
+                ? t("paxl {value1} upgrade failed{value2}", {
+                    value1: latestUpgrade.target_version ?? "",
+                    value2: latestUpgrade.error_message
+                      ? `: ${latestUpgrade.error_message}`
+                      : "",
+                  })
+                : t("Upgrading paxl to {value1}", {
+                    value1: latestUpgrade.target_version ?? "",
+                  })}
           </span>
           <span className="text-ink-tertiary">
             {" · "}
@@ -106,6 +120,7 @@ export function PaxlUpgradeDialog({
   resumeCommandId?: string;
   userId: string;
 }) {
+  const { t } = useI18n();
   const installed = paxlObservation(node);
   const latest = useQuery({
     queryKey: ["paxl-release", node.os, node.arch, "stable"],
@@ -120,16 +135,19 @@ export function PaxlUpgradeDialog({
         <div className="grid gap-2">
           <div className="flex items-center justify-between gap-3 rounded-lg border border-hairline bg-canvas px-3 py-2.5">
             <span className="font-mono text-sm text-ink">
-              {installed?.version ?? "Unknown"} →{" "}
+              {installed?.version ?? t("Unknown")} →{" "}
               {latest.isError
-                ? "Release check failed"
-                : (latestVersion ?? "Checking stable release…")}
+                ? t("Release check failed")
+                : (latestVersion ?? t("Checking stable release…"))}
             </span>
-            <span className="text-xs text-ink-tertiary">latest stable</span>
+            <span className="text-xs text-ink-tertiary">
+              {t("latest stable")}
+            </span>
           </div>
           <p className="text-xs leading-5 text-ink-tertiary">
-            New paxl invocations will use this version. Running processes
-            continue; paxd stays connected.
+            {t(
+              "New paxl invocations will use this version. Running processes continue; paxd stays connected.",
+            )}
           </p>
           {latest.error && (
             <div className="flex flex-wrap items-center gap-2">
@@ -143,7 +161,7 @@ export function PaxlUpgradeDialog({
                 type="button"
                 variant="ghost"
               >
-                Retry release check
+                {t("Retry release check")}
               </Button>
             </div>
           )}
@@ -155,7 +173,7 @@ export function PaxlUpgradeDialog({
         !latestVersion ||
         versionsEqual(latestVersion, installed?.version)
       }
-      confirmLabel="Install paxl update"
+      confirmLabel={t("Install paxl update")}
       description={nodeLabel(node)}
       icon={<Download className="h-4 w-4" />}
       kind="paxl.upgrade"
@@ -166,7 +184,7 @@ export function PaxlUpgradeDialog({
       submit={() => {
         if (!latestVersion) {
           return Promise.reject(
-            new Error("No stable paxl release is available."),
+            new Error(t("No stable paxl release is available.")),
           );
         }
         return upgradeNodePaxl(userId, node.node_id, {
@@ -175,9 +193,11 @@ export function PaxlUpgradeDialog({
         });
       }}
       successText={(snapshot) =>
-        `paxl ${snapshot.expectedVersion ?? latestVersion} verified`
+        t("paxl {value1} verified", {
+          value1: snapshot.expectedVersion ?? latestVersion ?? "",
+        })
       }
-      title="Upgrade paxl"
+      title={t("Upgrade paxl")}
       userId={userId}
     />
   );

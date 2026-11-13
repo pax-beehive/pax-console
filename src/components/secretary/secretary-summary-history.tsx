@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import { useEffect, useId, useState } from "react";
 import { History } from "lucide-react";
@@ -23,6 +24,7 @@ export function SecretarySummaryHistory({
   onSelect: (selection: SecretarySummarySelection) => void;
   onAccessDenied: () => void;
 }) {
+  const { t, locale } = useI18n();
   const [open, setOpen] = useState(false);
   const historyId = useId();
   const query = useSecretarySummaryRevisions(userId, summaryId, open);
@@ -57,21 +59,21 @@ export function SecretarySummaryHistory({
         size="sm"
         variant="ghost"
       >
-        Version history
+        {t("Version history")}
       </Button>
       {open && (
         <section
           id={historyId}
-          aria-label="Summary version history"
+          aria-label={t("Summary version history")}
           className="mt-2"
         >
           {query.isPending || checking ? (
             <p role="status" className="text-xs leading-5 text-ink-tertiary">
-              Loading versions…
+              {t("Loading versions…")}
             </p>
           ) : denied ? (
             <p role="alert" className="text-xs leading-5 text-warning">
-              This history is no longer available to you.
+              {t("This history is no longer available to you.")}
             </p>
           ) : (
             <>
@@ -79,7 +81,9 @@ export function SecretarySummaryHistory({
                 {items.map((item) => (
                   <li key={item.revision}>
                     <Button
-                      aria-label={`Read version ${item.revision}`}
+                      aria-label={t("Read version {value1}", {
+                        value1: item.revision,
+                      })}
                       aria-current={
                         item.revision === selectedRevision ? "page" : undefined
                       }
@@ -91,13 +95,13 @@ export function SecretarySummaryHistory({
                       variant="ghost"
                     >
                       <span className="min-w-0 flex-1 truncate">
-                        v{item.revision} · {item.title || "Untitled summary"}
+                        v{item.revision} · {item.title || t("Untitled summary")}
                       </span>
                       <time
                         className="shrink-0 text-xs text-ink-tertiary"
                         dateTime={item.created_at}
                       >
-                        {summaryDate(item.created_at)}
+                        {summaryDate(item.created_at, locale)}
                       </time>
                     </Button>
                   </li>
@@ -105,15 +109,17 @@ export function SecretarySummaryHistory({
               </ul>
               {!query.isError && !items.length && (
                 <p className="text-xs leading-5 text-ink-tertiary">
-                  No readable versions in this page.
+                  {t("No readable versions in this page.")}
                 </p>
               )}
               {query.isError && (
                 <div role="alert" className="text-xs leading-5 text-warning">
                   <p>
                     {expired
-                      ? "This history has changed. Reload versions to start again."
-                      : "Could not load versions. Please try again."}
+                      ? t(
+                          "This history has changed. Reload versions to start again.",
+                        )
+                      : t("Could not load versions. Please try again.")}
                   </p>
                   <Button
                     className="mt-2"
@@ -123,7 +129,7 @@ export function SecretarySummaryHistory({
                     size="sm"
                     variant="ghost"
                   >
-                    Reload versions
+                    {t("Reload versions")}
                   </Button>
                 </div>
               )}
@@ -138,8 +144,8 @@ export function SecretarySummaryHistory({
                   variant="ghost"
                 >
                   {query.isFetchingNextPage
-                    ? "Loading more versions…"
-                    : "Load more versions"}
+                    ? t("Loading more versions…")
+                    : t("Load more versions")}
                 </Button>
               )}
             </>

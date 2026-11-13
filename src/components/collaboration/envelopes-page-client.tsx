@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import { FormEvent, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -38,6 +39,7 @@ const mailboxFilters: Record<
 };
 
 export function EnvelopesPageClient({ user }: EnvelopesPageClientProps) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [mailbox, setMailbox] = useState<EnvelopeMailbox>("inbox");
   const [workspace, setWorkspace] = useState<EnvelopeWorkspace>("mailbox");
@@ -63,9 +65,9 @@ export function EnvelopesPageClient({ user }: EnvelopesPageClientProps) {
           <header className="border-b border-hairline p-4">
             <div className="flex items-center gap-2 text-xs text-ink-tertiary">
               <Inbox className="h-4 w-4" />
-              capsule mail
+              {t("capsule mail")}
             </div>
-            <h1 className="mt-2 text-2xl font-semibold">Envelopes</h1>
+            <h1 className="mt-2 text-2xl font-semibold">{t("Envelopes")}</h1>
           </header>
           <div className="grid gap-4 p-4">
             <MailboxTabs mailbox={mailbox} onChange={setMailbox} />
@@ -75,7 +77,7 @@ export function EnvelopesPageClient({ user }: EnvelopesPageClientProps) {
               type="button"
               variant={workspace === "compose" ? "primary" : "secondary"}
             >
-              Compose
+              {t("Compose")}
             </Button>
             <EnvelopeList
               envelopes={envelopes}
@@ -118,6 +120,7 @@ function MailboxTabs({
   mailbox: EnvelopeMailbox;
   onChange: (mailbox: EnvelopeMailbox) => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className="grid grid-cols-4 overflow-hidden rounded-lg border border-hairline">
       {(["inbox", "sent", "pending", "archived"] as const).map((item) => (
@@ -131,7 +134,14 @@ function MailboxTabs({
           onClick={() => onChange(item)}
           type="button"
         >
-          {item}
+          {t(
+            {
+              inbox: "Inbox",
+              sent: "Sent",
+              pending: "Pending",
+              archived: "Archived",
+            }[item],
+          )}
         </button>
       ))}
     </div>
@@ -147,6 +157,7 @@ function ComposeEnvelopeView({
   onCreated: () => void;
   user: User;
 }) {
+  const { t } = useI18n();
   const friendsQuery = useFriends(user.user_id, { status: "accepted" });
   const capsulesQuery = useKnowledgeCapsules(user.user_id, {
     status: "active",
@@ -186,15 +197,15 @@ function ComposeEnvelopeView({
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs text-ink-tertiary">
             <Send className="h-4 w-4" />
-            compose envelope
+            {t("compose envelope")}
           </div>
-          <h2 className="mt-2 text-2xl font-semibold">New envelope</h2>
+          <h2 className="mt-2 text-2xl font-semibold">{t("New envelope")}</h2>
           <p className="mt-1 max-w-2xl text-sm text-ink-tertiary">
-            Send an active knowledge capsule to an accepted friend.
+            {t("Send an active knowledge capsule to an accepted friend.")}
           </p>
         </div>
         <Button onClick={onCancel} type="button">
-          Cancel
+          {t("Cancel")}
         </Button>
       </header>
 
@@ -203,7 +214,7 @@ function ComposeEnvelopeView({
         onSubmit={submit}
       >
         <label className="grid gap-2">
-          <span className="text-xs text-ink-tertiary">To</span>
+          <span className="text-xs text-ink-tertiary">{t("To")}</span>
           <select
             className="min-h-10 rounded-lg border border-hairline bg-canvas px-3 text-sm text-ink outline-none focus:border-primary-focus"
             onChange={(event) => setFriendEmail(event.target.value)}
@@ -220,7 +231,9 @@ function ComposeEnvelopeView({
           </select>
         </label>
         <label className="grid gap-2">
-          <span className="text-xs text-ink-tertiary">Capsule payload</span>
+          <span className="text-xs text-ink-tertiary">
+            {t("Capsule payload")}
+          </span>
           <select
             className="min-h-10 rounded-lg border border-hairline bg-canvas px-3 text-sm text-ink outline-none focus:border-primary-focus"
             onChange={(event) => setCapsuleId(event.target.value)}
@@ -234,11 +247,11 @@ function ComposeEnvelopeView({
           </select>
         </label>
         <label className="grid gap-2">
-          <span className="text-xs text-ink-tertiary">Message</span>
+          <span className="text-xs text-ink-tertiary">{t("Message")}</span>
           <textarea
             className="min-h-40 resize-none rounded-lg border border-hairline bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-primary-focus"
             onChange={(event) => setMessage(event.target.value)}
-            placeholder="Optional note"
+            placeholder={t("Optional note")}
             value={message}
           />
         </label>
@@ -251,19 +264,21 @@ function ComposeEnvelopeView({
             type="submit"
             variant="primary"
           >
-            Send envelope
+            {t("Send envelope")}
           </Button>
           <Button onClick={onCancel} type="button">
-            Discard
+            {t("Discard")}
           </Button>
         </div>
-        {friendsQuery.isLoading && <EmptyState label="Loading friends" />}
-        {capsulesQuery.isLoading && <EmptyState label="Loading capsules" />}
+        {friendsQuery.isLoading && <EmptyState label={t("Loading friends")} />}
+        {capsulesQuery.isLoading && (
+          <EmptyState label={t("Loading capsules")} />
+        )}
         {!friendsQuery.isLoading && friends.length === 0 && (
-          <EmptyState label="No accepted friends available" />
+          <EmptyState label={t("No accepted friends available")} />
         )}
         {!capsulesQuery.isLoading && capsules.length === 0 && (
-          <EmptyState label="No active capsules available" />
+          <EmptyState label={t("No active capsules available")} />
         )}
         {create.error && <InlineError error={create.error} />}
       </form>
@@ -282,14 +297,17 @@ function EnvelopeList({
   onSelect: (envelopeId: string) => void;
   selectedEnvelopeId?: string;
 }) {
+  const { t } = useI18n();
   if (isLoading) {
-    return <EmptyState label="Loading envelopes" />;
+    return <EmptyState label={t("Loading envelopes")} />;
   }
 
   return (
     <section className="grid gap-2">
       <div className="flex min-w-0 items-center justify-between">
-        <TruncatedText className="text-sm font-medium">Messages</TruncatedText>
+        <TruncatedText className="text-sm font-medium">
+          {t("Messages")}
+        </TruncatedText>
         <Badge className="font-mono">{String(envelopes.length)}</Badge>
       </div>
       <div className="grid overflow-hidden rounded-lg border border-hairline">
@@ -311,18 +329,18 @@ function EnvelopeList({
               <Badge
                 tone={envelope.status === "pending" ? "warning" : "neutral"}
               >
-                {envelope.status}
+                {t(envelope.status)}
               </Badge>
             </div>
             <TruncatedText className="text-xs text-ink-muted">
-              to {envelope.recipient_email}
+              {t("to")} {envelope.recipient_email}
             </TruncatedText>
             <TruncatedText className="text-xs text-ink-tertiary">
               {envelope.message || envelope.payload_type}
             </TruncatedText>
           </button>
         ))}
-        {envelopes.length === 0 && <EmptyState label="No envelopes" />}
+        {envelopes.length === 0 && <EmptyState label={t("No envelopes")} />}
       </div>
     </section>
   );
@@ -337,6 +355,7 @@ function EnvelopeDetail({
   onChanged: () => void;
   user: User;
 }) {
+  const { t } = useI18n();
   const accept = useMutation({
     mutationFn: (envelopeId: string) =>
       acceptEnvelope(user.user_id, envelopeId),
@@ -351,7 +370,7 @@ function EnvelopeDetail({
   if (!envelope) {
     return (
       <div className="p-5">
-        <EmptyState label="Select an envelope" />
+        <EmptyState label={t("Select an envelope")} />
       </div>
     );
   }
@@ -367,7 +386,7 @@ function EnvelopeDetail({
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs text-ink-tertiary">
             <Inbox className="h-4 w-4" />
-            envelope detail
+            {t("envelope detail")}
           </div>
           <TruncatedText className="mt-2 text-2xl font-semibold">
             {envelope.message || envelope.payload_type}
@@ -381,9 +400,9 @@ function EnvelopeDetail({
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <section className="grid gap-3">
-          <InfoRow label="From" value={envelope.sender_email} />
-          <InfoRow label="To" value={envelope.recipient_email} />
-          <InfoRow label="Payload" value={envelope.payload_type} />
+          <InfoRow label={t("From")} value={envelope.sender_email} />
+          <InfoRow label={t("To")} value={envelope.recipient_email} />
+          <InfoRow label={t("Payload")} value={envelope.payload_type} />
           <pre className="max-h-[56vh] overflow-auto rounded-lg border border-hairline bg-surface-1 p-3 text-xs leading-6 text-ink-muted">
             {JSON.stringify(envelope.payload_json, null, 2)}
           </pre>
@@ -395,13 +414,13 @@ function EnvelopeDetail({
             onClick={() => accept.mutate(envelope.envelope_id)}
             tooltip={
               canAccept
-                ? "Accept envelope and unpack capsule"
-                : "Only pending received envelopes can be accepted"
+                ? t("Accept envelope and unpack capsule")
+                : t("Only pending received envelopes can be accepted")
             }
             type="button"
             variant="primary"
           >
-            Accept
+            {t("Accept")}
           </Button>
           <Button
             disabled={archive.isPending || envelope.status === "archived"}
@@ -409,7 +428,7 @@ function EnvelopeDetail({
             onClick={() => archive.mutate(envelope.envelope_id)}
             type="button"
           >
-            Archive
+            {t("Archive")}
           </Button>
           {accept.error && <InlineError error={accept.error} />}
           {archive.error && <InlineError error={archive.error} />}

@@ -1,3 +1,4 @@
+import { translators, type Translator } from "@/features/i18n/translate";
 import type { SessionDisplayStatus } from "@/features/runtime/session-display-status";
 import type {
   WorkActivityEvent,
@@ -8,7 +9,10 @@ type Tool = Extract<WorkActivityEvent, { type: "tool_call" }>;
 
 // Display-only interpretation of normalized events. Never use these labels to
 // derive session runtime status or infer thought from the absence of tool work.
-export function liveActivityLabel(events: readonly WorkActivityEvent[]) {
+export function liveActivityLabel(
+  events: readonly WorkActivityEvent[],
+  t: Translator = translators.en,
+) {
   const tools = events.filter(
     (event): event is Tool =>
       event.type === "tool_call" &&
@@ -20,42 +24,50 @@ export function liveActivityLabel(events: readonly WorkActivityEvent[]) {
       : tools.every((tool) => tool.status === "queued")
         ? "queued"
         : "active";
-    return `Using tools · ${tools.length} ${state}`;
+    return t(
+      state === "running"
+        ? "Using tools · {count} running"
+        : state === "queued"
+          ? "Using tools · {count} queued"
+          : "Using tools · {count} active",
+      { count: tools.length },
+    );
   }
   if (tools.length === 1) {
     const tool = tools[0];
-    if (tool.status === "queued") return "Tool queued…";
-    if (tool.status === "called") return "Using tools…";
-    return toolActivityLabel(tool);
+    if (tool.status === "queued") return t("Tool queued…");
+    if (tool.status === "called") return t("Using tools…");
+    return toolActivityLabel(tool, t);
   }
   const latest = events.at(-1);
   return latest?.type === "progress" && latest.streaming
-    ? "Thinking…"
-    : "Working…";
+    ? t("Thinking…")
+    : t("Working…");
 }
 
-function toolActivityLabel(tool: Tool) {
+function toolActivityLabel(tool: Tool, t: Translator) {
   const rawName = tool.name.trim().toLowerCase();
   const name = (
     /\s/.test(rawName) ? rawName : (rawName.split(/\.|:|__/).at(-1) ?? rawName)
   ).replace(/[_-]+/g, " ");
-  if (/^(run|running) tests?\b/.test(name)) return "Running tests…";
+  if (/^(run|running) tests?\b/.test(name)) return t("Running tests…");
   if (/^(web search|websearch|search web)\b/.test(name))
-    return "Searching the web…";
-  if (/^(web fetch|webfetch|browse|open url)\b/.test(name)) return "Browsing…";
-  if (/^(read|reading|view file)\b/.test(name)) return "Reading files…";
+    return t("Searching the web…");
+  if (/^(web fetch|webfetch|browse|open url)\b/.test(name))
+    return t("Browsing…");
+  if (/^(read|reading|view file)\b/.test(name)) return t("Reading files…");
   if (
     /^(edit|editing|apply patch|replace in file|multi edit|multiedit)\b/.test(
       name,
     )
   )
-    return "Editing files…";
-  if (/^(write|writing|create file)\b/.test(name)) return "Writing files…";
+    return t("Editing files…");
+  if (/^(write|writing|create file)\b/.test(name)) return t("Writing files…");
   if (
     /^(grep|glob|search|find files|list files|list directory|ls)\b/.test(name)
   )
-    return "Searching…";
-  if (/^(update plan|plan)\b/.test(name)) return "Updating plan…";
+    return t("Searching…");
+  if (/^(update plan|plan)\b/.test(name)) return t("Updating plan…");
   if (
     [
       "shell",
@@ -66,9 +78,11 @@ function toolActivityLabel(tool: Tool) {
       "terminal",
     ].includes(name)
   ) {
-    return isTestCommand(tool.input) ? "Running tests…" : "Running commands…";
+    return isTestCommand(tool.input)
+      ? t("Running tests…")
+      : t("Running commands…");
   }
-  return "Using tools…";
+  return t("Using tools…");
 }
 
 function isTestCommand(input: unknown) {

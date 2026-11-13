@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import { FormEvent, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
@@ -35,9 +36,10 @@ export function TeamMembersSection({
   teamId: string;
   userId: string;
 }) {
+  const { t } = useI18n();
   return (
     <section className="grid gap-3">
-      {isLoading && <EmptyState label="Loading members" />}
+      {isLoading && <EmptyState label={t("Loading members")} />}
       <div className="grid overflow-hidden rounded-lg border border-hairline">
         {members.map((member) => (
           <MemberRow
@@ -49,7 +51,7 @@ export function TeamMembersSection({
           />
         ))}
         {!isLoading && members.length === 0 && (
-          <EmptyState label="No active members" />
+          <EmptyState label={t("No active members")} />
         )}
       </div>
     </section>
@@ -65,6 +67,7 @@ export function InviteMemberForm({
   teamId: string;
   userId: string;
 }) {
+  const { t } = useI18n();
   const invalidateTeams = useTeamInvalidation(userId);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Exclude<TeamRole, "owner">>("member");
@@ -92,7 +95,7 @@ export function InviteMemberForm({
     >
       <div className="flex items-center gap-2 text-sm font-medium">
         <MailPlus className="h-4 w-4 text-ink-tertiary" />
-        Invite member
+        {t("Invite member")}
       </div>
       <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_140px_auto]">
         <input
@@ -109,8 +112,8 @@ export function InviteMemberForm({
           }
           value={role}
         >
-          <option value="member">Member</option>
-          <option value="operator">Operator</option>
+          <option value="member">{t("Member")}</option>
+          <option value="operator">{t("Operator")}</option>
         </select>
         <Button
           disabled={invite.isPending || !email.trim()}
@@ -118,7 +121,7 @@ export function InviteMemberForm({
           type="submit"
           variant="primary"
         >
-          Invite
+          {t("Invite")}
         </Button>
       </div>
       {invite.error && <InlineError error={invite.error} />}
@@ -137,6 +140,7 @@ function MemberRow({
   teamId: string;
   userId: string;
 }) {
+  const { t } = useI18n();
   const invalidateTeams = useTeamInvalidation(userId);
   const remove = useMutation({
     mutationFn: () => removeTeamMember(userId, teamId, member.user_id),
@@ -171,7 +175,7 @@ function MemberRow({
           className="w-full max-w-full justify-center"
           tone={teamRoleBadgeTone(member.role)}
         >
-          {displayTeamRole(member.role)}
+          {displayTeamRole(member.role, t)}
         </Badge>
       )}
       <Button
@@ -180,13 +184,13 @@ function MemberRow({
         size="sm"
         tooltip={
           canManage
-            ? "Remove member"
-            : "Only owners can remove non-owner members"
+            ? t("Remove member")
+            : t("Only owners can remove non-owner members")
         }
         type="button"
         variant="danger"
       >
-        Remove
+        {t("Remove")}
       </Button>
       {updateRole.error && <InlineError error={updateRole.error} />}
     </article>
@@ -202,6 +206,7 @@ function RoleSegment({
   onChange: (role: Exclude<TeamRole, "owner">) => void;
   value: Exclude<TeamRole, "owner">;
 }) {
+  const { t } = useI18n();
   const roles: Array<{
     label: string;
     value: Exclude<TeamRole, "owner">;
@@ -217,7 +222,7 @@ function RoleSegment({
 
         return (
           <button
-            aria-label={`Set role to ${role.label}`}
+            aria-label={t("Set role to {value1}", { value1: role.label })}
             className={`min-w-[88px] flex-1 px-3 text-xs font-medium transition ${
               selected
                 ? "bg-surface-3 text-ink"
@@ -228,7 +233,7 @@ function RoleSegment({
             onClick={() => onChange(role.value)}
             type="button"
           >
-            {role.label}
+            {t(role.label)}
           </button>
         );
       })}

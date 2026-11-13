@@ -2710,3 +2710,20 @@ it does not add HLS packaging, transcoding, or adaptive quality selection.
   voice-url）和
   `src/components/sessions/composer-voice-control.tsx`。React 组件不直接构造
   WebSocket 帧或处理音频数据。
+
+## 控制台中英文界面
+
+登录后的控制台支持英语与简体中文，桌面和移动端均可在顶栏选择语言。
+`features/i18n/locale-store.ts` 以独立 Zustand store 保存当前界面语言；
+浏览器 localStorage 的 `pax-console-locale` 仅保存显式选择，首次访问按
+浏览器语言优先级匹配，所有 `zh-*` 语言归为简体中文，其他语言回退英语。
+服务端与 hydration 首次渲染统一使用英语，`LocaleProvider` 在挂载后恢复
+浏览器偏好并同步 `html.lang`；禁用存储时仍可在当前页面切换，多标签页
+通过 storage 事件同步。语言偏好不写入服务端，也不放入 TanStack Query。
+
+组件通过 `useI18n()` 订阅语言，以英语源文案为键读取 `messages` 分域词典，
+动态文本使用命名参数插值；未知文案原样回退。语言切换只触发正常 React
+更新，不重挂载会话、不修改 DOM 文本。API 协议枚举、标识符、文件路径、
+用户和智能体消息、文件正文以及远端原始错误不做自动翻译。界面配置与状态
+标签在显示时翻译，memo/callback 使用 `t` 时需包含相应依赖。公开介绍页
+`/overview` 与 `/zh/overview` 保留独立语言路由。

@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
+
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { InlineError } from "@/components/ui/inline-error";
@@ -14,6 +16,7 @@ export function SessionBrowserApprovals({
   userId: string;
   nodeId: string;
 }) {
+  const { t } = useI18n();
   const query = useBrowserState(userId, nodeId);
   const [pendingDecision, setPendingDecision] = useState<{
     id: string;
@@ -55,15 +58,16 @@ export function SessionBrowserApprovals({
   if (!requests.length && !error) return null;
   return (
     <section
-      aria-label="Browser approval requests"
+      aria-label={t("Browser approval requests")}
       className="max-h-48 shrink-0 overflow-auto border-b border-hairline bg-surface px-3 py-2 sm:px-4"
     >
       <h3 className="text-sm font-medium" aria-live="polite">
-        Browser approval requests ({requests.length})
+        {t("Browser approval requests")} ({requests.length})
       </h3>
       <p className="text-xs text-ink-muted">
-        Requests from browsers on this node. Allow applies only to the
-        requesting browser session.
+        {t(
+          "Requests from browsers on this node. Allow applies only to the requesting browser session.",
+        )}
       </p>
       {query.error && <InlineError error={query.error} />}
       {error && <InlineError error={error} />}
@@ -74,7 +78,7 @@ export function SessionBrowserApprovals({
         >
           <span className="min-w-0 break-all">{request.origin}</span>
           <span className="flex items-center gap-1">
-            Browser <MonoId>{request.session}</MonoId>
+            {t("Browser")} <MonoId>{request.session}</MonoId>
           </span>
           <Button
             disabled={busy || query.data?.policy.paused}
@@ -82,8 +86,8 @@ export function SessionBrowserApprovals({
           >
             {pendingDecision?.id === request.id &&
             pendingDecision.decision === "allow"
-              ? "Allowing…"
-              : "Allow browser session"}
+              ? t("Allowing…")
+              : t("Allow browser session")}
           </Button>
           <Button
             disabled={busy}
@@ -91,20 +95,21 @@ export function SessionBrowserApprovals({
           >
             {pendingDecision?.id === request.id &&
             pendingDecision.decision === "deny"
-              ? "Denying…"
-              : "Deny"}
+              ? t("Denying…")
+              : t("Deny")}
           </Button>
           {pendingDecision?.id === request.id && (
             <span role="status" className="text-ink-muted">
-              Sending your decision…
+              {t("Sending your decision…")}
             </span>
           )}
         </div>
       ))}
       {query.data?.policy.paused && (
         <p className="text-xs text-ink-muted">
-          Browser control is paused. Resume it in node settings before allowing
-          access.
+          {t(
+            "Browser control is paused. Resume it in node settings before allowing access.",
+          )}
         </p>
       )}
     </section>

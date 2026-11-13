@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -128,6 +129,7 @@ function LocalFileFetchDialog({
   sessionId,
   userId,
 }: DialogFlowProps) {
+  const { t } = useI18n();
   const scope = localFileFetchScope(userId, sessionId);
   const [phase, setPhase] = useState<Phase>(() => {
     const record =
@@ -194,7 +196,7 @@ function LocalFileFetchDialog({
             {...shared}
             message={phase.message}
             onFetchAgain={fetchAgain}
-            title="Couldn't fetch the file"
+            title={t("Couldn't fetch the file")}
           />
         );
       case "publication":
@@ -236,6 +238,7 @@ function FetchDialogFrame({
 }
 
 function CopyPathButton({ path }: { path: string }) {
+  const { t } = useI18n();
   const { copied, copy } = useCopyFeedback();
   return (
     <Button
@@ -252,7 +255,7 @@ function CopyPathButton({ path }: { path: string }) {
       type="button"
       variant="secondary"
     >
-      {copied ? "Copied" : "Copy path"}
+      {copied ? t("Copied") : t("Copy path")}
     </Button>
   );
 }
@@ -264,15 +267,17 @@ function CloseButton({
   label?: string;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <Button onClick={onClose} size="sm" type="button" variant="ghost">
-      {label}
+      {t(label)}
     </Button>
   );
 }
 
 /** The exact path that will be read is the safety confirmation; always show it in full. */
 function PathBlock({ line, path }: { line?: number; path: string }) {
+  const { t } = useI18n();
   return (
     <div className="grid gap-1">
       <code className="block break-all rounded-md border border-hairline bg-canvas px-2.5 py-2 font-mono text-xs leading-5 text-ink">
@@ -280,7 +285,8 @@ function PathBlock({ line, path }: { line?: number; path: string }) {
       </code>
       {line !== undefined && (
         <span className="text-xs text-ink-tertiary">
-          Referenced at line {line}
+          {t("Referenced at line ")}
+          {line}
         </span>
       )}
     </div>
@@ -300,25 +306,27 @@ function ReuseView({
   record: LocalFileFetchRecord;
   request: LocalFileFetchRequest;
 }) {
+  const { t } = useI18n();
   return (
     <FetchDialogFrame
       footer={
         <>
           <CopyPathButton path={request.path} />
-          <CloseButton label="Cancel" onClose={onClose} />
+          <CloseButton label={t("Cancel")} onClose={onClose} />
           <Button onClick={onFetchAgain} size="sm" type="button">
-            Fetch again
+            {t("Fetch again")}
           </Button>
           <Button onClick={onOpen} size="sm" type="button" variant="primary">
-            Open fetched copy (fetched {clockTime(record.fetchedAt)})
+            {t("Open fetched copy (fetched ")}
+            {clockTime(record.fetchedAt)})
           </Button>
         </>
       }
       icon={<FileText className="h-4 w-4" />}
-      title="Already fetched"
+      title={t("Already fetched")}
     >
       <div className="grid gap-3">
-        <p>You already fetched this file in this session.</p>
+        <p>{t("You already fetched this file in this session.")}</p>
         <PathBlock line={request.line} path={request.path} />
       </div>
     </FetchDialogFrame>
@@ -342,6 +350,7 @@ function CheckView({
   sessionId: string;
   userId: string;
 }) {
+  const { t } = useI18n();
   const scope = localFileFetchScope(userId, sessionId);
   const recordFetch = useLocalFileFetchStore((state) => state.recordFetch);
   const check = useArtifactFetchCheck(userId, sessionId, request.path);
@@ -350,12 +359,12 @@ function CheckView({
   if (check.isError) {
     return (
       <MessageView
-        message={localFileFetchErrorMessage(check.error)}
+        message={localFileFetchErrorMessage(check.error, t)}
         onClose={onClose}
         onFetchAgain={() => void check.refetch()}
         request={request}
         retryLabel="Check again"
-        title="Couldn't check the file"
+        title={t("Couldn't check the file")}
       />
     );
   }
@@ -366,11 +375,11 @@ function CheckView({
         footer={
           <>
             <CopyPathButton path={request.path} />
-            <CloseButton label="Cancel" onClose={onClose} />
+            <CloseButton label={t("Cancel")} onClose={onClose} />
           </>
         }
         icon={<CloudDownload className="h-4 w-4" />}
-        title="Fetch file from the agent's machine"
+        title={t("Fetch file from the agent's machine")}
       >
         <div className="grid gap-3">
           <p className="flex items-center gap-2">
@@ -378,7 +387,7 @@ function CheckView({
               aria-hidden
               className="h-4 w-4 shrink-0 animate-spin"
             />
-            Checking the file on the agent&apos;s machine…
+            {t("Checking the file on the agent's machine…")}
           </p>
           <PathBlock line={request.line} path={request.path} />
         </div>
@@ -408,7 +417,7 @@ function CheckView({
 
   const confirm = () =>
     createFetch.mutate(path, {
-      onError: (error) => onError(localFileFetchErrorMessage(error)),
+      onError: (error) => onError(localFileFetchErrorMessage(error, t)),
       onSuccess: (fetchResult) => {
         if (!fetchResult.accepted) {
           onDenied(fetchResult.denial, path);
@@ -427,7 +436,7 @@ function CheckView({
       footer={
         <>
           <CopyPathButton path={path} />
-          <CloseButton label="Cancel" onClose={onClose} />
+          <CloseButton label={t("Cancel")} onClose={onClose} />
           <Button
             disabled={createFetch.isPending}
             icon={
@@ -440,29 +449,30 @@ function CheckView({
             type="button"
             variant="primary"
           >
-            Fetch and open
+            {t("Fetch and open")}
           </Button>
         </>
       }
       icon={<CloudDownload className="h-4 w-4" />}
-      title="Fetch file from the agent's machine"
+      title={t("Fetch file from the agent's machine")}
     >
       <div className="grid gap-3">
         <p>
-          This file is on the agent&apos;s machine. Fetch it to view it here.
+          {t("This file is on the agent's machine. Fetch it to view it here.")}
         </p>
         <PathBlock line={request.line} path={path} />
         {result.size_bytes !== undefined && (
           <dl className="flex gap-2 text-xs">
-            <dt className="text-ink-tertiary">Size</dt>
+            <dt className="text-ink-tertiary">{t("Size")}</dt>
             <dd className="font-mono text-ink-muted">
               {formatBytes(result.size_bytes)}
             </dd>
           </dl>
         )}
         <p className="text-xs leading-5 text-ink-tertiary">
-          The file will be uploaded to PAX cloud storage and appear in this
-          session&apos;s Artifacts panel.
+          {t(
+            "The file will be uploaded to PAX cloud storage and appear in this session's Artifacts panel.",
+          )}
         </p>
       </div>
     </FetchDialogFrame>
@@ -479,6 +489,7 @@ function DeniedView({
   path: string;
   request: LocalFileFetchRequest;
 }) {
+  const { t } = useI18n();
   return (
     <FetchDialogFrame
       footer={
@@ -488,14 +499,14 @@ function DeniedView({
         </>
       }
       icon={<ShieldAlert className="h-4 w-4 text-warning" />}
-      title="This file can't be fetched"
+      title={t("This file can't be fetched")}
     >
       <div className="grid gap-3">
-        <p className="text-ink">{localFileDenialMessage(denial, path)}</p>
+        <p className="text-ink">{localFileDenialMessage(denial, path, t)}</p>
         <PathBlock path={path} />
         {denial.rule && (
           <p className="flex items-center gap-1.5 text-xs text-ink-tertiary">
-            <span>Rule</span>
+            <span>{t("Rule")}</span>
             <code className="font-mono">{denial.rule}</code>
           </p>
         )}
@@ -519,6 +530,7 @@ function MessageView({
   retryLabel?: string;
   title: string;
 }) {
+  const { t } = useI18n();
   return (
     <FetchDialogFrame
       footer={
@@ -526,7 +538,7 @@ function MessageView({
           <CopyPathButton path={request.path} />
           {onFetchAgain && (
             <Button onClick={onFetchAgain} size="sm" type="button">
-              {retryLabel}
+              {t(retryLabel)}
             </Button>
           )}
           <CloseButton onClose={onClose} />
@@ -562,6 +574,7 @@ function PublicationView({
   sessionId: string;
   userId: string;
 }) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const forgetFetch = useLocalFileFetchStore((state) => state.forgetFetch);
   const publicationQuery = useArtifactPublication(userId, publicationId);
@@ -615,6 +628,7 @@ function PublicationView({
         message={localFilePublicationFailureMessage(
           publication?.error_code,
           publication?.error_message,
+          t,
         )}
         onClose={onClose}
         onFetchAgain={
@@ -623,7 +637,7 @@ function PublicationView({
             : onFetchAgain
         }
         request={request}
-        title="Upload blocked"
+        title={t("Upload blocked")}
       />
     );
   }
@@ -631,11 +645,11 @@ function PublicationView({
   if (publicationQuery.isError && !publication) {
     return (
       <MessageView
-        message={localFileFetchErrorMessage(publicationQuery.error)}
+        message={localFileFetchErrorMessage(publicationQuery.error, t)}
         onClose={onClose}
         onFetchAgain={onFetchAgain}
         request={request}
-        title="Couldn't fetch the file"
+        title={t("Couldn't fetch the file")}
       />
     );
   }
@@ -649,17 +663,20 @@ function PublicationView({
         </>
       }
       icon={<CloudDownload className="h-4 w-4" />}
-      title="Fetching file"
+      title={t("Fetching file")}
     >
       <div className="grid gap-3">
         <p className="flex items-center gap-2 text-ink" role="status">
           <LoaderCircle aria-hidden className="h-4 w-4 shrink-0 animate-spin" />
-          <span>{status === "uploading" ? "Uploading…" : "Preparing…"}</span>
+          <span>
+            {status === "uploading" ? t("Uploading…") : t("Preparing…")}
+          </span>
         </p>
         <PathBlock path={path} />
         <p className="text-xs leading-5 text-ink-tertiary">
-          You can close this dialog. The file will appear in the session&apos;s
-          Artifacts panel when the upload finishes.
+          {t(
+            "You can close this dialog. The file will appear in the session's Artifacts panel when the upload finishes.",
+          )}
         </p>
       </div>
     </FetchDialogFrame>

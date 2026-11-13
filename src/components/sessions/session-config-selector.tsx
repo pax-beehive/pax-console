@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
+
 import { LoaderCircle, RefreshCw, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SessionSettings, useSessionSettings } from "./session-settings";
@@ -78,6 +80,7 @@ export function configurationSummary(configuration?: SessionConfiguration) {
 }
 
 export function SessionConfigSelector(props: SessionConfigSelectorProps) {
+  const { t } = useI18n();
   const settings = useSessionSettings();
   const model = configurationModel(props.configuration);
   if (!settings)
@@ -85,14 +88,18 @@ export function SessionConfigSelector(props: SessionConfigSelectorProps) {
       <SessionSettings
         trigger={
           <Button
-            aria-label={`Session configuration${model ? `, model ${model}` : ""}`}
+            aria-label={
+              model
+                ? t("Session configuration, model {model}", { model })
+                : t("Session configuration")
+            }
             type="button"
             variant="ghost"
             size="sm"
             disabled={props.disabled}
             icon={<SlidersHorizontal className="h-3.5 w-3.5" />}
           >
-            {model ?? "Config"}
+            {model ?? t("Config")}
           </Button>
         }
       >
@@ -112,6 +119,7 @@ function SessionConfigFields({
   pendingOptionId,
   refreshing,
 }: SessionConfigSelectorProps) {
+  const { t } = useI18n();
   const settings = useSessionSettings()!;
   const options =
     configuration?.options.filter((option) => !isPermissionOption(option)) ??
@@ -126,7 +134,9 @@ function SessionConfigFields({
     if (!option)
       return (
         <p role="status" className="px-3 py-4 text-sm text-ink-muted">
-          This option is no longer available. Go back to settings to refresh.
+          {t(
+            "This option is no longer available. Go back to settings to refresh.",
+          )}
         </p>
       );
     const candidates = option.options ?? [];
@@ -170,9 +180,11 @@ function SessionConfigFields({
   return (
     <>
       <div className="flex items-center justify-between px-3 pb-2">
-        <span className="text-xs text-ink-tertiary">Agent configuration</span>
+        <span className="text-xs text-ink-tertiary">
+          {t("Agent configuration")}
+        </span>
         <Button
-          aria-label="Force refresh session configuration"
+          aria-label={t("Force refresh session configuration")}
           variant="ghost"
           size="icon"
           type="button"
@@ -189,7 +201,7 @@ function SessionConfigFields({
       </div>
       {loading && !options.length && (
         <p className="px-3 pb-3 text-sm text-ink-muted">
-          Loading configuration...
+          {t("Loading configuration...")}
         </p>
       )}
       {errorMessage && (
@@ -202,8 +214,9 @@ function SessionConfigFields({
         !configuration?.legacy_models?.available?.length &&
         !errorMessage && (
           <p className="px-3 pb-3 text-sm text-ink-muted">
-            This agent has not reported model or session configuration for this
-            session.
+            {t(
+              "This agent has not reported model or session configuration for this session.",
+            )}
           </p>
         )}
       <div className="grid gap-1">
@@ -239,13 +252,13 @@ function SessionConfigFields({
         Boolean(configuration?.legacy_models?.available?.length) && (
           <div>
             <SettingsRow
-              label="Model"
+              label={t("Model")}
               value={configurationModel(configuration)}
-              ariaLabel="Legacy model"
+              ariaLabel={t("Legacy model")}
               disabled
               onClick={() => {}}
             />
-            <SettingsChoices label="Legacy models">
+            <SettingsChoices label={t("Legacy models")}>
               {configuration?.legacy_models?.available?.map((candidate) => (
                 <SettingsChoice
                   key={candidate.id}
@@ -261,7 +274,7 @@ function SessionConfigFields({
               ))}
             </SettingsChoices>
             <p className="px-3 pb-3 text-xs leading-5 text-ink-tertiary">
-              Model switching is unavailable for this session.
+              {t("Model switching is unavailable for this session.")}
             </p>
           </div>
         )}

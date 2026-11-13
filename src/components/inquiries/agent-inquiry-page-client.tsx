@@ -1,4 +1,5 @@
 "use client";
+import { useI18n, type Translator } from "@/features/i18n/use-i18n";
 
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -44,6 +45,7 @@ type AgentInquiryPageClientProps = {
 };
 
 export function AgentInquiryPageClient({ user }: AgentInquiryPageClientProps) {
+  const { t } = useI18n();
   const router = useRouter();
   const queryClient = useQueryClient();
   const [sourceAgentId, setSourceAgentId] = useState("");
@@ -134,7 +136,7 @@ export function AgentInquiryPageClient({ user }: AgentInquiryPageClientProps) {
   const inquiryMutation = useMutation({
     mutationFn: async () => {
       if (!sourceAgent || !targetAgent) {
-        throw new Error("Select source and target agents");
+        throw new Error(t("Select source and target agents"));
       }
       const ensuredSourceRep =
         sourceRep ??
@@ -202,9 +204,11 @@ export function AgentInquiryPageClient({ user }: AgentInquiryPageClientProps) {
               <MessageSquareText className="h-4 w-4 text-ink-subtle" />
               <div className="min-w-0">
                 <div className="text-[11px] uppercase tracking-[0.18em] text-ink-tertiary">
-                  Settings
+                  {t("Settings")}
                 </div>
-                <h1 className="mt-1 text-lg font-semibold">Agent inquiries</h1>
+                <h1 className="mt-1 text-lg font-semibold">
+                  {t("Agent inquiries")}
+                </h1>
               </div>
             </div>
             <Button
@@ -219,7 +223,7 @@ export function AgentInquiryPageClient({ user }: AgentInquiryPageClientProps) {
               type="button"
               variant="ghost"
             >
-              Refresh
+              {t("Refresh")}
             </Button>
           </div>
         </header>
@@ -229,7 +233,7 @@ export function AgentInquiryPageClient({ user }: AgentInquiryPageClientProps) {
             <div className="grid gap-4">
               <AgentSelector
                 agents={agents}
-                label="Source agent"
+                label={t("Source agent")}
                 loading={loadingAgents}
                 mutationPending={ensureRepMutation.isPending}
                 onEnsure={() =>
@@ -244,7 +248,7 @@ export function AgentInquiryPageClient({ user }: AgentInquiryPageClientProps) {
               </div>
               <AgentSelector
                 agents={agents}
-                label="Target agent"
+                label={t("Target agent")}
                 loading={loadingAgents}
                 mutationPending={ensureRepMutation.isPending}
                 onEnsure={() =>
@@ -259,13 +263,13 @@ export function AgentInquiryPageClient({ user }: AgentInquiryPageClientProps) {
                   className="text-xs text-ink-tertiary"
                   htmlFor="conversation-id"
                 >
-                  Conversation
+                  {t("Conversation")}
                 </label>
                 <input
                   className="mt-2 h-9 w-full rounded-md border border-hairline bg-canvas px-3 font-mono text-xs text-ink outline-none focus:border-hairline-strong"
                   id="conversation-id"
                   onChange={(event) => setConversationId(event.target.value)}
-                  placeholder="new conversation"
+                  placeholder={t("new conversation")}
                   value={conversationId}
                 />
               </div>
@@ -288,7 +292,7 @@ export function AgentInquiryPageClient({ user }: AgentInquiryPageClientProps) {
                     className="text-xs text-ink-tertiary"
                     htmlFor="max-turns"
                   >
-                    Turns
+                    {t("Turns")}
                   </label>
                   <input
                     className="h-8 w-16 rounded-md border border-hairline bg-canvas px-2 text-sm text-ink outline-none focus:border-hairline-strong"
@@ -313,7 +317,7 @@ export function AgentInquiryPageClient({ user }: AgentInquiryPageClientProps) {
                   type="submit"
                   variant="primary"
                 >
-                  Send inquiry
+                  {t("Send inquiry")}
                 </Button>
               </div>
             </form>
@@ -321,7 +325,7 @@ export function AgentInquiryPageClient({ user }: AgentInquiryPageClientProps) {
             <div className="min-h-0 flex-1 overflow-y-auto p-4">
               {error && (
                 <div className="mb-4 border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
-                  {errorMessage(error)}
+                  {errorMessage(error, t)}
                 </div>
               )}
               {inquiryMutation.data && (
@@ -333,7 +337,7 @@ export function AgentInquiryPageClient({ user }: AgentInquiryPageClientProps) {
                         : "warning"
                     }
                   >
-                    {inquiryMutation.data.delivery.status}
+                    {t(inquiryMutation.data.delivery.status)}
                   </Badge>
                   <MonoId>
                     {inquiryMutation.data.conversation.conversation_id}
@@ -351,7 +355,7 @@ export function AgentInquiryPageClient({ user }: AgentInquiryPageClientProps) {
                     type="button"
                     variant="secondary"
                   >
-                    Open conversation
+                    {t("Open conversation")}
                   </Button>
                   {inquiryMutation.data.delivery.error && (
                     <span className="text-xs text-ink-tertiary">
@@ -368,7 +372,7 @@ export function AgentInquiryPageClient({ user }: AgentInquiryPageClientProps) {
                   >
                     <div className="mb-1 flex items-center gap-2">
                       <Badge>
-                        {message.direction ?? message.role ?? "message"}
+                        {message.direction ?? message.role ?? t("message")}
                       </Badge>
                       <MonoId>{compactId(message.message_id)}</MonoId>
                     </div>
@@ -382,12 +386,12 @@ export function AgentInquiryPageClient({ user }: AgentInquiryPageClientProps) {
                 ))}
                 {conversationId && messagesQuery.isLoading && (
                   <div className="text-sm text-ink-tertiary">
-                    Loading messages
+                    {t("Loading messages")}
                   </div>
                 )}
                 {!conversationId && (
                   <div className="text-sm text-ink-tertiary">
-                    No conversation selected
+                    {t("No conversation selected")}
                   </div>
                 )}
               </div>
@@ -418,6 +422,7 @@ function AgentSelector({
   representative?: RepresentativeAgent;
   selectedAgentId: string;
 }) {
+  const { t } = useI18n();
   const selected = agents.find((agent) => agent.agent_id === selectedAgentId);
 
   return (
@@ -425,7 +430,7 @@ function AgentSelector({
       <div className="mb-2 flex items-center justify-between gap-2">
         <label className="text-xs text-ink-tertiary">{label}</label>
         <Badge tone={representative ? "success" : "warning"}>
-          {representative ? "ready" : "needs representative"}
+          {representative ? t("ready") : t("needs representative")}
         </Badge>
       </div>
       <select
@@ -443,9 +448,11 @@ function AgentSelector({
       <div className="mt-2 flex min-w-0 items-center justify-between gap-2">
         <div className="min-w-0">
           <TruncatedText className="text-xs text-ink-subtle">
-            {selected ? selected.nodeLabel : "No agent"}
+            {selected ? selected.nodeLabel : t("No agent")}
           </TruncatedText>
-          <MonoId>{selected ? compactId(selected.agent_id) : "agent"}</MonoId>
+          <MonoId>
+            {selected ? compactId(selected.agent_id) : t("agent")}
+          </MonoId>
           {representative && (
             <MonoId>{compactId(representative.representative_agent_id)}</MonoId>
           )}
@@ -456,21 +463,23 @@ function AgentSelector({
           onClick={onEnsure}
           size="sm"
           tooltip={
-            representative ? "Representative exists" : "Create representative"
+            representative
+              ? t("Representative exists")
+              : t("Create representative")
           }
           type="button"
           variant={representative ? "ghost" : "secondary"}
         >
-          {representative ? "Created" : "Create representative"}
+          {representative ? t("Created") : t("Create representative")}
         </Button>
       </div>
     </div>
   );
 }
 
-function errorMessage(error: unknown) {
+function errorMessage(error: unknown, t: Translator) {
   if (error instanceof ApiError || error instanceof Error) {
     return error.message;
   }
-  return "Request failed";
+  return t("Request failed");
 }

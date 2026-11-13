@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -55,6 +57,7 @@ export function NodeDetailPageClient({
   nodeId,
   user,
 }: NodeDetailPageClientProps) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const router = useRouter();
   const [nodeDeleteOpen, setNodeDeleteOpen] = useState(false);
@@ -75,7 +78,7 @@ export function NodeDetailPageClient({
       <DetailShell
         backHref="/settings/devices?view=nodes"
         error={nodeQuery.error}
-        eyebrow="device detail"
+        eyebrow={t("device detail")}
         icon={<Server className="h-4 w-4" />}
         title={node?.name ?? node?.hostname ?? nodeId}
       >
@@ -85,7 +88,7 @@ export function NodeDetailPageClient({
             <DetailCard
               rows={[
                 ["Node ID", node?.node_id ?? nodeId],
-                ["Status", nodeStatus(node)],
+                ["Status", t(nodeStatus(node))],
                 ["Host", node?.hostname ?? "unknown"],
                 ["OS", `${node?.os ?? "unknown"} / ${node?.arch ?? "unknown"}`],
                 ["Machine", node?.machine_type ?? "unknown"],
@@ -94,13 +97,16 @@ export function NodeDetailPageClient({
                 ["Last heartbeat", node?.last_heartbeat ?? "unknown"],
                 ["Registered", node?.registered_at ?? "unknown"],
               ]}
-              title="Runtime"
+              title={t("Runtime")}
             />
             <details>
               <summary className="cursor-pointer text-sm text-ink-tertiary">
-                System metadata
+                {t("System metadata")}
               </summary>
-              <MetadataCard title="System metadata" value={node?.metadata} />
+              <MetadataCard
+                title={t("System metadata")}
+                value={node?.metadata}
+              />
             </details>
           </div>
         </div>
@@ -113,12 +119,14 @@ export function NodeDetailPageClient({
 
         <details className="rounded-lg border border-hairline bg-surface-1 p-4">
           <summary className="cursor-pointer text-sm font-medium">
-            Advanced device settings
+            {t("Advanced device settings")}
           </summary>
           <div className="mt-4 grid gap-4">
             {node && (
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-sm font-medium">Update or restart paxd</h2>
+                <h2 className="text-sm font-medium">
+                  {t("Update or restart paxd")}
+                </h2>
                 <NodeMaintenanceActions
                   nodeId={nodeId}
                   nodeLabel={nodeLabel(node)}
@@ -148,32 +156,39 @@ export function NodeDetailPageClient({
             )}
 
             <CleanupActionCard
-              actionLabel={removeNode.isPending ? "Deleting..." : "Delete node"}
-              description="This removes the node from the fleet view and cleans up agents hosted on this node."
+              actionLabel={
+                removeNode.isPending ? t("Deleting...") : t("Delete node")
+              }
+              description={t(
+                "This removes the node from the fleet view and cleans up agents hosted on this node.",
+              )}
               disabled={!node || removeNode.isPending}
               error={removeNode.error}
               onDelete={() => setNodeDeleteOpen(true)}
-              title="Cleanup node"
+              title={t("Cleanup node")}
             />
           </div>
         </details>
         <ConfirmDialog
-          confirmLabel={removeNode.isPending ? "Deleting..." : "Delete node"}
+          confirmLabel={
+            removeNode.isPending ? t("Deleting...") : t("Delete node")
+          }
           description={
             <>
-              This removes{" "}
+              {t("This removes")}{" "}
               <span className="font-medium text-ink">
                 {node?.name ?? node?.hostname ?? nodeId}
               </span>{" "}
-              from the fleet view. Agents hosted on this node will be cleaned up
-              at the same time.
+              {t(
+                "from the fleet view. Agents hosted on this node will be cleaned up at the same time.",
+              )}
             </>
           }
           disabled={!node || removeNode.isPending}
           onConfirm={() => removeNode.mutate()}
           onOpenChange={setNodeDeleteOpen}
           open={nodeDeleteOpen}
-          title="Delete node?"
+          title={t("Delete node?")}
         />
       </DetailShell>
     </ConsoleLayout>
@@ -185,6 +200,7 @@ export function AgentDetailPageClient({
   nodeId,
   user,
 }: AgentDetailPageClientProps) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const router = useRouter();
   const [agentDeleteOpen, setAgentDeleteOpen] = useState(false);
@@ -212,12 +228,16 @@ export function AgentDetailPageClient({
       <DetailShell
         backHref="/settings/devices?view=agents"
         error={agentQuery.error ?? sessionsQuery.error}
-        eyebrow="agent detail"
+        eyebrow={t("agent detail")}
         icon={<Bot className="h-4 w-4" />}
         title={agent?.name ?? agent?.agent_type ?? agentId}
       >
         {!activeNodeId && (
-          <Notice message="Agent runtime node is not loaded yet. Sessions and profile edits will appear once the agent detail is available." />
+          <Notice
+            message={t(
+              "Agent runtime node is not loaded yet. Sessions and profile edits will appear once the agent detail is available.",
+            )}
+          />
         )}
 
         <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -234,14 +254,20 @@ export function AgentDetailPageClient({
                 ],
                 ["Node ID", agent?.node_id ?? activeNodeId ?? "unknown"],
                 ["Type", agent?.agent_type ?? "unknown"],
-                ["Status", agentStatus(agent)],
+                ["Status", t(agentStatus(agent))],
                 ["Last heartbeat", agent?.last_heartbeat ?? "unknown"],
                 ["Registered", agent?.registered_at ?? "unknown"],
               ]}
-              title="Runtime"
+              title={t("Runtime")}
             />
-            <MetadataCard title="Capabilities" value={agent?.capabilities} />
-            <MetadataCard title="System metadata" value={agent?.metadata} />
+            <MetadataCard
+              title={t("Capabilities")}
+              value={agent?.capabilities}
+            />
+            <MetadataCard
+              title={t("System metadata")}
+              value={agent?.metadata}
+            />
           </div>
         </div>
 
@@ -255,7 +281,7 @@ export function AgentDetailPageClient({
         )}
 
         <section className="grid gap-3">
-          <SectionHeader count={sessions.length} title="Recent sessions" />
+          <SectionHeader count={sessions.length} title={t("Recent sessions")} />
           <div className="grid min-w-0 overflow-hidden rounded-lg border border-hairline">
             {sessions.map((session) => (
               <Link
@@ -268,11 +294,13 @@ export function AgentDetailPageClient({
                     {session.name ?? session.current_task ?? session.session_id}
                   </TruncatedText>
                   <TruncatedText className="mt-1 text-sm text-ink-muted">
-                    {session.preview ?? session.current_task ?? "Open session"}
+                    {session.preview ??
+                      session.current_task ??
+                      t("Open session")}
                   </TruncatedText>
                 </div>
                 <div className="flex items-start lg:justify-end">
-                  <Badge>{session.runtime_status ?? "unknown"}</Badge>
+                  <Badge>{t(session.runtime_status ?? "unknown")}</Badge>
                 </div>
               </Link>
             ))}
@@ -280,30 +308,37 @@ export function AgentDetailPageClient({
         </section>
 
         <CleanupActionCard
-          actionLabel={removeAgent.isPending ? "Deleting..." : "Delete agent"}
-          description="This removes the agent from the agents list. Existing sessions remain as history."
+          actionLabel={
+            removeAgent.isPending ? t("Deleting...") : t("Delete agent")
+          }
+          description={t(
+            "This removes the agent from the agents list. Existing sessions remain as history.",
+          )}
           disabled={!agent || removeAgent.isPending}
           error={removeAgent.error}
           onDelete={() => setAgentDeleteOpen(true)}
-          title="Cleanup agent"
+          title={t("Cleanup agent")}
         />
         <ConfirmDialog
-          confirmLabel={removeAgent.isPending ? "Deleting..." : "Delete agent"}
+          confirmLabel={
+            removeAgent.isPending ? t("Deleting...") : t("Delete agent")
+          }
           description={
             <>
-              This removes{" "}
+              {t("This removes")}{" "}
               <span className="font-medium text-ink">
                 {agent?.name ?? agent?.agent_type ?? agentId}
               </span>{" "}
-              from the agents list. Other agents on the same node are not
-              affected.
+              {t(
+                "from the agents list. Other agents on the same node are not affected.",
+              )}
             </>
           }
           disabled={!agent || removeAgent.isPending}
           onConfirm={() => removeAgent.mutate()}
           onOpenChange={setAgentDeleteOpen}
           open={agentDeleteOpen}
-          title="Delete agent?"
+          title={t("Delete agent?")}
         />
       </DetailShell>
     </ConsoleLayout>
@@ -336,6 +371,7 @@ function NodeProfileForm({
   node?: Node;
   userId: string;
 }) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [baseUserMetadata, setBaseUserMetadata] = useState(initialUserMetadata);
   const [name, setName] = useState(initialName);
@@ -349,7 +385,7 @@ function NodeProfileForm({
   const save = useMutation({
     mutationFn: () => {
       if (!node) {
-        throw new Error("Node is not loaded.");
+        throw new Error(t("Node is not loaded."));
       }
       return updateNodeProfile(userId, node.node_id, {
         description: blankAsUndefined(description),
@@ -390,45 +426,45 @@ function NodeProfileForm({
       error={save.error}
       onReset={reset}
       onSave={() => save.mutate()}
-      title="Profile"
+      title={t("Profile")}
     >
       <TextField
         disabled={!node || save.isPending}
-        label="Name"
+        label={t("Name")}
         onChange={setName}
-        placeholder="desk mac"
+        placeholder={t("desk mac")}
         value={name}
       />
       <TextAreaField
         disabled={!node || save.isPending}
-        label="Description"
+        label={t("Description")}
         onChange={setDescription}
-        placeholder="Main development workstation"
+        placeholder={t("Main development workstation")}
         value={description}
       />
       <TextField
         disabled={!node || save.isPending}
-        label="Labels"
+        label={t("Labels")}
         onChange={setLabels}
-        placeholder="primary, local"
+        placeholder={t("primary, local")}
         value={labels}
       />
       <TextAreaField
         disabled={!node || save.isPending}
-        label="Notes"
+        label={t("Notes")}
         onChange={setNotes}
-        placeholder="Use this machine for local builds"
+        placeholder={t("Use this machine for local builds")}
         value={notes}
       />
       <details className="grid gap-3">
         <summary className="mb-3 cursor-pointer text-sm text-ink-tertiary">
-          Advanced routing
+          {t("Advanced routing")}
         </summary>
         <TextField
           disabled={!node || save.isPending}
-          label="Routing hint"
+          label={t("Routing hint")}
           onChange={setRoutingHint}
-          placeholder="prefer for local tasks"
+          placeholder={t("prefer for local tasks")}
           value={routingHint}
         />
       </details>
@@ -471,6 +507,7 @@ function AgentProfileForm({
   initialUserMetadata: ApiRecord;
   userId: string;
 }) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [baseCard, setBaseCard] = useState(initialCard);
   const [baseUserMetadata, setBaseUserMetadata] = useState(initialUserMetadata);
@@ -495,7 +532,7 @@ function AgentProfileForm({
   const save = useMutation({
     mutationFn: () => {
       if (!agent?.node_id) {
-        throw new Error("Agent runtime node is not loaded.");
+        throw new Error(t("Agent runtime node is not loaded."));
       }
       return updateNodeAgentProfile(userId, agent.node_id, agent.agent_id, {
         card: buildAgentCard(baseCard, {
@@ -557,74 +594,74 @@ function AgentProfileForm({
       error={save.error}
       onReset={reset}
       onSave={() => save.mutate()}
-      title="Profile"
+      title={t("Profile")}
     >
       <TextField
         disabled={!agent || save.isPending}
-        label="Name"
+        label={t("Name")}
         onChange={setName}
-        placeholder="reviewer"
+        placeholder={t("reviewer")}
         value={name}
       />
       <TextAreaField
         disabled={!agent || save.isPending}
-        label="Description"
+        label={t("Description")}
         onChange={setDescription}
-        placeholder="Reviews risky changes"
+        placeholder={t("Reviews risky changes")}
         value={description}
       />
       <details>
         <summary className="mb-3 cursor-pointer text-sm text-ink-tertiary">
-          Advanced profile and routing
+          {t("Advanced profile and routing")}
         </summary>
         <div className="grid gap-3">
           <TextField
             disabled={!agent || save.isPending}
-            label="Routing tags"
+            label={t("Routing tags")}
             onChange={setRoutingTags}
-            placeholder="review, backend"
+            placeholder={t("review, backend")}
             value={routingTags}
           />
           <TextField
             disabled={!agent || save.isPending}
-            label="Skills"
+            label={t("Skills")}
             onChange={setSkills}
-            placeholder="review, tests"
+            placeholder={t("review, tests")}
             value={skills}
           />
           <TextField
             disabled={!agent || save.isPending}
-            label="Specialties"
+            label={t("Specialties")}
             onChange={setSpecialties}
-            placeholder="api, postgres"
+            placeholder={t("api, postgres")}
             value={specialties}
           />
           <TextAreaField
             disabled={!agent || save.isPending}
-            label="Capability notes"
+            label={t("Capability notes")}
             onChange={setCapabilityNotes}
-            placeholder="Strong at risky API and migration reviews"
+            placeholder={t("Strong at risky API and migration reviews")}
             value={capabilityNotes}
           />
           <TextField
             disabled={!agent || save.isPending}
-            label="Labels"
+            label={t("Labels")}
             onChange={setLabels}
-            placeholder="favorite, local"
+            placeholder={t("favorite, local")}
             value={labels}
           />
           <TextAreaField
             disabled={!agent || save.isPending}
-            label="Notes"
+            label={t("Notes")}
             onChange={setNotes}
-            placeholder="Use before merging backend changes"
+            placeholder={t("Use before merging backend changes")}
             value={notes}
           />
           <TextField
             disabled={!agent || save.isPending}
-            label="Routing hint"
+            label={t("Routing hint")}
             onChange={setRoutingHint}
-            placeholder="prefer for API changes"
+            placeholder={t("prefer for API changes")}
             value={routingHint}
           />
         </div>
@@ -648,6 +685,7 @@ function ProfileForm({
   onSave: () => void;
   title: string;
 }) {
+  const { t } = useI18n();
   return (
     <section className="min-w-0 rounded-lg border border-hairline bg-surface-1 p-3">
       <div className="flex min-w-0 items-center justify-between gap-3">
@@ -658,7 +696,7 @@ function ProfileForm({
             icon={<Undo2 className="h-4 w-4" />}
             onClick={onReset}
             size="icon"
-            tooltip="Reset profile form"
+            tooltip={t("Reset profile form")}
             type="button"
             variant="ghost"
           />
@@ -667,7 +705,7 @@ function ProfileForm({
             icon={<Save className="h-4 w-4" />}
             onClick={onSave}
             size="icon"
-            tooltip="Save profile"
+            tooltip={t("Save profile")}
             type="button"
             variant="primary"
           />
@@ -793,6 +831,7 @@ function DetailShell({
   icon: React.ReactNode;
   title: string;
 }) {
+  const { t } = useI18n();
   return (
     <div className="grid min-h-0 flex-1 content-start gap-5 overflow-y-auto overscroll-contain p-5">
       <header className="flex items-center justify-between border-b border-hairline pb-4">
@@ -802,7 +841,7 @@ function DetailShell({
             href={backHref}
           >
             <ArrowLeft className="h-4 w-4" />
-            Back
+            {t("Back")}
           </Link>
           <div className="mt-4 flex items-center gap-2 text-sm text-ink-tertiary">
             {icon}
@@ -820,6 +859,7 @@ function DetailShell({
 }
 
 function DetailCard({ rows, title }: { rows: string[][]; title: string }) {
+  const { t } = useI18n();
   return (
     <section className="min-w-0 rounded-lg border border-hairline bg-surface-1 p-3">
       <h2 className="text-base font-medium">{title}</h2>
@@ -830,7 +870,7 @@ function DetailCard({ rows, title }: { rows: string[][]; title: string }) {
             key={label}
           >
             <TruncatedText className="text-xs text-ink-tertiary">
-              {label}
+              {t(label)}
             </TruncatedText>
             <MonoId className="text-ink-muted" tooltip={value}>
               {value.startsWith("node_") ||
@@ -847,6 +887,7 @@ function DetailCard({ rows, title }: { rows: string[][]; title: string }) {
 }
 
 function MetadataCard({ title, value }: { title: string; value?: unknown }) {
+  const { t } = useI18n();
   const entries = Object.entries(asRecord(value));
 
   return (
@@ -854,7 +895,7 @@ function MetadataCard({ title, value }: { title: string; value?: unknown }) {
       <h2 className="text-base font-medium">{title}</h2>
       {entries.length === 0 ? (
         <div className="mt-3 rounded-md border border-dashed border-hairline bg-canvas p-3 text-sm text-ink-tertiary">
-          No data reported
+          {t("No data reported")}
         </div>
       ) : (
         <div className="mt-3 grid overflow-hidden rounded-md border border-hairline">
@@ -876,6 +917,7 @@ function MetadataCard({ title, value }: { title: string; value?: unknown }) {
 }
 
 function MetadataValue({ value }: { value: unknown }) {
+  const { t } = useI18n();
   if (isScalar(value)) {
     const text = String(value);
     return (
@@ -889,7 +931,7 @@ function MetadataValue({ value }: { value: unknown }) {
     if (value.length === 0) {
       return (
         <TruncatedText className="text-sm text-ink-tertiary">
-          Empty
+          {t("Empty")}
         </TruncatedText>
       );
     }
@@ -908,7 +950,9 @@ function MetadataValue({ value }: { value: unknown }) {
   return (
     <details className="min-w-0 text-xs text-ink-muted">
       <summary className="cursor-pointer text-ink-subtle">
-        {Array.isArray(value) ? `${value.length} items` : "Object"}
+        {Array.isArray(value)
+          ? t("{value1} items", { value1: value.length })
+          : t("Object")}
       </summary>
       <pre className="mt-2 max-h-56 max-w-full overflow-auto rounded-md border border-hairline bg-canvas p-2 leading-6">
         {JSON.stringify(value ?? {}, null, 2)}
@@ -927,11 +971,12 @@ function SectionHeader({ count, title }: { count: number; title: string }) {
 }
 
 function Notice({ message }: { message: string }) {
+  const { t } = useI18n();
   return (
     <div className="flex min-w-0 items-start gap-3 rounded-lg border border-hairline bg-surface-1 p-3 text-sm text-ink-muted">
       <AlertCircle className="mt-0.5 h-4 w-4 text-warning" />
       <div className="min-w-0">
-        <div className="font-medium text-ink">Detail request notice</div>
+        <div className="font-medium text-ink">{t("Detail request notice")}</div>
         <TruncatedText className="mt-1 font-mono text-xs text-ink-tertiary">
           {message}
         </TruncatedText>

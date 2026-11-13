@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
+
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { InlineError } from "@/components/ui/inline-error";
@@ -10,6 +12,7 @@ export function VNCTextInput({
 }: {
   sendText: (text: string) => Promise<void>;
 }) {
+  const { t } = useI18n();
   const [draft, setDraft] = useState("");
   const draftRef = useRef("");
   const [composing, setComposing] = useState(false);
@@ -55,8 +58,12 @@ export function VNCTextInput({
         setError(
           new Error(
             unsupported
-              ? "Remote text input is not supported by this node. Update paxd and the Docker browser runtime, then reconnect. Text was not replayed."
-              : "Text delivery was interrupted. Inspect the remote field before sending again; text was not replayed.",
+              ? t(
+                  "Remote text input is not supported by this node. Update paxd and the Docker browser runtime, then reconnect. Text was not replayed.",
+                )
+              : t(
+                  "Text delivery was interrupted. Inspect the remote field before sending again; text was not replayed.",
+                ),
           ),
         );
     } finally {
@@ -68,7 +75,7 @@ export function VNCTextInput({
   return (
     <div className="grid gap-2">
       <label className="grid gap-1 text-xs text-ink-muted">
-        Text for remote desktop
+        {t("Text for remote desktop")}{" "}
         <textarea
           className="min-h-20 w-full resize-y rounded-md border border-hairline bg-surface-1 px-3 py-2 text-base text-ink outline-none focus:border-accent"
           value={draft}
@@ -91,9 +98,9 @@ export function VNCTextInput({
         />
       </label>
       <p className="text-xs text-ink-tertiary">
-        Click the remote field first. Use your local input method here for
-        Chinese, mixed case and symbols, then paste the text into the selected
-        remote field. Up to 2,000 characters; line breaks and tabs remain text.
+        {t(
+          "Click the remote field first. Use your local input method here for Chinese, mixed case and symbols, then paste the text into the selected remote field. Up to 2,000 characters; line breaks and tabs remain text.",
+        )}
       </p>
       <Button
         type="button"
@@ -102,13 +109,13 @@ export function VNCTextInput({
         aria-busy={sending}
         onClick={() => void send()}
       >
-        {sending ? "Sending…" : "Send text"}
+        {sending ? t("Sending…") : t("Send text")}
       </Button>
       {tooLong && (
         <InlineError
           error={
             new Error(
-              "Text exceeds 2,000 characters. Shorten it before sending.",
+              t("Text exceeds 2,000 characters. Shorten it before sending."),
             )
           }
         />

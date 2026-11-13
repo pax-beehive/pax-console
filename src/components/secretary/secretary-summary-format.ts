@@ -1,3 +1,4 @@
+import { translators, type Locale } from "@/features/i18n/translate";
 import { ApiError, AuthError } from "@/features/api/errors";
 
 export function isSummaryAccessDenied(error: unknown) {
@@ -7,7 +8,9 @@ export function isSummaryAccessDenied(error: unknown) {
   );
 }
 
-export function summaryDate(value: string) {
+export function summaryDate(value: string, locale?: Locale) {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "Unknown date" : date.toLocaleString();
+  return Number.isNaN(date.getTime())
+    ? translators[locale ?? "en"]("Unknown date")
+    : date.toLocaleString(locale);
 }

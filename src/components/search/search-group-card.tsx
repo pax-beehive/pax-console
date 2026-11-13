@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import { useEffect, useId, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
@@ -50,6 +51,7 @@ export function SearchGroupCard({
   onSelect: (hit: WorkspaceSearchHit, trigger: HTMLElement) => void;
   onAccessDenied: () => void;
 }) {
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const [loadMatches, setLoadMatches] = useState(false);
   const matchesId = useId();
@@ -90,7 +92,7 @@ export function SearchGroupCard({
     extra.isPending || extra.isFetching || extra.isFetchingNextPage;
   const expiredCursor =
     extra.error instanceof ApiError && /cursor/i.test(extra.error.message);
-  const title = group.title || group.session_id || best?.title || "Untitled";
+  const title = group.title || group.session_id || best?.title || t("Untitled");
 
   if (!best) return null;
 
@@ -104,7 +106,7 @@ export function SearchGroupCard({
           variant="ghost"
         >
           <button
-            aria-label={`Preview best match in ${title}`}
+            aria-label={t("Preview best match in {value1}", { value1: title })}
             aria-pressed={active}
             onClick={(event) => onSelect(best, event.currentTarget)}
             type="button"
@@ -122,11 +124,14 @@ export function SearchGroupCard({
         <Button
           aria-controls={matchesId}
           aria-expanded={expanded}
-          aria-label={`${expanded ? "Hide" : "Show"} matches in ${title}`}
+          aria-label={t("{value1} matches in {value2}", {
+            value1: expanded ? t("Hide") : t("Show"),
+            value2: title,
+          })}
           className="absolute right-2 top-1 min-h-11 min-w-11 justify-center gap-1 px-1 text-xs"
           onClick={() => setExpanded((current) => !current)}
           size="sm"
-          tooltip={`${matches.length} ${matches.length === 1 ? "match shown" : "matches shown"}`}
+          tooltip={`${matches.length} ${t(matches.length === 1 ? "match shown" : "matches shown")}`}
           variant="ghost"
         >
           <span className="inline-flex items-center gap-1">
@@ -150,7 +155,10 @@ export function SearchGroupCard({
                 variant="ghost"
               >
                 <button
-                  aria-label={`Preview ${labels[hit.ref.kind].toLowerCase()}: ${hit.snippet || hit.title || title}`}
+                  aria-label={t("Preview {value1}: {value2}", {
+                    value1: t(labels[hit.ref.kind]).toLowerCase(),
+                    value2: hit.snippet || hit.title || title,
+                  })}
                   aria-pressed={Boolean(
                     active &&
                     selectedRef &&
@@ -160,7 +168,7 @@ export function SearchGroupCard({
                   type="button"
                 >
                   <Badge className="border-0 py-0 font-medium">
-                    {labels[hit.ref.kind]}
+                    {t(labels[hit.ref.kind])}
                   </Badge>
                   <span className="min-w-0 flex-1 truncate text-sm text-ink-muted">
                     <LiteralHighlight
@@ -177,8 +185,10 @@ export function SearchGroupCard({
           <div className="px-4 py-3" role="alert">
             <p className="text-xs text-ink-tertiary">
               {expiredCursor
-                ? "These matches have expired. Reload this session's matches."
-                : "Could not load more matches. Please try again."}
+                ? t(
+                    "These matches have expired. Reload this session's matches.",
+                  )
+                : t("Could not load more matches. Please try again.")}
             </p>
             <Button
               className="mt-2 min-h-11"
@@ -189,12 +199,12 @@ export function SearchGroupCard({
               size="sm"
               variant="ghost"
             >
-              {expiredCursor ? "Reload matches" : "Retry matches"}
+              {expiredCursor ? t("Reload matches") : t("Retry matches")}
             </Button>
           </div>
         ) : hasMore || (loadMatches && pending) ? (
           <Button
-            aria-label={`Load more matches in ${title}`}
+            aria-label={t("Load more matches in {value1}", { value1: title })}
             className="m-2 min-h-11"
             disabled={loadMatches && pending}
             onClick={() => {
@@ -205,8 +215,8 @@ export function SearchGroupCard({
             variant="ghost"
           >
             {loadMatches && pending
-              ? "Loading matches..."
-              : "Load more matches"}
+              ? t("Loading matches...")
+              : t("Load more matches")}
           </Button>
         ) : null}
       </div>

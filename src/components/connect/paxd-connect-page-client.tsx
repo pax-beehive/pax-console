@@ -1,4 +1,5 @@
 "use client";
+import { useI18n, type Translator } from "@/features/i18n/use-i18n";
 
 import { FormEvent, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -62,6 +63,7 @@ function PaxdConnectShell({
   nodePreview?: PaxdConnectPreview;
   user: User;
 }) {
+  const { t } = useI18n();
   const [pairCode, setPairCode] = useState(initialCode);
   const isValidCode = pairCodePattern.test(pairCode);
   const preview = useQuery({
@@ -89,21 +91,22 @@ function PaxdConnectShell({
         <section className="min-w-0">
           <header className="border-b border-hairline pb-5">
             <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-ink-tertiary">
-              paxd pairing
+              {t("paxd pairing")}
             </div>
             <div className="mt-4 text-sm text-ink-tertiary">
-              Hello{" "}
+              {t("Hello")}{" "}
               <span className="font-mono italic text-cyan-300">
                 {userLabel}
               </span>
               ,
             </div>
             <h1 className="mt-2 text-3xl font-medium leading-[1.14] text-ink md:text-[2.6rem]">
-              Connect this node.
+              {t("Connect this node.")}
             </h1>
             <p className="mt-3 max-w-xl text-sm leading-6 text-ink-muted">
-              Review the device details before approving. PAX Manager will issue
-              a node API key to the paxd process waiting in your terminal.
+              {t(
+                "Review the device details before approving. PAX Manager will issue a node API key to the paxd process waiting in your terminal.",
+              )}
             </p>
           </header>
 
@@ -118,9 +121,11 @@ function PaxdConnectShell({
         <aside className="min-w-0 max-w-full border border-hairline bg-surface-1">
           <div className="border-b border-hairline px-5 py-4">
             <div className="flex items-center justify-between gap-3">
-              <div className="text-[15px] font-medium">Approve pairing</div>
+              <div className="text-[15px] font-medium">
+                {t("Approve pairing")}
+              </div>
               <div className="text-[11px] uppercase tracking-[0.08em] text-ink-tertiary">
-                {approve.isSuccess ? "approved" : "pending"}
+                {approve.isSuccess ? t("approved") : t("pending")}
               </div>
             </div>
           </div>
@@ -128,7 +133,7 @@ function PaxdConnectShell({
           <form className="grid min-w-0 gap-5 p-5" onSubmit={onSubmit}>
             <div className="grid min-w-0 gap-2.5">
               <label className="grid min-w-0 gap-2.5 text-xs font-medium text-ink-subtle">
-                Pair code
+                {t("Pair code")}
                 <input
                   autoCapitalize="characters"
                   autoComplete="one-time-code"
@@ -145,7 +150,7 @@ function PaxdConnectShell({
                 />
               </label>
               <div className="text-xs leading-5 text-ink-tertiary">
-                Use the code shown by the paxd process you started.
+                {t("Use the code shown by the paxd process you started.")}
               </div>
             </div>
 
@@ -159,10 +164,10 @@ function PaxdConnectShell({
               <div className="min-w-0 border border-success/30 bg-success/10 p-3 text-xs leading-5 text-success">
                 <div className="flex items-center gap-2 font-medium">
                   <CheckCircle2 className="h-4 w-4" />
-                  paxd approved
+                  {t("paxd approved")}
                 </div>
                 <div className="mt-1 min-w-0 break-all font-mono text-[11px] text-ink-muted">
-                  registration: {approve.data.registration_id}
+                  {t("registration:")} {approve.data.registration_id}
                 </div>
               </div>
             )}
@@ -180,14 +185,15 @@ function PaxdConnectShell({
               type="submit"
               variant="primary"
             >
-              {approve.isPending ? "Connecting..." : "Connect paxd"}
+              {approve.isPending ? t("Connecting...") : t("Connect paxd")}
             </Button>
           </form>
 
           <div className="border-t border-hairline px-5 py-4 text-xs leading-5 text-ink-tertiary">
             <div>
-              The code expires quickly and is consumed once paxd receives its
-              key.
+              {t(
+                "The code expires quickly and is consumed once paxd receives its key.",
+              )}
             </div>
           </div>
         </aside>
@@ -207,21 +213,22 @@ function NodePreviewPanel({
   previewLoading?: boolean;
   user: User;
 }) {
+  const { t } = useI18n();
   const location = [preview?.city, preview?.country].filter(Boolean).join(", ");
   const previewStatus = preview
-    ? "Observed from paxd"
+    ? t("Observed from paxd")
     : previewLoading
-      ? "Loading preview"
+      ? t("Loading preview")
       : previewError
-        ? "Preview unavailable"
-        : "Enter pair code";
+        ? t("Preview unavailable")
+        : t("Enter pair code");
 
   return (
     <section className="mt-5">
       <div className="flex items-center justify-between gap-4 py-2.5">
         <div className="flex min-w-0 items-center gap-2 text-[15px] font-medium">
           <Laptop className="h-4 w-4 text-primary-hover" />
-          Node identity
+          {t("Node identity")}
         </div>
         <div className="shrink-0 text-[11px] uppercase tracking-[0.08em] text-ink-tertiary">
           {previewStatus}
@@ -231,37 +238,37 @@ function NodePreviewPanel({
       <div className="grid border-t border-l border-hairline sm:grid-cols-2">
         <DetailRow
           icon={<Laptop className="h-4 w-4" />}
-          label="Host"
-          value={preview?.hostname ?? "Pending manager support"}
+          label={t("Host")}
+          value={preview?.hostname ?? t("Pending manager support")}
         />
         <DetailRow
           icon={<Cpu className="h-4 w-4" />}
-          label="Platform"
-          value={formatPlatform(preview)}
+          label={t("Platform")}
+          value={formatPlatform(preview, t)}
         />
         <DetailRow
           icon={<Network className="h-4 w-4" />}
-          label="Source IP"
-          value={preview?.ipAddress ?? "Not captured yet"}
+          label={t("Source IP")}
+          value={preview?.ipAddress ?? t("Not captured yet")}
         />
         <DetailRow
           icon={<MapPin className="h-4 w-4" />}
-          label="Approx. location"
-          value={location || "Not resolved yet"}
+          label={t("Approx. location")}
+          value={location || t("Not resolved yet")}
         />
         <DetailRow
           icon={<Globe2 className="h-4 w-4" />}
-          label="Cloud API"
+          label={t("Cloud API")}
           value={resolvePaxdConnectApiEndpoint(preview)}
         />
         <DetailRow
           icon={<Clock3 className="h-4 w-4" />}
-          label="Requested"
-          value={preview?.requestedAt ?? "Within 5 minutes"}
+          label={t("Requested")}
+          value={preview?.requestedAt ?? t("Within 5 minutes")}
         />
         <DetailRow
           icon={<ShieldCheck className="h-4 w-4" />}
-          label="Approving as"
+          label={t("Approving as")}
           value={user.email ?? user.user_id}
         />
       </div>
@@ -291,9 +298,12 @@ function DetailRow({
   );
 }
 
-function formatPlatform(preview?: PaxdConnectPreview) {
+function formatPlatform(
+  preview: PaxdConnectPreview | undefined,
+  t: Translator,
+) {
   if (!preview) {
-    return "Pending manager support";
+    return t("Pending manager support");
   }
 
   return [preview.os, preview.arch, preview.machineType, preview.paxdVersion]

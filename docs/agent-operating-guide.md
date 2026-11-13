@@ -3161,3 +3161,26 @@ than re-implementing send-while-dictating.
 - Tests: `src/features/voice/test-fakes.ts` provides a fake socket and
   microphone. Composer tests stub the global `WebSocket` and mock
   `@/features/voice/microphone`.
+
+## Interface languages
+
+The authenticated Console supports English and Simplified Chinese. The compact
+language selector in the topbar works on desktop and mobile. `LocaleProvider`
+restores `pax-console-locale` from browser localStorage, otherwise chooses the
+first supported browser language (all `zh-*` variants use Simplified Chinese).
+English is the server and initial hydration snapshot. Storage failures must not
+prevent an in-memory switch. Storage events synchronize other tabs.
+
+Language is client-only state owned by `features/i18n/locale-store.ts` (Zustand),
+not server data or an account preference. Components call `useI18n().t` with
+English source copy and named interpolation values. Dictionaries live under
+`features/i18n/messages`; missing entries fall back to English. Subscribe inside
+components and include `t` in memo/callback dependencies where used. Translate
+interface labels at render time, keeping API enum values, identifiers, paths,
+user/agent messages, artifact contents, and raw remote errors unchanged. Never
+translate by mutating the DOM or remount the workbench on a language switch.
+The public `/overview` and `/zh/overview` routes retain their explicit language.
+
+Run `pnpm typecheck`, `pnpm lint`, and the i18n/component tests. On Node versions
+with native Web Storage, run tests with
+`NODE_OPTIONS=--no-experimental-webstorage` so jsdom owns browser storage.

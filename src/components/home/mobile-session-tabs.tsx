@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import {
   useEffect,
@@ -46,6 +47,7 @@ export function MobileSessionTabs({
   onSelect,
   onUndoDismiss,
 }: MobileSessionTabsProps) {
+  const { t } = useI18n();
   const activeTabRef = useRef<HTMLDivElement | null>(null);
   const tabListRef = useRef<HTMLDivElement | null>(null);
   const sessionIds = items.map((item) => item.sessionId);
@@ -64,7 +66,7 @@ export function MobileSessionTabs({
 
   return (
     <nav
-      aria-label="Open sessions"
+      aria-label={t("Open sessions")}
       className="relative z-10 flex h-10 min-w-0 shrink-0 border-b border-hairline bg-surface-1 lg:hidden"
     >
       <Reorder.Group
@@ -102,12 +104,12 @@ export function MobileSessionTabs({
       </Reorder.Group>
 
       <Button
-        aria-label="Start new session"
+        aria-label={t("Start new session")}
         className="h-full w-10 shrink-0 rounded-none text-ink-muted"
         icon={<Plus className="h-4 w-4" />}
         onClick={onNewSession}
         size="icon"
-        tooltip="New session"
+        tooltip={t("New session")}
         type="button"
         variant="ghost"
       />
@@ -121,7 +123,8 @@ export function MobileSessionTabs({
             initial={{ opacity: 0, y: -4 }}
           >
             <span className="min-w-0 truncate text-xs text-ink-muted">
-              Closed {dismissedTitle}. Session keeps running.
+              {t("Closed")} {dismissedTitle}
+              {t(". Session keeps running.")}
             </span>
             <Button
               onClick={onUndoDismiss}
@@ -129,7 +132,7 @@ export function MobileSessionTabs({
               type="button"
               variant="ghost"
             >
-              Undo
+              {t("Undo")}
             </Button>
           </motion.div>
         )}
@@ -162,6 +165,7 @@ function MobileSessionTab({
   onSelect,
   scrollContainerRef,
 }: MobileSessionTabProps) {
+  const { t } = useI18n();
   const dragControls = useDragControls();
   const longPressTimerRef = useRef<number | null>(null);
   const pointerStateRef = useRef<{
@@ -346,7 +350,9 @@ function MobileSessionTab({
         }}
         onKeyDown={handleKeyDown}
         role="tab"
-        title={`${item.title} · Long press and drag to reorder`}
+        title={t("{value1} · Long press and drag to reorder", {
+          value1: item.title,
+        })}
         type="button"
       >
         <span className="flex min-w-0 items-center gap-1.5">
@@ -355,11 +361,11 @@ function MobileSessionTab({
         </span>
       </button>
       <button
-        aria-label={`Close ${item.title} tab`}
+        aria-label={t("Close {value1} tab", { value1: item.title })}
         className="mr-1 grid h-7 w-7 shrink-0 place-items-center rounded text-ink-tertiary transition hover:bg-surface-3 hover:text-ink"
         data-tab-action
         onClick={() => onDismiss(item.sessionId)}
-        title="Close tab; session keeps running"
+        title={t("Close tab; session keeps running")}
         type="button"
       >
         <X className="h-3 w-3" />
@@ -382,10 +388,11 @@ function clearLongPressTimer(timerRef: RefObject<number | null>) {
 }
 
 function SessionActivityDot({ status }: { status?: string }) {
+  const { t } = useI18n();
   if (status === "waiting_approval") {
     return (
       <span
-        aria-label="Waiting for approval"
+        aria-label={t("Waiting for approval")}
         className="h-1.5 w-1.5 shrink-0 rounded-full bg-warning"
         role="status"
       />
@@ -394,7 +401,7 @@ function SessionActivityDot({ status }: { status?: string }) {
   if (status === "running" || status === "streaming") {
     return (
       <span
-        aria-label="Running"
+        aria-label={t("Running")}
         className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent-bright"
         role="status"
       />

@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
+
 import { MoreHorizontal, Pencil, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -22,6 +24,7 @@ export function SessionRuntimeActions({
   onReset: () => Promise<unknown> | void;
   onRename?: () => void;
 }) {
+  const { t } = useI18n();
   const [resetOpen, setResetOpen] = useState(false);
 
   function confirmReset() {
@@ -35,10 +38,10 @@ export function SessionRuntimeActions({
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
-            aria-label="Session actions"
+            aria-label={t("Session actions")}
             icon={<MoreHorizontal className="h-4 w-4" />}
             size="icon"
-            tooltip="Session actions"
+            tooltip={t("Session actions")}
             type="button"
             variant="ghost"
           />
@@ -47,7 +50,7 @@ export function SessionRuntimeActions({
           {onRename && (
             <DropdownMenuItem onSelect={onRename}>
               <Pencil className="h-4 w-4" />
-              Rename session
+              {t("Rename session")}
             </DropdownMenuItem>
           )}
           <DropdownMenuItem
@@ -55,18 +58,20 @@ export function SessionRuntimeActions({
             onSelect={() => setResetOpen(true)}
           >
             <RefreshCw className="h-4 w-4" />
-            Reset stale status
+            {t("Reset stale status")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
       <ConfirmDialog
-        confirmLabel={isPending ? "Resetting..." : "Reset status"}
-        description="This corrects the displayed session status only. It does not cancel or terminate the underlying task."
+        confirmLabel={isPending ? t("Resetting...") : t("Reset status")}
+        description={t(
+          "This corrects the displayed session status only. It does not cancel or terminate the underlying task.",
+        )}
         disabled={isPending}
         onConfirm={confirmReset}
         onOpenChange={setResetOpen}
         open={resetOpen}
-        title="Reset stale session status?"
+        title={t("Reset stale session status?")}
       />
     </>
   );

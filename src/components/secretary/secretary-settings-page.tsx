@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import { type ReactNode, useState } from "react";
 import Link from "next/link";
@@ -43,19 +44,20 @@ const stateLabels: Record<SecretaryState, string> = {
 };
 
 export function SecretarySettingsPage({ user }: { user: User }) {
+  const { t } = useI18n();
   return (
     <ConsoleLayout user={user}>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <SettingsPageHeader
-          title="Secretary"
-          category="Workspace"
+          title={t("Secretary")}
+          category={t("Workspace")}
           description={settingsSection("secretary").description}
           mobileHeading={
             <>
               <SettingsBack />
-              <h1 className="text-xl font-semibold">Secretary</h1>
+              <h1 className="text-xl font-semibold">{t("Secretary")}</h1>
               <p className="mt-2 text-sm text-ink-tertiary">
-                Keep summaries connected to your conversations.
+                {t("Keep summaries connected to your conversations.")}
               </p>
             </>
           }
@@ -67,6 +69,7 @@ export function SecretarySettingsPage({ user }: { user: User }) {
 }
 
 export function SecretarySettingsPanel({ userId }: { userId: string }) {
+  const { t } = useI18n();
   const [bulkRevision, setBulkRevision] = useState<number>();
   const settings = useSecretarySettings(userId);
   const agents = useAgents(userId, "owned");
@@ -85,34 +88,39 @@ export function SecretarySettingsPanel({ userId }: { userId: string }) {
     >
       <div className="mx-auto w-full max-w-5xl space-y-5">
         <p className="text-sm leading-6 text-ink-muted">
-          Choose one of your agents to read your workspace conversations and
-          maintain summaries automatically. Enabling Secretary allows that agent
-          to run in the background.
+          {t(
+            "Choose one of your agents to read your workspace conversations and maintain summaries automatically. Enabling Secretary allows that agent to run in the background.",
+          )}
         </p>
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-5">
           <p className="text-xs leading-5 text-ink-tertiary">
-            Read published summaries and trace their conclusions to your
-            original messages.
+            {t(
+              "Read published summaries and trace their conclusions to your original messages.",
+            )}
           </p>
           <Button
             asChild
             icon={<BookOpen aria-hidden="true" className="h-4 w-4" />}
           >
-            <Link href="/settings/secretary/summaries">View summaries</Link>
+            <Link href="/settings/secretary/summaries">
+              {t("View summaries")}
+            </Link>
           </Button>
         </div>
         <SecretaryGuidanceEditor userId={userId} />
         <SecretaryRetryFeedback run={run} />
         {settings.isPending ? (
           <p className="text-sm text-ink-tertiary" role="status">
-            Loading Secretary settings…
+            {t("Loading Secretary settings…")}
           </p>
         ) : settings.isError || !settings.data ? (
           <div className="rounded-md border border-warning/30 p-4" role="alert">
             <p className="text-sm text-ink-muted">
               {settings.error instanceof AuthError
-                ? "Your session expired. Reload this page to sign in."
-                : "Secretary is unavailable right now. Your settings have not changed."}
+                ? t("Your session expired. Reload this page to sign in.")
+                : t(
+                    "Secretary is unavailable right now. Your settings have not changed.",
+                  )}
             </p>
             <Button
               className="mt-3"
@@ -121,7 +129,7 @@ export function SecretarySettingsPanel({ userId }: { userId: string }) {
               }}
               size="sm"
             >
-              Retry settings
+              {t("Retry settings")}
             </Button>
           </div>
         ) : (
@@ -131,15 +139,21 @@ export function SecretarySettingsPanel({ userId }: { userId: string }) {
             {save.isError && (
               <Notice>
                 {save.error instanceof ApiError && save.error.status === 409
-                  ? "Settings changed in another window. Review the latest settings before saving again."
+                  ? t(
+                      "Settings changed in another window. Review the latest settings before saving again.",
+                    )
                   : save.error instanceof ApiError && save.error.status === 403
-                    ? "Choose an agent you own. Your saved settings have not changed."
-                    : "Could not confirm your changes. Check the current status and try again."}
+                    ? t(
+                        "Choose an agent you own. Your saved settings have not changed.",
+                      )
+                    : t(
+                        "Could not confirm your changes. Check the current status and try again.",
+                      )}
               </Notice>
             )}
             {save.isSuccess && (
               <p className="text-xs text-success" role="status">
-                Settings saved.
+                {t("Settings saved.")}
               </p>
             )}
             <SecretaryForm
@@ -162,10 +176,9 @@ export function SecretarySettingsPanel({ userId }: { userId: string }) {
               <section className="border-t border-hairline pt-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <p className="max-w-md text-xs leading-5 text-ink-tertiary">
-                    Bulk retry requests background scheduling for eligible
-                    pending tasks. Paused, running, and unknown executions stay
-                    unchanged. Use task controls to check or restart one
-                    execution.
+                    {t(
+                      "Bulk retry requests background scheduling for eligible pending tasks. Paused, running, and unknown executions stay unchanged. Use task controls to check or restart one execution.",
+                    )}
                   </p>
                   <Button
                     disabled={
@@ -186,8 +199,8 @@ export function SecretarySettingsPanel({ userId }: { userId: string }) {
                     size="sm"
                   >
                     {run.isPending
-                      ? "Requesting…"
-                      : "Bulk retry unpaused tasks"}
+                      ? t("Requesting…")
+                      : t("Bulk retry unpaused tasks")}
                   </Button>
                 </div>
                 <ConfirmDialog
@@ -195,15 +208,17 @@ export function SecretarySettingsPanel({ userId }: { userId: string }) {
                   onOpenChange={(open) => {
                     if (!open) setBulkRevision(undefined);
                   }}
-                  title="Retry all unpaused tasks?"
-                  confirmLabel="Retry unpaused tasks"
+                  title={t("Retry all unpaused tasks?")}
+                  confirmLabel={t("Retry unpaused tasks")}
                   disabled={
                     run.isPending ||
                     save.isPending ||
                     !settings.data.agent_available ||
                     settings.data.state === "processing"
                   }
-                  description="This requests background scheduling for eligible unpaused tasks. Paused, running, and unknown executions stay unchanged. Use an individual task's controls to check or restart an execution."
+                  description={t(
+                    "This requests background scheduling for eligible unpaused tasks. Paused, running, and unknown executions stay unchanged. Use an individual task's controls to check or restart an execution.",
+                  )}
                   onConfirm={() => {
                     setBulkRevision(undefined);
                     save.reset();
@@ -212,7 +227,7 @@ export function SecretarySettingsPanel({ userId }: { userId: string }) {
                 />
                 {!settings.data.agent_available && (
                   <p className="mt-2 text-xs text-ink-tertiary">
-                    A run will wait until the selected agent reconnects.
+                    {t("A run will wait until the selected agent reconnects.")}
                   </p>
                 )}
               </section>
@@ -240,26 +255,29 @@ function SecretaryRetryFeedback({
 }: {
   run: ReturnType<typeof useRunSecretaryNow>;
 }) {
+  const { t } = useI18n();
   if (run.isPending) {
     return (
       <p className="text-xs text-ink-tertiary" role="status">
-        Submitting retry request...
+        {t("Submitting retry request...")}
       </p>
     );
   }
   if (run.isSuccess) {
     return (
       <p className="text-xs text-success" role="status">
-        Retry request accepted. Eligible tasks will be queued in the background.
+        {t(
+          "Retry request accepted. Eligible tasks will be queued in the background.",
+        )}
       </p>
     );
   }
   if (run.isError || run.hasUnconfirmedRequest) {
     return (
       <Notice>
-        Retry request not confirmed. Try again with the same request ID.
+        {t("Retry request not confirmed. Try again with the same request ID.")}
         <Button className="ml-2" onClick={() => run.mutate()} size="sm">
-          Retry same request
+          {t("Retry same request")}
         </Button>
       </Notice>
     );
@@ -284,6 +302,7 @@ function SecretaryForm({
   pending: boolean;
   onSave: (input: UpdateSecretarySettings) => void;
 }) {
+  const { t } = useI18n();
   const [agentId, setAgentId] = useState(settings.agent_id ?? "");
   const [enabled, setEnabled] = useState(settings.enabled);
   const selected = agents.find((agent) => agent.agent_id === agentId);
@@ -297,7 +316,7 @@ function SecretaryForm({
 
   return (
     <form
-      aria-label="Secretary settings"
+      aria-label={t("Secretary settings")}
       className="space-y-5"
       onSubmit={(event) => {
         event.preventDefault();
@@ -317,7 +336,7 @@ function SecretaryForm({
           className="text-xs font-medium text-ink-subtle"
           htmlFor="secretary-agent"
         >
-          Secretary agent
+          {t("Secretary agent")}
         </label>
         <div className="relative mt-2">
           <select
@@ -330,16 +349,16 @@ function SecretaryForm({
             }}
             value={agentId}
           >
-            <option value="">Select an agent</option>
+            <option value="">{t("Select an agent")}</option>
             {unknownAgent && (
               <option disabled value={agentId}>
-                Unavailable agent
+                {t("Unavailable agent")}
               </option>
             )}
             {agents.map((agent) => (
               <option key={agent.agent_id} value={agent.agent_id}>
                 {agent.name || agent.agent_id}
-                {agent.online === false ? " — Offline" : ""}
+                {agent.online === false ? t(" — Offline") : ""}
               </option>
             ))}
           </select>
@@ -355,12 +374,14 @@ function SecretaryForm({
         )}
         {agentsLoading ? (
           <p className="mt-2 text-xs text-ink-tertiary" role="status">
-            Loading your agents…
+            {t("Loading your agents…")}
           </p>
         ) : agentsError ? (
           <div className="mt-2" role="alert">
             <p className="text-xs text-warning">
-              Could not load your agents. You can still turn Secretary off.
+              {t(
+                "Could not load your agents. You can still turn Secretary off.",
+              )}
             </p>
             <Button
               className="mt-2"
@@ -368,27 +389,30 @@ function SecretaryForm({
               size="sm"
               type="button"
             >
-              Retry agents
+              {t("Retry agents")}
             </Button>
           </div>
         ) : unknownAgent ? (
           <p className="mt-2 text-xs text-warning">
-            The saved agent is no longer available. Choose another agent or turn
-            Secretary off.
+            {t(
+              "The saved agent is no longer available. Choose another agent or turn Secretary off.",
+            )}
           </p>
         ) : !agents.length ? (
           <p className="mt-2 text-xs text-ink-tertiary">
-            You do not have an agent yet. Connect an agent in Settings →
-            Devices.
+            {t(
+              "You do not have an agent yet. Connect an agent in Settings → Devices.",
+            )}
           </p>
         ) : selected?.online === false ? (
           <p className="mt-2 text-xs text-ink-tertiary">
-            This agent is offline. You can save your settings; work will wait
-            for it to reconnect.
+            {t(
+              "This agent is offline. You can save your settings; work will wait for it to reconnect.",
+            )}
           </p>
         ) : (
           <p className="mt-2 text-xs text-ink-tertiary">
-            Only agents you own can be selected.
+            {t("Only agents you own can be selected.")}
           </p>
         )}
       </div>
@@ -398,15 +422,15 @@ function SecretaryForm({
             className="text-sm font-medium text-ink"
             htmlFor="secretary-enabled"
           >
-            Automatic summaries
+            {t("Automatic summaries")}
           </label>
           <p className="mt-1 text-xs leading-5 text-ink-tertiary">
-            Keep your summaries updated as conversations change.
+            {t("Keep your summaries updated as conversations change.")}
           </p>
         </div>
         <Switch
           id="secretary-enabled"
-          aria-label="Automatic summaries"
+          aria-label={t("Automatic summaries")}
           checked={enabled}
           className="mt-0.5"
           disabled={pending || (!enabled && !canEnable)}
@@ -415,7 +439,7 @@ function SecretaryForm({
       </div>
       {invalidEnabled && (
         <p className="text-xs text-warning">
-          Select an agent you own before saving enabled settings.
+          {t("Select an agent you own before saving enabled settings.")}
         </p>
       )}
       <div className="flex flex-wrap items-center gap-3">
@@ -424,10 +448,12 @@ function SecretaryForm({
           type="submit"
           variant="primary"
         >
-          {pending ? "Saving…" : "Save settings"}
+          {pending ? t("Saving…") : t("Save settings")}
         </Button>
         <p className="text-xs text-ink-tertiary">
-          {dirty ? "Unsaved changes" : "Changes take effect after saving."}
+          {dirty
+            ? t("Unsaved changes")
+            : t("Changes take effect after saving.")}
         </p>
       </div>
     </form>
@@ -435,6 +461,7 @@ function SecretaryForm({
 }
 
 function SecretaryStatus({ settings }: { settings: SecretarySettings }) {
+  const { t, locale } = useI18n();
   const date = settings.last_completed_at
     ? new Date(settings.last_completed_at)
     : undefined;
@@ -447,11 +474,13 @@ function SecretaryStatus({ settings }: { settings: SecretarySettings }) {
     );
   return (
     <section
-      aria-label="Secretary status"
+      aria-label={t("Secretary status")}
       className="rounded-md border border-hairline bg-surface-1 p-4"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-xs font-medium text-ink-subtle">Current status</h2>
+        <h2 className="text-xs font-medium text-ink-subtle">
+          {t("Current status")}
+        </h2>
         <Badge
           tone={
             settings.state === "error"
@@ -462,21 +491,23 @@ function SecretaryStatus({ settings }: { settings: SecretarySettings }) {
           }
         >
           {processing
-            ? "Processing"
-            : execution?.label || stateLabels[settings.state] || "Unknown"}
+            ? t("Processing")
+            : t(execution?.label || stateLabels[settings.state] || "Unknown")}
         </Badge>
       </div>
       <dl className="mt-3 grid grid-cols-[auto_minmax(0,1fr)] gap-x-5 gap-y-2 text-xs">
-        <dt className="text-ink-tertiary">Unfinished</dt>
+        <dt className="text-ink-tertiary">{t("Unfinished")}</dt>
         <dd className="text-ink-muted">
           {settings.pending_count}{" "}
-          {settings.pending_count === 1 ? "conversation" : "conversations"}
+          {settings.pending_count === 1
+            ? t("conversation")
+            : t("conversations")}
         </dd>
-        <dt className="text-ink-tertiary">Last completed</dt>
+        <dt className="text-ink-tertiary">{t("Last completed")}</dt>
         <dd className="text-ink-muted">
           {date && !Number.isNaN(date.getTime())
-            ? date.toLocaleString()
-            : "No completed runs yet"}
+            ? date.toLocaleString(locale)
+            : t("No completed runs yet")}
         </dd>
       </dl>
       {execution && (
@@ -485,13 +516,13 @@ function SecretaryStatus({ settings }: { settings: SecretarySettings }) {
             className={`text-xs leading-5 ${needsAttention ? "text-warning" : "text-ink-muted"}`}
           >
             {processing && needsAttention && (
-              <strong className="font-medium">{execution.label}: </strong>
+              <strong className="font-medium">{t(execution.label)}: </strong>
             )}
-            {execution.description}
+            {t(execution.description)}
           </p>
           {needsAttention && (
             <Button asChild size="sm" variant="ghost">
-              <a href="#secretary-tasks">Review tasks</a>
+              <a href="#secretary-tasks">{t("Review tasks")}</a>
             </Button>
           )}
         </div>
@@ -499,7 +530,9 @@ function SecretaryStatus({ settings }: { settings: SecretarySettings }) {
       {!execution && settings.last_error && (
         <p className="mt-3 line-clamp-3 whitespace-pre-wrap text-xs leading-5 text-warning [overflow-wrap:anywhere]">
           {settings.state === "processing"
-            ? "A previous summary task failed. Other conversations are still being processed."
+            ? t(
+                "A previous summary task failed. Other conversations are still being processed.",
+              )
             : settings.last_error.slice(0, 400)}
         </p>
       )}

@@ -1,0 +1,662 @@
+export const consoleMessages: Record<string, string> = {
+  " (offline)": "（离线）",
+  " Encrypted session history": " 加密会话历史",
+  " accounts · Dates use your local timezone. Administrator status is a permission, not a customer classification. Encrypted records are not counted as confirmed user sends; a missing visit date means unknown.":
+    " 个账户 · 日期使用本地时区。管理员身份表示权限，并非客户分类。加密记录不计入已确认的用户发送次数；没有访问日期表示未知。",
+  " claims": " 项声明",
+  " columns.": " 列。",
+  " live frames": " 个实时帧",
+  " matching": " 条匹配",
+  " messages · ": " 条消息 · ",
+  " of ": " / ",
+  " page": " 页",
+  " records.": " 条记录。",
+  " rows and": " 行，",
+  " shown ·": " 条已显示 ·",
+  " sign-in": " 登录",
+  " source messages": " 条源消息",
+  " · Recommended": " · 推荐",
+  " · Signed in": " · 已登录",
+  " · invalid JSON": " · JSON 无效",
+  "% used": "% 已使用",
+  "API keys": "API 密钥",
+  "Accepted by push service; device display is not confirmed.":
+    "推送服务已接收；尚未确认设备是否显示。",
+  "Access denied": "无权访问",
+  "Access denied. Administrator permission is required to read summary data.":
+    "无权访问。查看摘要数据需要管理员权限。",
+  "Access denied. This summary is no longer available to you.":
+    "无权访问。你已无法查看此摘要。",
+  "Access required": "需要授权",
+  "Account details are unavailable on this device.":
+    "此设备上无法获取账户详情。",
+  "Accounts, real agent connections, and usage across regions.":
+    "查看各区域的账户、智能体实际连接和使用情况。",
+  "Active agents": "活跃智能体",
+  Admin: "管理员",
+  "Administrator access is required. Previously loaded data is hidden.":
+    "需要管理员权限。之前加载的数据已隐藏。",
+  "Advanced settings": "高级设置",
+  Agent: "智能体",
+  "Agent sign-in": "智能体登录",
+  "Agent type": "智能体类型",
+  "Alerts bring you back to the session that needs your attention.":
+    "通过提醒返回需要处理的会话。",
+  "All accounts": "全部账户",
+  "All channels": "全部渠道",
+  "All filtered results": "全部筛选结果",
+  "All regions": "全部区域",
+  "All stages": "全部阶段",
+  "All statuses": "全部状态",
+  "All time · deduplicated by email · local test account excluded":
+    "全部时间 · 按邮箱去重 · 已排除本地测试账户",
+  "Allowed actions": "已授权的操作",
+  "Already fetched": "已获取",
+  "Approval requests": "审批请求",
+  "Artifact content is not available yet.": "文件内容尚未就绪。",
+  "Artifact options": "文件选项",
+  "Artifact preview": "文件预览",
+  "Artifact table of contents": "文件目录",
+  "Artifact viewer: ": "文件查看器：",
+  Audience: "受众",
+  Audio: "音频",
+  "Authorize another device": "授权其他设备",
+  "Authorize device": "授权设备",
+  "Authorize from another device": "通过其他设备授权",
+  "Authorize this device": "授权此设备",
+  "Automatic notifications are enabled for standard sessions. Notifications include a short reply preview; tap one to open its session. Encrypted sessions are not supported yet.":
+    "普通会话已启用自动通知。通知包含简短的回复预览，点击可打开对应会话。暂不支持加密会话。",
+  "Back to session": "返回会话",
+  "Back to summaries": "返回摘要",
+  "Back to workspace": "返回工作区",
+  "CSV preview limited to ": "CSV 预览仅显示 ",
+  "Cancel request": "取消请求",
+  "Cancel sign-in": "取消登录",
+  Channel: "渠道",
+  "Check again": "重新检查",
+  Checking: "检查中",
+  "Checking PAX access...": "正在检查 PAX 访问权限…",
+  "Checking notifications...": "正在检查通知…",
+  "Checking plan usage…": "正在检查套餐用量…",
+  "Checking regional connections...": "正在检查区域连接…",
+  "Checking sign-in status…": "正在检查登录状态…",
+  "Checking the file on the agent's machine…":
+    "正在检查智能体所在设备上的文件…",
+  "Checking your region...": "正在检查账户区域…",
+  "Checking...": "检查中…",
+  "Choose a device to check its sign-in status.": "选择设备以检查登录状态。",
+  "Choose the microphone dictation uses on this device.":
+    "选择此设备用于语音输入的麦克风。",
+  "Choose your account region": "选择账户区域",
+  "Clear customer filter": "清除客户筛选",
+  "Close preview": "关闭预览",
+  "Code expired. Create a new request.": "验证码已过期，请创建新请求。",
+  "Code from the new device": "新设备上的验证码",
+  "Collapse preview": "收起预览",
+  "Complete sign-in": "完成登录",
+  "Completed replies": "回复完成",
+  "Completed turn notifications include a short reply preview. Approval reminders contain no request details.":
+    "回复完成的通知包含简短预览；审批提醒不包含请求详情。",
+  "Confirmation expired. Enter the current code again.":
+    "确认已过期，请重新输入当前验证码。",
+  "Confirmed senders": "已确认发送消息的用户",
+  "Confirming this device's server registration...":
+    "正在确认此设备的服务端注册状态…",
+  "Connect computers or servers and manage their agents.":
+    "连接电脑或服务器，管理其中的智能体。",
+  "Connect scripts and other apps to PAX.": "将脚本和其他应用连接到 PAX。",
+  Contents: "目录",
+  "Continue to sign in": "继续登录",
+  "Control alerts for this browser or Android app. Enabling another device is a separate choice.":
+    "设置此浏览器或 Android 应用的提醒。其他设备需要单独启用。",
+  "Copy link": "复制链接",
+  "Copy path": "复制路径",
+  "Could not load summaries. Refresh to restart the list.":
+    "无法加载摘要，请刷新列表。",
+  "Could not load the agents registered on this device.":
+    "无法加载此设备上注册的智能体。",
+  "Could not load this summary. Please try again.": "无法加载此摘要，请重试。",
+  "Could not load your devices. Refresh before signing in.":
+    "无法加载设备，请刷新后再登录。",
+  "Couldn't check the file": "无法检查文件",
+  "Couldn't fetch the file": "无法获取文件",
+  "Create a registration token for custom installation workflows.":
+    "为自定义安装流程创建注册令牌。",
+  "Create encrypted session": "创建加密会话",
+  "Create new request": "创建新请求",
+  "Created ": "创建于 ",
+  "Credentials apply to the system account running PAX on this device. Other accounts or configurations may need a separate sign-in.":
+    "凭据适用于此设备上运行 PAX 的系统账户。其他账户或配置可能需要单独登录。",
+  "Credentials expired?": "凭据已过期？",
+  Current: "当前",
+  "Current summaries": "当前摘要",
+  "Currently bound": "当前已绑定",
+  Customer: "客户",
+  "Customer administration": "客户管理",
+  "Customer analytics": "客户统计",
+  "Customer analytics is available to administrators.":
+    "客户统计仅向管理员开放。",
+  "Customer details": "客户详情",
+  "Customer, device, or receiver ID": "客户、设备或接收端 ID",
+  Decline: "拒绝",
+  "Decrease artifact reader font size": "减小文件阅读字号",
+  "Decrease font size": "减小字号",
+  "Decrypting session history…": "正在解密会话历史…",
+  Delayed: "已延迟",
+  Device: "设备",
+  "Device registrations and notification outcomes across customers.":
+    "查看各客户的设备注册和通知结果。",
+  "Device versions, runtime information, browser audit, and maintenance tools live in each device's details.":
+    "设备详情中包含版本、运行信息、浏览器审计和维护工具。",
+  "Dictation microphone": "语音输入麦克风",
+  "E2EE Session Lab": "端到端加密会话实验室",
+  "Enable notifications": "启用通知",
+  "Enable push notifications and test this device.":
+    "启用推送通知并测试此设备。",
+  "Enabled means registered in Pax. Device permission is the last client report, not a live OS check. Provider accepted does not confirm display or reading. Dates use your local timezone.":
+    "已启用表示已在 PAX 注册。设备权限为客户端最后上报的状态，并非系统实时检查。推送服务接收不代表已显示或已读。日期使用本地时区。",
+  "Encrypted chats": "加密会话",
+  "Encrypted history is present. Message roles and exact send totals are not visible to analytics.":
+    "存在加密历史，统计无法读取消息角色和准确的发送总量。",
+  "Encrypted prompt": "加密消息",
+  "Encrypted route": "加密连接",
+  "Encrypting…": "加密中…",
+  "Encryption access": "加密访问授权",
+  "Enter one complete line without surrounding spaces. It is sent to the device only when you start and is then cleared from this form.":
+    "请输入完整的一行，前后不要留空格。内容仅在开始时发送到设备，随后从表单清除。",
+  "Enter this code on the ": "请在以下位置输入此验证码：",
+  "Existing session": "已有会话",
+  "Exit artifact fullscreen": "退出文件全屏",
+  "Exit fullscreen": "退出全屏",
+  Expand: "展开",
+  "Expand preview": "展开预览",
+  "Expires ": "过期时间：",
+  "Explore PaxWorkspace ↗": "了解 PaxWorkspace ↗",
+  "Fetch again": "重新获取",
+  "Fetch and open": "获取并打开",
+  "Fetch file from the agent's machine": "从智能体所在设备获取文件",
+  "Fetching file": "正在获取文件",
+  "File details": "文件详情",
+  Filename: "文件名",
+  Fit: "适应窗口",
+  "Fit image": "图片适应窗口",
+  "Focus this window to load analytics.": "激活此窗口以加载统计。",
+  "Focus this window to load subscriptions.": "激活此窗口以加载订阅。",
+  "Focused Console visits only; collection starts with this release.":
+    "仅统计处于前台的控制台访问，从此版本开始收集。",
+  "For an offline device, check that it is powered on and connected to the internet. Open its details to inspect the last heartbeat and runtime information.":
+    "设备离线时，请确认已开机并联网。打开设备详情查看最近心跳和运行信息。",
+  "Full authorization code": "完整授权码",
+  "Get access from the paxd computer": "在运行 paxd 的电脑上获取授权",
+  "Get notified when a session needs your approval. Tap a notification to open the session and review the request. Requests handled by Pax Auto Approve or a saved approval do not trigger notifications.":
+    "会话需要审批时接收通知。点击通知打开会话并查看请求。由 PAX 自动审批或已保存的授权处理的请求不会触发通知。",
+  "Give this browser or another device access to encrypted chats.":
+    "授权此浏览器或其他设备访问加密会话。",
+  "Headset microphone": "耳机麦克风",
+  "Hide code": "隐藏验证码",
+  "Hong Kong": "香港",
+  "Image canvas": "图片画布",
+  "Image zoom": "图片缩放",
+  "Increase artifact reader font size": "增大文件阅读字号",
+  "Increase font size": "增大字号",
+  "Inspect your summaries, immutable versions, and source references.":
+    "查看摘要、历史版本和来源引用。",
+  "Invalid or truncated JSON; showing the available source.":
+    "JSON 无效或不完整，正在显示可用的源内容。",
+  "Isolated transport validation": "独立传输验证",
+  "JSONL preview limited to": "JSONL 预览仅显示",
+  "Keep music playing": "保持音乐播放",
+  "Key epoch": "密钥版本",
+  "Latest attempt:": "最近尝试：",
+  "Latest readable version per summary, ordered by ID. No keyword required.":
+    "每条摘要的最新可读版本，按 ID 排序，无需关键词。",
+  "Line height": "行高",
+  "Linked device unavailable": "关联设备不可用",
+  "Live · 15s": "实时 · 15 秒",
+  "Load more summaries": "加载更多摘要",
+  "Loading agents…": "正在加载智能体…",
+  "Loading customer analytics...": "正在加载客户统计…",
+  "Loading devices…": "正在加载设备…",
+  "Loading image…": "正在加载图片…",
+  "Loading more…": "加载更多…",
+  "Loading subscriptions...": "正在加载订阅…",
+  "Loading summaries…": "正在加载摘要…",
+  "Loading summary…": "正在加载摘要…",
+  Local: "本地",
+  "Maintain automatic summaries and track conversation progress.":
+    "维护自动摘要并追踪会话进度。",
+  "Manage push notifications for this browser or Android app. Each device is enabled separately.":
+    "管理此浏览器或 Android 应用的推送通知，每台设备单独启用。",
+  "Manage your devices, projects, and service health.":
+    "管理设备、项目和服务状态。",
+  "Manual device registration": "手动注册设备",
+  "Matching device…": "正在匹配设备…",
+  "Microphone on this device": "此设备的麦克风",
+  "More options": "更多选项",
+  "Neither region is reachable. Please retry.": "两个区域均无法连接，请重试。",
+  "New code in": "验证码刷新倒计时：",
+  "New session name": "新会话名称",
+  "No accounts match these filters.": "没有符合筛选条件的账户。",
+  "No agents are registered on this device. Add an agent to it in PAX before signing in.":
+    "此设备尚未注册智能体，请先在 PAX 中添加智能体再登录。",
+  "No agents available.": "没有可用的智能体。",
+  "No encrypted messages yet. Live tunnel events will appear here while durable history is stored.":
+    "暂无加密消息。实时连接事件会显示在这里，同时保存历史记录。",
+  "No key is stored for this agent. Add the matching paxd root key in Security settings before testing.":
+    "此浏览器未保存该智能体的密钥，请先在安全设置中添加匹配的 paxd 根密钥。",
+  "No plan usage reported yet.": "暂无套餐用量报告。",
+  "No readable summaries in this page. More records are available.":
+    "本页没有可读摘要，可以继续加载其他记录。",
+  "No registered agents": "尚未注册智能体",
+  "No registered subscriptions match these filters.":
+    "没有符合筛选条件的已注册订阅。",
+  "No snapshot is available for this region.": "此区域暂无快照。",
+  "No subscriptions on this page.": "本页没有订阅。",
+  "No summaries yet.": "暂无摘要。",
+  "Non-admin accounts": "非管理员账户",
+  "Not attempted yet": "尚未尝试",
+  "Not bound": "未绑定",
+  "Notification status is temporarily unavailable.": "通知状态暂时不可用。",
+  "Older device requests": "较早的设备请求",
+  "On an authorized device, open Encryption access for this agent and enter this code.":
+    "在已授权设备上打开此智能体的加密访问授权页面，并输入此验证码。",
+  "Online devices": "在线设备",
+  "Open ": "打开 ",
+  "Open artifact fullscreen": "全屏查看文件",
+  "Open fetched copy (fetched ": "打开已获取的副本（获取于 ",
+  "Open file": "打开文件",
+  "Open fullscreen": "全屏查看",
+  "Open page": "打开页面",
+  "Open summary": "打开摘要",
+  "Open summary by ID": "通过 ID 打开摘要",
+  "Opening your account region...": "正在打开账户区域…",
+  "Organize projects and their working folders.": "整理项目及其工作目录。",
+  Owner: "所有者",
+  "PAX Workspace": "PAX 工作区",
+  "PAX could not load your account information. Retry to continue.":
+    "PAX 无法加载账户信息，请重试以继续。",
+  "PAX service": "PAX 服务",
+  "Partial / stale snapshot": "部分或过期快照",
+  "Paste the complete code shown after you approve access, including its state suffix when present. Use the authorization result, not an email verification code.":
+    "粘贴批准访问后显示的完整代码，包括可能存在的状态后缀。请使用授权结果，而非邮箱验证码。",
+  "Paused · access denied": "已暂停 · 无权访问",
+  "Paused · not focused": "已暂停 · 窗口未激活",
+  "Permission: ": "权限：",
+  "Permissions and developer tools. Most people can leave these settings as they are.":
+    "权限和开发者工具。通常无需修改这些设置。",
+  "Permissions, encrypted access, and developer tools.":
+    "权限、加密访问和开发者工具。",
+  "Plan usage": "套餐用量",
+  "Plan usage could not be loaded.": "无法加载套餐用量。",
+  "Plan usage could not be refreshed.": "无法刷新套餐用量。",
+  "Plan usage is unavailable right now.": "套餐用量暂时不可用。",
+  "Playback speed": "播放速度",
+  "Preferences, access, and tools.": "偏好、访问权限和工具。",
+  "Preparing artifact preview…": "正在准备文件预览…",
+  "Preparing code…": "正在生成验证码…",
+  "Preparing your account...": "正在准备账户…",
+  "Preparing…": "准备中…",
+  "Preview truncated.": "预览内容已截断。",
+  Previous: "上一页",
+  "Provider accepted": "推送服务已接收",
+  "Push registration is not configured in this region.":
+    "此区域未配置推送注册服务。",
+  "Push subscriptions": "推送订阅",
+  "Push subscriptions are available to administrators.":
+    "推送订阅仅向管理员开放。",
+  "Queued; waiting for an attempt.": "已排队，等待尝试。",
+  "Raw JSON": "原始 JSON",
+  "Raw decrypted ACP frames": "解密后的原始 ACP 帧",
+  "Re-authenticate": "重新验证身份",
+  Reader: "阅读器",
+  "Reader settings": "阅读设置",
+  "Receiver ID": "接收端 ID",
+  "Receiver details": "接收端详情",
+  "Recent sessions": "最近会话",
+  "Referenced at line ": "引用行号：",
+  "Refresh agents": "刷新智能体",
+  "Refresh devices": "刷新设备",
+  "Refresh status": "刷新状态",
+  "Refresh summaries": "刷新摘要",
+  Region: "区域",
+  "Restoring your account...": "正在恢复账户…",
+  "Retry playback": "重试播放",
+  "Retry preview": "重试预览",
+  "Retry summary": "重试摘要",
+  "Retrying with backoff": "正在退避重试",
+  "Return to session": "返回会话",
+  "Review or revoke permissions previously given to agents.":
+    "查看或撤销已授予智能体的权限。",
+  Revision: "修订版本",
+  Rule: "规则",
+  "Run on the paxd computer": "在运行 paxd 的电脑上执行",
+  "Running agents may need a restart to use new credentials. Sign-in does not interrupt active conversations; retry the request in your session, and restart its agent when idle if the error continues.":
+    "运行中的智能体可能需要重启才能使用新凭据。登录不会中断活跃会话；请先在会话中重试，如果问题持续，在智能体空闲时重启。",
+  "Saved in this browser only. Takes effect the next time you tap the microphone.":
+    "仅保存在此浏览器，下次点击麦克风时生效。",
+  "Search customers": "搜索客户",
+  "Search email": "搜索邮箱",
+  "Search subscriptions": "搜索订阅",
+  Seek: "跳转播放位置",
+  "Seen in last 90s: ": "最近 90 秒在线：",
+  "Select Preview to load a short-lived, permission-checked view.":
+    "点击预览以加载经过权限检查的临时视图。",
+  "Select a device": "选择设备",
+  "Select a summary to inspect its content and data.":
+    "选择摘要以查看内容和数据。",
+  "Selected device": "已选设备",
+  "Send a prompt through the encrypted command table and paxd WebSocket…":
+    "通过加密命令和 paxd WebSocket 发送消息…",
+  "Send encrypted prompt": "发送加密消息",
+  "Send test notification": "发送测试通知",
+  "Sends encrypted ACP commands, decrypts durable message history in this browser, and renders the standard session timeline.":
+    "发送加密的 ACP 命令，在此浏览器解密已保存的历史消息，并显示标准会话时间线。",
+  "Service and connection status are reported separately. An online device does not guarantee that its agents are running.":
+    "服务状态和连接状态分别报告。设备在线并不代表其中的智能体正在运行。",
+  "Service status": "服务状态",
+  "Show code": "显示验证码",
+  "Show image at actual size": "按原始尺寸显示图片",
+  "Sign in again": "重新登录",
+  "Sign in to Claude Code or Codex on a device and renew expired access.":
+    "登录设备上的 Claude Code 或 Codex，并更新已过期的访问凭据。",
+  "Sign in with": "登录方式：",
+  "Sign-in method": "登录方式",
+  "Sign-in status could not be checked.": "无法检查登录状态。",
+  "Signed-in account": "已登录账户",
+  "Signing out removes this browser's subscription.":
+    "退出登录会移除此浏览器的订阅。",
+  "Size ": "大小 ",
+  "Some values are from an older snapshot. Regional timestamps show their freshness.":
+    "部分数据来自较早的快照，可查看区域时间戳了解更新时间。",
+  Stage: "阶段",
+  Stale: "已过期",
+  "Stale / unavailable": "已过期 / 不可用",
+  "Status unavailable": "状态不可用",
+  "Subject · ": "主题 · ",
+  "Subscription data is unavailable.": "订阅数据不可用。",
+  "Subscription status": "订阅状态",
+  "Summary ID": "摘要 ID",
+  "Summary JSON": "摘要 JSON",
+  "Summary details": "摘要详情",
+  "Summary developer": "摘要开发工具",
+  "Summary developer is available to administrators.":
+    "摘要开发工具仅向管理员开放。",
+  "Summary list": "摘要列表",
+  "System and browser settings control whether notifications appear.":
+    "通知是否显示取决于系统和浏览器设置。",
+  "Taking you to sign in with email, Google, or GitHub.":
+    "正在前往登录页，可使用邮箱、Google 或 GitHub 登录。",
+  "The device returned an unsupported authorization link. Cancel this attempt and update paxd before trying again.":
+    "设备返回了不支持的授权链接。请取消本次尝试，更新 paxd 后重试。",
+  "The file will be uploaded to PAX cloud storage and appear in this session's Artifacts panel.":
+    "文件将上传到 PAX 云存储，并显示在此会话的文件面板中。",
+  "This CSV file is empty.": "此 CSV 文件为空。",
+  "This JSONL file contains no records.": "此 JSONL 文件没有记录。",
+  "This artifact type is download-only in the document viewer.":
+    "此类型的文件仅支持下载。",
+  "This device": "此设备",
+  "This device is authorized": "此设备已授权",
+  "This device is offline. Reconnect it before checking or changing its sign-in.":
+    "此设备已离线，请重新连接后再检查或修改登录状态。",
+  "This device is ready": "此设备已就绪",
+  "This device is unavailable to your account. Select a device you own.":
+    "你的账户无法访问此设备，请选择自己拥有的设备。",
+  "This file can't be fetched": "无法获取此文件",
+  "This file is on the agent's machine. Fetch it to view it here.":
+    "此文件位于智能体所在设备上，获取后即可在这里查看。",
+  "This image could not be displayed. Retry preview or download the file.":
+    "无法显示此图片，请重试预览或下载文件。",
+  "This region is unavailable. Its subscriptions are not counted as zero.":
+    "此区域不可用，订阅数量不会计为零。",
+  "This sign-in method does not report account details.":
+    "此登录方式不提供账户详情。",
+  "This sign-in method does not report plan usage.":
+    "此登录方式不提供套餐用量。",
+  "This summary or its requested version is unavailable. Its sources may have been deleted or become inaccessible.":
+    "此摘要或指定版本不可用，其来源可能已删除或无法访问。",
+  "Try again": "重试",
+  "Turn off on this device": "在此设备上关闭",
+  "Unable to load your account.": "无法加载账户。",
+  "Unable to open your account": "无法打开账户",
+  "Unable to play this media. Your browser may not support its format or codec. Download the file to play it locally.":
+    "无法播放此媒体，浏览器可能不支持其格式或编解码器。请下载后在本地播放。",
+  "Unable to refresh analytics. Previously loaded values remain visible. ":
+    "无法刷新统计，仍显示之前加载的数据。",
+  "Unable to refresh subscriptions. Previous snapshots remain visible and may be stale.":
+    "无法刷新订阅，仍显示之前的快照，数据可能已过期。",
+  "Unable to renew this playback link. Retry or use Download to play the file locally.":
+    "无法更新播放链接，请重试或下载后在本地播放。",
+  Unavailable: "不可用",
+  "United States": "美国",
+  "Updating…": "更新中…",
+  "Upload blocked": "上传受阻",
+  "Uploading…": "上传中…",
+  "Use a different method": "使用其他方式",
+  "Use paxd command instead": "改用 paxd 命令",
+  "Uses call-style audio with echo cancellation, so a Bluetooth headset's microphone is used. Music pauses or sounds lower while you dictate.":
+    "使用带回声消除的通话音频模式，可调用蓝牙耳机麦克风。语音输入时音乐可能暂停或音量降低。",
+  "Uses this phone's or computer's own microphone. Bluetooth earbuds keep playing audio while you dictate. Loud music from a speaker may be picked up.":
+    "使用手机或电脑自带的麦克风。语音输入时蓝牙耳机继续播放音频；扬声器的大声音乐可能被录入。",
+  "Version ": "版本 ",
+  Video: "视频",
+  "View push subscriptions · ": "查看推送订阅 · ",
+  "Visited today: ": "今日访问：",
+  "Voice input": "语音输入",
+  "Waiting for a complete regional snapshot. Counts are unavailable until every selected region has data.":
+    "正在等待完整的区域快照。所有选定区域返回数据后才显示数量。",
+  "Waiting for encryption access…": "正在等待加密访问授权…",
+  "Waiting…": "等待中…",
+  "Web Push": "网页推送",
+  "Welcome to PAX.": "欢迎使用 PAX。",
+  "When notifications arrive": "通知显示方式",
+  "You already fetched this file in this session.":
+    "你已在此会话中获取过此文件。",
+  "You can close this dialog. The file will appear in the session's Artifacts panel when the upload finishes.":
+    "可以关闭此对话框。上传完成后，文件会显示在会话的文件面板中。",
+  "You can enable this device and send a test notification. Automatic turn alerts are not available yet.":
+    "可以启用此设备并发送测试通知。自动回复提醒尚不可用。",
+  "Your agent": "你的智能体",
+  "Your agents. One workspace.": "所有智能体，一个工作区。",
+  "Your browser does not support audio playback.": "浏览器不支持音频播放。",
+  "Your browser does not support video playback.": "浏览器不支持视频播放。",
+  "Your code": "你的验证码",
+  "Your current summaries": "你的当前摘要",
+  "Your projects and devices will stay in this region. Future visits return here automatically.":
+    "项目和设备将保存在此区域，以后访问会自动返回这里。",
+  "Your projects and devices will stay in this region. We recommend the fastest available connection.":
+    "项目和设备将保存在此区域，建议选择连接最快的区域。",
+  "Zoom in": "放大",
+  "Zoom out": "缩小",
+  "cursor ": "游标 ",
+  "manager session: ": "管理器会话：",
+  "native session: private to paxd": "原生会话：仅 paxd 可见",
+  "paxd working directory": "paxd 工作目录",
+  "record ": "记录 ",
+  "resets ": "重置于 ",
+  "resets in ": "重置倒计时：",
+  "s · Waiting for access…": "秒 · 等待授权…",
+  "About PaxWorkspace": "关于 PaxWorkspace",
+  Customers: "客户",
+  Workspace: "工作区",
+  "Security & access": "安全与访问",
+  "Developer tools": "开发者工具",
+  "Status & support": "状态与支持",
+  "Alerts on this device": "此设备的提醒",
+  "Choose when this browser or Android app should notify you. Each device has its own subscription.":
+    "设置此浏览器或 Android 应用的通知时机。每台设备都有独立订阅。",
+  "Microphone for dictation": "语音输入麦克风",
+  "Choose which microphone dictation uses on this device, so music in your earbuds can keep playing.":
+    "选择此设备用于语音输入的麦克风，让耳机中的音乐继续播放。",
+  "Devices & agents": "设备与智能体",
+  "Computers, servers, and agents": "电脑、服务器和智能体",
+  "Connect computers and servers, manage their agents, and inspect connection details.":
+    "连接电脑和服务器，管理智能体并查看连接详情。",
+  "Automatic conversation summaries": "自动会话摘要",
+  "Choose an agent to maintain summaries connected to your conversations, and track what has been summarized.":
+    "选择智能体维护会话摘要，并追踪摘要进度。",
+  "Workspaces and working folders": "工作区和工作目录",
+  "Organize work into projects and configure reusable folders and agent targets for each workspace.":
+    "使用项目整理工作，为各工作区配置可复用目录和智能体。",
+  "Agent accounts and plan usage": "智能体账户与套餐用量",
+  "Sign in to the agents on a connected device, renew expired credentials, and check plan usage.":
+    "登录已连接设备上的智能体，更新过期凭据并查看套餐用量。",
+  "Review and revoke agent permissions": "查看和撤销智能体权限",
+  "Review permissions previously given to agents, inspect their scope, and revoke access you no longer need.":
+    "查看智能体已有权限及其范围，撤销不再需要的访问授权。",
+  "Encryption keys and device access": "加密密钥与设备访问",
+  "Manage this browser's encryption keys and authorize devices to open encrypted chats.":
+    "管理此浏览器的加密密钥，并授权设备访问加密会话。",
+  "Access for scripts and applications": "供脚本和应用访问",
+  "Create and revoke access keys for scripts and applications that connect to PAX.":
+    "创建或撤销用于连接 PAX 的脚本和应用访问密钥。",
+  "Device registration": "设备注册",
+  "Tokens for custom installations": "自定义安装令牌",
+  "Create a device registration token for custom installation workflows. For a guided setup, use Add device instead.":
+    "为自定义安装流程创建设备注册令牌。如需引导安装，请使用添加设备。",
+  "Service health and connections": "服务健康与连接状态",
+  "Check PAX service health alongside device and agent connections. Inspect offline resources and refresh their status.":
+    "检查 PAX 服务状态和设备、智能体连接，查看离线资源并刷新状态。",
+  "Questions or feedback? Email {email}.": "有问题或反馈？请发邮件至 {email}。",
+  "Checking status": "正在检查状态",
+  "Fetching service and device status.": "正在获取服务和设备状态。",
+  "Some status checks failed. Open details to retry.":
+    "部分状态检查失败，打开详情以重试。",
+  "Status unknown": "状态未知",
+  "Not all services have reported their status.": "部分服务尚未上报状态。",
+  "Service needs attention": "服务需要处理",
+  "PAX reports: {status}": "PAX 报告：{status}",
+  "Some resources are offline": "部分资源已离线",
+  "{devices} device(s) and {agents} agent(s) offline. PAX is responding.":
+    "{devices} 台设备和 {agents} 个智能体离线，PAX 服务响应正常。",
+  "Some status is unknown": "部分状态未知",
+  "PAX is responding. Some resources have not reported a connection state.":
+    "PAX 服务响应正常，部分资源尚未上报连接状态。",
+  "All systems operational": "所有系统运行正常",
+  "PAX is operational": "PAX 运行正常",
+  "{devices} device(s) and {agents} agent(s) online.":
+    "{devices} 台设备和 {agents} 个智能体在线。",
+  "No devices connected yet.": "尚未连接设备。",
+  "No agents registered yet.": "尚未注册智能体。",
+  "Device not reported": "未上报设备",
+  "Unknown OS": "未知操作系统",
+  "Unknown architecture": "未知架构",
+  "Copy code": "复制代码",
+  "Copied code": "代码已复制",
+  "Copy table": "复制表格",
+  "Copied table": "表格已复制",
+  "Copied path": "路径已复制",
+  "Unable to render this Mermaid diagram.": "无法渲染此 Mermaid 图表。",
+  "Show Mermaid code": "显示 Mermaid 代码",
+  "Preview Mermaid diagram": "预览 Mermaid 图表",
+  "Mermaid diagram preview": "Mermaid 图表预览",
+  Code: "代码",
+  "Update {name} on this device to see plan usage.":
+    "更新此设备上的 {name} 以查看套餐用量。",
+  "Update PAX on this device to see plan usage.":
+    "更新此设备上的 PAX 以查看套餐用量。",
+  "Updated just now": "刚刚更新",
+  "Updated {time} ago": "更新于 {time}前",
+  "{time} ago": "{time}前",
+  "{minutes}m": "{minutes}分钟",
+  "{hours}h": "{hours}小时",
+  "{days}d": "{days}天",
+  soon: "即将",
+  "{name} sign-in": "{name} 登录",
+  "Sign-in is not available for {name} yet.": "暂不支持 {name} 登录。",
+  "{kind} player: {title}": "{kind}播放器：{title}",
+  "{kind} playback controls": "{kind}播放控制",
+  "Artifact viewer: {title}": "文件查看器：{title}",
+  "US: {us} · Hong Kong: {hk}": "美国：{us} · 香港：{hk}",
+  "Untitled artifact": "未命名文件",
+  "Artifact unavailable": "文件不可用",
+  "Loading artifact…": "正在加载文件…",
+  "Artifact preview failed.": "文件预览失败。",
+  "Artifact preview is not ready yet.": "文件预览尚未就绪。",
+  "Artifact content is not available.": "文件内容不可用。",
+  "Preview unavailable": "预览不可用",
+  "Link copied": "链接已复制",
+  "Couldn't copy link. Try again or copy the address bar URL.":
+    "无法复制链接，请重试或复制地址栏中的链接。",
+  "Artifact publication failed.": "文件发布失败。",
+  "Download or open the artifact to inspect the full file.":
+    "下载或打开文件以查看完整内容。",
+  "This text file is empty.": "此文本文件为空。",
+  Artifact: "文件",
+  "Sign in to preview this artifact.": "请先登录以预览此文件。",
+  "New device": "新设备",
+  "Unknown node": "未知节点",
+  "Encrypted session": "加密会话",
+  "Not signed in on this device.": "此设备尚未登录。",
+  "Starting sign-in on the device…": "正在设备上开始登录…",
+  "Approve access in your browser, then paste the full authorization code below.":
+    "请在浏览器中批准访问，然后在下方粘贴完整授权码。",
+  "Approve access in your browser. This page updates when sign-in completes.":
+    "请在浏览器中批准访问。登录完成后此页面会自动更新。",
+  "Verifying sign-in on the device…": "正在设备上验证登录…",
+  "Sign-in was cancelled.": "登录已取消。",
+  "Sign-in expired. Start again to get a new link or code.":
+    "登录已过期，请重新开始以获取新链接或验证码。",
+  "Sign-in failed. Start again to get a new link or code.":
+    "登录失败，请重新开始以获取新链接或验证码。",
+  "The device returned an unknown sign-in state. Refresh before continuing.":
+    "设备返回未知登录状态，请刷新后继续。",
+  "Claude account (Pro / Max)": "Claude 账户（Pro / Max）",
+  "Opens claude.ai to approve this device.": "打开 claude.ai 以授权此设备。",
+  "Anthropic Console (API billing)": "Anthropic Console（API 计费）",
+  "Uses your Console organization's API credits.":
+    "使用你的 Console 组织的 API 额度。",
+  "ChatGPT account": "ChatGPT 账户",
+  "Opens a ChatGPT page. Enter the code shown here to approve this device.":
+    "打开 ChatGPT 页面，输入此处显示的验证码以授权此设备。",
+  "OpenAI API key": "OpenAI API 密钥",
+  "Paste a key from platform.openai.com.":
+    "粘贴从 platform.openai.com 获取的密钥。",
+  "Access token": "访问令牌",
+  "For tokens issued by your organization.": "用于组织签发的令牌。",
+  "Claude account": "Claude 账户",
+  "API key": "API 密钥",
+  "This browser does not support push notifications. On iPhone or iPad, add PAX to the Home Screen and open it there.":
+    "此浏览器不支持推送通知。请在 iPhone 或 iPad 上将 PAX 添加到主屏幕后再打开。",
+  "Notifications are not configured on the server yet. Contact your administrator.":
+    "服务器尚未配置通知，请联系管理员。",
+  "Notifications are off on this device.": "此设备的通知已关闭。",
+  "Permission was not granted. Select Enable notifications to try again.":
+    "尚未授予通知权限，点击启用通知以重试。",
+  "Notifications are blocked. Allow notifications in your browser and Android app or system settings, then retry.":
+    "通知已被阻止，请在浏览器、Android 应用或系统设置中允许通知后重试。",
+  "Notifications are enabled on this device.": "此设备已启用通知。",
+  User: "用户",
+  Email: "邮箱",
+  "Last visit": "最近访问",
+  Accounts: "账户",
+  "Processing…": "处理中…",
+  "Sign in": "登录",
+  "Could not confirm this device's subscription. Retry when you are online.":
+    "无法确认此设备的订阅。请联网后重试。",
+  "Could not update notifications. Retry when you are online.":
+    "无法更新通知。请联网后重试。",
+  "Test notification queued. Check this device's notifications. You can retry after 30 seconds.":
+    "测试通知已加入队列，请查看此设备的通知。30 秒后可重试。",
+  "Your PAX account could not access this device. Refresh the page to check your account.":
+    "你的 PAX 账户无法访问此设备。请刷新页面检查账户。",
+  "Remote sign-in is unavailable, or this attempt no longer exists. Refresh status and check that Manager and paxd are up to date.":
+    "远程登录不可用，或此次登录已不存在。请刷新状态，并确认 Manager 和 paxd 已更新。",
+  "Another sign-in attempt is active on this device. Refresh status, complete or cancel that attempt, then retry.":
+    "此设备上有另一次登录正在进行。请刷新状态，完成或取消该次登录后重试。",
+  "The sign-in request was rejected. Check the selected method and enter the complete, single-line code or credential.":
+    "登录请求被拒绝。请检查所选方式，并输入完整的单行授权码或凭据。",
+  "The device is offline or remote sign-in is unavailable. Reconnect the device and refresh status.":
+    "设备已离线或远程登录不可用。请重新连接设备并刷新状态。",
+  "The device did not respond in time. Refresh status before starting another attempt.":
+    "设备未及时响应。再次开始登录前，请先刷新状态。",
+  "Could not contact the device. Refresh status before trying again.":
+    "无法连接设备。请刷新状态后重试。",
+  "{percent}% used": "{percent}% 已使用",
+  credits: "额度",
+  requests: "次请求",
+  ok: "正常",
+  up: "正常",
+  operational: "正常运行",
+  degraded: "服务降级",
+  down: "不可用",
+};

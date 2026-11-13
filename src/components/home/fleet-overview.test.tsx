@@ -23,6 +23,7 @@ import {
   vi,
 } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useLocaleStore } from "@/features/i18n/locale-store";
 import { useConsoleStore } from "@/stores/console-store";
 import type { AgentSession, Project, User } from "@/features/api/types";
 import { ApiError } from "@/features/api/errors";
@@ -340,7 +341,10 @@ beforeEach(() => {
   mocks.useTeamInvites.mockReturnValue(emptyQueryData("invites"));
 });
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  useLocaleStore.setState({ locale: "en" });
+});
 
 describe("FleetOverview session rail", () => {
   it("hides internal Secretary sessions from list responses while retaining ordinary conversations", async () => {
@@ -2513,5 +2517,39 @@ describe("FleetOverview voice input", () => {
         "fix the login bug",
       );
     });
+  });
+});
+
+describe("Given Home uses Chinese", () => {
+  it("translates the composer and session rail while keeping project and session names unchanged", async () => {
+    useLocaleStore.setState({ locale: "zh-CN" });
+    renderOverview();
+    expect(
+      screen.getByRole("combobox", { name: "按项目筛选" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "管理" })).toHaveAttribute(
+      "href",
+      "/settings/projects",
+    );
+    expect(
+      await screen.findByRole("link", { name: /Session one/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText("让智能体帮你做点什么"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("接下来做什么？")).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("combobox", { name: "按项目筛选" })).getByRole(
+        "option",
+        { name: "Pax" },
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "筛选会话" }));
+    expect(
+      screen.getByRole("group", { name: "按智能体筛选" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("group", { name: "按节点筛选" }),
+    ).toBeInTheDocument();
   });
 });

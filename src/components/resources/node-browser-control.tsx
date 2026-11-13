@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
+
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import Link from "next/link";
 import { BrowserPreviewImage } from "./browser-preview-image";
@@ -26,13 +28,14 @@ export function NodeBrowserControl({
   nodeId: string;
   userId: string;
 }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   return (
     <section className="grid min-w-0 gap-3 border-t border-hairline pt-4">
       <div className="flex items-center justify-between">
-        <h2 className="font-medium">Browser</h2>
+        <h2 className="font-medium">{t("Browser")}</h2>
         <Button onClick={() => setOpen(!open)}>
-          {open ? "Close panel" : "Open browser control"}
+          {open ? t("Close panel") : t("Open browser control")}
         </Button>
       </div>
       {open && (
@@ -65,6 +68,7 @@ function BrowserPanel({
   userId: string;
   viewerOnly?: boolean;
 }) {
+  const { t, locale } = useI18n();
   const [error, setError] = useState<Error>();
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
@@ -253,7 +257,7 @@ function BrowserPanel({
     } catch (e) {
       if (version !== selectionVersion.current) return false;
       const failure =
-        e instanceof Error ? e : new Error("Browser preview unavailable");
+        e instanceof Error ? e : new Error(t("Browser preview unavailable"));
       if (readingPreview) {
         setPreviewError(failure);
         if (failure.message === "VIEWER_TAB_CLOSED") setCaptured(undefined);
@@ -287,10 +291,9 @@ function BrowserPanel({
   return (
     <div className="grid min-w-0 gap-4">
       <p className="text-xs text-ink-tertiary">
-        Manage this node browser access and inspect connected Chrome sessions.
-        Watch the current page while the agent works. The image updates about
-        every two seconds without taking control. Taking control pauses agent
-        browser tools until you release control.
+        {t(
+          "Manage this node browser access and inspect connected Chrome sessions. Watch the current page while the agent works. The image updates about every two seconds without taking control. Taking control pauses agent browser tools until you release control.",
+        )}
       </p>
       {!viewerOnly && (
         <>
@@ -298,7 +301,7 @@ function BrowserPanel({
             disabled={busy || query.isFetching}
             onClick={() => void query.refetch()}
           >
-            Refresh browser state
+            {t("Refresh browser state")}
           </Button>
         </>
       )}
@@ -313,7 +316,7 @@ function BrowserPanel({
               className="text-xs text-ink-muted underline"
               href={`/nodes/${encodeURIComponent(nodeId)}`}
             >
-              Browser access and settings
+              {t("Browser access and settings")}
             </Link>
           )}
           {!viewerOnly && (
@@ -321,8 +324,8 @@ function BrowserPanel({
               <div className="flex flex-wrap gap-2">
                 <span>
                   {state.policy.paused
-                    ? "All browser control paused"
-                    : "Allowlist active"}
+                    ? t("All browser control paused")
+                    : t("Allowlist active")}
                 </span>
                 <Button
                   disabled={busy}
@@ -334,11 +337,11 @@ function BrowserPanel({
                     })
                   }
                 >
-                  {state.policy.paused ? "Resume" : "Pause all"}
+                  {state.policy.paused ? t("Resume") : t("Pause all")}
                 </Button>
               </div>
               <div className="grid gap-2">
-                <h3>Site approvals</h3>
+                <h3>{t("Site approvals")}</h3>
                 {state.pending
                   .filter((p) => p.decision === "pending")
                   .map((p) => (
@@ -358,7 +361,7 @@ function BrowserPanel({
                           })
                         }
                       >
-                        Allow session
+                        {t("Allow session")}
                       </Button>
                       <Button
                         disabled={busy}
@@ -370,7 +373,7 @@ function BrowserPanel({
                           })
                         }
                       >
-                        Always allow
+                        {t("Always allow")}
                       </Button>
                       <Button
                         disabled={busy}
@@ -382,7 +385,7 @@ function BrowserPanel({
                           })
                         }
                       >
-                        Deny
+                        {t("Deny")}
                       </Button>
                     </div>
                   ))}
@@ -399,7 +402,7 @@ function BrowserPanel({
                         })
                       }
                     >
-                      Revoke
+                      {t("Revoke")}
                     </Button>
                   </div>
                 ))}
@@ -414,12 +417,12 @@ function BrowserPanel({
                       disabled={busy}
                       onClick={() => void run("revoke", g)}
                     >
-                      Revoke session grant
+                      {t("Revoke session grant")}
                     </Button>
                   </div>
                 ))}
                 <label className="grid gap-1 text-sm">
-                  Site origin
+                  {t("Site origin")}{" "}
                   <input
                     className={inputClass}
                     value={origin}
@@ -440,7 +443,7 @@ function BrowserPanel({
                     })
                   }
                 >
-                  Add allowed site
+                  {t("Add allowed site")}
                 </Button>
               </div>
             </>
@@ -448,9 +451,9 @@ function BrowserPanel({
           <div className="grid gap-2">
             {!viewerOnly && (
               <>
-                <h3>Watch browser</h3>
+                <h3>{t("Watch browser")}</h3>
                 <label className="grid gap-1 text-sm">
-                  Connected browser
+                  {t("Connected browser")}{" "}
                   <select
                     className={inputClass}
                     value={session}
@@ -466,7 +469,7 @@ function BrowserPanel({
                       setGrant(undefined);
                     }}
                   >
-                    <option value="">Select a browser session</option>
+                    <option value="">{t("Select a browser session")}</option>
                     {state.workers.map((w) => (
                       <option key={w.session} value={w.session}>
                         {w.session}
@@ -476,7 +479,7 @@ function BrowserPanel({
                 </label>
                 {tabs && (
                   <label className="grid gap-1 text-sm">
-                    Browser tab
+                    {t("Browser tab")}{" "}
                     <select
                       className={inputClass}
                       value={tabID}
@@ -488,7 +491,7 @@ function BrowserPanel({
                         setPreviewError(undefined);
                       }}
                     >
-                      <option value="">Follow active agent tab</option>
+                      <option value="">{t("Follow active agent tab")}</option>
                       {tabs.tabs.map((tab) => (
                         <option
                           key={tab.id}
@@ -496,7 +499,7 @@ function BrowserPanel({
                           disabled={tab.restricted}
                         >
                           {tab.title}
-                          {tabs.activeTabID === tab.id ? " (agent)" : ""}
+                          {tabs.activeTabID === tab.id ? t(" (agent)") : ""}
                         </option>
                       ))}
                     </select>
@@ -506,14 +509,16 @@ function BrowserPanel({
             )}
             {viewerOnly && (
               <p className="text-xs text-ink-muted">
-                Follows the most recently active browser. Taking control keeps
-                the current view.
+                {t(
+                  "Follows the most recently active browser. Taking control keeps the current view.",
+                )}
               </p>
             )}
             {!state.workers.length && (
               <p className="text-xs text-ink-tertiary">
-                Waiting for an agent browser connection. This list updates
-                automatically.
+                {t(
+                  "Waiting for an agent browser connection. This list updates automatically.",
+                )}
               </p>
             )}
             <div className="flex flex-wrap gap-2">
@@ -522,7 +527,7 @@ function BrowserPanel({
                 aria-pressed={live}
                 onClick={() => setLive(!live)}
               >
-                {live ? "Pause live view" : "Resume live view"}
+                {live ? t("Pause live view") : t("Resume live view")}
               </Button>
               <Button
                 disabled={busy || !session || waitingApproval || windowClosed}
@@ -530,7 +535,7 @@ function BrowserPanel({
                   void run("view", { session, action: { type: "takeover" } })
                 }
               >
-                Take control
+                {t("Take control")}
               </Button>
               <Button
                 disabled={busy || !state.operator}
@@ -545,42 +550,48 @@ function BrowserPanel({
                   });
                 }}
               >
-                Release control
+                {t("Release control")}
               </Button>
             </div>
             {state.operator && (
               <p className="text-xs text-ink-tertiary">
-                Human control is active. Control acquired here is released when
-                you leave this page or close the panel.
+                {t(
+                  "Human control is active. Control acquired here is released when you leave this page or close the panel.",
+                )}
               </p>
             )}
             <div role="status" className="text-xs text-ink-tertiary">
               {!session
                 ? viewerOnly
-                  ? "Waiting for browser activity..."
-                  : "Select a browser to watch."
+                  ? t("Waiting for browser activity...")
+                  : t("Select a browser to watch.")
                 : !connected
-                  ? "Waiting for the browser to reconnect..."
+                  ? t("Waiting for the browser to reconnect...")
                   : state.policy.paused
-                    ? "Browser access is paused."
+                    ? t("Browser access is paused.")
                     : waitingApproval
-                      ? "Waiting for browser approval…"
+                      ? t("Waiting for browser approval…")
                       : windowClosed
-                        ? "Browser window is closed. Waiting for new browser activity…"
+                        ? t(
+                            "Browser window is closed. Waiting for new browser activity…",
+                          )
                         : !live
-                          ? "Live view paused."
+                          ? t("Live view paused.")
                           : previewError
-                            ? (previewWaiting ??
-                              "Preview interrupted. Reconnecting automatically...")
+                            ? t(
+                                previewWaiting ??
+                                  "Preview interrupted. Reconnecting automatically...",
+                              )
                             : !frame
-                              ? "Connecting to the browser..."
+                              ? t("Connecting to the browser...")
                               : busy
-                                ? "Updating live image..."
-                                : "Live view is updating automatically."}
+                                ? t("Updating live image...")
+                                : t("Live view is updating automatically.")}
               {frame && captured && (
                 <span>
                   {" "}
-                  Last image: {new Date(captured.at).toLocaleTimeString()}.
+                  {t("Last image:")}{" "}
+                  {new Date(captured.at).toLocaleTimeString(locale)}.
                 </span>
               )}
             </div>
@@ -590,8 +601,9 @@ function BrowserPanel({
               !windowClosed && <InlineError error={previewError} />}
             {!viewerOnly && !frame && (
               <p className="text-xs text-ink-tertiary">
-                Select the browser used by your agent to watch its current page.
-                Take control is only needed to click or type.
+                {t(
+                  "Select the browser used by your agent to watch its current page. Take control is only needed to click or type.",
+                )}
               </p>
             )}
             {frame && (
@@ -599,8 +611,8 @@ function BrowserPanel({
                 type="button"
                 aria-label={
                   state.operator === session && ownsControl
-                    ? "Browser image; click to interact"
-                    : "Browser image; read-only preview"
+                    ? t("Browser image; click to interact")
+                    : t("Browser image; read-only preview")
                 }
                 className="relative block w-full overflow-hidden border border-hairline"
                 disabled={
@@ -623,7 +635,9 @@ function BrowserPanel({
                   onError={() => {
                     setPreviewError(
                       new Error(
-                        "The browser image could not be displayed. Retrying automatically.",
+                        t(
+                          "The browser image could not be displayed. Retrying automatically.",
+                        ),
                       ),
                     );
                     setCaptured(undefined);
@@ -644,7 +658,7 @@ function BrowserPanel({
                     }
                     onClick={() => void view({ type: "key", key })}
                   >
-                    {key}
+                    {t(key)}
                   </Button>
                 ))}
                 <Button
@@ -656,7 +670,7 @@ function BrowserPanel({
                   }
                   onClick={() => void view({ type: "scroll", x: 0, y: 600 })}
                 >
-                  Scroll down
+                  {t("Scroll down")}
                 </Button>
                 <Button
                   disabled={
@@ -667,7 +681,7 @@ function BrowserPanel({
                   }
                   onClick={() => void view({ type: "scroll", x: 0, y: -600 })}
                 >
-                  Scroll up
+                  {t("Scroll up")}
                 </Button>
               </div>
             )}
@@ -675,19 +689,18 @@ function BrowserPanel({
           {!viewerOnly && (
             <>
               <div className="grid gap-2">
-                <h3>One-use browser password</h3>
+                <h3>{t("One-use browser password")}</h3>
                 <p className="text-xs text-ink-tertiary">
-                  Select the browser and site above, then the password field
-                  from the agent page snapshot. The reference expires after one
-                  minute. Release human control before asking the agent to fill
-                  it.
+                  {t(
+                    "Select the browser and site above, then the password field from the agent page snapshot. The reference expires after one minute. Release human control before asking the agent to fill it.",
+                  )}
                 </p>
                 <label className="grid gap-1 text-sm">
-                  Password field
+                  {t("Password field")}{" "}
                   <input
                     className={inputClass}
                     value={target}
-                    placeholder="e12 or #password"
+                    placeholder={t("e12 or #password")}
                     onChange={(e) => {
                       setTarget(e.target.value);
                       setGrant(undefined);
@@ -705,8 +718,8 @@ function BrowserPanel({
                 {grant && (
                   <div className="text-xs">
                     <p>
-                      Give this one-use instruction to the agent before{" "}
-                      {new Date(grant.expires).toLocaleTimeString()}:
+                      {t("Give this one-use instruction to the agent before")}{" "}
+                      {new Date(grant.expires).toLocaleTimeString(locale)}:
                     </p>
                     <pre className="whitespace-pre-wrap break-all">
                       {JSON.stringify(
@@ -727,20 +740,22 @@ function BrowserPanel({
                 {state.sensitiveSessions.map((s) => (
                   <div key={s} className="flex flex-wrap items-center gap-2">
                     <MonoId>{s}</MonoId>
-                    <span className="text-xs">Password observation hold</span>
+                    <span className="text-xs">
+                      {t("Password observation hold")}
+                    </span>
                     <Button
                       disabled={busy}
                       onClick={() =>
                         void run("resume_sensitive", { session: s })
                       }
                     >
-                      Page is safe; resume agent
+                      {t("Page is safe; resume agent")}
                     </Button>
                   </div>
                 ))}
               </div>
               <details>
-                <summary>Browser audit</summary>
+                <summary>{t("Browser audit")}</summary>
                 <div className="max-h-64 overflow-auto text-xs">
                   {state.audit.map((a, i) => (
                     <p key={i}>

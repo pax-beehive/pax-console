@@ -1,4 +1,5 @@
 "use client";
+import { type TranslationParams, useI18n } from "@/features/i18n/use-i18n";
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -41,6 +42,7 @@ type ReceivedFrame = {
 };
 
 type StreamStatus = "idle" | "locked" | "listening" | "error";
+type LocalMessage = { source: string; params?: TranslationParams };
 
 type RootKeyState = {
   agentId: string;
@@ -57,6 +59,7 @@ export function E2EESessionLabRoute() {
 }
 
 function E2EESessionLab({ user }: { user: User }) {
+  const { t } = useI18n();
   const searchParams = useSearchParams();
   const requestedAgentId = searchParams.get("agentId") ?? "";
   const agentsQuery = useAgents(user.user_id, "owned");
@@ -87,7 +90,7 @@ function E2EESessionLab({ user }: { user: User }) {
     agentId: "",
   });
   const [keyEpoch, setKeyEpoch] = useState(1);
-  const [streamError, setStreamError] = useState("");
+  const [streamError, setStreamError] = useState<string | LocalMessage>("");
   const [cursor, setCursor] = useState(0);
   const cursorRef = useRef(0);
   const [frames, setFrames] = useState<ReceivedFrame[]>([]);
@@ -97,7 +100,7 @@ function E2EESessionLab({ user }: { user: User }) {
   const [historyError, setHistoryError] = useState("");
   const [prompt, setPrompt] = useState("");
   const [sending, setSending] = useState(false);
-  const [commandStatus, setCommandStatus] = useState("");
+  const [commandStatus, setCommandStatus] = useState<LocalMessage>();
   const [sessionName, setSessionName] = useState("Encrypted session");
   const [cwd, setCwd] = useState("/tmp");
   const [lifecycleBusy, setLifecycleBusy] = useState(false);
@@ -210,11 +213,15 @@ function E2EESessionLab({ user }: { user: User }) {
           pendingLifecycle.current.delete(response.requestId);
           setLifecycleBusy(false);
           if (response.error) {
-            setStreamError(`ACP lifecycle error: ${response.error}`);
+            setStreamError({
+              source: "ACP lifecycle error: {error}",
+              params: { error: response.error },
+            });
           } else {
-            setCommandStatus(
-              `encrypted session ready · ${lifecycle.sessionId}`,
-            );
+            setCommandStatus({
+              source: "encrypted session ready · {session}",
+              params: { session: lifecycle.sessionId },
+            });
           }
         }
         setFrames((current) => [
@@ -291,7 +298,7 @@ function E2EESessionLab({ user }: { user: User }) {
       return;
     }
     setSending(true);
-    setCommandStatus("");
+    setCommandStatus(undefined);
     setStreamError("");
     try {
       const frame = buildE2EEPromptFrame(
@@ -307,9 +314,12 @@ function E2EESessionLab({ user }: { user: User }) {
         sessionId: activeSession.session_id,
         userId: user.user_id,
       });
-      setCommandStatus(
-        `${result.status} · ${result.command_id}${result.created ? " · created" : " · replayed"}`,
-      );
+      setCommandStatus({
+        source: result.created
+          ? "{status} · {command} · created"
+          : "{status} · {command} · replayed",
+        params: { status: result.status, command: result.command_id },
+      });
       setPrompt("");
     } catch (error) {
       setStreamError(errorMessage(error));
@@ -324,13 +334,13 @@ function E2EESessionLab({ user }: { user: User }) {
     }
     const normalizedCwd = cwd.trim();
     if (!normalizedCwd) {
-      setStreamError("Working directory is required");
+      setStreamError({ source: "Working directory is required" });
       return;
     }
 
     setLifecycleBusy(true);
     setStreamError("");
-    setCommandStatus("creating Manager session…");
+    setCommandStatus({ source: "creating Manager session…" });
     let requestId = "";
     try {
       const session = await createAgentSession(
@@ -357,9 +367,10 @@ function E2EESessionLab({ user }: { user: User }) {
         userId: user.user_id,
       });
       if (pendingLifecycle.current.has(requestId)) {
-        setCommandStatus(
-          `${result.status} · waiting for encrypted session/new response`,
-        );
+        setCommandStatus({
+          source: "{status} · waiting for encrypted session/new response",
+          params: { status: result.status },
+        });
       }
     } catch (error) {
       if (requestId) {
@@ -374,7 +385,7 @@ function E2EESessionLab({ user }: { user: User }) {
     setFrames([]);
     setHistoryMessages([]);
     setHistoryError("");
-    setCommandStatus("");
+    setCommandStatus(undefined);
     setStreamError("");
     setCursor(0);
     cursorRef.current = 0;
@@ -400,30 +411,38 @@ function E2EESessionLab({ user }: { user: User }) {
             <div>
               <div className="flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-ink-tertiary">
                 <LockKeyhole className="h-4 w-4" />
-                Isolated transport validation
+                {t("Isolated transport validation")}
               </div>
-              <h1 className="mt-2 text-2xl font-semibold">E2EE Session Lab</h1>
+              <h1 className="mt-2 text-2xl font-semibold">
+                {t("E2EE Session Lab")}
+              </h1>
               <p className="mt-1 max-w-3xl text-sm text-ink-muted">
-                Sends encrypted ACP commands, decrypts durable message history
-                in this browser, and renders the standard session timeline.
+                {t(
+                  "Sends encrypted ACP commands, decrypts durable message history in this browser, and renders the standard session timeline.",
+                )}
               </p>
             </div>
             <Button asChild icon={<ArrowLeft className="h-4 w-4" />}>
-              <Link href="/settings/advanced/encryption">Encrypted chats</Link>
+              <Link href="/settings/advanced/encryption">
+                {t("Encrypted chats")}
+              </Link>
             </Button>
           </header>
 
           <section className="grid gap-4 rounded-lg border border-hairline bg-surface-1 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-medium">Encrypted route</h2>
+              <h2 className="text-sm font-medium">{t("Encrypted route")}</h2>
               <div className="flex items-center gap-2">
-                <Badge tone={statusTone}>{streamStatus}</Badge>
-                <Badge>cursor {cursor}</Badge>
+                <Badge tone={statusTone}>{t(streamStatus)}</Badge>
+                <Badge>
+                  {t("cursor ")}
+                  {cursor}
+                </Badge>
               </div>
             </div>
             <div className="grid gap-3 md:grid-cols-3">
               <label className="grid gap-1 text-xs text-ink-tertiary">
-                Agent
+                {t("Agent")}
                 <select
                   className="h-9 rounded-md border border-hairline bg-canvas px-3 text-sm text-ink outline-none focus:border-accent"
                   onChange={(event) => {
@@ -435,15 +454,17 @@ function E2EESessionLab({ user }: { user: User }) {
                 >
                   {agents.map((agent) => (
                     <option key={agent.agent_id} value={agent.agent_id}>
-                      {agent.name || agent.agent_type || "Agent"} ·{" "}
+                      {agent.name || agent.agent_type || t("Agent")} ·{" "}
                       {compactId(agent.agent_id, 8, 5)} ·{" "}
-                      {agent.online ? "online" : agent.status || "offline"}
+                      {agent.online
+                        ? t("online")
+                        : agent.status || t("offline")}
                     </option>
                   ))}
                 </select>
               </label>
               <label className="grid gap-1 text-xs text-ink-tertiary">
-                Existing session
+                {t("Existing session")}
                 <select
                   className="h-9 rounded-md border border-hairline bg-canvas px-3 text-sm text-ink outline-none focus:border-accent"
                   disabled={!sessions.length}
@@ -461,7 +482,7 @@ function E2EESessionLab({ user }: { user: User }) {
                 </select>
               </label>
               <label className="grid gap-1 text-xs text-ink-tertiary">
-                Key epoch
+                {t("Key epoch")}
                 <input
                   className="h-9 rounded-md border border-hairline bg-canvas px-3 text-sm text-ink outline-none focus:border-accent"
                   min={1}
@@ -475,12 +496,15 @@ function E2EESessionLab({ user }: { user: User }) {
               </label>
             </div>
             <div className="grid gap-1 font-mono text-xs text-ink-tertiary sm:grid-cols-2">
-              <div>manager session: {activeSessionId || "none"}</div>
-              <div>native session: private to paxd</div>
+              <div>
+                {t("manager session: ")}
+                {activeSessionId || t("none")}
+              </div>
+              <div>{t("native session: private to paxd")}</div>
             </div>
             <div className="grid gap-3 rounded-md border border-hairline bg-canvas p-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
               <label className="grid gap-1 text-xs text-ink-tertiary">
-                New session name
+                {t("New session name")}
                 <input
                   className="h-9 rounded-md border border-hairline bg-surface-1 px-3 text-sm text-ink outline-none focus:border-accent"
                   onChange={(event) => setSessionName(event.target.value)}
@@ -488,7 +512,7 @@ function E2EESessionLab({ user }: { user: User }) {
                 />
               </label>
               <label className="grid gap-1 text-xs text-ink-tertiary">
-                paxd working directory
+                {t("paxd working directory")}
                 <input
                   className="h-9 rounded-md border border-hairline bg-surface-1 px-3 font-mono text-sm text-ink outline-none focus:border-accent"
                   onChange={(event) => setCwd(event.target.value)}
@@ -507,18 +531,21 @@ function E2EESessionLab({ user }: { user: User }) {
                 type="button"
                 variant="primary"
               >
-                {lifecycleBusy ? "Waiting…" : "Create encrypted session"}
+                {lifecycleBusy ? t("Waiting…") : t("Create encrypted session")}
               </Button>
             </div>
             {!keyLoading && activeAgentId && !rootKey && (
               <div className="rounded-md border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
-                No key is stored for this agent. Add the matching paxd root key
-                in Security settings before testing.
+                {t(
+                  "No key is stored for this agent. Add the matching paxd root key in Security settings before testing.",
+                )}
               </div>
             )}
             {displayError && (
               <div className="rounded-md border border-danger/30 bg-danger/10 p-3 font-mono text-xs text-danger">
-                {displayError}
+                {typeof displayError === "string"
+                  ? displayError
+                  : t(displayError.source, displayError.params)}
               </div>
             )}
           </section>
@@ -528,17 +555,19 @@ function E2EESessionLab({ user }: { user: User }) {
             onSubmit={handleSubmit}
           >
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-sm font-medium">Encrypted prompt</h2>
+              <h2 className="text-sm font-medium">{t("Encrypted prompt")}</h2>
               {commandStatus && (
                 <span className="font-mono text-xs text-ink-tertiary">
-                  {commandStatus}
+                  {t(commandStatus.source, commandStatus.params)}
                 </span>
               )}
             </div>
             <textarea
               className="min-h-28 resize-y rounded-md border border-hairline bg-canvas p-3 text-sm text-ink outline-none focus:border-accent"
               onChange={(event) => setPrompt(event.target.value)}
-              placeholder="Send a prompt through the encrypted command table and paxd WebSocket…"
+              placeholder={t(
+                "Send a prompt through the encrypted command table and paxd WebSocket…",
+              )}
               value={prompt}
             />
             <div className="flex justify-end">
@@ -548,7 +577,7 @@ function E2EESessionLab({ user }: { user: User }) {
                 type="submit"
                 variant="primary"
               >
-                {sending ? "Encrypting…" : "Send encrypted prompt"}
+                {sending ? t("Encrypting…") : t("Send encrypted prompt")}
               </Button>
             </div>
           </form>
@@ -556,10 +585,13 @@ function E2EESessionLab({ user }: { user: User }) {
           <section className="grid gap-3 rounded-lg border border-hairline bg-surface-1 p-4">
             <div className="flex items-center justify-between gap-3">
               <h2 className="flex items-center gap-2 text-sm font-medium">
-                <Radio className="h-4 w-4" /> Encrypted session history
+                <Radio className="h-4 w-4" /> {t(" Encrypted session history")}
               </h2>
               <span className="text-xs text-ink-tertiary">
-                {historyMessages.length} messages · {frames.length} live frames
+                {t("{messages} messages · {frames} live frames", {
+                  messages: historyMessages.length,
+                  frames: frames.length,
+                })}
               </span>
             </div>
             <div className="min-h-32 rounded-md border border-hairline bg-canvas p-3">
@@ -575,20 +607,21 @@ function E2EESessionLab({ user }: { user: User }) {
                 ))}
                 {historyLoading && (
                   <div className="p-4 text-sm text-ink-tertiary" role="status">
-                    Decrypting session history…
+                    {t("Decrypting session history…")}
                   </div>
                 )}
                 {!historyLoading && workstreamItems.length === 0 && (
                   <div className="p-4 text-sm text-ink-tertiary">
-                    No encrypted messages yet. Live tunnel events will appear
-                    here while durable history is stored.
+                    {t(
+                      "No encrypted messages yet. Live tunnel events will appear here while durable history is stored.",
+                    )}
                   </div>
                 )}
               </div>
             </div>
             <details>
               <summary className="cursor-pointer text-xs text-ink-tertiary">
-                Raw decrypted ACP frames
+                {t("Raw decrypted ACP frames")}
               </summary>
               <div className="mt-2 grid max-h-96 gap-2 overflow-y-auto">
                 {[...frames].reverse().map((frame) => (

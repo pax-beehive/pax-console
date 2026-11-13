@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n, type Translator } from "@/features/i18n/use-i18n";
+
 import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -43,6 +45,7 @@ export function ProjectSettingsDetail({
   projectId,
   userId,
 }: ProjectSettingsDetailProps) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const projectQuery = useProject(userId, projectId);
   const projectsQuery = useProjects(userId, true);
@@ -75,7 +78,7 @@ export function ProjectSettingsDetail({
   if (projectQuery.isLoading) {
     return (
       <ProjectSettingsDetailFrame
-        body={<EmptyState label="Loading project" />}
+        body={<EmptyState label={t("Loading project")} />}
       />
     );
   }
@@ -91,7 +94,7 @@ export function ProjectSettingsDetail({
   if (!project) {
     return (
       <ProjectSettingsDetailFrame
-        body={<EmptyState label="Project not found" />}
+        body={<EmptyState label={t("Project not found")} />}
       />
     );
   }
@@ -101,28 +104,30 @@ export function ProjectSettingsDetail({
       <div className="mx-auto grid w-full max-w-5xl gap-5">
         <header className="rounded-xl border border-hairline bg-surface-1 p-5">
           <div className="text-xs font-medium uppercase tracking-[0.16em] text-ink-tertiary">
-            Project
+            {t("Project")}
           </div>
           <h1 className="mt-2 text-2xl font-semibold text-ink">
             {project.display_name}
           </h1>
-          {project.archived_at && <Badge tone="neutral">Archived</Badge>}
+          {project.archived_at && <Badge tone="neutral">{t("Archived")}</Badge>}
           <div className="mt-2 text-sm text-ink-tertiary">
             {path.map((item) => item.display_name).join(" / ")}
           </div>
           <p className="mt-4 max-w-2xl border-t border-hairline pt-4 text-sm leading-6 text-ink-muted">
-            Configure reusable agent and workspace combinations here. Start
-            project sessions from Home, where they use the normal conversation
-            flow.
+            {t(
+              "Configure reusable agent and workspace combinations here. Start project sessions from Home, where they use the normal conversation flow.",
+            )}
           </p>
         </header>
 
         <section className="rounded-xl border border-hairline bg-surface-1">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline p-4">
             <div>
-              <h2 className="font-medium text-ink">Workspace targets</h2>
+              <h2 className="font-medium text-ink">{t("Workspace targets")}</h2>
               <p className="mt-1 text-sm text-ink-tertiary">
-                Reuse an agent and working directory when starting sessions.
+                {t(
+                  "Reuse an agent and working directory when starting sessions.",
+                )}
               </p>
             </div>
             <Button
@@ -131,7 +136,7 @@ export function ProjectSettingsDetail({
               onClick={() => setEditor({ mode: "create" })}
               type="button"
             >
-              Add workspace target
+              {t("Add workspace target")}
             </Button>
           </div>
 
@@ -161,11 +166,11 @@ export function ProjectSettingsDetail({
           )}
           {targetsQuery.isLoading ? (
             <div className="p-4">
-              <EmptyState label="Loading workspace targets" />
+              <EmptyState label={t("Loading workspace targets")} />
             </div>
           ) : targets.length === 0 ? (
             <div className="p-4">
-              <EmptyState label="No workspace targets yet" />
+              <EmptyState label={t("No workspace targets yet")} />
             </div>
           ) : (
             <div className="grid gap-3 p-4 lg:grid-cols-2">
@@ -189,17 +194,17 @@ export function ProjectSettingsDetail({
                             {target.display_name}
                           </h3>
                           {target.is_default && (
-                            <Badge tone="accent">Default</Badge>
+                            <Badge tone="accent">{t("Default")}</Badge>
                           )}
                           <Badge tone={target.enabled ? "success" : "neutral"}>
-                            {target.enabled ? "Enabled" : "Disabled"}
+                            {target.enabled ? t("Enabled") : t("Disabled")}
                           </Badge>
                         </div>
                         <div className="mt-3 flex items-center gap-2 text-sm text-ink-muted">
                           <Laptop className="h-4 w-4 shrink-0" />
                           <span>
                             {agentLabel(agent, target.agent_id)} ·{" "}
-                            {nodeLabel(node)}
+                            {nodeLabel(node, t)}
                           </span>
                         </div>
                         <div className="mt-2 break-all font-mono text-xs text-ink-tertiary">
@@ -210,18 +215,22 @@ export function ProjectSettingsDetail({
                     <div className="mt-4 flex flex-wrap gap-2">
                       <Button
                         disabled={Boolean(project.archived_at)}
-                        aria-label={`Edit ${target.display_name}`}
+                        aria-label={t("Edit {value1}", {
+                          value1: target.display_name,
+                        })}
                         icon={<Pencil className="h-3.5 w-3.5" />}
                         onClick={() => setEditor({ mode: "edit", target })}
                         size="sm"
                         type="button"
                         variant="ghost"
                       >
-                        Edit
+                        {t("Edit")}
                       </Button>
                       {target.enabled && !target.is_default && (
                         <Button
-                          aria-label={`Make ${target.display_name} default`}
+                          aria-label={t("Make {value1} default", {
+                            value1: target.display_name,
+                          })}
                           disabled={
                             quickUpdate.isPending ||
                             Boolean(project.archived_at)
@@ -237,11 +246,14 @@ export function ProjectSettingsDetail({
                           type="button"
                           variant="ghost"
                         >
-                          Make default
+                          {t("Make default")}
                         </Button>
                       )}
                       <Button
-                        aria-label={`${target.enabled ? "Disable" : "Enable"} ${target.display_name}`}
+                        aria-label={t(
+                          target.enabled ? "Disable {name}" : "Enable {name}",
+                          { name: target.display_name },
+                        )}
                         disabled={
                           quickUpdate.isPending || Boolean(project.archived_at)
                         }
@@ -262,7 +274,7 @@ export function ProjectSettingsDetail({
                         type="button"
                         variant="ghost"
                       >
-                        {target.enabled ? "Disable" : "Enable"}
+                        {target.enabled ? t("Disable") : t("Enable")}
                       </Button>
                     </div>
                   </article>
@@ -299,6 +311,7 @@ function TargetEditor({
   projectId: string;
   userId: string;
 }) {
+  const { t } = useI18n();
   const current = editor.target;
   const [name, setName] = useState(current?.display_name ?? "");
   const [agentId, setAgentId] = useState(
@@ -340,24 +353,24 @@ function TargetEditor({
       onSubmit={submit}
     >
       <label className="grid gap-1 text-xs text-ink-tertiary">
-        Name
+        {t("Name")}{" "}
         <input
-          aria-label="Target name"
+          aria-label={t("Target name")}
           className="min-h-9 rounded-md border border-hairline bg-surface-1 px-2.5 text-base text-ink outline-none focus:border-primary-focus sm:text-sm"
           onChange={(event) => setName(event.target.value)}
-          placeholder="Local workspace"
+          placeholder={t("Local workspace")}
           value={name}
         />
       </label>
       <label className="grid gap-1 text-xs text-ink-tertiary">
-        Agent
+        {t("Agent")}{" "}
         <select
-          aria-label="Target agent"
+          aria-label={t("Target agent")}
           className="min-h-9 rounded-md border border-hairline bg-surface-1 px-2.5 text-base text-ink outline-none focus:border-primary-focus sm:text-sm"
           onChange={(event) => setAgentId(event.target.value)}
           value={agentId}
         >
-          <option value="">Select an agent</option>
+          <option value="">{t("Select an agent")}</option>
           {agents.map((agent) => (
             <option key={agent.agent_id} value={agent.agent_id}>
               {agentLabel(agent, agent.agent_id)}
@@ -366,9 +379,9 @@ function TargetEditor({
         </select>
       </label>
       <label className="grid gap-1 text-xs text-ink-tertiary md:col-span-2">
-        Workspace
+        {t("Workspace")}{" "}
         <input
-          aria-label="Target workspace"
+          aria-label={t("Target workspace")}
           className="min-h-9 rounded-md border border-hairline bg-surface-1 px-2.5 font-mono text-base text-ink outline-none focus:border-primary-focus sm:text-sm"
           onChange={(event) => setCwd(event.target.value)}
           placeholder="~/project"
@@ -383,7 +396,7 @@ function TargetEditor({
             onChange={(event) => setIsDefault(event.target.checked)}
             type="checkbox"
           />
-          Make default
+          {t("Make default")}
         </label>
         <label className="inline-flex items-center gap-2">
           <input
@@ -391,12 +404,12 @@ function TargetEditor({
             onChange={(event) => setEnabled(event.target.checked)}
             type="checkbox"
           />
-          Enabled
+          {t("Enabled")}
         </label>
       </div>
       <div className="flex justify-end gap-2 md:col-span-2">
         <Button onClick={onCancel} type="button" variant="ghost">
-          Cancel
+          {t("Cancel")}
         </Button>
         <Button
           disabled={!name.trim() || !cwd.trim() || !agentId || save.isPending}
@@ -404,7 +417,7 @@ function TargetEditor({
           type="submit"
           variant="primary"
         >
-          {editor.mode === "create" ? "Create target" : "Save target"}
+          {editor.mode === "create" ? t("Create target") : t("Save target")}
         </Button>
       </div>
       {save.error && (
@@ -435,6 +448,6 @@ function agentLabel(agent: Agent | undefined, fallback: string) {
   return agent?.name ?? agent?.agent_type ?? fallback;
 }
 
-function nodeLabel(node: Node | undefined) {
-  return node?.name ?? node?.hostname ?? "Unknown node";
+function nodeLabel(node: Node | undefined, t: Translator) {
+  return node?.name ?? node?.hostname ?? t("Unknown node");
 }

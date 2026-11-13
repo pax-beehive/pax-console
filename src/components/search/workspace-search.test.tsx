@@ -12,6 +12,7 @@ import { ReactElement } from "react";
 import userEvent from "@testing-library/user-event";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useLocaleStore } from "@/features/i18n/locale-store";
 import { ApiError, AuthError } from "@/features/api/errors";
 import {
   useWorkspaceSource,
@@ -206,6 +207,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  useLocaleStore.setState({ locale: "en" });
   vi.unstubAllGlobals();
 });
 
@@ -1537,5 +1539,39 @@ describe("Literal highlighting", () => {
     );
     expect(container.querySelector("mark")).toHaveTextContent("本");
     expect(container.textContent).toBe("苹果笔记本");
+  });
+});
+
+describe("Given workspace search uses Chinese", () => {
+  it("submits canonical query values and reads unchanged source content through translated controls", async () => {
+    useLocaleStore.setState({ locale: "zh-CN" });
+    const user = userEvent.setup();
+    const { onNavigate } = setup();
+    const searchbox = screen.getByRole("searchbox", { name: "搜索你的工作区" });
+    await user.clear(searchbox);
+    await user.type(searchbox, "数据库{Enter}");
+    expect(onNavigate).toHaveBeenCalledWith(
+      "/search?q=%E6%95%B0%E6%8D%AE%E5%BA%93",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "预览 Database choice 中的最佳匹配" }),
+    );
+    expect(
+      screen.getByRole("region", { name: "所选来源" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "完整消息" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "打开会话" })).toHaveAttribute(
+      "href",
+      "/?session_id=sess_1&message_id=msg_123",
+    );
+    expect(screen.getByLabelText("消息正文")).toHaveTextContent(
+      "We chose 数据库",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "关闭来源" }));
+    expect(
+      screen.queryByRole("region", { name: "所选来源" }),
+    ).not.toBeInTheDocument();
   });
 });

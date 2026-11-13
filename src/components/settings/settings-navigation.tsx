@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -15,6 +16,7 @@ import {
 export { settingsLinks } from "./settings-catalog";
 
 export function SettingsSidebar() {
+  const { t } = useI18n();
   const pathname = usePathname();
   const selected = settingsSectionForPath(pathname);
   return (
@@ -27,21 +29,23 @@ export function SettingsSidebar() {
           icon={<ArrowLeft className="h-4 w-4" />}
           className="-ml-2 text-ink-tertiary"
         >
-          <Link href="/">Back to workspace</Link>
+          <Link href="/">{t("Back to workspace")}</Link>
         </Button>
-        <h2 className="mt-5 text-xl font-semibold tracking-tight">Settings</h2>
+        <h2 className="mt-5 text-xl font-semibold tracking-tight">
+          {t("Settings")}
+        </h2>
         <p className="mt-1 text-xs leading-5 text-ink-tertiary">
-          Preferences, access, and tools.
+          {t("Preferences, access, and tools.")}
         </p>
       </div>
       <nav
-        aria-label="Settings"
+        aria-label={t("Settings")}
         className="min-h-0 flex-1 space-y-6 overflow-y-auto px-3 pb-6 pt-1"
       >
         {settingsGroups.map((group) => (
           <div key={group.title}>
             <h3 className="mb-2 px-3 text-[11px] font-medium uppercase tracking-wider text-ink-tertiary">
-              {group.title}
+              {t(group.title)}
             </h3>
             <div className="grid gap-1">
               {group.items.map((item) => {
@@ -62,7 +66,7 @@ export function SettingsSidebar() {
                     <Icon className="mt-0.5 h-4 w-4 shrink-0" />
                     <span className="min-w-0">
                       <span className="block text-sm font-medium leading-5">
-                        {item.title}
+                        {t(item.title)}
                       </span>
                       <span
                         className={cn(
@@ -70,7 +74,7 @@ export function SettingsSidebar() {
                           active ? "text-ink-muted" : "text-ink-tertiary",
                         )}
                       >
-                        {item.caption}
+                        {t(item.caption)}
                       </span>
                     </span>
                   </Link>
@@ -97,6 +101,7 @@ export function SettingsPageHeader({
   mobileHeading?: ReactNode;
   children?: ReactNode;
 }) {
+  const { t } = useI18n();
   return (
     <header className="shrink-0 border-b border-hairline px-4 py-4 sm:px-5 lg:px-8 lg:py-7">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 lg:gap-5 xl:flex-row xl:items-center xl:justify-between">
@@ -105,14 +110,14 @@ export function SettingsPageHeader({
           <div className={mobileHeading ? "hidden lg:block" : undefined}>
             {category && (
               <p className="mb-2 text-xs font-medium text-ink-tertiary">
-                {category}
+                {t(category)}
               </p>
             )}
             <h1 className="text-2xl font-semibold tracking-tight text-ink">
-              {title}
+              {t(title)}
             </h1>
             <p className="mt-2 text-sm leading-6 text-ink-tertiary">
-              {description}
+              {t(description)}
             </p>
           </div>
         </div>
@@ -133,13 +138,14 @@ export function SettingsBack({
   href?: string;
   label?: string;
 }) {
+  const { t } = useI18n();
   return (
     <Link
       href={href}
       className="mb-4 inline-flex min-h-9 items-center gap-2 text-sm text-ink-tertiary hover:text-ink lg:hidden"
     >
       <ArrowLeft className="h-4 w-4" />
-      {label}
+      {t(label)}
     </Link>
   );
 }
@@ -157,6 +163,7 @@ export function SettingsLink({
   icon: LucideIcon;
   trailing?: ReactNode;
 }) {
+  const { t } = useI18n();
   return (
     <Link
       href={href}
@@ -164,9 +171,9 @@ export function SettingsLink({
     >
       <Icon className="h-5 w-5 shrink-0 text-accent-bright" />
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-medium text-ink">{title}</span>
+        <span className="block text-sm font-medium text-ink">{t(title)}</span>
         <span className="mt-1 block text-xs text-ink-tertiary">
-          {description}
+          {t(description)}
         </span>
       </span>
       {trailing}

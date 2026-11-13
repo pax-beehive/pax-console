@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
+
 import {
   AlertCircle,
   Info,
@@ -34,8 +36,9 @@ export function ComposerVoiceControl({
   onStart,
   onStop,
 }: Props) {
+  const { t } = useI18n();
   if (status === "idle") {
-    const label = disabledReason ?? "Dictate";
+    const label = disabledReason ?? t("Dictate");
     return (
       <Button
         aria-label={label}
@@ -65,13 +68,15 @@ export function ComposerVoiceControl({
           aria-hidden="true"
           className="h-4 w-4 animate-spin motion-reduce:animate-none"
         />
-        Finishing…
+        {t("Finishing…")}
       </span>
     );
   }
   return (
     <span
-      aria-label={status === "connecting" ? "Starting dictation" : "Recording"}
+      aria-label={
+        status === "connecting" ? t("Starting dictation") : t("Recording")
+      }
       className="inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-danger/35 bg-danger/10 pl-3 pr-1"
       role="status"
     >
@@ -89,12 +94,12 @@ export function ComposerVoiceControl({
       <ElapsedTime startedAt={startedAt} />
       <LevelBars level={level} />
       <Button
-        aria-label="Stop dictation"
+        aria-label={t("Stop dictation")}
         className="h-7 w-7 rounded-full border-danger bg-danger text-canvas hover:bg-danger hover:text-canvas"
         icon={<Square className="h-3 w-3 fill-current" />}
         onClick={onStop}
         size="icon"
-        tooltip="Stop dictation (Esc)"
+        tooltip={t("Stop dictation (Esc)")}
         type="button"
         variant="ghost"
       />
@@ -153,6 +158,7 @@ export function ComposerVoiceError({
   message: string;
   onDismiss: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <div
       className="mb-2 flex items-start gap-2 rounded-xl border border-danger/20 bg-danger/5 px-3 py-2"
@@ -163,11 +169,11 @@ export function ComposerVoiceError({
         className="mt-0.5 h-4 w-4 shrink-0 text-danger"
       />
       <div className="min-w-0 flex-1 text-xs">
-        <p className="font-medium text-ink">Voice input stopped</p>
+        <p className="font-medium text-ink">{t("Voice input stopped")}</p>
         <p className="mt-0.5 text-ink-muted">{message}</p>
       </div>
       <Button
-        aria-label="Dismiss voice input error"
+        aria-label={t("Dismiss voice input error")}
         className="h-6 w-6"
         icon={<X className="h-3.5 w-3.5" />}
         onClick={onDismiss}
@@ -186,6 +192,7 @@ export function ComposerVoiceNotice({
   message: string;
   onDismiss: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <div
       className="mb-2 flex items-start gap-2 rounded-xl border border-hairline bg-surface-2 px-3 py-2"
@@ -197,7 +204,7 @@ export function ComposerVoiceNotice({
       />
       <p className="min-w-0 flex-1 text-xs text-ink-muted">{message}</p>
       <Button
-        aria-label="Dismiss voice input notice"
+        aria-label={t("Dismiss voice input notice")}
         className="h-6 w-6"
         icon={<X className="h-3.5 w-3.5" />}
         onClick={onDismiss}

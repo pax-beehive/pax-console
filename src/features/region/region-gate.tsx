@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 import { LOGIN_URL } from "@/features/api/client";
 import { AuthError } from "@/features/api/errors";
 import { SignInRedirect } from "@/features/auth/sign-in-redirect";
@@ -16,6 +17,7 @@ import {
 } from "./bootstrap";
 const bootstrapKey = ["region", "bootstrap"];
 export function RegionGate({ children }: { children: ReactNode }) {
+  const { t } = useI18n();
   const config = useQuery({
     queryKey: ["region", "config"],
     queryFn: loadRegionConfig,
@@ -41,7 +43,7 @@ export function RegionGate({ children }: { children: ReactNode }) {
       );
   }, [redirect, origin]);
   if (config.isPending || redirect)
-    return <RegionMessage>Checking your region...</RegionMessage>;
+    return <RegionMessage>{t("Checking your region...")}</RegionMessage>;
   if (config.isError)
     return (
       <RegionFailure
@@ -55,6 +57,7 @@ export function RegionGate({ children }: { children: ReactNode }) {
   return <RegionBootstrap>{children}</RegionBootstrap>;
 }
 function RegionBootstrap({ children }: { children: ReactNode }) {
+  const { t } = useI18n();
   const client = useQueryClient();
   const bootstrap = useQuery({
     queryKey: bootstrapKey,
@@ -79,7 +82,7 @@ function RegionBootstrap({ children }: { children: ReactNode }) {
     if (bootstrap.isSuccess) clearSignInAttempt();
   }, [bootstrap.isSuccess]);
   if (bootstrap.isPending)
-    return <RegionMessage>Restoring your account...</RegionMessage>;
+    return <RegionMessage>{t("Restoring your account...")}</RegionMessage>;
   if (bootstrap.isError && bootstrap.error instanceof AuthError)
     return <SignInRedirect />;
   if (bootstrap.isError)
@@ -93,11 +96,12 @@ function RegionBootstrap({ children }: { children: ReactNode }) {
   return (
     <RegionMessage>
       <h1 className="text-2xl font-semibold text-ink">
-        Choose your account region
+        {t("Choose your account region")}
       </h1>
       <p className="mt-3 text-sm leading-6 text-ink-muted">
-        Your projects and devices will stay in this region. We recommend the
-        fastest available connection.
+        {t(
+          "Your projects and devices will stay in this region. We recommend the fastest available connection.",
+        )}
       </p>
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
         {(["us", "hk"] as const).map((region) => (
@@ -114,19 +118,19 @@ function RegionBootstrap({ children }: { children: ReactNode }) {
             }
             onClick={() => choose.mutate(region)}
           >
-            {region === "hk" ? "Hong Kong" : "United States"}
-            {probes.data?.recommended === region ? " · Recommended" : ""}
+            {region === "hk" ? t("Hong Kong") : t("United States")}
+            {probes.data?.recommended === region ? t(" · Recommended") : ""}
           </Button>
         ))}
       </div>
       <p role="status" className="mt-3 text-sm text-ink-subtle">
         {choose.isPending
-          ? "Preparing your account..."
+          ? t("Preparing your account...")
           : probes.isFetching
-            ? "Checking regional connections..."
+            ? t("Checking regional connections...")
             : probes.data?.recommended
-              ? `US: ${probes.data.us === null ? "Unavailable" : probes.data.us + " ms"} · Hong Kong: ${probes.data.hk === null ? "Unavailable" : probes.data.hk + " ms"}`
-              : "Neither region is reachable. Please retry."}
+              ? `US: ${probes.data.us === null ? t("Unavailable") : probes.data.us + " ms"} · Hong Kong: ${probes.data.hk === null ? t("Unavailable") : probes.data.hk + " ms"}`
+              : t("Neither region is reachable. Please retry.")}
       </p>
       {choose.isError && (
         <p role="alert" className="mt-3 text-sm text-warning">
@@ -138,7 +142,7 @@ function RegionBootstrap({ children }: { children: ReactNode }) {
         disabled={choose.isPending || probes.isFetching}
         onClick={() => void probes.refetch()}
       >
-        Check again
+        {t("Check again")}
       </Button>
     </RegionMessage>
   );
@@ -159,16 +163,19 @@ function RegionFailure({
   message: string;
   retry: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <RegionMessage>
-      <h1 className="text-xl font-semibold">Unable to open your account</h1>
+      <h1 className="text-xl font-semibold">
+        {t("Unable to open your account")}
+      </h1>
       <p role="alert" className="mt-3 text-sm text-ink-muted">
         {message}
       </p>
       <div className="mt-5 flex gap-3">
-        <Button onClick={retry}>Retry</Button>
+        <Button onClick={retry}>{t("Retry")}</Button>
         <Button asChild>
-          <a href={LOGIN_URL}>Sign in again</a>
+          <a href={LOGIN_URL}>{t("Sign in again")}</a>
         </Button>
       </div>
     </RegionMessage>

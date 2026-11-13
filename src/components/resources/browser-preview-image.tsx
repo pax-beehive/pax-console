@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
+
 import { MousePointer2 } from "lucide-react";
 import type { BrowserFrame } from "@/features/browser-control/api";
 
@@ -10,12 +12,13 @@ export function BrowserPreviewImage({
   frame: BrowserFrame;
   onError: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <>
       {/* Live pixels stay transient and do not pass through the image optimizer. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        alt="Current browser page"
+        alt={t("Current browser page")}
         onError={onError}
         src={`data:image/jpeg;base64,${frame.image}`}
         className="block h-auto w-full"
@@ -25,7 +28,7 @@ export function BrowserPreviewImage({
         Number.isFinite(frame.pointer.x) &&
         Number.isFinite(frame.pointer.y) && (
           <span
-            aria-label="Agent's recent interaction"
+            aria-label={t("Agent's recent interaction")}
             className="pointer-events-none absolute text-violet-400"
             style={{
               left: `${(frame.pointer.x / frame.width) * 100}%`,

@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,9 +17,10 @@ export function SearchHitRow({
   active: boolean;
   onSelect: (trigger: HTMLElement) => void;
 }) {
-  const label = { summary: "Summary", message: "Message", session: "Title" }[
-    hit.ref.kind
-  ];
+  const { t } = useI18n();
+  const label = t(
+    { summary: "Summary", message: "Message", session: "Title" }[hit.ref.kind],
+  );
   const title = hit.title || label;
   return (
     <Button
@@ -28,7 +30,10 @@ export function SearchHitRow({
       variant="ghost"
     >
       <button
-        aria-label={`Preview ${label.toLowerCase()}: ${title}`}
+        aria-label={t("Preview {value1}: {value2}", {
+          value1: label.toLowerCase(),
+          value2: title,
+        })}
         aria-pressed={active}
         onClick={(event) => onSelect(event.currentTarget)}
         type="button"

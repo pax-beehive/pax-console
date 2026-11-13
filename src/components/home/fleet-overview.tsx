@@ -1,4 +1,5 @@
 "use client";
+import { useI18n, type Translator } from "@/features/i18n/use-i18n";
 
 import { CronOriginBadge } from "@/components/sessions/cron-origin-badge";
 import {
@@ -220,6 +221,7 @@ const kindIcon: Record<WorkItemKind, React.ReactNode> = {
 };
 
 export function FleetOverview({ user }: FleetOverviewProps) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const previewAsUser = useConsoleStore((state) => state.previewAsUser);
   const showAdminFeatures = canSeeAdminFeatures(user, previewAsUser);
@@ -400,13 +402,17 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const encryptionReady = encryptionAccess === "ready";
   const encryptionBlocked = newSessionTransport === "e2ee" && !encryptionReady;
   const encryptionDescription = !activeAgent
-    ? "Select an agent to configure encryption"
+    ? t("Select an agent to configure encryption")
     : encryptionAccess === "checking"
-      ? "Checking encryption access…"
+      ? t("Checking encryption access…")
       : encryptionAccess === "missing"
-        ? "This browser has no encryption key for this agent. Pair E2EE before starting an encrypted session."
+        ? t(
+            "This browser has no encryption key for this agent. Pair E2EE before starting an encrypted session.",
+          )
         : encryptionAccess === "error"
-          ? "Could not read this browser's encryption key. Open E2EE pairing to check access."
+          ? t(
+              "Could not read this browser's encryption key. Open E2EE pairing to check access.",
+            )
           : undefined;
   const encryptionGuidance = encryptionDescription && (
     <div className="space-y-2 px-3 py-2 text-sm text-ink-muted" role="status">
@@ -416,7 +422,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
           <Link
             href={`/e2ee/pairing?agentId=${encodeURIComponent(activeAgent.agent_id)}`}
           >
-            Pair E2EE
+            {t("Pair E2EE")}
           </Link>
         </Button>
       )}
@@ -532,6 +538,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
         nodes,
         showMockInquiries,
         sessions,
+        t,
       }),
     [
       agents,
@@ -542,6 +549,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       nodes,
       showMockInquiries,
       sessions,
+      t,
     ],
   );
   const activeWorkItems = useMemo(
@@ -633,7 +641,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const updateSessionArchived = useMutation({
     mutationFn: async (item: WorkItem) => {
       if (!item.nodeId || !item.agentId || !item.sessionId) {
-        throw new Error("Session archive target is incomplete.");
+        throw new Error(t("Session archive target is incomplete."));
       }
       const archived = !item.archivedAt;
       const session = await updateAgentSession(
@@ -952,7 +960,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
         <main className="relative grid min-h-0 flex-1 overflow-hidden lg:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]">
           {mobilePaneOpen && mobileRailOpen && (
             <button
-              aria-label="Close Home sidebar"
+              aria-label={t("Close Home sidebar")}
               className="absolute inset-0 z-20 bg-black/50 lg:hidden"
               onClick={() => setMobileRailOpen(false)}
               type="button"
@@ -990,12 +998,12 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                       showCleanComposer();
                     }}
                   >
-                    New session
+                    {t("New session")}
                   </Link>
                 </Button>
                 <div className="flex shrink-0 items-center gap-1">
                   <Button
-                    aria-label="Close sidebar"
+                    aria-label={t("Close sidebar")}
                     className="lg:hidden"
                     icon={<X className="h-4 w-4" />}
                     onClick={() => setMobileRailOpen(false)}
@@ -1075,9 +1083,11 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 <p>
                   {linkedSessionFailed
                     ? linkedSessionUnavailable
-                      ? "This session was removed or is no longer available to you."
-                      : "Could not load this session. Please try again."
-                    : "Loading session..."}
+                      ? t(
+                          "This session was removed or is no longer available to you.",
+                        )
+                      : t("Could not load this session. Please try again.")
+                    : t("Loading session...")}
                 </p>
                 {linkedSessionFailed && (
                   <Button
@@ -1086,7 +1096,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                     }}
                     size="sm"
                   >
-                    Retry session
+                    {t("Retry session")}
                   </Button>
                 )}
               </section>
@@ -1109,7 +1119,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 initialProjectTargetId={activeSessionTarget.projectTargetId}
                 initialTransport={activeSessionTarget.initialTransport}
                 key={activeSessionTarget.key}
-                mobileMenuLabel="Chat sidebar"
+                mobileMenuLabel={t("Chat sidebar")}
                 nodeId={activeSessionTarget.nodeId}
                 onMobileMenu={() => setMobileRailOpen(true)}
                 onSessionAssigned={(sessionId) => {
@@ -1176,8 +1186,10 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                   ) : (
                     <p role="status" className="text-sm text-ink-muted">
                       {nodesQuery.error || agentsQuery.error
-                        ? "Your devices couldn't be loaded. Refresh to try again."
-                        : "Loading your devices…"}
+                        ? t(
+                            "Your devices couldn't be loaded. Refresh to try again.",
+                          )
+                        : t("Loading your devices…")}
                     </p>
                   )}
                 </div>
@@ -1187,7 +1199,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                 <div className="grid min-w-0 gap-1 border-b border-hairline bg-surface-1 px-5 py-2 sm:px-6">
                   <div className="flex min-w-0 items-center gap-2">
                     <Button
-                      aria-label="Open Home sidebar"
+                      aria-label={t("Open Home sidebar")}
                       className="lg:hidden"
                       icon={<Menu className="h-4 w-4" />}
                       onClick={() => setMobileRailOpen(true)}
@@ -1198,10 +1210,10 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                     <label className="relative inline-flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border border-transparent bg-transparent px-2 text-sm text-ink-muted focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/25 active:bg-surface-3">
                       <Folder className="h-4 w-4 shrink-0" />
                       <span className="hidden shrink-0 text-xs font-medium text-ink-tertiary sm:inline">
-                        Project
+                        {t("Project")}
                       </span>
                       <select
-                        aria-label="Project"
+                        aria-label={t("Project")}
                         className="min-h-9 min-w-0 flex-1 appearance-none truncate bg-transparent pr-6 text-base text-ink outline-none [color-scheme:dark] sm:text-sm"
                         onChange={(event) => {
                           const projectId = event.target.value;
@@ -1210,7 +1222,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                         }}
                         value={selectedProjectId}
                       >
-                        <option value="">Project</option>
+                        <option value="">{t("Project")}</option>
                         {projects.map((project) => (
                           <option
                             key={project.project_id}
@@ -1259,25 +1271,25 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                     {needsOnboarding && (
                       <section className="rounded-xl border border-accent/30 bg-accent/10 p-4 text-sm">
                         <div className="font-medium text-ink">
-                          Connect a device to start chatting
+                          {t("Connect a device to start chatting")}
                         </div>
                         <p className="mt-1 leading-6 text-ink-muted">
-                          Register a node, install paxd, and start an agent
-                          connection. Your available agents will appear here
-                          automatically.
+                          {t(
+                            "Register a node, install paxd, and start an agent connection. Your available agents will appear here automatically.",
+                          )}
                         </p>
                         <div className="mt-3 flex flex-wrap gap-2">
                           <Link
                             className="inline-flex min-h-9 items-center rounded-md border border-primary bg-primary px-3 font-medium text-canvas hover:bg-primary-hover"
                             href="/settings/devices/add"
                           >
-                            Add device
+                            {t("Add device")}
                           </Link>
                           <Link
                             className="inline-flex min-h-9 items-center rounded-md border border-hairline bg-surface-2 px-3 text-ink-muted hover:bg-surface-3 hover:text-ink"
                             href="/settings/devices"
                           >
-                            Open Devices
+                            {t("Open Devices")}
                           </Link>
                         </div>
                       </section>
@@ -1348,7 +1360,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                   <ComposerDropZone
                     disabledReason={
                       composerAttachmentUploadPending
-                        ? "Upload in progress"
+                        ? t("Upload in progress")
                         : undefined
                     }
                     onFiles={addComposerAttachments}
@@ -1393,7 +1405,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                               {attachment.filename}
                             </span>
                             <button
-                              aria-label={`Remove ${attachment.filename}`}
+                              aria-label={t("Remove {value1}", {
+                                value1: attachment.filename,
+                              })}
                               className="ml-1 shrink-0 text-ink-tertiary transition hover:text-ink"
                               onClick={() => {
                                 setComposerAttachments((current) =>
@@ -1439,8 +1453,8 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                       readOnly={dictation.dictating}
                       placeholder={
                         secureComposerActive
-                          ? "Send an end-to-end encrypted message"
-                          : composerPlaceholder(composerMode)
+                          ? t("Send an end-to-end encrypted message")
+                          : t(composerPlaceholder(composerMode))
                       }
                       rows={1}
                     />
@@ -1448,7 +1462,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button
-                            aria-label="Upload files"
+                            aria-label={t("Upload files")}
                             disabled={composerAttachmentUploadPending}
                             icon={
                               composerAttachmentUploadPending ? (
@@ -1458,7 +1472,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                               )
                             }
                             size="icon"
-                            tooltip={"Upload files"}
+                            tooltip={t("Upload files")}
                             type="button"
                             variant="ghost"
                           />
@@ -1475,25 +1489,25 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                             }
                           >
                             <Paperclip className="h-4 w-4" />
-                            Upload
+                            {t("Upload")}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                       <SessionSettings
                         summary={[
                           newSessionTransport === "manager" && searchAccess
-                            ? "Expanded search next turn"
+                            ? t("Expanded search next turn")
                             : undefined,
                           newSessionTransport === "e2ee"
                             ? encryptionReady
-                              ? "Encrypted"
-                              : "Encryption setup required"
+                              ? t("Encrypted")
+                              : t("Encryption setup required")
                             : undefined,
                           newSessionPermissionChoices.find(
                             (choice) =>
                               choice.choice_id ===
                               effectiveNewSessionPermissionChoiceId,
-                          )?.label ?? "Ask",
+                          )?.label ?? t("Ask"),
                         ]
                           .filter(Boolean)
                           .join(" · ")}
@@ -1511,8 +1525,8 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                         />
                         <SessionSettingsHome>
                           <SettingsToggle
-                            label="End-to-end encryption"
-                            ariaLabel="Use end-to-end encryption"
+                            label={t("End-to-end encryption")}
+                            ariaLabel={t("Use end-to-end encryption")}
                             checked={newSessionTransport === "e2ee"}
                             disabled={
                               (newSessionTransport !== "e2ee" &&
@@ -1522,9 +1536,11 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                             }
                             description={
                               composerAttachmentUploadPending
-                                ? "Wait for the upload to finish"
+                                ? t("Wait for the upload to finish")
                                 : composerAttachments.length > 0
-                                  ? "Remove attachments before enabling encryption"
+                                  ? t(
+                                      "Remove attachments before enabling encryption",
+                                    )
                                   : undefined
                             }
                             onChange={(checked) =>
@@ -1563,7 +1579,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                           <ComposerVoiceControl
                             disabledReason={
                               secureComposerActive
-                                ? "Voice input is off in encrypted sessions"
+                                ? t("Voice input is off in encrypted sessions")
                                 : undefined
                             }
                             level={dictation.level}
@@ -1580,7 +1596,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                           />
                         )}
                         <Button
-                          aria-label="Start session"
+                          aria-label={t("Start session")}
                           className={cn(
                             "rounded-full",
                             !secureComposerActive &&
@@ -1608,8 +1624,8 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                           size="icon"
                           tooltip={
                             dictation.dictating
-                              ? "Start when dictation finishes"
-                              : "Start session"
+                              ? t("Start when dictation finishes")
+                              : t("Start session")
                           }
                           type="submit"
                           variant="primary"
@@ -1656,6 +1672,7 @@ function ProjectSessionRail({
   projectFilter: string;
   sessions: WorkItem[];
 }) {
+  const { t } = useI18n();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const groups = ["Today", "Yesterday", "Previous 7 days", "Earlier"];
@@ -1668,12 +1685,12 @@ function ProjectSessionRail({
       <div className="shrink-0 flex items-center gap-2 border-b border-hairline bg-surface-1 px-6 py-2">
         <Folder className="h-3.5 w-3.5 shrink-0 text-ink-tertiary" />
         <select
-          aria-label="Filter by project"
+          aria-label={t("Filter by project")}
           className="min-w-0 flex-1 bg-surface-1 text-sm text-ink outline-none [color-scheme:dark]"
           value={projectFilter}
           onChange={(event) => onProjectFilterChange(event.target.value)}
         >
-          <option value="">All projects</option>
+          <option value="">{t("All projects")}</option>
           {projects.map((project) => (
             <option key={project.project_id} value={project.project_id}>
               {projectPath(project, projects)
@@ -1683,13 +1700,13 @@ function ProjectSessionRail({
           ))}
         </select>
         <Link href="/settings/projects" className="text-xs text-ink-tertiary">
-          Manage
+          {t("Manage")}
         </Link>
       </div>
       <div
         className="min-h-0 flex-1 overflow-y-auto pb-4"
         onScroll={onScroll}
-        aria-label="Recent sessions"
+        aria-label={t("Recent sessions")}
       >
         {groups.map((label, index) => {
           const items = sessions
@@ -1699,9 +1716,9 @@ function ProjectSessionRail({
             );
           return (
             items.length > 0 && (
-              <section key={label} aria-label={label}>
+              <section key={label} aria-label={t(label)}>
                 <div className="px-6 pb-1 pt-4 text-xs text-ink-tertiary">
-                  {label}
+                  {t(label)}
                 </div>
                 {items.map((session) => (
                   <HomeSessionRow
@@ -1730,11 +1747,11 @@ function ProjectSessionRail({
           );
         })}
         {loading && (
-          <div className="p-4 text-sm text-ink-tertiary">Loading...</div>
+          <div className="p-4 text-sm text-ink-tertiary">{t("Loading...")}</div>
         )}
         {loadingMore && (
           <div role="status" className="p-4 text-sm text-ink-tertiary">
-            Loading more sessions...
+            {t("Loading more sessions...")}
           </div>
         )}
         {!loading && !loadingMore && hasMore && (
@@ -1745,15 +1762,15 @@ function ProjectSessionRail({
               type="button"
               variant="ghost"
             >
-              Load more sessions
+              {t("Load more sessions")}
             </Button>
           </div>
         )}
         {!loading && !sessions.length && (
           <div className="px-6 py-4 text-sm text-ink-tertiary">
             {projectFilter
-              ? "No sessions match this project and filters."
-              : "No sessions match the current filters."}
+              ? t("No sessions match this project and filters.")
+              : t("No sessions match the current filters.")}
           </div>
         )}
       </div>
@@ -1776,6 +1793,7 @@ function HomeSessionRow({
   onSetArchived: () => void;
   session: WorkItem;
 }) {
+  const { t } = useI18n();
   return (
     <div
       className={cn(
@@ -1811,9 +1829,9 @@ function HomeSessionRow({
           <span className="truncate">{session.title}</span>
           <CronOriginBadge origin={session.cronOrigin} />
           {session.transport === "e2ee" && (
-            <Tooltip content="End-to-end encrypted">
+            <Tooltip content={t("End-to-end encrypted")}>
               <span
-                aria-label="End-to-end encrypted"
+                aria-label={t("End-to-end encrypted")}
                 className="grid h-4 w-4 shrink-0 place-items-center rounded-full border border-emerald-400/25 bg-emerald-400/10 text-emerald-400 shadow-[0_0_0_rgba(52,211,153,0)] transition-all duration-200 group-hover:border-emerald-300/40 group-hover:bg-emerald-400/15 group-hover:shadow-[0_0_12px_rgba(52,211,153,0.16)]"
                 role="img"
               >
@@ -1825,15 +1843,15 @@ function HomeSessionRow({
         <span className="flex min-w-0 items-center gap-2 text-xs text-ink-tertiary">
           <span className="min-w-0 flex-1 truncate">{session.context}</span>
           {session.archivedAt && (
-            <span className="shrink-0 text-warning">Archived</span>
+            <span className="shrink-0 text-warning">{t("Archived")}</span>
           )}
           <span className="ml-auto shrink-0 whitespace-nowrap text-right">
-            {relativeTime(session.createdAt)}
+            {relativeTime(session.createdAt, t)}
           </span>
         </span>
       </Link>
       <Button
-        aria-label={`${session.archivedAt ? "Restore" : "Archive"} ${session.title}`}
+        aria-label={`${session.archivedAt ? t("Restore") : t("Archive")} ${session.title}`}
         className="opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
         disabled={archivePending}
         icon={
@@ -1845,7 +1863,9 @@ function HomeSessionRow({
         }
         onClick={onSetArchived}
         size="icon"
-        tooltip={session.archivedAt ? "Restore session" : "Archive session"}
+        tooltip={
+          session.archivedAt ? t("Restore session") : t("Archive session")
+        }
         type="button"
         variant="ghost"
       />
@@ -1880,15 +1900,16 @@ function SessionFilterMenu({
   selectedAgents: string[];
   selectedNodes: string[];
 }) {
+  const { t } = useI18n();
   return (
     <div className="relative">
       <Button
         aria-expanded={open}
-        aria-label="Filter sessions"
+        aria-label={t("Filter sessions")}
         icon={<ListFilter className="h-4 w-4" />}
         onClick={() => onOpenChange(!open)}
         size="icon"
-        tooltip="Filter sessions"
+        tooltip={t("Filter sessions")}
         type="button"
         variant="ghost"
       />
@@ -1920,7 +1941,9 @@ function SessionFilterMenu({
               onClick={() => onIncludeArchivedChange(!includeArchived)}
               type="button"
             >
-              <span className="min-w-0 flex-1 truncate">Include archived</span>
+              <span className="min-w-0 flex-1 truncate">
+                {t("Include archived")}
+              </span>
               {includeArchived && (
                 <Check className="h-4 w-4 shrink-0 text-accent-bright" />
               )}
@@ -1945,15 +1968,16 @@ function SessionFilterOptionGroup({
   options: Array<{ label: string; value: string }>;
   selectedValues: string[];
 }) {
+  const { t } = useI18n();
   return (
     <div
-      aria-label={`Filter by ${label.toLowerCase()}`}
+      aria-label={t("Filter by {value1}", { value1: t(label).toLowerCase() })}
       className="min-w-0"
       role="group"
     >
       <div className="mb-1.5 flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 text-xs text-ink-muted">
-          <span>{label}</span>
+          <span>{t(label)}</span>
           <span className="rounded bg-surface-3 px-1.5 tabular-nums">
             {options.length}
           </span>
@@ -1964,27 +1988,27 @@ function SessionFilterOptionGroup({
             onClick={onClear}
             type="button"
           >
-            Clear
+            {t("Clear")}
           </button>
         )}
       </div>
       {/* Four full 32px rows and half of the next row hint that more can be scrolled. */}
       <div
-        aria-label={`${label} options`}
+        aria-label={t("{value1} options", { value1: t(label) })}
         className="max-h-[9.375rem] min-w-0 overflow-y-auto overscroll-contain rounded-md border border-hairline bg-surface-2 p-1"
         role="region"
         tabIndex={options.length > 4 ? 0 : undefined}
       >
         {options.length === 0 ? (
           <div className="px-2 py-1.5 text-xs text-ink-tertiary">
-            No {label.toLowerCase()}s available
+            {t("No {label}s available", { label: t(label).toLowerCase() })}
           </div>
         ) : (
           options.map((option) => {
             const selected = selectedValues.includes(option.value);
             return (
               <button
-                aria-label={`${label} ${option.label}`}
+                aria-label={`${t(label)} ${option.label}`}
                 aria-pressed={selected}
                 className={cn(
                   "flex h-8 w-full min-w-0 items-center gap-2 rounded px-2 py-1.5 text-left text-sm leading-5 transition",
@@ -2019,6 +2043,7 @@ function ComposerModeHint({
   onClear: () => void;
   secure?: boolean;
 }) {
+  const { t } = useI18n();
   if (mode === "clean") {
     if (secure) {
       return null;
@@ -2032,20 +2057,20 @@ function ComposerModeHint({
       <div className="min-w-0 flex-1">
         <div className="text-[11px] uppercase tracking-wide text-ink-tertiary">
           {mode === "summarize-note"
-            ? "Summarize with note"
-            : "Comment on draft"}
+            ? t("Summarize with note")
+            : t("Comment on draft")}
         </div>
         <div className="text-sm text-ink-muted">
           {mode === "summarize-note"
-            ? "Add notes to guide the generated draft."
-            : "Tell the agent what to change in the draft."}
+            ? t("Add notes to guide the generated draft.")
+            : t("Tell the agent what to change in the draft.")}
         </div>
       </div>
       <Button
         icon={<X className="h-4 w-4" />}
         onClick={onClear}
         size="icon"
-        tooltip="Remove context from composer"
+        tooltip={t("Remove context from composer")}
         type="button"
         variant="ghost"
       />
@@ -2072,6 +2097,7 @@ function SelectedContext({
   onSummarizeWithNote: () => void;
   user: User;
 }) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const approvalDecision = useMutation({
     mutationFn: ({
@@ -2092,13 +2118,16 @@ function SelectedContext({
       <section className="flex min-h-24 items-center justify-center px-4 py-5 text-center sm:min-h-[160px] sm:py-10">
         <div className="grid gap-1.5">
           <div className="text-lg font-medium tracking-tight text-ink">
-            What’s next?
+            {t("What’s next?")}
           </div>
           <div className="text-xs text-ink-tertiary">
-            <span className="sm:hidden">Type below to start a session</span>
+            <span className="sm:hidden">
+              {t("Type below to start a session")}
+            </span>
             <span className="hidden sm:inline">
-              Type below to start a session · Enter to send, Shift+Enter for a
-              new line
+              {t(
+                "Type below to start a session · Enter to send, Shift+Enter for a new line",
+              )}
             </span>
           </div>
         </div>
@@ -2110,16 +2139,20 @@ function SelectedContext({
     const draft = generatedDraft ?? item.draft;
     const needsSummary = item.inquiryState === "needs-summary";
     const statusLabel = draft
-      ? "draft ready"
+      ? t("draft ready")
       : needsSummary
-        ? "ready to summarize"
-        : "ready to draft";
+        ? t("ready to summarize")
+        : t("ready to draft");
     const emptyDraftLabel = needsSummary
-      ? "conversation ready"
-      : "empty session";
+      ? t("conversation ready")
+      : t("empty session");
     const emptyDraftText = needsSummary
-      ? "No draft yet. Summarize the conversation into a response draft, or add a note first."
-      : "No draft yet. This inquiry has no conversation yet, so generate a draft from the background and question.";
+      ? t(
+          "No draft yet. Summarize the conversation into a response draft, or add a note first.",
+        )
+      : t(
+          "No draft yet. This inquiry has no conversation yet, so generate a draft from the background and question.",
+        );
 
     return (
       <section className="grid gap-5 py-2">
@@ -2127,7 +2160,7 @@ function SelectedContext({
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-xs text-ink-tertiary">
               {kindIcon[item.kind]}
-              Inquiry
+              {t("Inquiry")}
             </div>
             <TruncatedText
               className="mt-2 text-xl font-medium"
@@ -2137,7 +2170,9 @@ function SelectedContext({
             </TruncatedText>
             <TruncatedText className="mt-2 text-sm text-ink-tertiary">
               {item.context}
-              {item.ownerAlias ? ` · owner ${item.ownerAlias}` : ""}
+              {item.ownerAlias
+                ? t(" · owner {value1}", { value1: item.ownerAlias })
+                : ""}
             </TruncatedText>
           </div>
           <div className="flex shrink-0 items-center gap-1">
@@ -2146,7 +2181,7 @@ function SelectedContext({
               icon={<Archive className="h-4 w-4" />}
               onClick={onArchive}
               size="icon"
-              tooltip="Archive inquiry"
+              tooltip={t("Archive inquiry")}
               type="button"
               variant="ghost"
             />
@@ -2154,7 +2189,7 @@ function SelectedContext({
               icon={<X className="h-4 w-4" />}
               onClick={onClose}
               size="icon"
-              tooltip="Detach inquiry from composer"
+              tooltip={t("Detach inquiry from composer")}
               type="button"
               variant="ghost"
             />
@@ -2163,13 +2198,13 @@ function SelectedContext({
 
         <div className="grid gap-4 border-t border-hairline pt-4">
           <div>
-            <div className="text-xs text-ink-tertiary">Background</div>
+            <div className="text-xs text-ink-tertiary">{t("Background")}</div>
             <div className="mt-1 text-sm leading-6 text-ink-muted">
               {item.background ?? item.detail}
             </div>
           </div>
           <div>
-            <div className="text-xs text-ink-tertiary">Question</div>
+            <div className="text-xs text-ink-tertiary">{t("Question")}</div>
             <div className="mt-1 text-sm leading-6 text-ink">
               {item.question ?? item.title}
             </div>
@@ -2178,7 +2213,7 @@ function SelectedContext({
 
         {item.conversationTurns && item.conversationTurns.length > 0 && (
           <div className="grid gap-3 border-t border-hairline pt-4">
-            <div className="text-xs text-ink-tertiary">Conversation</div>
+            <div className="text-xs text-ink-tertiary">{t("Conversation")}</div>
             <div className="grid gap-3">
               {item.conversationTurns.map((turn, index) => (
                 <div className="grid gap-1" key={`${turn.speaker}-${index}`}>
@@ -2196,8 +2231,10 @@ function SelectedContext({
 
         <div className="grid gap-2 border-t border-hairline pt-4">
           <div className="flex items-center justify-between gap-3">
-            <div className="text-xs text-ink-tertiary">Draft response</div>
-            <Badge>{draft ? "ready" : emptyDraftLabel}</Badge>
+            <div className="text-xs text-ink-tertiary">
+              {t("Draft response")}
+            </div>
+            <Badge>{draft ? t("ready") : emptyDraftLabel}</Badge>
           </div>
           <div className="text-sm leading-6 text-ink-muted">
             {draft ?? emptyDraftText}
@@ -2208,7 +2245,7 @@ function SelectedContext({
           {draft ? (
             <>
               <Button size="sm" type="button" variant="primary">
-                Send
+                {t("Send")}
               </Button>
               <Button
                 onClick={onCommentOnDraft}
@@ -2216,7 +2253,7 @@ function SelectedContext({
                 type="button"
                 variant="secondary"
               >
-                Comment
+                {t("Comment")}
               </Button>
             </>
           ) : (
@@ -2237,7 +2274,7 @@ function SelectedContext({
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs text-ink-tertiary">
             {kindIcon[item.kind]}
-            Selected context
+            {t("Selected context")}
           </div>
           <TruncatedText
             className="mt-2 text-xl font-medium"
@@ -2254,20 +2291,20 @@ function SelectedContext({
         </Badge>
       </div>
       <div className="grid gap-2 border-t border-hairline pt-4">
-        <ContextLine label="Source" value={item.source} />
-        <ContextLine label="Context" value={item.context} />
-        <ContextLine label="Suggested action" value={item.actionLabel} />
+        <ContextLine label={t("Source")} value={item.source} />
+        <ContextLine label={t("Context")} value={item.context} />
+        <ContextLine label={t("Suggested action")} value={item.actionLabel} />
         {item.nodeId && (
-          <ContextLine label="Node" value={compactId(item.nodeId)} />
+          <ContextLine label={t("Node")} value={compactId(item.nodeId)} />
         )}
         {item.agentId && (
-          <ContextLine label="Agent" value={compactId(item.agentId)} />
+          <ContextLine label={t("Agent")} value={compactId(item.agentId)} />
         )}
       </div>
       <div className="flex min-w-0 flex-wrap gap-2">
         {item.kind === "approval" &&
           item.approval &&
-          homeApprovalOptions(item.approval).map((option) => (
+          homeApprovalOptions(item.approval, t).map((option) => (
             <Button
               disabled={approvalDecision.isPending}
               key={option.optionId}
@@ -2288,7 +2325,7 @@ function SelectedContext({
           className="inline-flex min-h-8 max-w-full shrink-0 items-center gap-2 rounded-lg border border-hairline bg-surface-1 px-2.5 text-xs font-medium text-ink-muted transition hover:border-hairline-strong hover:bg-surface-2 hover:text-ink"
           href={item.href}
         >
-          Open
+          {t("Open")}
         </Link>
         {item.actionHref && item.kind !== "approval" && (
           <Link
@@ -2312,6 +2349,7 @@ function NoDraftInquiryActions({
   onGenerateDraft: () => void;
   onSummarizeWithNote: () => void;
 }) {
+  const { t } = useI18n();
   if (needsSummary) {
     return (
       <>
@@ -2321,7 +2359,7 @@ function NoDraftInquiryActions({
           type="button"
           variant="primary"
         >
-          Summarize draft
+          {t("Summarize draft")}
         </Button>
         <Button
           onClick={onSummarizeWithNote}
@@ -2329,7 +2367,7 @@ function NoDraftInquiryActions({
           type="button"
           variant="secondary"
         >
-          Summarize with note
+          {t("Summarize with note")}
         </Button>
       </>
     );
@@ -2337,7 +2375,7 @@ function NoDraftInquiryActions({
 
   return (
     <Button onClick={onGenerateDraft} size="sm" type="button" variant="primary">
-      Generate draft
+      {t("Generate draft")}
     </Button>
   );
 }
@@ -2353,6 +2391,7 @@ function AgentSelector({
   onChange: (agentId: string) => void;
   selectedAgentId?: string;
 }) {
+  const { t } = useI18n();
   const selectedAgent = agents.find(
     (agent) => agent.agent_id === selectedAgentId,
   );
@@ -2364,8 +2403,8 @@ function AgentSelector({
     ? (agentDisplayLabels.get(selectedAgent.agent_id) ??
       agentLabel(selectedAgent))
     : agents.length === 0
-      ? "No agent"
-      : "Select agent";
+      ? t("No agent")
+      : t("Select agent");
   const [open, setOpen] = useState(false);
 
   return (
@@ -2392,7 +2431,7 @@ function AgentSelector({
         </PopoverTrigger>
       </div>
       <PopoverContent
-        aria-label="Choose agent"
+        aria-label={t("Choose agent")}
         align="end"
         side="bottom"
         collisionPadding={12}
@@ -2456,11 +2495,12 @@ function ContextLine({ label, value }: { label: string; value: string }) {
 }
 
 function ApiState({ error }: { error: Error }) {
+  const { t } = useI18n();
   return (
     <div className="mx-5 mt-4 flex items-start gap-3 rounded-lg border border-hairline bg-surface-1 p-3 text-sm text-ink-muted">
       <AlertCircle className="mt-0.5 h-4 w-4 text-warning" />
       <div>
-        <div className="font-medium text-ink">API request failed</div>
+        <div className="font-medium text-ink">{t("API request failed")}</div>
         <div className="mt-1 font-mono text-xs text-ink-tertiary">
           {error.name}: {error.message}
         </div>
@@ -2478,7 +2518,9 @@ function buildWorkItems({
   nodes,
   showMockInquiries,
   sessions,
+  t,
 }: {
+  t: Translator;
   agents: Agent[];
   approvals: AgentApproval[];
   approvalsCheckedAt?: number;
@@ -2511,7 +2553,7 @@ function buildWorkItems({
           : undefined;
 
         return {
-          actionLabel: "Decide now",
+          actionLabel: t("Decide now"),
           agentId: approval.request_agent_id,
           approval,
           context: [
@@ -2524,7 +2566,7 @@ function buildWorkItems({
           detail:
             approval.description ??
             approval.operation ??
-            "A tool call is waiting for human approval.",
+            t("A tool call is waiting for human approval."),
           href: approval.request_session_id
             ? `/?session_id=${encodeURIComponent(approval.request_session_id)}`
             : "/",
@@ -2532,19 +2574,19 @@ function buildWorkItems({
           kind: "approval",
           nodeId: approval.request_node_id,
           priority: "high",
-          source: approval.domain ?? "Approval request",
-          title: approval.title ?? approval.operation ?? "Approval required",
+          source: approval.domain ?? t("Approval request"),
+          title: approval.title ?? approval.operation ?? t("Approval required"),
         };
       }),
       ...envelopes.map(
         (envelope): WorkItem => ({
           actionHref: "/collaboration/envelopes",
-          actionLabel: "Review",
+          actionLabel: t("Review"),
           context: envelope.message ?? envelope.payload_type,
           createdAt: envelope.created_at,
           detail:
             envelope.message ??
-            "A received envelope can be reviewed from the envelope mailbox.",
+            t("A received envelope can be reviewed from the envelope mailbox."),
           href: "/collaboration/envelopes",
           id: `envelope:${envelope.envelope_id}`,
           kind: "envelope",
@@ -2552,23 +2594,33 @@ function buildWorkItems({
           source: envelope.sender_email,
           title:
             envelope.payload_type === "knowledge_capsule"
-              ? "Knowledge envelope received"
-              : "Envelope received",
+              ? t("Knowledge envelope received")
+              : t("Envelope received"),
         }),
       ),
       ...pendingInvites.map(
         (invite): WorkItem => ({
           actionHref: "/collaboration/teams",
-          actionLabel: "Review",
-          context: `Role: ${invite.role}`,
+          actionLabel: t("Review"),
+          context: t("Role: {role}", {
+            role: t(
+              invite.role === "owner"
+                ? "Owner"
+                : invite.role === "operator"
+                  ? "Operator"
+                  : "Member",
+            ),
+          }),
           createdAt: invite.created_at,
-          detail: `You were invited to join team ${invite.team_id}.`,
+          detail: t("You were invited to join team {team}.", {
+            team: invite.team_id,
+          }),
           href: "/collaboration/teams",
           id: `invite:${invite.invite_id}`,
           kind: "invite",
           priority: "medium",
           source: invite.email,
-          title: "Team invite",
+          title: t("Team invite"),
         }),
       ),
       ...sessions.map((session): WorkItem => {
@@ -2578,7 +2630,7 @@ function buildWorkItems({
 
         return {
           actionHref: sessionHref,
-          actionLabel: "Continue",
+          actionLabel: t("Continue"),
           agentId: session.agent_id,
           archivedAt: session.archived_at,
           cronOrigin: cronSessionOrigin(session),
@@ -2590,7 +2642,7 @@ function buildWorkItems({
           detail:
             session.preview ??
             session.current_task ??
-            "Continue this agent work session.",
+            t("Continue this agent work session."),
           href: sessionHref,
           id: `session:${session.session_id}`,
           kind: "session",
@@ -2600,7 +2652,7 @@ function buildWorkItems({
             session.runtime_status === "waiting_approval" ? "high" : "low",
           runStatus: session.runtime_status,
           sessionId: session.session_id,
-          source: "Recent session",
+          source: t("Recent session"),
           title: sessionTitle(session),
           transport: session.transport,
         };
@@ -2610,11 +2662,11 @@ function buildWorkItems({
   );
 }
 
-function homeApprovalOptions(approval: AgentApproval) {
+function homeApprovalOptions(approval: AgentApproval, t: Translator) {
   if (isTurnSearchApproval(approval)) {
     return [
-      { label: "Allow this turn", optionId: "allow_once" },
-      { label: "Deny", optionId: "deny" },
+      { label: t("Allow this turn"), optionId: "allow_once" },
+      { label: t("Deny"), optionId: "deny" },
     ];
   }
   const options = (approval.options ?? [])
@@ -2623,22 +2675,17 @@ function homeApprovalOptions(approval: AgentApproval) {
         option.option_id === "deny" || option.option_id === "allow_once",
     )
     .map((option) => ({
-      label: option.label ?? approvalOptionLabel(option.option_id!),
+      label:
+        option.label ?? t(option.option_id === "deny" ? "Deny" : "Allow once"),
       optionId: option.option_id!,
     }));
 
   return options.length
     ? options
     : [
-        { label: "Allow once", optionId: "allow_once" },
-        { label: "Deny", optionId: "deny" },
+        { label: t("Allow once"), optionId: "allow_once" },
+        { label: t("Deny"), optionId: "deny" },
       ];
-}
-
-function approvalOptionLabel(optionId: string) {
-  return optionId
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function homeSessionHref(session: AgentSession) {
@@ -3042,30 +3089,30 @@ function timeValue(value?: string) {
   return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp;
 }
 
-function relativeTime(value?: string) {
+function relativeTime(value: string | undefined, t: Translator) {
   if (!value) {
-    return "unknown";
+    return t("unknown");
   }
 
   const timestamp = Date.parse(value);
   if (Number.isNaN(timestamp)) {
-    return "unknown";
+    return t("unknown");
   }
 
   const seconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
   if (seconds < 60) {
-    return "now";
+    return t("now");
   }
 
   const minutes = Math.round(seconds / 60);
   if (minutes < 60) {
-    return `${minutes}m ago`;
+    return t("{count}m ago", { count: minutes });
   }
 
   const hours = Math.round(minutes / 60);
   if (hours < 24) {
-    return `${hours}h ago`;
+    return t("{count}h ago", { count: hours });
   }
 
-  return `${Math.round(hours / 24)}d ago`;
+  return t("{count}d ago", { count: Math.round(hours / 24) });
 }

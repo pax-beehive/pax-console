@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
+
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   ChevronLeft,
@@ -32,6 +34,7 @@ export function MessageAttachment({
   userId?: string;
   gallery?: SessionMessageAttachment[];
 }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(attachment.attachmentId);
   const images = (gallery ?? [attachment]).filter(
@@ -73,7 +76,7 @@ export function MessageAttachment({
   );
   const retry = (
     <div className="p-2 text-xs text-ink-muted">
-      <p className="mb-1">Preview unavailable</p>
+      <p className="mb-1">{t("Preview unavailable")}</p>
       <Button
         size="sm"
         onClick={() => {
@@ -82,7 +85,7 @@ export function MessageAttachment({
         }}
         type="button"
       >
-        Retry preview
+        {t("Retry preview")}
       </Button>
     </div>
   );
@@ -99,7 +102,9 @@ export function MessageAttachment({
         {src && !failed ? (
           <Dialog.Trigger asChild>
             <Button
-              aria-label={`Preview ${attachment.filename}`}
+              aria-label={t("Preview {filename}", {
+                filename: attachment.filename,
+              })}
               className="block border-0 p-0 text-left"
               type="button"
             >
@@ -145,7 +150,7 @@ export function MessageAttachment({
             </Dialog.Title>
             <Dialog.Close asChild>
               <Button
-                aria-label="Close preview"
+                aria-label={t("Close preview")}
                 size="icon"
                 icon={<X className="h-4 w-4" />}
                 type="button"
@@ -170,7 +175,7 @@ export function MessageAttachment({
           {multiple && (
             <div className="flex shrink-0 items-center justify-between gap-3 border-t border-hairline px-3 py-2">
               <Button
-                aria-label="Previous image"
+                aria-label={t("Previous image")}
                 disabled={!canPrevious}
                 onClick={() => navigate(-1)}
                 size="icon"
@@ -181,13 +186,13 @@ export function MessageAttachment({
               />
               <span
                 role="status"
-                aria-label="Image position"
+                aria-label={t("Image position")}
                 className="text-sm tabular-nums text-ink-muted"
               >
                 {selectedIndex + 1} / {images.length}
               </span>
               <Button
-                aria-label="Next image"
+                aria-label={t("Next image")}
                 disabled={!canNext}
                 onClick={() => navigate(1)}
                 size="icon"
@@ -213,6 +218,7 @@ function AttachmentPreviewImage({
   userId?: string;
   gallery: boolean;
 }) {
+  const { t } = useI18n();
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const href =
@@ -224,7 +230,7 @@ function AttachmentPreviewImage({
   if (failed || !href)
     return (
       <div className="p-4 text-sm text-ink-muted">
-        <p className="mb-2">Preview unavailable</p>
+        <p className="mb-2">{t("Preview unavailable")}</p>
         <Button
           size="sm"
           type="button"
@@ -233,7 +239,7 @@ function AttachmentPreviewImage({
             setAttempt((current) => current + 1);
           }}
         >
-          Retry preview
+          {t("Retry preview")}
         </Button>
       </div>
     );

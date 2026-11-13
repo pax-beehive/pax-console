@@ -1,5 +1,6 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
 import { useCallback } from "react";
 import {
   artifactPublicationContentDownloadHref,
@@ -34,6 +35,7 @@ export function PublicationArtifactViewer({
   previewScope,
   userId,
 }: PublicationArtifactViewerProps) {
+  const { t } = useI18n();
   const publicationQuery = useArtifactPublication(userId, publicationId);
   const artifact = artifactDocumentFromPublication({
     contentRef,
@@ -51,7 +53,7 @@ export function PublicationArtifactViewer({
 
   const loadPreview = useCallback(async () => {
     if (!userId) {
-      throw new Error("Sign in to preview this artifact.");
+      throw new Error(t("Sign in to preview this artifact."));
     }
 
     const data = await getArtifactPublicationContent(
@@ -63,8 +65,8 @@ export function PublicationArtifactViewer({
     if (data.status !== "available" || !data.url) {
       throw new Error(
         data.status === "failed"
-          ? data.publication.error_message || "Artifact preview failed."
-          : "Artifact preview is not ready yet.",
+          ? data.publication.error_message || t("Artifact preview failed.")
+          : t("Artifact preview is not ready yet."),
       );
     }
 
@@ -75,7 +77,7 @@ export function PublicationArtifactViewer({
       url: data.url,
       expiresAt: data.expires_at,
     };
-  }, [contentRef, publicationId, userId]);
+  }, [contentRef, publicationId, userId, t]);
 
   return (
     <ArtifactViewerShell

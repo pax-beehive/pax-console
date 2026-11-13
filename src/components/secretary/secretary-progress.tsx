@@ -1,6 +1,12 @@
 "use client";
+import {
+  useI18n,
+  type Translator,
+  type Locale,
+} from "@/features/i18n/use-i18n";
 
 import Link from "next/link";
+import { translators } from "@/features/i18n/translate";
 import { RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,12 +27,28 @@ const stateLabels = {
   unstarted: "Awaiting processing",
 };
 
-export function coverageText(counts: SecretaryCoverageCounts) {
+export function coverageText(
+  counts: SecretaryCoverageCounts,
+  t: Translator = translators.en,
+) {
   const turns = counts.ungrouped_messages === 0 && counts.total_turns > 0;
   const total = turns ? counts.total_turns : counts.total_messages;
   const completed = turns ? counts.completed_turns : counts.completed_messages;
   const pending = turns ? counts.pending_turns : counts.pending_messages;
-  return `${completed} of ${total} ${turns ? (total === 1 ? "turn" : "turns") : total === 1 ? "message" : "messages"} processed · ${pending} remaining`;
+  return t("{completed} of {total} {unit} processed · {pending} remaining", {
+    completed,
+    total,
+    pending,
+    unit: t(
+      turns
+        ? total === 1
+          ? "turn"
+          : "turns"
+        : total === 1
+          ? "message"
+          : "messages",
+    ),
+  });
 }
 
 function visiblePage(progress: ProgressQuery) {
@@ -49,15 +71,16 @@ export function SecretaryProgressOverview({
 }: {
   progress: ProgressQuery;
 }) {
+  const { t, locale } = useI18n();
   const page = visiblePage(progress);
   return (
     <section
-      aria-label="Summary progress"
+      aria-label={t("Summary progress")}
       className="rounded-md border border-hairline bg-surface-1 p-4"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-xs font-medium text-ink-subtle">
-          Summary progress
+          {t("Summary progress")}
         </h2>
         <Button
           disabled={progress.isFetching}
@@ -73,57 +96,60 @@ export function SecretaryProgressOverview({
           size="sm"
           variant="ghost"
         >
-          Refresh progress
+          {t("Refresh progress")}
         </Button>
       </div>
       {progressIsUpdating(progress) ? (
         <p className="mt-3 text-xs leading-5 text-ink-tertiary" role="status">
-          Summary progress is updating. Counts will refresh automatically.
+          {t(
+            "Summary progress is updating. Counts will refresh automatically.",
+          )}
         </p>
       ) : !page ? (
         progress.isError ? (
           <div className="mt-3 text-xs leading-5 text-warning" role="alert">
             {progress.error instanceof AuthError
-              ? "Sign in again to view summary progress."
+              ? t("Sign in again to view summary progress.")
               : progress.error?.name === "TimeoutError"
-                ? "Loading summary progress timed out. Refresh to try again."
-                : "Summary progress is unavailable. Refresh to try again."}
+                ? t("Loading summary progress timed out. Refresh to try again.")
+                : t("Summary progress is unavailable. Refresh to try again.")}
           </div>
         ) : (
           <p className="mt-3 text-xs text-ink-tertiary" role="status">
-            Loading summary progress…
+            {t("Loading summary progress…")}
           </p>
         )
       ) : (
         <>
           <dl className="mt-3 flex flex-wrap gap-x-7 gap-y-3">
             <ProgressCount
-              label="Sessions tracked"
+              label={t("Sessions tracked")}
               value={page.counts.total_sessions}
             />
             <ProgressCount
-              label="Up to date"
+              label={t("Up to date")}
               value={page.counts.completed_sessions}
             />
             <ProgressCount
-              label="Partly processed"
+              label={t("Partly processed")}
               value={page.counts.partial_sessions}
             />
             <ProgressCount
-              label="Awaiting processing"
+              label={t("Awaiting processing")}
               value={page.counts.unstarted_sessions}
             />
           </dl>
           <p className="mt-3 text-xs leading-5 text-ink-muted">
-            {coverageText(page.counts)}
+            {coverageText(page.counts, t)}
           </p>
           <p className="mt-2 text-xs leading-5 text-ink-tertiary">
-            Progress counts committed processing, including messages that need
-            no summary. A message used by multiple summaries is counted once.
+            {t(
+              "Progress counts committed processing, including messages that need no summary. A message used by multiple summaries is counted once.",
+            )}
           </p>
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs text-ink-tertiary">
-              Updated {formatDate(page.as_of)}
+              {t("Updated")} {formatDate(page.as_of, t, locale)}
             </p>
             {page.counts.total_sessions > 0 && (
               <Button asChild size="sm" variant="ghost">
@@ -146,7 +172,7 @@ export function SecretaryProgressOverview({
                     });
                   }}
                 >
-                  View sessions
+                  {t("View sessions")}
                 </a>
               </Button>
             )}
@@ -177,17 +203,20 @@ export function SecretarySessionProgressList({
   progress: ProgressQuery;
   agents: Agent[];
 }) {
+  const { t, locale } = useI18n();
   const page = visiblePage(progress);
   if (progressIsUpdating(progress)) {
     return (
       <section
-        aria-label="Session summary progress"
+        aria-label={t("Session summary progress")}
         className="scroll-mt-4 border-t border-hairline pt-4"
         id="secretary-session-progress"
       >
-        <h2 className="text-sm font-medium text-ink">Sessions</h2>
+        <h2 className="text-sm font-medium text-ink">{t("Sessions")}</h2>
         <p className="mt-3 text-xs leading-5 text-ink-tertiary" role="status">
-          Session progress is updating. The list will refresh automatically.
+          {t(
+            "Session progress is updating. The list will refresh automatically.",
+          )}
         </p>
       </section>
     );
@@ -202,26 +231,28 @@ export function SecretarySessionProgressList({
     /cursor/i.test(progress.error.message);
   return (
     <section
-      aria-label="Session summary progress"
+      aria-label={t("Session summary progress")}
       className="scroll-mt-4 border-t border-hairline pt-4"
       id="secretary-session-progress"
     >
-      <h2 className="text-sm font-medium text-ink">Sessions</h2>
+      <h2 className="text-sm font-medium text-ink">{t("Sessions")}</h2>
       <p className="mt-1 text-xs leading-5 text-ink-tertiary">
-        Progress covers current messages. Where turn counts aren’t available,
-        progress is shown as messages.
+        {t(
+          "Progress covers current messages. Where turn counts aren’t available, progress is shown as messages.",
+        )}
       </p>
       {!page.counts.total_sessions ? (
         <p className="mt-4 text-sm leading-6 text-ink-muted">
-          No sessions with readable messages yet.
+          {t("No sessions with readable messages yet.")}
         </p>
       ) : (
         <p className="my-3 text-xs text-ink-tertiary">
-          Showing {sessions.length} of {page.counts.total_sessions} sessions
+          {t("Showing")} {sessions.length} {t("of")}{" "}
+          {page.counts.total_sessions} {t("sessions")}
         </p>
       )}
       <ul
-        aria-label="Session progress list"
+        aria-label={t("Session progress list")}
         className="divide-y divide-hairline"
       >
         {sessions.map((session) => (
@@ -232,7 +263,7 @@ export function SecretarySessionProgressList({
                 href={`/?session_id=${encodeURIComponent(session.session_id)}`}
               >
                 <TruncatedText>
-                  {session.title || "Untitled session"}
+                  {session.title || t("Untitled session")}
                 </TruncatedText>
               </Link>
               <Badge
@@ -244,11 +275,11 @@ export function SecretarySessionProgressList({
                       : "neutral"
                 }
               >
-                {stateLabels[session.state]}
+                {t(stateLabels[session.state])}
               </Badge>
             </div>
             <p className="mt-2 text-xs leading-5 text-ink-muted">
-              {coverageText(session)}
+              {coverageText(session, t)}
             </p>
             <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
               <span className="min-w-0 max-w-full text-xs text-ink-tertiary">
@@ -261,7 +292,8 @@ export function SecretarySessionProgressList({
             </div>
             {session.last_completed_at && (
               <p className="mt-1 text-xs text-ink-tertiary">
-                Last processed {formatDate(session.last_completed_at)}
+                {t("Last processed")}{" "}
+                {formatDate(session.last_completed_at, t, locale)}
               </p>
             )}
             <div className="mt-1">
@@ -276,8 +308,10 @@ export function SecretarySessionProgressList({
       {progress.isError && (
         <div className="my-3 text-xs leading-5 text-warning" role="alert">
           {expiredCursor
-            ? "The session list changed. Refresh progress to continue."
-            : "Could not refresh progress. The last loaded results are shown."}
+            ? t("The session list changed. Refresh progress to continue.")
+            : t(
+                "Could not refresh progress. The last loaded results are shown.",
+              )}
           <Button
             className="ml-2"
             onClick={() => {
@@ -285,7 +319,7 @@ export function SecretarySessionProgressList({
             }}
             size="sm"
           >
-            Retry progress
+            {t("Retry progress")}
           </Button>
         </div>
       )}
@@ -299,15 +333,17 @@ export function SecretarySessionProgressList({
           size="sm"
         >
           {progress.isFetchingNextPage
-            ? "Loading sessions…"
-            : "Load more sessions"}
+            ? t("Loading sessions…")
+            : t("Load more sessions")}
         </Button>
       )}
     </section>
   );
 }
 
-function formatDate(value: string) {
+function formatDate(value: string, t: Translator, locale: Locale) {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "Unknown" : date.toLocaleString();
+  return Number.isNaN(date.getTime())
+    ? t("Unknown")
+    : date.toLocaleString(locale);
 }

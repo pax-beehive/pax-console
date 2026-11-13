@@ -1,3 +1,6 @@
+"use client";
+
+import { useI18n } from "@/features/i18n/use-i18n";
 import { Button } from "@/components/ui/button";
 import { ApiError, AuthError } from "@/features/api/errors";
 import { SessionMessageUnavailableError } from "@/features/runtime/session-message-window";
@@ -17,6 +20,7 @@ export function SessionMessageTargetNotice({
   onRetry: () => void;
   onLatest: () => void;
 }) {
+  const { t } = useI18n();
   const unavailable =
     missing ||
     error instanceof SessionMessageUnavailableError ||
@@ -29,23 +33,23 @@ export function SessionMessageTargetNotice({
     >
       <span className="min-w-0 text-ink-muted">
         {loading
-          ? "Finding message…"
+          ? t("Finding message…")
           : unavailable
-            ? "This message was removed or is no longer available to you."
+            ? t("This message was removed or is no longer available to you.")
             : error
-              ? "Could not load this message. Please try again."
+              ? t("Could not load this message. Please try again.")
               : focused
-                ? "Showing history around the selected message."
-                : "Selected message"}
+                ? t("Showing history around the selected message.")
+                : t("Selected message")}
       </span>
       <div className="flex shrink-0 gap-1">
         {error && !unavailable && (
           <Button size="sm" onClick={onRetry}>
-            Retry message
+            {t("Retry message")}
           </Button>
         )}
         <Button size="sm" onClick={onLatest}>
-          Back to latest
+          {t("Back to latest")}
         </Button>
       </div>
     </div>

@@ -4,6 +4,7 @@ import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ApiError } from "@/features/api/errors";
+import { useLocaleStore } from "@/features/i18n/locale-store";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import {
   AgentSignInSettings,
@@ -71,6 +72,7 @@ function usageQuery(overrides: Record<string, unknown> = {}) {
 }
 afterEach(() => {
   cleanup();
+  useLocaleStore.setState({ locale: "en" });
   vi.useRealTimers();
 });
 
@@ -873,4 +875,49 @@ it("asks for a new key before re-authenticating a Codex API-key sign-in", async 
   expect(
     screen.getByRole("option", { name: "ChatGPT account" }),
   ).toBeInTheDocument();
+});
+
+it("given account credentials, when switching language, then preserves the draft and sends unchanged protocol values", async () => {
+  mount({ initialHarness: "codex" });
+  await screen.findByText("Not signed in on this device.");
+  await userEvent.selectOptions(
+    screen.getByRole("combobox", { name: "Sign-in method" }),
+    "api-key",
+  );
+  await userEvent.type(
+    screen.getByLabelText("API key"),
+    "fictional-credential",
+  );
+  act(() => useLocaleStore.setState({ locale: "zh-CN" }));
+  expect(screen.getByText("此设备尚未登录。")).toBeVisible();
+  expect(screen.getByLabelText("API 密钥")).toHaveValue("fictional-credential");
+  await userEvent.click(screen.getByRole("button", { name: "登录" }));
+  expect(mocks.loginNodeHarness).toHaveBeenCalledWith(
+    "self",
+    "node-one",
+    "codex",
+    expect.objectContaining({
+      operation: "start",
+      method: "api-key",
+      code: "fictional-credential",
+    }),
+    expect.any(AbortSignal),
+  );
+});
+
+it("given server account details, when showing Chinese credential labels, then preserves the plan name", async () => {
+  mocks.getNodeHarnessAuth.mockResolvedValue({
+    harness_auth: {
+      harness: "claude-code",
+      state: "logged_in",
+      logged_in: true,
+      auth_method: "api_key",
+      account: { email: "person@example.test", plan: "Settings" },
+    },
+  });
+  useLocaleStore.setState({ locale: "zh-CN" });
+  mount();
+  await screen.findByText("person@example.test");
+  expect(screen.getByText("Settings")).toBeVisible();
+  expect(screen.getByText("API 密钥")).toBeVisible();
 });

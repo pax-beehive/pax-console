@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createTranslator } from "@/features/i18n/translate";
 import { Agent, AgentSession, Node } from "@/features/api/types";
 import {
   buildAgentRows,
@@ -397,5 +398,24 @@ describe("resource list models", () => {
         session_id: "session_1",
       }),
     ).toBe(false);
+  });
+});
+
+describe("localized resource labels", () => {
+  it("given server names and IDs, when translating fallbacks, then keeps resource content unchanged", () => {
+    const rows = buildAgentRows(
+      [
+        { agent_id: "agent_named", node_id: "node_named" },
+        { agent_id: "agent_missing", node_id: "node_unknown" },
+        { agent_id: "agent_unassigned" },
+      ],
+      [{ node_id: "node_named", name: "Workspace" }],
+      createTranslator("zh-CN"),
+    );
+    expect(rows.map((row) => row.nodeLabel)).toEqual([
+      "Workspace",
+      "node_unknown",
+      "无运行节点",
+    ]);
   });
 });
