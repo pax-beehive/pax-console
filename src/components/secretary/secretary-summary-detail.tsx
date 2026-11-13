@@ -17,6 +17,7 @@ import { ApiError } from "@/features/api/errors";
 import type { WorkspaceSearchRef } from "@/features/api/workspace-search";
 import { SecretarySummaryHistory } from "./secretary-summary-history";
 import { isSummaryAccessDenied, summaryDate } from "./secretary-summary-format";
+import { SecretarySessionControl } from "./secretary-user-control";
 
 export function SecretarySummaryDetail({
   userId,
@@ -80,8 +81,9 @@ export function SecretarySummaryDetail({
           {summary && (
             <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs leading-5 text-ink-tertiary">
               <span>Version {summary.revision}</span>
+              {summary.author_kind === "user" && <Badge>Written by you</Badge>}
               {summary.node_status === "stale" && (
-                <Badge tone="warning">Awaiting update</Badge>
+                <Badge tone="warning">Source changed</Badge>
               )}
               <span>
                 Updated{" "}
@@ -93,6 +95,13 @@ export function SecretarySummaryDetail({
           )}
           {summary && (
             <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
+              {summary.origin_source_id && (
+                <SecretarySessionControl
+                  userId={userId}
+                  sourceId={summary.origin_source_id}
+                  summaryId={summary.summary_id}
+                />
+              )}
               {summary.origin_session_id && (
                 <Button asChild size="sm" variant="ghost">
                   <Link

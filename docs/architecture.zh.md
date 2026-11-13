@@ -2528,7 +2528,7 @@ session URL 仍可读取后台会话进行诊断。
 同一个 session 的多份摘要不会合并成一项。可选 `node_type: summary` 与
 `origin_source_id/origin_agent_id/origin_session_id/origin_session_title` 来自 Manager，
 旧响应可以省略。`node_status: empty` 明确标记该版没有保留内容；缺失状态时不根据空正文猜测。
-当前版本真实失效时，`node_status: stale` 显示 Awaiting update，保留仍有权限的正文；
+当前版本真实失效时，`node_status: stale` 显示 Source changed，保留仍有权限的正文；
 它不等于空结果。历史版本不套用最新节点状态，源内容撤权仍由 Manager 拒绝读取。
 列表展示整理归属 session 名称，详情只在返回真实 origin session ID 时
 提供入口；不解析 subject ID、摘要 ID 或来源证据来猜测整理归属。整理归属用于展示与搜索分组，
@@ -2558,8 +2558,32 @@ Markdown 渲染完整正文，展示结论、引文、冻结 coverage 以及下�
 列表、详情和来源由按用户及版本隔离的 TanStack Query 缓存持有；页面重新挂载时
 等待权限读取完成后再展示旧缓存。401/403 隐藏列表、总结和来源缓存；一般详情错误
 也隐藏旧正文并提供重试。手机在列表和详情之间切换，桌面使用双栏，长文本在独立
-滚动区域内换行。页面只读，不修改 Secretary 配置或触发生成；未发布任何总结时
-说明结果将在发布后出现，并保留返回设置查看进度的入口。
+滚动区域内换行。未发布任何总结时说明结果将在发布后出现，并保留返回设置查看进度的入口。
+
+### Secretary user control
+
+`features/api/secretary-control.ts` owns the same-origin `/secretary/guidance`
+and `/secretary/operations` contracts. TanStack Query stores guidance and
+operation status; unsaved text, message selections and request identities stay
+inside the open editor. User defaults apply across sessions, session guidance
+refines those defaults, and one-time guidance belongs to a frozen operation.
+Guidance writes use revisions, never automatically replace an unsaved draft,
+and do not rerun history. Empty guidance clears that scope.
+
+Task rows, session progress rows and summary details open a shared responsive
+control dialog. Unstarted sessions can be completed manually while Secretary is
+off, without first creating an automatic task. Unsaved session guidance requires
+save or discard before preparing work. Preparing
+pending or all messages freezes a bounded exact range before any model request.
+Users can select complete messages, guide Secretary, write a summary and finish
+that range without a model, or edit an existing summary with zero progress
+change. Representative citations are selected separately from processed messages.
+Manager validates ownership, source versions, summary baselines and replacement
+fences; Console never derives progress from coverage counts. Active or unknown
+work requires explicit replacement confirmation. Submit retries keep the same
+request ID for the same payload; edits use a new identity. No mutation retries
+automatically, and polling only reads an operation's status. Published results
+invalidate task, progress and summary queries without navigating away.
 
 ## Summary 开发者检查页
 

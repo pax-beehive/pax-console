@@ -199,7 +199,7 @@ export function SecretarySummaryBrowser({
                           </time>
                           <span>v{item.revision}</span>
                           {item.node_status === "stale" && (
-                            <Badge tone="warning">Awaiting update</Badge>
+                            <Badge tone="warning">Source changed</Badge>
                           )}
                           <span>{item.coverage_count} source messages</span>
                         </span>

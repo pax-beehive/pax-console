@@ -12,6 +12,7 @@ import {
   useSecretaryProgress,
 } from "@/features/api/secretary-progress";
 import { Agent } from "@/features/api/types";
+import { SecretarySessionControl } from "./secretary-user-control";
 
 type ProgressQuery = ReturnType<typeof useSecretaryProgress>;
 const stateLabels = {
@@ -168,9 +169,11 @@ function ProgressCount({ label, value }: { label: string; value: number }) {
 }
 
 export function SecretarySessionProgressList({
+  userId,
   progress,
   agents,
 }: {
+  userId: string;
   progress: ProgressQuery;
   agents: Agent[];
 }) {
@@ -261,6 +264,12 @@ export function SecretarySessionProgressList({
                 Last processed {formatDate(session.last_completed_at)}
               </p>
             )}
+            <div className="mt-1">
+              <SecretarySessionControl
+                userId={userId}
+                sourceId={session.source_id}
+              />
+            </div>
           </li>
         ))}
       </ul>

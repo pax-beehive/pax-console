@@ -71,11 +71,46 @@ function query(overrides: Record<string, unknown> = {}) {
 }
 afterEach(cleanup);
 describe("Secretary progress", () => {
+  it("offers summary controls for an unstarted source without an agent, task, or published summary", () => {
+    render(
+      <SecretarySessionProgressList
+        userId="owner"
+        progress={query({
+          data: {
+            pages: [
+              {
+                ...page,
+                sessions: [
+                  {
+                    ...page.sessions[0],
+                    state: "unstarted",
+                    completed_messages: 0,
+                    pending_messages: 10,
+                    completed_turns: 0,
+                    pending_turns: 5,
+                  },
+                ],
+              },
+            ],
+          },
+        })}
+        agents={[]}
+      />,
+    );
+    expect(screen.getByText("Awaiting processing")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Guide or write summary" }),
+    ).toBeEnabled();
+  });
   it("jumps to sessions inside the content panel without scrolling the fixed shell", () => {
     render(
       <div data-secretary-scroll>
         <SecretaryProgressOverview progress={query()} />
-        <SecretarySessionProgressList progress={query()} agents={[]} />
+        <SecretarySessionProgressList
+          userId="owner"
+          progress={query()}
+          agents={[]}
+        />
       </div>,
     );
     const target = document.getElementById("secretary-session-progress")!;
@@ -106,6 +141,7 @@ describe("Secretary progress", () => {
   it("shows exact turn progress and source session identity for partial sessions", () => {
     render(
       <SecretarySessionProgressList
+        userId="owner"
         progress={query()}
         agents={[{ agent_id: "agent_1", name: "Work agent" }]}
       />,
@@ -124,6 +160,7 @@ describe("Secretary progress", () => {
   it("falls back to message counts whenever turn grouping is incomplete", () => {
     render(
       <SecretarySessionProgressList
+        userId="owner"
         progress={query({
           data: {
             pages: [
@@ -150,6 +187,7 @@ describe("Secretary progress", () => {
   it("replaces duplicate source rows with the newer page data", () => {
     render(
       <SecretarySessionProgressList
+        userId="owner"
         progress={query({
           data: {
             pages: [
@@ -202,6 +240,7 @@ describe("Secretary progress", () => {
   it("keeps zero published coverage unstarted even when work could be in progress", () => {
     render(
       <SecretarySessionProgressList
+        userId="owner"
         progress={query({
           data: {
             pages: [
@@ -262,7 +301,11 @@ describe("Secretary progress", () => {
       render(
         <>
           <SecretaryProgressOverview progress={state} />
-          <SecretarySessionProgressList progress={state} agents={[]} />
+          <SecretarySessionProgressList
+            userId="owner"
+            progress={state}
+            agents={[]}
+          />
         </>,
       );
       const overview = screen.getByRole("region", { name: "Summary progress" });
@@ -330,7 +373,11 @@ describe("Secretary progress", () => {
     render(
       <>
         <SecretaryProgressOverview progress={state} />
-        <SecretarySessionProgressList progress={state} agents={[]} />
+        <SecretarySessionProgressList
+          userId="owner"
+          progress={state}
+          agents={[]}
+        />
       </>,
     );
     expect(screen.getByRole("alert")).toHaveTextContent("Sign in again");
@@ -339,7 +386,11 @@ describe("Secretary progress", () => {
   it("loads more pages and supports restarting an expired cursor", () => {
     const state = query({ hasNextPage: true });
     const view = render(
-      <SecretarySessionProgressList progress={state} agents={[]} />,
+      <SecretarySessionProgressList
+        userId="owner"
+        progress={state}
+        agents={[]}
+      />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Load more sessions" }));
     expect(state.fetchNextPage).toHaveBeenCalledOnce();
@@ -348,7 +399,11 @@ describe("Secretary progress", () => {
       error: new ApiError("invalid cursor", 400, {}),
     });
     view.rerender(
-      <SecretarySessionProgressList progress={failed} agents={[]} />,
+      <SecretarySessionProgressList
+        userId="owner"
+        progress={failed}
+        agents={[]}
+      />,
     );
     expect(screen.getByRole("alert")).toHaveTextContent(
       "The session list changed",
@@ -370,6 +425,7 @@ describe("Secretary progress", () => {
     };
     render(
       <SecretarySessionProgressList
+        userId="owner"
         progress={query({ data: { pages: [empty] } })}
         agents={[]}
       />,

@@ -106,6 +106,9 @@ export type WorkspaceSummaryNodeMetadata = {
 };
 
 export type WorkspaceSummaryVersion = WorkspaceSummaryNodeMetadata & {
+  author_kind?: "user" | "agent" | "legacy_unknown";
+  author_id?: string;
+  operation_id?: string;
   summary_id: string;
   revision: number;
   owner_user_id: string;

@@ -2928,9 +2928,57 @@ On entry, wait for cached data's permission revalidation before rendering it.
 401/403 from any read hides all cached list/detail/source content. Other detail
 errors also hide old body text and offer Retry. Desktop uses a split list/reader;
 mobile switches panes with Back to summaries, retaining the list's pagination.
-The page is read-only and never starts a model run or changes Secretary settings.
 An empty result means no published summary is available, with a settings link
 for checking processing progress.
+
+### User guidance and manual summaries
+
+`features/api/secretary-control.ts` uses `apiFetch` / `userPath` exclusively:
+
+- GET/PUT `/secretary/guidance?scope=user`, or `scope=session&source_id=...`.
+  Writes send `instruction` and `expected_revision`; blank clears that scope.
+- POST `/secretary/operations/prepare` freezes `source_id`, `kind`, `scope`
+  (`pending`, `all`, or `selected`) and optional message/summary IDs.
+- GET `/secretary/operations/:operation_id` reads status without dispatching.
+- POST `/secretary/operations/:operation_id/submit` sends an idempotent
+  `request_id`, `expected_revision` and the reviewed action payload.
+
+`secretary-user-control.tsx` contains the default/session guidance editors and
+the task/summary control dialog. Session progress rows also expose this dialog,
+so manual completion works for an unstarted session without a task, summary or
+configured agent. Unsaved session requirements block preparing a new operation;
+save or discard that draft explicitly. Existing-operation reads stay available.
+Saving defaults or session guidance never
+implicitly reruns history or mutates already frozen input. Guidance is limited
+to 4,096 Unicode characters and 8,192 UTF-8 bytes, with NUL rejected. A conflict
+or background refetch preserves the unsaved draft; reload is explicit.
+
+Prepare has no model side effect. Guided operations accept one-time requirements
+and selected complete messages. Manual completion submits title/body, processed
+message IDs and separately selected representative sources. Manual edits inherit
+frozen source references and process no messages. Use `task.task_id` or explicit
+`summary.origin_source_id`, never infer a source from display text. Manager
+remains authoritative for permission, source versions, progress and fencing
+late model output. Replacement of active/unknown work is an explicit checkbox.
+The range picker prepares at most 4,096 messages. Its advanced selection accepts
+explicit message IDs for a smaller range in larger sessions. It deduplicates IDs
+and never silently truncates a larger source; Manager validates membership and
+complete-message eligibility. Title/content limits are 4,096 UTF-8 bytes / 64 KiB.
+
+Mutations have no automatic retry. An unchanged payload retries with the same
+request ID while its editor is open; changing payload creates a new ID. Poll
+queued/running operations every three seconds, and invalidate summary, progress,
+task and settings caches after submit. Do not store operation payloads in
+localStorage, forward one-time instructions to unrelated automatic tasks, or
+make optional cross-session relationships a publication requirement.
+Task responses can include `operation_id` for unfinished work. View current
+operation reloads that operation after closing or refreshing; it never prepares
+another range or dispatches. Revalidate access before displaying cached content.
+Attention outcomes stop polling and show safe source/summary/invalid-output/
+input-limit/unknown-execution explanations. Summary details label explicit user
+authorship; legacy or missing authorship stays neutral.
+Manual completion does not delete or correct older immutable stale summaries;
+their Source changed badge does not promise automatic repair.
 
 ## Summary developer inspection
 
@@ -2988,7 +3036,7 @@ scheduling follows Manager's task retry budget and pause state. Unknown results
 retain their separate check-or-confirm-restart flow. Raw execution errors are
 never displayed.
 
-成果的可选 `node_status: stale` 显示 Awaiting update，仍可查看被授权的旧正文与确切证据，
+成果的可选 `node_status: stale` 显示 Source changed，仍可查看被授权的旧正文与确切证据，
 不能当成 empty。历史 revision 的状态由 Manager 对该版确定，不套用 current 状态。
 撤权后的正文由后端拒绝，不能只加一个过时标记。
 
