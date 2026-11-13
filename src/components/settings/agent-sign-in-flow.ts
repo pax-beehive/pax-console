@@ -40,6 +40,8 @@ export function safeAuthorizationUrl(harness: LoginHarness, value?: string) {
         ? url.href
         : null;
     }
+    // Only native logins with a known authorization host can open a link.
+    if (harness !== "claude-code" && harness !== "claude") return null;
     if (
       ![
         "claude.com",

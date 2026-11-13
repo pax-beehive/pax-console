@@ -53,9 +53,13 @@ added to the preauthorization editor.
 
 ### Agent sign-in 与会话认证恢复
 
-`/settings/agent-sign-in` 在 Settings 的 Security & access 分组提供设备上的
-Claude Code / Codex 登录。Claude 支持 subscription / console；Codex 支持
-device / api-key / access-token。页面打开只读取状态，开始、提交和取消均需用户操作；
+`/settings/agent-sign-in` 在 Settings 的 Security & access 分组提供设备上原生 agent
+CLI 的登录。Agent 类型选项来自该设备在 PAX 中已注册 agent 的 `agent_type`（`useNodeAgents`，
+即 Manager 记录）去重后的列表，不会列出或探测设备上安装的工具。Agent 类型使用 PAX id，
+如 `claude-code`、`codex`、`kimi`；旧链接中的 `harness=claude` 映射为 `claude-code`。
+深链指定的类型未注册时选第一个已注册类型；设备没有已注册 agent 时显示空状态。Claude Code
+支持 subscription / console；Codex 支持 device / api-key / access-token。auth status 返回
+`unsupported` 时提示该 Agent 类型暂不支持登录，并隐藏登录控件。页面打开只读取状态，开始、提交和取消均需用户操作；
 即使本地返回 logged_in，也保留 Sign in again，因为这不能证明 provider 会接受请求。
 设备来自用户授权的 `useNodes`；深链指定的设备不存在或离线时不会改选其他设备。
 
@@ -66,16 +70,21 @@ device / api-key / access-token。页面打开只读取状态，开始、提交�
 仅留在当前挂载的临时登录状态中，开始新登录、非成功状态、查询错误以及设备/Agent 类型
 切换后不再展示旧身份；不增加持久化或 Query/Mutation cache。
 
-检测到凭据（绿色状态）后，同一区域在状态行下方以整行宽度挂载 Plan usage（`agent-usage.tsx`）。它通过
-TanStack Query 的 `useNodeHarnessUsage` 单独读取
+检测到凭据（绿色状态）或该 Agent 类型不支持登录时，同一区域在状态行下方以整行宽度挂载
+Plan usage（`agent-usage.tsx`）。它通过 TanStack Query 的 `useNodeHarnessUsage` 单独读取
 `nodes/:node_id/harnesses/:harness/usage`（GET，no-store）；query key 含用户、设备和
 Agent 类型，staleTime 60 秒，窗口聚焦不重取、不重试、不持久化，刷新按钮手动重取。用量不含
-凭据，可以进入 Query cache，但不混入登录 challenge、授权码或密码等临时状态。`available`
-每个窗口紧凑地占一行：由 `window_minutes`（300 为 5 小时，10080 为每周）和可选模型
-`scope` 得到的短标签、以完整额度名命名的无障碍 meter、已用百分比和距重置时间（"resets in"
-前缀仅在 `sm` 断点以上可见，读屏始终可读）；标题行放 `observed_at` 更新时间、刷新按钮，以及
-Claude 的 `extra_usage.enabled` 开/关；`unsupported` 表示该登录方式没有套餐额度；`unavailable`
-按 `error_code` 提示更新 Claude Code/Codex（`cli_unsupported`）、更新 PAX
+凭据，可以进入 Query cache，但不混入登录 challenge、授权码或密码等临时状态。
+
+Plan usage 完全由数据驱动，console 不含针对某个 harness 的用量代码。`available` 的
+`items` 每项一行，直接使用 item 自带的英文 `label`：`percent` 显示以 label 命名的无障碍
+meter、`N% used` 和距 `resets_at` 的时间（"resets in" 前缀仅在 `sm` 断点以上可见，读屏始终
+可读）；`amount` 有 limit 时显示 meter 和 `used / limit 单位`，否则显示 `used 单位`，
+`usd`/`eur`/`cny` 保留两位小数并显示币种代码，`credits`/`tokens`/`requests` 显示整数和单位词；
+`status` 显示 label 和简短 `value`（如 Extra usage `off`）。未知 kind 直接跳过。进度条优先使用
+item 的 `severity`，否则 80% 起为 warning、100% 为 critical。标题行放 `observed_at` 更新时间和
+刷新按钮。`unsupported` 表示该登录方式没有套餐额度；`unavailable` 按 `error_code` 提示用
+`harness_label`（缺省时格式化 Agent 类型）命名的工具需要更新（`cli_unsupported`）、更新 PAX
 （`daemon_unsupported`），其余显示暂不可用。用量加载中或失败都不改变登录状态文案、绿色勾和
 Sign in again；切换设备或 Agent 类型不会显示上一台设备的用量。paxd 与原生 CLI 各自缓存约
 一分钟，数值最多可能延迟约两分钟；`observed_at` 是 paxd 完成读取的时间。

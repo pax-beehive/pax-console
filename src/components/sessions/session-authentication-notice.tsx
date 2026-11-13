@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { normalizeAgentType } from "@/components/settings/agent-types";
 import { isAgentAuthenticationError } from "@/features/runtime/agent-auth-error";
 
 export function SessionAuthenticationNotice({
@@ -16,12 +17,8 @@ export function SessionAuthenticationNotice({
   sessionId?: string;
   agentType?: string;
 }) {
-  const harness =
-    agentType === "claude" || agentType === "claude-code"
-      ? "claude"
-      : agentType === "codex"
-        ? "codex"
-        : undefined;
+  // Sign-in is keyed by the session's PAX agent type.
+  const harness = normalizeAgentType(agentType);
   if (!nodeId || !harness || !isAgentAuthenticationError(error)) return null;
 
   const params = new URLSearchParams({ node_id: nodeId, harness });

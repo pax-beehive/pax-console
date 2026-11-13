@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   getNodeHarnessAuth: vi.fn(),
   loginNodeHarness: vi.fn(),
   useNodeHarnessUsage: vi.fn(),
+  useNodeAgents: vi.fn(),
 }));
 vi.mock("@/features/api/resources", () => mocks);
 
@@ -29,6 +30,20 @@ const nodes = [
   { node_id: "offline", hostname: "Offline", online: false },
   { node_id: "cli", hostname: "CLI identity", kind: "paxl", online: true },
 ];
+// Agents registered in PAX; the dropdown never probes devices.
+const registeredAgents = ["node-one", "node-two"].flatMap((node_id) => [
+  { agent_id: `${node_id}-claude`, node_id, agent_type: "claude-code" },
+  { agent_id: `${node_id}-codex`, node_id, agent_type: "codex" },
+]);
+
+function agentsQuery(agents: unknown[] = registeredAgents) {
+  return {
+    data: { agents },
+    error: null,
+    isLoading: false,
+    refetch: vi.fn(),
+  };
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -38,6 +53,7 @@ beforeEach(() => {
   });
   mocks.loginNodeHarness.mockResolvedValue({ harness_auth: awaitingCode });
   mocks.useNodeHarnessUsage.mockReturnValue(usageQuery());
+  mocks.useNodeAgents.mockReturnValue(agentsQuery());
 });
 
 function usageQuery(overrides: Record<string, unknown> = {}) {
@@ -71,7 +87,7 @@ it("preselects exactly the linked device and checks without starting a login", a
   expect(mocks.getNodeHarnessAuth).toHaveBeenCalledWith(
     "self",
     "node-two",
-    "claude",
+    "claude-code",
     undefined,
     expect.any(AbortSignal),
   );
@@ -107,7 +123,7 @@ it.each(["subscription", "console"])(
     mocks.getNodeHarnessAuth.mockResolvedValue({ harness_auth: awaitingCode });
     await user.click(screen.getByRole("button", { name: "Start sign-in" }));
     const link = await screen.findByRole("link", {
-      name: "Open Claude authorization",
+      name: "Open Claude Code authorization",
     });
     expect(link).toHaveAttribute("href", authorizationUrl);
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
@@ -152,7 +168,7 @@ it.each(["subscription", "console"])(
       screen.queryByLabelText("Full authorization code"),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("link", { name: "Open Claude authorization" }),
+      screen.queryByRole("link", { name: "Open Claude Code authorization" }),
     ).not.toBeInTheDocument();
     expect(
       screen.getByText(/Existing agent processes may need to be restarted/),
@@ -240,7 +256,7 @@ it("cancels a pending login and can start a fresh attempt after expiration", asy
   await user.click(screen.getByRole("button", { name: "Cancel sign-in" }));
   await screen.findByText("Sign-in was cancelled.");
   expect(
-    screen.queryByRole("link", { name: "Open Claude authorization" }),
+    screen.queryByRole("link", { name: "Open Claude Code authorization" }),
   ).not.toBeInTheDocument();
   expect(mocks.loginNodeHarness.mock.calls[0][3]).toMatchObject({
     operation: "cancel",
@@ -280,7 +296,7 @@ it("rejects untrusted provider URLs instead of rendering an authorization link",
   mount();
   await screen.findByText(/unsupported authorization link/);
   expect(
-    screen.queryByRole("link", { name: "Open Claude authorization" }),
+    screen.queryByRole("link", { name: "Open Claude Code authorization" }),
   ).not.toBeInTheDocument();
   expect(
     screen.queryByLabelText("Full authorization code"),
@@ -320,7 +336,7 @@ it("polls the login handle after an accepted start and stops after success", asy
   expect(mocks.getNodeHarnessAuth).toHaveBeenLastCalledWith(
     "self",
     "node-one",
-    "claude",
+    "claude-code",
     "login-one",
     expect.any(AbortSignal),
   );
@@ -386,7 +402,7 @@ it("reconciles the latest status after a login handle disappears", async () => {
   expect(mocks.getNodeHarnessAuth).toHaveBeenLastCalledWith(
     "self",
     "node-one",
-    "claude",
+    "claude-code",
     undefined,
     expect.any(AbortSignal),
   );
@@ -407,7 +423,7 @@ it("discards a late response after selecting a different device", async () => {
     resolve({ harness_auth: awaitingCode });
   });
   expect(
-    screen.queryByRole("link", { name: "Open Claude authorization" }),
+    screen.queryByRole("link", { name: "Open Claude Code authorization" }),
   ).not.toBeInTheDocument();
   expect(mocks.getNodeHarnessAuth.mock.calls[0][4].aborted).toBe(true);
 });
@@ -426,13 +442,13 @@ it("removes an expired challenge even if the device cannot be contacted", async 
     await Promise.resolve();
   });
   expect(
-    screen.getByRole("link", { name: "Open Claude authorization" }),
+    screen.getByRole("link", { name: "Open Claude Code authorization" }),
   ).toBeInTheDocument();
   await act(async () => {
     await vi.advanceTimersByTimeAsync(1000);
   });
   expect(
-    screen.queryByRole("link", { name: "Open Claude authorization" }),
+    screen.queryByRole("link", { name: "Open Claude Code authorization" }),
   ).not.toBeInTheDocument();
   expect(
     screen.queryByLabelText("Full authorization code"),
@@ -454,13 +470,13 @@ it("recovers an ambiguously accepted start through status without starting a dup
   expect(mocks.getNodeHarnessAuth).toHaveBeenLastCalledWith(
     "self",
     "node-one",
-    "claude",
+    "claude-code",
     undefined,
     expect.any(AbortSignal),
   );
 });
 
-it.each(["claude", "codex"] as const)(
+it.each(["claude-code", "codex"] as const)(
   "shows the native %s account email with optional name, organization and plan",
   async (harness) => {
     mocks.getNodeHarnessAuth.mockResolvedValue({
@@ -504,7 +520,7 @@ it("uses a reported display name when no account email is available", async () =
   ).not.toBeInTheDocument();
 });
 
-it.each(["claude", "codex"] as const)(
+it.each(["claude-code", "codex"] as const)(
   "handles older %s status responses without account metadata",
   async (harness) => {
     mocks.getNodeHarnessAuth.mockResolvedValue({
@@ -650,7 +666,7 @@ it.each(["logged_out", "awaiting_code", "failed"])(
   },
 );
 
-it.each(["claude", "codex"] as const)(
+it.each(["claude-code", "codex"] as const)(
   "shows %s plan usage for the selected device once credentials are detected",
   async (harness) => {
     mocks.getNodeHarnessAuth.mockResolvedValue({
@@ -665,7 +681,14 @@ it.each(["claude", "codex"] as const)(
             harness,
             state: "available",
             observed_at: new Date().toISOString(),
-            windows: [{ id: "primary", window_minutes: 300, used_percent: 41 }],
+            items: [
+              {
+                id: "primary",
+                label: "5-hour",
+                kind: "percent",
+                used_percent: 41,
+              },
+            ],
           },
         },
       }),
@@ -675,7 +698,7 @@ it.each(["claude", "codex"] as const)(
     expect(panel).toHaveTextContent("5-hour");
     expect(panel).toHaveTextContent("41% used");
     expect(
-      within(panel).getByRole("meter", { name: "5-hour limit" }),
+      within(panel).getByRole("meter", { name: "5-hour" }),
     ).toHaveAttribute("aria-valuenow", "41");
     expect(mocks.useNodeHarnessUsage).toHaveBeenLastCalledWith(
       "self",
@@ -726,4 +749,87 @@ it("hides plan usage while a new sign-in is being started", async () => {
   mocks.loginNodeHarness.mockReturnValue(new Promise(() => {}));
   await user.click(screen.getByRole("button", { name: "Sign in again" }));
   expect(screen.queryByLabelText("Plan usage")).not.toBeInTheDocument();
+});
+
+it("lists only agent types registered in PAX for the selected device", async () => {
+  mocks.useNodeAgents.mockReturnValue(
+    agentsQuery([
+      { agent_id: "a", node_id: "node-one", agent_type: "codex" },
+      { agent_id: "b", node_id: "node-one", agent_type: "kimi" },
+      { agent_id: "c", node_id: "node-one", agent_type: "codex" },
+      { agent_id: "d", node_id: "node-one", agent_type: "claude" },
+      { agent_id: "e", node_id: "node-two", agent_type: "opencode" },
+    ]),
+  );
+  mount();
+  await screen.findByText("Not signed in on this device.");
+  const options = within(screen.getByLabelText("Agent type"))
+    .getAllByRole("option")
+    .map((option) => [option.getAttribute("value"), option.textContent]);
+  expect(options).toEqual([
+    ["claude-code", "Claude Code"],
+    ["codex", "Codex"],
+    ["kimi", "Kimi"],
+  ]);
+  expect(mocks.useNodeAgents).toHaveBeenLastCalledWith("self", "node-one");
+});
+
+it("falls back to the first registered agent type when the linked one is absent", async () => {
+  mocks.useNodeAgents.mockReturnValue(
+    agentsQuery([{ agent_id: "a", node_id: "node-one", agent_type: "codex" }]),
+  );
+  mount({ initialHarness: "claude-code" });
+  await screen.findByText("Not signed in on this device.");
+  expect(screen.getByLabelText("Agent type")).toHaveValue("codex");
+  expect(mocks.getNodeHarnessAuth).toHaveBeenCalledWith(
+    "self",
+    "node-one",
+    "codex",
+    undefined,
+    expect.any(AbortSignal),
+  );
+});
+
+it("explains when the device has no registered agents", () => {
+  mocks.useNodeAgents.mockReturnValue(agentsQuery([]));
+  mount();
+  expect(
+    screen.getByText(/No agents are registered on this device/),
+  ).toBeInTheDocument();
+  expect(screen.getByLabelText("Agent type")).toBeDisabled();
+  expect(mocks.getNodeHarnessAuth).not.toHaveBeenCalled();
+});
+
+it("hides sign-in controls for agent types without native sign-in and still shows usage", async () => {
+  mocks.useNodeAgents.mockReturnValue(
+    agentsQuery([{ agent_id: "a", node_id: "node-one", agent_type: "kimi" }]),
+  );
+  mocks.getNodeHarnessAuth.mockResolvedValue({
+    harness_auth: { harness: "kimi", state: "unsupported" },
+  });
+  mocks.useNodeHarnessUsage.mockReturnValue(
+    usageQuery({
+      isPending: false,
+      isFetching: false,
+      data: {
+        harness_usage: {
+          harness: "kimi",
+          harness_label: "Kimi Code",
+          state: "available",
+          items: [
+            { id: "credits", label: "Credits", kind: "status", value: "ok" },
+          ],
+        },
+      },
+    }),
+  );
+  mount();
+  expect(
+    await screen.findByText("Sign-in is not available for Kimi yet."),
+  ).toBeInTheDocument();
+  expect(screen.queryByLabelText("Sign-in method")).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: /sign-in|sign in/i }),
+  ).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Plan usage")).toHaveTextContent("Credits");
 });
