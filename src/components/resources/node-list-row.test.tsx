@@ -1,11 +1,12 @@
 /* @vitest-environment jsdom */
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { DaemonCommandRecord, Node } from "@/features/api/types";
+import { useLocaleStore } from "@/features/i18n/locale-store";
 import { NodeListRow } from "./node-list-row";
 
 const api = vi.hoisted(() => ({ fetch: vi.fn() }));
@@ -51,6 +52,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  useLocaleStore.setState({ locale: "en" });
   vi.clearAllMocks();
   vi.useRealTimers();
 });
@@ -185,4 +187,27 @@ it("deletes through the menu", async () => {
   );
 
   expect(onDelete).toHaveBeenCalledWith(node);
+});
+
+it("given a device row, when switching to Chinese, then localizes actions and preserves the selected device", async () => {
+  const onDelete = renderRow(device({ name: "Build Mac" }));
+  act(() => useLocaleStore.setState({ locale: "zh-CN" }));
+  expect(screen.getByText("在线")).toBeVisible();
+  expect(screen.getByRole("link", { name: /Build Mac/ })).toHaveAttribute(
+    "href",
+    "/nodes/node_ubuntu_23ca7f00018f68b",
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Build Mac 的操作" }),
+  );
+  expect(screen.getByRole("menuitem", { name: "升级 paxd…" })).toBeVisible();
+  await userEvent.click(screen.getByRole("menuitem", { name: "删除设备…" }));
+  expect(onDelete).toHaveBeenCalledWith(
+    expect.objectContaining({
+      name: "Build Mac",
+      node_id: "node_ubuntu_23ca7f00018f68b",
+    }),
+  );
+  act(() => useLocaleStore.setState({ locale: "en" }));
+  expect(screen.getByText("online")).toBeVisible();
 });

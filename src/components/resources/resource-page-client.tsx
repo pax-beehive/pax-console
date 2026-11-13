@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n, type Translator } from "@/features/i18n/use-i18n";
+
 import Link from "next/link";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
@@ -165,6 +167,7 @@ const emptyAgents: Agent[] = [];
 const sessionPageSize = 50;
 
 export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
+  const { t } = useI18n();
   const [showAllResources, setShowAllResources] = useState(false);
   const [sessionPage, setSessionPage] = useState(1);
   const nodesQuery = useNodes(
@@ -218,8 +221,8 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
     [showAllResources, sortedAgents],
   );
   const agentRows = useMemo(
-    () => buildAgentRows(agents, sortedNodes),
-    [agents, sortedNodes],
+    () => buildAgentRows(agents, sortedNodes, t),
+    [agents, sortedNodes, t],
   );
   const agentsLoading = agentsQuery.isLoading;
   const sessionQueries = useQueries({
@@ -310,26 +313,28 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
     <ConsoleLayout user={user}>
       <div className="flex min-h-0 flex-1 flex-col">
         <SettingsPageHeader
-          title={meta.title}
-          description={description}
+          title={t(meta.title)}
+          description={t(description)}
           mobileHeading={
             <>
               <SettingsBack
                 href={
                   advancedSettings ? settingsLinks.advanced : settingsLinks.home
                 }
-                label={advancedSettings ? "Advanced settings" : "Settings"}
+                label={
+                  advancedSettings ? t("Advanced settings") : t("Settings")
+                }
               />
               <div className="flex items-center gap-2 text-xs text-ink-tertiary">
                 {meta.icon}
-                {meta.eyebrow}
+                {t(meta.eyebrow)}
               </div>
-              <h1 className="mt-2 text-2xl font-semibold">{meta.title}</h1>
+              <h1 className="mt-2 text-2xl font-semibold">{t(meta.title)}</h1>
             </>
           }
-          category={
-            sectionId ? settingsSection(sectionId).category : meta.eyebrow
-          }
+          category={t(
+            sectionId ? settingsSection(sectionId).category : meta.eyebrow,
+          )}
         >
           <div className="flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
             <ResourceSectionTabs kind={kind} />
@@ -339,7 +344,7 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
                 icon={<Plus className="h-4 w-4" />}
                 variant="primary"
               >
-                <Link href={settingsLinks.addDevice}>Add device</Link>
+                <Link href={settingsLinks.addDevice}>{t("Add device")}</Link>
               </Button>
             )}
             {kind === "agents" && (
@@ -348,7 +353,7 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
                 icon={<Plus className="h-4 w-4" />}
                 variant="primary"
               >
-                <Link href={settingsLinks.addAgent}>Add agent</Link>
+                <Link href={settingsLinks.addAgent}>{t("Add agent")}</Link>
               </Button>
             )}
             {supportsActiveFilter(kind) && (
@@ -380,7 +385,10 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
               <AgentGrid
                 agents={agentRows}
                 isLoading={agentsLoading}
-                nodeLabel={`${nodes.length}/${sortedNodes.length} nodes in scope`}
+                nodeLabel={t("{visible}/{total} nodes in scope", {
+                  visible: nodes.length,
+                  total: sortedNodes.length,
+                })}
                 totalCount={sortedAgents.length}
                 userId={user.user_id}
               />
@@ -472,6 +480,7 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
 }
 
 function ResourceSectionTabs({ kind }: { kind: ResourceKind }) {
+  const { t } = useI18n();
   const tabs =
     kind === "nodes" || kind === "agents"
       ? [
@@ -505,7 +514,7 @@ function ResourceSectionTabs({ kind }: { kind: ResourceKind }) {
           href={tab.href}
           key={tab.value}
         >
-          {tab.label}
+          {t(tab.label)}
         </Link>
       ))}
     </div>
@@ -523,6 +532,7 @@ function NodeGrid({
   totalCount: number;
   userId: string;
 }) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [deleteError, setDeleteError] = useState<Error | null>(null);
   const [nodeToDelete, setNodeToDelete] = useState<Node | null>(null);
@@ -540,7 +550,7 @@ function NodeGrid({
   });
 
   if (isLoading) {
-    return <EmptyState label="Loading nodes" />;
+    return <EmptyState label={t("Loading nodes")} />;
   }
 
   return (
@@ -564,7 +574,7 @@ function NodeGrid({
           ))}
         </div>
       ) : totalCount > 0 ? (
-        <EmptyState label="No active nodes" />
+        <EmptyState label={t("No active nodes")} />
       ) : (
         <PaxdGettingStartedGuide
           userId={userId}
@@ -572,15 +582,18 @@ function NodeGrid({
         />
       )}
       <ConfirmDialog
-        confirmLabel={removeNode.isPending ? "Deleting..." : "Delete node"}
+        confirmLabel={
+          removeNode.isPending ? t("Deleting...") : t("Delete node")
+        }
         description={
           <>
-            This removes{" "}
+            {t("This removes")}{" "}
             <span className="font-medium text-ink">
               {nodeToDelete ? nodeLabel(nodeToDelete) : ""}
             </span>{" "}
-            from the fleet view. Agents hosted on this node will be cleaned up
-            at the same time.
+            {t(
+              "from the fleet view. Agents hosted on this node will be cleaned up at the same time.",
+            )}
           </>
         }
         disabled={removeNode.isPending}
@@ -595,7 +608,7 @@ function NodeGrid({
           }
         }}
         open={nodeToDelete !== null}
-        title="Delete node?"
+        title={t("Delete node?")}
       />
     </div>
   );
@@ -614,6 +627,7 @@ function AgentGrid({
   totalCount: number;
   userId: string;
 }) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [deleteError, setDeleteError] = useState<Error | null>(null);
   const [agentToDelete, setAgentToDelete] = useState<AgentRow | null>(null);
@@ -631,15 +645,15 @@ function AgentGrid({
   });
 
   if (isLoading) {
-    return <EmptyState label="Loading agents" />;
+    return <EmptyState label={t("Loading agents")} />;
   }
 
   return (
     <div className="grid gap-3">
       {deleteError && <ApiNotice error={deleteError} />}
       <div className="flex min-w-0 text-sm text-ink-tertiary">
-        <span className="shrink-0">Scope:&nbsp;</span>
-        <TruncatedText>{nodeLabel ?? "No node selected"}</TruncatedText>
+        <span className="shrink-0">{t("Scope: ")}</span>
+        <TruncatedText>{nodeLabel ?? t("No node selected")}</TruncatedText>
       </div>
       {setupStarted ? (
         <PaxdGettingStartedGuide
@@ -666,7 +680,7 @@ function AgentGrid({
                     {agent.name ?? agent.agent_type ?? agent.agent_id}
                   </TruncatedText>
                   <TruncatedText className="mt-1 text-xs text-ink-muted">
-                    {agent.description ?? agentCardSummary(agent)}
+                    {agent.description ?? agentCardSummary(agent, t)}
                   </TruncatedText>
                 </div>
                 <div className="grid min-w-0 content-start gap-1">
@@ -674,38 +688,40 @@ function AgentGrid({
                     className="text-xs text-ink-muted"
                     tooltip={agent.nodeLabel}
                   >
-                    Node: {agent.nodeLabel}
+                    {t("Node:")} {agent.nodeLabel}
                   </TruncatedText>
                   <div className="flex min-w-0 flex-wrap gap-x-2 gap-y-1">
-                    <MonoId tooltip={agent.node_id ?? "No runtime node"}>
-                      node {compactId(agent.node_id, 10, 6, "unassigned")}
+                    <MonoId tooltip={agent.node_id ?? t("No runtime node")}>
+                      {t("node")}{" "}
+                      {compactId(agent.node_id, 10, 6, "unassigned")}
                     </MonoId>
                     <MonoId tooltip={agent.agent_id}>
-                      agent {compactId(agent.agent_id)}
+                      {t("agent")} {compactId(agent.agent_id)}
                     </MonoId>
                   </div>
                 </div>
                 <div className="flex items-start sm:justify-end">
                   <Badge tone={agent.online ? "success" : "neutral"}>
-                    {agent.online ? "online" : (agent.status ?? "unknown")}
+                    {t(agent.online ? "online" : (agent.status ?? "unknown"))}
                   </Badge>
                 </div>
               </Link>
               <div className="flex items-start justify-end">
                 <ConfirmDialog
                   confirmLabel={
-                    removeAgent.isPending ? "Deleting..." : "Delete agent"
+                    removeAgent.isPending ? t("Deleting...") : t("Delete agent")
                   }
                   description={
                     <>
-                      This removes{" "}
+                      {t("This removes")}{" "}
                       <span className="font-medium text-ink">
                         {agentToDelete?.name ??
                           agentToDelete?.agent_type ??
                           agentToDelete?.agent_id}
                       </span>{" "}
-                      from the agents list. Other agents on the same node are
-                      not affected.
+                      {t(
+                        "from the agents list. Other agents on the same node are not affected.",
+                      )}
                     </>
                   }
                   disabled={removeAgent.isPending}
@@ -720,14 +736,14 @@ function AgentGrid({
                     }
                   }}
                   open={agentToDelete?.agent_id === agent.agent_id}
-                  title="Delete agent?"
+                  title={t("Delete agent?")}
                 >
                   <Button
                     disabled={removeAgent.isPending}
                     icon={<Trash2 className="h-4 w-4" />}
                     onClick={() => setAgentToDelete(agent)}
                     size="icon"
-                    tooltip="Delete agent"
+                    tooltip={t("Delete agent")}
                     type="button"
                     variant="danger"
                   />
@@ -737,7 +753,7 @@ function AgentGrid({
           ))}
         </div>
       ) : totalCount > 0 ? (
-        <EmptyState label="No active agents" />
+        <EmptyState label={t("No active agents")} />
       ) : (
         <PaxdGettingStartedGuide
           userId={userId}
@@ -769,8 +785,9 @@ function SessionGrid({
   sessions: SessionRow[];
   totalCount: number;
 }) {
+  const { t } = useI18n();
   if (isLoading) {
-    return <EmptyState label="Loading sessions" />;
+    return <EmptyState label={t("Loading sessions")} />;
   }
 
   return (
@@ -778,7 +795,7 @@ function SessionGrid({
       {filteredCount > 0 && (
         <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 text-sm text-ink-tertiary">
           <span className="min-w-0">
-            Showing {pageStart}-{pageEnd} of {filteredCount}
+            {t("Showing")} {pageStart}-{pageEnd} {t("of")} {filteredCount}
           </span>
           <div className="flex items-center gap-2">
             <Button
@@ -786,7 +803,7 @@ function SessionGrid({
               icon={<ChevronLeft className="h-4 w-4" />}
               onClick={() => onPageChange(page - 1)}
               size="icon"
-              tooltip="Previous page"
+              tooltip={t("Previous page")}
               type="button"
               variant="secondary"
             />
@@ -798,7 +815,7 @@ function SessionGrid({
               icon={<ChevronRight className="h-4 w-4" />}
               onClick={() => onPageChange(page + 1)}
               size="icon"
-              tooltip="Next page"
+              tooltip={t("Next page")}
               type="button"
               variant="secondary"
             />
@@ -817,7 +834,7 @@ function SessionGrid({
                 {session.name ?? session.current_task ?? session.session_id}
               </TruncatedText>
               <TruncatedText className="mt-1 text-xs text-ink-muted">
-                {session.preview ?? session.current_task ?? "Open session"}
+                {session.preview ?? session.current_task ?? t("Open session")}
               </TruncatedText>
             </div>
             <div className="grid min-w-0 content-start gap-1">
@@ -827,14 +844,14 @@ function SessionGrid({
                   tone={session.agentActive ? "success" : "neutral"}
                   tooltip={session.agent_id}
                 >
-                  Agent: {session.agentLabel}
+                  {t("Agent:")} {session.agentLabel}
                 </Badge>
                 <Badge
                   className="min-w-0 max-w-none flex-1"
                   tone={session.nodeActive ? "success" : "neutral"}
                   tooltip={session.node_id}
                 >
-                  Node: {session.nodeLabel}
+                  {t("Node:")} {session.nodeLabel}
                 </Badge>
               </div>
               <MonoId
@@ -845,13 +862,13 @@ function SessionGrid({
               </MonoId>
             </div>
             <div className="flex items-start lg:justify-end">
-              <Badge>{session.runtime_status ?? "unknown"}</Badge>
+              <Badge>{t(session.runtime_status ?? "unknown")}</Badge>
             </div>
           </Link>
         ))}
         {sessions.length === 0 && (
           <EmptyState
-            label={totalCount > 0 ? "No active sessions" : "No sessions"}
+            label={totalCount > 0 ? t("No active sessions") : t("No sessions")}
           />
         )}
       </div>
@@ -860,6 +877,7 @@ function SessionGrid({
 }
 
 function NodeRegistrationPanel({ userId }: { userId: string }) {
+  const { t } = useI18n();
   const [ttl, setTtl] = useState(3600);
   const [copied, setCopied] = useState(false);
   const [createdToken, setCreatedToken] = useState<{
@@ -887,7 +905,7 @@ function NodeRegistrationPanel({ userId }: { userId: string }) {
       <section className="rounded-lg border border-hairline bg-surface-1 p-3">
         <div className="flex min-w-0 flex-wrap items-end gap-3">
           <label className="grid w-full gap-2 text-sm text-ink-muted sm:w-56">
-            TTL seconds
+            {t("TTL seconds")}{" "}
             <input
               className="min-h-9 rounded-lg border border-hairline bg-canvas px-3 font-mono text-base text-ink sm:text-sm"
               inputMode="numeric"
@@ -912,7 +930,7 @@ function NodeRegistrationPanel({ userId }: { userId: string }) {
                   type="button"
                   variant={ttl === preset.value ? "secondary" : "ghost"}
                 >
-                  {preset.label}
+                  {t(preset.label)}
                 </Button>
               ))}
             </div>
@@ -922,11 +940,11 @@ function NodeRegistrationPanel({ userId }: { userId: string }) {
             disabled={createToken.isPending || ttl <= 0}
             icon={<Plus className="h-4 w-4" />}
             onClick={() => createToken.mutate()}
-            tooltip="Create node registration token"
+            tooltip={t("Create node registration token")}
             type="button"
             variant="primary"
           >
-            {createToken.isPending ? "Creating..." : "Create token"}
+            {createToken.isPending ? t("Creating...") : t("Create token")}
           </Button>
         </div>
       </section>
@@ -938,10 +956,12 @@ function NodeRegistrationPanel({ userId }: { userId: string }) {
           <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="text-sm font-medium text-ink">
-                Copy this registration token now. It is one-time use.
+                {t("Copy this registration token now. It is one-time use.")}
               </div>
               <div className="mt-1 text-xs text-ink-tertiary">
-                The full token is shown below and wraps inside this panel.
+                {t(
+                  "The full token is shown below and wraps inside this panel.",
+                )}
               </div>
             </div>
             <Button
@@ -955,18 +975,18 @@ function NodeRegistrationPanel({ userId }: { userId: string }) {
               }
               onClick={() => void copyToken()}
               size="sm"
-              tooltip={copied ? "Copied token" : "Copy token"}
+              tooltip={copied ? t("Copied token") : t("Copy token")}
               type="button"
               variant="ghost"
             >
-              {copied ? "Copied" : "Copy"}
+              {copied ? t("Copied") : t("Copy")}
             </Button>
           </div>
           <div className="mt-3 min-w-0 max-w-full overflow-x-auto whitespace-pre-wrap break-all rounded-lg border border-hairline bg-canvas p-3 font-mono text-xs leading-6 text-ink-muted">
             {createdToken.token}
           </div>
           <div className="mt-3 font-mono text-xs text-ink-tertiary">
-            expires: {createdToken.expires_at ?? "unknown"}
+            {t("expires:")} {createdToken.expires_at ?? t("unknown")}
           </div>
         </section>
       )}
@@ -975,10 +995,11 @@ function NodeRegistrationPanel({ userId }: { userId: string }) {
 }
 
 function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
+  const { t } = useI18n();
   const [agentId, setAgentId] = useState("");
   const [encodedKey, setEncodedKey] = useState("");
   const [configured, setConfigured] = useState(false);
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState<{ message: string; local: boolean }>();
   const [busy, setBusy] = useState(false);
 
   const selectedAgentId = agents.some((agent) => agent.agent_id === agentId)
@@ -994,12 +1015,15 @@ function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
       .then((key) => {
         if (active) {
           setConfigured(Boolean(key));
-          setStatus("");
+          setStatus(undefined);
         }
       })
       .catch((error) => {
         if (active) {
-          setStatus(error instanceof Error ? error.message : String(error));
+          setStatus({
+            message: error instanceof Error ? error.message : String(error),
+            local: false,
+          });
         }
       });
     return () => {
@@ -1009,14 +1033,17 @@ function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
 
   async function handleSave() {
     setBusy(true);
-    setStatus("");
+    setStatus(undefined);
     try {
       await saveRootKey(selectedAgentId, encodedKey);
       setEncodedKey("");
       setConfigured(true);
-      setStatus("Root key saved on this device.");
+      setStatus({ message: "Root key saved on this device.", local: true });
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error));
+      setStatus({
+        message: error instanceof Error ? error.message : String(error),
+        local: false,
+      });
     } finally {
       setBusy(false);
     }
@@ -1024,14 +1051,17 @@ function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
 
   async function handleDelete() {
     setBusy(true);
-    setStatus("");
+    setStatus(undefined);
     try {
       await deleteRootKey(selectedAgentId);
       setConfigured(false);
       setEncodedKey("");
-      setStatus("Root key removed from this device.");
+      setStatus({ message: "Root key removed from this device.", local: true });
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error));
+      setStatus({
+        message: error instanceof Error ? error.message : String(error),
+        local: false,
+      });
     } finally {
       setBusy(false);
     }
@@ -1039,17 +1069,25 @@ function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
 
   function handleGenerate() {
     setEncodedKey(generateEncodedRootKey());
-    setStatus(
-      "Generated locally. Copy this key into paxd, then save it for the selected agent.",
-    );
+    setStatus({
+      message:
+        "Generated locally. Copy this key into paxd, then save it for the selected agent.",
+      local: true,
+    });
   }
 
   async function handleCopy() {
     try {
       await navigator.clipboard.writeText(encodedKey);
-      setStatus("Root key copied. It has not been sent to PAX Manager.");
+      setStatus({
+        message: "Root key copied. It has not been sent to PAX Manager.",
+        local: true,
+      });
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error));
+      setStatus({
+        message: error instanceof Error ? error.message : String(error),
+        local: false,
+      });
     }
   }
 
@@ -1057,15 +1095,20 @@ function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
     <section className="grid min-w-0 gap-4 rounded-lg border border-hairline bg-surface-1 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-medium">Encrypted session access</h2>
+          <h2 className="text-sm font-medium">
+            {t("Encrypted session access")}
+          </h2>
           <p className="mt-1 text-xs text-ink-tertiary">
-            Pair this device to open end-to-end encrypted sessions. Encryption
-            keys stay locally and are never sent to PAX Manager.
+            {t(
+              "Pair this device to open end-to-end encrypted sessions. Encryption keys stay locally and are never sent to PAX Manager.",
+            )}
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <Badge tone={selectedAgentId && configured ? "success" : "neutral"}>
-            {selectedAgentId && configured ? "configured" : "not configured"}
+            {selectedAgentId && configured
+              ? t("configured")
+              : t("not configured")}
           </Badge>
           <Button asChild size="sm" variant="primary">
             <Link
@@ -1075,7 +1118,7 @@ function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
                   : "/e2ee/pairing"
               }
             >
-              {configured ? "Manage paired devices" : "Pair this device"}
+              {configured ? t("Manage paired devices") : t("Pair this device")}
             </Link>
           </Button>
         </div>
@@ -1083,7 +1126,7 @@ function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
       {agents.length > 0 ? (
         <div className="grid min-w-0 gap-3 sm:max-w-md">
           <label className="grid min-w-0 gap-1 text-xs text-ink-tertiary">
-            Agent
+            {t("Agent")}{" "}
             <select
               className="h-9 w-full min-w-0 rounded-md border border-hairline bg-canvas px-3 text-base text-ink outline-none focus:border-accent sm:text-sm"
               onChange={(event) => setAgentId(event.target.value)}
@@ -1091,26 +1134,27 @@ function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
             >
               {agents.map((agent) => (
                 <option key={agent.agent_id} value={agent.agent_id}>
-                  {agentLabel(agent)} · {agentNodeLabel(agent, nodes)}
+                  {agentLabel(agent)} · {agentNodeLabel(agent, nodes, t)}
                 </option>
               ))}
             </select>
           </label>
           <details className="min-w-0 rounded-lg border border-hairline bg-canvas p-3">
             <summary className="cursor-pointer text-sm font-medium text-ink-muted">
-              Advanced: manually manage root key
+              {t("Advanced: manually manage root key")}
             </summary>
             <p className="mt-2 text-xs leading-5 text-warning">
-              Development use only. Generating a different key from paxd will
-              make encrypted sessions unreadable on this device.
+              {t(
+                "Development use only. Generating a different key from paxd will make encrypted sessions unreadable on this device.",
+              )}
             </p>
             <label className="mt-3 grid min-w-0 gap-1 text-xs text-ink-tertiary">
-              Base64 root key
+              {t("Base64 root key")}{" "}
               <input
                 autoComplete="off"
                 className="h-9 w-full min-w-0 rounded-md border border-hairline bg-surface-1 px-3 font-mono text-base text-ink outline-none focus:border-accent sm:text-sm"
                 onChange={(event) => setEncodedKey(event.target.value)}
-                placeholder="32-byte base64 value"
+                placeholder={t("32-byte base64 value")}
                 type="password"
                 value={encodedKey}
               />
@@ -1121,7 +1165,7 @@ function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
                 onClick={handleGenerate}
                 type="button"
               >
-                Generate development key
+                {t("Generate development key")}
               </Button>
               {encodedKey && (
                 <Button
@@ -1129,7 +1173,7 @@ function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
                   onClick={() => void handleCopy()}
                   type="button"
                 >
-                  Copy
+                  {t("Copy")}
                 </Button>
               )}
               <Button
@@ -1137,7 +1181,7 @@ function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
                 onClick={() => void handleSave()}
                 type="button"
               >
-                Save imported key
+                {t("Save imported key")}
               </Button>
               {configured && (
                 <Button
@@ -1146,7 +1190,7 @@ function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
                   variant="danger"
                   type="button"
                 >
-                  Remove key from this device
+                  {t("Remove key from this device")}
                 </Button>
               )}
             </div>
@@ -1154,17 +1198,21 @@ function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
         </div>
       ) : (
         <p className="text-sm text-ink-tertiary">
-          Create an agent before configuring an E2EE root key.
+          {t("Create an agent before configuring an E2EE root key.")}
         </p>
       )}
-      {status && <p className="text-xs text-ink-tertiary">{status}</p>}
+      {status && (
+        <p className="text-xs text-ink-tertiary">
+          {status.local ? t(status.message) : status.message}
+        </p>
+      )}
     </section>
   );
 }
 
-function agentNodeLabel(agent: Agent, nodes: Node[]) {
+function agentNodeLabel(agent: Agent, nodes: Node[], t: Translator) {
   const node = nodes.find((item) => item.node_id === agent.node_id);
-  return node ? nodeLabel(node) : agent.node_id || "Unknown node";
+  return node ? nodeLabel(node) : agent.node_id || t("Unknown node");
 }
 
 function ApprovalsPanel({
@@ -1180,6 +1228,7 @@ function ApprovalsPanel({
   showPending: boolean;
   userId: string;
 }) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const decide = useMutation({
     mutationFn: ({
@@ -1211,7 +1260,7 @@ function ApprovalsPanel({
   });
 
   if (isLoading) {
-    return <EmptyState label="Loading approvals" />;
+    return <EmptyState label={t("Loading approvals")} />;
   }
 
   const pendingApprovals = approvals.filter(
@@ -1231,7 +1280,7 @@ function ApprovalsPanel({
         <section className="grid gap-3">
           <SectionHeader
             count={pendingApprovals.length}
-            title="Pending approvals"
+            title={t("Pending approvals")}
           />
           {pendingApprovals.map((approval) => (
             <article
@@ -1246,11 +1295,11 @@ function ApprovalsPanel({
                       approval.approval_id}
                   </TruncatedText>
                   <p className="mt-2 text-sm leading-6 text-ink-muted">
-                    {approval.description ?? "No description provided."}
+                    {approval.description ?? t("No description provided.")}
                   </p>
                 </div>
                 <Badge>
-                  {approval.risk_level ?? approval.status ?? "pending"}
+                  {approval.risk_level ?? approval.status ?? t("pending")}
                 </Badge>
               </div>
               <div className="mt-3 grid min-w-0 gap-1">
@@ -1259,22 +1308,22 @@ function ApprovalsPanel({
                     approval.operation ?? "unknown operation"
                   }`}
                 >
-                  {approval.domain ?? "unknown domain"} /{" "}
-                  {approval.operation ?? "unknown operation"}
+                  {approval.domain ?? t("unknown domain")} /{" "}
+                  {approval.operation ?? t("unknown operation")}
                 </MonoId>
                 <MonoId
                   tooltip={`${approval.resource_type ?? "resource"}: ${
                     approval.resource_ref ?? "unknown"
                   }`}
                 >
-                  {approval.resource_type ?? "resource"}:{" "}
+                  {approval.resource_type ?? t("resource")}:{" "}
                   {approval.resource_ref
                     ? compactId(approval.resource_ref)
-                    : "unknown"}
+                    : t("unknown")}
                 </MonoId>
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
-                {approvalOptions(approval).map((option) => (
+                {approvalOptions(approval, t).map((option) => (
                   <Button
                     disabled={decide.isPending}
                     key={option.option_id}
@@ -1296,13 +1345,13 @@ function ApprovalsPanel({
             </article>
           ))}
           {pendingApprovals.length === 0 && (
-            <EmptyState label="No pending approvals" />
+            <EmptyState label={t("No pending approvals")} />
           )}
         </section>
       )}
 
       <section className="grid content-start gap-3">
-        <SectionHeader count={activeGrants.length} title="Active grants" />
+        <SectionHeader count={activeGrants.length} title={t("Active grants")} />
         {activeGrants.map((grant) => (
           <article
             className="min-w-0 rounded-lg border border-hairline bg-surface-1 p-3"
@@ -1312,12 +1361,12 @@ function ApprovalsPanel({
               {grant.title ?? grant.operation ?? grant.approval_id}
             </TruncatedText>
             <div className="mt-2 grid min-w-0 gap-1">
-              <MonoId>{grant.decision_scope ?? "scope unknown"}</MonoId>
+              <MonoId>{grant.decision_scope ?? t("scope unknown")}</MonoId>
               <MonoId
                 tooltip={
                   grant.grant_agent_id ??
                   grant.request_agent_id ??
-                  "agent unknown"
+                  t("agent unknown")
                 }
               >
                 {compactId(
@@ -1335,11 +1384,13 @@ function ApprovalsPanel({
               type="button"
               variant="danger"
             >
-              Revoke
+              {t("Revoke")}
             </Button>
           </article>
         ))}
-        {activeGrants.length === 0 && <EmptyState label="No active grants" />}
+        {activeGrants.length === 0 && (
+          <EmptyState label={t("No active grants")} />
+        )}
       </section>
     </div>
   );
@@ -1359,7 +1410,8 @@ function ApiKeysPanel({
   isLoading: boolean;
   userId: string;
 }) {
-  const [name, setName] = useState("Console key");
+  const { t } = useI18n();
+  const [name, setName] = useState("");
   const [copiedSecret, setCopiedSecret] = useState(false);
   const [createdSecret, setCreatedSecret] = useState<string | null>(null);
   const queryClient = useQueryClient();
@@ -1391,7 +1443,7 @@ function ApiKeysPanel({
   }
 
   if (isLoading) {
-    return <EmptyState label="Loading API keys" />;
+    return <EmptyState label={t("Loading API keys")} />;
   }
 
   return (
@@ -1399,10 +1451,11 @@ function ApiKeysPanel({
       <section className="rounded-lg border border-hairline bg-surface-1 p-3">
         <div className="flex min-w-0 flex-wrap items-end gap-3">
           <label className="grid flex-1 gap-2 text-sm text-ink-muted">
-            Key name
+            {t("Key name")}{" "}
             <input
               className="min-h-9 rounded-lg border border-hairline bg-canvas px-3 text-base text-ink sm:text-sm"
               onChange={(event) => setName(event.target.value)}
+              placeholder={t("Console key")}
               value={name}
             />
           </label>
@@ -1411,11 +1464,11 @@ function ApiKeysPanel({
             disabled={createKey.isPending}
             icon={<Plus className="h-4 w-4" />}
             onClick={() => createKey.mutate()}
-            tooltip="Create API key"
+            tooltip={t("Create API key")}
             type="button"
             variant="primary"
           >
-            {createKey.isPending ? "Creating..." : "Create key"}
+            {createKey.isPending ? t("Creating...") : t("Create key")}
           </Button>
         </div>
         {createdSecret && (
@@ -1423,11 +1476,12 @@ function ApiKeysPanel({
             <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-sm font-medium text-ink">
-                  Copy this key now. It will not be shown again.
+                  {t("Copy this key now. It will not be shown again.")}
                 </div>
                 <div className="mt-1 text-xs text-ink-tertiary">
-                  The secret stays only in this browser tab until you leave the
-                  page.
+                  {t(
+                    "The secret stays only in this browser tab until you leave the page.",
+                  )}
                 </div>
               </div>
               <Button
@@ -1440,11 +1494,11 @@ function ApiKeysPanel({
                 }
                 onClick={() => void copySecret()}
                 size="sm"
-                tooltip={copiedSecret ? "Copied key" : "Copy key"}
+                tooltip={copiedSecret ? t("Copied key") : t("Copy key")}
                 type="button"
                 variant="ghost"
               >
-                {copiedSecret ? "Copied" : "Copy"}
+                {copiedSecret ? t("Copied") : t("Copy")}
               </Button>
             </div>
             <div className="mt-2 max-h-32 overflow-auto break-all rounded-md border border-hairline bg-surface-1 p-2 font-mono text-xs text-ink-muted">
@@ -1455,7 +1509,7 @@ function ApiKeysPanel({
       </section>
 
       <section className="grid gap-3">
-        <SectionHeader count={apiKeys.length} title="Existing keys" />
+        <SectionHeader count={apiKeys.length} title={t("Existing keys")} />
         <div className="grid overflow-hidden rounded-lg border border-hairline">
           {apiKeys.map((apiKey) => (
             <article
@@ -1477,12 +1531,12 @@ function ApiKeysPanel({
                 type="button"
                 variant="danger"
               >
-                Revoke
+                {t("Revoke")}
               </Button>
             </article>
           ))}
         </div>
-        {apiKeys.length === 0 && <EmptyState label="No API keys" />}
+        {apiKeys.length === 0 && <EmptyState label={t("No API keys")} />}
       </section>
     </div>
   );
@@ -1504,12 +1558,13 @@ function ActiveFilterToggle({
   checked: boolean;
   onChange: (checked: boolean) => void;
 }) {
+  const { t } = useI18n();
   return (
     <label className="flex shrink-0 items-center gap-2 text-sm text-ink-muted">
-      <span>Show all</span>
+      <span>{t("Show all")}</span>
       <button
         aria-checked={checked}
-        aria-label="Show all resources"
+        aria-label={t("Show all resources")}
         className={`relative h-5 w-9 rounded-full border transition ${
           checked
             ? "border-primary bg-primary/15"
@@ -1533,19 +1588,19 @@ function supportsActiveFilter(kind: ResourceKind) {
   return kind === "nodes" || kind === "agents" || kind === "sessions";
 }
 
-function approvalOptions(approval: AgentApproval) {
+function approvalOptions(approval: AgentApproval, t: Translator) {
   const options = approval.options?.filter((option) => option.option_id) ?? [];
 
   if (options.length > 0) {
     return options.map((option) => ({
-      label: option.label ?? option.decision ?? option.option_id ?? "Decide",
+      label: option.label ?? option.decision ?? option.option_id ?? t("Decide"),
       option_id: option.option_id as string,
     }));
   }
 
   return [
-    { label: "Approve", option_id: "approve" },
-    { label: "Deny", option_id: "deny" },
+    { label: t("Approve"), option_id: "approve" },
+    { label: t("Deny"), option_id: "deny" },
   ];
 }
 
@@ -1558,6 +1613,7 @@ function EmptyState({ label }: { label: string }) {
 }
 
 function ApiNotice({ error }: { error: Error | null }) {
+  const { t } = useI18n();
   if (!error) {
     return null;
   }
@@ -1566,7 +1622,7 @@ function ApiNotice({ error }: { error: Error | null }) {
     <div className="flex min-w-0 items-start gap-3 rounded-lg border border-hairline bg-surface-1 p-3 text-sm text-ink-muted">
       <AlertCircle className="mt-0.5 h-4 w-4 text-warning" />
       <div className="min-w-0">
-        <div className="font-medium text-ink">API request failed</div>
+        <div className="font-medium text-ink">{t("API request failed")}</div>
         <TruncatedText className="mt-1 font-mono text-xs text-ink-tertiary">
           {error.name}: {error.message}
         </TruncatedText>
@@ -1579,14 +1635,14 @@ function firstQueryError(queries: Array<{ error: Error | null }>) {
   return queries.find((query) => query.error)?.error ?? null;
 }
 
-function agentCardSummary(agent: Agent) {
+function agentCardSummary(agent: Agent, t: Translator) {
   const tags = [
     ...stringArray(agent.card?.routing_tags),
     ...stringArray(agent.card?.skills),
     ...stringArray(agent.card?.specialties),
   ];
 
-  return tags.length > 0 ? tags.slice(0, 4).join(" / ") : "No profile card";
+  return tags.length > 0 ? tags.slice(0, 4).join(" / ") : t("No profile card");
 }
 
 function stringArray(value: unknown) {

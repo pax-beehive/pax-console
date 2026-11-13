@@ -1,4 +1,6 @@
 "use client";
+import { LanguageSwitcher } from "@/features/i18n/language-switcher";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import { Check, ChevronDown, LogOut, RefreshCw, UserRound } from "lucide-react";
 import {
@@ -19,6 +21,7 @@ type TopbarProps = {
 };
 
 export function Topbar({ user }: TopbarProps) {
+  const { t } = useI18n();
   const previewAsUser = useConsoleStore((state) => state.previewAsUser);
   const setPreviewAsUser = useConsoleStore((state) => state.setPreviewAsUser);
   const isAdmin = isAdminUser(user);
@@ -36,25 +39,26 @@ export function Topbar({ user }: TopbarProps) {
           className="hidden w-full max-w-[340px] sm:block"
         >
           <SearchBox
-            aria-label="Quick search"
+            aria-label={t("Quick search")}
             name="q"
             maxLength={256}
-            placeholder="Search your workspace"
+            placeholder={t("Search your workspace")}
             required
           />
         </form>
       </div>
       <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+        <LanguageSwitcher />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
-              aria-label="User menu"
+              aria-label={t("User menu")}
               className="flex h-9 w-9 min-w-0 items-center justify-center gap-2 rounded-md border border-transparent px-2 py-1 text-left transition hover:border-hairline hover:bg-surface-1 data-[state=open]:border-hairline data-[state=open]:bg-surface-1 sm:h-auto sm:w-auto sm:justify-start"
               type="button"
             >
               <span className="hidden min-w-0 sm:block">
                 <span className="block text-xs text-ink-tertiary">
-                  Signed in
+                  {t("Signed in")}
                 </span>
                 <TruncatedText className="block max-w-44 text-sm text-ink-muted">
                   {user.email ?? user.name ?? user.user_id}
@@ -67,7 +71,7 @@ export function Topbar({ user }: TopbarProps) {
           <DropdownMenuContent>
             <DropdownMenuItem onSelect={() => window.location.reload()}>
               <RefreshCw className="h-4 w-4 shrink-0" />
-              Reload PAX Console
+              {t("Reload PAX Console")}
             </DropdownMenuItem>
             {isAdmin && (
               <DropdownMenuItem
@@ -78,7 +82,7 @@ export function Topbar({ user }: TopbarProps) {
                     previewAsUser ? "text-success" : "opacity-0"
                   }`}
                 />
-                Preview as user
+                {t("Preview as user")}
               </DropdownMenuItem>
             )}
             <DropdownMenuItem
@@ -87,7 +91,7 @@ export function Topbar({ user }: TopbarProps) {
               }}
             >
               <LogOut className="h-4 w-4 shrink-0" />
-              Sign out
+              {t("Sign out")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

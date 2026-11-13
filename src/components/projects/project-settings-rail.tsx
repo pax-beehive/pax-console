@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
+
 import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -53,6 +55,7 @@ export function ProjectSettingsRail({
   selectedProjectId,
   userId,
 }: ProjectSettingsRailProps) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [includeArchived, setIncludeArchived] = useState(false);
   const projectsQuery = useProjects(userId, includeArchived);
@@ -88,17 +91,19 @@ export function ProjectSettingsRail({
     <div className="grid">
       <div className="flex items-center justify-between gap-2 border-b border-hairline px-3 py-2">
         <span className="text-xs text-ink-tertiary">
-          {projects.filter((project) => !project.archived_at).length} active
+          {t("{count} active", {
+            count: projects.filter((project) => !project.archived_at).length,
+          })}
         </span>
         <Button
           icon={<FolderPlus className="h-3.5 w-3.5" />}
           onClick={() => setEditor({ mode: "create" })}
           size="sm"
-          tooltip="Create project"
+          tooltip={t("Create project")}
           type="button"
           variant="secondary"
         >
-          New project
+          {t("New project")}
         </Button>
       </div>
 
@@ -108,7 +113,7 @@ export function ProjectSettingsRail({
           onChange={(event) => setIncludeArchived(event.target.checked)}
           type="checkbox"
         />
-        Include archived
+        {t("Include archived")}
       </label>
 
       {archive.error && (
@@ -137,9 +142,9 @@ export function ProjectSettingsRail({
         </div>
       )}
       {projectsQuery.isLoading ? (
-        <EmptyState label="Loading projects" />
+        <EmptyState label={t("Loading projects")} />
       ) : tree.length === 0 ? (
-        <EmptyState label="No projects yet" />
+        <EmptyState label={t("No projects yet")} />
       ) : (
         <div className="grid py-1">
           {tree.map((node) => (
@@ -157,13 +162,13 @@ export function ProjectSettingsRail({
       )}
 
       <ConfirmDialog
-        confirmLabel="Archive project"
+        confirmLabel={t("Archive project")}
         description={
           <>
-            Archive <strong>{archiveCandidate?.display_name}</strong>? Child
-            projects and existing sessions will remain available. This project
-            will be hidden from Home project choices. You can view it using
-            Include archived.
+            {t("Archive")} <strong>{archiveCandidate?.display_name}</strong>
+            {t(
+              "? Child projects and existing sessions will remain available. This project will be hidden from Home project choices. You can view it using Include archived.",
+            )}
           </>
         }
         disabled={archive.isPending}
@@ -178,7 +183,7 @@ export function ProjectSettingsRail({
           }
         }}
         open={Boolean(archiveCandidate)}
-        title="Archive project"
+        title={t("Archive project")}
       />
     </div>
   );
@@ -197,6 +202,7 @@ function ProjectEditor({
   projects: Project[];
   userId: string;
 }) {
+  const { t } = useI18n();
   const currentProject = editor.project;
   const [name, setName] = useState(currentProject?.display_name ?? "");
   const [parentProjectId, setParentProjectId] = useState(
@@ -236,26 +242,26 @@ function ProjectEditor({
       onSubmit={submit}
     >
       <label className="text-xs font-medium text-ink">
-        {editor.mode === "create" ? "Create project" : "Edit project"}
+        {editor.mode === "create" ? t("Create project") : t("Edit project")}
       </label>
       <input
-        aria-label="Project name"
+        aria-label={t("Project name")}
         autoFocus
         className="min-h-9 rounded-md border border-hairline bg-surface-1 px-2.5 text-base text-ink outline-none focus:border-primary-focus sm:text-sm"
         maxLength={100}
         onChange={(event) => setName(event.target.value)}
-        placeholder="Project name"
+        placeholder={t("Project name")}
         value={name}
       />
       <label className="grid gap-1 text-xs text-ink-tertiary">
-        Parent
+        {t("Parent")}{" "}
         <select
-          aria-label="Parent project"
+          aria-label={t("Parent project")}
           className="min-h-9 rounded-md border border-hairline bg-surface-1 px-2.5 text-base text-ink outline-none focus:border-primary-focus sm:text-sm"
           onChange={(event) => setParentProjectId(event.target.value)}
           value={parentProjectId}
         >
-          <option value="">No parent</option>
+          <option value="">{t("No parent")}</option>
           {projects
             .filter(
               (project) =>
@@ -271,7 +277,7 @@ function ProjectEditor({
       </label>
       <div className="flex justify-end gap-2">
         <Button onClick={onCancel} type="button" variant="ghost">
-          Cancel
+          {t("Cancel")}
         </Button>
         <Button
           disabled={!name.trim() || save.isPending}
@@ -279,7 +285,7 @@ function ProjectEditor({
           type="submit"
           variant="primary"
         >
-          {editor.mode === "create" ? "Create" : "Save"}
+          {editor.mode === "create" ? t("Create") : t("Save")}
         </Button>
       </div>
       {save.error && <InlineError error={save.error} />}
@@ -302,6 +308,7 @@ function ProjectTreeRow({
   onSelectProject: (projectId: string) => void;
   selectedProjectId?: string;
 }) {
+  const { t } = useI18n();
   const selected = node.project.project_id === selectedProjectId;
 
   return (
@@ -327,17 +334,21 @@ function ProjectTreeRow({
           )}
           <Folder className="h-4 w-4 shrink-0 text-accent-bright" />
           <span className="truncate text-sm">{node.project.display_name}</span>
-          {node.project.archived_at && <Badge tone="neutral">Archived</Badge>}
+          {node.project.archived_at && (
+            <Badge tone="neutral">{t("Archived")}</Badge>
+          )}
         </button>
         {!node.project.archived_at && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
-                aria-label={`Actions for ${node.project.display_name}`}
+                aria-label={t("Actions for {value1}", {
+                  value1: node.project.display_name,
+                })}
                 className="opacity-100 lg:opacity-70 lg:group-hover:opacity-100"
                 icon={<MoreHorizontal className="h-4 w-4" />}
                 size="icon"
-                tooltip="Project actions"
+                tooltip={t("Project actions")}
                 type="button"
                 variant="ghost"
               />
@@ -345,11 +356,11 @@ function ProjectTreeRow({
             <DropdownMenuContent>
               <DropdownMenuItem onSelect={() => onEdit(node.project)}>
                 <Pencil className="h-4 w-4" />
-                Edit project
+                {t("Edit project")}
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => onArchive(node.project)}>
                 <Archive className="h-4 w-4" />
-                Archive project
+                {t("Archive project")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

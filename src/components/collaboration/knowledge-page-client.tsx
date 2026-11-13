@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import { FormEvent, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -21,6 +22,7 @@ type KnowledgePageClientProps = {
 };
 
 export function KnowledgePageClient({ user }: KnowledgePageClientProps) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [status, setStatus] = useState("active");
   const [keywordDraft, setKeywordDraft] = useState("");
@@ -56,9 +58,9 @@ export function KnowledgePageClient({ user }: KnowledgePageClientProps) {
           <header className="border-b border-hairline p-4">
             <div className="flex items-center gap-2 text-xs text-ink-tertiary">
               <Brain className="h-4 w-4" />
-              reusable context
+              {t("reusable context")}
             </div>
-            <h1 className="mt-2 text-2xl font-semibold">Knowledge</h1>
+            <h1 className="mt-2 text-2xl font-semibold">{t("Knowledge")}</h1>
           </header>
           <div className="grid gap-4 p-4">
             <form className="grid gap-2" onSubmit={applyFilters}>
@@ -67,20 +69,20 @@ export function KnowledgePageClient({ user }: KnowledgePageClientProps) {
                 onChange={(event) => setStatus(event.target.value)}
                 value={status}
               >
-                <option value="active">active</option>
-                <option value="archived">archived</option>
-                <option value="">all</option>
+                <option value="active">{t("active")}</option>
+                <option value="archived">{t("archived")}</option>
+                <option value="">{t("all")}</option>
               </select>
               <input
                 className="min-h-9 rounded-lg border border-hairline bg-canvas px-3 text-sm text-ink outline-none focus:border-primary-focus"
                 onChange={(event) => setKeywordDraft(event.target.value)}
-                placeholder="Keyword filter"
+                placeholder={t("Keyword filter")}
                 value={keywordDraft}
               />
               <input
                 className="min-h-9 rounded-lg border border-hairline bg-canvas px-3 text-sm text-ink outline-none focus:border-primary-focus"
                 onChange={(event) => setSourceSessionDraft(event.target.value)}
-                placeholder="Source session id"
+                placeholder={t("Source session id")}
                 value={sourceSessionDraft}
               />
               <Button
@@ -88,7 +90,7 @@ export function KnowledgePageClient({ user }: KnowledgePageClientProps) {
                 type="submit"
                 variant="primary"
               >
-                Apply filters
+                {t("Apply filters")}
               </Button>
             </form>
             <CapsuleList
@@ -122,14 +124,17 @@ function CapsuleList({
   onSelect: (capsuleId: string) => void;
   selectedCapsuleId?: string;
 }) {
+  const { t } = useI18n();
   if (isLoading) {
-    return <EmptyState label="Loading capsules" />;
+    return <EmptyState label={t("Loading capsules")} />;
   }
 
   return (
     <section className="grid gap-2">
       <div className="flex min-w-0 items-center justify-between">
-        <TruncatedText className="text-sm font-medium">Capsules</TruncatedText>
+        <TruncatedText className="text-sm font-medium">
+          {t("Capsules")}
+        </TruncatedText>
         <Badge className="font-mono">{String(capsules.length)}</Badge>
       </div>
       <div className="grid overflow-hidden rounded-lg border border-hairline">
@@ -149,7 +154,7 @@ function CapsuleList({
                 {capsule.title || capsule.keyword}
               </TruncatedText>
               <Badge tone={capsule.status === "active" ? "success" : "neutral"}>
-                {capsule.status}
+                {t(capsule.status)}
               </Badge>
             </div>
             <TruncatedText className="text-xs text-ink-muted">
@@ -160,7 +165,7 @@ function CapsuleList({
             </MonoId>
           </button>
         ))}
-        {capsules.length === 0 && <EmptyState label="No capsules" />}
+        {capsules.length === 0 && <EmptyState label={t("No capsules")} />}
       </div>
     </section>
   );
@@ -175,6 +180,7 @@ function CapsuleDetail({
   onChanged: () => void;
   userId: string;
 }) {
+  const { t } = useI18n();
   const archive = useMutation({
     mutationFn: (capsuleId: string) =>
       archiveKnowledgeCapsule(userId, capsuleId),
@@ -184,7 +190,7 @@ function CapsuleDetail({
   if (!capsule) {
     return (
       <div className="p-5">
-        <EmptyState label="Select a capsule" />
+        <EmptyState label={t("Select a capsule")} />
       </div>
     );
   }
@@ -195,7 +201,7 @@ function CapsuleDetail({
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs text-ink-tertiary">
             <Brain className="h-4 w-4" />
-            capsule detail
+            {t("capsule detail")}
           </div>
           <TruncatedText className="mt-2 text-2xl font-semibold">
             {capsule.title || capsule.keyword}
@@ -215,12 +221,18 @@ function CapsuleDetail({
           </pre>
         </section>
         <aside className="grid content-start gap-3">
-          <InfoRow label="Keyword" value={capsule.keyword} />
-          <InfoRow label="Source session" value={capsule.source_session_id} />
-          <InfoRow label="Source agent" value={capsule.source_agent_id} />
-          <InfoRow label="Created by" value={capsule.created_by_user_id} />
-          <InfoRow label="Truncated" value={capsule.truncated ? "yes" : "no"} />
-          <JsonBlock label="References" value={capsule.references} />
+          <InfoRow label={t("Keyword")} value={capsule.keyword} />
+          <InfoRow
+            label={t("Source session")}
+            value={capsule.source_session_id}
+          />
+          <InfoRow label={t("Source agent")} value={capsule.source_agent_id} />
+          <InfoRow label={t("Created by")} value={capsule.created_by_user_id} />
+          <InfoRow
+            label={t("Truncated")}
+            value={capsule.truncated ? "yes" : "no"}
+          />
+          <JsonBlock label={t("References")} value={capsule.references} />
           <Button
             disabled={archive.isPending || capsule.status !== "active"}
             icon={<Archive className="h-4 w-4" />}
@@ -228,7 +240,7 @@ function CapsuleDetail({
             type="button"
             variant="danger"
           >
-            Archive capsule
+            {t("Archive capsule")}
           </Button>
           {archive.error && <InlineError error={archive.error} />}
         </aside>
@@ -238,10 +250,11 @@ function CapsuleDetail({
 }
 
 function InfoRow({ label, value }: { label: string; value?: string }) {
+  const { t } = useI18n();
   return (
     <div className="min-w-0 border-b border-hairline pb-3">
       <div className="text-xs text-ink-tertiary">{label}</div>
-      <MonoId className="mt-1 text-ink-muted" tooltip={value ?? "unknown"}>
+      <MonoId className="mt-1 text-ink-muted" tooltip={value ?? t("unknown")}>
         {value?.startsWith("sess_") ||
         value?.startsWith("agent_") ||
         value?.startsWith("usr_")

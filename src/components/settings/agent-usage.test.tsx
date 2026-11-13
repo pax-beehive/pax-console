@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiFetch } from "@/features/api/client";
 import { ApiError } from "@/features/api/errors";
 import type { HarnessUsageView, LoginHarness } from "@/features/api/types";
+import { useLocaleStore } from "@/features/i18n/locale-store";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import {
   formatResetCountdown,
@@ -89,6 +90,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  useLocaleStore.setState({ locale: "en" });
   clients.splice(0).forEach((client) => client.clear());
   vi.useRealTimers();
 });
@@ -443,4 +445,41 @@ it("ignores a response for a different harness", async () => {
     await screen.findByText("Plan usage is unavailable right now."),
   ).toBeInTheDocument();
   expect(screen.queryByText("61% used")).not.toBeInTheDocument();
+});
+
+it("given plan usage, when switching to Chinese, then translates meters and countdowns without translating provider content or refetching", async () => {
+  fetchUsage.mockResolvedValue(
+    usage({
+      items: [
+        {
+          id: "window",
+          label: "Weekly",
+          kind: "percent",
+          used_percent: 12.4,
+          resets_at: new Date(now + (3 * 60 + 20) * 60_000).toISOString(),
+        },
+        { id: "note", label: "Plan note", kind: "status", value: "Settings" },
+      ],
+    }),
+  );
+  mount();
+  await screen.findByRole("meter", { name: "Weekly" });
+  const requests = fetchUsage.mock.calls.length;
+  act(() => useLocaleStore.setState({ locale: "zh-CN" }));
+  expect(screen.getByRole("heading", { name: "套餐用量" })).toBeVisible();
+  expect(screen.getByRole("meter", { name: "Weekly" })).toHaveAttribute(
+    "aria-valuetext",
+    "12% 已使用",
+  );
+  expect(screen.getByText("3小时 20分钟")).toHaveTextContent(
+    "重置倒计时：3小时 20分钟",
+  );
+  expect(screen.getByText(/更新于.*5分钟.*前/)).toBeVisible();
+  expect(screen.getByText("Settings")).toBeVisible();
+  expect(fetchUsage).toHaveBeenCalledTimes(requests);
+  act(() => useLocaleStore.setState({ locale: "en" }));
+  expect(screen.getByRole("meter", { name: "Weekly" })).toHaveAttribute(
+    "aria-valuetext",
+    "12% used",
+  );
 });

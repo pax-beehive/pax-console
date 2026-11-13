@@ -1,4 +1,5 @@
 "use client";
+import { type Translator, useI18n } from "@/features/i18n/use-i18n";
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -27,6 +28,7 @@ export function E2EEPairingRoute() {
   return <AuthGate>{(user) => <E2EEPairingPage user={user} />}</AuthGate>;
 }
 function E2EEPairingPage({ user }: { user: User }) {
+  const { t } = useI18n();
   const params = useSearchParams();
   const agentsQuery = useAgents(user.user_id, "owned");
   const nodesQuery = useNodes(user.user_id);
@@ -41,13 +43,15 @@ function E2EEPairingPage({ user }: { user: User }) {
       <div className="min-h-0 min-w-0 w-full flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="mx-auto grid w-full min-w-0 max-w-2xl gap-4">
           <header className="flex flex-wrap items-center justify-between gap-3">
-            <h1 className="text-2xl font-semibold">Encryption access</h1>
+            <h1 className="text-2xl font-semibold">{t("Encryption access")}</h1>
             <Button asChild icon={<ArrowLeft className="h-4 w-4" />}>
-              <Link href="/settings/advanced/encryption">Encrypted chats</Link>
+              <Link href="/settings/advanced/encryption">
+                {t("Encrypted chats")}
+              </Link>
             </Button>
           </header>
           <label className="grid min-w-0 gap-1 text-xs text-ink-tertiary">
-            Your agent
+            {t("Your agent")}
             <select
               className="h-10 w-full min-w-0 rounded-md border border-hairline bg-canvas px-3 text-sm text-ink"
               value={selected}
@@ -55,7 +59,7 @@ function E2EEPairingPage({ user }: { user: User }) {
             >
               {agents.map((agent) => (
                 <option key={agent.agent_id} value={agent.agent_id}>
-                  {agentLabel(agent, nodes)}
+                  {agentLabel(agent, nodes, t)}
                 </option>
               ))}
             </select>
@@ -69,8 +73,8 @@ function E2EEPairingPage({ user }: { user: User }) {
           ) : (
             <p className="text-sm text-ink-muted">
               {agentsQuery.isLoading
-                ? "Loading agents…"
-                : "No agents available."}
+                ? t("Loading agents…")
+                : t("No agents available.")}
             </p>
           )}
         </div>
@@ -85,6 +89,7 @@ function DeviceAccess({
   userId: string;
   agentId: string;
 }) {
+  const { t } = useI18n();
   const pairing = useBrowserPairing(userId, agentId);
   const ready = pairing.state.phase === "ready";
   const instructions = pairing.state.instructions;
@@ -96,20 +101,20 @@ function DeviceAccess({
     <section className="grid min-w-0 gap-4 rounded-lg border border-hairline bg-surface-1 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Badge tone={ready ? "success" : "neutral"}>
-          {ready ? "This device is authorized" : "Access required"}
+          {ready ? t("This device is authorized") : t("Access required")}
         </Badge>
         <Button disabled={pairing.busy} onClick={() => void pairing.refresh()}>
-          Check again
+          {t("Check again")}
         </Button>
       </div>
       {pairing.state.message && (
         <p role="status" className="break-words text-sm text-ink-muted">
-          {pairing.state.message}
+          {t(pairing.state.message)}
         </p>
       )}
       {ready ? (
         <>
-          <Button disabled>This device is ready</Button>
+          <Button disabled>{t("This device is ready")}</Button>
           <ShortCodeApprover userId={userId} agentId={agentId} />
           <LegacyRequests userId={userId} agentId={agentId} />
         </>
@@ -125,16 +130,16 @@ function DeviceAccess({
           ) : instructions ? (
             <div className="grid min-w-0 gap-3">
               <Button onClick={() => setCommandOpen((v) => !v)}>
-                Get access from the paxd computer
+                {t("Get access from the paxd computer")}
               </Button>
               {commandOpen && (
                 <SecretValue
-                  label="Run on the paxd computer"
+                  label={t("Run on the paxd computer")}
                   value={instructions.localCommand}
                 />
               )}
               <p className="text-sm text-ink-muted">
-                Waiting for encryption access…
+                {t("Waiting for encryption access…")}
               </p>
             </div>
           ) : null}
@@ -147,8 +152,8 @@ function DeviceAccess({
             }}
           >
             {instructions || pairing.state.phase === "unconfirmed"
-              ? "Create new request"
-              : "Authorize this device"}
+              ? t("Create new request")
+              : t("Authorize this device")}
           </Button>
           {(!instructions || activeShort) && (
             <Button
@@ -158,7 +163,7 @@ function DeviceAccess({
                 void pairing.start(pairingDeviceName());
               }}
             >
-              Use paxd command instead
+              {t("Use paxd command instead")}
             </Button>
           )}
         </>
@@ -174,11 +179,12 @@ function LegacyRequests({
   userId: string;
   agentId: string;
 }) {
+  const { t } = useI18n();
   const [requests, setRequests] = useState<E2EEPairingRequest[]>([]);
   const [secrets, setSecrets] = useState<Record<string, string>>({});
   const [visible, setVisible] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState<{ message: string | null }>();
   useEffect(() => {
     let active = true;
     void listE2EEPairingRequests(userId, agentId)
@@ -197,15 +203,17 @@ function LegacyRequests({
   return (
     <details className="min-w-0 border-t border-hairline pt-3">
       <summary className="cursor-pointer text-sm">
-        Older device requests
+        {t("Older device requests")}
       </summary>
       <div className="mt-3 grid min-w-0 gap-3">
         {requests.map((request) => (
           <div key={request.pairing_id} className="grid min-w-0 gap-2">
             <label className="grid min-w-0 gap-1 text-xs text-ink-tertiary">
-              {request.device_name || "New device"}
+              {request.device_name || t("New device")}
               <input
-                aria-label={`Secret for ${request.device_name || request.device_id}`}
+                aria-label={t("Secret for {device}", {
+                  device: request.device_name || request.device_id,
+                })}
                 className="h-10 min-w-0 rounded-md border border-hairline bg-canvas px-3"
                 autoComplete="off"
                 type={visible ? "text" : "password"}
@@ -233,25 +241,23 @@ function LegacyRequests({
                     ),
                   )
                   .catch((error) =>
-                    setStatus(
-                      error instanceof Error
-                        ? error.message
-                        : "Please try again.",
-                    ),
+                    setStatus({
+                      message: error instanceof Error ? error.message : null,
+                    }),
                   )
                   .finally(() => setBusy(false));
               }}
             >
-              Authorize device
+              {t("Authorize device")}
             </Button>
           </div>
         ))}
         <Button onClick={() => setVisible((v) => !v)}>
-          {visible ? "Hide code" : "Show code"}
+          {visible ? t("Hide code") : t("Show code")}
         </Button>
         {status && (
           <p role="status" className="text-sm">
-            {status}
+            {status.message ?? t("Please try again.")}
           </p>
         )}
       </div>
@@ -266,9 +272,9 @@ function pairingDeviceName() {
   return platform ? `Device on ${platform}` : "This device";
 }
 
-function agentLabel(agent: Agent, nodes: Node[]) {
+function agentLabel(agent: Agent, nodes: Node[], t: Translator) {
   const node = nodes.find((item) => item.node_id === agent.node_id);
   const nodeName =
-    node?.name || node?.hostname || agent.node_id || "Unknown node";
-  return `${agent.name || agent.agent_type || "Agent"} · ${nodeName} · ${compactId(agent.agent_id, 8, 5)}`;
+    node?.name || node?.hostname || agent.node_id || t("Unknown node");
+  return `${agent.name || agent.agent_type || t("Agent")} · ${nodeName} · ${compactId(agent.agent_id, 8, 5)}`;
 }

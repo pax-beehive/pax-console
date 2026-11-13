@@ -1,4 +1,9 @@
 "use client";
+import {
+  useI18n,
+  type Locale,
+  type Translator,
+} from "@/features/i18n/use-i18n";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -43,11 +48,12 @@ export function CustomerAnalyticsAccess({
   user: User;
   initialSearch?: string;
 }) {
+  const { t } = useI18n();
   const previewAsUser = useConsoleStore((state) => state.previewAsUser);
   if (!canSeeAdminFeatures(user, previewAsUser))
     return (
       <div className="p-6 text-sm text-ink-muted">
-        Customer analytics is available to administrators.
+        {t("Customer analytics is available to administrators.")}
       </div>
     );
   return (
@@ -58,10 +64,17 @@ export function CustomerAnalyticsAccess({
   );
 }
 
-const regionLabel = (region: string) =>
-  ({ us: "United States", hk: "Hong Kong", local: "Local" })[region] ?? region;
-const date = (value: string | null | undefined) =>
-  value ? new Date(value).toLocaleString() : "Unknown";
+const regionLabel = (region: string, t: Translator) => {
+  const label = { us: "United States", hk: "Hong Kong", local: "Local" }[
+    region
+  ];
+  return label ? t(label) : region;
+};
+const date = (
+  value: string | null | undefined,
+  locale: Locale,
+  t: Translator,
+) => (value ? new Date(value).toLocaleString(locale) : t("Unknown"));
 const stageLabel = (user: Customer) =>
   ({
     sent: "Has sent messages",
@@ -79,6 +92,7 @@ export function CustomerAnalyticsDashboard({
   userId: string;
   initialSearch?: string;
 }) {
+  const { t, locale } = useI18n();
   const query = useCustomerAnalytics(userId);
   const [audience, setAudience] = useState(initialSearch ? "all" : "regular");
   const [region, setRegion] = useState("all");
@@ -134,75 +148,83 @@ export function CustomerAnalyticsDashboard({
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-xl font-semibold text-ink">
-              Customer analytics
+              {t("Customer analytics")}
             </h1>
             <p className="mt-1 text-sm text-ink-muted">
-              Accounts, real agent connections, and usage across regions.
+              {t("Accounts, real agent connections, and usage across regions.")}
             </p>
           </div>
           <Badge tone={query.focused ? "success" : "neutral"}>
             {accessDenied
-              ? "Paused · access denied"
+              ? t("Paused · access denied")
               : !query.focused
-                ? "Paused · not focused"
+                ? t("Paused · not focused")
                 : query.isError
-                  ? "Retrying with backoff"
-                  : "Live · 15s"}
+                  ? t("Retrying with backoff")
+                  : t("Live · 15s")}
           </Badge>
         </header>
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <label className="flex items-center gap-2 text-ink-muted">
-            Audience
+            {t("Audience")}
             <select
-              aria-label="Audience"
+              aria-label={t("Audience")}
               className={selectClass}
               value={audience}
               onChange={(e) => setAudience(e.target.value)}
             >
-              <option value="regular">Non-admin accounts</option>
-              <option value="all">All accounts</option>
+              <option value="regular">{t("Non-admin accounts")}</option>
+              <option value="all">{t("All accounts")}</option>
             </select>
           </label>
           <label className="flex items-center gap-2 text-ink-muted">
-            Region
+            {t("Region")}
             <select
-              aria-label="Region"
+              aria-label={t("Region")}
               className={selectClass}
               value={region}
               onChange={(e) => setRegion(e.target.value)}
             >
-              <option value="all">All regions</option>
+              <option value="all">{t("All regions")}</option>
               {sources.map((source) => (
                 <option value={source.region} key={source.region}>
-                  {regionLabel(source.region)}
+                  {regionLabel(source.region, t)}
                 </option>
               ))}
             </select>
           </label>
           <span className="text-xs text-ink-tertiary">
-            All time · deduplicated by email · local test account excluded
+            {t(
+              "All time · deduplicated by email · local test account excluded",
+            )}
           </span>
         </div>
         {query.isError && (
           <p role="alert" className="text-sm text-danger">
-            Unable to refresh analytics. Previously loaded values remain
-            visible. {query.error.message}
+            {t(
+              "Unable to refresh analytics. Previously loaded values remain visible. ",
+            )}
+            {query.error.message}
           </p>
         )}
         <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-ink-muted">
           {sources.map((source) => (
             <span key={source.region}>
-              {regionLabel(source.region)}:{" "}
-              {source.available ? "Updated" : "Delayed"}{" "}
-              {date(source.updated_at)}
+              {regionLabel(source.region, t)}:{" "}
+              {source.available ? t("Updated") : t("Delayed")}{" "}
+              {date(source.updated_at, locale, t)}
             </span>
           ))}
         </div>
         {(missing || stale) && (
           <p role="status" className="text-sm text-warning">
             {missing
-              ? "Waiting for a complete regional snapshot. Counts are unavailable until every selected region has data."
-              : "Some values are from an older snapshot. Regional timestamps show their freshness."}
+              ? t(
+                  "Waiting for a complete regional snapshot. Counts are unavailable until every selected region has data.",
+                )
+              : t(
+                  "Some values are from an older snapshot. Regional timestamps show their freshness.",
+                )}
           </p>
         )}
         <div className="grid grid-cols-3 divide-x divide-hairline border-y border-hairline py-3">
@@ -214,7 +236,7 @@ export function CustomerAnalyticsDashboard({
               onClick={() => setStage(stat.id)}
               className={`min-w-0 px-3 py-2 text-left focus-visible:outline-2 focus-visible:outline-accent ${stage === stat.id ? "bg-accent/10" : "hover:bg-surface-2"}`}
             >
-              <span className="text-xs text-ink-muted">{stat.label}</span>
+              <span className="text-xs text-ink-muted">{t(stat.label)}</span>
               <span className="mt-1 block text-2xl font-semibold tabular-nums text-ink">
                 {missing ? "—" : stat.count}
               </span>
@@ -222,31 +244,39 @@ export function CustomerAnalyticsDashboard({
           ))}
         </div>
         <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-ink-subtle">
-          <span>Visited today: {missing ? "—" : visitCount}</span>
-          <span>Seen in last 90s: {missing ? "—" : recent}</span>
+          <span>
+            {t("Visited today: ")}
+            {missing ? "—" : visitCount}
+          </span>
+          <span>
+            {t("Seen in last 90s: ")}
+            {missing ? "—" : recent}
+          </span>
           <span className="text-xs text-ink-tertiary">
-            Focused Console visits only; collection starts with this release.
+            {t(
+              "Focused Console visits only; collection starts with this release.",
+            )}
           </span>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <SearchBox
-            aria-label="Search customers"
-            placeholder="Search email"
+            aria-label={t("Search customers")}
+            placeholder={t("Search email")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
           <label className="flex items-center gap-2 text-sm text-ink-muted">
-            Stage
+            {t("Stage")}
             <select
-              aria-label="Stage"
+              aria-label={t("Stage")}
               className={selectClass}
               value={stage}
               onChange={(e) => setStage(e.target.value)}
             >
-              <option value="all">All stages</option>
-              <option value="unbound">Not bound</option>
-              <option value="bound">Currently bound</option>
-              <option value="sent">Confirmed senders</option>
+              <option value="all">{t("All stages")}</option>
+              <option value="unbound">{t("Not bound")}</option>
+              <option value="bound">{t("Currently bound")}</option>
+              <option value="sent">{t("Confirmed senders")}</option>
             </select>
           </label>
         </div>
@@ -266,7 +296,7 @@ export function CustomerAnalyticsDashboard({
                     key={label}
                     className="whitespace-nowrap px-3 py-2 font-medium"
                   >
-                    {label}
+                    {t(label)}
                   </th>
                 ))}
               </tr>
@@ -289,25 +319,29 @@ export function CustomerAnalyticsDashboard({
                     </button>
                     {user.is_admin && (
                       <span className="ml-2 text-xs text-ink-tertiary">
-                        Admin
+                        {t("Admin")}
                       </span>
                     )}
                     {user.stale && (
-                      <span className="ml-2 text-xs text-warning">Stale</span>
+                      <span className="ml-2 text-xs text-warning">
+                        {t("Stale")}
+                      </span>
                     )}
                   </td>
                   <td className="whitespace-nowrap px-3 py-3 text-ink-muted">
-                    {user.regions.map(regionLabel).join(" / ")}
+                    {user.regions
+                      .map((region) => regionLabel(region, t))
+                      .join(" / ")}
                   </td>
                   <td className="whitespace-nowrap px-3 py-3 text-xs text-ink-muted">
-                    {date(user.created_at)}
+                    {date(user.created_at, locale, t)}
                   </td>
                   <td className="whitespace-nowrap px-3 py-3 text-xs text-ink-muted">
-                    {date(user.last_visit_at)}
+                    {date(user.last_visit_at, locale, t)}
                   </td>
                   <td className="px-3 py-3 tabular-nums">{user.agents}</td>
                   <td className="whitespace-nowrap px-3 py-3 text-xs text-ink-muted">
-                    {stageLabel(user)}
+                    {t(stageLabel(user))}
                   </td>
                 </tr>
               ))}
@@ -316,10 +350,10 @@ export function CustomerAnalyticsDashboard({
           {!shown.length && (
             <p className="py-8 text-center text-sm text-ink-muted">
               {query.data
-                ? "No accounts match these filters."
+                ? t("No accounts match these filters.")
                 : query.focused
-                  ? "Loading customer analytics..."
-                  : "Focus this window to load analytics."}
+                  ? t("Loading customer analytics...")
+                  : t("Focus this window to load analytics.")}
             </p>
           )}
         </div>
@@ -327,10 +361,11 @@ export function CustomerAnalyticsDashboard({
           <CustomerDetail user={detail} close={() => setSelected(null)} />
         )}
         <footer className="text-xs leading-5 text-ink-tertiary">
-          {shown.length} of {users.length} accounts · Dates use your local
-          timezone. Administrator status is a permission, not a customer
-          classification. Encrypted records are not counted as confirmed user
-          sends; a missing visit date means unknown.
+          {shown.length} {t(" of ")}
+          {users.length}{" "}
+          {t(
+            " accounts · Dates use your local timezone. Administrator status is a permission, not a customer classification. Encrypted records are not counted as confirmed user sends; a missing visit date means unknown.",
+          )}
         </footer>
       </div>
     </div>
@@ -344,15 +379,16 @@ function CustomerDetail({
   user: MergedCustomer;
   close: () => void;
 }) {
+  const { t, locale } = useI18n();
   return (
     <section
-      aria-label="Customer details"
+      aria-label={t("Customer details")}
       className="border-t border-hairline pt-4"
     >
       <div className="flex items-center justify-between gap-3">
         <h2 className="break-all text-sm font-medium">{user.email}</h2>
         <Button type="button" variant="ghost" onClick={close}>
-          Close
+          {t("Close")}
         </Button>
       </div>
       <dl className="mt-3 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
@@ -361,13 +397,15 @@ function CustomerDetail({
           ["Current agents", user.agents],
           ["Sessions", user.sessions],
           ["Confirmed user messages", user.user_messages],
-          ["First recorded visit", date(user.first_visit_at)],
-          ["First known binding", date(user.first_bound_at)],
-          ["First confirmed send", date(user.first_message_at)],
-          ["Last confirmed send", date(user.last_message_at)],
+          ["First recorded visit", date(user.first_visit_at, locale, t)],
+          ["First known binding", date(user.first_bound_at, locale, t)],
+          ["First confirmed send", date(user.first_message_at, locale, t)],
+          ["Last confirmed send", date(user.last_message_at, locale, t)],
         ].map(([label, value]) => (
           <div key={label}>
-            <dt className="text-xs text-ink-tertiary">{label}</dt>
+            <dt className="text-xs text-ink-tertiary">
+              {typeof label === "string" ? t(label) : label}
+            </dt>
             <dd className="mt-1 text-ink">{value}</dd>
           </div>
         ))}
@@ -379,14 +417,16 @@ function CustomerDetail({
             className="text-accent-bright hover:underline"
             href={`/admin/notifications?${new URLSearchParams({ region: ref.region, user_id: ref.user_id })}`}
           >
-            View push subscriptions · {regionLabel(ref.region)}
+            {t("View push subscriptions · ")}
+            {regionLabel(ref.region, t)}
           </Link>
         ))}
       </div>
       {user.encrypted_records > 0 && (
         <p className="mt-3 text-xs text-ink-muted">
-          Encrypted history is present. Message roles and exact send totals are
-          not visible to analytics.
+          {t(
+            "Encrypted history is present. Message roles and exact send totals are not visible to analytics.",
+          )}
         </p>
       )}
     </section>

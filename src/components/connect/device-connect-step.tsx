@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ export function DeviceConnectStep({
   onConnected: (node: Node) => void;
   onStart?: () => void;
 }) {
+  const { t } = useI18n();
   const [installed, setInstalled] = useState(false);
   const [method, setMethod] = useState<Method>("quick");
   // Registration tokens live only in this mounted component, never in a URL,
@@ -73,7 +75,8 @@ export function DeviceConnectStep({
       const baseline = await nodes.refetch();
       if (baseline.error || !baseline.data)
         throw (
-          baseline.error ?? new Error("Device list is unavailable. Try again.")
+          baseline.error ??
+          new Error(t("Device list is unavailable. Try again."))
         );
       const registration =
         nextMethod === "quick"
@@ -104,18 +107,22 @@ export function DeviceConnectStep({
   }
 
   return (
-    <section className="grid min-w-0 gap-4" aria-label="Connect your computer">
+    <section
+      className="grid min-w-0 gap-4"
+      aria-label={t("Connect your computer")}
+    >
       <div>
-        <h2 className="text-lg font-medium">Connect your computer</h2>
+        <h2 className="text-lg font-medium">{t("Connect your computer")}</h2>
         <p className="mt-2 text-sm text-ink-muted">
-          Run the command on the computer or server where you want your agent to
-          run.
+          {t(
+            "Run the command on the computer or server where you want your agent to run.",
+          )}
         </p>
       </div>
       <div
         className="flex flex-wrap gap-2"
         role="group"
-        aria-label="Connection method"
+        aria-label={t("Connection method")}
       >
         {(
           [
@@ -137,18 +144,23 @@ export function DeviceConnectStep({
               void prepare(value);
             }}
           >
-            {busy && method === value ? "Generating…" : label}
+            {busy && method === value ? t("Generating…") : t(label)}
           </Button>
         ))}
       </div>
       <p className="text-sm text-ink-muted">
         {method === "quick"
-          ? "Install PAX and connect this computer to your account with one command."
-          : "Install PAX, then follow the sign-in link shown in your terminal."}
+          ? t(
+              "Install PAX and connect this computer to your account with one command.",
+            )
+          : t(
+              "Install PAX, then follow the sign-in link shown in your terminal.",
+            )}
       </p>
       <p className="text-xs text-ink-tertiary">
-        For macOS and Linux. Installs paxl and paxd, then starts the background
-        service.
+        {t(
+          "For macOS and Linux. Installs paxl and paxd, then starts the background service.",
+        )}
       </p>
       {attempt && !expired && (
         <div className="grid gap-3">
@@ -158,22 +170,24 @@ export function DeviceConnectStep({
               checked={installed}
               onChange={(event) => setInstalled(event.target.checked)}
             />
-            PAX is already installed on this computer
+            {t("PAX is already installed on this computer")}
           </label>
           <CommandBlock
             key={installed ? attempt.setupCommand : attempt.command}
             command={installed ? attempt.setupCommand : attempt.command}
           />
           <p className="text-sm text-ink-muted">
-            Change <code>--name default</code> to your preferred device name
-            before running the command, for example{" "}
+            {t("Change")} <code>--name default</code>{" "}
+            {t(
+              "to your preferred device name before running the command, for example",
+            )}{" "}
             <code>--name &quot;My MacBook&quot;</code>.
           </p>
         </div>
       )}
       {expired && (
         <p role="status" className="text-sm text-warning">
-          This command has expired. Generate a new command to continue.
+          {t("This command has expired. Generate a new command to continue.")}
         </p>
       )}
       {expired && (
@@ -183,7 +197,7 @@ export function DeviceConnectStep({
             disabled={busy}
             onClick={() => void prepare(method)}
           >
-            {busy ? "Generating…" : "Generate new command"}
+            {busy ? t("Generating…") : t("Generate new command")}
           </Button>
         </div>
       )}
@@ -191,13 +205,16 @@ export function DeviceConnectStep({
         <>
           <p className="text-sm text-ink-muted">
             {method === "quick"
-              ? "Paste it into your terminal and run it. Keep this page open."
-              : "After signing in, return here to continue."}
+              ? t(
+                  "Paste it into your terminal and run it. Keep this page open.",
+                )
+              : t("After signing in, return here to continue.")}
           </p>
           {method === "quick" && (
             <p className="text-xs text-ink-tertiary">
-              Use this command on your own computer. It can connect one device,
-              once.
+              {t(
+                "Use this command on your own computer. It can connect one device, once.",
+              )}
             </p>
           )}
           <div
@@ -206,8 +223,8 @@ export function DeviceConnectStep({
           >
             <p className="text-sm">
               {candidates.length
-                ? "A computer is online. Choose yours to continue."
-                : "Waiting for your computer to connect…"}
+                ? t("A computer is online. Choose yours to continue.")
+                : t("Waiting for your computer to connect…")}
             </p>
             {candidates.map((node) => (
               <Button
@@ -215,13 +232,14 @@ export function DeviceConnectStep({
                 variant="primary"
                 onClick={() => onConnected(node)}
               >
-                Continue with {nodeLabel(node)}
+                {t("Continue with")} {nodeLabel(node)}
               </Button>
             ))}
             {!candidates.length && (
               <p className="text-xs text-ink-tertiary">
-                This page checks automatically. If installation fails, fix the
-                error shown in your terminal and run the command again.
+                {t(
+                  "This page checks automatically. If installation fails, fix the error shown in your terminal and run the command again.",
+                )}
               </p>
             )}
           </div>

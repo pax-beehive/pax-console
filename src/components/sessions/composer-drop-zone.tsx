@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
+
 import {
   useEffect,
   useRef,
@@ -21,6 +23,7 @@ export function ComposerDropZone({
   disabledReason?: string;
   onFiles: (files: File[]) => Promise<void>;
 }) {
+  const { t } = useI18n();
   const depth = useRef(0);
   const [dragging, setDragging] = useState(false);
   const reset = () => {
@@ -77,7 +80,7 @@ export function ComposerDropZone({
           role="status"
         >
           <Upload aria-hidden="true" className="h-4 w-4 shrink-0" />
-          {disabledReason ?? "Drop files to upload"}
+          {disabledReason ?? t("Drop files to upload")}
         </div>
       )}
     </div>

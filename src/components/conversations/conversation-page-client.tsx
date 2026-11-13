@@ -1,4 +1,5 @@
 "use client";
+import { useI18n, type Translator } from "@/features/i18n/use-i18n";
 
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -21,6 +22,7 @@ export function ConversationPageClient({
   conversationId,
   user,
 }: ConversationPageClientProps) {
+  const { t } = useI18n();
   const router = useRouter();
   const [draftConversationId, setDraftConversationId] = useState(
     conversationId ?? "",
@@ -36,8 +38,8 @@ export function ConversationPageClient({
     [messagesQuery.data?.messages],
   );
   const title = conversationId
-    ? `Conversation ${compactId(conversationId)}`
-    : "Conversation";
+    ? t("Conversation {id}", { id: compactId(conversationId) })
+    : t("Conversation");
   const sortedMessages = useMemo(
     () =>
       [...messages].sort((a, b) => {
@@ -67,7 +69,7 @@ export function ConversationPageClient({
               <MessageCircle className="h-4 w-4 text-ink-subtle" />
               <div className="min-w-0">
                 <div className="text-[11px] uppercase tracking-[0.18em] text-ink-tertiary">
-                  Settings
+                  {t("Settings")}
                 </div>
                 <h1 className="mt-1 text-lg font-semibold">{title}</h1>
               </div>
@@ -80,7 +82,7 @@ export function ConversationPageClient({
               type="button"
               variant="ghost"
             >
-              Refresh
+              {t("Refresh")}
             </Button>
           </div>
         </header>
@@ -92,7 +94,7 @@ export function ConversationPageClient({
                 className="text-xs text-ink-tertiary"
                 htmlFor="conversation-id"
               >
-                Conversation id
+                {t("Conversation id")}
               </label>
               <input
                 className="h-9 rounded-md border border-hairline bg-canvas px-3 font-mono text-xs text-ink outline-none focus:border-hairline-strong"
@@ -107,20 +109,24 @@ export function ConversationPageClient({
                 type="submit"
                 variant="primary"
               >
-                Open
+                {t("Open")}
               </Button>
             </form>
 
             <div className="mt-6 grid gap-3 border-t border-hairline pt-4">
               <div>
-                <div className="text-xs text-ink-tertiary">Loaded</div>
+                <div className="text-xs text-ink-tertiary">{t("Loaded")}</div>
                 <div className="mt-1 text-sm font-medium">
-                  {conversationId ? `${messages.length} messages` : "No id"}
+                  {conversationId
+                    ? t("{value1} messages", { value1: messages.length })
+                    : t("No id")}
                 </div>
               </div>
               {conversationId && (
                 <div>
-                  <div className="text-xs text-ink-tertiary">Current id</div>
+                  <div className="text-xs text-ink-tertiary">
+                    {t("Current id")}
+                  </div>
                   <MonoId>{conversationId}</MonoId>
                 </div>
               )}
@@ -130,25 +136,27 @@ export function ConversationPageClient({
           <section className="min-h-0 overflow-y-auto p-4">
             {error && (
               <div className="mb-4 border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
-                {errorMessage(error)}
+                {errorMessage(error, t)}
               </div>
             )}
 
             {!conversationId && (
               <div className="flex h-full items-center justify-center text-sm text-ink-tertiary">
-                No conversation selected.
+                {t("No conversation selected.")}
               </div>
             )}
 
             {conversationId && messagesQuery.isLoading && (
-              <div className="text-sm text-ink-tertiary">Loading messages</div>
+              <div className="text-sm text-ink-tertiary">
+                {t("Loading messages")}
+              </div>
             )}
 
             {conversationId &&
               !messagesQuery.isLoading &&
               sortedMessages.length === 0 && (
                 <div className="text-sm text-ink-tertiary">
-                  No messages found for this conversation.
+                  {t("No messages found for this conversation.")}
                 </div>
               )}
 
@@ -168,6 +176,7 @@ export function ConversationPageClient({
 }
 
 function ConversationMessageCard({ message }: { message: HistoryMessage }) {
+  const { t } = useI18n();
   const text = message.parts
     ?.map((part) => part.text)
     .filter(Boolean)
@@ -179,19 +188,19 @@ function ConversationMessageCard({ message }: { message: HistoryMessage }) {
   return (
     <article className="rounded-lg border border-hairline bg-surface-1 p-3">
       <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <Badge>{message.direction ?? message.role ?? "message"}</Badge>
+        <Badge>{message.direction ?? message.role ?? t("message")}</Badge>
         {message.status && (
-          <Badge tone={statusTone(message.status)}>{message.status}</Badge>
+          <Badge tone={statusTone(message.status)}>{t(message.status)}</Badge>
         )}
-        {message.message_type && <Badge>{message.message_type}</Badge>}
+        {message.message_type && <Badge>{t(message.message_type)}</Badge>}
         <MonoId>{compactId(message.message_id)}</MonoId>
       </div>
 
       <div className="mt-2 grid gap-1 text-xs text-ink-tertiary sm:grid-cols-2 lg:grid-cols-4">
-        <IdField label="agent" value={message.agent_id} />
-        <IdField label="session" value={message.session_id} />
-        <IdField label="turn" value={message.turn_id} />
-        <IdField label="response" value={message.response_id} />
+        <IdField label={t("agent")} value={message.agent_id} />
+        <IdField label={t("session")} value={message.session_id} />
+        <IdField label={t("turn")} value={message.turn_id} />
+        <IdField label={t("response")} value={message.response_id} />
       </div>
 
       {text && (
@@ -202,7 +211,7 @@ function ConversationMessageCard({ message }: { message: HistoryMessage }) {
 
       <details className="mt-3">
         <summary className="cursor-pointer text-xs text-ink-tertiary">
-          Details
+          {t("Details")}
         </summary>
         <pre className="mt-2 overflow-auto rounded-md border border-hairline bg-canvas p-3 text-xs leading-5 text-ink-subtle">
           {JSON.stringify(message, null, 2)}
@@ -218,13 +227,14 @@ function ConversationMessageCard({ message }: { message: HistoryMessage }) {
 }
 
 function IdField({ label, value }: { label: string; value?: string }) {
+  const { t } = useI18n();
   return (
     <div className="min-w-0">
       <span>{label}: </span>
       {value ? (
         <TruncatedText className="inline font-mono">{value}</TruncatedText>
       ) : (
-        <span className="text-ink-tertiary">none</span>
+        <span className="text-ink-tertiary">{t("none")}</span>
       )}
     </div>
   );
@@ -238,9 +248,9 @@ function statusTone(
   return "neutral";
 }
 
-function errorMessage(error: unknown) {
+function errorMessage(error: unknown, t: Translator) {
   if (error instanceof ApiError || error instanceof Error) {
     return error.message;
   }
-  return "Request failed";
+  return t("Request failed");
 }

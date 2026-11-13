@@ -1,5 +1,6 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
 import { Search } from "lucide-react";
 import type { ComponentPropsWithoutRef } from "react";
 import { cn } from "@/lib/utils";
@@ -17,6 +18,7 @@ export function SearchBox({
   placeholder = "Search",
   ...inputProps
 }: SearchBoxProps) {
+  const { t } = useI18n();
   return (
     <label
       className={cn(
@@ -29,7 +31,7 @@ export function SearchBox({
       <input
         {...inputProps}
         className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-tertiary"
-        placeholder={placeholder}
+        placeholder={t(placeholder)}
         type="search"
       />
     </label>

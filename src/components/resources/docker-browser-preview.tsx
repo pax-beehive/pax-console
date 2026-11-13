@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
+
 import { useEffect, useState } from "react";
 import {
   browserControl,
@@ -15,6 +17,7 @@ export function DockerBrowserPreview({
   userId: string;
   nodeId: string;
 }) {
+  const { t } = useI18n();
   const [frame, setFrame] = useState<BrowserFrame>();
   const [error, setError] = useState<Error>();
   const [invalid, setInvalid] = useState<string>();
@@ -40,7 +43,9 @@ export function DockerBrowserPreview({
         success = true;
       } catch (e) {
         if (!stopped)
-          setError(e instanceof Error ? e : new Error("Preview unavailable"));
+          setError(
+            e instanceof Error ? e : new Error(t("Preview unavailable")),
+          );
       } finally {
         pending = false;
         if (!stopped) timer = setTimeout(refresh, success ? 2000 : 5000);
@@ -57,15 +62,15 @@ export function DockerBrowserPreview({
       clearTimeout(timer);
       document.removeEventListener("visibilitychange", visibilityChanged);
     };
-  }, [userId, nodeId]);
+  }, [userId, nodeId, t]);
   return (
     <div className="grid gap-2">
       <p role="status" className="text-xs text-ink-tertiary">
         {error || (frame && frame.frame === invalid)
-          ? "Preview interrupted. Retrying automatically…"
+          ? t("Preview interrupted. Retrying automatically…")
           : frame
-            ? "Preview · updates automatically"
-            : "Connecting to preview…"}
+            ? t("Preview · updates automatically")
+            : t("Connecting to preview…")}
       </p>
       {error && <InlineError error={error} />}
       {frame && frame.frame !== invalid && (

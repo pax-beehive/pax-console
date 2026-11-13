@@ -191,6 +191,7 @@ export function buildSessionRows(
 export function buildAgentRows(
   agents: readonly Agent[],
   nodes: readonly Node[],
+  translate: (message: string) => string = (message) => message,
 ) {
   const nodesById = new Map(nodes.map((node) => [node.node_id, node]));
 
@@ -200,7 +201,9 @@ export function buildAgentRows(
     return {
       ...agent,
       nodeActive: node ? isActiveNode(node) : false,
-      nodeLabel: node ? nodeLabel(node) : (agent.node_id ?? "No runtime node"),
+      nodeLabel: node
+        ? nodeLabel(node)
+        : (agent.node_id ?? translate("No runtime node")),
     };
   });
 }

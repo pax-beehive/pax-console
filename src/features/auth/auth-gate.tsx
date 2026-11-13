@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import { ReactNode } from "react";
 import { API_BASE_URL } from "@/features/api/client";
@@ -13,6 +14,7 @@ type AuthGateProps = {
 };
 
 export function AuthGate({ children }: AuthGateProps) {
+  const { t } = useI18n();
   const currentUser = useCurrentUser();
 
   if (currentUser.error instanceof AuthError) return <SignInRedirect />;
@@ -21,7 +23,9 @@ export function AuthGate({ children }: AuthGateProps) {
     return (
       <div className="grid min-h-screen place-items-center bg-canvas text-ink">
         <div className="rounded-lg border border-hairline bg-surface-1 p-5">
-          <div className="text-sm text-ink-muted">Checking PAX access...</div>
+          <div className="text-sm text-ink-muted">
+            {t("Checking PAX access...")}
+          </div>
         </div>
       </div>
     );
@@ -32,13 +36,15 @@ export function AuthGate({ children }: AuthGateProps) {
       <div className="grid min-h-screen place-items-center bg-canvas p-6 text-ink">
         <section className="w-full max-w-xl rounded-lg border border-hairline bg-surface-1 p-6">
           <div className="text-sm font-medium text-ink-subtle">
-            PAX Workspace
+            {t("PAX Workspace")}
           </div>
           <h1 className="mt-3 text-3xl font-semibold leading-tight">
-            Unable to load your account.
+            {t("Unable to load your account.")}
           </h1>
           <p className="mt-3 text-sm leading-6 text-ink-muted">
-            PAX could not load your account information. Retry to continue.
+            {t(
+              "PAX could not load your account information. Retry to continue.",
+            )}
           </p>
           <div
             role="alert"
@@ -52,7 +58,7 @@ export function AuthGate({ children }: AuthGateProps) {
             onClick={() => void currentUser.refetch()}
             variant="primary"
           >
-            Retry
+            {t("Retry")}
           </Button>
         </section>
       </div>

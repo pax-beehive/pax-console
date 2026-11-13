@@ -11,6 +11,7 @@ import {
 import { ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useLocaleStore } from "@/features/i18n/locale-store";
 import { ApiError, AuthError } from "@/features/api/errors";
 import {
   SecretaryProgressPage,
@@ -69,7 +70,10 @@ function query(overrides: Record<string, unknown> = {}) {
     ...overrides,
   } as unknown as ReturnType<typeof useSecretaryProgress>;
 }
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  useLocaleStore.setState({ locale: "en" });
+});
 describe("Secretary progress", () => {
   it("offers summary controls for an unstarted source without an agent, task, or published summary", () => {
     render(
@@ -436,5 +440,35 @@ describe("Secretary progress", () => {
     expect(
       within(screen.getByRole("list")).queryAllByRole("listitem"),
     ).toHaveLength(0);
+  });
+});
+
+describe("Given Secretary progress uses Chinese", () => {
+  it("translates authoritative progress and recovery controls without changing source identity", () => {
+    useLocaleStore.setState({ locale: "zh-CN" });
+    const progress = query();
+    render(
+      <>
+        <SecretaryProgressOverview progress={progress} />
+        <SecretarySessionProgressList
+          userId="owner"
+          progress={progress}
+          agents={[]}
+        />
+      </>,
+    );
+    const overview = screen.getByRole("region", { name: "总结进度" });
+    expect(overview).toHaveTextContent("已处理 20 / 50 轮 · 剩余 30");
+    expect(screen.getByText("已处理 2 / 5 轮 · 剩余 3")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Database design" }),
+    ).toHaveAttribute("href", "/?session_id=session_1");
+    expect(
+      within(screen.getByRole("region", { name: "会话总结进度" })).getByText(
+        "部分已处理",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "刷新进度" }));
+    expect(progress.restart).toHaveBeenCalledOnce();
   });
 });

@@ -1,7 +1,20 @@
 import { describe, expect, it } from "vitest";
+import { createTranslator } from "@/features/i18n/translate";
 import { connectionState, serviceHealth } from "./service-health";
 
 describe("service health", () => {
+  it("given Chinese locale, when summarizing resource counts, then interpolates translated status", () => {
+    const result = serviceHealth({
+      t: createTranslator("zh-CN"),
+      health: { status: "ok" },
+      nodes: [{ node_id: "device", online: true }],
+      agents: [],
+      loading: false,
+      error: false,
+    });
+    expect(result.title).toBe("所有系统运行正常");
+    expect(result.description).toBe("1 台设备和 0 个智能体在线。");
+  });
   const healthy = {
     health: { status: "ok" },
     nodes: [{ node_id: "n1", online: true }],

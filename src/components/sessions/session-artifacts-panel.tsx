@@ -1,4 +1,7 @@
 "use client";
+
+import { useI18n } from "@/features/i18n/use-i18n";
+
 import { useLayoutEffect, useRef, useState } from "react";
 import { ArrowLeft, ChevronRight, RefreshCw } from "lucide-react";
 import { ArtifactViewerShell } from "@/components/artifacts/artifact-viewer-shell";
@@ -32,6 +35,7 @@ export function SessionArtifactsPanel({
   onRefresh: () => void;
   previewScope?: string;
 }) {
+  const { t } = useI18n();
   const [selectedArtifactId, setSelectedArtifactId] = useState("");
   const [previewOpen, setPreviewOpen] = useState(false);
   const selectedArtifact = artifacts.find(
@@ -59,15 +63,15 @@ export function SessionArtifactsPanel({
         className="min-h-0 flex-1 overflow-y-auto p-4"
         ref={listRef}
         role="region"
-        aria-label="Artifact list"
+        aria-label={t("Artifact list")}
       >
         <div className="mb-4 flex min-w-0 items-center gap-2">
           <Button
-            aria-label="Refresh artifacts"
+            aria-label={t("Refresh artifacts")}
             icon={<RefreshCw className="h-4 w-4" />}
             onClick={onRefresh}
             size="icon"
-            tooltip="Refresh artifacts"
+            tooltip={t("Refresh artifacts")}
             type="button"
             variant="ghost"
           />
@@ -77,7 +81,9 @@ export function SessionArtifactsPanel({
 
         <section className="grid gap-2">
           {isLoading && (
-            <div className="text-xs text-ink-tertiary">Loading artifacts</div>
+            <div className="text-xs text-ink-tertiary">
+              {t("Loading artifacts")}
+            </div>
           )}
           {artifacts.map((artifact) => {
             const content = primaryArtifactContent(artifact);
@@ -91,7 +97,9 @@ export function SessionArtifactsPanel({
                     : "border-hairline bg-canvas hover:border-hairline-strong",
                 )}
                 key={artifact.artifact_id}
-                aria-label={`Open artifact: ${artifactTitle(artifact)}`}
+                aria-label={t("Open artifact: {title}", {
+                  title: artifactTitle(artifact),
+                })}
                 aria-current={selected ? "true" : undefined}
                 onClick={(event) => {
                   listScrollTopRef.current = listRef.current?.scrollTop ?? 0;
@@ -128,7 +136,7 @@ export function SessionArtifactsPanel({
           })}
           {!isLoading && artifacts.length === 0 && (
             <div className="rounded-lg border border-dashed border-hairline bg-canvas p-2 text-xs text-ink-tertiary">
-              No artifacts for this session
+              {t("No artifacts for this session")}
             </div>
           )}
         </section>
@@ -146,7 +154,7 @@ export function SessionArtifactsPanel({
               icon={<ArrowLeft className="h-4 w-4" />}
               onClick={() => setPreviewOpen(false)}
             >
-              Back to artifacts
+              {t("Back to artifacts")}
             </Button>
           </div>
           <div

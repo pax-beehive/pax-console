@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
+
 import Link from "next/link";
 import { useRef } from "react";
 import { ArrowLeft } from "lucide-react";
@@ -23,13 +25,14 @@ function DockerBrowserPage({
   nodeId: string;
   userId: string;
 }) {
+  const { t } = useI18n();
   const shellRef = useRef<HTMLElement>(null);
   useConsoleViewport(shellRef);
 
   return (
     <main
       ref={shellRef}
-      aria-label="Docker desktop page"
+      aria-label={t("Docker desktop page")}
       className="console-shell flex min-h-0 flex-col overflow-hidden bg-canvas text-ink"
     >
       <header className="flex shrink-0 items-center gap-3 border-b border-hairline px-3 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top,0px))] sm:px-4">
@@ -40,10 +43,12 @@ function DockerBrowserPage({
           variant="ghost"
         >
           <Link href={`/nodes/${encodeURIComponent(nodeId)}`}>
-            Back to device
+            {t("Back to device")}
           </Link>
         </Button>
-        <h1 className="min-w-0 truncate text-sm font-medium">Docker desktop</h1>
+        <h1 className="min-w-0 truncate text-sm font-medium">
+          {t("Docker desktop")}
+        </h1>
       </header>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] sm:px-4">
         <NodeBrowserVNC

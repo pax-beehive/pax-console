@@ -1,19 +1,20 @@
+import { translators, type Translator } from "@/features/i18n/translate";
 import { Agent, TeamRole, TeamSummary } from "@/features/api/types";
 
 export function teamRole(team: TeamSummary) {
   return team.my_role ?? team.role ?? "member";
 }
 
-export function displayTeamRole(role?: string) {
+export function displayTeamRole(role?: string, t: Translator = translators.en) {
   switch (role) {
     case "owner":
-      return "Owner";
+      return t("Owner");
     case "operator":
-      return "Operator";
+      return t("Operator");
     case "member":
-      return "Member";
+      return t("Member");
     default:
-      return role ?? "Member";
+      return role ?? t("Member");
   }
 }
 

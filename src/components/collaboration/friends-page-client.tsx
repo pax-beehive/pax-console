@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import { FormEvent, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
@@ -19,6 +20,7 @@ export function FriendsPageRoute() {
 }
 
 export function FriendsPageClient({ user }: { user: User }) {
+  const { t } = useI18n();
   const friendsQuery = useFriends(user.user_id);
   const friends = friendsQuery.data?.friends ?? [];
 
@@ -28,11 +30,11 @@ export function FriendsPageClient({ user }: { user: User }) {
         <header className="border-b border-hairline pb-4">
           <div className="flex items-center gap-2 text-xs text-accent-bright">
             <MailPlus className="h-4 w-4" />
-            friend graph
+            {t("friend graph")}
           </div>
-          <h1 className="mt-2 text-2xl font-semibold">Friends</h1>
+          <h1 className="mt-2 text-2xl font-semibold">{t("Friends")}</h1>
           <p className="mt-1 max-w-2xl text-sm text-ink-tertiary">
-            Manage direct trust relationships used for envelope delivery.
+            {t("Manage direct trust relationships used for envelope delivery.")}
           </p>
         </header>
 
@@ -40,18 +42,20 @@ export function FriendsPageClient({ user }: { user: User }) {
 
         <section className="grid gap-3">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-medium">Friend records</h2>
+            <h2 className="text-sm font-medium">{t("Friend records")}</h2>
             <Badge className="min-w-[1.75rem] justify-center font-mono">
               {String(friends.length)}
             </Badge>
           </div>
-          {friendsQuery.isLoading && <EmptyState label="Loading friends" />}
+          {friendsQuery.isLoading && (
+            <EmptyState label={t("Loading friends")} />
+          )}
           <div className="grid overflow-hidden rounded-lg border border-hairline">
             {friends.map((friend) => (
               <FriendRow friend={friend} key={friend.friend_id} user={user} />
             ))}
             {!friendsQuery.isLoading && friends.length === 0 && (
-              <EmptyState label="No friends" />
+              <EmptyState label={t("No friends")} />
             )}
           </div>
         </section>
@@ -61,6 +65,7 @@ export function FriendsPageClient({ user }: { user: User }) {
 }
 
 function FriendRequestForm({ userId }: { userId: string }) {
+  const { t } = useI18n();
   const invalidateFriends = useFriendInvalidation(userId);
   const [email, setEmail] = useState("");
   const [alias, setAlias] = useState("");
@@ -85,7 +90,9 @@ function FriendRequestForm({ userId }: { userId: string }) {
       className="grid gap-2 rounded-lg border border-hairline bg-surface-1 p-3"
       onSubmit={submit}
     >
-      <label className="text-xs text-ink-tertiary">Create friend request</label>
+      <label className="text-xs text-ink-tertiary">
+        {t("Create friend request")}
+      </label>
       <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,220px)_auto]">
         <input
           className="min-h-9 min-w-0 rounded-lg border border-hairline bg-canvas px-3 text-sm text-ink outline-none focus:border-primary-focus"
@@ -97,7 +104,7 @@ function FriendRequestForm({ userId }: { userId: string }) {
         <input
           className="min-h-9 min-w-0 rounded-lg border border-hairline bg-canvas px-3 text-sm text-ink outline-none focus:border-primary-focus"
           onChange={(event) => setAlias(event.target.value)}
-          placeholder="Alias"
+          placeholder={t("Alias")}
           value={alias}
         />
         <Button
@@ -106,7 +113,7 @@ function FriendRequestForm({ userId }: { userId: string }) {
           type="submit"
           variant="primary"
         >
-          Request
+          {t("Request")}
         </Button>
       </div>
       {create.error && <InlineError error={create.error} />}

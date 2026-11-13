@@ -1,4 +1,5 @@
 "use client";
+import { useI18n, type Locale } from "@/features/i18n/use-i18n";
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -51,6 +52,7 @@ export function SearchSourcePanel({
   revalidateOnMount?: boolean;
   active?: boolean;
 }) {
+  const { t, locale } = useI18n();
   const [request, setRequest] = useState<WorkspaceReadRequest>({
     ref: sourceRef,
     limit: 4096,
@@ -88,10 +90,10 @@ export function SearchSourcePanel({
     session?.title ||
     (!source.isError && title) ||
     (sourceRef.kind === "message"
-      ? "Message"
+      ? t("Message")
       : sourceRef.kind === "summary"
-        ? "Summary"
-        : "Session");
+        ? t("Summary")
+        : t("Session"));
   const sessionId =
     message?.session_id ?? session?.session_id ?? summary?.origin_session_id;
 
@@ -109,14 +111,18 @@ export function SearchSourcePanel({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <Badge>
-              {message?.role ||
+              {(message?.role && t(message.role)) ||
                 (sourceRef.kind === "session"
-                  ? "Session"
+                  ? t("Session")
                   : sourceRef.kind === "summary"
-                    ? "Summary"
-                    : "Message")}
+                    ? t("Summary")
+                    : t("Message"))}
             </Badge>
-            {summary && <Badge>Version {summary.revision}</Badge>}
+            {summary && (
+              <Badge>
+                {t("Version")} {summary.revision}
+              </Badge>
+            )}
           </div>
           <h2
             ref={headingRef}
@@ -133,33 +139,38 @@ export function SearchSourcePanel({
                 message?.created_at ||
                   summary?.created_at ||
                   session?.created_at,
+                locale,
               )}
             </p>
           )}
         </div>
         <Button
-          aria-label="Close source"
+          aria-label={t("Close source")}
           className="min-h-11 min-w-11 md:min-h-9 md:min-w-9"
           icon={<X aria-hidden="true" className="h-4 w-4" />}
           onClick={onClose}
           size="icon"
-          tooltip="Close source"
+          tooltip={t("Close source")}
           variant="ghost"
         />
       </header>
       <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-4 [overflow-wrap:anywhere] [&_a]:min-h-11 [&_button]:min-h-11 md:[&_a]:min-h-8 md:[&_button]:min-h-8">
         {source.isPending || checking ? (
           <p className="text-sm text-ink-tertiary" role="status">
-            Loading source…
+            {t("Loading source…")}
           </p>
         ) : source.isError ? (
           <div className="rounded-md border border-warning/30 p-3" role="alert">
             <p className="text-sm leading-6 text-ink-muted">
               {changed
-                ? "This version is no longer available. The source may have changed since it was found."
+                ? t(
+                    "This version is no longer available. The source may have changed since it was found.",
+                  )
                 : unavailable
-                  ? "This source was removed or is no longer available to you."
-                  : "Could not load this source. Please try again."}
+                  ? t(
+                      "This source was removed or is no longer available to you.",
+                    )
+                  : t("Could not load this source. Please try again.")}
             </p>
             {changed ? (
               <Button
@@ -176,7 +187,7 @@ export function SearchSourcePanel({
                 }}
                 size="sm"
               >
-                Load current version
+                {t("Load current version")}
               </Button>
             ) : (
               !unavailable && (
@@ -187,7 +198,7 @@ export function SearchSourcePanel({
                   }}
                   size="sm"
                 >
-                  Retry source
+                  {t("Retry source")}
                 </Button>
               )
             )}
@@ -206,7 +217,7 @@ export function SearchSourcePanel({
                 <Link
                   href={`/?session_id=${encodeURIComponent(sessionId)}${message ? `&message_id=${encodeURIComponent(message.message_id)}` : ""}`}
                 >
-                  Open session
+                  {t("Open session")}
                 </Link>
               </Button>
             )}
@@ -214,7 +225,7 @@ export function SearchSourcePanel({
               <>
                 <div
                   className="mb-4 flex flex-wrap items-center gap-1"
-                  aria-label="Message view"
+                  aria-label={t("Message view")}
                 >
                   {message.available_views.map((view) => (
                     <Button
@@ -228,10 +239,10 @@ export function SearchSourcePanel({
                       variant={message.view === view ? "secondary" : "ghost"}
                     >
                       {view === "first"
-                        ? "First paragraph"
+                        ? t("First paragraph")
                         : view === "last"
-                          ? "Last paragraph"
-                          : "Full message"}
+                          ? t("Last paragraph")
+                          : t("Full message")}
                     </Button>
                   ))}
                 </div>
@@ -245,7 +256,7 @@ export function SearchSourcePanel({
                     />
                   ))}
                 <article
-                  aria-label="Message text"
+                  aria-label={t("Message text")}
                   className="border-l-2 border-accent pl-3"
                 >
                   <p className="whitespace-pre-wrap text-sm leading-7 text-ink">
@@ -254,7 +265,7 @@ export function SearchSourcePanel({
                 </article>
                 {(previousOffsets.length > 0 || message.has_more) && (
                   <nav
-                    aria-label="Message pages"
+                    aria-label={t("Message pages")}
                     className="my-4 flex flex-wrap items-center gap-2"
                   >
                     <Button
@@ -267,7 +278,7 @@ export function SearchSourcePanel({
                       }}
                       size="sm"
                     >
-                      Previous page
+                      {t("Previous page")}
                     </Button>
                     {message.has_more && message.next_offset !== undefined && (
                       <Button
@@ -284,11 +295,11 @@ export function SearchSourcePanel({
                         }}
                         size="sm"
                       >
-                        Next page
+                        {t("Next page")}
                       </Button>
                     )}
                     <span className="text-xs text-ink-tertiary">
-                      Page {previousOffsets.length + 1}
+                      {t("Page")} {previousOffsets.length + 1}
                     </span>
                   </nav>
                 )}
@@ -302,7 +313,9 @@ export function SearchSourcePanel({
                     />
                   ))}
                 <details className="mt-5 text-xs text-ink-tertiary">
-                  <summary className="cursor-pointer">Source details</summary>
+                  <summary className="cursor-pointer">
+                    {t("Source details")}
+                  </summary>
                   <div className="mt-2 space-y-2">
                     <MonoId>{message.message_id}</MonoId>
                     <MonoId>{message.session_id}</MonoId>
@@ -318,7 +331,7 @@ export function SearchSourcePanel({
             )}
             {session && (
               <p className="whitespace-pre-wrap text-sm leading-7 text-ink-muted">
-                {session.body || "Open this session to read its messages."}
+                {session.body || t("Open this session to read its messages.")}
               </p>
             )}
           </>
@@ -335,22 +348,23 @@ function ContextMessage({
   message: WorkspaceMessageRead;
   onSelect: (ref: WorkspaceSearchRef) => void;
 }) {
+  const { t } = useI18n();
   return (
     <article
-      aria-label="Context message"
+      aria-label={t("Context message")}
       className="my-4 border-l border-hairline pl-3"
     >
       <div className="mb-1 flex flex-wrap items-center gap-2">
         <span className="text-xs text-ink-tertiary">{message.role}</span>
         <Button onClick={() => onSelect(message.ref)} size="sm" variant="ghost">
-          Read message
+          {t("Read message")}
         </Button>
       </div>
       <p className="whitespace-pre-wrap text-xs leading-6 text-ink-muted">
         {message.text}
       </p>
       {message.has_more && (
-        <p className="text-xs text-ink-tertiary">More in this message</p>
+        <p className="text-xs text-ink-tertiary">{t("More in this message")}</p>
       )}
     </article>
   );
@@ -365,9 +379,10 @@ export function SummaryContent({
   onSelect: (ref: WorkspaceSearchRef) => void;
   markdown?: boolean;
 }) {
+  const { t } = useI18n();
   return (
     <>
-      <article aria-label="Summary text" className="min-w-0">
+      <article aria-label={t("Summary text")} className="min-w-0">
         {markdown ? (
           <MarkdownMessage content={summary.body} />
         ) : (
@@ -378,10 +393,12 @@ export function SummaryContent({
       </article>
       {!!summary.claims?.length && (
         <section
-          aria-label="Summary claims"
+          aria-label={t("Summary claims")}
           className="mt-6 border-t border-hairline pt-4"
         >
-          <h3 className="text-xs font-semibold text-ink-subtle">Claims</h3>
+          <h3 className="text-xs font-semibold text-ink-subtle">
+            {t("Claims")}
+          </h3>
           <ul className="mt-2 space-y-4">
             {summary.claims.map((claim) => (
               <li key={claim.id}>
@@ -406,7 +423,7 @@ export function SummaryContent({
                       size="sm"
                       variant="ghost"
                     >
-                      Read evidence
+                      {t("Read evidence")}
                     </Button>
                   </div>
                 ))}
@@ -416,17 +433,17 @@ export function SummaryContent({
         </section>
       )}
       <section
-        aria-label="Summary sources"
+        aria-label={t("Summary sources")}
         className="mt-6 border-t border-hairline pt-4"
       >
         <h3 className="text-xs font-semibold text-ink-subtle">
-          Source messages{" "}
+          {t("Source messages")}{" "}
           <span className="font-normal text-ink-tertiary">
             ({summary.coverage.length})
           </span>
         </h3>
         <p className="mt-1 text-xs leading-5 text-ink-tertiary">
-          Read the exact message versions used for this summary.
+          {t("Read the exact message versions used for this summary.")}
         </p>
         <ul className="mt-2 divide-y divide-hairline">
           {summary.coverage.map((ref) => (
@@ -445,17 +462,20 @@ export function SummaryContent({
       </section>
       {!!summary.summary_sources?.length && (
         <section
-          aria-label="Related summaries"
+          aria-label={t("Related summaries")}
           className="mt-6 border-t border-hairline pt-4"
         >
           <h3 className="text-xs font-semibold text-ink-subtle">
-            Source summaries
+            {t("Source summaries")}
           </h3>
           <ul className="mt-2 divide-y divide-hairline">
             {summary.summary_sources.map((ref) => (
               <li key={`${ref.summary_id}:${ref.revision}`}>
                 <Button
-                  aria-label={`Open summary ${ref.summary_id}, version ${ref.revision}`}
+                  aria-label={t("Open summary {value1}, version {value2}", {
+                    value1: ref.summary_id,
+                    value2: ref.revision,
+                  })}
                   className="my-1 w-full justify-start"
                   onClick={() =>
                     onSelect({
@@ -481,10 +501,10 @@ export function SummaryContent({
   );
 }
 
-function formatSourceDate(value?: string) {
+function formatSourceDate(value: string | undefined, locale: Locale) {
   if (!value) return "";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "" : date.toLocaleString();
+  return Number.isNaN(date.getTime()) ? "" : date.toLocaleString(locale);
 }
 
 function isSessionSource(

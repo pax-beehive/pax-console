@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -46,6 +47,7 @@ export function AgentConnectStep({
   userId: string;
   onStart?: () => void;
 }) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState("");
   const [more, setMore] = useState(false);
@@ -192,28 +194,32 @@ export function AgentConnectStep({
     inventory.error ?? create.error ?? restart.error ?? connections.error;
 
   return (
-    <section className="grid min-w-0 gap-4" aria-label="Connect an agent">
+    <section className="grid min-w-0 gap-4" aria-label={t("Connect an agent")}>
       <div>
         <h2 className="text-lg font-medium">
-          {ready ? `${label} is connected` : "Choose your agent"}
+          {ready
+            ? t("{value1} is connected", { value1: label })
+            : t("Choose your agent")}
         </h2>
         <p className="mt-2 text-sm text-ink-muted">
           {ready
-            ? `Connected on ${nodeLabel(node)}.`
-            : `Which agent do you want to use on ${nodeLabel(node)}?`}
+            ? t("Connected on {value1}.", { value1: nodeLabel(node) })
+            : t("Which agent do you want to use on {value1}?", {
+                value1: nodeLabel(node),
+              })}
         </p>
       </div>
       {!online && (
         <p role="status" className="text-sm text-warning">
-          {nodeLabel(node)} is offline. Bring it online to check or connect an
-          agent.
+          {nodeLabel(node)}{" "}
+          {t("is offline. Bring it online to check or connect an agent.")}
         </p>
       )}
       {!ready && (
         <div
           className="flex flex-wrap gap-2"
           role="group"
-          aria-label="Agent type"
+          aria-label={t("Agent type")}
         >
           {Object.entries(recipes).map(([value, info]) => (
             <Button
@@ -237,7 +243,7 @@ export function AgentConnectStep({
               setMore(!more);
             }}
           >
-            More
+            {t("More")}
           </Button>
         </div>
       )}
@@ -262,47 +268,56 @@ export function AgentConnectStep({
           {!inventory.isFetching &&
             !items.some((item) => !recipes[item.harness]) && (
               <p className="text-sm text-ink-tertiary">
-                No other supported agents were reported by this computer.
+                {t("No other supported agents were reported by this computer.")}
               </p>
             )}
         </div>
       )}
       {inventory.isFetching && (
         <p role="status" className="text-sm text-ink-muted">
-          Checking connection components on {nodeLabel(node)}…
+          {t("Checking connection components on")} {nodeLabel(node)}…
         </p>
       )}
       {selected && !ready && !target && (
         <div className="grid gap-3 rounded-lg border border-hairline bg-canvas p-4">
-          <h3 className="font-medium">Connect {label}</h3>
+          <h3 className="font-medium">
+            {t("Connect")} {label}
+          </h3>
           {!inventory.isFetching && !inventory.error && (
             <>
               <p className="text-sm">
                 {!choice
-                  ? "This PAX version didn't report support for this agent."
+                  ? t("This PAX version didn't report support for this agent.")
                   : available
                     ? fallback
-                      ? "ACP adapter can be downloaded on first connection"
-                      : "Connection command found"
+                      ? t("ACP adapter can be downloaded on first connection")
+                      : t("Connection command found")
                     : recipe
-                      ? "ACP adapter needed"
-                      : "Connection command wasn't found"}
+                      ? t("ACP adapter needed")
+                      : t("Connection command wasn't found")}
               </p>
               {available && fallback && (
                 <p className="text-sm text-ink-muted">
-                  PAX found npx. Connecting will download and run the ACP
-                  adapter on {nodeLabel(node)}; it has not been verified yet.
+                  {t(
+                    "PAX found npx. Connecting will download and run the ACP adapter on",
+                  )}{" "}
+                  {nodeLabel(node)}
+                  {t("; it has not been verified yet.")}
                 </p>
               )}
               {!available && recipe && (
                 <>
                   <p className="text-sm text-ink-muted">
-                    Install the connection component so PAX can communicate with{" "}
-                    {label}. This command requires Node.js and npm.
+                    {t(
+                      "Install the connection component so PAX can communicate with",
+                    )}{" "}
+                    {label}
+                    {t(". This command requires Node.js and npm.")}
                   </p>
                   <CommandBlock command={recipe.install} />
                   <p className="text-sm text-ink-muted">
-                    Run this on {nodeLabel(node)}, then check again.
+                    {t("Run this on")} {nodeLabel(node)}
+                    {t(", then check again.")}
                   </p>
                 </>
               )}
@@ -315,9 +330,9 @@ export function AgentConnectStep({
             </>
           )}
           <p className="text-sm text-ink-muted">
-            Agent installation and sign-in aren’t checked here. Make sure{" "}
-            {label} is set up and signed in on {nodeLabel(node)} before starting
-            a conversation.
+            {t("Agent installation and sign-in aren’t checked here. Make sure")}{" "}
+            {label} {t("is set up and signed in on")} {nodeLabel(node)}{" "}
+            {t("before starting a conversation.")}
           </p>
           {recipe && (
             <a
@@ -326,7 +341,7 @@ export function AgentConnectStep({
               rel="noreferrer"
               className="text-sm text-accent-bright underline underline-offset-4"
             >
-              View installation instructions
+              {t("View installation instructions")}
             </a>
           )}
           <div className="flex flex-wrap gap-2">
@@ -334,7 +349,7 @@ export function AgentConnectStep({
               disabled={!online || inventory.isFetching || locked}
               onClick={() => void inventory.refetch()}
             >
-              Check again
+              {t("Check again")}
             </Button>
             {available && (
               <Button
@@ -349,7 +364,9 @@ export function AgentConnectStep({
                   create.mutate();
                 }}
               >
-                {create.isPending ? "Connecting…" : `Connect ${label}`}
+                {create.isPending
+                  ? t("Connecting…")
+                  : t("Connect {value1}", { value1: label })}
               </Button>
             )}
           </div>
@@ -362,20 +379,23 @@ export function AgentConnectStep({
         >
           <p className="text-sm">
             {outcome === "failed"
-              ? `${label} couldn't start.`
+              ? t("{value1} couldn't start.", { value1: label })
               : slow
-                ? "This is taking longer than expected."
-                : `Connecting ${label}…`}
+                ? t("This is taking longer than expected.")
+                : t("Connecting {value1}…", { value1: label })}
           </p>
           <p className="text-sm text-ink-muted">
             {current?.status?.last_error_message ??
-              "Waiting for the computer to confirm the connection. Keep this page open."}
+              t(
+                "Waiting for the computer to confirm the connection. Keep this page open.",
+              )}
           </p>
           {outcome === "failed" && (
             <>
               <p className="text-sm text-ink-muted">
-                Check the agent’s installation and sign-in on {nodeLabel(node)},
-                then retry this connection.
+                {t("Check the agent’s installation and sign-in on")}{" "}
+                {nodeLabel(node)}
+                {t(", then retry this connection.")}
               </p>
               {recipe && <CommandBlock command={recipe.install} />}
               <div>
@@ -385,7 +405,7 @@ export function AgentConnectStep({
                   }
                   onClick={() => restart.mutate()}
                 >
-                  {restart.isPending ? "Retrying…" : "Retry connection"}
+                  {restart.isPending ? t("Retrying…") : t("Retry connection")}
                 </Button>
               </div>
             </>
@@ -396,7 +416,7 @@ export function AgentConnectStep({
                 disabled={!online || connections.isFetching}
                 onClick={() => void connections.refetch()}
               >
-                Check connection
+                {t("Check connection")}
               </Button>
             </div>
           )}
@@ -409,7 +429,7 @@ export function AgentConnectStep({
             disabled={!online || inventory.isFetching}
             onClick={() => void inventory.refetch()}
           >
-            Check again
+            {t("Check again")}
           </Button>
         </div>
       )}
@@ -420,8 +440,9 @@ export function AgentConnectStep({
       )}
       {create.isError && (
         <p className="text-sm text-ink-muted">
-          The request may have reached your computer. Check its connections
-          before creating another agent.
+          {t(
+            "The request may have reached your computer. Check its connections before creating another agent.",
+          )}
         </p>
       )}
       {(target || commandError || create.isError) && (
@@ -431,13 +452,13 @@ export function AgentConnectStep({
               <Link
                 href={`/sessions/new?agentId=${encodeURIComponent(agentId)}&nodeId=${encodeURIComponent(node.node_id)}`}
               >
-                Start a conversation
+                {t("Start a conversation")}
               </Link>
             </Button>
           )}
           <Button asChild variant="ghost">
             <Link href={`/nodes/${encodeURIComponent(node.node_id)}`}>
-              Manage connections
+              {t("Manage connections")}
             </Link>
           </Button>
         </div>

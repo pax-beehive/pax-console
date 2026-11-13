@@ -1,3 +1,6 @@
+"use client";
+
+import { useI18n } from "@/features/i18n/use-i18n";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { useMessageDetail } from "@/features/api/resources";
@@ -48,6 +51,7 @@ function MessageDetailSection({
   detail: { messageId: string; updatedAt?: string };
   section: "input" | "output";
 }) {
+  const { t } = useI18n();
   const client = useQueryClient();
   const query = useMessageDetail(
     userId,
@@ -73,12 +77,14 @@ function MessageDetailSection({
   return (
     <section className="grid gap-2">
       <div className="text-xs uppercase tracking-wide text-ink-tertiary">
-        {section === "input" ? "Input" : "Output"}
+        {section === "input" ? t("Input") : t("Output")}
       </div>
       {!userId ? (
-        <p className="text-xs text-ink-tertiary">Sign in to load details.</p>
+        <p className="text-xs text-ink-tertiary">
+          {t("Sign in to load details.")}
+        </p>
       ) : query.isPending ? (
-        <p className="text-xs text-ink-tertiary">Loading details...</p>
+        <p className="text-xs text-ink-tertiary">{t("Loading details...")}</p>
       ) : null}
       {text && (
         <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-md border border-hairline bg-surface-1 p-3 text-xs leading-5 text-ink-muted">
@@ -106,7 +112,7 @@ function MessageDetailSection({
               })
             }
           >
-            Reload details
+            {t("Reload details")}
           </Button>
         </div>
       )}
@@ -117,7 +123,7 @@ function MessageDetailSection({
           disabled={query.isFetching}
           onClick={() => void query.fetchNextPage()}
         >
-          Load more
+          {t("Load more")}
         </Button>
       )}
     </section>

@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import { useState } from "react";
 import { Check } from "lucide-react";
@@ -23,6 +24,7 @@ export function ConnectionOnboarding({
   initialNodeId?: string;
   onStart?: () => void;
 }) {
+  const { t } = useI18n();
   const nodesQuery = useNodes(userId, 3000);
   const nodes = nodesQuery.data?.nodes.filter(isDeviceNode) ?? [];
   const [selectedId, setSelectedId] = useState(initialNodeId ?? "");
@@ -38,18 +40,18 @@ export function ConnectionOnboarding({
       <div>
         <h1 className="text-2xl font-semibold">
           {intent === "device"
-            ? "Connect a device"
+            ? t("Connect a device")
             : intent === "agent"
-              ? "Connect an agent"
-              : "Connect your first agent"}
+              ? t("Connect an agent")
+              : t("Connect your first agent")}
         </h1>
         <p className="mt-2 text-sm text-ink-muted">
-          Connect a computer, then choose the agent you want to use.
+          {t("Connect a computer, then choose the agent you want to use.")}
         </p>
       </div>
       <ol
         className="flex flex-wrap gap-x-6 gap-y-2 text-sm"
-        aria-label="Connection steps"
+        aria-label={t("Connection steps")}
       >
         <li
           aria-current={deviceStep || !selected ? "step" : undefined}
@@ -57,25 +59,27 @@ export function ConnectionOnboarding({
             selected?.online && !deviceStep ? "text-ink-muted" : "text-ink"
           }
         >
-          ① Connect a device
+          {t("① Connect a device")}
         </li>
         <li
           aria-current={!deviceStep && selected ? "step" : undefined}
           className={!deviceStep && selected ? "text-ink" : "text-ink-tertiary"}
         >
-          ② Connect an agent
+          {t("② Connect an agent")}
         </li>
       </ol>
       {nodesQuery.isLoading && (
         <p role="status" className="text-sm text-ink-muted">
-          Loading your computers…
+          {t("Loading your computers…")}
         </p>
       )}
       {nodesQuery.error && (
         <>
           <InlineError error={nodesQuery.error} />
           <div>
-            <Button onClick={() => void nodesQuery.refetch()}>Try again</Button>
+            <Button onClick={() => void nodesQuery.refetch()}>
+              {t("Try again")}
+            </Button>
           </div>
         </>
       )}
@@ -96,7 +100,7 @@ export function ConnectionOnboarding({
           {nodes.length > 0 && (
             <div>
               <Button variant="ghost" onClick={() => setAddingDevice(false)}>
-                Use an existing computer
+                {t("Use an existing computer")}
               </Button>
             </div>
           )}
@@ -106,7 +110,7 @@ export function ConnectionOnboarding({
           <>
             {nodes.length > 1 && (
               <label className="grid gap-2 text-sm">
-                Which computer should run this agent?
+                {t("Which computer should run this agent?")}
                 <select
                   className="min-w-0 rounded-md border border-hairline bg-canvas p-2 text-base"
                   value={effectiveId}
@@ -115,11 +119,11 @@ export function ConnectionOnboarding({
                     setSelectedId(event.target.value);
                   }}
                 >
-                  <option value="">Choose a computer</option>
+                  <option value="">{t("Choose a computer")}</option>
                   {nodes.map((node) => (
                     <option value={node.node_id} key={node.node_id}>
                       {nodeLabel(node)}
-                      {node.online === true ? "" : " (Offline)"}
+                      {node.online === true ? "" : t(" (Offline)")}
                     </option>
                   ))}
                 </select>
@@ -127,8 +131,9 @@ export function ConnectionOnboarding({
             )}
             {effectiveId && !selected && (
               <p role="status" className="text-sm text-warning">
-                This computer is no longer available. Choose another computer or
-                connect a new one.
+                {t(
+                  "This computer is no longer available. Choose another computer or connect a new one.",
+                )}
               </p>
             )}
             {selected && (
@@ -141,7 +146,9 @@ export function ConnectionOnboarding({
                     <Check className="h-4 w-4 text-accent-bright" />
                   )}
                   {nodeLabel(selected)}{" "}
-                  {selected.online === true ? "is connected" : "is offline"}
+                  {selected.online === true
+                    ? t("is connected")
+                    : t("is offline")}
                 </div>
                 <AgentConnectStep
                   key={selected.node_id}
@@ -159,7 +166,7 @@ export function ConnectionOnboarding({
                   setAddingDevice(true);
                 }}
               >
-                Connect another computer
+                {t("Connect another computer")}
               </Button>
             </div>
           </>

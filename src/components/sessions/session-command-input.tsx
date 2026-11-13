@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
+
 import { useEffect, useId, useRef, useState, type ComponentProps } from "react";
 import { Button } from "@/components/ui/button";
 import type { SessionAvailableCommand } from "@/features/api/types";
@@ -18,6 +20,7 @@ export function SessionCommandInput({
   onKeyDown,
   ...props
 }: Props) {
+  const { t } = useI18n();
   const listId = useId();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [focused, setFocused] = useState(false);
@@ -73,7 +76,7 @@ export function SessionCommandInput({
     >
       {open && (
         <div
-          aria-label="Available commands"
+          aria-label={t("Available commands")}
           className="absolute inset-x-0 bottom-full z-20 mb-2 max-h-64 overflow-x-hidden overflow-y-auto rounded-lg border border-hairline bg-surface-1 p-1 shadow-lg"
           id={listId}
           role="listbox"
@@ -119,7 +122,7 @@ export function SessionCommandInput({
         aria-controls={open ? listId : undefined}
         aria-describedby={hint ? `${listId}-hint` : undefined}
         aria-haspopup="listbox"
-        aria-label={props["aria-label"] ?? "Message"}
+        aria-label={props["aria-label"] ?? t("Message")}
         onChange={(event) => {
           setActiveIndex(0);
           setDismissedValue(undefined);

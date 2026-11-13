@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
+
 import { ExternalSessionNotice } from "./external-session-notice";
 import { SessionAuthenticationNotice } from "./session-authentication-notice";
 import { CronOriginBadge } from "@/components/sessions/cron-origin-badge";
@@ -262,6 +264,7 @@ export function SessionWorkbench({
   onMobileBack,
   onMobileMenu,
 }: SessionWorkbenchProps) {
+  const { t } = useI18n();
   const previewAsUser = useConsoleStore((state) => state.previewAsUser);
   const showAdminFeatures = canSeeAdminFeatures(user, previewAsUser);
   const queryClient = useQueryClient();
@@ -444,12 +447,12 @@ export function SessionWorkbench({
     `new:${activeNodeId ?? "node"}:${activeAgentId ?? "agent"}`;
   const sessionDisplayName =
     activeSession?.name?.trim() ||
-    (currentSessionId ? compactId(currentSessionId) : "New session");
+    (currentSessionId ? compactId(currentSessionId) : t("New session"));
   useDocumentTitle(sessionDisplayName);
   const sessionTitleTooltip =
     activeSession?.name && currentSessionId
       ? `${activeSession.name} (${currentSessionId})`
-      : (currentSessionId ?? "New session");
+      : (currentSessionId ?? t("New session"));
   const handleSessionAssigned = useCallback(
     (nextSessionId: string, notifyParent = true) => {
       if (activeAgentId) {
@@ -528,16 +531,18 @@ export function SessionWorkbench({
   const beginEncryptedSession = useCallback(
     async (prompt: string) => {
       if (!activeAgentId || !activeNodeId) {
-        throw new Error("Select a node and agent before starting a session");
+        throw new Error(t("Select a node and agent before starting a session"));
       }
       if (encryptedRuntime.keyLoading) {
         throw new Error(
-          "The browser is still loading this agent's encryption key",
+          t("The browser is still loading this agent's encryption key"),
         );
       }
       if (!encryptedRuntime.rootKeyAvailable) {
         throw new Error(
-          "This browser does not have this agent's encryption key. Pair it from Settings / Security before starting an encrypted session.",
+          t(
+            "This browser does not have this agent's encryption key. Pair it from Settings / Security before starting an encrypted session.",
+          ),
         );
       }
 
@@ -570,6 +575,7 @@ export function SessionWorkbench({
       initialPrimaryProjectId,
       newSessionApprovalMode,
       normalizedNewSessionCwd,
+      t,
       user.user_id,
     ],
   );
@@ -581,7 +587,9 @@ export function SessionWorkbench({
     !encryptedRuntime.keyLoading &&
     !encryptedRuntime.rootKeyAvailable
       ? new Error(
-          "This browser does not have this agent's encryption key. Pair it from Settings / Security to decrypt the session.",
+          t(
+            "This browser does not have this agent's encryption key. Pair it from Settings / Security to decrypt the session.",
+          ),
         )
       : null;
 
@@ -695,7 +703,7 @@ export function SessionWorkbench({
       messageWindow.error ??
       (messageTarget && usesEncryptedTransport
         ? new SessionMessageUnavailableError(
-            "Encrypted messages are not search targets.",
+            t("Encrypted messages are not search targets."),
           )
         : !plainHistoryQuery.isSuccess
           ? (plainHistoryQuery.error ?? sessionMetadataQuery.error)
@@ -708,6 +716,7 @@ export function SessionWorkbench({
       plainHistoryQuery.isSuccess,
       plainHistoryQuery.error,
       sessionMetadataQuery.error,
+      t,
     ],
   );
   const focusedHistory = Boolean(messageTarget && messageWindow.focused);
@@ -830,7 +839,7 @@ export function SessionWorkbench({
   const createCapsule = useMutation({
     mutationFn: () => {
       if (!currentSessionId) {
-        throw new Error("Start the session before creating a capsule.");
+        throw new Error(t("Start the session before creating a capsule."));
       }
 
       return createKnowledgeCapsule(
@@ -847,7 +856,7 @@ export function SessionWorkbench({
   const injectCapsule = useMutation({
     mutationFn: () => {
       if (!currentSessionId) {
-        throw new Error("Start the session before injecting a capsule.");
+        throw new Error(t("Start the session before injecting a capsule."));
       }
 
       return injectKnowledgeCapsule(
@@ -1134,7 +1143,9 @@ export function SessionWorkbench({
       value: string | boolean;
     }) => {
       if (!activeNodeId || !activeAgentId || !currentSessionId) {
-        throw new Error("Start the session before changing its configuration.");
+        throw new Error(
+          t("Start the session before changing its configuration."),
+        );
       }
       return setSessionConfigOption(
         user.user_id,
@@ -1173,7 +1184,7 @@ export function SessionWorkbench({
     mutationFn: async () => {
       if (!activeNodeId || !activeAgentId || !currentSessionId) {
         throw new Error(
-          "Start the session before refreshing its configuration.",
+          t("Start the session before refreshing its configuration."),
         );
       }
       return forceRefreshSessionConfiguration(
@@ -1206,7 +1217,7 @@ export function SessionWorkbench({
   const updateSessionApprovalMode = useMutation({
     mutationFn: async (approvalMode: SessionApprovalMode) => {
       if (!activeNodeId || !activeAgentId || !currentSessionId) {
-        throw new Error("Start the session before changing approval mode.");
+        throw new Error(t("Start the session before changing approval mode."));
       }
 
       return updateAgentSession(
@@ -1249,7 +1260,7 @@ export function SessionWorkbench({
   const updateSessionPermission = useMutation({
     mutationFn: async (permissionChoiceId: string) => {
       if (!activeNodeId || !activeAgentId || !currentSessionId) {
-        throw new Error("Start the session before changing permissions.");
+        throw new Error(t("Start the session before changing permissions."));
       }
       return setAgentSessionPermission(
         user.user_id,
@@ -1295,7 +1306,7 @@ export function SessionWorkbench({
       input: { name: string } | { use_reported_name: true },
     ) => {
       if (!activeNodeId || !activeAgentId || !currentSessionId) {
-        throw new Error("Start the session before changing its name.");
+        throw new Error(t("Start the session before changing its name."));
       }
 
       return updateAgentSession(
@@ -1341,7 +1352,7 @@ export function SessionWorkbench({
         !currentSessionId ||
         !activeSession?.runtime_turn_instance_id
       ) {
-        throw new Error("This session has no active runtime turn to reset.");
+        throw new Error(t("This session has no active runtime turn to reset."));
       }
       return resetSessionRuntime(
         user.user_id,
@@ -1399,7 +1410,7 @@ export function SessionWorkbench({
   const stopTurn = useMutation({
     mutationFn: async () => {
       if (!activeAgentId || !currentSessionId) {
-        throw new Error("Wait for the session id before stopping the turn.");
+        throw new Error(t("Wait for the session id before stopping the turn."));
       }
 
       return stopSessionTurn(user.user_id, activeAgentId, currentSessionId, {
@@ -1444,7 +1455,7 @@ export function SessionWorkbench({
       attachmentIds?: string[];
     }) => {
       if (!activeAgentId || !currentSessionId) {
-        throw new Error("Wait for the session id before queuing the turn.");
+        throw new Error(t("Wait for the session id before queuing the turn."));
       }
 
       return queueSessionTurn(user.user_id, activeAgentId, currentSessionId, {
@@ -1477,7 +1488,9 @@ export function SessionWorkbench({
   const updateQueuedTurn = useMutation({
     mutationFn: async (input: string) => {
       if (!activeAgentId || !currentSessionId) {
-        throw new Error("Wait for the session id before updating the queue.");
+        throw new Error(
+          t("Wait for the session id before updating the queue."),
+        );
       }
 
       return updateQueuedSessionTurn(
@@ -1510,7 +1523,9 @@ export function SessionWorkbench({
   const deleteQueuedTurn = useMutation({
     mutationFn: async () => {
       if (!activeAgentId || !currentSessionId) {
-        throw new Error("Wait for the session id before deleting the queue.");
+        throw new Error(
+          t("Wait for the session id before deleting the queue."),
+        );
       }
 
       return deleteQueuedSessionTurn(
@@ -1543,7 +1558,7 @@ export function SessionWorkbench({
       attachmentIds?: string[];
     }) => {
       if (!activeAgentId || !currentSessionId) {
-        throw new Error("Wait for the session id before steering the turn.");
+        throw new Error(t("Wait for the session id before steering the turn."));
       }
 
       return steerSessionTurn(user.user_id, activeAgentId, currentSessionId, {
@@ -2078,7 +2093,9 @@ export function SessionWorkbench({
           if (isTurnRunning) {
             setSendError(
               new Error(
-                "Wait for the encrypted turn to finish before sending another prompt.",
+                t(
+                  "Wait for the encrypted turn to finish before sending another prompt.",
+                ),
               ),
             );
             return false;
@@ -2174,6 +2191,7 @@ export function SessionWorkbench({
       queueDraft,
       recoverPermissionCatalogAfterCreateFailure,
       sendEncryptedMessage,
+      t,
       sendConversationMessage,
     ],
   );
@@ -2469,8 +2487,8 @@ export function SessionWorkbench({
 
   const browserButton = activeNodeId ? (
     <Button
-      aria-label="Watch browser"
-      tooltip="Watch browser"
+      aria-label={t("Watch browser")}
+      tooltip={t("Watch browser")}
       aria-expanded={browserOpen}
       size="sm"
       className="w-full justify-start text-ink-muted"
@@ -2481,14 +2499,14 @@ export function SessionWorkbench({
         setActiveSidePanelId(null);
       }}
     >
-      <span>Open browser</span>
+      <span>{t("Open browser")}</span>
     </Button>
   ) : null;
 
   const mobileButton = activeNodeId ? (
     <Button
-      aria-label="Watch Android phone"
-      tooltip="Watch Android phone"
+      aria-label={t("Watch Android phone")}
+      tooltip={t("Watch Android phone")}
       aria-expanded={mobileOpen}
       size="sm"
       className="w-full justify-start text-ink-muted"
@@ -2499,7 +2517,7 @@ export function SessionWorkbench({
         setActiveSidePanelId(null);
       }}
     >
-      Open Android phone
+      {t("Open Android phone")}
     </Button>
   ) : null;
 
@@ -2507,8 +2525,8 @@ export function SessionWorkbench({
     [
       {
         id: "tool",
-        label: "Tool",
-        description: "Selected timeline evidence",
+        label: t("Tool"),
+        description: t("Selected timeline evidence"),
         icon: <Wrench className="h-4 w-4" />,
         content: (
           <ToolEvidencePanel
@@ -2520,8 +2538,8 @@ export function SessionWorkbench({
       },
       {
         id: "artifacts",
-        label: "Artifacts",
-        description: "Uploaded files and generated outputs",
+        label: t("Artifacts"),
+        description: t("Uploaded files and generated outputs"),
         icon: <FileText className="h-4 w-4" />,
         content: (
           <SessionArtifactsPanel
@@ -2538,7 +2556,7 @@ export function SessionWorkbench({
             onLoadPreview={async (artifact) => {
               const content = primaryArtifactContent(artifact);
               if (!content) {
-                throw new Error("Artifact has no content.");
+                throw new Error(t("Artifact has no content."));
               }
               const data = await getArtifactContentURL(
                 user.user_id,
@@ -2559,26 +2577,30 @@ export function SessionWorkbench({
       },
       {
         id: "browser",
-        label: "Browser",
-        description: "Browser on this session’s device",
+        label: t("Browser"),
+        description: t("Browser on this session’s device"),
         icon: <Monitor className="h-4 w-4" />,
         content: browserButton ?? (
-          <p className="text-sm text-ink-tertiary">No device available.</p>
+          <p className="text-sm text-ink-tertiary">
+            {t("No device available.")}
+          </p>
         ),
       },
       {
         id: "mobile",
         label: "Android",
-        description: "Emulated phones on this session's device",
+        description: t("Emulated phones on this session's device"),
         icon: <Smartphone className="h-4 w-4" />,
         content: mobileButton ?? (
-          <p className="text-sm text-ink-tertiary">No device available.</p>
+          <p className="text-sm text-ink-tertiary">
+            {t("No device available.")}
+          </p>
         ),
       },
       {
         id: "knowledge",
-        label: "Knowledge",
-        description: "Capsules and system handoff injections",
+        label: t("Knowledge"),
+        description: t("Capsules and system handoff injections"),
         icon: <Brain className="h-4 w-4" />,
         content: (
           <KnowledgeTools
@@ -2656,8 +2678,12 @@ export function SessionWorkbench({
               <Button
                 aria-label={
                   onMobileMenu
-                    ? `Open ${mobileMenuLabel ?? "sidebar"}`
-                    : `Back to ${mobileBackLabel ?? "Chat"}`
+                    ? t("Open {label}", {
+                        label: mobileMenuLabel ?? t("sidebar"),
+                      })
+                    : t("Back to {title}", {
+                        title: mobileBackLabel ?? t("Chat"),
+                      })
                 }
                 className="lg:hidden"
                 icon={
@@ -2671,8 +2697,12 @@ export function SessionWorkbench({
                 size="icon"
                 tooltip={
                   onMobileMenu
-                    ? `Open ${mobileMenuLabel ?? "sidebar"}`
-                    : `Back to ${mobileBackLabel ?? "Chat"}`
+                    ? t("Open {label}", {
+                        label: mobileMenuLabel ?? t("sidebar"),
+                      })
+                    : t("Back to {title}", {
+                        title: mobileBackLabel ?? t("Chat"),
+                      })
                 }
                 type="button"
                 variant="ghost"
@@ -2685,11 +2715,11 @@ export function SessionWorkbench({
                   {projectQuery.data?.project.display_name ??
                     activeNode?.name ??
                     activeNode?.hostname ??
-                    "No project"}
+                    t("No project")}
                 </TruncatedText>
                 <span className="shrink-0">/</span>
                 <TruncatedText>
-                  {activeAgent?.name ?? activeAgentId ?? "Unknown agent"}
+                  {activeAgent?.name ?? activeAgentId ?? t("Unknown agent")}
                 </TruncatedText>
               </div>
               <div className="flex min-w-0 items-center gap-1">
@@ -2699,7 +2729,7 @@ export function SessionWorkbench({
                     onSubmit={submitSessionName}
                   >
                     <input
-                      aria-label="Session name"
+                      aria-label={t("Session name")}
                       autoFocus
                       className="h-8 min-w-0 max-w-80 flex-1 rounded-md border border-hairline-strong bg-surface-2 px-2 text-base font-medium text-ink outline-none focus:border-primary sm:text-sm"
                       maxLength={120}
@@ -2715,7 +2745,7 @@ export function SessionWorkbench({
                       value={sessionNameDraft}
                     />
                     <Button
-                      aria-label="Save session name"
+                      aria-label={t("Save session name")}
                       className="h-8 w-8"
                       disabled={
                         !sessionNameDraft.trim() ||
@@ -2730,13 +2760,13 @@ export function SessionWorkbench({
                         )
                       }
                       size="icon"
-                      tooltip="Save session name"
+                      tooltip={t("Save session name")}
                       type="submit"
                       variant="ghost"
                     />
                     {activeSession?.name_is_custom && (
                       <Button
-                        aria-label="Use reported session name"
+                        aria-label={t("Use reported session name")}
                         className="h-8 w-8"
                         disabled={updateSessionName.isPending}
                         icon={<RotateCcw className="h-4 w-4" />}
@@ -2746,13 +2776,18 @@ export function SessionWorkbench({
                           })
                         }
                         size="icon"
-                        tooltip={`Use reported name: ${activeSession.reported_name ?? currentSessionId}`}
+                        tooltip={t("Use reported name: {name}", {
+                          name:
+                            activeSession.reported_name ??
+                            currentSessionId ??
+                            "",
+                        })}
                         type="button"
                         variant="ghost"
                       />
                     )}
                     <Button
-                      aria-label="Cancel session name edit"
+                      aria-label={t("Cancel session name edit")}
                       className="h-8 w-8"
                       disabled={updateSessionName.isPending}
                       icon={<X className="h-4 w-4" />}
@@ -2761,7 +2796,7 @@ export function SessionWorkbench({
                         setSessionNameDraft("");
                       }}
                       size="icon"
-                      tooltip="Cancel"
+                      tooltip={t("Cancel")}
                       type="button"
                       variant="ghost"
                     />
@@ -2777,9 +2812,13 @@ export function SessionWorkbench({
                   </>
                 )}
                 {usesEncryptedTransport && (
-                  <Tooltip content="End-to-end encrypted between this browser and paxd">
+                  <Tooltip
+                    content={t(
+                      "End-to-end encrypted between this browser and paxd",
+                    )}
+                  >
                     <span
-                      aria-label="End-to-end encrypted session"
+                      aria-label={t("End-to-end encrypted session")}
                       className="inline-flex h-6 shrink-0 items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-400/[0.07] px-2 text-[10px] font-semibold tracking-[0.14em] text-emerald-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_0_18px_rgba(52,211,153,0.06)]"
                     >
                       <ShieldCheck className="h-3 w-3" />
@@ -2804,7 +2843,9 @@ export function SessionWorkbench({
             <SubagentCountBadge count={runningSubagents} />
             <SubagentCountBadge
               count={activeCodexSubagents}
-              label={`${activeCodexSubagents} sub agent active`}
+              label={t("{count} sub agent active", {
+                count: activeCodexSubagents,
+              })}
             />
             <SessionRuntimeActions
               canReset={Boolean(
@@ -2819,7 +2860,9 @@ export function SessionWorkbench({
               <Button
                 className="shrink-0"
                 aria-label={
-                  activeSidePanel ? "Hide session panel" : "Open session panel"
+                  activeSidePanel
+                    ? t("Hide session panel")
+                    : t("Open session panel")
                 }
                 icon={<PanelRight className="h-4 w-4" />}
                 onClick={() =>
@@ -2829,7 +2872,9 @@ export function SessionWorkbench({
                 }
                 size="icon"
                 tooltip={
-                  activeSidePanel ? "Hide session panel" : "Open session panel"
+                  activeSidePanel
+                    ? t("Hide session panel")
+                    : t("Open session panel")
                 }
                 type="button"
                 variant={activeSidePanel ? "secondary" : "ghost"}
@@ -2938,7 +2983,7 @@ export function SessionWorkbench({
                 }
                 aria-label={
                   isMessageTarget(item, messageTarget)
-                    ? "Selected search message"
+                    ? t("Selected search message")
                     : undefined
                 }
                 tabIndex={isMessageTarget(item, messageTarget) ? -1 : undefined}
@@ -2972,8 +3017,8 @@ export function SessionWorkbench({
                   size="sm"
                 >
                   {messageWindow.isFetchingPreviousPage
-                    ? "Loading newer messages…"
-                    : "Load newer messages"}
+                    ? t("Loading newer messages…")
+                    : t("Load newer messages")}
                 </Button>
               </div>
             )}
@@ -2992,7 +3037,7 @@ export function SessionWorkbench({
               workstreamItems.length === 0 &&
               !isAgentResponsePending && (
                 <div className="rounded-lg border border-dashed border-hairline bg-surface-1 p-4 text-sm text-ink-tertiary">
-                  No messages yet. Live tunnel events will appear here.
+                  {t("No messages yet. Live tunnel events will appear here.")}
                 </div>
               )}
           </div>
@@ -3018,7 +3063,7 @@ export function SessionWorkbench({
               variant="ghost"
               size="sm"
             >
-              Cancel upload
+              {t("Cancel upload")}
             </Button>
           </div>
         )}
@@ -3108,7 +3153,7 @@ export function SessionWorkbench({
       {activeSidePanel && (
         <button
           type="button"
-          aria-label="Close session panel"
+          aria-label={t("Close session panel")}
           className="absolute inset-0 z-20 bg-black/40 lg:hidden"
           onClick={() => setActiveSidePanelId(null)}
         />
@@ -3119,15 +3164,15 @@ export function SessionWorkbench({
             <div className="min-w-0">
               <div className="flex items-center gap-2 text-sm font-medium text-ink">
                 <PanelRight className="h-4 w-4" />
-                Session panel
+                {t("Session panel")}
               </div>
             </div>
             <Button
-              aria-label={`Hide ${activeSidePanel.label}`}
+              aria-label={t("Hide {label}", { label: activeSidePanel.label })}
               icon={<X className="h-4 w-4" />}
               onClick={() => setActiveSidePanelId(null)}
               size="icon"
-              tooltip={`Hide ${activeSidePanel.label}`}
+              tooltip={t("Hide {label}", { label: activeSidePanel.label })}
               type="button"
               variant="ghost"
             />
@@ -3170,7 +3215,7 @@ export function SessionWorkbench({
   // copy-only. The provider is always mounted so assigning a session id
   // does not remount the workbench.
   const localFileFetchDisabledReason = !currentSessionId
-    ? "Start the session to fetch files from the agent's machine."
+    ? t("Start the session to fetch files from the agent's machine.")
     : usesEncryptedTransport
       ? E2EE_FETCH_UNAVAILABLE
       : activeNode?.online === false || activeAgent?.online === false
@@ -3291,6 +3336,7 @@ function KnowledgeTools({
   onSelectedCapsuleChange: (capsuleId: string) => void;
   selectedCapsuleId: string;
 }) {
+  const { t } = useI18n();
   function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (capsuleKeyword.trim()) {
@@ -3311,7 +3357,7 @@ function KnowledgeTools({
         <input
           className="min-h-9 rounded-lg border border-hairline bg-canvas px-3 text-sm text-ink outline-none focus:border-primary-focus"
           onChange={(event) => onKeywordChange(event.target.value)}
-          placeholder="Keyword for capsule"
+          placeholder={t("Keyword for capsule")}
           value={capsuleKeyword}
         />
         <Button
@@ -3319,7 +3365,7 @@ function KnowledgeTools({
           type="submit"
           variant="primary"
         >
-          Create capsule
+          {t("Create capsule")}
         </Button>
         {createError && <InlineError error={createError} />}
       </form>
@@ -3337,7 +3383,7 @@ function KnowledgeTools({
           ))}
         </select>
         <Button disabled={injectPending || !selectedCapsuleId} type="submit">
-          Inject capsule
+          {t("Inject capsule")}
         </Button>
         {injectError && <InlineError error={injectError} />}
       </form>
@@ -3345,12 +3391,14 @@ function KnowledgeTools({
       <section className="grid gap-2">
         <div className="flex min-w-0 items-center justify-between gap-3">
           <TruncatedText className="text-sm font-medium">
-            Injections
+            {t("Injections")}
           </TruncatedText>
           <Badge className="font-mono">{String(injections.length)}</Badge>
         </div>
         {injectionsLoading && (
-          <div className="text-xs text-ink-tertiary">Loading injections</div>
+          <div className="text-xs text-ink-tertiary">
+            {t("Loading injections")}
+          </div>
         )}
         {injections.map((injection) => (
           <div
@@ -3366,13 +3414,13 @@ function KnowledgeTools({
             <MonoId tooltip={injection.delivery_message_id ?? "pending"}>
               {injection.delivery_message_id
                 ? compactId(injection.delivery_message_id)
-                : "pending delivery"}
+                : t("pending delivery")}
             </MonoId>
           </div>
         ))}
         {!injectionsLoading && injections.length === 0 && (
           <div className="rounded-lg border border-dashed border-hairline bg-canvas p-2 text-xs text-ink-tertiary">
-            No injections for this session
+            {t("No injections for this session")}
           </div>
         )}
       </section>
@@ -3417,6 +3465,7 @@ function SessionErrors({
   missingRouteState: boolean;
   sendError: Error | null;
 }) {
+  const { t } = useI18n();
   if (!messagesError && !missingRouteState && !sendError) {
     return null;
   }
@@ -3427,10 +3476,14 @@ function SessionErrors({
     <div className="flex min-w-0 items-start gap-3 rounded-lg border border-hairline bg-surface-1 p-3 text-sm text-ink-muted">
       <AlertCircle className="mt-0.5 h-4 w-4 text-warning" />
       <div className="min-w-0">
-        <div className="font-medium text-ink">Session connection notice</div>
+        <div className="font-medium text-ink">
+          {t("Session connection notice")}
+        </div>
         <TruncatedText className="mt-1 font-mono text-xs text-ink-tertiary">
           {missingRouteState
-            ? "Missing nodeId or agentId. Open a session from the fleet overview to connect both REST and WebSocket."
+            ? t(
+                "Missing nodeId or agentId. Open a session from the fleet overview to connect both REST and WebSocket.",
+              )
             : error
               ? formatErrorDetail(error)
               : ""}

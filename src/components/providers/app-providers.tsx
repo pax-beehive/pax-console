@@ -1,5 +1,6 @@
 "use client";
 
+import { LocaleProvider } from "@/features/i18n/locale-provider";
 import { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -11,10 +12,12 @@ export function AppProviders({ children }: { children: ReactNode }) {
   const isPublicOverview =
     pathname === "/overview" || pathname === "/zh/overview";
   return (
-    <QueryProvider>
-      <TooltipProvider>
-        {isPublicOverview ? children : <RegionGate>{children}</RegionGate>}
-      </TooltipProvider>
-    </QueryProvider>
+    <LocaleProvider>
+      <QueryProvider>
+        <TooltipProvider>
+          {isPublicOverview ? children : <RegionGate>{children}</RegionGate>}
+        </TooltipProvider>
+      </QueryProvider>
+    </LocaleProvider>
   );
 }

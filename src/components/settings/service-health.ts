@@ -1,4 +1,5 @@
 import type { Agent, Health, Node } from "@/features/api/types";
+import { translators, type Translator } from "@/features/i18n/translate";
 import { isDeviceNode } from "@/components/resources/resource-models";
 
 export type ConnectionState = "Online" | "Offline" | "Unknown";
@@ -14,12 +15,14 @@ export function connectionState(
 }
 
 export function serviceHealth({
+  t = translators.en,
   health,
   nodes,
   agents,
   loading,
   error,
 }: {
+  t?: Translator;
   health?: Health;
   nodes?: Node[];
   agents?: Agent[];
@@ -32,27 +35,27 @@ export function serviceHealth({
 } {
   if (loading)
     return {
-      title: "Checking status",
-      description: "Fetching service and device status.",
+      title: t("Checking status"),
+      description: t("Fetching service and device status."),
       tone: "neutral",
     };
   if (error)
     return {
-      title: "Status unavailable",
-      description: "Some status checks failed. Open details to retry.",
+      title: t("Status unavailable"),
+      description: t("Some status checks failed. Open details to retry."),
       tone: "warning",
     };
   const service = health?.status?.toLowerCase();
   if (!service || !nodes || !agents)
     return {
-      title: "Status unknown",
-      description: "Not all services have reported their status.",
+      title: t("Status unknown"),
+      description: t("Not all services have reported their status."),
       tone: "neutral",
     };
   if (!["ok", "healthy", "up", "operational"].includes(service))
     return {
-      title: "Service needs attention",
-      description: `PAX reports: ${health?.status}`,
+      title: t("Service needs attention"),
+      description: t("PAX reports: {status}", { status: health?.status ?? "" }),
       tone: "warning",
     };
   const devices = nodes.filter(isDeviceNode);
@@ -64,23 +67,30 @@ export function serviceHealth({
   ).length;
   if (offlineNodes || offlineAgents)
     return {
-      title: "Some resources are offline",
-      description: `${offlineNodes} device(s) and ${offlineAgents} agent(s) offline. PAX is responding.`,
+      title: t("Some resources are offline"),
+      description: t(
+        "{devices} device(s) and {agents} agent(s) offline. PAX is responding.",
+        { devices: offlineNodes, agents: offlineAgents },
+      ),
       tone: "warning",
     };
   if ([...devices, ...agents].some((r) => connectionState(r) === "Unknown"))
     return {
-      title: "Some status is unknown",
-      description:
+      title: t("Some status is unknown"),
+      description: t(
         "PAX is responding. Some resources have not reported a connection state.",
+      ),
       tone: "neutral",
     };
   return {
     title:
       devices.length || agents.length
-        ? "All systems operational"
-        : "PAX is operational",
-    description: `${devices.length} device(s) and ${agents.length} agent(s) online.`,
+        ? t("All systems operational")
+        : t("PAX is operational"),
+    description: t("{devices} device(s) and {agents} agent(s) online.", {
+      devices: devices.length,
+      agents: agents.length,
+    }),
     tone: "success",
   };
 }

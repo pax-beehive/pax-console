@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n, type Translator } from "@/features/i18n/use-i18n";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { settingsLinks } from "@/components/settings/settings-navigation";
@@ -69,6 +71,7 @@ export function NodeDaemonControl({
   nodeId,
   userId,
 }: NodeDaemonControlProps) {
+  const { t, locale } = useI18n();
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<NodeDaemonAgentConnection>();
@@ -245,7 +248,7 @@ export function NodeDaemonControl({
     : canCreateAgent
       ? "ready to create"
       : "no harnesses";
-  const discoverMessage = buildDiscoverMessage({
+  const discoverMessage = buildDiscoverMessage(t, locale, {
     canCreateAgent,
     discoverFeedback,
     isLoading: harnessesQuery.isLoading,
@@ -275,13 +278,13 @@ export function NodeDaemonControl({
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <h2 className="text-base font-medium">
-            {agentId ? "Agent runtime settings" : "paxd agent control"}
+            {agentId ? t("Agent runtime settings") : t("paxd agent control")}
           </h2>
           <Badge tone={phase === "running" ? "success" : "neutral"}>
-            {phase ?? (statusQuery.isLoading ? "checking" : "unavailable")}
+            {t(phase ?? (statusQuery.isLoading ? "checking" : "unavailable"))}
           </Badge>
           <span className="text-xs text-ink-tertiary">
-            {connections.length} connections
+            {connections.length} {t("connections")}
           </span>
         </div>
         <div className="flex min-w-0 flex-wrap gap-2">
@@ -290,7 +293,7 @@ export function NodeDaemonControl({
             icon={<RefreshCw className="h-4 w-4" />}
             onClick={() => void refresh()}
             size="icon"
-            tooltip="Refresh paxd control state"
+            tooltip={t("Refresh paxd control state")}
             type="button"
             variant="ghost"
           />
@@ -305,7 +308,7 @@ export function NodeDaemonControl({
                 <Link
                   href={`${settingsLinks.addAgent}?nodeId=${encodeURIComponent(nodeId)}`}
                 >
-                  Connect an agent
+                  {t("Connect an agent")}
                 </Link>
               </Button>
               <Button
@@ -315,10 +318,10 @@ export function NodeDaemonControl({
                 icon={<ScanSearch className="h-4 w-4" />}
                 onClick={() => discover.mutate()}
                 size="sm"
-                tooltip="Probe this node for installed agent harnesses"
+                tooltip={t("Probe this node for installed agent harnesses")}
                 type="button"
               >
-                {discover.isPending ? "Discovering..." : "Discover"}
+                {discover.isPending ? t("Discovering...") : t("Discover")}
               </Button>
               <Button
                 disabled={
@@ -332,13 +335,15 @@ export function NodeDaemonControl({
                 size="sm"
                 tooltip={
                   canCreateAgent
-                    ? "Create a new agent from an available harness"
-                    : "Run Discover and make sure at least one harness is available before creating an agent"
+                    ? t("Create a new agent from an available harness")
+                    : t(
+                        "Run Discover and make sure at least one harness is available before creating an agent",
+                      )
                 }
                 type="button"
                 variant="secondary"
               >
-                Advanced setup
+                {t("Advanced setup")}
               </Button>
             </>
           )}
@@ -347,22 +352,28 @@ export function NodeDaemonControl({
 
       {agentId ? (
         <p className="text-sm text-ink-muted">
-          Edit this agent’s Slots and runtime configuration. Changes also appear
-          in the node’s settings.
+          {t(
+            "Edit this agent’s Slots and runtime configuration. Changes also appear in the node’s settings.",
+          )}
         </p>
       ) : (
         <div className="grid gap-2 rounded-md border border-hairline bg-canvas px-3 py-2.5">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <Badge tone={discoverStatusTone}>{discoverStatusLabel}</Badge>
+            <Badge tone={discoverStatusTone}>{t(discoverStatusLabel)}</Badge>
             <span className="text-sm text-ink-muted">{discoverMessage}</span>
           </div>
           <div className="flex min-w-0 flex-wrap gap-x-3 gap-y-1 text-xs text-ink-tertiary">
             <span>
-              {availableHarnesses.length}/{harnesses.length} harnesses available
+              {availableHarnesses.length}/{harnesses.length}{" "}
+              {t("harnesses available")}
             </span>
-            <span>{connections.length} current connections</span>
             <span>
-              New agents inherit their agent type from the selected harness.
+              {connections.length} {t("current connections")}
+            </span>
+            <span>
+              {t(
+                "New agents inherit their agent type from the selected harness.",
+              )}
             </span>
           </div>
         </div>
@@ -373,7 +384,7 @@ export function NodeDaemonControl({
           {queryError?.message ??
             controlError?.message ??
             mutationError?.message ??
-            "Daemon control request failed."}
+            t("Daemon control request failed.")}
         </div>
       )}
 
@@ -388,14 +399,14 @@ export function NodeDaemonControl({
 
       {lastCommand && (
         <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-md border border-hairline bg-canvas px-3 py-2">
-          <span className="text-xs text-ink-tertiary">Last command</span>
+          <span className="text-xs text-ink-tertiary">{t("Last command")}</span>
           <MonoId tooltip={lastCommand.id}>{compactId(lastCommand.id)}</MonoId>
           <Badge tone={commandTone(lastCommand.status)}>
-            command {lastCommand.status}
+            {t("command")} {t(lastCommand.status)}
           </Badge>
           {lastCommand.runtime && (
             <Badge tone={runtimeTone(runtimeOutcome)}>
-              runtime {runtimeOutcome ?? "reconciling"}
+              {t("runtime")} {t(runtimeOutcome ?? "reconciling")}
             </Badge>
           )}
         </div>
@@ -418,7 +429,7 @@ export function NodeDaemonControl({
             <ConnectionRow
               busy={action.isPending || runtimeReconciling || controlQueryBusy}
               connection={connection}
-              editLabel={agentId ? "Edit settings" : undefined}
+              editLabel={agentId ? t("Edit settings") : undefined}
               key={connection.id}
               onEdit={() => setEditing(connection)}
               onRemove={() => setRemoveTarget(connection)}
@@ -433,13 +444,15 @@ export function NodeDaemonControl({
           connections.length === 0 && (
             <div className="bg-canvas px-3 py-5 text-center text-sm text-ink-tertiary">
               {agentId
-                ? "No paxd-managed connection is linked to this agent. Runtime settings are unavailable."
-                : "No paxd-managed agent connections."}
+                ? t(
+                    "No paxd-managed connection is linked to this agent. Runtime settings are unavailable.",
+                  )
+                : t("No paxd-managed agent connections.")}
             </div>
           )}
         {connectionsQuery.isLoading && (
           <div className="bg-canvas px-3 py-5 text-center text-sm text-ink-tertiary">
-            Loading daemon connections…
+            {t("Loading daemon connections…")}
           </div>
         )}
       </div>
@@ -453,14 +466,16 @@ export function NodeDaemonControl({
       )}
 
       <ConfirmDialog
-        confirmLabel={action.isPending ? "Removing..." : "Remove connection"}
+        confirmLabel={
+          action.isPending ? t("Removing...") : t("Remove connection")
+        }
         description={
           <>
-            This asks paxd to delete the local connection for{" "}
+            {t("This asks paxd to delete the local connection for")}{" "}
             <span className="font-medium text-ink">
               {removeTarget?.name ?? removeTarget?.id}
             </span>
-            . The cloud agent record is retained.
+            {t(". The cloud agent record is retained.")}
           </>
         }
         disabled={action.isPending}
@@ -473,7 +488,7 @@ export function NodeDaemonControl({
           if (!open) setRemoveTarget(undefined);
         }}
         open={Boolean(removeTarget)}
-        title="Remove daemon connection?"
+        title={t("Remove daemon connection?")}
       />
     </section>
   );
@@ -488,28 +503,33 @@ function HarnessInventory({
   isLoading?: boolean;
   lastDiscoveredAt?: number;
 }) {
+  const { t, locale } = useI18n();
   const available = harnesses.filter(
     (item) => item.state === "available",
   ).length;
   const loadingState = Boolean(isLoading && harnesses.length === 0);
   const headerText = isLoading
-    ? "refreshing inventory…"
-    : `${available}/${harnesses.length} available${
+    ? t("refreshing inventory…")
+    : `${t("{available}/{total} available", { available, total: harnesses.length })}${
         lastDiscoveredAt
-          ? ` · last discover ${formatDiscoverTime(lastDiscoveredAt)}`
+          ? t(" · last discover {time}", {
+              time: formatDiscoverTime(lastDiscoveredAt, locale),
+            })
           : ""
       }`;
 
   return (
     <div className="grid min-w-0 gap-2">
       <div className="flex min-w-0 items-center justify-between gap-3">
-        <h3 className="text-sm font-medium text-ink">Harness inventory</h3>
+        <h3 className="text-sm font-medium text-ink">
+          {t("Harness inventory")}
+        </h3>
         <span className="text-xs text-ink-tertiary">{headerText}</span>
       </div>
       <div className="grid min-w-0 overflow-hidden rounded-md border border-hairline">
         {loadingState && (
           <div className="bg-canvas px-3 py-4 text-center text-sm text-ink-tertiary">
-            Loading harness inventory…
+            {t("Loading harness inventory…")}
           </div>
         )}
         {!loadingState &&
@@ -528,12 +548,12 @@ function HarnessInventory({
                     {harness.display_name ?? harness.harness}
                   </TruncatedText>
                   <Badge tone={harnessTone(harness.state)}>
-                    {harness.state}
+                    {t(harness.state)}
                   </Badge>
                 </div>
                 <div className="min-w-0">
                   <TruncatedText className="font-mono text-xs text-ink-muted">
-                    {harness.command?.join(" ") || "No command detected"}
+                    {harness.command?.join(" ") || t("No command detected")}
                   </TruncatedText>
                   {detail && (
                     <TruncatedText
@@ -552,8 +572,10 @@ function HarnessInventory({
         {!loadingState && harnesses.length === 0 && (
           <div className="bg-canvas px-3 py-4 text-center text-sm text-ink-tertiary">
             {lastDiscoveredAt
-              ? "Discovery finished, but paxd did not report any harnesses."
-              : "No harnesses reported yet. Run Discover to probe this node."}
+              ? t("Discovery finished, but paxd did not report any harnesses.")
+              : t(
+                  "No harnesses reported yet. Run Discover to probe this node.",
+                )}
           </div>
         )}
       </div>
@@ -580,6 +602,7 @@ function ConnectionRow({
   onStart: () => void;
   onStop: () => void;
 }) {
+  const { t } = useI18n();
   const phase = connection.status?.phase ?? connection.desired_state;
   return (
     <article className="grid min-w-0 gap-3 border-b border-hairline bg-canvas px-3 py-2.5 last:border-b-0 lg:grid-cols-[minmax(0,1fr)_180px_auto]">
@@ -595,7 +618,7 @@ function ConnectionRow({
                 : "neutral"
             }
           >
-            {phase}
+            {t(phase)}
           </Badge>
         </div>
         <TruncatedText className="mt-1 font-mono text-xs text-ink-tertiary">
@@ -605,10 +628,13 @@ function ConnectionRow({
       <div className="min-w-0">
         <div className="text-xs text-ink-muted">
           {connection.agent_type && connection.agent_type !== connection.harness
-            ? `${connection.agent_type} via ${connection.harness}`
+            ? t("{value1} via {value2}", {
+                value1: connection.agent_type,
+                value2: connection.harness,
+              })
             : connection.harness}{" "}
-          · generation {connection.generation} · {connection.desired_acp_slots}{" "}
-          desired slots
+          {t("· generation")} {connection.generation} ·{" "}
+          {connection.desired_acp_slots} {t("desired slots")}
         </div>
         <MonoId className="mt-1" tooltip={connection.id}>
           {compactId(connection.id)}
@@ -616,12 +642,12 @@ function ConnectionRow({
       </div>
       <div className="flex items-start justify-end gap-1">
         <Button
-          aria-label={editLabel ?? "Edit connection"}
+          aria-label={editLabel ?? t("Edit connection")}
           disabled={busy}
           icon={<Pencil className="h-4 w-4" />}
           onClick={onEdit}
           size={editLabel ? "sm" : "icon"}
-          tooltip="Edit connection"
+          tooltip={t("Edit connection")}
           type="button"
           variant="ghost"
         >
@@ -633,7 +659,7 @@ function ConnectionRow({
             icon={<Play className="h-4 w-4" />}
             onClick={onStart}
             size="icon"
-            tooltip="Start connection"
+            tooltip={t("Start connection")}
             type="button"
             variant="ghost"
           />
@@ -643,7 +669,7 @@ function ConnectionRow({
             icon={<Square className="h-4 w-4" />}
             onClick={onStop}
             size="icon"
-            tooltip="Stop connection"
+            tooltip={t("Stop connection")}
             type="button"
             variant="ghost"
           />
@@ -653,17 +679,17 @@ function ConnectionRow({
           icon={<RotateCw className="h-4 w-4" />}
           onClick={onRestart}
           size="icon"
-          tooltip="Restart connection"
+          tooltip={t("Restart connection")}
           type="button"
           variant="ghost"
         />
         <Button
-          aria-label="Remove daemon connection"
+          aria-label={t("Remove daemon connection")}
           disabled={busy}
           icon={<Trash2 className="h-4 w-4" />}
           onClick={onRemove}
           size="icon"
-          tooltip="Remove daemon connection"
+          tooltip={t("Remove daemon connection")}
           type="button"
           variant="danger"
         />
@@ -690,6 +716,7 @@ function CreateConnectionForm({
     working_dir?: string;
   }) => void;
 }) {
+  const { t } = useI18n();
   const availableHarnesses = harnesses.filter(
     (item) => item.state === "available",
   );
@@ -713,8 +740,9 @@ function CreateConnectionForm({
     return (
       <div className="grid gap-3 rounded-md border border-hairline bg-canvas p-3">
         <p className="text-sm leading-6 text-ink-muted">
-          No available harnesses yet. Run Discover and make sure a harness is
-          installed on this node before creating an agent.
+          {t(
+            "No available harnesses yet. Run Discover and make sure a harness is installed on this node before creating an agent.",
+          )}
         </p>
         <div className="flex justify-end">
           <Button
@@ -723,7 +751,7 @@ function CreateConnectionForm({
             type="button"
             variant="ghost"
           >
-            Close
+            {t("Close")}
           </Button>
         </div>
       </div>
@@ -734,9 +762,11 @@ function CreateConnectionForm({
     <div className="grid gap-3 rounded-md border border-hairline bg-canvas p-3">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <Field
-          label="Name"
+          label={t("Name")}
           onChange={setName}
-          placeholder={agentType ? `${agentType}-work` : "work"}
+          placeholder={
+            agentType ? t("{value1}-work", { value1: agentType }) : t("work")
+          }
           value={name}
         />
         <SelectHarness
@@ -745,18 +775,18 @@ function CreateConnectionForm({
           value={effectiveHarness}
         />
         <ReadonlyField
-          helper="Derived from harness"
-          label="Agent type"
-          value={agentType || "Select a harness"}
+          helper={t("Derived from harness")}
+          label={t("Agent type")}
+          value={agentType || t("Select a harness")}
         />
         <Field
-          label="Instance ID (optional)"
+          label={t("Instance ID (optional)")}
           onChange={setInstanceId}
-          placeholder="work"
+          placeholder={t("work")}
           value={instanceId}
         />
         <NumberField
-          label="Slots"
+          label={t("Slots")}
           max={16}
           min={1}
           onChange={setDesiredSlots}
@@ -765,17 +795,19 @@ function CreateConnectionForm({
       </div>
       <div className="grid gap-1 rounded-md border border-hairline bg-surface-1 px-3 py-2">
         <span className="text-xs text-ink-muted">
-          The selected harness defines the runtime and agent type automatically.
+          {t(
+            "The selected harness defines the runtime and agent type automatically.",
+          )}
         </span>
         <TruncatedText className="font-mono text-xs text-ink-tertiary">
-          {selectedHarness?.command?.join(" ") || "No command detected"}
+          {selectedHarness?.command?.join(" ") || t("No command detected")}
         </TruncatedText>
         {provenance && (
           <span className="text-xs text-ink-tertiary">{provenance}</span>
         )}
       </div>
       <Field
-        label="Working directory (optional)"
+        label={t("Working directory (optional)")}
         onChange={setWorkingDir}
         placeholder="/workspace/project"
         value={workingDir}
@@ -787,7 +819,7 @@ function CreateConnectionForm({
           type="button"
           variant="ghost"
         >
-          Cancel
+          {t("Cancel")}
         </Button>
         <Button
           disabled={
@@ -807,7 +839,7 @@ function CreateConnectionForm({
           type="button"
           variant="primary"
         >
-          {disabled ? "Creating..." : "Create agent"}
+          {disabled ? t("Creating...") : t("Create agent")}
         </Button>
       </div>
     </div>
@@ -833,6 +865,7 @@ function EditConnectionForm({
     working_dir?: string;
   }) => void;
 }) {
+  const { t } = useI18n();
   const [name, setName] = useState(connection.name);
   const [harness, setHarness] = useState(connection.harness);
   const [workingDir, setWorkingDir] = useState(connection.working_dir ?? "");
@@ -847,9 +880,9 @@ function EditConnectionForm({
     <div className="grid gap-3 border-b border-hairline bg-canvas p-3 last:border-b-0">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <Field
-          label="Name"
+          label={t("Name")}
           onChange={setName}
-          placeholder="work"
+          placeholder={t("work")}
           value={name}
         />
         <SelectHarness
@@ -858,13 +891,13 @@ function EditConnectionForm({
           value={harness}
         />
         <Field
-          label="Working directory"
+          label={t("Working directory")}
           onChange={setWorkingDir}
           placeholder="/workspace/project"
           value={workingDir}
         />
         <NumberField
-          label="Slots"
+          label={t("Slots")}
           max={16}
           min={1}
           onChange={setDesiredSlots}
@@ -879,12 +912,11 @@ function EditConnectionForm({
           type="checkbox"
         />
         <span className="grid gap-0.5">
-          <span>Sync local sessions to the cloud</span>
+          <span>{t("Sync local sessions to the cloud")}</span>
           <span className="text-xs leading-5 text-ink-muted">
-            Turn this off to keep sessions created outside PAX local. Sessions
-            created from this web console still sync so their names and history
-            remain available. If multiple accounts on this machine use the same
-            cloud URL, paxd enforces this private mode automatically.
+            {t(
+              "Turn this off to keep sessions created outside PAX local. Sessions created from this web console still sync so their names and history remain available. If multiple accounts on this machine use the same cloud URL, paxd enforces this private mode automatically.",
+            )}
           </span>
         </span>
       </label>
@@ -895,7 +927,7 @@ function EditConnectionForm({
           type="button"
           variant="ghost"
         >
-          Cancel
+          {t("Cancel")}
         </Button>
         <Button
           disabled={disabled || !name.trim() || !harness || !desiredSlotsValid}
@@ -912,7 +944,7 @@ function EditConnectionForm({
           type="button"
           variant="primary"
         >
-          {disabled ? "Saving..." : "Save"}
+          {disabled ? t("Saving...") : t("Save")}
         </Button>
       </div>
     </div>
@@ -1011,16 +1043,17 @@ function SelectHarness({
   onChange: (value: string) => void;
   value: string;
 }) {
+  const { t } = useI18n();
   return (
     <label className="grid min-w-0 gap-1 text-xs text-ink-tertiary">
-      Harness
+      {t("Harness")}{" "}
       <select
         className="min-h-9 min-w-0 rounded-lg border border-hairline bg-surface-1 px-3 text-sm text-ink outline-none focus:border-hairline-strong"
         onChange={(event) => onChange(event.target.value)}
         value={value}
       >
         {harnesses.length === 0 && (
-          <option value="">No harnesses available</option>
+          <option value="">{t("No harnesses available")}</option>
         )}
         {harnesses.map((item) => (
           <option
@@ -1028,7 +1061,7 @@ function SelectHarness({
             key={item.harness}
             value={item.harness}
           >
-            {item.display_name ?? item.harness} ({item.state})
+            {item.display_name ?? item.harness} ({t(item.state)})
           </option>
         ))}
       </select>
@@ -1078,36 +1111,54 @@ function harnessTone(
   return state === "discovering" ? "warning" : "neutral";
 }
 
-function buildDiscoverMessage({
-  canCreateAgent,
-  discoverFeedback,
-  isLoading,
-  isPending,
-}: {
-  canCreateAgent: boolean;
-  discoverFeedback?: DiscoverFeedback;
-  isLoading: boolean;
-  isPending: boolean;
-}) {
+function buildDiscoverMessage(
+  t: Translator,
+  locale: string,
+  {
+    canCreateAgent,
+    discoverFeedback,
+    isLoading,
+    isPending,
+  }: {
+    canCreateAgent: boolean;
+    discoverFeedback?: DiscoverFeedback;
+    isLoading: boolean;
+    isPending: boolean;
+  },
+) {
   if (isPending) {
-    return "Scanning this node for installed harnesses…";
+    return t("Scanning this node for installed harnesses…");
   }
   if (isLoading) {
-    return "Loading the current harness inventory…";
+    return t("Loading the current harness inventory…");
   }
   if (discoverFeedback) {
     if (discoverFeedback.total === 0) {
-      return `Discovery finished at ${formatDiscoverTime(discoverFeedback.discoveredAt)}, but paxd did not report any harnesses.`;
+      return t(
+        "Discovery finished at {time}, but paxd did not report any harnesses.",
+        { time: formatDiscoverTime(discoverFeedback.discoveredAt, locale) },
+      );
     }
-    return `Inventory refreshed at ${formatDiscoverTime(discoverFeedback.discoveredAt)}. ${discoverFeedback.available}/${discoverFeedback.total} harnesses are ready below.`;
+    return t(
+      "Inventory refreshed at {time}. {available}/{total} harnesses are ready below.",
+      {
+        time: formatDiscoverTime(discoverFeedback.discoveredAt, locale),
+        available: discoverFeedback.available,
+        total: discoverFeedback.total,
+      },
+    );
   }
   return canCreateAgent
-    ? "Available harnesses are ready below. Re-run Discover any time to rescan this node."
-    : "Run Discover to probe this node for installed harnesses, then create agents from the available results.";
+    ? t(
+        "Available harnesses are ready below. Re-run Discover any time to rescan this node.",
+      )
+    : t(
+        "Run Discover to probe this node for installed harnesses, then create agents from the available results.",
+      );
 }
 
-function formatDiscoverTime(value: number) {
-  return new Intl.DateTimeFormat(undefined, {
+function formatDiscoverTime(value: number, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));

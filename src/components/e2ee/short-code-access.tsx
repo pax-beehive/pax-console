@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import { useEffect, useRef, useState } from "react";
 import { Copy, Eye, EyeOff } from "lucide-react";
@@ -24,8 +25,11 @@ function useNow() {
   return now;
 }
 function message(error: unknown) {
-  return error instanceof Error ? error.message : "Please try again.";
+  return error instanceof Error ? error.message : null;
 }
+
+type ErrorNotice = { message: string | null };
+type ApprovalNotice = ErrorNotice | "authorized" | "declined";
 
 export function SecretValue({
   label,
@@ -36,9 +40,10 @@ export function SecretValue({
   value: string;
   large?: boolean;
 }) {
+  const { t } = useI18n();
   const [visible, setVisible] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [error, setError] = useState("");
+  const [copyFailed, setCopyFailed] = useState(false);
   return (
     <div className="grid min-w-0 gap-2">
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-ink-tertiary">
@@ -46,7 +51,7 @@ export function SecretValue({
         <div className="flex gap-1">
           <Button
             size="sm"
-            aria-label={visible ? "Hide code" : "Show code"}
+            aria-label={visible ? t("Hide code") : t("Show code")}
             icon={
               visible ? (
                 <EyeOff className="h-4 w-4" />
@@ -64,16 +69,12 @@ export function SecretValue({
                 .writeText(value)
                 .then(() => {
                   setCopied(true);
-                  setError("");
+                  setCopyFailed(false);
                 })
-                .catch(() =>
-                  setError(
-                    "Could not copy. Reveal the code to enter it manually.",
-                  ),
-                );
+                .catch(() => setCopyFailed(true));
             }}
           >
-            {copied ? "Copied" : "Copy"}
+            {copied ? t("Copied") : t("Copy")}
           </Button>
         </div>
       </div>
@@ -88,9 +89,9 @@ export function SecretValue({
             ? "•••• ••••"
             : "••••••••••••••••"}
       </pre>
-      {error && (
+      {copyFailed && (
         <p role="status" className="text-xs text-ink-muted">
-          {error}
+          {t("Could not copy. Reveal the code to enter it manually.")}
         </p>
       )}
     </div>
@@ -108,9 +109,10 @@ export function ShortCodeRecipient({
   pending: PendingPairing;
   onEnded: () => void;
 }) {
+  const { t } = useI18n();
   const now = useNow();
   const [code, setCode] = useState<{ generation: number; value: string }>();
-  const [error, setError] = useState("");
+  const [error, setError] = useState<ErrorNotice>();
   const [busy, setBusy] = useState(false);
   const worker = useRef<ShortCodeCrypto | null>(null);
   const [initial] = useState(pending);
@@ -132,7 +134,7 @@ export function ShortCodeRecipient({
       cryptoWorker,
       controller.signal,
     ).catch((error) => {
-      if (!controller.signal.aborted) setError(message(error));
+      if (!controller.signal.aborted) setError({ message: message(error) });
     });
     return () => {
       controller.abort();
@@ -149,7 +151,7 @@ export function ShortCodeRecipient({
         if (active) setCode({ generation, value });
       })
       .catch((error) => {
-        if (active) setError(message(error));
+        if (active) setError({ message: message(error) });
       });
     return () => {
       active = false;
@@ -157,31 +159,36 @@ export function ShortCodeRecipient({
   }, [generation, initial.pairingId, local]);
   return (
     <div className="grid min-w-0 gap-3">
-      <h2 className="text-sm font-medium">Authorize from another device</h2>
+      <h2 className="text-sm font-medium">
+        {t("Authorize from another device")}
+      </h2>
       <p className="text-sm text-ink-muted">
-        On an authorized device, open Encryption access for this agent and enter
-        this code.
+        {t(
+          "On an authorized device, open Encryption access for this agent and enter this code.",
+        )}
       </p>
       {!expired && code?.generation === generation ? (
-        <SecretValue label="Your code" value={code.value} large />
+        <SecretValue label={t("Your code")} value={code.value} large />
       ) : (
         <p className="text-sm">
-          {expired ? "Code expired. Create a new request." : "Preparing code…"}
+          {expired
+            ? t("Code expired. Create a new request.")
+            : t("Preparing code…")}
         </p>
       )}
       {!expired && (
         <p className="text-center text-xs text-ink-tertiary">
-          New code in{" "}
-          {Math.max(
-            1,
-            Math.ceil((start + (generation + 1) * 60_000 - serverNow) / 1000),
-          )}
-          s · Waiting for access…
+          {t("New code in {seconds}s · Waiting for access…", {
+            seconds: Math.max(
+              1,
+              Math.ceil((start + (generation + 1) * 60_000 - serverNow) / 1000),
+            ),
+          })}
         </p>
       )}
       {error && (
         <p role="status" className="break-words text-sm text-ink-muted">
-          {error}
+          {error.message ?? t("Please try again.")}
         </p>
       )}
       <Button
@@ -190,11 +197,11 @@ export function ShortCodeRecipient({
           setBusy(true);
           void cancelShortPairing(userId, initial)
             .then(onEnded)
-            .catch((error) => setError(message(error)))
+            .catch((error) => setError({ message: message(error) }))
             .finally(() => setBusy(false));
         }}
       >
-        Cancel request
+        {t("Cancel request")}
       </Button>
     </div>
   );
@@ -207,10 +214,11 @@ export function ShortCodeApprover({
   userId: string;
   agentId: string;
 }) {
+  const { t } = useI18n();
   const [input, setInput] = useState("");
   const [visible, setVisible] = useState(false);
   const [grant, setGrant] = useState<ShortCodeGrant>();
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState<ApprovalNotice>();
   const [matching, setMatching] = useState(false);
   const [busy, setBusy] = useState(false);
   const [retry, setRetry] = useState(0);
@@ -229,13 +237,14 @@ export function ShortCodeApprover({
     const timer = setTimeout(() => {
       worker = new ShortCodeCrypto();
       setMatching(true);
-      setStatus("");
+      setStatus(undefined);
       void matchShortCode(userId, agentId, input, worker, controller.signal)
         .then((value) => {
           if (!controller.signal.aborted) setGrant(value);
         })
         .catch((error) => {
-          if (!controller.signal.aborted) setStatus(message(error));
+          if (!controller.signal.aborted)
+            setStatus({ message: message(error) });
         })
         .finally(() => {
           worker?.close();
@@ -258,19 +267,19 @@ export function ShortCodeApprover({
       if (mounted.current) {
         setGrant(undefined);
         setInput("");
-        setStatus(approve ? "Device authorized." : "Request declined.");
+        setStatus(approve ? "authorized" : "declined");
       }
     } catch (error) {
-      if (mounted.current) setStatus(message(error));
+      if (mounted.current) setStatus({ message: message(error) });
     } finally {
       if (mounted.current) setBusy(false);
     }
   }
   return (
     <section className="grid min-w-0 gap-3">
-      <h2 className="text-sm font-medium">Authorize another device</h2>
+      <h2 className="text-sm font-medium">{t("Authorize another device")}</h2>
       <label htmlFor="short-pairing-code" className="text-xs text-ink-tertiary">
-        Code from the new device
+        {t("Code from the new device")}
       </label>
       <div className="flex min-w-0 gap-2">
         <input
@@ -290,12 +299,12 @@ export function ShortCodeApprover({
                 .slice(0, 8),
             );
             setGrant(undefined);
-            setStatus("");
+            setStatus(undefined);
             setMatching(false);
           }}
         />
         <Button
-          aria-label={visible ? "Hide code" : "Show code"}
+          aria-label={visible ? t("Hide code") : t("Show code")}
           icon={
             visible ? (
               <EyeOff className="h-4 w-4" />
@@ -308,18 +317,20 @@ export function ShortCodeApprover({
       </div>
       {matching && (
         <p role="status" className="text-sm text-ink-muted">
-          Matching device…
+          {t("Matching device…")}
         </p>
       )}
       {grant && (
         <div className="grid min-w-0 gap-3 rounded-md border border-hairline p-3">
           <p className="break-words text-sm font-medium">
-            {grant.request.device_name || "New device"}
+            {grant.request.device_name || t("New device")}
           </p>
           <p className="text-xs text-ink-tertiary">
             {expired
-              ? "Confirmation expired. Enter the current code again."
-              : `Confirm within ${Math.ceil((grant.deadline - now) / 1000)}s`}
+              ? t("Confirmation expired. Enter the current code again.")
+              : t("Confirm within {seconds}s", {
+                  seconds: Math.ceil((grant.deadline - now) / 1000),
+                })}
           </p>
           <div className="flex flex-wrap gap-2">
             <Button
@@ -327,20 +338,24 @@ export function ShortCodeApprover({
               disabled={busy || expired}
               onClick={() => void decide(true)}
             >
-              Authorize device
+              {t("Authorize device")}
             </Button>
             <Button
               disabled={busy || expired}
               onClick={() => void decide(false)}
             >
-              Decline
+              {t("Decline")}
             </Button>
           </div>
         </div>
       )}
       {status && (
         <p role="status" className="break-words text-sm text-ink-muted">
-          {status}
+          {status === "authorized"
+            ? t("Device authorized.")
+            : status === "declined"
+              ? t("Request declined.")
+              : (status.message ?? t("Please try again."))}
         </p>
       )}
       {!matching && !busy && /^\d{8}$/.test(input) && (!grant || expired) && (
@@ -350,7 +365,7 @@ export function ShortCodeApprover({
             setRetry((v) => v + 1);
           }}
         >
-          Try again
+          {t("Try again")}
         </Button>
       )}
     </section>

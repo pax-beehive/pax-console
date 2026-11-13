@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import { useCallback, useMemo } from "react";
 import { ArrowLeft } from "lucide-react";
@@ -47,6 +48,7 @@ function ArtifactPreviewPage({
   sourceType,
   user,
 }: ArtifactPreviewRouteProps & { user: User }) {
+  const { t } = useI18n();
   const router = useRouter();
   const publicationQuery = useArtifactPublication(
     sourceType === "publications" ? user.user_id : undefined,
@@ -68,8 +70,8 @@ function ArtifactPreviewPage({
           contentRef,
         ),
         fallbackTitle: publicationQuery.data
-          ? "Untitled artifact"
-          : "Loading artifact…",
+          ? t("Untitled artifact")
+          : t("Loading artifact…"),
         publicationId: artifactId,
         state: publicationQuery.data,
       });
@@ -81,8 +83,8 @@ function ArtifactPreviewPage({
         sourceType: "session_artifact",
         previewMode: "document",
         title: artifactQuery.isError
-          ? "Artifact unavailable"
-          : "Loading artifact…",
+          ? t("Artifact unavailable")
+          : t("Loading artifact…"),
         status: artifactQuery.isError ? "failed" : "loading",
         statusMessage:
           artifactQuery.error instanceof Error
@@ -101,6 +103,7 @@ function ArtifactPreviewPage({
       contentRef,
     );
   }, [
+    t,
     artifactId,
     artifactQuery.error,
     artifactQuery.isError,
@@ -111,7 +114,7 @@ function ArtifactPreviewPage({
     sourceType,
     user.user_id,
   ]);
-  useDocumentTitle(`${document.title} · Artifact`);
+  useDocumentTitle(`${document.title} · ${t("Artifact")}`);
 
   const loadPreview = useCallback(async () => {
     if (sourceType === "publications") {
@@ -124,8 +127,8 @@ function ArtifactPreviewPage({
       if (data.status !== "available" || !data.url) {
         throw new Error(
           data.status === "failed"
-            ? data.publication.error_message || "Artifact preview failed."
-            : "Artifact preview is not ready yet.",
+            ? data.publication.error_message || t("Artifact preview failed.")
+            : t("Artifact preview is not ready yet."),
         );
       }
       return {
@@ -138,7 +141,7 @@ function ArtifactPreviewPage({
     }
 
     if (!sessionArtifact || !content) {
-      throw new Error("Artifact content is not available.");
+      throw new Error(t("Artifact content is not available."));
     }
     const data = await getArtifactContentURL(
       user.user_id,
@@ -153,6 +156,7 @@ function ArtifactPreviewPage({
       expiresAt: data.expires_at,
     };
   }, [
+    t,
     artifactId,
     content,
     contentRef,
@@ -183,15 +187,17 @@ function ArtifactPreviewPage({
                 asChild
                 variant="ghost"
                 size="sm"
-                aria-label="Back to session"
-                tooltip="Back to session"
+                aria-label={t("Back to session")}
+                tooltip={t("Back to session")}
                 className="max-sm:h-9 max-sm:w-9 max-sm:justify-center max-sm:px-0"
               >
                 <Link
                   href={`/?session_id=${encodeURIComponent(document.sessionId)}`}
                 >
                   <ArrowLeft className="h-4 w-4 shrink-0" />
-                  <span className="hidden sm:inline">Back to session</span>
+                  <span className="hidden sm:inline">
+                    {t("Back to session")}
+                  </span>
                 </Link>
               </Button>
             ) : (
@@ -200,7 +206,7 @@ function ArtifactPreviewPage({
                 onClick={() => router.back()}
                 variant="ghost"
               >
-                Back
+                {t("Back")}
               </Button>
             )
           }

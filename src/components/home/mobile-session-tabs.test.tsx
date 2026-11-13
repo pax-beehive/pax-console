@@ -1,9 +1,16 @@
 /* @vitest-environment jsdom */
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useLocaleStore } from "@/features/i18n/locale-store";
 import { MobileSessionTabs } from "./mobile-session-tabs";
 
 const items = [
@@ -23,7 +30,10 @@ function renderTabs(ui: React.ReactElement) {
   return render(<TooltipProvider>{ui}</TooltipProvider>);
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  useLocaleStore.setState({ locale: "en" });
+});
 
 describe("MobileSessionTabs", () => {
   it("shows the open workset and switches sessions directly", () => {
@@ -106,11 +116,46 @@ describe("MobileSessionTabs", () => {
     const firstTab = screen.getByRole("tab", { name: "Concurrency fix" });
     const tabSurface = firstTab.closest("[data-session-tab]");
     expect(tabSurface).toHaveClass("select-none");
-    expect(
-      fireEvent.contextMenu(tabSurface as HTMLElement),
-    ).toBe(false);
+    expect(fireEvent.contextMenu(tabSurface as HTMLElement)).toBe(false);
 
     fireEvent.keyDown(firstTab, { altKey: true, key: "ArrowRight" });
     expect(onReorder).toHaveBeenCalledWith(["sess_2", "sess_1"]);
+  });
+});
+
+describe("Given Chinese is selected for mobile sessions", () => {
+  it("localizes controls and status immediately while preserving session names and callback IDs", () => {
+    const onDismiss = vi.fn();
+    const onNewSession = vi.fn();
+    const onUndoDismiss = vi.fn();
+    renderTabs(
+      <MobileSessionTabs
+        items={items}
+        dismissedTitle="Concurrency fix"
+        onDismiss={onDismiss}
+        onNewSession={onNewSession}
+        onSelect={vi.fn()}
+        onUndoDismiss={onUndoDismiss}
+      />,
+    );
+    act(() => useLocaleStore.setState({ locale: "zh-CN" }));
+    expect(
+      screen.getByRole("navigation", { name: "已打开的会话" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("tab", { name: "Concurrency fix" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "运行中" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("status", { name: "等待审批" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "关闭 Concurrency fix 标签页" }),
+    );
+    expect(onDismiss).toHaveBeenCalledWith("sess_1");
+    fireEvent.click(screen.getByRole("button", { name: "开始新会话" }));
+    expect(onNewSession).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "撤销" }));
+    expect(onUndoDismiss).toHaveBeenCalledOnce();
   });
 });

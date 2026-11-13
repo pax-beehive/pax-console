@@ -1,4 +1,5 @@
 "use client";
+import { useI18n, type Locale } from "@/features/i18n/use-i18n";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -53,10 +54,10 @@ function reason(code: string | undefined, historical = false) {
     return "The agent connection was unavailable before this attempt could be dispatched.";
   return code ? safeReasons[code] : undefined;
 }
-function timestamp(value: string | undefined) {
+function timestamp(value: string | undefined, locale: Locale) {
   if (!value) return undefined;
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? undefined : date.toLocaleString();
+  return Number.isNaN(date.getTime()) ? undefined : date.toLocaleString(locale);
 }
 function outcomeText(outcome?: string) {
   switch (outcome) {
@@ -97,6 +98,7 @@ export function SecretaryTaskList({
   userId: string;
   enabled: boolean;
 }) {
+  const { t } = useI18n();
   const list = useSecretaryTasks(userId);
   const [notice, setNotice] = useState("");
   const denied = list.error instanceof AuthError;
@@ -108,11 +110,11 @@ export function SecretaryTaskList({
     setNotice(error ? actionError(error) : outcomeText(result?.outcome));
   return (
     <section
-      aria-label="Secretary tasks"
+      aria-label={t("Secretary tasks")}
       className="min-w-0 border-t border-hairline pt-4"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-medium text-ink">Tasks</h2>
+        <h2 className="text-sm font-medium text-ink">{t("Tasks")}</h2>
         <Button
           size="sm"
           variant="ghost"
@@ -121,33 +123,35 @@ export function SecretaryTaskList({
             void list.restart();
           }}
         >
-          Refresh tasks
+          {t("Refresh tasks")}
         </Button>
       </div>
       <p className="mt-1 text-xs leading-5 text-ink-tertiary">
-        Each task follows one source session. Checking uses the existing
-        execution and never starts a new model request. Pausing future retries
-        does not cancel an execution already in progress.
+        {t(
+          "Each task follows one source session. Checking uses the existing execution and never starts a new model request. Pausing future retries does not cancel an execution already in progress.",
+        )}
       </p>
       {notice && (
         <p className="mt-3 text-xs leading-5 text-ink-muted" role="status">
-          {notice}
+          {t(notice)}
         </p>
       )}
       {list.isError && (
         <p className="mt-3 text-xs leading-5 text-warning" role="alert">
           {denied
-            ? "Sign in again to view Secretary tasks."
-            : "Tasks could not be refreshed. Refresh tasks to load the latest state."}
+            ? t("Sign in again to view Secretary tasks.")
+            : t(
+                "Tasks could not be refreshed. Refresh tasks to load the latest state.",
+              )}
         </p>
       )}
       {!denied && list.isPending ? (
         <p className="mt-3 text-xs text-ink-tertiary" role="status">
-          Loading tasks…
+          {t("Loading tasks…")}
         </p>
       ) : !denied && !list.isError && tasks.size === 0 ? (
         <p className="mt-3 text-xs text-ink-tertiary">
-          No pending summary tasks.
+          {t("No pending summary tasks.")}
         </p>
       ) : null}
       <div className="mt-3 space-y-3">
@@ -173,7 +177,7 @@ export function SecretaryTaskList({
             void list.fetchNextPage();
           }}
         >
-          More tasks
+          {t("More tasks")}
         </Button>
       )}
     </section>
@@ -193,6 +197,7 @@ function SecretaryTaskRow({
   notify: (result?: SecretaryTaskActionResult, error?: Error) => void;
   refreshTasks: () => void;
 }) {
+  const { t, locale } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const [restart, setRestart] = useState<SecretaryTask>();
   const detail = useSecretaryTaskDetail(userId, listed.task_id, expanded);
@@ -208,20 +213,22 @@ function SecretaryTaskRow({
   if (taskDenied)
     return (
       <article
-        aria-label="Unavailable task"
+        aria-label={t("Unavailable task")}
         className="min-w-0 rounded-md border border-hairline bg-surface-1 p-3"
       >
         <p className="text-xs leading-5 text-warning" role="alert">
           {detail.error instanceof AuthError
-            ? "Sign in again to view this task."
-            : "This task is no longer available. Refresh tasks to load the current list."}
+            ? t("Sign in again to view this task.")
+            : t(
+                "This task is no longer available. Refresh tasks to load the current list.",
+              )}
         </p>
         <Button
           className="mt-2 min-h-11 sm:min-h-8"
           size="sm"
           onClick={refreshTasks}
         >
-          Refresh tasks
+          {t("Refresh tasks")}
         </Button>
       </article>
     );
@@ -253,15 +260,17 @@ function SecretaryTaskRow({
   };
   const retryAt =
     task.execution_state === "waiting_retry" && !task.paused
-      ? timestamp(task.next_retry_at)
+      ? timestamp(task.next_retry_at, locale)
       : undefined;
   const taskReason =
     task.paused && task.error_code === "connection_backoff"
-      ? "The agent connection was unavailable before dispatch. Future retries are paused."
+      ? t(
+          "The agent connection was unavailable before dispatch. Future retries are paused.",
+        )
       : reason(task.error_code);
   return (
     <article
-      aria-label={task.title || "Untitled session"}
+      aria-label={task.title || t("Untitled session")}
       className="min-w-0 rounded-md border border-hairline bg-surface-1 p-3"
     >
       <div className="flex min-w-0 items-start justify-between gap-3">
@@ -269,7 +278,7 @@ function SecretaryTaskRow({
           href={`/?session_id=${encodeURIComponent(task.session_id)}`}
           className="min-w-0 text-sm font-medium text-ink hover:text-accent-bright"
         >
-          <TruncatedText>{task.title || "Untitled session"}</TruncatedText>
+          <TruncatedText>{task.title || t("Untitled session")}</TruncatedText>
         </Link>
         <div className="flex max-w-48 shrink-0 flex-wrap justify-end gap-1">
           <Badge
@@ -281,21 +290,29 @@ function SecretaryTaskRow({
                 : "neutral"
             }
           >
-            {labels[task.execution_state] ?? "Pending"}
+            {t(labels[task.execution_state] ?? "Pending")}
           </Badge>
-          {task.paused && <Badge tone="warning">Paused</Badge>}
+          {task.paused && <Badge tone="warning">{t("Paused")}</Badge>}
         </div>
       </div>
       {taskReason && (
-        <p className="mt-2 text-xs leading-5 text-ink-muted">{taskReason}</p>
+        <p className="mt-2 text-xs leading-5 text-ink-muted">
+          {t(taskReason ?? "")}
+        </p>
       )}
       <p className="mt-1 text-xs leading-5 text-ink-tertiary">
-        {task.attempt_count} {task.attempt_count === 1 ? "attempt" : "attempts"}
+        {task.attempt_count}{" "}
+        {task.attempt_count === 1 ? t("attempt") : t("attempts")}
         {task.connection_failures > 0
-          ? ` · ${task.connection_failures} connection ${task.connection_failures === 1 ? "failure" : "failures"}`
+          ? t(" · {value1} connection {value2}", {
+              value1: task.connection_failures,
+              value2: task.connection_failures === 1 ? "failure" : "failures",
+            })
           : ""}
-        {retryAt && !task.paused ? ` · Next retry ${retryAt}` : ""}
-        {task.lease_active ? " · Operation in progress" : ""}
+        {retryAt && !task.paused
+          ? t(" · Next retry {value1}", { value1: retryAt })
+          : ""}
+        {task.lease_active ? t(" · Operation in progress") : ""}
       </p>
       <div data-testid="task-controls" className="mt-2 flex flex-wrap gap-1.5">
         <SecretarySessionControl
@@ -313,7 +330,7 @@ function SecretaryTaskRow({
             <Link
               href={`/?session_id=${encodeURIComponent(task.execution_session_id)}`}
             >
-              View execution
+              {t("View execution")}
             </Link>
           </Button>
         )}
@@ -323,7 +340,7 @@ function SecretaryTaskRow({
           disabled={disabled || !enabled || task.lease_active || !canCheck}
           onClick={() => execute("recheck")}
         >
-          Check existing result
+          {t("Check existing result")}
         </Button>
         <Button
           size="sm"
@@ -339,7 +356,7 @@ function SecretaryTaskRow({
             else execute("retry");
           }}
         >
-          Retry this task
+          {t("Retry this task")}
         </Button>
         <Button
           size="sm"
@@ -348,7 +365,7 @@ function SecretaryTaskRow({
           disabled={disabled}
           onClick={() => execute(task.paused ? "resume" : "pause")}
         >
-          {task.paused ? "Resume" : "Pause future retries"}
+          {task.paused ? t("Resume") : t("Pause future retries")}
         </Button>
         <Button
           size="sm"
@@ -358,17 +375,17 @@ function SecretaryTaskRow({
           disabled={action.isPending}
           onClick={() => setExpanded(!expanded)}
         >
-          {expanded ? "Hide details" : "Task details"}
+          {expanded ? t("Hide details") : t("Task details")}
         </Button>
       </div>
       {action.isError && (
         <p className="mt-2 text-xs leading-5 text-warning" role="alert">
-          {actionError(action.error)}
+          {t(actionError(action.error))}
         </p>
       )}
       {action.isSuccess && (
         <p className="mt-2 text-xs leading-5 text-ink-muted" role="status">
-          {outcomeText(action.data?.outcome)}
+          {t(outcomeText(action.data?.outcome))}
         </p>
       )}
       {expanded && <TaskAttemptHistory detail={detail} />}
@@ -377,10 +394,12 @@ function SecretaryTaskRow({
         onOpenChange={(open) => {
           if (!open) setRestart(undefined);
         }}
-        title="Restart this summary task?"
-        confirmLabel="Restart this task"
+        title={t("Restart this summary task?")}
+        confirmLabel={t("Restart this task")}
         disabled={action.isPending}
-        description="The previous execution may still be running. Restarting can create duplicate work and another model request. This restarts only this source session against its current content; your existing summaries remain available."
+        description={t(
+          "The previous execution may still be running. Restarting can create duplicate work and another model request. This restarts only this source session against its current content; your existing summaries remain available.",
+        )}
         onConfirm={() => {
           if (restart) execute("retry", restart, true);
           setRestart(undefined);
@@ -395,10 +414,11 @@ function TaskAttemptHistory({
 }: {
   detail: ReturnType<typeof useSecretaryTaskDetail>;
 }) {
+  const { t, locale } = useI18n();
   if (detail.error instanceof AuthError)
     return (
       <p className="mt-3 text-xs text-warning" role="alert">
-        Sign in again to view task details.
+        {t("Sign in again to view task details.")}
       </p>
     );
   const first = detail.data?.pages[0];
@@ -410,49 +430,52 @@ function TaskAttemptHistory({
     <div className="mt-3 min-w-0 border-t border-hairline pt-3">
       {detail.isError && (
         <p className="text-xs text-warning" role="alert">
-          Attempt history is unavailable or its cursor expired. Reload details
-          to check the current state.
+          {t(
+            "Attempt history is unavailable or its cursor expired. Reload details to check the current state.",
+          )}
         </p>
       )}
       {detail.isPending && (
         <p className="text-xs text-ink-tertiary" role="status">
-          Loading task details…
+          {t("Loading task details…")}
         </p>
       )}
       {first && (
         <>
           <dl className="grid min-w-0 grid-cols-1 gap-2 text-xs sm:grid-cols-2">
             <div>
-              <dt className="text-ink-tertiary">Task / source</dt>
+              <dt className="text-ink-tertiary">{t("Task / source")}</dt>
               <dd>
                 <MonoId>{first.task.task_id}</MonoId>
               </dd>
             </div>
             <div>
-              <dt className="text-ink-tertiary">Current fixed batch</dt>
+              <dt className="text-ink-tertiary">{t("Current fixed batch")}</dt>
               <dd>
-                <MonoId>{first.task.batch_id || "Not prepared"}</MonoId>
+                <MonoId>{first.task.batch_id || t("Not prepared")}</MonoId>
               </dd>
             </div>
             <div>
-              <dt className="text-ink-tertiary">Current attempt</dt>
+              <dt className="text-ink-tertiary">{t("Current attempt")}</dt>
               <dd>
-                <MonoId>{first.task.attempt_id || "Not dispatched"}</MonoId>
+                <MonoId>{first.task.attempt_id || t("Not dispatched")}</MonoId>
               </dd>
             </div>
             <div>
               <dt className="text-ink-tertiary">
-                Control revision / retry epoch
+                {t("Control revision / retry epoch")}
               </dt>
               <dd>
                 {first.task.revision} / {first.task.retry_epoch}
               </dd>
             </div>
           </dl>
-          <h3 className="mt-3 text-xs font-medium text-ink">Attempt history</h3>
+          <h3 className="mt-3 text-xs font-medium text-ink">
+            {t("Attempt history")}
+          </h3>
           {!attempts.size && (
             <p className="mt-1 text-xs text-ink-tertiary">
-              No attempts recorded.
+              {t("No attempts recorded.")}
             </p>
           )}
           <ol className="mt-1 divide-y divide-hairline">
@@ -461,20 +484,20 @@ function TaskAttemptHistory({
                 <div className="flex min-w-0 flex-wrap gap-x-3 gap-y-1 text-ink-muted">
                   <span>
                     {attempt.not_dispatched
-                      ? "Not dispatched"
+                      ? t("Not dispatched")
                       : attempt.state === "committed"
-                        ? "Published"
+                        ? t("Published")
                         : attempt.has_output
-                          ? "Output saved"
+                          ? t("Output saved")
                           : attempt.state === "unknown"
-                            ? "Outcome unknown"
+                            ? t("Outcome unknown")
                             : attempt.state === "running"
-                              ? "In progress"
-                              : "Finished attempt"}
+                              ? t("In progress")
+                              : t("Finished attempt")}
                   </span>
-                  {timestamp(attempt.updated_at) && (
+                  {timestamp(attempt.updated_at, locale) && (
                     <span className="text-ink-tertiary">
-                      {timestamp(attempt.updated_at)}
+                      {timestamp(attempt.updated_at, locale)}
                     </span>
                   )}
                 </div>
@@ -482,7 +505,7 @@ function TaskAttemptHistory({
                 <MonoId>{attempt.batch_id}</MonoId>
                 {reason(attempt.error_code, true) && (
                   <p className="mt-1 leading-5 text-ink-muted">
-                    {reason(attempt.error_code, true)}
+                    {t(reason(attempt.error_code, true) ?? "")}
                   </p>
                 )}
                 {attempt.execution_session_id && (
@@ -495,7 +518,7 @@ function TaskAttemptHistory({
                     <Link
                       href={`/?session_id=${encodeURIComponent(attempt.execution_session_id)}`}
                     >
-                      View attempt execution
+                      {t("View attempt execution")}
                     </Link>
                   </Button>
                 )}
@@ -513,7 +536,7 @@ function TaskAttemptHistory({
             void detail.restart();
           }}
         >
-          Reload details
+          {t("Reload details")}
         </Button>
       ) : detail.hasNextPage ? (
         <Button
@@ -524,7 +547,7 @@ function TaskAttemptHistory({
             void detail.fetchNextPage();
           }}
         >
-          More attempts
+          {t("More attempts")}
         </Button>
       ) : null}
     </div>

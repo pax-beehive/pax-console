@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
@@ -28,6 +29,7 @@ export function SummaryDeveloperDetail({
   onSelect: (selection: DeveloperSummarySelection) => void;
   onAccessDenied: () => void;
 }) {
+  const { t, locale } = useI18n();
   const query = useDeveloperSummary(userId, selection);
   const summary = query.isError ? undefined : query.data?.summary;
   const [sourceRef, setSourceRef] = useState<WorkspaceSearchRef>();
@@ -55,7 +57,7 @@ export function SummaryDeveloperDetail({
 
   return (
     <section
-      aria-label="Summary details"
+      aria-label={t("Summary details")}
       className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
     >
       {sourceRef && summary ? (
@@ -77,11 +79,12 @@ export function SummaryDeveloperDetail({
                 variant="ghost"
                 onClick={onClose}
               >
-                Back to summaries
+                {t("Back to summaries")}
               </Button>
               {summary && (
                 <span className="text-xs text-ink-tertiary">
-                  Version {summary.revision}
+                  {t("Version ")}
+                  {summary.revision}
                 </span>
               )}
             </div>
@@ -90,22 +93,26 @@ export function SummaryDeveloperDetail({
               tabIndex={-1}
               className="mt-3 break-words text-base font-semibold text-ink outline-none [overflow-wrap:anywhere]"
             >
-              {summary?.title || "Summary"}
+              {summary?.title || t("Summary")}
             </h2>
           </header>
           <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 [overflow-wrap:anywhere]">
             {query.isPending ? (
               <p role="status" className="text-sm text-ink-tertiary">
-                Loading summary…
+                {t("Loading summary…")}
               </p>
             ) : query.isError ? (
               <div role="alert" className="text-sm leading-6 text-ink-muted">
                 <p>
                   {denied
-                    ? "Access denied. This summary is no longer available to you."
+                    ? t(
+                        "Access denied. This summary is no longer available to you.",
+                      )
                     : unavailable
-                      ? "This summary or its requested version is unavailable. Its sources may have been deleted or become inaccessible."
-                      : "Could not load this summary. Please try again."}
+                      ? t(
+                          "This summary or its requested version is unavailable. Its sources may have been deleted or become inaccessible.",
+                        )
+                      : t("Could not load this summary. Please try again.")}
                 </p>
                 {!denied && !unavailable && (
                   <Button
@@ -115,7 +122,7 @@ export function SummaryDeveloperDetail({
                       void query.refetch();
                     }}
                   >
-                    Retry summary
+                    {t("Retry summary")}
                   </Button>
                 )}
               </div>
@@ -124,27 +131,28 @@ export function SummaryDeveloperDetail({
                 <>
                   <dl className="mb-5 grid min-w-0 gap-3 border-b border-hairline pb-5 text-xs sm:grid-cols-2">
                     <div className="min-w-0">
-                      <dt className="text-ink-tertiary">Summary ID</dt>
+                      <dt className="text-ink-tertiary">{t("Summary ID")}</dt>
                       <dd className="mt-1">
                         <MonoId>{summary.summary_id}</MonoId>
                       </dd>
                     </div>
                     <div className="min-w-0">
-                      <dt className="text-ink-tertiary">Created</dt>
+                      <dt className="text-ink-tertiary">{t("Created")}</dt>
                       <dd className="mt-1 text-ink-muted">
-                        {new Date(summary.created_at).toLocaleString()}
+                        {new Date(summary.created_at).toLocaleString(locale)}
                       </dd>
                     </div>
                     <div className="min-w-0">
                       <dt className="text-ink-tertiary">
-                        Subject · {summary.subject_type}
+                        {t("Subject · ")}
+                        {summary.subject_type}
                       </dt>
                       <dd className="mt-1 break-all text-ink-muted">
                         {summary.subject_id}
                       </dd>
                     </div>
                     <div className="min-w-0">
-                      <dt className="text-ink-tertiary">Owner</dt>
+                      <dt className="text-ink-tertiary">{t("Owner")}</dt>
                       <dd className="mt-1">
                         <MonoId>{summary.owner_user_id}</MonoId>
                       </dd>
@@ -153,10 +161,10 @@ export function SummaryDeveloperDetail({
                   <SummaryContent summary={summary} onSelect={selectSource} />
                   <details className="mt-6 border-t border-hairline pt-4">
                     <summary className="cursor-pointer text-sm font-medium text-ink-muted">
-                      Raw JSON
+                      {t("Raw JSON")}
                     </summary>
                     <pre
-                      aria-label="Summary JSON"
+                      aria-label={t("Summary JSON")}
                       className="mt-3 max-w-full overflow-x-auto rounded-md bg-surface-1 p-3 text-xs leading-6 text-ink-muted"
                     >
                       {JSON.stringify(summary, null, 2)}

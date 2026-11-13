@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 import { useEffect, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { bootstrapRegion, navigateToRegion, type Region } from "./bootstrap";
 
 const key = ["region", "direct-bootstrap"];
 export function DirectRegionGate({ children }: { children: ReactNode }) {
+  const { t } = useI18n();
   const client = useQueryClient();
   const query = useQuery({
     queryKey: key,
@@ -38,20 +40,21 @@ export function DirectRegionGate({ children }: { children: ReactNode }) {
     <div className="grid min-h-screen place-items-center bg-canvas p-6 text-ink">
       <section className="w-full max-w-lg rounded-lg border border-hairline bg-surface-1 p-6">
         {query.isPending || redirect ? (
-          <p>Opening your account region...</p>
+          <p>{t("Opening your account region...")}</p>
         ) : query.isError ? (
           <>
             <p role="alert">{query.error.message}</p>
-            <Button onClick={() => void query.refetch()}>Retry</Button>
+            <Button onClick={() => void query.refetch()}>{t("Retry")}</Button>
           </>
         ) : (
           <>
             <h1 className="text-2xl font-semibold">
-              Choose your account region
+              {t("Choose your account region")}
             </h1>
             <p className="my-4 text-ink-muted">
-              Your projects and devices will stay in this region. Future visits
-              return here automatically.
+              {t(
+                "Your projects and devices will stay in this region. Future visits return here automatically.",
+              )}
             </p>
             <div className="flex gap-3">
               {(["hk", "us"] as Region[]).map((region) => (
@@ -60,7 +63,7 @@ export function DirectRegionGate({ children }: { children: ReactNode }) {
                   disabled={choose.isPending}
                   onClick={() => choose.mutate(region)}
                 >
-                  {region === "hk" ? "Hong Kong" : "United States"}
+                  {region === "hk" ? t("Hong Kong") : t("United States")}
                 </Button>
               ))}
             </div>

@@ -1,3 +1,6 @@
+"use client";
+
+import { useI18n } from "@/features/i18n/use-i18n";
 import { AlertCircle, LoaderCircle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -10,6 +13,7 @@ export function ComposerAttachmentStatus({
   error: Error | null;
   onDismissError?: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <>
       {uploading && (
@@ -21,7 +25,7 @@ export function ComposerAttachmentStatus({
             aria-hidden="true"
             className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none"
           />
-          Uploading files…
+          {t("Uploading files…")}
         </div>
       )}
       {error && (
@@ -34,10 +38,12 @@ export function ComposerAttachmentStatus({
             className="mt-0.5 h-4 w-4 shrink-0 text-danger"
           />
           <div className="min-w-0 flex-1 text-xs">
-            <p className="font-medium text-ink">Couldn’t attach files</p>
-            <p className="mt-0.5 text-ink-muted">Try adding the file again.</p>
+            <p className="font-medium text-ink">{t("Couldn’t attach files")}</p>
+            <p className="mt-0.5 text-ink-muted">
+              {t("Try adding the file again.")}
+            </p>
             <details className="mt-1 text-ink-tertiary">
-              <summary className="cursor-pointer">Details</summary>
+              <summary className="cursor-pointer">{t("Details")}</summary>
               <p className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
                 {error.message}
               </p>
@@ -45,7 +51,7 @@ export function ComposerAttachmentStatus({
           </div>
           {onDismissError && (
             <Button
-              aria-label="Dismiss attachment error"
+              aria-label={t("Dismiss attachment error")}
               className="h-6 w-6"
               icon={<X className="h-3.5 w-3.5" />}
               onClick={onDismissError}

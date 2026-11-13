@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
@@ -46,6 +47,7 @@ export function TeamDetail({
   teamAgentsLoading: boolean;
   userId: string;
 }) {
+  const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<TeamDetailTab>("members");
   const [inviteOpen, setInviteOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<
@@ -73,7 +75,7 @@ export function TeamDetail({
   if (isLoading) {
     return (
       <div className="p-5">
-        <EmptyState label="Loading team detail" />
+        <EmptyState label={t("Loading team detail")} />
       </div>
     );
   }
@@ -81,7 +83,7 @@ export function TeamDetail({
   if (!team) {
     return (
       <div className="p-5">
-        <EmptyState label="Select or create a team" />
+        <EmptyState label={t("Select or create a team")} />
       </div>
     );
   }
@@ -92,7 +94,7 @@ export function TeamDetail({
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs text-accent-bright">
             <Shield className="h-4 w-4" />
-            team workspace
+            {t("team workspace")}
           </div>
           <TruncatedText className="mt-2 text-2xl font-semibold">
             {team.name}
@@ -102,7 +104,9 @@ export function TeamDetail({
           </MonoId>
         </div>
         <div className="flex shrink-0 flex-wrap justify-end gap-2">
-          <Badge tone={teamRoleBadgeTone(role)}>{displayTeamRole(role)}</Badge>
+          <Badge tone={teamRoleBadgeTone(role)}>
+            {displayTeamRole(role, t)}
+          </Badge>
           {isOwner && (
             <Button
               icon={<MailPlus className="h-4 w-4" />}
@@ -111,7 +115,7 @@ export function TeamDetail({
               type="button"
               variant={inviteOpen ? "primary" : "secondary"}
             >
-              Invite
+              {t("Invite")}
             </Button>
           )}
           {isOwner && (
@@ -120,11 +124,11 @@ export function TeamDetail({
               icon={<Archive className="h-4 w-4" />}
               onClick={() => setConfirmAction("archive")}
               size="sm"
-              tooltip="Archive team"
+              tooltip={t("Archive team")}
               type="button"
               variant="danger"
             >
-              Archive
+              {t("Archive")}
             </Button>
           )}
           {!isOwner && (
@@ -135,7 +139,7 @@ export function TeamDetail({
               type="button"
               variant="danger"
             >
-              Leave
+              {t("Leave")}
             </Button>
           )}
         </div>
@@ -195,12 +199,12 @@ export function TeamDetail({
       )}
 
       <ConfirmDialog
-        confirmLabel={archive.isPending ? "Archiving..." : "Archive team"}
+        confirmLabel={archive.isPending ? t("Archiving...") : t("Archive team")}
         description={
           <>
-            This archives{" "}
-            <span className="font-medium text-ink">{team.name}</span> for all
-            members.
+            {t("This archives")}{" "}
+            <span className="font-medium text-ink">{team.name}</span>{" "}
+            {t("for all members.")}
           </>
         }
         disabled={archive.isPending}
@@ -211,13 +215,13 @@ export function TeamDetail({
           }
         }}
         open={confirmAction === "archive"}
-        title="Archive team?"
+        title={t("Archive team?")}
       />
       <ConfirmDialog
-        confirmLabel={leave.isPending ? "Leaving..." : "Leave team"}
+        confirmLabel={leave.isPending ? t("Leaving...") : t("Leave team")}
         description={
           <>
-            You will no longer have access to{" "}
+            {t("You will no longer have access to")}{" "}
             <span className="font-medium text-ink">{team.name}</span>.
           </>
         }
@@ -229,19 +233,20 @@ export function TeamDetail({
           }
         }}
         open={confirmAction === "leave"}
-        title="Leave team?"
+        title={t("Leave team?")}
       />
     </div>
   );
 }
 
 function TeamOverview({ role, team }: { role: string; team: TeamSummary }) {
+  const { t } = useI18n();
   return (
     <section className="grid overflow-hidden rounded-lg border border-hairline sm:grid-cols-4">
-      <TeamMetric label="Your role" value={displayTeamRole(role)} />
-      <TeamMetric label="Members" value={String(team.member_count)} />
-      <TeamMetric label="Agents" value={String(team.agent_count)} />
-      <TeamMetric label="Created" value={compactDate(team.created_at)} />
+      <TeamMetric label={t("Your role")} value={displayTeamRole(role, t)} />
+      <TeamMetric label={t("Members")} value={String(team.member_count)} />
+      <TeamMetric label={t("Agents")} value={String(team.agent_count)} />
+      <TeamMetric label={t("Created")} value={compactDate(team.created_at)} />
     </section>
   );
 }
@@ -270,6 +275,7 @@ function TeamDetailTabs({
   onChange: (tab: TeamDetailTab) => void;
   teamAgentCount: number;
 }) {
+  const { t } = useI18n();
   const tabs: Array<{ count: number; label: string; value: TeamDetailTab }> = [
     { count: memberCount, label: "Members", value: "members" },
     { count: teamAgentCount, label: "Agents", value: "agents" },
@@ -278,7 +284,7 @@ function TeamDetailTabs({
 
   return (
     <div
-      aria-label="Team detail sections"
+      aria-label={t("Team detail sections")}
       className="inline-flex w-full max-w-xl overflow-hidden rounded-lg border border-hairline bg-surface-1"
       role="tablist"
     >
@@ -287,7 +293,7 @@ function TeamDetailTabs({
 
         return (
           <button
-            aria-label={`${tab.label} (${tab.count})`}
+            aria-label={`${t(tab.label)} (${tab.count})`}
             aria-selected={selected}
             className={`flex min-h-10 min-w-0 flex-1 items-center justify-center gap-2 border-r border-hairline px-3 text-sm transition last:border-r-0 ${
               selected

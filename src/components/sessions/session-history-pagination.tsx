@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
+
 import { useEffect, type RefObject } from "react";
 import { Button } from "@/components/ui/button";
 
@@ -20,6 +22,7 @@ export function SessionHistoryPagination({
   onLoadEarlier,
   autoLoad = true,
 }: Props) {
+  const { t } = useI18n();
   useEffect(() => {
     const container = scrollRef.current;
     if (!autoLoad || !container || !hasMore || isLoading || hasError) return;
@@ -47,10 +50,10 @@ export function SessionHistoryPagination({
   return (
     <div className="min-h-8 text-center text-xs text-ink-tertiary">
       {isLoading ? (
-        <span role="status">Loading earlier messages</span>
+        <span role="status">{t("Loading earlier messages")}</span>
       ) : hasMore ? (
         <Button size="sm" variant="ghost" type="button" onClick={onLoadEarlier}>
-          {hasError ? "Retry earlier messages" : "Load earlier messages"}
+          {hasError ? t("Retry earlier messages") : t("Load earlier messages")}
         </Button>
       ) : null}
     </div>

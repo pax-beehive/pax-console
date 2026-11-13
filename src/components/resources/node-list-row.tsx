@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
+
 import Link from "next/link";
 import { useState } from "react";
 import {
@@ -48,10 +50,32 @@ export function NodeListRow({
   onDelete: (node: Node) => void;
   userId: string;
 }) {
+  const { t } = useI18n();
   const [dialog, setDialog] = useState<OpenDialog>();
   const label = nodeLabel(node);
   const online = Boolean(node.online);
   const note = deviceCommandNote(node);
+  const commandName =
+    note?.record.type === "paxd.restart"
+      ? "paxd restart"
+      : note?.record.type === "paxd.upgrade"
+        ? "paxd upgrade"
+        : "paxl upgrade";
+  const noteText =
+    note?.tone === "warning"
+      ? t("{command} failed", { command: t(commandName) })
+      : note?.record.type === "paxd.restart"
+        ? t("Restarting paxd")
+        : t(
+            note?.record.type === "paxd.upgrade"
+              ? "Upgrading paxd{target}"
+              : "Upgrading paxl{target}",
+            {
+              target: note?.record.target_version
+                ? ` → ${note.record.target_version}`
+                : "",
+            },
+          );
   const offlineFor = online ? undefined : formatAge(node.last_heartbeat);
 
   function openDialog(kind: DeviceCommandKind, resumeCommandId?: string) {
@@ -81,7 +105,7 @@ export function NodeListRow({
       >
         <span className="flex min-w-0 items-center gap-2.5">
           <StatusDot
-            label={online ? "online" : "offline"}
+            label={online ? t("online") : t("offline")}
             tone={online ? "success" : "neutral"}
           />
           <TruncatedText
@@ -92,9 +116,9 @@ export function NodeListRow({
         </span>
         <MonoId className="pl-[18px]" tooltip={node.node_id}>
           {[
-            `${node.os ?? "unknown os"}/${node.arch ?? "unknown arch"}`,
+            `${node.os ?? t("unknown os")}/${node.arch ?? t("unknown arch")}`,
             compactId(node.node_id),
-            offlineFor && `offline ${offlineFor}`,
+            offlineFor && t("offline {duration}", { duration: offlineFor }),
           ]
             .filter(Boolean)
             .join(" · ")}
@@ -132,7 +156,7 @@ export function NodeListRow({
                 className="h-3.5 w-3.5 shrink-0 animate-spin"
               />
             )}
-            <span className="truncate">{note.text}</span>
+            <span className="truncate">{noteText}</span>
           </button>
         )}
         {/* Fixed columns keep versions aligned across rows. */}
@@ -146,7 +170,7 @@ export function NodeListRow({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
-              aria-label={`Actions for ${label}`}
+              aria-label={t("Actions for {value1}", { value1: label })}
               className="h-8 w-8"
               icon={<MoreHorizontal className="h-4 w-4" />}
               size="icon"
@@ -155,23 +179,23 @@ export function NodeListRow({
             />
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-52">
-            <MenuLabel>paxd</MenuLabel>
+            <MenuLabel>{t("paxd")}</MenuLabel>
             <DropdownMenuItem
               disabled={!online}
               onSelect={() => openDialog("paxd.upgrade")}
             >
               <Download className="h-4 w-4" />
-              Upgrade paxd…
+              {t("Upgrade paxd…")}
             </DropdownMenuItem>
             <DropdownMenuItem
               disabled={!online}
               onSelect={() => openDialog("paxd.restart")}
             >
               <RotateCw className="h-4 w-4" />
-              Restart paxd…
+              {t("Restart paxd…")}
             </DropdownMenuItem>
             <MenuSeparator />
-            <MenuLabel>paxl</MenuLabel>
+            <MenuLabel>{t("paxl")}</MenuLabel>
             <DropdownMenuItem
               disabled={
                 !online || paxlObservation(node)?.status !== "installed"
@@ -179,7 +203,7 @@ export function NodeListRow({
               onSelect={() => openDialog("paxl.upgrade")}
             >
               <Download className="h-4 w-4" />
-              Upgrade paxl…
+              {t("Upgrade paxl…")}
             </DropdownMenuItem>
             <MenuSeparator />
             <DropdownMenuItem
@@ -188,7 +212,7 @@ export function NodeListRow({
               onSelect={() => onDelete(node)}
             >
               <Trash2 className="h-4 w-4" />
-              Delete device…
+              {t("Delete device…")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -226,6 +250,7 @@ function VersionLabel({ name, value }: { name: string; value?: string }) {
 }
 
 function PaxlVersionLabel({ node }: { node: Node }) {
+  const { t } = useI18n();
   const paxl = paxlObservation(node);
   if (paxl && paxl.status !== "installed") {
     return (
@@ -233,10 +258,10 @@ function PaxlVersionLabel({ node }: { node: Node }) {
         className="inline-flex items-center gap-1.5 whitespace-nowrap"
         title={paxl.error}
       >
-        <span className="text-ink-tertiary">paxl</span>
+        <span className="text-ink-tertiary">{t("paxl")}</span>
         <span className="inline-flex items-center gap-1 text-warning">
           <AlertCircle aria-hidden="true" className="h-3.5 w-3.5" />
-          {paxl.status.replaceAll("_", " ")}
+          {t(paxl.status.replaceAll("_", " "))}
         </span>
       </span>
     );

@@ -1,5 +1,6 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
 import * as Dialog from "@radix-ui/react-dialog";
 import { AlertCircle } from "lucide-react";
 import { ReactNode } from "react";
@@ -30,6 +31,7 @@ export function ConfirmDialog({
   open,
   title,
 }: ConfirmDialogProps) {
+  const { t } = useI18n();
   return (
     <Dialog.Root onOpenChange={onOpenChange} open={open}>
       {children}
@@ -54,7 +56,7 @@ export function ConfirmDialog({
           <div className="flex justify-end gap-2 border-t border-hairline pt-3">
             <Dialog.Close asChild>
               <Button disabled={disabled} type="button" variant="ghost">
-                {cancelLabel}
+                {t(cancelLabel)}
               </Button>
             </Dialog.Close>
             <Button

@@ -1,4 +1,5 @@
 "use client";
+import { useI18n, type Translator } from "@/features/i18n/use-i18n";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { TruncatedText } from "@/components/ui/text";
@@ -10,6 +11,7 @@ import type {
   HarnessUsageView,
   LoginHarness,
 } from "@/features/api/types";
+import { translators } from "@/features/i18n/translate";
 import { compactDateTime, formatAge } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { agentTypeLabel } from "./agent-types";
@@ -20,6 +22,7 @@ const countUnits = new Set(["credits", "tokens", "requests"]);
 /** Value text for an amount item, such as "12.40 / 50.00 USD" or "300 tokens". */
 export function formatUsageAmount(
   item: Pick<HarnessUsageAmountItem, "used" | "limit" | "unit">,
+  t: Translator = translators.en,
 ) {
   const unit = item.unit?.toLowerCase();
   const currency = unit !== undefined && currencyUnits.has(unit);
@@ -35,7 +38,7 @@ export function formatUsageAmount(
       ? `${format(item.used)} / ${format(item.limit)}`
       : format(item.used);
   if (currency) return `${amount} ${unit!.toUpperCase()}`;
-  if (unit && countUnits.has(unit)) return `${amount} ${unit}`;
+  if (unit && countUnits.has(unit)) return `${amount} ${t(unit)}`;
   return amount;
 }
 
@@ -43,27 +46,41 @@ export function formatUsageAmount(
 export function formatResetCountdown(
   resetsAt: string | undefined,
   now: number = Date.now(),
+  t: Translator = translators.en,
 ) {
   const time = resetsAt ? Date.parse(resetsAt) : Number.NaN;
   if (!Number.isFinite(time)) return undefined;
   const minutes = Math.ceil((time - now) / 60_000);
-  if (minutes <= 1) return "soon";
-  if (minutes < 60) return `${minutes}m`;
+  if (minutes <= 1) return t("soon");
+  if (minutes < 60) return t("{minutes}m", { minutes });
   const hours = Math.floor(minutes / 60);
   if (hours < 24) {
     const rest = minutes % 60;
-    return `${hours}h${rest ? ` ${rest}m` : ""}`;
+    return `${t("{hours}h", { hours })}${rest ? ` ${t("{minutes}m", { minutes: rest })}` : ""}`;
   }
   const days = Math.floor(hours / 24);
   const rest = hours % 24;
-  return `${days}d${rest ? ` ${rest}h` : ""}`;
+  return `${t("{days}d", { days })}${rest ? ` ${t("{hours}h", { hours: rest })}` : ""}`;
 }
 
-function updatedLabel(observedAt: string | undefined, now: number) {
+function updatedLabel(
+  observedAt: string | undefined,
+  now: number,
+  t: Translator,
+) {
   const time = observedAt ? Date.parse(observedAt) : Number.NaN;
   if (!Number.isFinite(time)) return undefined;
-  if (now - time < 60_000) return "Updated just now";
-  return `Updated ${formatAge(observedAt, now)} ago`;
+  if (now - time < 60_000) return t("Updated just now");
+  const age = formatAge(observedAt, now) ?? "";
+  const number = Number.parseInt(age, 10);
+  const label = age.endsWith("m")
+    ? t("{minutes}m", { minutes: number })
+    : age.endsWith("h")
+      ? t("{hours}h", { hours: number })
+      : age.endsWith("d")
+        ? t("{days}d", { days: number })
+        : age;
+  return t("Updated {time} ago", { time: label });
 }
 
 function usableItems(view: HarnessUsageView): HarnessUsageItem[] {
@@ -86,14 +103,20 @@ function usableItems(view: HarnessUsageView): HarnessUsageItem[] {
   });
 }
 
-function unavailableMessage(label: string, errorCode?: string) {
+function unavailableMessage(
+  label: string,
+  errorCode: string | undefined,
+  t: Translator,
+) {
   switch (errorCode) {
     case "cli_unsupported":
-      return `Update ${label} on this device to see plan usage.`;
+      return t("Update {name} on this device to see plan usage.", {
+        name: label,
+      });
     case "daemon_unsupported":
-      return "Update PAX on this device to see plan usage.";
+      return t("Update PAX on this device to see plan usage.");
     default:
-      return "Plan usage is unavailable right now.";
+      return t("Plan usage is unavailable right now.");
   }
 }
 
@@ -128,11 +151,12 @@ export function HarnessUsagePanel({
   /** Changing this value re-reads usage, e.g. from the account card Refresh. */
   refreshKey?: number;
 }) {
+  const { t } = useI18n();
   const usage = useNodeHarnessUsage(userId, nodeId, harness);
   const now = useClock(30_000);
   const view = usage.data?.harness_usage;
   const current = view?.harness === harness ? view : undefined;
-  const updated = current && updatedLabel(current.observed_at, now);
+  const updated = current && updatedLabel(current.observed_at, now, t);
   const { refetch } = usage;
   const lastRefresh = useRef(refreshKey);
   useEffect(() => {
@@ -144,13 +168,13 @@ export function HarnessUsagePanel({
 
   return (
     <section
-      aria-label="Plan usage"
+      aria-label={t("Plan usage")}
       className={cn("grid min-w-0 gap-2", className)}
     >
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3">
-        <h2 className="text-sm font-medium text-ink">Plan usage</h2>
+        <h2 className="text-sm font-medium text-ink">{t("Plan usage")}</h2>
         {usage.isFetching && current ? (
-          <span className="text-xs text-ink-tertiary">Updating…</span>
+          <span className="text-xs text-ink-tertiary">{t("Updating…")}</span>
         ) : (
           updated && (
             <span className="text-xs text-ink-tertiary">{updated}</span>
@@ -162,21 +186,21 @@ export function HarnessUsagePanel({
           <UsageDetails view={current} now={now} />
           {usage.error && !usage.isFetching && (
             <p role="alert" className="text-sm leading-6 text-warning">
-              Plan usage could not be refreshed.
+              {t("Plan usage could not be refreshed.")}
             </p>
           )}
         </>
       ) : usage.error ? (
         <p role="alert" className="text-sm leading-6 text-warning">
-          Plan usage could not be loaded.
+          {t("Plan usage could not be loaded.")}
         </p>
       ) : usage.isPending || usage.isFetching ? (
         <p role="status" className="text-sm leading-6 text-ink-tertiary">
-          Checking plan usage…
+          {t("Checking plan usage…")}
         </p>
       ) : (
         <p className="text-sm leading-6 text-ink-muted">
-          Plan usage is unavailable right now.
+          {t("Plan usage is unavailable right now.")}
         </p>
       )}
     </section>
@@ -184,10 +208,11 @@ export function HarnessUsagePanel({
 }
 
 function UsageDetails({ view, now }: { view: HarnessUsageView; now: number }) {
+  const { t } = useI18n();
   if (view.state === "unsupported") {
     return (
       <p className="text-sm leading-6 text-ink-muted">
-        This sign-in method does not report plan usage.
+        {t("This sign-in method does not report plan usage.")}
       </p>
     );
   }
@@ -197,6 +222,7 @@ function UsageDetails({ view, now }: { view: HarnessUsageView; now: number }) {
         {unavailableMessage(
           view.harness_label?.trim() || agentTypeLabel(view.harness),
           view.error_code,
+          t,
         )}
       </p>
     );
@@ -205,7 +231,7 @@ function UsageDetails({ view, now }: { view: HarnessUsageView; now: number }) {
   if (items.length === 0) {
     return (
       <p className="text-sm leading-6 text-ink-muted">
-        No plan usage reported yet.
+        {t("No plan usage reported yet.")}
       </p>
     );
   }
@@ -258,7 +284,8 @@ function UsageMeter({
 }
 
 function ResetCountdown({ resetsAt, now }: { resetsAt?: string; now: number }) {
-  const countdown = formatResetCountdown(resetsAt, now);
+  const { t } = useI18n();
+  const countdown = formatResetCountdown(resetsAt, now, t);
   if (!countdown) return <span aria-hidden="true" />;
   return (
     <time
@@ -268,7 +295,7 @@ function ResetCountdown({ resetsAt, now }: { resetsAt?: string; now: number }) {
     >
       {/* Narrow screens show only the countdown; screen readers keep the prefix. */}
       <span className="sr-only sm:not-sr-only">
-        {countdown === "soon" ? "resets " : "resets in "}
+        {countdown === t("soon") ? t("resets ") : t("resets in ")}
       </span>
       {countdown}
     </time>
@@ -279,6 +306,7 @@ const clampPercent = (value: number) =>
   Math.min(100, Math.max(0, Math.round(value)));
 
 function UsageItemRow({ item, now }: { item: HarnessUsageItem; now: number }) {
+  const { t } = useI18n();
   const label = (
     <TruncatedText className="max-w-40 text-ink">{item.label}</TruncatedText>
   );
@@ -298,7 +326,7 @@ function UsageItemRow({ item, now }: { item: HarnessUsageItem; now: number }) {
       <PercentRow item={item} label={label} now={now} rowClass={rowClass} />
     );
   }
-  const text = formatUsageAmount(item);
+  const text = formatUsageAmount(item, t);
   const limited = item.limit !== undefined && item.limit > 0;
   const percent = limited ? clampPercent((item.used / item.limit!) * 100) : 0;
   return (
@@ -328,6 +356,7 @@ function PercentRow({
   now: number;
   rowClass: string;
 }) {
+  const { t } = useI18n();
   const percent = clampPercent(item.used_percent);
   return (
     <li className={rowClass}>
@@ -335,10 +364,11 @@ function PercentRow({
       <UsageMeter
         item={item}
         percent={percent}
-        valueText={`${percent}% used`}
+        valueText={t("{percent}% used", { percent })}
       />
       <span className="whitespace-nowrap text-right tabular-nums text-ink-muted">
-        {percent}% used
+        {percent}
+        {t("% used")}
       </span>
       <ResetCountdown resetsAt={item.resets_at} now={now} />
     </li>

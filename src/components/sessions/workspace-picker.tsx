@@ -1,4 +1,7 @@
 "use client";
+
+import { useI18n } from "@/features/i18n/use-i18n";
+
 import { useState } from "react";
 import { ChevronDown, FolderOpen, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,6 +33,7 @@ export function WorkspacePicker({
   loading?: boolean;
   onChange: (cwd: string, save: boolean) => void;
 }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"saved" | "path">(
     targets.length || reusableTargets.length ? "saved" : "path",
@@ -51,7 +55,7 @@ export function WorkspacePicker({
     >
       <PopoverTrigger asChild>
         <Button
-          aria-label="Choose workspace"
+          aria-label={t("Choose workspace")}
           variant="ghost"
           size="sm"
           type="button"
@@ -61,9 +65,11 @@ export function WorkspacePicker({
         >
           <span className="truncate font-mono text-xs">
             {loading
-              ? "Loading workspaces…"
+              ? t("Loading workspaces…")
               : value ||
-                (canSave ? "Choose a workspace" : "Agent default directory")}
+                (canSave
+                  ? t("Choose a workspace")
+                  : t("Agent default directory"))}
           </span>
           <ChevronDown className="ml-auto h-3.5 w-3.5 shrink-0" />
         </Button>
@@ -72,12 +78,12 @@ export function WorkspacePicker({
         <div
           className="mb-3 flex gap-1 rounded-lg bg-canvas p-1"
           role="tablist"
-          aria-label="Workspace source"
+          aria-label={t("Workspace source")}
         >
           {(
             [
-              ["saved", "Saved workspaces"],
-              ["path", "Enter a path"],
+              ["saved", t("Saved workspaces")],
+              ["path", t("Enter a path")],
             ] as const
           ).map(([id, label]) => (
             <Button
@@ -97,7 +103,7 @@ export function WorkspacePicker({
         {tab === "saved" ? (
           <div
             role="tabpanel"
-            aria-label="Saved workspaces"
+            aria-label={t("Saved workspaces")}
             className="grid gap-1"
           >
             {targets.map((target) => (
@@ -115,7 +121,7 @@ export function WorkspacePicker({
                   {target.cwd}
                   {target.is_default && (
                     <span className="ml-2 font-sans text-ink-tertiary">
-                      Default
+                      {t("Default")}
                     </span>
                   )}
                 </span>
@@ -125,7 +131,7 @@ export function WorkspacePicker({
             {reusableTargets.length > 0 && (
               <>
                 <p className="mt-2 border-t border-hairline px-2 pt-3 text-xs text-ink-tertiary">
-                  From other agents on this device
+                  {t("From other agents on this device")}
                 </p>
                 {reusableTargets.map((target) => (
                   <Button
@@ -153,16 +159,20 @@ export function WorkspacePicker({
             )}
             {!targets.length && !reusableTargets.length && (
               <p className="p-2 text-sm text-ink-tertiary">
-                No saved workspaces for this project and agent.
+                {t("No saved workspaces for this project and agent.")}
               </p>
             )}
           </div>
         ) : (
-          <div role="tabpanel" aria-label="Enter a path" className="grid gap-3">
+          <div
+            role="tabpanel"
+            aria-label={t("Enter a path")}
+            className="grid gap-3"
+          >
             <label className="grid gap-2 text-xs text-ink-muted">
-              Workspace
+              {t("Workspace")}
               <input
-                aria-label="Workspace"
+                aria-label={t("Workspace")}
                 aria-invalid={Boolean(path.trim()) && !valid}
                 value={path}
                 onChange={(event) => setPath(event.target.value)}
@@ -181,7 +191,7 @@ export function WorkspacePicker({
               />
             </label>
             <p className="text-xs text-ink-tertiary">
-              Use an absolute path, ~, or a path starting with ~/.
+              {t("Use an absolute path, ~, or a path starting with ~/.")}
             </p>
             {canSave && (
               <label className="flex items-center gap-2 text-xs text-ink-muted">
@@ -190,7 +200,7 @@ export function WorkspacePicker({
                   checked={saveTarget}
                   onChange={(event) => setSaveTarget(event.target.checked)}
                 />
-                Save as workspace target
+                {t("Save as workspace target")}
               </label>
             )}
             <Button
@@ -202,7 +212,7 @@ export function WorkspacePicker({
                 setOpen(false);
               }}
             >
-              Use this path
+              {t("Use this path")}
             </Button>
           </div>
         )}

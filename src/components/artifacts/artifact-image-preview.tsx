@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import {
   type Dispatch,
@@ -25,6 +26,7 @@ type ImageStateProps = {
 };
 
 function ArtifactImageControls({ state, onChange }: ImageStateProps) {
+  const { t } = useI18n();
   const changeZoom = (delta: number) =>
     onChange((current) => ({
       ...current,
@@ -32,43 +34,46 @@ function ArtifactImageControls({ state, onChange }: ImageStateProps) {
     }));
 
   return (
-    <div className="flex shrink-0 items-center gap-0.5" aria-label="Image zoom">
+    <div
+      className="flex shrink-0 items-center gap-0.5"
+      aria-label={t("Image zoom")}
+    >
       <Button
-        aria-label="Zoom out"
+        aria-label={t("Zoom out")}
         disabled={!state.width || state.zoom === 0.25}
         icon={<Minus className="h-4 w-4" />}
         onClick={() => changeZoom(-0.25)}
         size="icon"
-        tooltip="Zoom out"
+        tooltip={t("Zoom out")}
         type="button"
         variant="ghost"
       />
       <Button
-        aria-label="Show image at actual size"
+        aria-label={t("Show image at actual size")}
         disabled={!state.width}
         onClick={() => onChange((current) => ({ ...current, zoom: 1 }))}
         size="sm"
         type="button"
         variant="ghost"
       >
-        {state.zoom ? `${Math.round(state.zoom * 100)}%` : "Fit"}
+        {state.zoom ? `${Math.round(state.zoom * 100)}%` : t("Fit")}
       </Button>
       <Button
-        aria-label="Zoom in"
+        aria-label={t("Zoom in")}
         disabled={!state.width || state.zoom === 4}
         icon={<Plus className="h-4 w-4" />}
         onClick={() => changeZoom(0.25)}
         size="icon"
-        tooltip="Zoom in"
+        tooltip={t("Zoom in")}
         type="button"
         variant="ghost"
       />
       <Button
-        aria-label="Fit image"
+        aria-label={t("Fit image")}
         icon={<Scan className="h-4 w-4" />}
         onClick={() => onChange((current) => ({ ...current, zoom: undefined }))}
         size="icon"
-        tooltip="Fit image"
+        tooltip={t("Fit image")}
         type="button"
         variant="ghost"
       />
@@ -83,6 +88,7 @@ export function ArtifactImagePreview({
   title,
   fillHeight,
 }: ImageStateProps & { src: string; title: string; fillHeight: boolean }) {
+  const { t } = useI18n();
   const canvasRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const anchorRef = useRef<{
@@ -152,7 +158,9 @@ export function ArtifactImagePreview({
         className="grid min-h-44 place-items-center p-6 text-center text-xs text-warning"
         role="alert"
       >
-        This image could not be displayed. Retry preview or download the file.
+        {t(
+          "This image could not be displayed. Retry preview or download the file.",
+        )}
       </div>
     );
   }
@@ -161,7 +169,7 @@ export function ArtifactImagePreview({
     <div className={cn("flex min-h-80 flex-col", fillHeight && "h-full")}>
       <div
         ref={canvasRef}
-        aria-label="Image canvas"
+        aria-label={t("Image canvas")}
         className={cn(
           "flex h-80 overflow-auto bg-canvas p-3",
           fillHeight && "min-h-0 flex-1",
@@ -202,7 +210,7 @@ export function ArtifactImagePreview({
         <span className="px-1 text-xs text-ink-subtle">
           {state.width && state.height
             ? `${state.width} × ${state.height}`
-            : "Loading image…"}
+            : t("Loading image…")}
         </span>
         <ArtifactImageControls state={state} onChange={onChange} />
       </div>

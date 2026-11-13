@@ -1,3 +1,6 @@
+"use client";
+
+import { type Translator, useI18n } from "@/features/i18n/use-i18n";
 import { ToolMessageDetails } from "./tool-message-details";
 import {
   memo,
@@ -249,10 +252,11 @@ export function ToolEvidencePanel({
   userId?: string;
   selection: ToolEvidenceSelection | null;
 }) {
+  const { t } = useI18n();
   if (!selection) {
     return (
       <div className="rounded-lg border border-dashed border-hairline bg-canvas p-3 text-sm text-ink-tertiary">
-        Select a tool call or approval request from the timeline.
+        {t("Select a tool call or approval request from the timeline.")}
       </div>
     );
   }
@@ -267,7 +271,10 @@ export function ToolEvidencePanel({
           permissionDecision={permissionDecision}
         />
         {patches.length > 0 && <ToolEvidencePatchList patches={patches} />}
-        <ToolPayloadSection label="Request" value={selection.event.rawInput} />
+        <ToolPayloadSection
+          label={t("Request")}
+          value={selection.event.rawInput}
+        />
       </div>
     );
   }
@@ -308,10 +315,10 @@ export function ToolEvidencePanel({
         <ToolMessageDetails event={event} userId={userId} />
       ) : (
         <>
-          <ToolPayloadSection label="Input" value={event.input} />
+          <ToolPayloadSection label={t("Input")} value={event.input} />
           <ToolPayloadSection
-            fallback={event.status === "done" ? "Success" : undefined}
-            label="Output"
+            fallback={event.status === "done" ? t("Success") : undefined}
+            label={t("Output")}
             value={event.output}
           />
         </>
@@ -386,11 +393,12 @@ function FileChangeCard({
 }: {
   event: Extract<SessionEvent, { type: "file_change" }>;
 }) {
+  const { t } = useI18n();
   return (
     <article className="min-w-0 rounded-lg border border-hairline bg-surface-1 p-3">
       <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-ink-tertiary">
         <FileCode className="h-4 w-4" />
-        file change
+        {t("file change")}
       </div>
       <MonoId className="mt-2 text-sm text-ink" tooltip={event.path}>
         {event.path}
@@ -401,9 +409,10 @@ function FileChangeCard({
 
 // A quiet wait indicator for an active turn without an animated activity row.
 export function AgentPendingIndicator() {
+  const { t } = useI18n();
   return (
     <div
-      aria-label="Waiting for agent"
+      aria-label={t("Waiting for agent")}
       className="flex items-center gap-2 py-1"
       role="status"
     >
@@ -431,6 +440,7 @@ function ThoughtCard({
 }: {
   event: Extract<SessionEvent, { type: "progress" }>;
 }) {
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
   return (
     <details
@@ -439,7 +449,7 @@ function ThoughtCard({
     >
       <summary className="flex cursor-pointer list-none items-center gap-2 text-sm text-ink-muted outline-none transition hover:text-ink [&::-webkit-details-marker]:hidden">
         <PaxThoughtIcon />
-        <span>{event.streaming ? "Thinking" : "Thought"}</span>
+        <span>{event.streaming ? t("Thinking") : t("Thought")}</span>
         <ChevronDown className="ml-auto h-3.5 w-3.5 -rotate-90 text-ink-tertiary transition group-open:rotate-0" />
       </summary>
       {expanded && (
@@ -461,12 +471,13 @@ function UserMessageCard({
   event: Extract<SessionEvent, { type: "user_message" }>;
   userId?: string;
 }) {
+  const { t } = useI18n();
   return (
     <article className="flex min-w-0 justify-end py-1">
       <div className="w-fit max-w-[min(72%,640px)] min-w-0 rounded-lg bg-surface-2 px-3 py-2">
         {event.attachments && event.attachments.length > 0 && (
           <ul
-            aria-label="Message attachments"
+            aria-label={t("Message attachments")}
             className="mb-2 flex min-w-0 flex-wrap gap-1.5"
           >
             {event.attachments.map((attachment, index) => (
@@ -502,6 +513,7 @@ function UserMessageBody({
   content: string;
   initiallyExpanded?: boolean;
 }) {
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState(initiallyExpanded);
   const [canExpand, setCanExpand] = useState(false);
   const contentId = useId();
@@ -566,7 +578,7 @@ function UserMessageBody({
           type="button"
           variant="ghost"
         >
-          {expanded ? "Click to collapse" : "Click to expand"}
+          {expanded ? t("Click to collapse") : t("Click to expand")}
         </Button>
       )}
     </>
@@ -677,6 +689,7 @@ function AgentMessageActions({
   >["contextUsage"];
   tokenUsage?: Extract<WorkstreamItem, { type: "turn_footer" }>["tokenUsage"];
 }) {
+  const { t } = useI18n();
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
   const copyContent = useCallback(async () => {
@@ -697,7 +710,7 @@ function AgentMessageActions({
     <div className="mt-2 flex flex-wrap items-center gap-1 text-ink-tertiary">
       <span className="inline-flex items-center gap-1.5 pr-1 text-xs text-success">
         <CheckCircle2 className="h-3.5 w-3.5" />
-        Done
+        {t("Done")}
       </span>
       <TurnUsageSummary
         contextCompaction={contextCompaction}
@@ -707,7 +720,7 @@ function AgentMessageActions({
       {content?.trim() && (
         <>
           <Button
-            aria-label={copied ? "Copied response" : "Copy response"}
+            aria-label={copied ? t("Copied response") : t("Copy response")}
             icon={
               copied ? (
                 <Check className="h-4 w-4" />
@@ -717,27 +730,27 @@ function AgentMessageActions({
             }
             onClick={copyContent}
             size="icon"
-            tooltip={copied ? "Copied response" : "Copy response"}
+            tooltip={copied ? t("Copied response") : t("Copy response")}
             type="button"
             variant="ghost"
           />
           <Button
-            aria-label="Good response"
+            aria-label={t("Good response")}
             className={feedback === "up" ? "bg-success/10 text-success" : ""}
             icon={<ThumbsUp className="h-4 w-4" />}
             onClick={() => setFeedback("up")}
             size="icon"
-            tooltip="Good response"
+            tooltip={t("Good response")}
             type="button"
             variant="ghost"
           />
           <Button
-            aria-label="Bad response"
+            aria-label={t("Bad response")}
             className={feedback === "down" ? "bg-warning/10 text-warning" : ""}
             icon={<ThumbsDown className="h-4 w-4" />}
             onClick={() => setFeedback("down")}
             size="icon"
-            tooltip="Bad response"
+            tooltip={t("Bad response")}
             type="button"
             variant="ghost"
           />
@@ -762,13 +775,14 @@ function TurnUsageSummary({
   >["contextUsage"];
   tokenUsage?: Extract<WorkstreamItem, { type: "turn_footer" }>["tokenUsage"];
 }) {
+  const { t } = useI18n();
   if (!tokenUsage && !contextUsage && !contextCompaction) {
     return null;
   }
 
   return (
     <Button
-      aria-label="Turn usage details"
+      aria-label={t("Turn usage details")}
       icon={
         <ContextUsageGauge
           usedTokens={contextUsage?.usedTokens}
@@ -805,24 +819,25 @@ function TurnUsageDetails({
   >["contextUsage"];
   tokenUsage?: Extract<WorkstreamItem, { type: "turn_footer" }>["tokenUsage"];
 }) {
+  const { t } = useI18n();
   const details = [
-    ["Turn tokens", formatOptionalTokenCount(tokenUsage?.totalTokens)],
-    ["Input", formatOptionalTokenCount(tokenUsage?.inputTokens)],
-    ["Cached", formatOptionalTokenCount(tokenUsage?.cacheReadTokens)],
-    ["Cache write", formatOptionalTokenCount(tokenUsage?.cacheWriteTokens)],
+    [t("Turn tokens"), formatOptionalTokenCount(tokenUsage?.totalTokens)],
+    [t("Input"), formatOptionalTokenCount(tokenUsage?.inputTokens)],
+    [t("Cached"), formatOptionalTokenCount(tokenUsage?.cacheReadTokens)],
+    [t("Cache write"), formatOptionalTokenCount(tokenUsage?.cacheWriteTokens)],
     [
-      "Cache creation",
+      t("Cache creation"),
       formatOptionalTokenCount(tokenUsage?.cacheCreationTokens),
     ],
-    ["Output", formatOptionalTokenCount(tokenUsage?.outputTokens)],
-    ["Reasoning", formatOptionalTokenCount(tokenUsage?.reasoningTokens)],
-    ["Context", formatContextUsage(contextUsage)],
-    ["Compacted", formatContextCompaction(contextCompaction)],
+    [t("Output"), formatOptionalTokenCount(tokenUsage?.outputTokens)],
+    [t("Reasoning"), formatOptionalTokenCount(tokenUsage?.reasoningTokens)],
+    [t("Context"), formatContextUsage(contextUsage)],
+    [t("Compacted"), formatContextCompaction(contextCompaction, t)],
   ].filter((entry): entry is [string, string] => entry[1] !== undefined);
 
   return (
     <div className="min-w-52">
-      <div className="mb-1 font-medium text-ink">Turn usage</div>
+      <div className="mb-1 font-medium text-ink">{t("Turn usage")}</div>
       <div className="grid grid-cols-[auto_auto] gap-x-4">
         {details.map(([label, value]) => (
           <div className="contents" key={label}>
@@ -857,13 +872,16 @@ function formatContextUsage(
 }
 
 function formatContextCompaction(
-  value?: Extract<WorkstreamItem, { type: "turn_footer" }>["contextCompaction"],
+  value:
+    | Extract<WorkstreamItem, { type: "turn_footer" }>["contextCompaction"]
+    | undefined,
+  t: Translator,
 ) {
   if (!value) {
     return undefined;
   }
   if (value.beforeTokens === undefined || value.afterTokens === undefined) {
-    return "Occurred";
+    return t("Occurred");
   }
   return `${formatExactTokenCount(value.beforeTokens)} → ${formatExactTokenCount(
     value.afterTokens,
@@ -893,15 +911,18 @@ function InvocationCard({
   agentOwnerInfos?: Record<string, AgentOwnerInfo>;
   event: Extract<SessionEvent, { type: "invocation" }>;
 }) {
+  const { t } = useI18n();
   const sender = invocationParticipant(
     event.sender,
     agentOwnerInfoForEndpoint(event.sender, agentOwnerInfos),
-    "Source agent",
+    t("Source agent"),
+    t,
   );
   const receiver = invocationParticipant(
     event.receiver,
     agentOwnerInfoForEndpoint(event.receiver, agentOwnerInfos),
-    "Target agent",
+    t("Target agent"),
+    t,
   );
   const isReceived = event.side === "target";
   const isSent = event.side === "source";
@@ -909,15 +930,15 @@ function InvocationCard({
   const primary = isReceived ? sender : receiver;
   const label = isPending
     ? isReceived
-      ? "Receiving from"
+      ? t("Receiving from")
       : isSent
-        ? "Sending to"
-        : "Pending"
+        ? t("Sending to")
+        : t("Pending")
     : isReceived
-      ? "Received from"
+      ? t("Received from")
       : isSent
-        ? "Sent to"
-        : "Invoked";
+        ? t("Sent to")
+        : t("Invoked");
   const content = invocationBodyContent(event, agentOwnerInfos);
   const DirectionIcon = isReceived ? ArrowDown : ArrowUp;
 
@@ -986,6 +1007,7 @@ function invocationParticipant(
   endpoint: Extract<SessionEvent, { type: "invocation" }>["sender"],
   ownerInfo: AgentOwnerInfo | undefined,
   fallback: string,
+  t: Translator,
 ) {
   const resolved = Boolean(
     ownerInfo?.profile?.display_name ??
@@ -999,7 +1021,7 @@ function invocationParticipant(
       ownerInfo?.agent.name ??
       endpoint?.agentName ??
       (endpoint?.agentId || endpoint?.representativeAgentId
-        ? "Resolving agent..."
+        ? t("Resolving agent...")
         : fallback),
     resolved,
     userName: ownerDisplayName(ownerInfo) ?? endpoint?.userName,
@@ -1052,6 +1074,7 @@ function WorkGroupCard({
   permissionDecision: PermissionDecisionState;
   userId?: string;
 }) {
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const tools = events.filter(
     (event): event is ToolCallEvent => event.type === "tool_call",
@@ -1092,23 +1115,28 @@ function WorkGroupCard({
   // A tool error is evidence for the agent, not a terminal error for the turn.
   // Do not infer "retrying" until another tool invocation actually arrives.
   const baseLabel = needsApproval
-    ? "Waiting for approval"
+    ? t("Waiting for approval")
     : onlySubagentCompletions
       ? events.length === 1
-        ? "Subagent completed"
-        : "Subagents completed"
+        ? t("Subagent completed")
+        : t("Subagents completed")
       : complete
         ? durationLabel
-          ? `Worked for ${durationLabel}`
-          : "Worked"
-        : liveActivityLabel(events);
+          ? t("Worked for {duration}", { duration: durationLabel })
+          : t("Worked")
+        : liveActivityLabel(events, t);
   const label =
     approvals.length > 0 && !needsApproval
-      ? `${baseLabel} · ${approvals.length} ${approvals.length === 1 ? "approval" : "approvals"}`
+      ? t(
+          approvals.length === 1
+            ? "{label} · {count} approval"
+            : "{label} · {count} approvals",
+          { label: baseLabel, count: approvals.length },
+        )
       : baseLabel;
 
   return (
-    <section aria-label="Agent activity" className="min-w-0">
+    <section aria-label={t("Agent activity")} className="min-w-0">
       <details
         className="group/work min-w-0 py-0"
         onToggle={(event) => setExpanded(event.currentTarget.open)}
@@ -1199,6 +1227,7 @@ function ToolEventRow({
   permissionDecision: PermissionDecisionState;
   userId?: string;
 }) {
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const inputLocalPath = toolInputLocalPath(event.input);
   const inputPreview = compactToolInputPreview(event.input);
@@ -1207,9 +1236,9 @@ function ToolEventRow({
       permissionDecisionForPermission(permission, permissionDecision),
     )
     .filter((decision) => decision?.status === "approved");
-  const approvalBadgeLabel = approvalSummaryBadgeLabel(approvedDecisions);
+  const approvalBadgeLabel = approvalSummaryBadgeLabel(approvedDecisions, t);
   const hasApprovedPermission = Boolean(approvalBadgeLabel);
-  const approvedPermissionLabel = approvalBadgeLabel ?? "approved";
+  const approvedPermissionLabel = approvalBadgeLabel ?? t("approved");
   const hasPendingPermission =
     !compact &&
     event.permissions?.some((permission) => {
@@ -1275,7 +1304,7 @@ function ToolEventRow({
           )}
         </span>
         <div className="flex shrink-0 items-center gap-1.5">
-          <span className="text-xs text-ink-tertiary">{event.status}</span>
+          <span className="text-xs text-ink-tertiary">{t(event.status)}</span>
           {hasApprovedPermission && (
             <Badge tone="success">{approvedPermissionLabel}</Badge>
           )}
@@ -1298,10 +1327,10 @@ function ToolEventRow({
           )
         ) : (
           <>
-            <ToolPayloadSection label="Input" value={event.input} />
+            <ToolPayloadSection label={t("Input")} value={event.input} />
             <ToolPayloadSection
-              fallback={event.status === "done" ? "Success" : undefined}
-              label="Output"
+              fallback={event.status === "done" ? t("Success") : undefined}
+              label={t("Output")}
               value={event.output}
             />
           </>
@@ -1371,16 +1400,17 @@ function CompactPatchToolSummary({
   intent?: "approved" | "edited" | "proposed";
   patches: CodePatch[];
 }) {
+  const { t } = useI18n();
   const titles = patches.map((patch) => patch.path ?? patch.operation);
   const primaryTitle = titles[0] ?? "file";
   const extraCount = Math.max(0, titles.length - 1);
   const tooltip = titles.join("\n");
   const label =
     intent === "edited"
-      ? compactPatchLabel(patches)
+      ? compactPatchLabel(patches, t)
       : intent === "approved"
-        ? "Approved edit"
-        : "Proposed edit";
+        ? t("Approved edit")
+        : t("Proposed edit");
 
   return (
     <div className="grid min-h-9 min-w-0 grid-cols-[16px_minmax(0,1fr)] items-center gap-2">
@@ -1397,6 +1427,7 @@ function CompactPatchToolSummary({
 }
 
 function ToolEvidencePatchList({ patches }: { patches: CodePatch[] }) {
+  const { t } = useI18n();
   if (patches.length === 0) {
     return null;
   }
@@ -1404,7 +1435,7 @@ function ToolEvidencePatchList({ patches }: { patches: CodePatch[] }) {
   return (
     <section className="overflow-hidden rounded-lg border border-hairline bg-canvas">
       <div className="border-b border-hairline px-3 py-2 text-xs uppercase tracking-wide text-ink-tertiary">
-        Files
+        {t("Files")}
       </div>
       <div className="grid divide-y divide-hairline">
         {patches.map((patch) => {
@@ -1447,15 +1478,15 @@ function ToolEvidencePatchList({ patches }: { patches: CodePatch[] }) {
   );
 }
 
-function compactPatchLabel(patches: CodePatch[]) {
+function compactPatchLabel(patches: CodePatch[], t: Translator) {
   const noun = patches.length === 1 ? "file" : "files";
   if (patches.every((patch) => patch.operation === "delete")) {
-    return `Deleted ${noun}`;
+    return t(noun === "file" ? "Deleted file" : "Deleted files");
   }
   if (patches.some((patch) => patch.operation === "delete")) {
-    return `Changed ${noun}`;
+    return t(noun === "file" ? "Changed file" : "Changed files");
   }
-  return `Edited ${noun}`;
+  return t(noun === "file" ? "Edited file" : "Edited files");
 }
 
 function ToolPermissionsSection({
@@ -1469,6 +1500,7 @@ function ToolPermissionsSection({
   onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
   permissionDecision: PermissionDecisionState;
 }) {
+  const { t } = useI18n();
   const permissions =
     event.permissions?.filter(
       (permission) =>
@@ -1482,7 +1514,7 @@ function ToolPermissionsSection({
   return (
     <section className="grid gap-2">
       <div className="text-xs uppercase tracking-wide text-ink-tertiary">
-        Approval request
+        {t("Approval request")}
       </div>
       {permissions.map((permission) => (
         <PermissionRequestCard
@@ -1498,6 +1530,7 @@ function ToolPermissionsSection({
 }
 
 function ToolPatchSection({ patches }: { patches: CodePatch[] }) {
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const [selectedPatchKey, setSelectedPatchKey] = useState<string | null>(null);
 
@@ -1534,7 +1567,7 @@ function ToolPatchSection({ patches }: { patches: CodePatch[] }) {
     ? patchSummaries
     : patchSummaries.slice(0, 3);
   const hiddenCount = Math.max(0, patchSummaries.length - 3);
-  const titleLabel = patchSectionTitle(allPatches, patchSummaries.length);
+  const titleLabel = patchSectionTitle(allPatches, patchSummaries.length, t);
 
   return (
     <section className="overflow-hidden rounded-lg border border-hairline bg-surface-1">
@@ -1556,7 +1589,7 @@ function ToolPatchSection({ patches }: { patches: CodePatch[] }) {
           type="button"
           variant="secondary"
         >
-          Review
+          {t("Review")}
         </Button>
       </div>
       <div className="grid divide-y divide-hairline">
@@ -1589,7 +1622,9 @@ function ToolPatchSection({ patches }: { patches: CodePatch[] }) {
             type="button"
           >
             <span>
-              {expanded ? "Collapse" : `Show ${hiddenCount} more files`}
+              {expanded
+                ? t("Collapse")
+                : t("Show {count} more files", { count: hiddenCount })}
             </span>
             <ChevronDown
               className={expanded ? "h-3.5 w-3.5 rotate-180" : "h-3.5 w-3.5"}
@@ -1614,6 +1649,7 @@ function PatchSidePanel({
   onClose: () => void;
   patch: CodePatch;
 }) {
+  const { t } = useI18n();
   const title = patch.path ?? patch.operation;
   const stats = codePatchStats(patch);
   const lines = diffLinesForPatch(patch);
@@ -1666,7 +1702,7 @@ function PatchSidePanel({
             icon={<X className="h-4 w-4" />}
             onClick={onClose}
             size="icon"
-            tooltip="Close diff"
+            tooltip={t("Close diff")}
             type="button"
             variant="ghost"
           />
@@ -1859,8 +1895,11 @@ function PatchStatsView({
   className?: string;
   summary: PatchStatsSummary;
 }) {
+  const { t } = useI18n();
   if (summary.kind === "deleted") {
-    return <span className={cn("text-red-400", className)}>deleted</span>;
+    return (
+      <span className={cn("text-red-400", className)}>{t("deleted")}</span>
+    );
   }
 
   return (
@@ -1868,7 +1907,7 @@ function PatchStatsView({
       <span className="text-emerald-400">+{summary.added}</span>
       <span className="text-red-400">-{summary.removed}</span>
       {summary.kind === "lines_with_delete" && (
-        <span className="text-red-400">deleted</span>
+        <span className="text-red-400">{t("deleted")}</span>
       )}
     </span>
   );
@@ -1882,16 +1921,28 @@ function isContentUnknownDeletePatch(patch: CodePatch) {
   );
 }
 
-function patchSectionTitle(patches: CodePatch[], fileCount: number) {
+function patchSectionTitle(
+  patches: CodePatch[],
+  fileCount: number,
+  t: Translator,
+) {
   const count = fileCount;
   const noun = count === 1 ? "file" : "files";
   if (patches.every((patch) => patch.operation === "delete")) {
-    return `Deleted ${count} ${noun}`;
+    return t(
+      noun === "file" ? "Deleted {count} file" : "Deleted {count} files",
+      { count },
+    );
   }
   if (patches.some((patch) => patch.operation === "delete")) {
-    return `Changed ${count} ${noun}`;
+    return t(
+      noun === "file" ? "Changed {count} file" : "Changed {count} files",
+      { count },
+    );
   }
-  return `Edited ${count} ${noun}`;
+  return t(noun === "file" ? "Edited {count} file" : "Edited {count} files", {
+    count,
+  });
 }
 
 type DiffLine = {
@@ -1988,6 +2039,7 @@ function permissionDecisionForPermission(
 
 function approvalSummaryBadgeLabel(
   decisions: (PermissionDecision | undefined)[] | undefined,
+  t: Translator,
 ) {
   const approved = (decisions ?? []).filter(
     (decision): decision is PermissionDecision =>
@@ -1999,37 +2051,41 @@ function approvalSummaryBadgeLabel(
 
   const sources = new Set(approved.map((decision) => decision.source));
   if (sources.size === 1 && sources.has("auto")) {
-    return "auto approved";
+    return t("auto approved");
   }
   if (sources.size === 1 && sources.has("user")) {
-    return "approved by user";
+    return t("approved by user");
   }
-  return "approved";
+  return t("approved");
 }
 
-function permissionDecisionLabel(decision: PermissionDecision | undefined) {
+function permissionDecisionLabel(
+  decision: PermissionDecision | undefined,
+  t: Translator,
+) {
   if (decision?.source === "auto") {
-    return "auto approved";
+    return t("auto approved");
   }
   if (decision?.source === "user") {
-    return "approved by user";
+    return t("approved by user");
   }
-  return "approved";
+  return t("approved");
 }
 
 function permissionDecisionStatusText(
   decision: PermissionDecision | undefined,
+  t: Translator,
 ) {
   if (decision?.status === "denied") {
-    return "Permission denied";
+    return t("Permission denied");
   }
   if (decision?.source === "auto") {
-    return "Permission approved automatically";
+    return t("Permission approved automatically");
   }
   if (decision?.source === "user") {
-    return "Permission approved by user";
+    return t("Permission approved by user");
   }
-  return "Permission approved";
+  return t("Permission approved");
 }
 
 function ToolPayloadSection({
@@ -2067,30 +2123,32 @@ function ToolPayloadSection({
 }
 
 function ToolStatusBadge({ status }: { status: ToolCallEvent["status"] }) {
+  const { t } = useI18n();
   if (status === "done") {
-    return <Badge tone="success">done</Badge>;
+    return <Badge tone="success">{t("done")}</Badge>;
   }
 
   if (status === "error") {
-    return <Badge tone="warning">error</Badge>;
+    return <Badge tone="warning">{t("error")}</Badge>;
   }
 
   if (status === "queued") {
-    return <Badge>queued</Badge>;
+    return <Badge>{t("queued")}</Badge>;
   }
 
   if (status === "called") {
-    return <Badge>called</Badge>;
+    return <Badge>{t("called")}</Badge>;
   }
 
-  return <Badge>running</Badge>;
+  return <Badge>{t("running")}</Badge>;
 }
 
 function ToolStatusMark({ status }: { status: ToolCallEvent["status"] }) {
+  const { t } = useI18n();
   if (status === "running") {
     return (
       <span
-        aria-label="running"
+        aria-label={t("running")}
         className="h-3.5 w-3.5 animate-spin rounded-full border border-primary-hover border-t-transparent"
       />
     );
@@ -2118,13 +2176,14 @@ function PermissionRequestCard({
   onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
   permissionDecision: PermissionDecisionState;
 }) {
+  const { t } = useI18n();
   const pending =
     permissionDecision.pending &&
     permissionDecision.pendingApprovalId === event.approvalId;
   const decided = permissionDecisionForPermission(event, permissionDecision);
   const approved = decided?.status === "approved";
   const denied = decided?.status === "denied";
-  const approvedLabel = permissionDecisionLabel(decided);
+  const approvedLabel = permissionDecisionLabel(decided, t);
   const submittingDecision =
     permissionDecision.pending &&
     (!permissionDecision.pendingApprovalId ||
@@ -2220,14 +2279,14 @@ function PermissionRequestCard({
         {approved ? (
           <Badge tone="success">{approvedLabel}</Badge>
         ) : denied ? (
-          <Badge tone="warning">denied</Badge>
+          <Badge tone="warning">{t("denied")}</Badge>
         ) : (
-          <Badge tone="warning">permission</Badge>
+          <Badge tone="warning">{t("permission")}</Badge>
         )}
       </div>
       {decided && (
         <div className="mt-3 rounded-md border border-hairline bg-canvas px-3 py-2 text-sm text-ink-muted">
-          {permissionDecisionStatusText(decided)} ·{" "}
+          {permissionDecisionStatusText(decided, t)} ·{" "}
           <span className="font-mono text-xs">{decided.decisionOption}</span>
         </div>
       )}
@@ -2244,7 +2303,7 @@ function PermissionRequestCard({
       {event.rawInput !== undefined && (
         <div className="mt-3">
           <div className="mb-1 text-xs uppercase tracking-wide text-ink-tertiary">
-            Request asked for
+            {t("Request asked for")}
           </div>
           {(() => {
             const requestText = textFromPayload(event.rawInput);
@@ -2287,12 +2346,12 @@ function PermissionRequestCard({
             tooltip={
               event.approvalId
                 ? `decision_option=${option.optionId}`
-                : "Waiting for manager approval id"
+                : t("Waiting for manager approval id")
             }
             type="button"
             variant={option.variant}
           >
-            {option.label}
+            {t(option.label)}
           </Button>
         ))}
       </div>
@@ -2327,14 +2386,15 @@ function PatchPermissionRequestCard({
   pending: boolean;
   permissionDecision: PermissionDecisionState;
 }) {
+  const { t } = useI18n();
   const titles = patches.map((patch) => patch.path ?? patch.operation);
   const title = titles[0] ?? event.title;
   const extraCount = Math.max(0, patches.length - 1);
   const label = denied
-    ? "Denied edit"
+    ? t("Denied edit")
     : approved
-      ? "Approved edit"
-      : "Proposed edit";
+      ? t("Approved edit")
+      : t("Proposed edit");
 
   return (
     <article
@@ -2380,16 +2440,16 @@ function PatchPermissionRequestCard({
           {approved ? (
             <Badge tone="success">{approvedLabel}</Badge>
           ) : denied ? (
-            <Badge tone="warning">denied</Badge>
+            <Badge tone="warning">{t("denied")}</Badge>
           ) : (
-            <Badge tone="warning">permission</Badge>
+            <Badge tone="warning">{t("permission")}</Badge>
           )}
         </div>
       </div>
 
       {decided && (
         <div className="mt-3 rounded-md border border-hairline bg-canvas px-3 py-2 text-sm text-ink-muted">
-          {permissionDecisionStatusText(decided)} ·{" "}
+          {permissionDecisionStatusText(decided, t)} ·{" "}
           <span className="font-mono text-xs">{decided.decisionOption}</span>
         </div>
       )}
@@ -2431,6 +2491,7 @@ function PermissionDecisionButtons({
   pending: boolean;
   permissionDecision: PermissionDecisionState;
 }) {
+  const { t } = useI18n();
   return (
     <div className="mt-4 flex flex-wrap gap-2" onClick={onClickCapture}>
       {permissionDecisionOptions.map((option) => (
@@ -2451,12 +2512,12 @@ function PermissionDecisionButtons({
           tooltip={
             event.approvalId
               ? `decision_option=${option.optionId}`
-              : "Waiting for manager approval id"
+              : t("Waiting for manager approval id")
           }
           type="button"
           variant={option.variant}
         >
-          {option.label}
+          {t(option.label)}
         </Button>
       ))}
     </div>

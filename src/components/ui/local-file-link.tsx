@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import { Check, Copy } from "lucide-react";
 import {
@@ -33,6 +34,7 @@ export function LocalFileLink({
   href,
   textClassName,
 }: LocalFileLinkProps) {
+  const { t } = useI18n();
   const context = useLocalFileLinkContext();
   const target = useMemo(
     () => parseLocalFileHref(href) ?? { path: href.trim() },
@@ -98,7 +100,7 @@ export function LocalFileLink({
         </span>
       )}
       <button
-        aria-label={copied ? "Copied path" : "Copy path"}
+        aria-label={copied ? t("Copied path") : t("Copy path")}
         className={cn(
           "ml-0.5 inline-flex h-5 w-5 shrink-0 -translate-y-px items-center justify-center rounded align-middle text-ink-tertiary outline-none transition",
           "hover:bg-surface-2 hover:text-ink focus-visible:ring-1 focus-visible:ring-primary-hover/60",
@@ -106,7 +108,7 @@ export function LocalFileLink({
           copied && "text-success opacity-100",
         )}
         onClick={handleCopy}
-        title={copied ? "Copied" : "Copy path"}
+        title={copied ? t("Copied") : t("Copy path")}
         type="button"
       >
         {copied ? (

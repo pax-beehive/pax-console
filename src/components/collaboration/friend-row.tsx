@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import { FormEvent, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
@@ -43,6 +44,7 @@ function friendStatusTone(status: string) {
 }
 
 export function FriendRow({ friend, user }: { friend: Friend; user: User }) {
+  const { t } = useI18n();
   const invalidateFriends = useFriendInvalidation(user.user_id);
   const alias = friendAlias(friend, user) ?? "";
   const [editing, setEditing] = useState(false);
@@ -97,14 +99,14 @@ export function FriendRow({ friend, user }: { friend: Friend; user: User }) {
                 setEditing(false);
               }
             }}
-            placeholder="Alias"
+            placeholder={t("Alias")}
             value={draft}
           />
           <Button
             disabled={saveAlias.isPending || !draft.trim()}
             icon={<Check className="h-4 w-4" />}
             size="icon"
-            tooltip="Save alias"
+            tooltip={t("Save alias")}
             type="submit"
             variant="primary"
           />
@@ -115,7 +117,7 @@ export function FriendRow({ friend, user }: { friend: Friend; user: User }) {
               setEditing(false);
             }}
             size="icon"
-            tooltip="Cancel"
+            tooltip={t("Cancel")}
             type="button"
           />
         </form>
@@ -131,14 +133,14 @@ export function FriendRow({ friend, user }: { friend: Friend; user: User }) {
           <TruncatedText
             className={alias ? "text-xs text-ink-muted" : "text-xs"}
           >
-            {alias || "Add alias"}
+            {alias || t("Add alias")}
           </TruncatedText>
           <Pencil className="h-3 w-3 shrink-0 text-ink-tertiary opacity-0 transition group-hover:opacity-100" />
         </button>
       )}
 
       <div className="flex items-center sm:justify-end">
-        <Badge tone={friendStatusTone(friend.status)}>{friend.status}</Badge>
+        <Badge tone={friendStatusTone(friend.status)}>{t(friend.status)}</Badge>
       </div>
 
       <div className="flex items-center gap-1 sm:justify-end">
@@ -150,7 +152,7 @@ export function FriendRow({ friend, user }: { friend: Friend; user: User }) {
             type="button"
             variant="primary"
           >
-            Accept
+            {t("Accept")}
           </Button>
         )}
         <Button
@@ -158,7 +160,7 @@ export function FriendRow({ friend, user }: { friend: Friend; user: User }) {
           icon={<Trash2 className="h-4 w-4" />}
           onClick={() => remove.mutate()}
           size="icon"
-          tooltip="Remove friend"
+          tooltip={t("Remove friend")}
           type="button"
         />
         <Button
@@ -166,7 +168,7 @@ export function FriendRow({ friend, user }: { friend: Friend; user: User }) {
           icon={<Ban className="h-4 w-4" />}
           onClick={() => block.mutate()}
           size="icon"
-          tooltip="Block friend"
+          tooltip={t("Block friend")}
           type="button"
           variant="danger"
         />

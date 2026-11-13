@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
+
 import { useRef, useState, type PointerEvent } from "react";
 import { createPortal } from "react-dom";
 import { Maximize2, Minimize2, Smartphone, X } from "lucide-react";
@@ -20,6 +22,7 @@ export function SessionMobileWindow({
   onPrepare?: () => Promise<boolean>;
   prepareDisabled?: boolean;
 }) {
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const [position, setPosition] = useState<{ left: number; top: number }>();
   const windowRef = useRef<HTMLElement>(null);
@@ -69,7 +72,7 @@ export function SessionMobileWindow({
     <section
       ref={windowRef}
       role="region"
-      aria-label="Session Android preview"
+      aria-label={t("Session Android preview")}
       className="fixed z-50 flex flex-col overflow-hidden rounded-xl border border-hairline bg-surface-1 shadow-2xl"
       style={
         expanded
@@ -99,16 +102,18 @@ export function SessionMobileWindow({
       >
         <span className="flex items-center gap-2 text-sm font-medium">
           <Smartphone className="h-4 w-4" />
-          Android phone
+          {t("Android phone")}
         </span>
         <div className="flex gap-1">
           <Button
             size="icon"
             variant="ghost"
             aria-label={
-              expanded ? "Restore Android window" : "Expand Android window"
+              expanded
+                ? t("Restore Android window")
+                : t("Expand Android window")
             }
-            tooltip={expanded ? "Restore window" : "Expand window"}
+            tooltip={expanded ? t("Restore window") : t("Expand window")}
             icon={
               expanded ? (
                 <Minimize2 className="h-4 w-4" />
@@ -121,7 +126,7 @@ export function SessionMobileWindow({
           <Button
             size="icon"
             variant="ghost"
-            aria-label="Close Android preview"
+            aria-label={t("Close Android preview")}
             icon={<X className="h-4 w-4" />}
             onClick={onClose}
           />

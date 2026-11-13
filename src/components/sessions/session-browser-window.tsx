@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
+
 import { useRef, useState, type PointerEvent } from "react";
 import { createPortal } from "react-dom";
 import { Maximize2, Minimize2, X } from "lucide-react";
@@ -16,6 +18,7 @@ export function SessionBrowserWindow({
   userId: string;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const [source, setSource] = useState<"native" | "docker">("native");
   const [position, setPosition] = useState<{ left: number; top: number }>();
@@ -63,7 +66,7 @@ export function SessionBrowserWindow({
     <section
       ref={windowRef}
       role="region"
-      aria-label="Session browser preview"
+      aria-label={t("Session browser preview")}
       className="fixed z-50 flex flex-col overflow-hidden rounded-xl border border-hairline bg-surface-1 shadow-2xl"
       style={
         expanded
@@ -91,15 +94,17 @@ export function SessionBrowserWindow({
           drag.current = undefined;
         }}
       >
-        <span className="text-sm font-medium">Browser preview</span>
+        <span className="text-sm font-medium">{t("Browser preview")}</span>
         <div className="flex gap-1">
           <Button
             size="icon"
             variant="ghost"
             aria-label={
-              expanded ? "Restore browser window" : "Expand browser window"
+              expanded
+                ? t("Restore browser window")
+                : t("Expand browser window")
             }
-            tooltip={expanded ? "Restore window" : "Expand window"}
+            tooltip={expanded ? t("Restore window") : t("Expand window")}
             icon={
               expanded ? (
                 <Minimize2 className="h-4 w-4" />
@@ -112,7 +117,7 @@ export function SessionBrowserWindow({
           <Button
             size="icon"
             variant="ghost"
-            aria-label="Close browser preview"
+            aria-label={t("Close browser preview")}
             icon={<X className="h-4 w-4" />}
             onClick={onClose}
           />
@@ -121,7 +126,7 @@ export function SessionBrowserWindow({
       <div
         className="flex shrink-0 gap-2 border-b border-hairline px-3 py-2"
         role="group"
-        aria-label="Browser source"
+        aria-label={t("Browser source")}
       >
         <Button
           variant={source === "native" ? "primary" : "secondary"}
@@ -137,7 +142,7 @@ export function SessionBrowserWindow({
           aria-pressed={source === "docker"}
           onClick={() => setSource("docker")}
         >
-          Docker desktop
+          {t("Docker desktop")}
         </Button>
       </div>
       <div className="min-h-0 flex-1 overflow-auto overscroll-contain p-3">

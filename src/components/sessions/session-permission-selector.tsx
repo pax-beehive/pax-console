@@ -1,5 +1,7 @@
 "use client";
 
+import { type Translator, useI18n } from "@/features/i18n/use-i18n";
+
 import { useState } from "react";
 import { ShieldCheck } from "lucide-react";
 import type {
@@ -17,9 +19,46 @@ import {
   PAX_AUTO_APPROVE_CHOICE_ID,
   PAX_MANUAL_CHOICE_ID,
   defaultPermissionChoiceId,
+  paxAutoApproveChoice,
   paxManualChoice,
   permissionChoiceById,
 } from "@/features/permissions/permission-catalog";
+
+export function permissionChoiceLabel(
+  choice: AgentPermissionChoice,
+  t: Translator,
+) {
+  if (
+    choice.choice_id === PAX_MANUAL_CHOICE_ID &&
+    choice.label === paxManualChoice.label
+  )
+    return t("Ask before tools");
+  if (
+    choice.choice_id === PAX_AUTO_APPROVE_CHOICE_ID &&
+    choice.label === paxAutoApproveChoice.label
+  )
+    return t("Auto approve (PAX)");
+  return choice.label;
+}
+
+function permissionChoiceDescription(
+  choice: AgentPermissionChoice,
+  t: Translator,
+) {
+  if (
+    choice.choice_id === PAX_MANUAL_CHOICE_ID &&
+    choice.description === paxManualChoice.description
+  )
+    return t("PAX asks before responding to agent permission requests.");
+  if (
+    choice.choice_id === PAX_AUTO_APPROVE_CHOICE_ID &&
+    choice.description === paxAutoApproveChoice.description
+  )
+    return t(
+      "PAX answers permission requests automatically while the agent keeps its default permission configuration.",
+    );
+  return choice.description;
+}
 
 type SessionPermissionSelectorProps = {
   field?: boolean;
@@ -35,21 +74,25 @@ type SessionPermissionSelectorProps = {
 export function SessionPermissionSelector(
   props: SessionPermissionSelectorProps,
 ) {
+  const { t } = useI18n();
   const settings = useSessionSettings();
   if (!settings) {
-    const label =
-      permissionChoiceById(props.choices, props.value)?.label ??
-      (props.value === PAX_MANUAL_CHOICE_ID ? "Ask before tools" : props.value);
+    const choice = permissionChoiceById(props.choices, props.value);
+    const label = choice
+      ? permissionChoiceLabel(choice, t)
+      : props.value === PAX_MANUAL_CHOICE_ID
+        ? t("Ask before tools")
+        : props.value;
     return (
       <SessionSettings
-        initialPage={{ id: "permissions", title: "Permissions" }}
+        initialPage={{ id: "permissions", title: t("Permissions") }}
         trigger={
           <Button
             type="button"
             variant="ghost"
             size="sm"
             disabled={props.disabled}
-            aria-label={`Session permissions: ${label}`}
+            aria-label={t("Session permissions: {label}", { label })}
             icon={<ShieldCheck className="h-4 w-4" />}
           >
             {label}
@@ -72,6 +115,7 @@ function SessionPermissionFields({
   onChange,
   value,
 }: SessionPermissionSelectorProps) {
+  const { t } = useI18n();
   const settings = useSessionSettings()!;
   const [pendingConfirmation, setPendingConfirmation] =
     useState<AgentPermissionChoice | null>(null);
@@ -97,7 +141,7 @@ function SessionPermissionFields({
   const selected = permissionChoiceById(choices, value) ?? {
     choice_id: value,
     kind: value.startsWith("pax:") ? ("pax" as const) : ("agent" as const),
-    label: value === PAX_MANUAL_CHOICE_ID ? "Ask before tools" : value,
+    label: value === PAX_MANUAL_CHOICE_ID ? t("Ask before tools") : value,
   };
 
   function select(choice: AgentPermissionChoice) {
@@ -110,7 +154,7 @@ function SessionPermissionFields({
       setPendingConfirmation(choice);
       settings.navigate({
         id: "permission-confirm",
-        title: `Use ${choice.label}?`,
+        title: t("Use {label}?", { label: choice.label }),
       });
     } else {
       onChange(choice.choice_id);
@@ -121,12 +165,14 @@ function SessionPermissionFields({
     return (
       <div className="mt-2 border-t border-hairline pt-2">
         <SettingsRow
-          label="Permissions"
-          value={selected.label}
-          ariaLabel={`Session permissions: ${selected.label}`}
+          label={t("Permissions")}
+          value={permissionChoiceLabel(selected, t)}
+          ariaLabel={t("Session permissions: {label}", {
+            label: permissionChoiceLabel(selected, t),
+          })}
           disabled={disabled}
           onClick={() =>
-            settings.navigate({ id: "permissions", title: "Permissions" })
+            settings.navigate({ id: "permissions", title: t("Permissions") })
           }
         />
       </div>
@@ -141,16 +187,18 @@ function SessionPermissionFields({
         <p className="text-sm leading-6 text-ink-muted">
           {choice?.description ??
             pendingConfirmation.description ??
-            "This agent permission can grant broad access to your machine and data."}
+            t(
+              "This agent permission can grant broad access to your machine and data.",
+            )}
         </p>
         {!choice && (
           <p role="status" className="mt-3 text-sm text-ink-muted">
-            This permission is no longer available.
+            {t("This permission is no longer available.")}
           </p>
         )}
         <div className="mt-6 flex flex-wrap justify-end gap-2">
           <Button type="button" variant="ghost" onClick={settings.back}>
-            Cancel
+            {t("Cancel")}
           </Button>
           <Button
             type="button"
@@ -163,7 +211,7 @@ function SessionPermissionFields({
               settings.finish();
             }}
           >
-            Use this permission
+            {t("Use this permission")}
           </Button>
         </div>
       </div>
@@ -172,12 +220,12 @@ function SessionPermissionFields({
   if (settings.page.id !== "permissions") return null;
   return (
     <>
-      <SettingsChoices label="Permissions">
+      <SettingsChoices label={t("Permissions")}>
         {paxChoices.map((choice) => (
           <SettingsChoice
             key={choice.choice_id}
-            label={choice.label}
-            description={choice.description}
+            label={permissionChoiceLabel(choice, t)}
+            description={permissionChoiceDescription(choice, t)}
             selected={choice.choice_id === value}
             disabled={disabled}
             onClick={() => select(choice)}
@@ -186,7 +234,7 @@ function SessionPermissionFields({
         {agentChoices.length > 0 && (
           <>
             <div className="mx-3 mb-1 mt-3 border-t border-hairline pt-4 text-xs text-ink-tertiary">
-              Agent permissions
+              {t("Agent permissions")}
             </div>
             {agentChoices.map((choice) => (
               <SettingsChoice
@@ -204,10 +252,15 @@ function SessionPermissionFields({
       {(loading || error || catalog?.stale) && (
         <p role="status" className="px-3 pt-4 text-xs leading-5 text-ink-muted">
           {loading
-            ? "Loading agent permissions…"
+            ? t("Loading agent permissions…")
             : error
-              ? "Agent permissions are unavailable. Using PAX fallback controls."
-              : `Using cached ${catalog?.source ?? "agent"} permissions while live options are unavailable.`}
+              ? t(
+                  "Agent permissions are unavailable. Using PAX fallback controls.",
+                )
+              : t(
+                  "Using cached {source} permissions while live options are unavailable.",
+                  { source: catalog?.source ?? "agent" },
+                )}
         </p>
       )}
     </>

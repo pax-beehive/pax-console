@@ -10,6 +10,7 @@ import {
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ShortCodeApprover } from "./short-code-access";
+import { useLocaleStore } from "@/features/i18n/locale-store";
 const mocks = vi.hoisted(() => ({
   match: vi.fn(),
   approve: vi.fn(),
@@ -37,6 +38,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  useLocaleStore.setState({ locale: "en" });
   vi.useRealTimers();
 });
 it("matches eight digits automatically but transfers access only after explicit approval", async () => {
@@ -122,5 +124,56 @@ it("aborts pending matching on unmount so agent changes cannot reuse it", async 
       deadline: Date.now() + 30_000,
     });
   });
+  expect(mocks.approve).not.toHaveBeenCalled();
+});
+
+it("switches pairing actions and local outcomes immediately without restarting matching or changing the code", async () => {
+  render(
+    <TooltipProvider>
+      <ShortCodeApprover userId="u" agentId="a" />
+    </TooltipProvider>,
+  );
+  fireEvent.change(screen.getByLabelText("Code from the new device"), {
+    target: { value: "12345678" },
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(500);
+  });
+
+  act(() => useLocaleStore.setState({ locale: "zh-CN" }));
+
+  expect(screen.getByLabelText("新设备上的验证码")).toHaveValue("12345678");
+  expect(screen.getByText("New laptop")).toBeInTheDocument();
+  expect(screen.getByText(/请在 \d+ 秒内确认/)).toBeInTheDocument();
+  expect(mocks.match).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "授权设备" }));
+  });
+  expect(mocks.approve).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole("status")).toHaveTextContent("设备已获授权。");
+
+  act(() => useLocaleStore.setState({ locale: "en" }));
+  expect(screen.getByRole("status")).toHaveTextContent("Device authorized.");
+  expect(mocks.match).toHaveBeenCalledTimes(1);
+});
+
+it("preserves a raw pairing error even when its text also exists in the translation catalog", async () => {
+  mocks.match.mockRejectedValue(new Error("Device authorized."));
+  render(
+    <TooltipProvider>
+      <ShortCodeApprover userId="u" agentId="a" />
+    </TooltipProvider>,
+  );
+  fireEvent.change(screen.getByLabelText("Code from the new device"), {
+    target: { value: "12345678" },
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(500);
+  });
+
+  act(() => useLocaleStore.setState({ locale: "zh-CN" }));
+
+  expect(screen.getByRole("status")).toHaveTextContent("Device authorized.");
+  expect(screen.queryByText("设备已获授权。")).not.toBeInTheDocument();
   expect(mocks.approve).not.toHaveBeenCalled();
 });

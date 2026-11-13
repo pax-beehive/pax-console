@@ -1,12 +1,13 @@
 /* @vitest-environment jsdom */
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { Agent, Node } from "@/features/api/types";
+import { useLocaleStore } from "@/features/i18n/locale-store";
 import { ProjectSettingsDetail } from "./project-settings-detail";
 
 const mocks = vi.hoisted(() => ({
@@ -121,9 +122,65 @@ beforeEach(() => {
   });
 });
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  useLocaleStore.setState({ locale: "en" });
+});
 
 describe("ProjectSettingsDetail", () => {
+  it("given an unsaved target, when language changes, then preserves its draft and submits unchanged identifiers", async () => {
+    mocks.createProjectTarget.mockResolvedValue({ target: targets[0] });
+    renderDetail();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Add workspace target" }),
+    );
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Target name" }),
+      "Dev 工作区",
+    );
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Target workspace" }),
+      "/workspace/中文",
+    );
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: "Target agent" }),
+      "agent_2",
+    );
+
+    act(() => useLocaleStore.setState({ locale: "zh-CN" }));
+
+    expect(screen.getByRole("heading", { name: "工作区目标" })).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "目标名称" })).toHaveValue(
+      "Dev 工作区",
+    );
+    expect(screen.getByRole("textbox", { name: "目标工作区" })).toHaveValue(
+      "/workspace/中文",
+    );
+    expect(screen.getByRole("combobox", { name: "目标智能体" })).toHaveValue(
+      "agent_2",
+    );
+    expect(screen.getByText("Local manager")).toBeVisible();
+    expect(screen.getByText("~/pax-manager")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "创建目标" }));
+    await waitFor(() =>
+      expect(mocks.createProjectTarget).toHaveBeenCalledWith(
+        "user_1",
+        "project_2",
+        {
+          agent_id: "agent_2",
+          cwd: "/workspace/中文",
+          display_name: "Dev 工作区",
+          enabled: true,
+          is_default: false,
+        },
+      ),
+    );
+
+    act(() => useLocaleStore.setState({ locale: "en" }));
+    expect(
+      screen.getByRole("heading", { name: "Workspace targets" }),
+    ).toBeVisible();
+  });
   it("shows the project path and reusable targets without session creation controls", () => {
     renderDetail();
 

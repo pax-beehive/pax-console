@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import Link from "next/link";
 import { useState } from "react";
@@ -48,6 +49,7 @@ export function AgentSignInSettings({
   initialHarness,
   returnSessionId,
 }: AgentSignInProps) {
+  const { t } = useI18n();
   const nodes = useNodes(userId);
   const [nodeId, setNodeId] = useState(initialNodeId);
   const [preferredHarness, setHarness] = useState(initialHarness);
@@ -83,39 +85,39 @@ export function AgentSignInSettings({
                 <Link
                   href={`/?${new URLSearchParams({ session_id: returnSessionId })}`}
                 >
-                  Return to session
+                  {t("Return to session")}
                 </Link>
               </Button>
             </div>
           )}
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="grid min-w-0 gap-2 text-sm text-ink-muted">
-              Device
+              {t("Device")}
               <select
                 className={fieldClass}
-                aria-label="Device"
+                aria-label={t("Device")}
                 value={nodeId}
                 onChange={(event) => setNodeId(event.target.value)}
               >
-                <option value="">Select a device</option>
+                <option value="">{t("Select a device")}</option>
                 {nodeId && !selected && (
                   <option value={nodeId} disabled>
-                    Linked device unavailable
+                    {t("Linked device unavailable")}
                   </option>
                 )}
                 {devices.map((node) => (
                   <option key={node.node_id} value={node.node_id}>
                     {nodeLabel(node)}
-                    {isActiveNode(node) ? "" : " (offline)"}
+                    {isActiveNode(node) ? "" : t(" (offline)")}
                   </option>
                 ))}
               </select>
             </label>
             <label className="grid min-w-0 gap-2 text-sm text-ink-muted">
-              Agent type
+              {t("Agent type")}
               <select
                 className={fieldClass}
-                aria-label="Agent type"
+                aria-label={t("Agent type")}
                 value={harness ?? ""}
                 disabled={agentTypes.length === 0}
                 onChange={(event) => setHarness(event.target.value)}
@@ -123,8 +125,8 @@ export function AgentSignInSettings({
                 {agentTypes.length === 0 && (
                   <option value="">
                     {selected && agents.isLoading
-                      ? "Loading agents…"
-                      : "No registered agents"}
+                      ? t("Loading agents…")
+                      : t("No registered agents")}
                   </option>
                 )}
                 {agentTypes.map((type) => (
@@ -137,7 +139,7 @@ export function AgentSignInSettings({
           </div>
           {selected && (
             <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-tertiary">
-              <span>Selected device</span>
+              <span>{t("Selected device")}</span>
               {selected.hostname && (
                 <TruncatedText className="max-w-64">
                   {selected.hostname}
@@ -149,49 +151,53 @@ export function AgentSignInSettings({
             </div>
           )}
           <p className="text-sm leading-6 text-ink-tertiary">
-            Credentials apply to the system account running PAX on this device.
-            Other accounts or configurations may need a separate sign-in.
+            {t(
+              "Credentials apply to the system account running PAX on this device. Other accounts or configurations may need a separate sign-in.",
+            )}
           </p>
           {nodes.isLoading ? (
             <p role="status" className="text-sm text-ink-tertiary">
-              Loading devices…
+              {t("Loading devices…")}
             </p>
           ) : nodes.error ? (
             <div className="grid justify-items-start gap-3">
               <p role="alert" className="text-sm text-warning">
-                Could not load your devices. Refresh before signing in.
+                {t("Could not load your devices. Refresh before signing in.")}
               </p>
               <Button size="sm" onClick={() => void nodes.refetch()}>
-                Refresh devices
+                {t("Refresh devices")}
               </Button>
             </div>
           ) : nodeId && !selected ? (
             <p role="alert" className="text-sm text-warning">
-              This device is unavailable to your account. Select a device you
-              own.
+              {t(
+                "This device is unavailable to your account. Select a device you own.",
+              )}
             </p>
           ) : selected && !available ? (
             <p role="status" className="text-sm text-ink-muted">
-              This device is offline. Reconnect it before checking or changing
-              its sign-in.
+              {t(
+                "This device is offline. Reconnect it before checking or changing its sign-in.",
+              )}
             </p>
           ) : available && agents.isLoading ? (
             <p role="status" className="text-sm text-ink-tertiary">
-              Loading agents…
+              {t("Loading agents…")}
             </p>
           ) : available && agents.error ? (
             <div className="grid justify-items-start gap-3">
               <p role="alert" className="text-sm text-warning">
-                Could not load the agents registered on this device.
+                {t("Could not load the agents registered on this device.")}
               </p>
               <Button size="sm" onClick={() => void agents.refetch()}>
-                Refresh agents
+                {t("Refresh agents")}
               </Button>
             </div>
           ) : available && !harness ? (
             <p role="status" className="text-sm text-ink-muted">
-              No agents are registered on this device. Add an agent to it in PAX
-              before signing in.
+              {t(
+                "No agents are registered on this device. Add an agent to it in PAX before signing in.",
+              )}
             </p>
           ) : available && harness ? (
             <HarnessSignIn
@@ -202,7 +208,7 @@ export function AgentSignInSettings({
             />
           ) : (
             <p className="text-sm text-ink-tertiary">
-              Choose a device to check its sign-in status.
+              {t("Choose a device to check its sign-in status.")}
             </p>
           )}
         </div>
@@ -309,6 +315,7 @@ function HarnessSignIn({
   nodeId: string;
   harness: LoginHarness;
 }) {
+  const { t, locale } = useI18n();
   const flow = useAgentSignIn(userId, nodeId, harness);
   // Bumped by Refresh so the usage card re-reads together with sign-in status.
   const [usageRefresh, setUsageRefresh] = useState(0);
@@ -368,7 +375,10 @@ function HarnessSignIn({
   };
 
   return (
-    <section aria-label={`${label} sign-in`} className="grid gap-4">
+    <section
+      aria-label={t("{name} sign-in", { name: label })}
+      className="grid gap-4"
+    >
       <div className={cardClass}>
         <div className="flex min-w-0 items-start justify-between gap-3">
           <p
@@ -385,20 +395,24 @@ function HarnessSignIn({
             {credentialsDetected ? (
               <span>
                 <span className="font-medium">{label}</span>
-                <span className="text-ink-muted"> · Signed in</span>
+                <span className="text-ink-muted"> {t(" · Signed in")}</span>
               </span>
             ) : (
               <span>
                 {flow.error
-                  ? "Sign-in status could not be checked."
+                  ? t("Sign-in status could not be checked.")
                   : unsupported
-                    ? `Sign-in is not available for ${label} yet.`
+                    ? t("Sign-in is not available for {name} yet.", {
+                        name: label,
+                      })
                     : flow.view
-                      ? (stateLabels[flow.view.state] ??
-                        "The device returned an unknown sign-in state. Refresh before continuing.")
+                      ? t(
+                          stateLabels[flow.view.state] ??
+                            "The device returned an unknown sign-in state. Refresh before continuing.",
+                        )
                       : flow.checking
-                        ? "Checking sign-in status…"
-                        : "Sign-in status could not be checked."}
+                        ? t("Checking sign-in status…")
+                        : t("Sign-in status could not be checked.")}
               </span>
             )}
           </p>
@@ -410,7 +424,7 @@ function HarnessSignIn({
             disabled={flow.busy || flow.checking}
             onClick={refresh}
           >
-            Refresh
+            {t("Refresh")}
           </Button>
         </div>
         {credentialsDetected && (
@@ -421,13 +435,13 @@ function HarnessSignIn({
         )}
         {flow.error && (
           <p role="alert" className="text-sm leading-6 text-warning">
-            {flow.error}
+            {t(flow.error)}
           </p>
         )}
         {credentialsDetected && !expanded && (
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-hairline pt-3">
             <span className="text-xs text-ink-tertiary">
-              Credentials expired?
+              {t("Credentials expired?")}
             </span>
             <div className="flex flex-wrap items-center gap-1">
               <Button
@@ -439,7 +453,7 @@ function HarnessSignIn({
                   setExpanded(true);
                 }}
               >
-                Use a different method
+                {t("Use a different method")}
               </Button>
               <Button
                 size="sm"
@@ -447,7 +461,7 @@ function HarnessSignIn({
                 disabled={!canStart}
                 onClick={() => (secretMethod ? setExpanded(true) : start())}
               >
-                Re-authenticate
+                {t("Re-authenticate")}
               </Button>
             </div>
           </div>
@@ -465,10 +479,10 @@ function HarnessSignIn({
           >
             {!credentialsDetected || choosing ? (
               <label className="grid w-full gap-2 text-sm text-ink-muted sm:max-w-sm">
-                Sign in with
+                {t("Sign in with")}
                 <select
                   className={fieldClass}
-                  aria-label="Sign-in method"
+                  aria-label={t("Sign-in method")}
                   value={method}
                   disabled={blocked}
                   onChange={(event) => {
@@ -478,24 +492,26 @@ function HarnessSignIn({
                 >
                   {options.map((candidate) => (
                     <option key={candidate.value} value={candidate.value}>
-                      {candidate.label}
+                      {t(candidate.label)}
                     </option>
                   ))}
                 </select>
               </label>
             ) : (
-              <p className="text-sm text-ink">{option?.label}</p>
+              <p className="text-sm text-ink">
+                {option ? t(option.label) : undefined}
+              </p>
             )}
             {option && (
               <p className="-mt-2 text-xs leading-5 text-ink-tertiary">
-                {option.hint}
+                {t(option.hint)}
               </p>
             )}
             {secretMethod && (
               <label className="grid w-full gap-2 text-sm text-ink-muted">
-                {secretLabel}
+                {t(secretLabel)}
                 <input
-                  aria-label={secretLabel}
+                  aria-label={t(secretLabel)}
                   type="password"
                   autoComplete="off"
                   spellCheck={false}
@@ -507,9 +523,9 @@ function HarnessSignIn({
                   onChange={(event) => setSecret(event.target.value)}
                 />
                 <span className="text-xs leading-5 text-ink-tertiary">
-                  Enter one complete line without surrounding spaces. It is sent
-                  to the device only when you start and is then cleared from
-                  this form.
+                  {t(
+                    "Enter one complete line without surrounding spaces. It is sent to the device only when you start and is then cleared from this form.",
+                  )}
                 </span>
               </label>
             )}
@@ -522,7 +538,7 @@ function HarnessSignIn({
                   !canStart || (secretMethod && !validLoginSecret(secret))
                 }
               >
-                {actionLabel}
+                {t(actionLabel)}
               </Button>
               {credentialsDetected && (
                 <Button
@@ -535,7 +551,7 @@ function HarnessSignIn({
                     setSecret("");
                   }}
                 >
-                  Cancel
+                  {t("Cancel")}
                 </Button>
               )}
             </div>
@@ -543,8 +559,9 @@ function HarnessSignIn({
         )}
         {unsupportedLink && (
           <p role="alert" className="text-sm leading-6 text-warning">
-            The device returned an unsupported authorization link. Cancel this
-            attempt and update paxd before trying again.
+            {t(
+              "The device returned an unsupported authorization link. Cancel this attempt and update paxd before trying again.",
+            )}
           </p>
         )}
         {challenge && (
@@ -560,13 +577,15 @@ function HarnessSignIn({
                 rel="noopener noreferrer"
                 referrerPolicy="no-referrer"
               >
-                Open {provider} sign-in
+                {t("Open ")}
+                {provider} {t(" sign-in")}
               </a>
             </Button>
             {flow.view?.state === "awaiting_browser" && flow.view.user_code && (
               <div className="grid gap-1">
                 <p className="text-xs text-ink-tertiary">
-                  Enter this code on the {provider} page
+                  {t("Enter this code on the ")}
+                  {provider} {t(" page")}
                 </p>
                 <MonoId className="text-lg text-ink">
                   {flow.view.user_code}
@@ -596,10 +615,10 @@ function HarnessSignIn({
             }}
           >
             <label className="grid w-full gap-2 text-sm text-ink-muted">
-              Full authorization code
+              {t("Full authorization code")}
               <input
                 type="password"
-                aria-label="Full authorization code"
+                aria-label={t("Full authorization code")}
                 autoComplete="off"
                 spellCheck={false}
                 autoCapitalize="none"
@@ -610,9 +629,9 @@ function HarnessSignIn({
                 onChange={(event) => setSecret(event.target.value)}
               />
               <span className="text-xs leading-5 text-ink-tertiary">
-                Paste the complete code shown after you approve access,
-                including its state suffix when present. Use the authorization
-                result, not an email verification code.
+                {t(
+                  "Paste the complete code shown after you approve access, including its state suffix when present. Use the authorization result, not an email verification code.",
+                )}
               </span>
             </label>
             <Button
@@ -623,7 +642,7 @@ function HarnessSignIn({
                 flow.busy || Boolean(flow.error) || !validLoginSecret(secret)
               }
             >
-              Complete sign-in
+              {t("Complete sign-in")}
             </Button>
           </form>
         )}
@@ -641,20 +660,21 @@ function HarnessSignIn({
                 });
               }}
             >
-              Cancel sign-in
+              {t("Cancel sign-in")}
             </Button>
             {flow.view.expires_at && (
               <p className="text-xs text-ink-tertiary">
-                Expires {new Date(flow.view.expires_at).toLocaleTimeString()}.
+                {t("Expires ")}
+                {new Date(flow.view.expires_at).toLocaleTimeString(locale)}.
               </p>
             )}
           </div>
         )}
         {(pending || expanded || flow.view?.state === "succeeded") && (
           <p className="text-xs leading-5 text-ink-tertiary">
-            Running agents may need a restart to use new credentials. Sign-in
-            does not interrupt active conversations; retry the request in your
-            session, and restart its agent when idle if the error continues.
+            {t(
+              "Running agents may need a restart to use new credentials. Sign-in does not interrupt active conversations; retry the request in your session, and restart its agent when idle if the error continues.",
+            )}
           </p>
         )}
       </div>
@@ -679,12 +699,18 @@ function AccountDetails({
   account?: HarnessAuthAccount;
   authMethod?: string;
 }) {
+  const { t } = useI18n();
   const email = account?.email?.trim();
   const displayName = account?.display_name?.trim();
   const identity = email || displayName;
+  // Provider account metadata stays verbatim; only local credential labels are translated.
   const badges = [
     account?.plan?.trim(),
-    authMethod ? (credentialLabels[authMethod] ?? authMethod) : undefined,
+    authMethod
+      ? credentialLabels[authMethod]
+        ? t(credentialLabels[authMethod])
+        : authMethod
+      : undefined,
   ].filter((value): value is string => Boolean(value));
   const extra = [
     email && displayName !== email ? displayName : undefined,
@@ -698,7 +724,7 @@ function AccountDetails({
   return (
     <div
       className="grid min-w-0 gap-1"
-      aria-label={identity ? "Signed-in account" : undefined}
+      aria-label={identity ? t("Signed-in account") : undefined}
     >
       <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm leading-6">
         {identity ? (
@@ -708,8 +734,8 @@ function AccountDetails({
         ) : (
           <span className="text-ink-muted">
             {secretMethod
-              ? "This sign-in method does not report account details."
-              : "Account details are unavailable on this device."}
+              ? t("This sign-in method does not report account details.")
+              : t("Account details are unavailable on this device.")}
           </span>
         )}
         {badges.map((badge) => (

@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
+
 import { useId, useState } from "react";
 import type { TurnSearchAccess } from "@/features/api/types";
 import { parseTurnSearchAccess } from "@/features/permissions/turn-search-access";
@@ -15,29 +17,33 @@ type Props = {
 };
 
 export function TurnSearchAccessSettings(props: Props) {
+  const { t } = useI18n();
   const settings = useSessionSettings();
   if (!settings) return null;
   if (settings.page.id === "home") {
     return (
       <SettingsRow
-        label="Expand search scope"
+        label={t("Expand search scope")}
         value={
           props.disabled
-            ? "Unavailable"
+            ? t("Unavailable")
             : props.value
-              ? "Next turn"
+              ? t("Next turn")
               : props.autoApprove
-                ? "Auto expansion"
-                : "Own agent"
+                ? t("Auto expansion")
+                : t("Own agent")
         }
         disabled={props.disabled}
         tooltip={
           props.disabled
-            ? "Search scope expansion is unavailable in encrypted sessions."
+            ? t("Search scope expansion is unavailable in encrypted sessions.")
             : undefined
         }
         onClick={() =>
-          settings.navigate({ id: "turn-search", title: "Expand search scope" })
+          settings.navigate({
+            id: "turn-search",
+            title: t("Expand search scope"),
+          })
         }
       />
     );
@@ -53,6 +59,7 @@ function SearchAccessEditor({
   onChange,
   onDone,
 }: Props & { onDone: () => void }) {
+  const { t } = useI18n();
   const id = useId();
   const [enabled, setEnabled] = useState(Boolean(value));
   const [queries, setQueries] = useState(value?.queries.join("\n") ?? "*");
@@ -66,18 +73,19 @@ function SearchAccessEditor({
   return (
     <div className="grid gap-4">
       <p className="px-3 text-sm leading-6 text-ink-muted">
-        Agents can search their own sessions by default. Preauthorize a wider
-        scope for the next prompt. Extra access ends when that turn finishes or
-        is stopped.
+        {t(
+          "Agents can search their own sessions by default. Preauthorize a wider scope for the next prompt. Extra access ends when that turn finishes or is stopped.",
+        )}
       </p>
       {autoApprove && (
         <p className="px-3 text-sm leading-6 text-ink-muted">
-          Without preauthorization, search stays within the calling agent. PAX
-          auto approve approves expansion requests when the agent asks.
+          {t(
+            "Without preauthorization, search stays within the calling agent. PAX auto approve approves expansion requests when the agent asks.",
+          )}
         </p>
       )}
       <SettingsToggle
-        label="Expand scope for next turn"
+        label={t("Expand scope for next turn")}
         checked={enabled}
         disabled={disabled}
         onChange={setEnabled}
@@ -85,51 +93,54 @@ function SearchAccessEditor({
       {enabled && (
         <div className="grid gap-4 px-3">
           <p className="text-xs leading-5 text-ink-muted">
-            These limits apply to extra access. The calling agent can still
-            search its own sessions.
+            {t(
+              "These limits apply to extra access. The calling agent can still search its own sessions.",
+            )}
           </p>
           <label className="text-sm text-ink" htmlFor={`${id}-queries`}>
-            Allowed queries
+            {t("Allowed queries")}
             <textarea
               id={`${id}-queries`}
-              aria-label="Allowed queries"
+              aria-label={t("Allowed queries")}
               className={inputClass}
               value={queries}
               disabled={disabled}
               onChange={(event) => setQueries(event.target.value)}
             />
             <span className="mt-1 block text-xs leading-5 text-ink-muted">
-              One complete query per line. Use * to allow any query.
+              {t("One complete query per line. Use * to allow any query.")}
             </span>
           </label>
           <label className="text-sm text-ink" htmlFor={`${id}-agents`}>
-            Agents
+            {t("Agents")}
             <textarea
               id={`${id}-agents`}
-              aria-label="Agents"
+              aria-label={t("Agents")}
               className={inputClass}
               value={agents}
               disabled={disabled}
               onChange={(event) => setAgents(event.target.value)}
             />
             <span className="mt-1 block text-xs leading-5 text-ink-muted">
-              Use * for all your agents, self for the calling agent, or one
-              agent ID per line.
+              {t(
+                "Use * for all your agents, self for the calling agent, or one agent ID per line.",
+              )}
             </span>
           </label>
           <label className="text-sm text-ink" htmlFor={`${id}-sessions`}>
-            Sessions
+            {t("Sessions")}
             <textarea
               id={`${id}-sessions`}
-              aria-label="Sessions"
+              aria-label={t("Sessions")}
               className={inputClass}
               value={sessions}
               disabled={disabled}
               onChange={(event) => setSessions(event.target.value)}
             />
             <span className="mt-1 block text-xs leading-5 text-ink-muted">
-              One session ID per line. Use * for all sessions of the selected
-              agents.
+              {t(
+                "One session ID per line. Use * for all sessions of the selected agents.",
+              )}
             </span>
           </label>
         </div>
@@ -141,7 +152,7 @@ function SearchAccessEditor({
       )}
       <div className="flex justify-end gap-2 px-3 pb-2">
         <Button type="button" variant="ghost" onClick={onDone}>
-          Cancel
+          {t("Cancel")}
         </Button>
         <Button
           type="button"
@@ -159,12 +170,12 @@ function SearchAccessEditor({
               setError(
                 caught instanceof Error
                   ? caught.message
-                  : "Invalid search scope.",
+                  : t("Invalid search scope."),
               );
             }
           }}
         >
-          Apply for next turn
+          {t("Apply for next turn")}
         </Button>
       </div>
     </div>

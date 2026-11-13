@@ -1,6 +1,7 @@
 "use client";
 
 import { Tooltip } from "@/components/ui/tooltip";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 /** Subagent activity beside the run status. */
 export function SubagentCountBadge({
@@ -10,12 +11,15 @@ export function SubagentCountBadge({
   count: number;
   label?: string;
 }) {
+  const { t } = useI18n();
   if (count <= 0) {
     return null;
   }
   const description =
     label ??
-    (count === 1 ? "1 subagent running" : `${count} subagents running`);
+    (count === 1
+      ? t("1 subagent running")
+      : t("{count} subagents running", { count }));
 
   return (
     <Tooltip content={description} openOnClick>

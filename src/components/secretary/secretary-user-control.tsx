@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -50,6 +51,7 @@ export function SecretaryGuidanceEditor({
   sourceId?: string;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
+  const { t } = useI18n();
   const scope = sourceId ? "session" : "user";
   const query = useSecretaryGuidance(userId, scope, sourceId);
   const checkingAccess = query.isFetching && !query.isFetchedAfterMount;
@@ -60,26 +62,31 @@ export function SecretaryGuidanceEditor({
     <section
       aria-label={
         sourceId
-          ? "Session summary requirements"
-          : "Default summary requirements"
+          ? t("Session summary requirements")
+          : t("Default summary requirements")
       }
       className="min-w-0 space-y-2 border-t border-hairline pt-4"
     >
       <h2 className="text-sm font-medium text-ink">
         {sourceId
-          ? "Session summary requirements"
-          : "Default summary requirements"}
+          ? t("Session summary requirements")
+          : t("Default summary requirements")}
       </h2>
       <p className="text-xs leading-5 text-ink-tertiary">
         {sourceId
-          ? "Only this session. Supplements your defaults; a request can add its own instructions."
-          : "Applies to future summary tasks across your sessions. Session and one-time requirements can refine it."}{" "}
-        Saving does not rerun history or change an execution already in
-        progress. Leave blank to clear.
+          ? t(
+              "Only this session. Supplements your defaults; a request can add its own instructions.",
+            )
+          : t(
+              "Applies to future summary tasks across your sessions. Session and one-time requirements can refine it.",
+            )}{" "}
+        {t(
+          "Saving does not rerun history or change an execution already in progress. Leave blank to clear.",
+        )}
       </p>
       {query.isPending || checkingAccess ? (
         <p role="status" className="text-xs text-ink-tertiary">
-          Loading requirements…
+          {t("Loading requirements…")}
         </p>
       ) : query.data && !denied ? (
         <GuidanceForm
@@ -92,10 +99,10 @@ export function SecretaryGuidanceEditor({
       ) : (
         <p role="alert" className="text-xs text-warning">
           {query.error instanceof AuthError
-            ? "Sign in again to view requirements."
+            ? t("Sign in again to view requirements.")
             : denied
-              ? "These requirements are no longer available."
-              : "Could not load requirements."}
+              ? t("These requirements are no longer available.")
+              : t("Could not load requirements.")}
         </p>
       )}
       {query.isError && !(query.error instanceof AuthError) && (
@@ -105,7 +112,7 @@ export function SecretaryGuidanceEditor({
             void query.refetch();
           }}
         >
-          Reload requirements
+          {t("Reload requirements")}
         </Button>
       )}
     </section>
@@ -123,6 +130,7 @@ function GuidanceForm({
   saved: SecretaryGuidance;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
+  const { t } = useI18n();
   const [instruction, setInstruction] = useState(saved.instruction);
   const [baseline, setBaseline] = useState(saved.revision);
   const save = useSaveSecretaryGuidance(
@@ -156,8 +164,8 @@ function GuidanceForm({
     >
       <label className="block text-xs text-ink-muted">
         {sourceId
-          ? "Requirements for this session"
-          : "Requirements for all sessions"}
+          ? t("Requirements for this session")
+          : t("Requirements for all sessions")}
         <textarea
           className={`${fieldClass} mt-1 min-h-24 resize-y`}
           value={instruction}
@@ -170,25 +178,30 @@ function GuidanceForm({
       </label>
       {invalid && (
         <p role="alert" className="text-xs text-warning">
-          {invalid}
+          {t(invalid ?? "")}
         </p>
       )}
       {changed && (
         <p role="alert" className="text-xs text-warning">
-          Saved requirements changed. Your draft is preserved. Reload before
-          saving again.
+          {t(
+            "Saved requirements changed. Your draft is preserved. Reload before saving again.",
+          )}
         </p>
       )}
       {save.isError && (
         <p role="alert" className="text-xs text-warning">
           {save.error instanceof ApiError && save.error.status === 409
-            ? "Another window changed the requirements. Your draft has been kept."
-            : "Could not confirm the save. Your draft has been kept; reload the saved version before trying again."}
+            ? t(
+                "Another window changed the requirements. Your draft has been kept.",
+              )
+            : t(
+                "Could not confirm the save. Your draft has been kept; reload the saved version before trying again.",
+              )}
         </p>
       )}
       {save.isSuccess && (
         <p role="status" className="text-xs text-success">
-          Requirements saved for future tasks.
+          {t("Requirements saved for future tasks.")}
         </p>
       )}
       <div className="flex flex-wrap gap-2">
@@ -197,7 +210,7 @@ function GuidanceForm({
           size="sm"
           disabled={save.isPending || changed || Boolean(invalid)}
         >
-          {save.isPending ? "Saving…" : "Save requirements"}
+          {save.isPending ? t("Saving…") : t("Save requirements")}
         </Button>
         {(dirty || save.isError) && (
           <Button
@@ -211,8 +224,8 @@ function GuidanceForm({
             }}
           >
             {changed || save.isError
-              ? "Reload saved requirements"
-              : "Discard draft"}
+              ? t("Reload saved requirements")
+              : t("Discard draft")}
           </Button>
         )}
       </div>
@@ -231,6 +244,7 @@ export function SecretarySessionControl({
   summaryId?: string;
   operationId?: string;
 }) {
+  const { t } = useI18n();
   const [mode, setMode] = useState<"new" | "current">();
   return (
     <>
@@ -240,7 +254,7 @@ export function SecretarySessionControl({
         className="min-h-11 sm:min-h-8"
         onClick={() => setMode("new")}
       >
-        {summaryId ? "Edit or guide summary" : "Guide or write summary"}
+        {summaryId ? t("Edit or guide summary") : t("Guide or write summary")}
       </Button>
       {operationId && (
         <Button
@@ -249,7 +263,7 @@ export function SecretarySessionControl({
           className="min-h-11 sm:min-h-8"
           onClick={() => setMode("current")}
         >
-          View current operation
+          {t("View current operation")}
         </Button>
       )}
       {mode && (
@@ -278,6 +292,7 @@ function SessionControlDialog({
   operationId?: string;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const prepare = usePrepareSecretaryOperation(userId);
   const existing = useSecretaryOperation(userId, operationId);
   const [scope, setScope] = useState<"pending" | "all" | "selected">("pending");
@@ -317,8 +332,10 @@ function SessionControlDialog({
       size="lg"
     >
       <DialogHeader
-        title="Control this session's summary"
-        description="Guide Secretary, or finish a range yourself without a model request."
+        title={t("Control this session's summary")}
+        description={t(
+          "Guide Secretary, or finish a range yourself without a model request.",
+        )}
       />
       {operationId && !operation ? (
         <>
@@ -329,9 +346,11 @@ function SessionControlDialog({
             >
               {existing.isError
                 ? existing.error instanceof AuthError
-                  ? "Sign in again to view this operation."
-                  : "This operation could not be loaded. Reopen it to check its current state."
-                : "Loading current operation…"}
+                  ? t("Sign in again to view this operation.")
+                  : t(
+                      "This operation could not be loaded. Reopen it to check its current state.",
+                    )
+                : t("Loading current operation…")}
             </p>
           </DialogBody>
           <DialogFooter>
@@ -340,7 +359,7 @@ function SessionControlDialog({
               variant="ghost"
               onClick={onClose}
             >
-              Close
+              {t("Close")}
             </Button>
           </DialogFooter>
         </>
@@ -361,9 +380,11 @@ function SessionControlDialog({
               onDirtyChange={setGuidanceDirty}
             />
             <section className="space-y-3 border-t border-hairline pt-4">
-              <h2 className="text-sm font-medium text-ink">One-time action</h2>
+              <h2 className="text-sm font-medium text-ink">
+                {t("One-time action")}
+              </h2>
               <label className="block text-xs text-ink-muted">
-                Message range
+                {t("Message range")}
                 <select
                   className={`${fieldClass} mt-1 min-h-11`}
                   value={scope}
@@ -373,43 +394,45 @@ function SessionControlDialog({
                     )
                   }
                 >
-                  <option value="pending">Pending messages</option>
+                  <option value="pending">{t("Pending messages")}</option>
                   <option value="all">
-                    All messages, including previously processed
+                    {t("All messages, including previously processed")}
                   </option>
                   <option value="selected">
-                    Choose message IDs (advanced)
+                    {t("Choose message IDs (advanced)")}
                   </option>
                 </select>
               </label>
               {scope === "selected" && (
                 <label className="block text-xs text-ink-muted">
-                  Message IDs (advanced)
+                  {t("Message IDs (advanced)")}
                   <textarea
-                    aria-label="Message IDs (advanced)"
+                    aria-label={t("Message IDs (advanced)")}
                     className={`${fieldClass} mt-1 min-h-24 resize-y font-mono`}
                     value={messageIds}
                     onChange={(event) => setMessageIds(event.target.value)}
                   />
                   <span className="mt-1 block text-ink-tertiary">
-                    Paste message IDs from this session, separated by spaces,
-                    newlines, or commas. Up to 4,096 unique complete messages.
-                    Manager verifies each message belongs to this session and is
-                    readable.
+                    {t(
+                      "Paste message IDs from this session, separated by spaces, newlines, or commas. Up to 4,096 unique complete messages. Manager verifies each message belongs to this session and is readable.",
+                    )}
                   </span>
                   <span className="mt-1 block">
-                    {selectedIds.length} unique message IDs
+                    {selectedIds.length} {t("unique message IDs")}
                   </span>
                 </label>
               )}
               <p className="text-xs text-ink-tertiary">
-                Next, review the exact messages and select a smaller range if
-                needed. Changing requirements alone does not start work.
+                {t(
+                  "Next, review the exact messages and select a smaller range if needed. Changing requirements alone does not start work.",
+                )}
               </p>
               <div className="flex flex-wrap gap-2">
                 {guidanceDirty && (
                   <p role="status" className="w-full text-xs text-warning">
-                    Save or discard session requirements before preparing.
+                    {t(
+                      "Save or discard session requirements before preparing.",
+                    )}
                   </p>
                 )}
                 <Button
@@ -418,7 +441,7 @@ function SessionControlDialog({
                   }
                   onClick={() => start("guided_summary")}
                 >
-                  Guide Secretary
+                  {t("Guide Secretary")}
                 </Button>
                 <Button
                   disabled={
@@ -426,30 +449,34 @@ function SessionControlDialog({
                   }
                   onClick={() => start("human_summary")}
                 >
-                  Write summary yourself
+                  {t("Write summary yourself")}
                 </Button>
                 {summaryId && (
                   <Button
                     disabled={prepare.isPending || guidanceDirty}
                     onClick={() => start("human_edit")}
                   >
-                    Edit this summary
+                    {t("Edit this summary")}
                   </Button>
                 )}
               </div>
               {prepare.isPending && (
                 <p role="status" className="text-xs text-ink-tertiary">
-                  Preparing the message range…
+                  {t("Preparing the message range…")}
                 </p>
               )}
               {prepare.isError && (
                 <p role="alert" className="text-xs text-warning">
                   {prepare.error instanceof AuthError
-                    ? "Sign in again to manage this session."
+                    ? t("Sign in again to manage this session.")
                     : prepare.error instanceof ApiError &&
                         prepare.error.status === 409
-                      ? "This range cannot be prepared. It may be empty, too large, or have changed. Your existing summaries are unchanged."
-                      : "Could not prepare the range. Try again; no model request has been sent."}
+                      ? t(
+                          "This range cannot be prepared. It may be empty, too large, or have changed. Your existing summaries are unchanged.",
+                        )
+                      : t(
+                          "Could not prepare the range. Try again; no model request has been sent.",
+                        )}
                 </p>
               )}
             </section>
@@ -461,7 +488,7 @@ function SessionControlDialog({
               disabled={prepare.isPending}
               onClick={onClose}
             >
-              Close
+              {t("Close")}
             </Button>
           </DialogFooter>
         </>
@@ -481,6 +508,7 @@ function OperationForm({
   onBusyChange: (busy: boolean) => void;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const current = useSecretaryOperation(userId, prepared.operation_id);
   const operation = current.data ?? prepared;
   const submit = useSubmitSecretaryOperation(userId, prepared.operation_id);
@@ -510,11 +538,13 @@ function OperationForm({
   const instructionError = secretaryInstructionError(instruction);
   const summaryError =
     !guided && (title.includes("\0") || body.includes("\0"))
-      ? "Summary text cannot contain a null character."
+      ? t("Summary text cannot contain a null character.")
       : !guided &&
           (new TextEncoder().encode(title).length > 4096 ||
             new TextEncoder().encode(body).length > 65536)
-        ? "Summary title must fit within 4,096 UTF-8 bytes and content within 64 KiB."
+        ? t(
+            "Summary title must fit within 4,096 UTF-8 bytes and content within 64 KiB.",
+          )
         : undefined;
   const valid =
     !unavailable &&
@@ -553,8 +583,9 @@ function OperationForm({
       <>
         <DialogBody>
           <p role="alert" className="text-sm text-warning">
-            This operation is no longer available to you. Sign in again or
-            reopen this session to check current access.
+            {t(
+              "This operation is no longer available to you. Sign in again or reopen this session to check current access.",
+            )}
           </p>
         </DialogBody>
         <DialogFooter>
@@ -563,7 +594,7 @@ function OperationForm({
             className="min-h-11 sm:min-h-8"
             onClick={onClose}
           >
-            Close
+            {t("Close")}
           </Button>
         </DialogFooter>
       </>
@@ -574,33 +605,52 @@ function OperationForm({
         <p role="status" className="text-sm text-ink">
           {operation.status === "completed"
             ? edit
-              ? "Summary version saved. Message progress is unchanged."
+              ? t("Summary version saved. Message progress is unchanged.")
               : guided
                 ? operation.result_refs?.length
-                  ? "Selected messages processed. Published summaries are available below."
-                  : "Selected messages processed. No new summary was needed."
-                : "Summary saved. Processing progress has been updated."
+                  ? t(
+                      "Selected messages processed. Published summaries are available below.",
+                    )
+                  : t("Selected messages processed. No new summary was needed.")
+                : t("Summary saved. Processing progress has been updated.")
             : operation.status === "queued" || operation.status === "running"
-              ? "Secretary is processing this fixed range. Your instructions remain attached across batches and retries."
+              ? t(
+                  "Secretary is processing this fixed range. Your instructions remain attached across batches and retries.",
+                )
               : operation.status === "needs_attention"
-                ? "This operation needs attention. Review its task before retrying."
+                ? t(
+                    "This operation needs attention. Review its task before retrying.",
+                  )
                 : operation.status === "superseded"
-                  ? "This operation was replaced. Its result cannot overwrite the newer work."
+                  ? t(
+                      "This operation was replaced. Its result cannot overwrite the newer work.",
+                    )
                   : edit
-                    ? "Editing creates a new version without changing message progress."
-                    : `${selected.length} of ${prepared.targets.length} messages selected for processing.`}
+                    ? t(
+                        "Editing creates a new version without changing message progress.",
+                      )
+                    : t(
+                        "{value1} of {value2} messages selected for processing.",
+                        {
+                          value1: selected.length,
+                          value2: prepared.targets.length,
+                        },
+                      )}
         </p>
         {operation.error && (
           <p role="alert" className="text-xs text-warning">
-            {operationReasons[operation.error] ??
-              "The operation could not finish. Review this session's task for its current failure reason."}
+            {(operationReasons[operation.error] &&
+              t(operationReasons[operation.error])) ??
+              t(
+                "The operation could not finish. Review this session's task for its current failure reason.",
+              )}
           </p>
         )}
         {current.isError && (
           <p role="alert" className="text-xs text-warning">
             {unavailable
-              ? "This operation is no longer available to you."
-              : "Could not refresh this operation. Your draft is preserved."}
+              ? t("This operation is no longer available to you.")
+              : t("Could not refresh this operation. Your draft is preserved.")}
           </p>
         )}
         {operation.result_refs?.map((ref) => (
@@ -608,36 +658,36 @@ function OperationForm({
             <Link
               href={`/settings/secretary/summaries?summary_id=${encodeURIComponent(ref.summary_id)}&revision=${ref.revision}`}
             >
-              View saved summary
+              {t("View saved summary")}
             </Link>
           </Button>
         ))}
         {prepared.instructions && (
           <details className="text-xs text-ink-muted">
             <summary className="cursor-pointer">
-              Requirements frozen for this operation
+              {t("Requirements frozen for this operation")}
             </summary>
             <dl className="mt-2 space-y-2 whitespace-pre-wrap break-words">
               <div>
-                <dt className="font-medium">User defaults</dt>
+                <dt className="font-medium">{t("User defaults")}</dt>
                 <dd>
                   {prepared.instructions.user?.instruction ||
-                    "No additional requirements"}
+                    t("No additional requirements")}
                 </dd>
               </div>
               <div>
-                <dt className="font-medium">Session requirements</dt>
+                <dt className="font-medium">{t("Session requirements")}</dt>
                 <dd>
                   {prepared.instructions.session?.instruction ||
-                    "No additional requirements"}
+                    t("No additional requirements")}
                 </dd>
               </div>
               <div>
-                <dt className="font-medium">Operation requirements</dt>
+                <dt className="font-medium">{t("Operation requirements")}</dt>
                 <dd>
                   {prepared.instructions.run ||
                     instruction ||
-                    "No additional requirements"}
+                    t("No additional requirements")}
                 </dd>
               </div>
             </dl>
@@ -651,14 +701,17 @@ function OperationForm({
             {!edit && (
               <section className="space-y-2">
                 <h2 className="text-sm font-medium text-ink">
-                  Messages to mark processed
+                  {t("Messages to mark processed")}
                 </h2>
                 <p className="text-xs text-ink-tertiary">
-                  Selections cover complete messages. Other messages keep their
-                  existing progress.{" "}
+                  {t(
+                    "Selections cover complete messages. Other messages keep their existing progress.",
+                  )}{" "}
                   {guided
-                    ? "Secretary decides which sources support the summary."
-                    : "Choose a few representative sources separately; they must belong to the processed range."}
+                    ? t("Secretary decides which sources support the summary.")
+                    : t(
+                        "Choose a few representative sources separately; they must belong to the processed range.",
+                      )}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <Button
@@ -670,7 +723,7 @@ function OperationForm({
                       )
                     }
                   >
-                    Select all messages
+                    {t("Select all messages")}
                   </Button>
                   <Button
                     size="sm"
@@ -680,7 +733,7 @@ function OperationForm({
                       setCoverage([]);
                     }}
                   >
-                    Clear selection
+                    {t("Clear selection")}
                   </Button>
                 </div>
                 <div className="max-h-64 overflow-auto divide-y divide-hairline rounded-md border border-hairline">
@@ -693,7 +746,9 @@ function OperationForm({
                             type="checkbox"
                             className="mt-1"
                             checked={selected.includes(target.message_id)}
-                            aria-label={`Process message ${index + 1}`}
+                            aria-label={t("Process message {value1}", {
+                              value1: index + 1,
+                            })}
                             onChange={(event) => {
                               setSelected(
                                 toggle(
@@ -711,7 +766,7 @@ function OperationForm({
                             }}
                           />
                           <span className="min-w-0 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
-                            <strong>{target.role}</strong> · {target.preview}
+                            <strong>{t(target.role)}</strong> · {target.preview}
                           </span>
                         </label>
                         {!guided && (
@@ -724,7 +779,9 @@ function OperationForm({
                                   coverage.length >= 512)
                               }
                               checked={coverage.includes(target.message_id)}
-                              aria-label={`Cite message ${index + 1}`}
+                              aria-label={t("Cite message {value1}", {
+                                value1: index + 1,
+                              })}
                               onChange={(event) =>
                                 setCoverage(
                                   toggle(
@@ -735,7 +792,7 @@ function OperationForm({
                                 )
                               }
                             />
-                            Use as representative source
+                            {t("Use as representative source")}
                           </label>
                         )}
                       </div>
@@ -747,7 +804,7 @@ function OperationForm({
                       className="m-2 min-h-11"
                       onClick={() => setVisibleCount(visibleCount + 100)}
                     >
-                      Show more messages
+                      {t("Show more messages")}
                     </Button>
                   )}
                 </div>
@@ -755,23 +812,23 @@ function OperationForm({
             )}
             {guided ? (
               <label className="block text-xs text-ink-muted">
-                Requirements for this operation only
+                {t("Requirements for this operation only")}
                 <textarea
-                  aria-label="Requirements for this operation only"
+                  aria-label={t("Requirements for this operation only")}
                   className={`${fieldClass} mt-1 min-h-32 resize-y`}
                   value={instruction}
                   onChange={(event) => setInstruction(event.target.value)}
                 />
                 <span className="mt-1 block text-ink-tertiary">
-                  Session and user defaults are frozen in this operation. This
-                  instruction supplements them and takes precedence when
-                  preferences conflict.
+                  {t(
+                    "Session and user defaults are frozen in this operation. This instruction supplements them and takes precedence when preferences conflict.",
+                  )}
                 </span>
               </label>
             ) : (
               <>
                 <label className="block text-xs text-ink-muted">
-                  Summary title
+                  {t("Summary title")}
                   <input
                     className={`${fieldClass} mt-1`}
                     value={title}
@@ -779,7 +836,7 @@ function OperationForm({
                   />
                 </label>
                 <label className="block text-xs text-ink-muted">
-                  Summary content
+                  {t("Summary content")}
                   <textarea
                     className={`${fieldClass} mt-1 min-h-40 resize-y`}
                     value={body}
@@ -788,16 +845,16 @@ function OperationForm({
                 </label>
                 {!edit && (
                   <p className="text-xs text-ink-tertiary">
-                    Saving completes the selected range without calling a model.
-                    Representative sources support the summary; you do not need
-                    to repeat every operation.
+                    {t(
+                      "Saving completes the selected range without calling a model. Representative sources support the summary; you do not need to repeat every operation.",
+                    )}
                   </p>
                 )}
               </>
             )}
             {instructionError && (
               <p role="alert" className="text-xs text-warning">
-                {instructionError}
+                {t(instructionError ?? "")}
               </p>
             )}
             {summaryError && (
@@ -813,9 +870,9 @@ function OperationForm({
                 onChange={(event) => setConfirmReplace(event.target.checked)}
               />
               <span>
-                Replace this session&apos;s existing active or unknown task, if
-                any. A previous execution may still finish, but its result will
-                not overwrite this operation.
+                {t(
+                  "Replace this session's existing active or unknown task, if any. A previous execution may still finish, but its result will not overwrite this operation.",
+                )}
               </span>
             </label>
           </fieldset>
@@ -824,11 +881,17 @@ function OperationForm({
           <p role="alert" className="text-xs text-warning">
             {submit.error instanceof ApiError && submit.error.status === 409
               ? guided
-                ? "The source, summary, or task changed. Your text is preserved. Ensure Secretary is enabled and resume a paused source task before asking it to run. If replacing active or unknown work, explicitly confirm above; otherwise close and prepare a fresh range after saving your draft."
-                : "The source, summary, or task changed. Your text is preserved. If replacing active or unknown work, explicitly confirm above; otherwise close and prepare a fresh range after saving your draft."
+                ? t(
+                    "The source, summary, or task changed. Your text is preserved. Ensure Secretary is enabled and resume a paused source task before asking it to run. If replacing active or unknown work, explicitly confirm above; otherwise close and prepare a fresh range after saving your draft.",
+                  )
+                : t(
+                    "The source, summary, or task changed. Your text is preserved. If replacing active or unknown work, explicitly confirm above; otherwise close and prepare a fresh range after saving your draft.",
+                  )
               : submit.error instanceof AuthError
-                ? "Sign in again before submitting."
-                : "The result is unconfirmed. Your draft and request ID are kept. Check status or retry the same request."}
+                ? t("Sign in again before submitting.")
+                : t(
+                    "The result is unconfirmed. Your draft and request ID are kept. Check status or retry the same request.",
+                  )}
           </p>
         )}
       </DialogBody>
@@ -839,7 +902,7 @@ function OperationForm({
           disabled={submit.isPending}
           onClick={onClose}
         >
-          Close
+          {t("Close")}
         </Button>
         <Button
           variant="ghost"
@@ -849,7 +912,7 @@ function OperationForm({
             void current.refetch();
           }}
         >
-          Check status
+          {t("Check status")}
         </Button>
         {mutable && (
           <Button
@@ -858,12 +921,12 @@ function OperationForm({
             onClick={send}
           >
             {submit.isPending
-              ? "Submitting…"
+              ? t("Submitting…")
               : guided
-                ? "Summarize selected messages"
+                ? t("Summarize selected messages")
                 : edit
-                  ? "Save summary version"
-                  : "Save and complete selected range"}
+                  ? t("Save summary version")
+                  : t("Save and complete selected range")}
           </Button>
         )}
       </DialogFooter>

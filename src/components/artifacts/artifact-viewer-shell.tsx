@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import * as Dialog from "@radix-ui/react-dialog";
 import Link from "next/link";
@@ -116,6 +117,7 @@ function ArtifactViewer({
   navigation,
   viewerHref,
 }: ArtifactViewerShellProps) {
+  const { t } = useI18n();
   const [preview, setPreview] = useState<LoadedArtifactPreview>();
   const [previewError, setPreviewError] = useState<Error | null>(null);
   const [previewPending, setPreviewPending] = useState(false);
@@ -153,7 +155,7 @@ function ArtifactViewer({
   const mediaRefreshRef = useRef<Promise<void> | undefined>(undefined);
   const renderer = resolveArtifactRenderer(artifact, preview);
   const title =
-    artifact.title.trim() || artifact.filename || "Untitled artifact";
+    artifact.title.trim() || artifact.filename || t("Untitled artifact");
   const readerStatus =
     previewError || sourceError || artifact.status === "failed"
       ? "Preview unavailable"
@@ -169,7 +171,7 @@ function ArtifactViewer({
     clearTimeout(copyMessageTimeoutRef.current);
     try {
       await navigator.clipboard.writeText(window.location.href);
-      setCopyMessage("Link copied");
+      setCopyMessage(t("Link copied"));
     } catch {
       setCopyMessage(
         "Couldn't copy link. Try again or copy the address bar URL.",
@@ -387,7 +389,7 @@ function ArtifactViewer({
   const shell = (
     <section
       ref={shellRef}
-      aria-label={`Artifact viewer: ${title}`}
+      aria-label={t("Artifact viewer: {title}", { title })}
       className={cn(
         "flex min-w-0 flex-col overflow-hidden rounded-lg border border-hairline bg-surface-1",
         isFullscreen
@@ -414,7 +416,8 @@ function ArtifactViewer({
     >
       {isFullscreen && (
         <Dialog.Title className="sr-only">
-          Artifact viewer: {artifact.title}
+          {t("Artifact viewer: ")}
+          {artifact.title}
         </Dialog.Title>
       )}
       {standalone ? (
@@ -431,7 +434,7 @@ function ArtifactViewer({
               </h1>
               {readerStatus && (
                 <p className="truncate text-xs text-ink-muted" role="status">
-                  {readerStatus}
+                  {readerStatus ? t(readerStatus) : undefined}
                 </p>
               )}
             </div>
@@ -443,42 +446,42 @@ function ArtifactViewer({
             size="sm"
             variant="ghost"
           >
-            Copy link
+            {t("Copy link")}
           </Button>
           {artifact.downloadHref && isArtifactAvailable(artifact.status) && (
             <Button
               asChild
               size="sm"
               variant="ghost"
-              tooltip="Download"
+              tooltip={t("Download")}
               className="max-sm:h-9 max-sm:w-9 max-sm:justify-center max-sm:px-0"
             >
               <a
-                aria-label="Download"
+                aria-label={t("Download")}
                 href={artifact.downloadHref}
                 download
                 rel="noreferrer"
                 target="_self"
               >
                 <Download className="h-4 w-4" />
-                <span className="hidden sm:inline">Download</span>
+                <span className="hidden sm:inline">{t("Download")}</span>
               </a>
             </Button>
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
-                aria-label="Artifact options"
+                aria-label={t("Artifact options")}
                 icon={<MoreHorizontal className="h-4 w-4" />}
                 size="icon"
-                tooltip="More options"
+                tooltip={t("More options")}
                 variant="ghost"
               />
             </DropdownMenuTrigger>
             <DropdownMenuContent className="max-w-[calc(100vw-2rem)]">
               <DropdownMenuItem onSelect={() => void handleCopyLink()}>
                 <Link2 className="h-4 w-4" />
-                Copy link
+                {t("Copy link")}
               </DropdownMenuItem>
               <DropdownMenuItem
                 disabled={
@@ -488,27 +491,29 @@ function ArtifactViewer({
                 }
                 onSelect={() => void handlePreview()}
               >
-                Refresh
+                {t("Refresh")}
               </DropdownMenuItem>
               {preview?.url && (
                 <DropdownMenuItem asChild>
                   <a href={preview.url} rel="noreferrer" target="_blank">
-                    Open file
+                    {t("Open file")}
                   </a>
                 </DropdownMenuItem>
               )}
               <div className="mt-1 max-w-xs break-words border-t border-hairline px-2.5 py-2 text-xs text-ink-muted">
-                <div className="mb-1 font-medium text-ink">File details</div>
+                <div className="mb-1 font-medium text-ink">
+                  {t("File details")}
+                </div>
                 <dl className="space-y-1">
                   {artifact.filename && artifact.filename !== title && (
                     <div>
-                      <dt className="text-ink-tertiary">Filename</dt>
+                      <dt className="text-ink-tertiary">{t("Filename")}</dt>
                       <dd>{artifact.filename}</dd>
                     </div>
                   )}
                   {artifact.sizeBytes != null && (
                     <div>
-                      <dt className="inline text-ink-tertiary">Size </dt>
+                      <dt className="inline text-ink-tertiary">{t("Size ")}</dt>
                       <dd className="inline">
                         {formatArtifactBytes(artifact.sizeBytes)}
                       </dd>
@@ -516,7 +521,9 @@ function ArtifactViewer({
                   )}
                   {artifact.createdAt && (
                     <div>
-                      <dt className="inline text-ink-tertiary">Created </dt>
+                      <dt className="inline text-ink-tertiary">
+                        {t("Created ")}
+                      </dt>
                       <dd className="inline">
                         <time dateTime={artifact.createdAt}>
                           {compactDate(artifact.createdAt)}
@@ -558,7 +565,7 @@ function ArtifactViewer({
           </div>
           {artifact.status !== "available" && (
             <Badge tone={artifact.status === "failed" ? "warning" : "neutral"}>
-              {artifact.status}
+              {t(artifact.status)}
             </Badge>
           )}
           <div className="flex max-w-full flex-wrap items-center gap-1">
@@ -567,7 +574,7 @@ function ArtifactViewer({
                 aria-controls={bodyId}
                 aria-expanded={false}
                 aria-label={
-                  visibility === "closed" ? "Preview" : "Expand preview"
+                  visibility === "closed" ? t("Preview") : t("Expand preview")
                 }
                 disabled={
                   !loadPreview ||
@@ -594,15 +601,15 @@ function ArtifactViewer({
                 type="button"
                 variant={visibility === "closed" ? "primary" : "secondary"}
               >
-                {visibility === "closed" ? "Preview" : "Expand"}
+                {visibility === "closed" ? t("Preview") : t("Expand")}
               </Button>
             ) : (
               <>
                 <Button
                   aria-label={
                     previewError || imageState.failed
-                      ? "Retry preview"
-                      : "Refresh"
+                      ? t("Retry preview")
+                      : t("Refresh")
                   }
                   disabled={
                     !loadPreview ||
@@ -620,8 +627,8 @@ function ArtifactViewer({
                   size="icon"
                   tooltip={
                     previewError || imageState.failed
-                      ? "Retry preview"
-                      : "Refresh"
+                      ? t("Retry preview")
+                      : t("Refresh")
                   }
                   type="button"
                   variant="ghost"
@@ -629,16 +636,26 @@ function ArtifactViewer({
               </>
             )}
             {viewerHref && (
-              <Button asChild size="icon" tooltip="Open page" variant="ghost">
-                <Link aria-label="Open page" href={viewerHref}>
+              <Button
+                asChild
+                size="icon"
+                tooltip={t("Open page")}
+                variant="ghost"
+              >
+                <Link aria-label={t("Open page")} href={viewerHref}>
                   <ExternalLink className="h-4 w-4" />
                 </Link>
               </Button>
             )}
             {artifact.downloadHref && (
-              <Button asChild size="icon" tooltip="Download" variant="ghost">
+              <Button
+                asChild
+                size="icon"
+                tooltip={t("Download")}
+                variant="ghost"
+              >
                 <a
-                  aria-label="Download"
+                  aria-label={t("Download")}
                   href={artifact.downloadHref}
                   download
                   rel="noreferrer"
@@ -649,9 +666,14 @@ function ArtifactViewer({
               </Button>
             )}
             {expanded && preview?.url && (
-              <Button asChild size="icon" tooltip="Open file" variant="ghost">
+              <Button
+                asChild
+                size="icon"
+                tooltip={t("Open file")}
+                variant="ghost"
+              >
                 <a
-                  aria-label="Open file"
+                  aria-label={t("Open file")}
                   href={preview.url}
                   rel="noreferrer"
                   target="_blank"
@@ -664,8 +686,8 @@ function ArtifactViewer({
               <Button
                 aria-label={
                   isFullscreen
-                    ? "Exit artifact fullscreen"
-                    : "Open artifact fullscreen"
+                    ? t("Exit artifact fullscreen")
+                    : t("Open artifact fullscreen")
                 }
                 icon={
                   isFullscreen ? (
@@ -677,7 +699,9 @@ function ArtifactViewer({
                 onClick={() => setFullscreen(!isFullscreen)}
                 ref={fullscreenButtonRef}
                 size="icon"
-                tooltip={isFullscreen ? "Exit fullscreen" : "Open fullscreen"}
+                tooltip={
+                  isFullscreen ? t("Exit fullscreen") : t("Open fullscreen")
+                }
                 type="button"
                 variant="ghost"
               />
@@ -688,7 +712,7 @@ function ArtifactViewer({
                   <Button
                     aria-controls={bodyId}
                     aria-expanded={true}
-                    aria-label="Collapse preview"
+                    aria-label={t("Collapse preview")}
                     icon={<ChevronDown className="h-4 w-4" />}
                     onClick={() => {
                       restoreFocusRef.current = true;
@@ -697,17 +721,17 @@ function ArtifactViewer({
                       if (scope) release(scope, viewerId);
                     }}
                     size="icon"
-                    tooltip="Collapse preview"
+                    tooltip={t("Collapse preview")}
                     type="button"
                     variant="ghost"
                   />
                 )}
                 <Button
-                  aria-label="Close preview"
+                  aria-label={t("Close preview")}
                   icon={<X className="h-4 w-4" />}
                   onClick={closePreview}
                   size="icon"
-                  tooltip="Close preview"
+                  tooltip={t("Close preview")}
                   type="button"
                   variant="ghost"
                 />
@@ -721,13 +745,13 @@ function ArtifactViewer({
           role="status"
           className="shrink-0 border-b border-hairline px-3 py-2 text-xs text-ink-muted"
         >
-          {copyMessage}
+          {t(copyMessage)}
         </div>
       )}
 
       {visibility !== "closed" && (
         <div
-          aria-label="Artifact preview"
+          aria-label={t("Artifact preview")}
           className="min-h-0 flex-1 overflow-auto bg-canvas"
           hidden={!expanded}
           id={bodyId}
@@ -765,7 +789,7 @@ function ArtifactViewer({
           <p className="px-3 pb-2 text-xs text-warning" role="alert">
             {sourceError?.message ??
               artifact.statusMessage ??
-              "Artifact publication failed."}
+              t("Artifact publication failed.")}
           </p>
         )}
     </section>
@@ -826,11 +850,12 @@ function ArtifactViewerBody({
   imageState: ArtifactImageState;
   onImageChange: Dispatch<SetStateAction<ArtifactImageState>>;
 }) {
+  const { t } = useI18n();
   if (pending || artifact.status === "loading") {
     return (
       <ViewerState
         icon={<LoaderCircle className="h-5 w-5 animate-spin" />}
-        message="Preparing artifact preview…"
+        message={t("Preparing artifact preview…")}
       />
     );
   }
@@ -842,17 +867,23 @@ function ArtifactViewerBody({
   if (artifact.status === "failed") {
     return (
       <ViewerState
-        message={artifact.statusMessage ?? "Artifact publication failed."}
+        message={artifact.statusMessage ?? t("Artifact publication failed.")}
         tone="warning"
       />
     );
   }
   if (!isArtifactAvailable(artifact.status)) {
-    return <ViewerState message="Artifact content is not available yet." />;
+    return (
+      <ViewerState message={t("Artifact content is not available yet.")} />
+    );
   }
   if (!preview) {
     return (
-      <ViewerState message="Select Preview to load a short-lived, permission-checked view." />
+      <ViewerState
+        message={t(
+          "Select Preview to load a short-lived, permission-checked view.",
+        )}
+      />
     );
   }
 
@@ -860,9 +891,9 @@ function ArtifactViewerBody({
     <div className={cn("min-h-full", standalone && "h-full")}>
       {preview.truncated && (
         <div className="border-b border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
-          Preview truncated.{" "}
+          {t("Preview truncated.")}{" "}
           {preview.truncationReason ??
-            "Download or open the artifact to inspect the full file."}
+            t("Download or open the artifact to inspect the full file.")}
         </div>
       )}
       <DocumentRenderer
@@ -901,6 +932,7 @@ function DocumentRenderer({
   imageState: ArtifactImageState;
   onImageChange: Dispatch<SetStateAction<ArtifactImageState>>;
 }) {
+  const { t } = useI18n();
   if ((kind === "video" || kind === "audio") && preview.url) {
     return (
       <ArtifactMediaPreview
@@ -987,7 +1019,7 @@ function DocumentRenderer({
           standalone && "min-h-full",
         )}
       >
-        {preview.content || "This text file is empty."}
+        {preview.content || t("This text file is empty.")}
       </pre>
     );
   }
@@ -995,7 +1027,7 @@ function DocumentRenderer({
   return (
     <ViewerState
       icon={<FileDown className="h-5 w-5" />}
-      message="This artifact type is download-only in the document viewer."
+      message={t("This artifact type is download-only in the document viewer.")}
     />
   );
 }
@@ -1007,6 +1039,7 @@ function DocumentMarkdownRenderer({
   content: string;
   standalone: boolean;
 }) {
+  const { t } = useI18n();
   const readerRef = useRef<HTMLDivElement>(null);
   const headings = useMemo(() => markdownHeadings(content), [content]);
   const [fontSize, setFontSize] = useStoredNumber(
@@ -1058,39 +1091,39 @@ function DocumentMarkdownRenderer({
         </article>
         {standalone && (
           <aside
-            aria-label="Reader settings"
+            aria-label={t("Reader settings")}
             className="hidden border-l border-hairline bg-surface-1 p-3 @min-[56rem]/artifact-reader:block"
           >
             <div className="sticky top-3">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-medium uppercase tracking-wide text-ink-tertiary">
-                  Reader
+                  {t("Reader")}
                 </span>
                 <div className="flex items-center gap-1">
                   <Button
-                    aria-label="Decrease artifact reader font size"
+                    aria-label={t("Decrease artifact reader font size")}
                     disabled={fontSize <= 13}
                     icon={<Minus className="h-3.5 w-3.5" />}
                     onClick={() => setFontSize(fontSize - 1)}
                     size="icon"
-                    tooltip="Decrease font size"
+                    tooltip={t("Decrease font size")}
                     type="button"
                     variant="ghost"
                   />
                   <Button
-                    aria-label="Increase artifact reader font size"
+                    aria-label={t("Increase artifact reader font size")}
                     disabled={fontSize >= 20}
                     icon={<Plus className="h-3.5 w-3.5" />}
                     onClick={() => setFontSize(fontSize + 1)}
                     size="icon"
-                    tooltip="Increase font size"
+                    tooltip={t("Increase font size")}
                     type="button"
                     variant="ghost"
                   />
                 </div>
               </div>
               <div className="mt-2 flex items-center justify-between gap-2 text-xs text-ink-tertiary">
-                <span>Line height</span>
+                <span>{t("Line height")}</span>
                 <button
                   className="rounded px-1.5 py-1 font-mono hover:bg-surface-2 hover:text-ink"
                   onClick={() =>
@@ -1102,9 +1135,12 @@ function DocumentMarkdownRenderer({
                 </button>
               </div>
               {headings.length > 0 && (
-                <nav aria-label="Artifact table of contents" className="mt-5">
+                <nav
+                  aria-label={t("Artifact table of contents")}
+                  className="mt-5"
+                >
                   <div className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-tertiary">
-                    Contents
+                    {t("Contents")}
                   </div>
                   <div className="grid gap-1">
                     {headings.map((heading, index) => (
@@ -1132,6 +1168,7 @@ function DocumentMarkdownRenderer({
 }
 
 function DocumentJsonRenderer({ content }: { content: string }) {
+  const { t } = useI18n();
   let formatted = content;
   let invalid = false;
   try {
@@ -1144,7 +1181,7 @@ function DocumentJsonRenderer({ content }: { content: string }) {
     <div>
       {invalid && (
         <div className="border-b border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
-          Invalid or truncated JSON; showing the available source.
+          {t("Invalid or truncated JSON; showing the available source.")}
         </div>
       )}
       <CodeLines content={formatted} />
@@ -1153,6 +1190,7 @@ function DocumentJsonRenderer({ content }: { content: string }) {
 }
 
 function DocumentJsonlRenderer({ content }: { content: string }) {
+  const { t } = useI18n();
   const result = useMemo(() => parseJsonlPreview(content), [content]);
   return (
     <div className="grid gap-3 p-3">
@@ -1162,19 +1200,21 @@ function DocumentJsonlRenderer({ content }: { content: string }) {
           key={index}
         >
           <div className="border-b border-hairline px-3 py-1.5 font-mono text-xs text-ink-tertiary">
-            record {index + 1}
-            {record.invalid ? " · invalid JSON" : ""}
+            {t("record ")}
+            {index + 1}
+            {record.invalid ? t(" · invalid JSON") : ""}
           </div>
           <CodeLines content={record.content} />
         </section>
       ))}
       {result.records.length === 0 && (
-        <ViewerState message="This JSONL file contains no records." />
+        <ViewerState message={t("This JSONL file contains no records.")} />
       )}
       {result.truncated && (
         <div className="text-xs text-warning">
-          JSONL preview limited to{" "}
-          {ARTIFACT_PREVIEW_BUDGET.maxJsonlRecords.toLocaleString()} records.
+          {t("JSONL preview limited to")}{" "}
+          {ARTIFACT_PREVIEW_BUDGET.maxJsonlRecords.toLocaleString()}{" "}
+          {t(" records.")}
         </div>
       )}
     </div>
@@ -1182,9 +1222,10 @@ function DocumentJsonlRenderer({ content }: { content: string }) {
 }
 
 function DocumentCsvRenderer({ content }: { content: string }) {
+  const { t } = useI18n();
   const result = useMemo(() => parseCsvPreview(content), [content]);
   if (result.header.length === 0) {
-    return <ViewerState message="This CSV file is empty." />;
+    return <ViewerState message={t("This CSV file is empty.")} />;
   }
 
   return (
@@ -1231,8 +1272,9 @@ function DocumentCsvRenderer({ content }: { content: string }) {
       </table>
       {result.truncated && (
         <div className="sticky bottom-0 border-t border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
-          CSV preview limited to {ARTIFACT_PREVIEW_BUDGET.maxCsvRows} rows and{" "}
-          {ARTIFACT_PREVIEW_BUDGET.maxCsvColumns} columns.
+          {t("CSV preview limited to ")}
+          {ARTIFACT_PREVIEW_BUDGET.maxCsvRows} {t(" rows and")}{" "}
+          {ARTIFACT_PREVIEW_BUDGET.maxCsvColumns} {t(" columns.")}
         </div>
       )}
     </div>

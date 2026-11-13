@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import { Mic } from "lucide-react";
 import {
@@ -13,12 +14,13 @@ import { settingsSection } from "./settings-catalog";
 import { SettingsBack, SettingsPageHeader } from "./settings-navigation";
 
 export function VoiceSettings() {
+  const { t } = useI18n();
   const mode = useMicrophoneMode();
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="hidden lg:block">
         <SettingsPageHeader
-          title="Voice input"
+          title={t("Voice input")}
           category="Workspace"
           description={settingsSection("voice").description}
         />
@@ -28,33 +30,38 @@ export function VoiceSettings() {
           <div className="grid gap-5 lg:max-w-3xl">
             <header className="lg:hidden">
               <SettingsBack />
-              <h1 className="text-2xl font-semibold">Voice input</h1>
+              <h1 className="text-2xl font-semibold">{t("Voice input")}</h1>
               <p className="mt-2 text-sm text-ink-tertiary">
-                Choose the microphone dictation uses on this device.
+                {t("Choose the microphone dictation uses on this device.")}
               </p>
             </header>
             <section className="grid gap-4 rounded-xl border border-hairline bg-surface-1 p-5 lg:p-6">
               <h2 className="flex items-center gap-2 font-medium">
                 <Mic className="h-4 w-4" />
-                Microphone on this device
+                {t("Microphone on this device")}
               </h2>
-              <SettingsChoices label="Dictation microphone">
+              <SettingsChoices label={t("Dictation microphone")}>
                 <SettingsChoice
-                  label="Keep music playing"
-                  description="Uses this phone's or computer's own microphone. Bluetooth earbuds keep playing audio while you dictate. Loud music from a speaker may be picked up."
+                  label={t("Keep music playing")}
+                  description={t(
+                    "Uses this phone's or computer's own microphone. Bluetooth earbuds keep playing audio while you dictate. Loud music from a speaker may be picked up.",
+                  )}
                   selected={mode === "device"}
                   onClick={() => writeMicrophoneMode("device")}
                 />
                 <SettingsChoice
-                  label="Headset microphone"
-                  description="Uses call-style audio with echo cancellation, so a Bluetooth headset's microphone is used. Music pauses or sounds lower while you dictate."
+                  label={t("Headset microphone")}
+                  description={t(
+                    "Uses call-style audio with echo cancellation, so a Bluetooth headset's microphone is used. Music pauses or sounds lower while you dictate.",
+                  )}
                   selected={mode === "headset"}
                   onClick={() => writeMicrophoneMode("headset")}
                 />
               </SettingsChoices>
               <p className="text-xs text-ink-tertiary">
-                Saved in this browser only. Takes effect the next time you tap
-                the microphone.
+                {t(
+                  "Saved in this browser only. Takes effect the next time you tap the microphone.",
+                )}
               </p>
             </section>
           </div>

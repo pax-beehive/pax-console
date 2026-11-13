@@ -1,4 +1,9 @@
 "use client";
+import {
+  useI18n,
+  type Locale,
+  type Translator,
+} from "@/features/i18n/use-i18n";
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -23,10 +28,14 @@ import {
 import { useSubscriptions } from "@/features/analytics/use-subscriptions";
 import { AdminAnalyticsNav } from "./admin-analytics-nav";
 
-const date = (value?: string) =>
-  value ? new Date(value).toLocaleString() : "Unknown";
-const regionName = (region: string) =>
-  ({ us: "United States", hk: "Hong Kong", local: "Local" })[region] ?? region;
+const date = (value: string | undefined, locale: Locale, t: Translator) =>
+  value ? new Date(value).toLocaleString(locale) : t("Unknown");
+const regionName = (region: string, t: Translator) => {
+  const label = { us: "United States", hk: "Hong Kong", local: "Local" }[
+    region
+  ];
+  return label ? t(label) : region;
+};
 const selectClass =
   "min-h-9 rounded-md border border-hairline bg-surface-1 px-2 text-sm text-ink";
 
@@ -43,17 +52,19 @@ export function SubscriptionDashboardPage() {
 }
 
 export function SubscriptionDashboardAccess({ user }: { user: User }) {
+  const { t } = useI18n();
   const preview = useConsoleStore((state) => state.previewAsUser);
   if (!canSeeAdminFeatures(user, preview))
     return (
       <p className="p-6 text-sm text-ink-muted">
-        Push subscriptions are available to administrators.
+        {t("Push subscriptions are available to administrators.")}
       </p>
     );
   return <SubscriptionDashboard userId={user.user_id} />;
 }
 
 export function SubscriptionDashboard({ userId }: { userId: string }) {
+  const { t } = useI18n();
   const params = useSearchParams();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
@@ -91,9 +102,13 @@ export function SubscriptionDashboard({ userId }: { userId: string }) {
       <div className="mx-auto grid max-w-7xl gap-5">
         <AdminAnalyticsNav />
         <header>
-          <h1 className="text-xl font-semibold text-ink">Push subscriptions</h1>
+          <h1 className="text-xl font-semibold text-ink">
+            {t("Push subscriptions")}
+          </h1>
           <p className="mt-1 text-sm text-ink-muted">
-            Device registrations and notification outcomes across customers.
+            {t(
+              "Device registrations and notification outcomes across customers.",
+            )}
           </p>
         </header>
         <form
@@ -104,61 +119,63 @@ export function SubscriptionDashboard({ userId }: { userId: string }) {
           }}
         >
           <SearchBox
-            aria-label="Search subscriptions"
-            placeholder="Customer, device, or receiver ID"
+            aria-label={t("Search subscriptions")}
+            placeholder={t("Customer, device, or receiver ID")}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             className="min-w-48 flex-1"
           />
-          <Button type="submit">Search</Button>
+          <Button type="submit">{t("Search")}</Button>
           <label className="flex items-center gap-2 text-xs text-ink-muted">
-            Region
+            {t("Region")}
             <select
               className={selectClass}
-              aria-label="Region"
+              aria-label={t("Region")}
               value={region}
               onChange={(event) => change(setRegion, event.target.value)}
             >
-              <option value="all">All regions</option>
-              <option value="us">United States</option>
-              <option value="hk">Hong Kong</option>
-              {region === "local" && <option value="local">Local</option>}
+              <option value="all">{t("All regions")}</option>
+              <option value="us">{t("United States")}</option>
+              <option value="hk">{t("Hong Kong")}</option>
+              {region === "local" && (
+                <option value="local">{t("Local")}</option>
+              )}
             </select>
           </label>
           <label className="flex items-center gap-2 text-xs text-ink-muted">
-            Status
+            {t("Status")}
             <select
               className={selectClass}
-              aria-label="Subscription status"
+              aria-label={t("Subscription status")}
               value={status}
               onChange={(event) => change(setStatus, event.target.value)}
             >
-              <option value="">All statuses</option>
+              <option value="">{t("All statuses")}</option>
               {subscriptionStates.map((value) => (
                 <option key={value} value={value}>
-                  {value[0].toUpperCase() + value.slice(1)}
+                  {t(value[0].toUpperCase() + value.slice(1))}
                 </option>
               ))}
             </select>
           </label>
           <label className="flex items-center gap-2 text-xs text-ink-muted">
-            Channel
+            {t("Channel")}
             <select
               className={selectClass}
-              aria-label="Channel"
+              aria-label={t("Channel")}
               value={channel}
               onChange={(event) => change(setChannel, event.target.value)}
             >
-              <option value="">All channels</option>
-              <option value="web_push">Web Push</option>
+              <option value="">{t("All channels")}</option>
+              <option value="web_push">{t("Web Push")}</option>
             </select>
           </label>
           {customer && (
             <span className="flex min-w-0 items-center gap-2 text-xs text-ink-muted">
-              <span>Customer</span>
+              <span>{t("Customer")}</span>
               <MonoId>{customer}</MonoId>
               <Button type="button" onClick={() => change(setCustomer, "")}>
-                Clear customer filter
+                {t("Clear customer filter")}
               </Button>
             </span>
           )}
@@ -171,9 +188,9 @@ export function SubscriptionDashboard({ userId }: { userId: string }) {
           move={move}
         />
         <p className="text-xs leading-5 text-ink-tertiary">
-          Enabled means registered in Pax. Device permission is the last client
-          report, not a live OS check. Provider accepted does not confirm
-          display or reading. Dates use your local timezone.
+          {t(
+            "Enabled means registered in Pax. Device permission is the last client report, not a live OS check. Provider accepted does not confirm display or reading. Dates use your local timezone.",
+          )}
         </p>
       </div>
     </div>
@@ -191,6 +208,7 @@ export function SubscriptionResults({
   pages: Record<string, string[]>;
   move: (region: string, cursor?: string) => void;
 }) {
+  const { t } = useI18n();
   const query = useSubscriptions(userId, filters);
   const [selected, setSelected] = useState<{
     receiverId: string;
@@ -232,12 +250,12 @@ export function SubscriptionResults({
           tone={denied ? "danger" : summary.partial ? "warning" : "neutral"}
         >
           {denied
-            ? "Access denied"
+            ? t("Access denied")
             : !query.focused
-              ? "Paused · not focused"
+              ? t("Paused · not focused")
               : query.isError
-                ? "Retrying with backoff"
-                : "Live · 15s"}
+                ? t("Retrying with backoff")
+                : t("Live · 15s")}
         </Badge>
         <Button
           type="button"
@@ -246,14 +264,18 @@ export function SubscriptionResults({
             void query.refetch();
           }}
         >
-          Refresh
+          {t("Refresh")}
         </Button>
       </div>
       {query.isError && (
         <p role="alert" className="text-sm text-danger">
           {denied
-            ? "Administrator access is required. Previously loaded data is hidden."
-            : "Unable to refresh subscriptions. Previous snapshots remain visible and may be stale."}
+            ? t(
+                "Administrator access is required. Previously loaded data is hidden.",
+              )
+            : t(
+                "Unable to refresh subscriptions. Previous snapshots remain visible and may be stale.",
+              )}
         </p>
       )}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
@@ -262,14 +284,14 @@ export function SubscriptionResults({
             key={label}
             className="rounded-md border border-hairline bg-surface-1 p-3"
           >
-            <p className="text-xs text-ink-muted">{label}</p>
+            <p className="text-xs text-ink-muted">{t(label)}</p>
             <p className="mt-2 text-2xl font-semibold tabular-nums text-ink">
               {value ?? "—"}
             </p>
             <p className="mt-1 text-xs text-ink-tertiary">
               {summary.partial || query.isError
-                ? "Partial / stale snapshot"
-                : "All filtered results"}
+                ? t("Partial / stale snapshot")
+                : t("All filtered results")}
             </p>
           </div>
         ))}
@@ -277,12 +299,12 @@ export function SubscriptionResults({
       {!sources.length && !denied && (
         <p role="status" className="py-8 text-center text-sm text-ink-muted">
           {query.isError
-            ? "Subscription data is unavailable."
+            ? t("Subscription data is unavailable.")
             : query.data
-              ? "No snapshot is available for this region."
+              ? t("No snapshot is available for this region.")
               : query.focused
-                ? "Loading subscriptions..."
-                : "Focus this window to load subscriptions."}
+                ? t("Loading subscriptions...")
+                : t("Focus this window to load subscriptions.")}
         </p>
       )}
       {sources.map((source) => (
@@ -324,26 +346,31 @@ function RegionalSubscriptionTable({
   move: (region: string, cursor?: string) => void;
   select: (receiver: PushReceiver) => void;
 }) {
+  const { t, locale } = useI18n();
   return (
     <section
-      aria-label={`${regionName(source.region)} subscriptions`}
+      aria-label={t("{region} subscriptions", {
+        region: regionName(source.region, t),
+      })}
       className="overflow-hidden rounded-md border border-hairline bg-surface-1"
     >
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline px-4 py-3">
-        <h2 className="text-sm font-medium">{regionName(source.region)}</h2>
+        <h2 className="text-sm font-medium">{regionName(source.region, t)}</h2>
         <span className="text-xs text-ink-muted">
-          {!source.available || stale ? "Stale / unavailable" : "Updated"} ·{" "}
-          {date(source.updated_at)}
+          {!source.available || stale ? t("Stale / unavailable") : t("Updated")}{" "}
+          · {date(source.updated_at, locale, t)}
         </span>
       </header>
       {source.registration_enabled === false && (
         <p className="border-b border-hairline px-4 py-3 text-sm text-warning">
-          Push registration is not configured in this region.
+          {t("Push registration is not configured in this region.")}
         </p>
       )}
       {!source.receivers ? (
         <p className="p-6 text-sm text-warning">
-          This region is unavailable. Its subscriptions are not counted as zero.
+          {t(
+            "This region is unavailable. Its subscriptions are not counted as zero.",
+          )}
         </p>
       ) : (
         <>
@@ -363,7 +390,7 @@ function RegionalSubscriptionTable({
                       key={label}
                       className="whitespace-nowrap px-4 py-3 font-medium"
                     >
-                      {label}
+                      {t(label)}
                     </th>
                   ))}
                 </tr>
@@ -384,11 +411,11 @@ function RegionalSubscriptionTable({
                     </td>
                     <td className="px-4 py-3">
                       <span className="block whitespace-nowrap">
-                        {receiver.device_label || "Unnamed device"}
+                        {receiver.device_label || t("Unnamed device")}
                       </span>
                       <span className="text-xs text-ink-tertiary">
                         {receiver.channel === "web_push"
-                          ? "Web Push"
+                          ? t("Web Push")
                           : receiver.channel}
                       </span>
                     </td>
@@ -403,31 +430,36 @@ function RegionalSubscriptionTable({
                               : "neutral"
                         }
                       >
-                        {receiver.status}
+                        {t(receiver.status)}
                       </Badge>
                       <p className="mt-1 whitespace-nowrap text-xs text-ink-muted">
-                        Permission: {receiver.permission}
+                        {t("Permission: ")}
+                        {t(receiver.permission)}
                       </p>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-xs text-ink-muted">
-                      {date(receiver.last_registered_at)}
+                      {date(receiver.last_registered_at, locale, t)}
                     </td>
                     <td className="px-4 py-3 text-xs text-ink-muted">
                       {receiver.latest_delivery ? (
                         <>
                           <span>
                             {receiver.latest_delivery.status === "accepted"
-                              ? "Provider accepted"
-                              : receiver.latest_delivery.status}
+                              ? t("Provider accepted")
+                              : t(receiver.latest_delivery.status)}
                           </span>
                           <p>
                             {receiver.latest_delivery.attempts > 0
-                              ? date(receiver.latest_delivery.attempted_at)
-                              : "Not attempted yet"}
+                              ? date(
+                                  receiver.latest_delivery.attempted_at,
+                                  locale,
+                                  t,
+                                )
+                              : t("Not attempted yet")}
                           </p>
                         </>
                       ) : (
-                        "No delivery attempts"
+                        t("No delivery attempts")
                       )}
                     </td>
                     <td className="px-4 py-3">
@@ -436,7 +468,7 @@ function RegionalSubscriptionTable({
                         type="button"
                         onClick={() => select(receiver)}
                       >
-                        Details
+                        {t("Details")}
                       </Button>
                     </td>
                   </tr>
@@ -447,14 +479,14 @@ function RegionalSubscriptionTable({
           {!source.receivers.length && (
             <p className="p-8 text-center text-sm text-ink-muted">
               {source.summary?.total === 0
-                ? "No registered subscriptions match these filters."
-                : "No subscriptions on this page."}
+                ? t("No registered subscriptions match these filters.")
+                : t("No subscriptions on this page.")}
             </p>
           )}
           <footer className="flex items-center justify-between gap-3 border-t border-hairline px-4 py-3 text-xs text-ink-muted">
             <span>
-              {source.receivers.length} shown ·{" "}
-              {source.summary?.total ?? "Unknown"} matching
+              {source.receivers.length} {t(" shown ·")}{" "}
+              {source.summary?.total ?? t("Unknown")} {t(" matching")}
             </span>
             <div className="flex gap-2">
               <Button
@@ -463,7 +495,7 @@ function RegionalSubscriptionTable({
                 disabled={!previous || !source.available || stale}
                 onClick={() => move(source.region)}
               >
-                Previous
+                {t("Previous")}
               </Button>
               <Button
                 size="sm"
@@ -471,7 +503,7 @@ function RegionalSubscriptionTable({
                 disabled={!source.next_cursor || !source.available || stale}
                 onClick={() => move(source.region, source.next_cursor)}
               >
-                Next
+                {t("Next")}
               </Button>
             </div>
           </footer>
@@ -490,51 +522,56 @@ function ReceiverDetails({
   region: string;
   close: () => void;
 }) {
+  const { t, locale } = useI18n();
   const delivery = receiver.latest_delivery;
   return (
     <section
-      aria-label="Receiver details"
+      aria-label={t("Receiver details")}
       className="rounded-md border border-hairline bg-surface-1 p-4"
     >
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-medium">
-          {receiver.device_label || "Receiver details"}
+          {receiver.device_label || t("Receiver details")}
         </h2>
         <Button type="button" onClick={close}>
-          Close
+          {t("Close")}
         </Button>
       </div>
       <dl className="mt-4 grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
         <div>
-          <dt className="text-xs text-ink-tertiary">Receiver ID</dt>
+          <dt className="text-xs text-ink-tertiary">{t("Receiver ID")}</dt>
           <dd className="mt-1">
             <MonoId>{receiver.receiver_id}</MonoId>
           </dd>
         </div>
         {[
           ["Customer", receiver.email],
-          ["Subscription status", receiver.status],
-          ["Region", regionName(region)],
+          ["Subscription status", t(receiver.status)],
+          ["Region", regionName(region, t)],
           ["Revision", receiver.revision],
-          ["Registered", date(receiver.created_at)],
+          ["Registered", date(receiver.created_at, locale, t)],
           [
             "Permission reported",
-            `${receiver.permission} · ${date(receiver.permission_reported_at)}`,
+            `${t(receiver.permission)} · ${date(receiver.permission_reported_at, locale, t)}`,
           ],
-          ["Expires", date(receiver.expires_at)],
+          ["Expires", date(receiver.expires_at, locale, t)],
           [
             "Latest outcome",
             delivery?.status === "accepted"
-              ? "Provider accepted"
-              : (delivery?.status ?? "No delivery attempts"),
+              ? t("Provider accepted")
+              : delivery?.status
+                ? t(delivery.status)
+                : t("No delivery attempts"),
           ],
-          ["Attempts", delivery?.attempts ?? "None"],
-          ["Provider status", delivery?.provider_status ?? "Unknown"],
-          ["Error category", delivery?.error_category ?? "None"],
-          ["Next retry", date(delivery?.next_attempt_at)],
+          ["Attempts", delivery?.attempts ?? t("None")],
+          ["Provider status", delivery?.provider_status ?? t("Unknown")],
+          ["Error category", delivery?.error_category ?? t("None")],
+          ["Next retry", date(delivery?.next_attempt_at, locale, t)],
         ].map(([label, value]) => (
           <div key={label}>
-            <dt className="text-xs text-ink-tertiary">{label}</dt>
+            <dt className="text-xs text-ink-tertiary">
+              {typeof label === "string" ? t(label) : label}
+            </dt>
             <dd className="mt-1 break-words text-ink">{value}</dd>
           </div>
         ))}

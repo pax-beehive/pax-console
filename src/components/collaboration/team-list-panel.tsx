@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import { FormEvent, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
@@ -38,6 +39,7 @@ export function TeamListPanel({
   teams,
   userId,
 }: TeamListPanelProps) {
+  const { t } = useI18n();
   const [createOpen, setCreateOpen] = useState(false);
 
   return (
@@ -46,15 +48,15 @@ export function TeamListPanel({
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs text-accent-bright">
             <Users className="h-4 w-4" />
-            team workspace
+            {t("team workspace")}
           </div>
-          <h1 className="mt-2 text-2xl font-semibold">Teams</h1>
+          <h1 className="mt-2 text-2xl font-semibold">{t("Teams")}</h1>
         </div>
         <Button
           icon={<Plus className="h-4 w-4" />}
           onClick={() => setCreateOpen((open) => !open)}
           size="icon"
-          tooltip="Create team"
+          tooltip={t("Create team")}
           type="button"
           variant={createOpen ? "primary" : "secondary"}
         />
@@ -89,6 +91,7 @@ function CreateTeamForm({
   onCreated: () => void;
   userId: string;
 }) {
+  const { t } = useI18n();
   const invalidateTeams = useTeamInvalidation(userId);
   const [name, setName] = useState("");
   const create = useMutation({
@@ -112,12 +115,12 @@ function CreateTeamForm({
       className="grid gap-2 rounded-lg border border-hairline bg-canvas p-3"
       onSubmit={submit}
     >
-      <label className="text-sm font-medium text-ink">Create team</label>
+      <label className="text-sm font-medium text-ink">{t("Create team")}</label>
       <div className="flex min-w-0 gap-2">
         <input
           className="min-h-9 min-w-0 flex-1 rounded-lg border border-hairline bg-surface-1 px-3 text-sm text-ink outline-none focus:border-primary-focus"
           onChange={(event) => setName(event.target.value)}
-          placeholder="Team name"
+          placeholder={t("Team name")}
           value={name}
         />
         <Button
@@ -126,7 +129,7 @@ function CreateTeamForm({
           type="submit"
           variant="primary"
         >
-          Create
+          {t("Create")}
         </Button>
       </div>
       {create.error && <InlineError error={create.error} />}
@@ -145,13 +148,14 @@ function TeamList({
   selectedTeamId?: string;
   teams: TeamSummary[];
 }) {
+  const { t } = useI18n();
   if (isLoading) {
-    return <EmptyState label="Loading teams" />;
+    return <EmptyState label={t("Loading teams")} />;
   }
 
   return (
     <section className="grid gap-2">
-      <SectionTitle count={teams.length} title="Teams" />
+      <SectionTitle count={teams.length} title={t("Teams")} />
       <div className="grid overflow-hidden rounded-lg border border-hairline">
         {teams.map((team) => {
           const selected = team.team_id === selectedTeamId;
@@ -172,17 +176,18 @@ function TeamList({
                   {team.name}
                 </TruncatedText>
                 <Badge tone={teamRoleBadgeTone(teamRole(team))}>
-                  {displayTeamRole(teamRole(team))}
+                  {displayTeamRole(teamRole(team), t)}
                 </Badge>
               </div>
               <MonoId tooltip={team.team_id}>{compactId(team.team_id)}</MonoId>
               <div className="text-xs text-ink-tertiary">
-                {team.member_count} members / {team.agent_count} agents
+                {team.member_count} {t("members /")} {team.agent_count}{" "}
+                {t("agents")}
               </div>
             </button>
           );
         })}
-        {teams.length === 0 && <EmptyState label="No teams" />}
+        {teams.length === 0 && <EmptyState label={t("No teams")} />}
       </div>
     </section>
   );
@@ -197,6 +202,7 @@ function InviteQueue({
   isLoading: boolean;
   userId: string;
 }) {
+  const { t } = useI18n();
   const invalidateTeams = useTeamInvalidation(userId);
   const accept = useMutation({
     mutationFn: (inviteId: string) => acceptTeamInvite(userId, inviteId),
@@ -209,10 +215,10 @@ function InviteQueue({
 
   return (
     <section className="grid gap-2">
-      <SectionTitle count={invites.length} title="Team invites" />
-      {isLoading && <EmptyState label="Loading invites" />}
+      <SectionTitle count={invites.length} title={t("Team invites")} />
+      {isLoading && <EmptyState label={t("Loading invites")} />}
       {!isLoading && invites.length === 0 && (
-        <EmptyState label="No pending team invites" />
+        <EmptyState label={t("No pending team invites")} />
       )}
       {invites.map((invite) => (
         <article
@@ -224,7 +230,7 @@ function InviteQueue({
               {invite.email}
             </TruncatedText>
             <Badge tone={teamRoleBadgeTone(invite.role)}>
-              {displayTeamRole(invite.role)}
+              {displayTeamRole(invite.role, t)}
             </Badge>
           </div>
           <MonoId tooltip={invite.team_id}>{compactId(invite.team_id)}</MonoId>
@@ -237,7 +243,7 @@ function InviteQueue({
               type="button"
               variant="primary"
             >
-              Accept
+              {t("Accept")}
             </Button>
             <Button
               disabled={decline.isPending}
@@ -246,7 +252,7 @@ function InviteQueue({
               size="sm"
               type="button"
             >
-              Decline
+              {t("Decline")}
             </Button>
           </div>
         </article>

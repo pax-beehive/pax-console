@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "@/features/i18n/use-i18n";
 
 import { useCallback, useState, type FormEvent } from "react";
 import { RefreshCw } from "lucide-react";
@@ -30,11 +31,12 @@ export function SummaryBrowserPage() {
 }
 
 export function SummaryBrowserAccess({ user }: { user: User }) {
+  const { t } = useI18n();
   const preview = useConsoleStore((state) => state.previewAsUser);
   if (!canSeeAdminFeatures(user, preview)) {
     return (
       <p role="alert" className="p-6 text-sm text-ink-muted">
-        Summary developer is available to administrators.
+        {t("Summary developer is available to administrators.")}
       </p>
     );
   }
@@ -42,6 +44,7 @@ export function SummaryBrowserAccess({ user }: { user: User }) {
 }
 
 function SummaryBrowser({ userId }: { userId: string }) {
+  const { t } = useI18n();
   const list = useDeveloperSummaries(userId);
   const [selection, setSelection] = useState<DeveloperSummarySelection>();
   const [summaryId, setSummaryId] = useState("");
@@ -87,14 +90,16 @@ function SummaryBrowser({ userId }: { userId: string }) {
         <header className="flex flex-wrap items-start justify-between gap-3 py-4">
           <div>
             <h1 className="text-xl font-semibold text-ink">
-              Summary developer
+              {t("Summary developer")}
             </h1>
             <p className="mt-1 text-sm text-ink-muted">
-              Inspect your summaries, immutable versions, and source references.
+              {t(
+                "Inspect your summaries, immutable versions, and source references.",
+              )}
             </p>
           </div>
           <Button
-            aria-label="Refresh summaries"
+            aria-label={t("Refresh summaries")}
             disabled={list.isFetching}
             icon={
               <RefreshCw
@@ -108,7 +113,7 @@ function SummaryBrowser({ userId }: { userId: string }) {
               void list.restart();
             }}
           >
-            Refresh
+            {t("Refresh")}
           </Button>
         </header>
       </div>
@@ -119,31 +124,34 @@ function SummaryBrowser({ userId }: { userId: string }) {
         >
           <p>
             {accessDenied || list.error instanceof AuthError
-              ? "Access denied. Administrator permission is required to read summary data."
-              : "Could not load summaries. Refresh to restart the list."}
+              ? t(
+                  "Access denied. Administrator permission is required to read summary data.",
+                )
+              : t("Could not load summaries. Refresh to restart the list.")}
           </p>
         </div>
       ) : (
         <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden border-t border-hairline">
           <section
-            aria-label="Current summaries"
+            aria-label={t("Current summaries")}
             className={`min-h-0 min-w-0 flex-1 overflow-y-auto ${selection ? "hidden lg:block lg:max-w-sm lg:border-r lg:border-hairline" : ""}`}
           >
             <div className="border-b border-hairline p-4 sm:px-6">
               <h2 className="text-sm font-semibold text-ink">
-                Your current summaries
+                {t("Your current summaries")}
               </h2>
               <p className="mt-1 text-xs leading-5 text-ink-tertiary">
-                Latest readable version per summary, ordered by ID. No keyword
-                required.
+                {t(
+                  "Latest readable version per summary, ordered by ID. No keyword required.",
+                )}
               </p>
               <form
-                aria-label="Open summary by ID"
+                aria-label={t("Open summary by ID")}
                 onSubmit={openSummary}
                 className="mt-4 grid min-w-0 gap-3"
               >
                 <label className="grid min-w-0 gap-1 text-xs text-ink-muted">
-                  Summary ID
+                  {t("Summary ID")}
                   <input
                     className="min-h-9 min-w-0 w-full rounded-md border border-hairline bg-surface-1 px-2 text-sm text-ink"
                     value={summaryId}
@@ -154,40 +162,43 @@ function SummaryBrowser({ userId }: { userId: string }) {
                 </label>
                 <div className="flex min-w-0 items-end gap-2">
                   <label className="grid min-w-0 flex-1 gap-1 text-xs text-ink-muted">
-                    Revision
+                    {t("Revision")}
                     <input
                       className="min-h-9 min-w-0 w-full rounded-md border border-hairline bg-surface-1 px-2 text-sm text-ink"
                       value={revision}
                       onChange={(event) => setRevision(event.target.value)}
                       inputMode="numeric"
-                      placeholder="Current"
+                      placeholder={t("Current")}
                       maxLength={16}
                     />
                   </label>
-                  <Button type="submit">Open summary</Button>
+                  <Button type="submit">{t("Open summary")}</Button>
                 </div>
                 {validationError && (
                   <p role="alert" className="text-xs text-warning">
-                    {validationError}
+                    {t(validationError)}
                   </p>
                 )}
               </form>
             </div>
             {list.isPending ? (
               <p role="status" className="p-5 text-sm text-ink-tertiary">
-                Loading summaries…
+                {t("Loading summaries…")}
               </p>
             ) : (
               <>
                 <ul
-                  aria-label="Summary list"
+                  aria-label={t("Summary list")}
                   className="divide-y divide-hairline"
                 >
                   {items.map((item) => (
                     <li key={item.summary_id}>
                       <button
                         type="button"
-                        aria-label={`Open ${item.title || item.summary_id}, version ${item.revision}`}
+                        aria-label={t("Open {title}, version {revision}", {
+                          title: item.title || item.summary_id,
+                          revision: item.revision,
+                        })}
                         aria-pressed={
                           selection?.id === item.summary_id &&
                           selection?.revision === item.revision
@@ -201,15 +212,19 @@ function SummaryBrowser({ userId }: { userId: string }) {
                         className={`w-full min-w-0 px-4 py-4 text-left transition hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent sm:px-6 ${selection?.id === item.summary_id ? "bg-accent/10" : ""}`}
                       >
                         <span className="block break-words text-sm font-medium text-ink [overflow-wrap:anywhere]">
-                          {item.title || "Untitled summary"}
+                          {item.title || t("Untitled summary")}
                         </span>
                         <span className="mt-1 line-clamp-3 block break-words text-xs leading-5 text-ink-muted [overflow-wrap:anywhere]">
-                          {item.body_preview || "No text preview"}
+                          {item.body_preview || t("No text preview")}
                         </span>
                         <span className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-tertiary">
                           <span>v{item.revision}</span>
-                          <span>{item.coverage_count} source messages</span>
-                          <span>{item.claim_count} claims</span>
+                          <span>
+                            {item.coverage_count} {t(" source messages")}
+                          </span>
+                          <span>
+                            {item.claim_count} {t(" claims")}
+                          </span>
                         </span>
                         <span className="mt-2 block min-w-0">
                           <MonoId>{item.summary_id}</MonoId>
@@ -220,13 +235,14 @@ function SummaryBrowser({ userId }: { userId: string }) {
                 </ul>
                 {!items.length && !list.hasNextPage && (
                   <p className="p-5 text-sm text-ink-muted">
-                    No summaries yet.
+                    {t("No summaries yet.")}
                   </p>
                 )}
                 {!items.length && list.hasNextPage && (
                   <p className="px-5 pt-4 text-xs text-ink-tertiary">
-                    No readable summaries in this page. More records are
-                    available.
+                    {t(
+                      "No readable summaries in this page. More records are available.",
+                    )}
                   </p>
                 )}
                 {list.hasNextPage && (
@@ -238,8 +254,8 @@ function SummaryBrowser({ userId }: { userId: string }) {
                       }}
                     >
                       {list.isFetchingNextPage
-                        ? "Loading more…"
-                        : "Load more summaries"}
+                        ? t("Loading more…")
+                        : t("Load more summaries")}
                     </Button>
                   </div>
                 )}
@@ -257,7 +273,7 @@ function SummaryBrowser({ userId }: { userId: string }) {
             />
           ) : (
             <div className="hidden min-w-0 flex-1 items-center justify-center px-6 text-sm text-ink-tertiary lg:flex">
-              Select a summary to inspect its content and data.
+              {t("Select a summary to inspect its content and data.")}
             </div>
           )}
         </div>

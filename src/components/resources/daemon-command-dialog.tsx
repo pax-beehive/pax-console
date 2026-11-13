@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/features/i18n/use-i18n";
+
 import { ReactNode, useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, Check, Circle, Loader2 } from "lucide-react";
@@ -63,6 +65,7 @@ export function DaemonCommandDialog({
   title,
   userId,
 }: DaemonCommandDialogProps) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [submitted, setSubmitted] = useState<NodeDaemonCommandData>();
   const [dismissedId, setDismissedId] = useState<string>();
@@ -142,7 +145,16 @@ export function DaemonCommandDialog({
         {commandId ? (
           <>
             <DaemonCommandSteps
-              steps={daemonCommandSteps(kind, snapshot, lastPhase)}
+              steps={daemonCommandSteps(kind, snapshot, lastPhase).map(
+                (step) => ({
+                  ...step,
+                  label: step.label.startsWith("Running ")
+                    ? t("Running {version}", {
+                        version: snapshot.expectedVersion || t("new version"),
+                      })
+                    : t(step.label),
+                }),
+              )}
             />
             {snapshot.state === "succeeded" && (
               <p className="text-sm text-success">{successText(snapshot)}</p>
@@ -152,14 +164,17 @@ export function DaemonCommandDialog({
                 message={
                   snapshot.errorMessage ||
                   (snapshot.confirmation === "version_mismatch"
-                    ? `paxd reported ${snapshot.observedVersion || "another version"} after the upgrade.`
-                    : "The device reported a failure without details.")
+                    ? t("paxd reported {version} after the upgrade.", {
+                        version:
+                          snapshot.observedVersion || t("another version"),
+                      })
+                    : t("The device reported a failure without details."))
                 }
               />
             )}
             {reconnecting && (
               <p className="text-xs text-ink-tertiary">
-                Waiting for the device to reconnect…
+                {t("Waiting for the device to reconnect…")}
               </p>
             )}
           </>
@@ -181,7 +196,7 @@ export function DaemonCommandDialog({
               type="button"
               variant="ghost"
             >
-              Cancel
+              {t("Cancel")}
             </Button>
             <Button
               disabled={mutation.isPending || confirmDisabled}
@@ -189,7 +204,7 @@ export function DaemonCommandDialog({
               type="button"
               variant="danger"
             >
-              {mutation.isPending ? "Sending…" : confirmLabel}
+              {mutation.isPending ? t("Sending…") : confirmLabel}
             </Button>
           </>
         ) : settled ? (
@@ -199,25 +214,25 @@ export function DaemonCommandDialog({
               type="button"
               variant={snapshot.state === "failed" ? "ghost" : "secondary"}
             >
-              {snapshot.state === "failed" ? "Close" : "Done"}
+              {snapshot.state === "failed" ? t("Close") : t("Done")}
             </Button>
             {snapshot.state === "failed" && (
               <Button onClick={startOver} type="button">
-                Retry
+                {t("Retry")}
               </Button>
             )}
           </>
         ) : (
           <div className="flex w-full items-center justify-between gap-3">
             <span className="text-xs text-ink-tertiary">
-              Closing this keeps the command running on the device.
+              {t("Closing this keeps the command running on the device.")}
             </span>
             <Button
               onClick={() => handleOpenChange(false)}
               type="button"
               variant="secondary"
             >
-              Close
+              {t("Close")}
             </Button>
           </div>
         )}
@@ -227,8 +242,9 @@ export function DaemonCommandDialog({
 }
 
 function DaemonCommandSteps({ steps }: { steps: ProgressStep[] }) {
+  const { t } = useI18n();
   return (
-    <ol aria-label="Progress" className="grid gap-2.5">
+    <ol aria-label={t("Progress")} className="grid gap-2.5">
       {steps.map((step) => (
         <li
           className={cn(
@@ -243,8 +259,8 @@ function DaemonCommandSteps({ steps }: { steps: ProgressStep[] }) {
         >
           <StepIcon state={step.state} />
           <span className="min-w-0 truncate">
-            {step.label}
-            {step.state === "failed" && " failed"}
+            {t(step.label)}
+            {step.state === "failed" && t(" failed")}
           </span>
         </li>
       ))}
