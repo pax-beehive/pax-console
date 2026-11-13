@@ -2713,7 +2713,9 @@ it does not add HLS packaging, transcoding, or adaptive quality selection.
 
 ## 控制台中英文界面
 
-登录后的控制台支持英语与简体中文，桌面和移动端均可在顶栏选择语言。
+登录后的控制台支持英语与简体中文。桌面和移动端均从右上角用户菜单的
+“语言”分组选择 English 或简体中文；选项用勾选标明当前语言，点击后立即
+切换并关闭菜单。顶栏不再单独显示语言控件。
 `features/i18n/locale-store.ts` 以独立 Zustand store 保存当前界面语言；
 浏览器 localStorage 的 `pax-console-locale` 仅保存显式选择，首次访问按
 浏览器语言优先级匹配，所有 `zh-*` 语言归为简体中文，其他语言回退英语。

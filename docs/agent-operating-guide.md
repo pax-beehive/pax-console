@@ -3164,10 +3164,13 @@ than re-implementing send-while-dictating.
 
 ## Interface languages
 
-The authenticated Console supports English and Simplified Chinese. The compact
-language selector in the topbar works on desktop and mobile. `LocaleProvider`
-restores `pax-console-locale` from browser localStorage, otherwise chooses the
-first supported browser language (all `zh-*` variants use Simplified Chinese).
+The authenticated Console supports English and Simplified Chinese. On desktop
+and mobile, open the top-right user menu to find the compact Language section.
+Its English and 简体中文 radio items show the current choice with a checkmark;
+selecting one switches immediately and closes the menu. The topbar has no
+separate language control. `LocaleProvider` restores `pax-console-locale` from
+browser localStorage, otherwise chooses the first supported browser language
+(all `zh-*` variants use Simplified Chinese).
 English is the server and initial hydration snapshot. Storage failures must not
 prevent an in-memory switch. Storage events synchronize other tabs.
 

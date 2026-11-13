@@ -84,12 +84,45 @@ try {
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto(origin + "/settings/voice");
-    const language = page.getByRole("combobox", { name: "Language / 语言" });
-    await language.waitFor();
+    const userMenu = page.getByRole("button", {
+      name: /^(User menu|用户菜单)$/,
+    });
+    const english = page.getByRole("menuitemradio", {
+      name: "English",
+      exact: true,
+    });
+    const chinese = page.getByRole("menuitemradio", {
+      name: "简体中文",
+      exact: true,
+    });
+    await userMenu.waitFor();
     await page.getByRole("radio", { name: /^保持音乐播放/ }).waitFor();
+    assert.equal(
+      await page
+        .locator("header")
+        .getByRole("combobox", { name: "Language / 语言" })
+        .count(),
+      0,
+    );
+    assert.equal(
+      await page
+        .locator("header")
+        .getByRole("button", { name: /Language|语言/ })
+        .count(),
+      0,
+    );
     assert.equal(await page.locator("html").getAttribute("lang"), "zh-CN");
     await page.getByRole("radio", { name: /^耳机麦克风/ }).click();
-    await language.selectOption("en");
+    await userMenu.click();
+    await chinese.waitFor();
+    assert.equal(await chinese.getAttribute("aria-checked"), "true");
+    assert.equal(await english.getAttribute("aria-checked"), "false");
+    await page.addStyleTag({ content: "nextjs-portal { display: none; }" });
+    await page.screenshot({
+      path: `${output}/${viewport.width}-user-menu-zh.png`,
+    });
+    await english.click();
+    await page.getByRole("menu").waitFor({ state: "hidden" });
     await page.getByRole("radio", { name: /^Headset microphone/ }).waitFor();
     assert.equal(
       await page
@@ -103,8 +136,30 @@ try {
     );
     await page.reload();
     await page.getByRole("radio", { name: /^Headset microphone/ }).waitFor();
-    await language.selectOption("zh-CN");
+    assert.equal(await page.locator("html").getAttribute("lang"), "en");
+    assert.equal(
+      await page
+        .getByRole("radio", { name: /^Headset microphone/ })
+        .getAttribute("aria-checked"),
+      "true",
+    );
+    await userMenu.click();
+    await english.waitFor();
+    assert.equal(await english.getAttribute("aria-checked"), "true");
+    assert.equal(await chinese.getAttribute("aria-checked"), "false");
+    await page.addStyleTag({ content: "nextjs-portal { display: none; }" });
+    await page.screenshot({
+      path: `${output}/${viewport.width}-user-menu-en.png`,
+    });
+    await chinese.click();
+    await page.getByRole("menu").waitFor({ state: "hidden" });
     await page.getByRole("radio", { name: /^耳机麦克风/ }).waitFor();
+    assert.equal(
+      await page
+        .getByRole("radio", { name: /^耳机麦克风/ })
+        .getAttribute("aria-checked"),
+      "true",
+    );
     await page.addStyleTag({ content: "nextjs-portal { display: none; }" });
     await page.screenshot({ path: `${output}/${viewport.width}-voice.png` });
     for (const [path, heading] of [
@@ -126,7 +181,11 @@ try {
           await page.screenshot({ path: `${output}/failure.png` });
           throw error;
         });
-      assert.equal(await language.inputValue(), "zh-CN");
+      assert.equal(await page.locator("html").getAttribute("lang"), "zh-CN");
+      assert.equal(
+        await page.evaluate(() => localStorage.getItem("pax-console-locale")),
+        "zh-CN",
+      );
       assert.equal(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= window.innerWidth,

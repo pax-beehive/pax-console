@@ -7,6 +7,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SearchBox } from "@/components/ui/search-box";
@@ -48,7 +49,6 @@ export function Topbar({ user }: TopbarProps) {
         </form>
       </div>
       <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-        <LanguageSwitcher />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -69,6 +69,8 @@ export function Topbar({ user }: TopbarProps) {
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent>
+            <LanguageSwitcher />
+            <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => window.location.reload()}>
               <RefreshCw className="h-4 w-4 shrink-0" />
               {t("Reload PAX Console")}
