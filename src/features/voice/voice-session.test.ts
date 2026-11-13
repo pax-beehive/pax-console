@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { fakeVoiceTransport } from "./test-fakes";
 import { VoiceInputError } from "./voice-errors";
 import {
+  MAX_RECONNECTS,
   VoiceSession,
   type VoiceSessionOptions,
   type VoiceSessionResult,
@@ -190,5 +191,72 @@ describe("VoiceSession", () => {
     await t.session.start();
     expect(notices).toEqual(["switched"]);
     expect(t.sockets).toHaveLength(1);
+  });
+
+  it("reconnects after a drop while recording and keeps the text", async () => {
+    const t = setup();
+    await t.session.start();
+    const first = t.sockets[0];
+    first.open();
+    first.receive(ready);
+    t.feed(new Array(1_600).fill(0.5));
+    first.receive({ type: "transcript", final: "first part", partial: "and" });
+    first.drop();
+
+    // No error: a new connection opens and audio meanwhile is buffered.
+    expect(t.results).toEqual([]);
+    expect(t.sockets).toHaveLength(2);
+    const second = t.sockets[1];
+    t.feed(new Array(1_600).fill(0.25));
+    second.open();
+    expect(second.json()[0]).toMatchObject({ type: "start" });
+    second.receive(ready);
+    expect(second.audio()).toHaveLength(1);
+    // The timer keeps running: recording is announced only once.
+    expect(t.phases).toEqual(["connecting", "recording"]);
+
+    second.receive({ type: "transcript", final: "", partial: "more" });
+    expect(t.transcripts.at(-1)).toEqual(["first part and", "more"]);
+    t.session.stop();
+    second.receive({ type: "done", final: "more words" });
+    expect(t.results).toEqual([{ text: "first part and more words" }]);
+  });
+
+  it("reconnects when the provider fails mid-dictation", async () => {
+    const t = setup();
+    await t.session.start();
+    t.sockets[0].open();
+    t.sockets[0].receive(ready);
+    t.sockets[0].receive({ type: "transcript", final: "hello", partial: "" });
+    t.sockets[0].receive({ type: "error", code: "provider_failed" });
+    expect(t.results).toEqual([]);
+    expect(t.sockets).toHaveLength(2);
+    // The old socket closing afterwards is ignored.
+    t.sockets[0].drop();
+    expect(t.sockets).toHaveLength(2);
+  });
+
+  it("gives up after repeated drops", async () => {
+    const t = setup();
+    await t.session.start();
+    for (let i = 0; i <= MAX_RECONNECTS; i++) {
+      const socket = t.sockets[i];
+      socket.open();
+      socket.receive(ready);
+      socket.drop();
+    }
+    expect(t.sockets).toHaveLength(MAX_RECONNECTS + 1);
+    expect(t.results[0].error?.code).toBe("connection_lost");
+  });
+
+  it("does not reconnect once stopped", async () => {
+    const t = setup();
+    await t.session.start();
+    t.sockets[0].open();
+    t.sockets[0].receive(ready);
+    t.session.stop();
+    t.sockets[0].drop();
+    expect(t.sockets).toHaveLength(1);
+    expect(t.results[0].error?.code).toBe("connection_lost");
   });
 });

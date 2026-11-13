@@ -69,12 +69,13 @@ describe("useVoiceDictation", () => {
       socket.open();
       socket.receive(ready);
       socket.receive({ type: "transcript", final: "partial", partial: "" });
-      socket.receive({ type: "error", code: "provider_failed" });
+      // provider_failed reconnects first; this one cannot be retried.
+      socket.receive({ type: "error", code: "provider_unavailable" });
     });
     expect(draft()).toBe("partial");
     expect(result.current.status).toBe("idle");
     expect(result.current.error).toBe(
-      "Speech recognition stopped unexpectedly",
+      "Speech recognition is unavailable right now",
     );
     act(() => result.current.dismissError());
     expect(result.current.error).toBeUndefined();
