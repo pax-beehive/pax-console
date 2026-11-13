@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { type Translator, useI18n } from "@/features/i18n/use-i18n";
 import { ToolMessageDetails } from "./tool-message-details";
 import {
@@ -57,7 +58,7 @@ import {
 } from "@/features/runtime/tool-patches";
 import { cn } from "@/lib/utils";
 import { MessageAttachment } from "./message-attachment";
-import { liveActivityLabel } from "./activity-label";
+import { isLiveThoughtActivity, liveActivityLabel } from "./activity-label";
 
 export type PermissionDecisionOption =
   | "deny"
@@ -437,8 +438,10 @@ export function AgentPendingIndicator() {
 
 function ThoughtCard({
   event,
+  active = Boolean(event.streaming),
 }: {
   event: Extract<SessionEvent, { type: "progress" }>;
+  active?: boolean;
 }) {
   const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
@@ -448,7 +451,7 @@ function ThoughtCard({
       onToggle={(event) => setExpanded(event.currentTarget.open)}
     >
       <summary className="flex cursor-pointer list-none items-center gap-2 text-sm text-ink-muted outline-none transition hover:text-ink [&::-webkit-details-marker]:hidden">
-        <PaxThoughtIcon />
+        <WhaleThinkingIcon active={active} />
         <span>{event.streaming ? t("Thinking") : t("Thought")}</span>
         <ChevronDown className="ml-auto h-3.5 w-3.5 -rotate-90 text-ink-tertiary transition group-open:rotate-0" />
       </summary>
@@ -1094,6 +1097,7 @@ function WorkGroupCard({
     ).values(),
   ];
   const needsApproval = pendingPermissions.length > 0;
+  const thinking = !complete && !needsApproval && isLiveThoughtActivity(events);
   const onlySubagentCompletions =
     events.length > 0 && events.every(isSubagentCompletion);
   const start = Date.parse(
@@ -1147,6 +1151,8 @@ function WorkGroupCard({
               aria-hidden="true"
               className="h-4 w-4 shrink-0 text-warning"
             />
+          ) : thinking ? (
+            <WhaleThinkingIcon active />
           ) : !complete && !onlySubagentCompletions ? (
             <LoaderCircle
               aria-hidden="true"
@@ -1173,6 +1179,7 @@ function WorkGroupCard({
             {events.map((event) =>
               event.type === "progress" ? (
                 <ThoughtCard
+                  active={thinking && event === events.at(-1)}
                   event={complete ? { ...event, streaming: false } : event}
                   key={event.id}
                 />
@@ -2536,15 +2543,21 @@ function permissionRequestPatches(
   return permissionRequestCodePatches(event);
 }
 
-function PaxThoughtIcon() {
+function WhaleThinkingIcon({ active }: { active: boolean }) {
   return (
-    <span
+    <Image
+      alt=""
       aria-hidden="true"
-      className="h-4 w-4 shrink-0 bg-primary-hover"
-      style={{
-        WebkitMask: "url('/pax-icon.svg') center / contain no-repeat",
-        mask: "url('/pax-icon.svg') center / contain no-repeat",
-      }}
+      data-slot="thinking-avatar"
+      src="/whale-chan-thinking.png"
+      width={20}
+      height={20}
+      draggable={false}
+      className={cn(
+        "h-5 w-5 shrink-0 object-contain",
+        active &&
+          "animate-spin [animation-duration:3s] motion-reduce:animate-none",
+      )}
     />
   );
 }

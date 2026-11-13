@@ -224,6 +224,12 @@ recognized running tools use concise actions such as `Reading files…` or
 show `Using tools · N running`; queued or mixed activity is labeled accurately.
 With no active tool or latest live thought, use `Working…` without inferring
 thinking or retries. Raw tool names and payloads stay inside expanded details.
+Thinking labels use a 20px transparent whale-girl avatar, rotating once every
+three seconds only while that thought is active. Completed and historical
+thoughts keep a static avatar. Tool activity and approval waits retain their
+existing status icons. Respect reduced-motion preferences and keep the avatar
+decorative for screen readers. Asset details and its generation prompt live in
+[whale-chan-thinking-asset.md](whale-chan-thinking-asset.md).
 Gaps after commentary keep the quiet breathing mark and three dots while the
 turn is running. An active activity row replaces this indicator; completion
 and approval waits remove it. It carries no invented progress percentage.

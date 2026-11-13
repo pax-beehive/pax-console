@@ -7,17 +7,29 @@ import type {
 
 type Tool = Extract<WorkActivityEvent, { type: "tool_call" }>;
 
+function isActiveTool(event: WorkActivityEvent): event is Tool {
+  return (
+    event.type === "tool_call" &&
+    ["called", "queued", "running"].includes(event.status)
+  );
+}
+
+export function isLiveThoughtActivity(events: readonly WorkActivityEvent[]) {
+  const latest = events.at(-1);
+  return (
+    latest?.type === "progress" &&
+    Boolean(latest.streaming) &&
+    !events.some(isActiveTool)
+  );
+}
+
 // Display-only interpretation of normalized events. Never use these labels to
 // derive session runtime status or infer thought from the absence of tool work.
 export function liveActivityLabel(
   events: readonly WorkActivityEvent[],
   t: Translator = translators.en,
 ) {
-  const tools = events.filter(
-    (event): event is Tool =>
-      event.type === "tool_call" &&
-      ["called", "queued", "running"].includes(event.status),
-  );
+  const tools = events.filter(isActiveTool);
   if (tools.length > 1) {
     const state = tools.every((tool) => tool.status === "running")
       ? "running"
@@ -39,10 +51,7 @@ export function liveActivityLabel(
     if (tool.status === "called") return t("Using tools…");
     return toolActivityLabel(tool, t);
   }
-  const latest = events.at(-1);
-  return latest?.type === "progress" && latest.streaming
-    ? t("Thinking…")
-    : t("Working…");
+  return isLiveThoughtActivity(events) ? t("Thinking…") : t("Working…");
 }
 
 function toolActivityLabel(tool: Tool, t: Translator) {

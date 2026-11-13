@@ -331,6 +331,9 @@ describe("session event cards", () => {
     item.events = item.events.slice(0, 1);
     const view = renderItem(item);
     expect(screen.getByText("Thinking…")).toBeVisible();
+    expect(
+      view.container.querySelector('[data-slot="thinking-avatar"]'),
+    ).toHaveClass("animate-spin", "motion-reduce:animate-none");
     expect(screen.queryByText("Checking files")).not.toBeInTheDocument();
     const concurrent = activityGroup(false);
     const tool = concurrent.events[1] as Extract<
@@ -352,6 +355,15 @@ describe("session event cards", () => {
     expect(screen.getByText("Using tools · 3 running")).toBeVisible();
     expect(screen.queryByText("Thinking…")).not.toBeInTheDocument();
     expect(screen.queryByText("shell")).not.toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-slot="thinking-avatar"]'),
+    ).not.toBeInTheDocument();
+    const group = view.container.querySelector("details")!;
+    group.open = true;
+    fireEvent(group, new Event("toggle"));
+    expect(
+      view.container.querySelector('[data-slot="thinking-avatar"]'),
+    ).not.toHaveClass("animate-spin");
   });
 
   it("keeps an actionable approval outside the collapsed activity list without duplicating it", () => {
@@ -689,6 +701,39 @@ describe("session event cards", () => {
     expect(container.querySelector(".lucide-chevron-down")).toHaveClass(
       "ml-auto",
     );
+  });
+
+  it("stops the whale avatar when a standalone thought finishes", () => {
+    const thought: Extract<SessionEvent, { type: "progress" }> = {
+      type: "progress",
+      id: "thought-avatar",
+      sessionId: "sess-1",
+      content: "Checking the relevant files",
+      streaming: true,
+      createdAt: "2026-11-13T20:00:00Z",
+    };
+    const view = renderItem({ type: "event", id: thought.id, event: thought });
+    const avatar = view.container.querySelector(
+      '[data-slot="thinking-avatar"]',
+    );
+    expect(avatar).toHaveClass("animate-spin", "motion-reduce:animate-none");
+    expect(avatar).toHaveAttribute("aria-hidden", "true");
+    view.rerender(
+      <TooltipProvider>
+        <WorkstreamItemCard
+          item={{
+            type: "event",
+            id: thought.id,
+            event: { ...thought, streaming: false },
+          }}
+          permissionDecision={permissionDecision}
+        />
+      </TooltipProvider>,
+    );
+    expect(
+      view.container.querySelector('[data-slot="thinking-avatar"]'),
+    ).not.toHaveClass("animate-spin");
+    expect(screen.getByText("Thought")).toBeVisible();
   });
 
   it("uses compact line height for normal agent messages", () => {

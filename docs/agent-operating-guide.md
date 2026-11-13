@@ -1511,6 +1511,11 @@ recognized running tools use concise actions such as `Reading files…` or
 show `Using tools · N running`; queued or mixed activity is labeled accurately.
 With no active tool or latest live thought, use `Working…` without inferring
 thinking or retries. Raw tool names and payloads stay inside expanded details.
+Thinking labels have a 20px whale-girl avatar, rotating once every three seconds
+only for the current live thought. Share `isLiveThoughtActivity` with the label;
+tools, approvals, stale thoughts, and completed work must not animate the avatar.
+Honor reduced motion. Serve the transparent asset through Next Image at its
+display size; see [asset provenance and prompt](whale-chan-thinking-asset.md).
 Native tool summaries select the Tool evidence panel only when opening. Read
 `details.open` before the default toggle: collapsing a tool, including an
 auto-opened approval, must not reopen a closed evidence panel. Preserve native
