@@ -10,7 +10,7 @@ const output =
 const publicKey = createECDH("prime256v1").generateKeys().toString("base64url");
 // [sidebar label, route, page heading, screenshot name]
 const sections = [
-  ["My devices", "/settings/devices", "Devices"],
+  ["My devices", "/settings/devices", "My devices"],
   ["Agent sign-in & usage", "/settings/agent-sign-in", "Agent sign-in & usage"],
   ["Projects", "/settings/projects", "Projects", "projects"],
   ["Secretary", "/settings/secretary", "Secretary"],
@@ -36,10 +36,53 @@ const featureRoutes = new Map([
   ["notifications", ["/settings/notifications"]],
   ["voice_input", ["/settings/voice"]],
 ]);
+// One online device with three agents and one offline device with one.
+const fleet = {
+  nodes: [
+    {
+      node_id: "node-server",
+      name: "home-server",
+      os: "linux",
+      online: false,
+      last_heartbeat: new Date(Date.now() - 3 * 3600_000).toISOString(),
+    },
+    { node_id: "node-laptop", name: "MacBook Pro", os: "darwin", online: true },
+  ],
+  agents: [
+    {
+      agent_id: "agent-claude",
+      agent_type: "claude-code",
+      node_id: "node-laptop",
+      online: true,
+    },
+    {
+      agent_id: "agent-reviewer",
+      agent_type: "claude-code",
+      name: "reviewer",
+      description: "Reviews risky changes",
+      node_id: "node-laptop",
+      online: true,
+    },
+    {
+      agent_id: "agent-codex",
+      agent_type: "codex",
+      node_id: "node-laptop",
+      online: true,
+    },
+    {
+      agent_id: "agent-server",
+      agent_type: "claude-code",
+      node_id: "node-server",
+      online: false,
+    },
+  ],
+};
 
 async function openSettings(browser, viewport, account = {}) {
   const context = await browser.newContext({ viewport });
   const page = await context.newPage();
+  // A route's first load compiles it on a development server.
+  page.setDefaultNavigationTimeout(120_000);
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript(() => {
@@ -58,7 +101,7 @@ async function openSettings(browser, viewport, account = {}) {
     const path = new URL(route.request().url()).pathname;
     let data = {
       nodes: account.nodes ?? [],
-      agents: [],
+      agents: account.agents ?? [],
       projects: [],
       api_keys: [],
       grants: account.grants ?? [],
@@ -72,6 +115,27 @@ async function openSettings(browser, viewport, account = {}) {
           user_id: "settings-demo",
           email: "alex@example.invalid",
           role: account.role ?? "user",
+        },
+      };
+    else if (path.endsWith("/auth/status"))
+      // Codex still needs to sign in; the other agent types are signed in.
+      data = {
+        harness_auth: { state: "idle", logged_in: !path.includes("/codex/") },
+      };
+    else if (path.endsWith("/daemon/agent-connections"))
+      data = {
+        type: "agent_connections.list",
+        agent_connections: {
+          items: [
+            {
+              id: "conn-reviewer",
+              cloud_agent_id: "agent-reviewer",
+              name: "default",
+              harness: "claude-code",
+              desired_acp_slots: 2,
+              report_local_sessions: true,
+            },
+          ],
         },
       };
     else if (path.endsWith("/features"))
@@ -317,6 +381,61 @@ try {
     await context.close();
   }
 
+  // My devices lists each device with its agents: online devices first,
+  // offline ones kept, no identifiers or versions, and the agent that still
+  // has to sign in is called out.
+  for (const viewport of [
+    { width: 1440, height: 1000 },
+    { width: 390, height: 844 },
+  ]) {
+    const size = viewport.width < 1024 ? "mobile" : "desktop";
+    const { context, page, errors } = await openSettings(
+      browser,
+      viewport,
+      fleet,
+    );
+    await page.goto(origin + "/settings/devices");
+    await page
+      .getByRole("heading", { name: "My devices", exact: true })
+      .waitFor();
+    const cards = page.getByTestId("device-card");
+    await cards.first().waitFor();
+    assert.deepEqual(
+      await cards.evaluateAll((items) =>
+        items.map((item) => item.getAttribute("aria-label")),
+      ),
+      ["MacBook Pro", "home-server"],
+    );
+    const laptop = cards.first();
+    assert.equal(await laptop.getByTestId("agent-row").count(), 3);
+    await laptop.getByText(/Sign-in needed/).waitFor();
+    await cards
+      .last()
+      .getByText(/offline 3h/)
+      .waitFor();
+    assert.equal(await page.getByText(/node-laptop|paxd/).count(), 0);
+    assert.equal(await noOverflow(page), true, `${size} my devices overflow`);
+    await page.screenshot({ path: `${output}/${size}-my-devices.png` });
+
+    await laptop.getByRole("button", { name: "Actions for reviewer" }).click();
+    await page.getByRole("menuitem", { name: "Settings…" }).click();
+    const settings = page.getByRole("dialog", { name: "Agent settings" });
+    await settings
+      .getByRole("switch", { name: "Sync local sessions" })
+      .waitFor();
+    assert.equal(
+      await settings
+        .getByRole("switch", { name: "Sync local sessions" })
+        .getAttribute("aria-checked"),
+      "true",
+    );
+    await page.screenshot({ path: `${output}/${size}-agent-settings.png` });
+    await page.keyboard.press("Escape");
+    await settings.waitFor({ state: "hidden" });
+    assert.deepEqual(errors, []);
+    await context.close();
+  }
+
   // An administrator with a standing permission and a connected device.
   const { context, page, errors } = await openSettings(
     browser,
@@ -390,6 +509,7 @@ try {
       mobileDirectoryAndBackNavigation: true,
       administratorAndPermissionEntries: true,
       featureEntriesAndRoutes: true,
+      myDevicesAndAgentSettings: true,
       noHorizontalOverflow: true,
       fixtures: true,
       screenshots: output,

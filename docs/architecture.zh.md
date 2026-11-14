@@ -135,6 +135,14 @@ Secretary、Notifications、Voice input 在目录里声明了 `feature`，只有
 区域时不显示），之后依次是“语言”分组、Settings 与 Contact us、Reload 与管理员的
 Preview as user、Sign out。`/settings/language` 修改的是同一个界面语言偏好，并显示账户区域。
 
+My devices（`resources/my-devices-page.tsx`）把设备和智能体合成一页：每台设备一张
+`DeviceCard`，其上的智能体列在卡片里，在线设备在前，离线设备保留。普通用户只看到名称、
+在线状态和智能体账户是否已登录，不显示标识符和版本；可重命名、更新、删除设备，可打开
+智能体设置（`AgentSettingsDialog`：名称、说明、同步本地会话、同时运行的会话数）、登录页、
+重启和删除。同步与会话数保存在设备上，只有设备在线时才能修改。登录状态按设备和智能体
+类型各读取一次，只保留是或否。`/nodes/[id]`、`/agents/[id]` 是只给管理员的运行信息页，
+`ResourceDetailRoute` 会把其他人送回 My devices。
+
 设置页面复用 `SettingsPageHeader`，明确标题、用途与操作范围，手机保留原有标题布局。
 设备/Agent 详情和加密配对旧路径仍保持所属入口高亮。`useDesktopSettings` 只用于通知页
 在桌面和手机之间切换说明文字的布局。
@@ -1147,7 +1155,7 @@ Sidebar 一级入口是粗粒度工作区（顶部 Home / Collaboration，底部
 /collaboration/knowledge       Knowledge capsules
 /admin/config                  Runtime configuration (administrators)
 /settings                      Settings 总览（桌面与手机同一份目录）
-/settings/devices              Devices; ?view=agents selects Agents
+/settings/devices              My devices：每台设备及其上的智能体（单页）
 /settings/devices/add          Quick connect / Browser sign-in
 /settings/devices/agents/add   Agent setup; optional nodeId selects a computer
 /settings/projects             Project hierarchy and launch Targets
@@ -1158,8 +1166,8 @@ Sidebar 一级入口是粗粒度工作区（顶部 Home / Collaboration，底部
 /settings/advanced/encryption  Browser keys and encrypted-device pairing
 /settings/advanced/api-keys    API key management
 /settings/advanced/node-registration Manual registration tokens
-/nodes/[id]                    Node detail deep-link
-/agents/[id]?nodeId=...        Agent detail deep-link
+/nodes/[id]                    设备运行信息（仅管理员；其他人回到 My devices）
+/agents/[id]?nodeId=...        智能体运行信息（仅管理员；其他人回到 My devices）
 ```
 
 Legacy `/nodes`、`/agents`、`/approvals`、`/monitor`、`/teams`、`/friends`、

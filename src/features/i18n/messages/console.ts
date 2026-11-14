@@ -482,8 +482,8 @@ export const consoleMessages: Record<string, string> = {
   "Choose which microphone dictation uses on this device, so music in your earbuds can keep playing.":
     "选择此设备用于语音输入的麦克风，让耳机中的音乐继续播放。",
   "Devices & agents": "设备与智能体",
-  "Connect computers and servers, manage their agents, and inspect connection details.":
-    "连接电脑和服务器，管理智能体并查看连接详情。",
+  "Connect computers and servers, and manage the agents that run on them.":
+    "连接电脑和服务器，管理在上面运行的智能体。",
   "Automatic conversation summaries": "自动会话摘要",
   "Choose an agent to maintain summaries connected to your conversations, and track what has been summarized.":
     "选择智能体维护会话摘要，并追踪摘要进度。",

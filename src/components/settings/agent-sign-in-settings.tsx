@@ -238,6 +238,11 @@ type MethodOption = {
   hint: string;
 };
 
+/** Whether PAX can sign this agent type in on a device. */
+export function supportsAgentSignIn(agentType: string) {
+  return Object.hasOwn(methodOptions, agentType);
+}
+
 /** Native sign-in methods, named by the account the user signs in with. */
 const methodOptions: Record<string, MethodOption[]> = {
   "claude-code": [
