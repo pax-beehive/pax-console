@@ -8,8 +8,8 @@ type DialogProps = {
   children: ReactNode;
   onOpenChange: (open: boolean) => void;
   open: boolean;
-  /** `sm` matches ConfirmDialog; `lg` fits an embedded artifact viewer. */
-  size?: "sm" | "lg";
+  /** `sm` matches ConfirmDialog; `lg` fits a viewer; `drawer` anchors to the right. */
+  size?: "sm" | "lg" | "drawer";
 };
 
 /**
@@ -31,9 +31,11 @@ export function Dialog({
           aria-describedby={undefined}
           className={cn(
             "fixed left-1/2 top-1/2 z-50 flex max-h-[calc(100dvh-32px)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-lg border border-hairline bg-surface-2 p-4 shadow-2xl shadow-black/40 outline-none",
-            size === "lg"
-              ? "h-[min(calc(100dvh-32px),820px)] w-[min(calc(100vw-32px),1040px)]"
-              : "w-[min(calc(100vw-32px),480px)]",
+            size === "drawer"
+              ? "inset-y-0 left-auto right-0 top-0 h-dvh max-h-dvh w-full max-w-lg translate-x-0 translate-y-0 rounded-none bg-surface-1 p-5 sm:p-6"
+              : size === "lg"
+                ? "h-[min(calc(100dvh-32px),820px)] w-[min(calc(100vw-32px),1040px)]"
+                : "w-[min(calc(100vw-32px),480px)]",
           )}
         >
           {children}

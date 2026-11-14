@@ -179,7 +179,7 @@ import {
 import { compactId } from "@/lib/format";
 import { useDocumentTitle } from "@/lib/use-document-title";
 import { cn } from "@/lib/utils";
-import { canSeeAdminFeatures } from "@/features/auth/admin-view";
+import { useFeature } from "@/features/flags";
 import { useE2EESessionRuntime } from "@/features/e2ee/use-e2ee-session-runtime";
 import { flattenEncryptedHistoryPages } from "@/features/e2ee/transport";
 import {
@@ -266,8 +266,7 @@ export function SessionWorkbench({
   onMobileMenu,
 }: SessionWorkbenchProps) {
   const { t } = useI18n();
-  const previewAsUser = useConsoleStore((state) => state.previewAsUser);
-  const showAdminFeatures = canSeeAdminFeatures(user, previewAsUser);
+  const knowledgeCapsulesEnabled = useFeature("knowledge_capsules");
   const queryClient = useQueryClient();
   const routeSessionId = sessionId === "new" ? undefined : sessionId;
   const [currentSessionId, setCurrentSessionId] = useState(routeSessionId);
@@ -732,14 +731,14 @@ export function SessionWorkbench({
     isFetching: isFetchingHistory,
   } = displayedHistoryQuery;
   const capsulesQuery = useKnowledgeCapsules(
-    showAdminFeatures ? user.user_id : undefined,
+    knowledgeCapsulesEnabled ? user.user_id : undefined,
     {
       status: "active",
     },
   );
   const injectionsQuery = useKnowledgeInjections(
-    showAdminFeatures ? user.user_id : undefined,
-    showAdminFeatures ? currentSessionId : undefined,
+    knowledgeCapsulesEnabled ? user.user_id : undefined,
+    knowledgeCapsulesEnabled ? currentSessionId : undefined,
   );
   const artifactsQuery = useSessionArtifacts(user.user_id, currentSessionId);
   const [capsuleKeyword, setCapsuleKeyword] = useState("");
@@ -2627,7 +2626,7 @@ export function SessionWorkbench({
     ] satisfies SessionSidePanel[]
   ).filter(
     (panel) =>
-      canSeeSessionSidePanel(panel.id, showAdminFeatures) &&
+      canSeeSessionSidePanel(panel.id, knowledgeCapsulesEnabled) &&
       (panel.id !== "tool" || activeSidePanelId === "tool"),
   );
   const activeSidePanel = sidePanels.find(

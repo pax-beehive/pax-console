@@ -16,6 +16,7 @@ export function AdminAnalyticsNav() {
         ["/admin/customers", "Customers"],
         ["/admin/notifications", "Push subscriptions"],
         ["/admin/summaries", "Summary developer"],
+        ["/admin/config", "Runtime configuration"],
       ].map(([href, label]) => (
         <Link
           key={href}

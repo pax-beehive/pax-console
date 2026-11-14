@@ -46,6 +46,9 @@ const fixtures = vi.hoisted(() => ({
   steerTurn: vi.fn().mockResolvedValue(undefined),
   observe: vi.fn(),
   emptyEvents: [],
+  knowledgeEnabled: false,
+  readCapsules: vi.fn(),
+  readInjections: vi.fn(),
   conversationEvents: [] as SessionEvent[],
   emptyQuery: { data: undefined, refetch: vi.fn() },
   history: [] as HistoryMessage[],
@@ -63,6 +66,10 @@ const fixtures = vi.hoisted(() => ({
   createAttachment: vi
     .fn()
     .mockRejectedValue(new Error("Attachment upload failed")),
+}));
+
+vi.mock("@/features/flags", () => ({
+  useFeature: () => fixtures.knowledgeEnabled,
 }));
 
 vi.mock("@/features/api/resources", async (importOriginal) => ({
@@ -91,8 +98,14 @@ vi.mock("@/features/api/resources", async (importOriginal) => ({
     data: { pages: [{ messages: fixtures.history }] },
   }),
   listSessionHistory: fixtures.readHistory,
-  useKnowledgeCapsules: () => fixtures.emptyQuery,
-  useKnowledgeInjections: () => fixtures.emptyQuery,
+  useKnowledgeCapsules: (...args: unknown[]) => {
+    fixtures.readCapsules(...args);
+    return fixtures.emptyQuery;
+  },
+  useKnowledgeInjections: (...args: unknown[]) => {
+    fixtures.readInjections(...args);
+    return fixtures.emptyQuery;
+  },
   useSessionArtifacts: () => fixtures.emptyQuery,
   useAgentOwnerInfos: () => fixtures.emptyQuery,
   getQueuedSessionTurn: vi.fn().mockResolvedValue(null),
@@ -177,6 +190,9 @@ beforeEach(() => {
     transport: "manager",
     model: undefined,
   };
+  fixtures.knowledgeEnabled = false;
+  fixtures.readCapsules.mockClear();
+  fixtures.readInjections.mockClear();
   fixtures.localStatus = "idle";
   fixtures.conversationError = null;
   fixtures.encryptedStatus = "idle";
@@ -1150,5 +1166,32 @@ describe("SessionWorkbench composer status", () => {
         [],
       ),
     );
+  });
+});
+
+describe("runtime knowledge capsule visibility", () => {
+  it("does not request knowledge or show its panel when the feature is disabled", () => {
+    render(workbench());
+    expect(fixtures.readCapsules).toHaveBeenCalledWith(undefined, {
+      status: "active",
+    });
+    expect(fixtures.readInjections).toHaveBeenCalledWith(undefined, undefined);
+    fireEvent.click(screen.getByRole("button", { name: "Open session panel" }));
+    expect(
+      screen.queryByRole("button", { name: "Knowledge" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("requests and displays knowledge for an ordinary user with a feature grant", () => {
+    fixtures.knowledgeEnabled = true;
+    render(workbench());
+    expect(fixtures.readCapsules).toHaveBeenCalledWith("user_1", {
+      status: "active",
+    });
+    expect(fixtures.readInjections).toHaveBeenCalledWith("user_1", "sess_1");
+    fireEvent.click(screen.getByRole("button", { name: "Open session panel" }));
+    expect(
+      screen.getByRole("button", { name: "Knowledge" }),
+    ).toBeInTheDocument();
   });
 });
