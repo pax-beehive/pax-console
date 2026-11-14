@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SettingsPage } from "./settings-page-client";
@@ -12,6 +12,8 @@ const state = vi.hoisted(() => ({
   nodes: [] as { node_id: string; kind?: string; online?: boolean }[],
   grants: [] as { approval_id: string }[],
   features: ["secretary", "notifications", "voice_input"],
+  agents: [] as { agent_id: string; agent_type: string; node_id: string }[],
+  signedOut: [] as string[],
 }));
 vi.mock("@/features/flags", () => ({
   useFeatures: () => ({
@@ -36,6 +38,17 @@ vi.mock("@/features/auth/use-current-user", () => ({
 }));
 vi.mock("@/features/api/resources", () => ({
   useNodes: () => ({ data: { nodes: state.nodes } }),
+  useAgents: () => ({ data: { agents: state.agents } }),
+  getNodeHarnessAuth: async (
+    _userId: string,
+    nodeId: string,
+    agentType: string,
+  ) => ({
+    harness_auth: {
+      state: "idle",
+      logged_in: !state.signedOut.includes(`${nodeId}/${agentType}`),
+    },
+  }),
   useApprovalGrants: () => ({ data: { grants: state.grants } }),
 }));
 vi.mock("@/features/region/account-region", () => ({
@@ -52,6 +65,8 @@ afterEach(() => {
   state.nodes = [];
   state.grants = [];
   state.features = everyFeature;
+  state.agents = [];
+  state.signedOut = [];
 });
 
 describe("settings landing pages", () => {
@@ -117,6 +132,37 @@ describe("settings landing pages", () => {
     expect(
       screen.getByRole("link", { name: /Language & region/ }),
     ).toBeInTheDocument();
+  });
+
+  it("calls out the agent that has to sign in again, asking only online devices", async () => {
+    state.nodes = [
+      { node_id: "laptop", online: true },
+      { node_id: "server", online: false },
+    ];
+    state.agents = [
+      { agent_id: "a1", agent_type: "claude-code", node_id: "laptop" },
+      { agent_id: "a2", agent_type: "codex", node_id: "laptop" },
+      { agent_id: "a3", agent_type: "codex", node_id: "server" },
+    ];
+    state.signedOut = ["laptop/codex", "server/codex"];
+    render(<SettingsPage />);
+    const entry = screen.getByRole("link", { name: /Agent sign-in & usage/ });
+    await waitFor(() => expect(entry).toHaveTextContent("Codex needs sign-in"));
+  });
+
+  it("counts the agents when more than one kind has to sign in", async () => {
+    state.nodes = [{ node_id: "laptop", online: true }];
+    state.agents = [
+      { agent_id: "a1", agent_type: "claude-code", node_id: "laptop" },
+      { agent_id: "a2", agent_type: "codex", node_id: "laptop" },
+    ];
+    state.signedOut = ["laptop/codex", "laptop/claude-code"];
+    render(<SettingsPage />);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("link", { name: /Agent sign-in & usage/ }),
+      ).toHaveTextContent("2 agents need sign-in"),
+    );
   });
 
   it("adds the entries reserved for administrators and for standing permissions", () => {

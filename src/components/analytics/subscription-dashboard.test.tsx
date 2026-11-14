@@ -17,7 +17,6 @@ import { useConsoleStore } from "@/stores/console-store";
 import { AuthError } from "@/features/api/errors";
 import type { User } from "@/features/api/types";
 import type { PushReceiver } from "@/features/analytics/subscription-data";
-import { Sidebar } from "@/components/shell/sidebar";
 
 vi.mock("@/features/flags", () => ({ useFeature: () => false }));
 
@@ -251,17 +250,3 @@ it("Given refreshed receiver metadata, updates an already open detail view", () 
     ),
   ).toBeTruthy();
 });
-
-it.each([true, false])(
-  "Given administrator navigation (%s), places subscription access beside Customers",
-  (admin) => {
-    useConsoleStore.setState({ sidebarCollapsed: false });
-    render(<Sidebar showAdminFeatures={admin} />);
-    expect(
-      Boolean(screen.queryByRole("link", { name: "Push subscriptions" })),
-    ).toBe(admin);
-    expect(Boolean(screen.queryByRole("link", { name: "Customers" }))).toBe(
-      admin,
-    );
-  },
-);

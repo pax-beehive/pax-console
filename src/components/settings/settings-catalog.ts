@@ -1,7 +1,10 @@
 import {
   Activity,
   Bell,
+  BellRing,
   Bot,
+  ChartNoAxesCombined,
+  FileText,
   FolderTree,
   KeyRound,
   Languages,
@@ -9,6 +12,7 @@ import {
   Mic,
   Server,
   ShieldCheck,
+  SlidersHorizontal,
   TerminalSquare,
   UserRoundCheck,
   type LucideIcon,
@@ -223,6 +227,16 @@ export const settingsGroups: readonly SettingsGroupDefinition[] = [
     title: "Administrator",
     items: [
       {
+        id: "runtimeConfig",
+        href: "/admin/config",
+        title: "Runtime configuration",
+        icon: SlidersHorizontal,
+        caption: "Feature flags and service settings",
+        audience: "admin",
+        description:
+          "Open features to administrators, trial users or everyone, and change service settings for each region without a restart.",
+      },
+      {
         id: "status",
         href: settingsLinks.status,
         title: "Service status",
@@ -232,6 +246,36 @@ export const settingsGroups: readonly SettingsGroupDefinition[] = [
         aliases: ["/monitor", "/settings/diagnostics"],
         description:
           "Check PAX service health alongside device and agent connections. Inspect offline resources and refresh their status.",
+      },
+      {
+        id: "customers",
+        href: "/admin/customers",
+        title: "Customers",
+        icon: ChartNoAxesCombined,
+        caption: "Accounts and their activity",
+        audience: "admin",
+        description:
+          "Review the accounts in each region with their last visit and recent activity.",
+      },
+      {
+        id: "pushSubscriptions",
+        href: "/admin/notifications",
+        title: "Push subscriptions",
+        icon: BellRing,
+        caption: "Push receivers and delivery",
+        audience: "admin",
+        description:
+          "Review push receivers across regions and how their recent deliveries went.",
+      },
+      {
+        id: "summaryDeveloper",
+        href: "/admin/summaries",
+        title: "Summary developer",
+        icon: FileText,
+        caption: "Secretary summaries and sources",
+        audience: "admin",
+        description:
+          "Inspect Secretary summaries with their revisions and source messages.",
       },
     ],
   },

@@ -4,12 +4,19 @@ import { useI18n } from "@/features/i18n/use-i18n";
 import { Mail, Settings2 } from "lucide-react";
 import { isDeviceNode } from "@/components/resources/resource-models";
 import { ConsoleLayout } from "@/components/shell/console-layout";
-import { useNodes } from "@/features/api/resources";
+import { useAgents, useNodes } from "@/features/api/resources";
 import type { User } from "@/features/api/types";
 import { AuthGate } from "@/features/auth/auth-gate";
+import {
+  signInKey,
+  useAgentSignInStates,
+} from "@/features/devices/use-agent-sign-in-states";
 import { languageNames } from "@/features/i18n/language-names";
 import { accountRegionName } from "@/features/region/account-region";
 import { CONTACT_EMAIL, CONTACT_MAILTO } from "@/lib/contact";
+import { cn } from "@/lib/utils";
+import { supportsAgentSignIn } from "./agent-sign-in-settings";
+import { agentTypeLabel, normalizeAgentType } from "./agent-types";
 import { settingsGroups } from "./settings-catalog";
 import {
   SettingsBack,
@@ -65,8 +72,15 @@ function SettingsOverview({ user }: { user: User }) {
                       description={item.caption}
                       trailing={
                         hints[item.id] && (
-                          <span className="shrink-0 text-xs text-ink-tertiary">
-                            {hints[item.id]}
+                          <span
+                            className={cn(
+                              "shrink-0 text-xs",
+                              hints[item.id]?.warning
+                                ? "text-warning"
+                                : "text-ink-tertiary",
+                            )}
+                          >
+                            {hints[item.id]?.text}
                           </span>
                         )
                       }
@@ -103,20 +117,68 @@ function SettingsOverview({ user }: { user: User }) {
   );
 }
 
-/** Cheap, already-cached facts shown beside an overview entry. */
-function useOverviewHints(userId: string): Record<string, string | undefined> {
+type OverviewHint = { text: string; warning?: boolean };
+
+/**
+ * Short facts shown beside an overview entry: devices online, the current
+ * language, and any agent that has to sign in again before it can work.
+ */
+function useOverviewHints(
+  userId: string,
+): Record<string, OverviewHint | undefined> {
   const { t, locale } = useI18n();
   const devices = useNodes(userId, 60_000).data?.nodes?.filter(isDeviceNode);
+  const agents = useAgents(userId, "owned").data?.agents;
   const region = accountRegionName();
+  // Sign-in is per agent type on a device, and only an online device answers.
+  const targets = (devices ?? [])
+    .filter((node) => node.online)
+    .flatMap((node) =>
+      [
+        ...new Set(
+          (agents ?? [])
+            .filter((agent) => agent.node_id === node.node_id)
+            .map((agent) => normalizeAgentType(agent.agent_type))
+            .filter(
+              (type): type is string => !!type && supportsAgentSignIn(type),
+            ),
+        ),
+      ].map((agentType) => ({ nodeId: node.node_id, agentType })),
+    );
+  const signIn = useAgentSignInStates(userId, targets);
+  const signedOut = targets.filter(
+    (target) => signIn[signInKey(target)] === "signed-out",
+  );
+  const signedOutTypes = [
+    ...new Set(signedOut.map((target) => agentTypeLabel(target.agentType))),
+  ];
   return {
     devices: devices?.length
-      ? t("{count} online", {
-          count: devices.filter((node) => node.online).length,
-        })
+      ? {
+          text: t("{count} online", {
+            count: devices.filter((node) => node.online).length,
+          }),
+        }
       : undefined,
-    language: [languageNames[locale], region && t(region)]
-      .filter(Boolean)
-      .join(" · "),
+    agentSignIn:
+      signedOutTypes.length === 1
+        ? {
+            text: t("{agent} needs sign-in", { agent: signedOutTypes[0] }),
+            warning: true,
+          }
+        : signedOut.length > 1
+          ? {
+              text: t("{count} agents need sign-in", {
+                count: signedOut.length,
+              }),
+              warning: true,
+            }
+          : undefined,
+    language: {
+      text: [languageNames[locale], region && t(region)]
+        .filter(Boolean)
+        .join(" · "),
+    },
   };
 }
 

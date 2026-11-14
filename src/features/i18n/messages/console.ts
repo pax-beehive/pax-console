@@ -670,4 +670,18 @@ export const consoleMessages: Record<string, string> = {
   "resets soon": "即将重置",
   "Your sign-in has expired. Sign in again to continue.":
     "登录已过期，请重新登录后继续。",
+  "{agent} needs sign-in": "{agent} 需要登录",
+  "{count} agents need sign-in": "{count} 个智能体需要登录",
+  "Feature flags and service settings": "功能开关和服务配置",
+  "Open features to administrators, trial users or everyone, and change service settings for each region without a restart.":
+    "按区域把功能开放给管理员、试用用户或所有人，并在不重启的情况下修改服务配置。",
+  "Accounts and their activity": "账户及其活跃情况",
+  "Review the accounts in each region with their last visit and recent activity.":
+    "查看各区域的账户及其最近访问和活跃情况。",
+  "Push receivers and delivery": "推送接收端与送达情况",
+  "Review push receivers across regions and how their recent deliveries went.":
+    "查看各区域的推送接收端及最近的送达情况。",
+  "Secretary summaries and sources": "秘书摘要及其来源",
+  "Inspect Secretary summaries with their revisions and source messages.":
+    "查看秘书摘要及其版本和来源消息。",
 };

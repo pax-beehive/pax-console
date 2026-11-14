@@ -5,25 +5,29 @@ import { getNodeHarnessAuth } from "@/features/api/resources";
 import type { LoginHarness } from "@/features/api/types";
 
 export type AgentSignInState = "signed-in" | "signed-out";
+export type AgentSignInTarget = { nodeId: string; agentType: LoginHarness };
+
+/** The key of a device and agent type pair in the returned states. */
+export const signInKey = (target: AgentSignInTarget) =>
+  `${target.nodeId}/${target.agentType}`;
 
 /**
- * Whether each agent type on one device is signed in, read once from the
+ * Whether each agent type is signed in on its device, read once from the
  * device. Only that yes/no is kept: no account detail or sign-in challenge
- * stays in memory. A type that cannot be checked is left out, so the caller
- * shows nothing rather than a guess.
+ * stays in memory. A pair that cannot be checked is left out, so the caller
+ * shows nothing rather than a guess. Pass only pairs on online devices.
  */
 export function useAgentSignInStates(
   userId: string,
-  nodeId: string,
-  agentTypes: readonly LoginHarness[],
-  enabled: boolean,
+  targets: readonly AgentSignInTarget[],
 ): Record<string, AgentSignInState | undefined> {
   const [states, setStates] = useState<Record<string, AgentSignInState>>({});
-  const key = agentTypes.join(",");
+  const keys = targets.map(signInKey).sort().join(",");
   useEffect(() => {
-    if (!enabled || !key) return;
+    if (!keys) return;
     const controller = new AbortController();
-    for (const agentType of key.split(",")) {
+    for (const key of keys.split(",")) {
+      const [nodeId, agentType] = key.split("/");
       getNodeHarnessAuth(
         userId,
         nodeId,
@@ -35,7 +39,7 @@ export function useAgentSignInStates(
           if (controller.signal.aborted || view.logged_in === undefined) return;
           setStates((current) => ({
             ...current,
-            [agentType]: view.logged_in ? "signed-in" : "signed-out",
+            [key]: view.logged_in ? "signed-in" : "signed-out",
           }));
         })
         .catch(() => {
@@ -43,6 +47,13 @@ export function useAgentSignInStates(
         });
     }
     return () => controller.abort();
-  }, [enabled, key, nodeId, userId]);
-  return enabled ? states : {};
+  }, [keys, userId]);
+  // A pair that is no longer asked for, such as on a device that went
+  // offline, drops out even though its last answer is still held.
+  return Object.fromEntries(
+    keys
+      .split(",")
+      .filter((key) => key && states[key])
+      .map((key) => [key, states[key]]),
+  );
 }

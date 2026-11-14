@@ -115,8 +115,12 @@ exit. Narrow screens navigate from the overview and per-page back links.
 Navigation retains the existing authenticated routes and query ownership.
 
 `settings/use-settings-visibility.ts` decides who sees an entry. The
-Administrator group (Service status) follows `canSeeAdminFeatures`, so it is
-hidden while an administrator previews as a user. Allowed actions appears only
+Administrator group (Runtime configuration, Service status, Customers, Push
+subscriptions, Summary developer) follows `canSeeAdminFeatures`, so it is
+hidden while an administrator previews as a user. Its `/admin/*` routes count
+as settings routes: they show the settings sidebar, and the workspace sidebar
+and mobile tab bar do not list them. The overview's Agent sign-in & usage entry
+names the agent type that has to sign in again; it asks each online device once. Allowed actions appears only
 while the account has an unrevoked approval grant; its route stays reachable.
 Secretary, Notifications, and Voice input declare a `feature` and are listed
 only while `useFeatures` reports it enabled for the account; their routes are

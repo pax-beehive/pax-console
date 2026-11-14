@@ -18,7 +18,11 @@ screen size.
 | General            | Voice input                | Accounts with the `voice_input` feature   | Choose the dictation microphone for this device                                                                                                                                                                              | `/settings/voice`                      |
 | Advanced settings  | API keys                   | Everyone                                  | Create named keys, copy the secret at creation, revoke keys after confirmation                                                                                                                                               | `/settings/advanced/api-keys`          |
 | Advanced settings  | Manual device registration | Everyone                                  | Generate registration tokens for custom installation workflows                                                                                                                                                               | `/settings/advanced/node-registration` |
+| Administrator      | Runtime configuration      | Administrators                            | Feature flags per region and service settings without a restart                                                                                                                                                              | `/admin/config`                        |
 | Administrator      | Service status             | Administrators                            | Check PAX health, device/agent connection states, recent sessions, and refresh reports                                                                                                                                       | `/settings/service-status`             |
+| Administrator      | Customers                  | Administrators                            | Accounts in each region with their last visit and activity                                                                                                                                                                   | `/admin/customers`                     |
+| Administrator      | Push subscriptions         | Administrators                            | Push receivers across regions and their recent deliveries                                                                                                                                                                    | `/admin/notifications`                 |
+| Administrator      | Summary developer          | Administrators                            | Secretary summaries with revisions and source messages                                                                                                                                                                       | `/admin/summaries`                     |
 
 Visibility is decided in one place, `use-settings-visibility.ts`:
 
@@ -51,8 +55,9 @@ and agent detail pages (`/nodes/[id]`, `/agents/[id]`) hold runtime information,
 raw metadata, browser controls, the remaining maintenance and manual connection
 setup; they open for administrators only, from Runtime details in each menu.
 Guided Add device/Add agent remains under My devices; manual registration stays under Advanced settings to
-distinguish ordinary setup from custom integration. Administrator customer and
-push-subscription analytics remain in the workspace administrator navigation.
+distinguish ordinary setup from custom integration. The administrator pages under `/admin` are
+entries of the Administrator group, so they use the settings sidebar; the
+workspace sidebar and the mobile tab bar no longer list them.
 
 Existing API-key, registration, diagnostics, and security aliases retain their
 redirects; `/settings/security` opens Allowed actions.
