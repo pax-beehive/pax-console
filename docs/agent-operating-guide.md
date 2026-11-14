@@ -118,7 +118,13 @@ Navigation retains the existing authenticated routes and query ownership.
 Administrator group (Service status) follows `canSeeAdminFeatures`, so it is
 hidden while an administrator previews as a user. Allowed actions appears only
 while the account has an unrevoked approval grant; its route stays reachable.
-Add an `audience` to a catalog entry rather than filtering in a component.
+Secretary, Notifications, and Voice input declare a `feature` and are listed
+only while `useFeatures` reports it enabled for the account; their routes are
+wrapped in `FeatureRoute` and return to the overview otherwise. Add an
+`audience` or a `feature` to a catalog entry rather than filtering in a
+component, and wrap a new feature's route in `FeatureRoute` as well. Browser
+scripts that open one of these routes with mocked API traffic must answer
+`/user/self/features` with the feature enabled.
 
 The account menu names the signed-in account and its region
 (`features/region/account-region.ts`, absent when regions are disabled), then

@@ -5,11 +5,19 @@ import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SettingsPage } from "./settings-page-client";
 
+const everyFeature = ["secretary", "notifications", "voice_input"];
 const state = vi.hoisted(() => ({
   role: "user",
   region: undefined as string | undefined,
   nodes: [] as { node_id: string; kind?: string; online?: boolean }[],
   grants: [] as { approval_id: string }[],
+  features: ["secretary", "notifications", "voice_input"],
+}));
+vi.mock("@/features/flags", () => ({
+  useFeatures: () => ({
+    ready: true,
+    enabled: (feature: string) => state.features.includes(feature),
+  }),
 }));
 vi.mock("@/features/auth/auth-gate", () => ({
   AuthGate: ({
@@ -43,6 +51,7 @@ afterEach(() => {
   state.region = undefined;
   state.nodes = [];
   state.grants = [];
+  state.features = everyFeature;
 });
 
 describe("settings landing pages", () => {
@@ -97,6 +106,17 @@ describe("settings landing pages", () => {
     expect(
       screen.getByRole("link", { name: /Language & region/ }),
     ).toHaveTextContent("English · Hong Kong");
+  });
+
+  it("leaves features that are not enabled for the account out of the overview", () => {
+    state.features = [];
+    render(<SettingsPage />);
+    for (const name of [/Secretary/, /Notifications/, /Voice input/])
+      expect(screen.queryByRole("link", { name })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Projects/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Language & region/ }),
+    ).toBeInTheDocument();
   });
 
   it("adds the entries reserved for administrators and for standing permissions", () => {

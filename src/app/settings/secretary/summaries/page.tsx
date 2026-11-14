@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { FeatureRoute } from "@/features/flags";
 import { SecretarySummariesPage } from "@/components/secretary/secretary-summary-browser";
 
 export default function SummariesPage() {
@@ -10,7 +11,9 @@ export default function SummariesPage() {
         </p>
       }
     >
-      <SecretarySummariesPage />
+      <FeatureRoute feature="secretary">
+        <SecretarySummariesPage />
+      </FeatureRoute>
     </Suspense>
   );
 }

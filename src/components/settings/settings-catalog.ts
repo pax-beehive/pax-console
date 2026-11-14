@@ -13,6 +13,7 @@ import {
   UserRoundCheck,
   type LucideIcon,
 } from "lucide-react";
+import type { FeatureKey } from "@/features/flags";
 
 export const settingsLinks = {
   home: "/settings",
@@ -40,7 +41,11 @@ export const settingsLinks = {
  */
 export type SettingsAudience = "everyone" | "admin" | "grants";
 
-export type SettingsViewer = { admin: boolean; hasGrants: boolean };
+export type SettingsViewer = {
+  admin: boolean;
+  hasGrants: boolean;
+  featureEnabled: (feature: FeatureKey) => boolean;
+};
 
 export type SettingsSection = {
   id: string;
@@ -50,6 +55,11 @@ export type SettingsSection = {
   description: string;
   icon: LucideIcon;
   audience?: SettingsAudience;
+  /**
+   * The product feature this entry belongs to. It is listed only for accounts
+   * the feature is enabled for; guard the route with FeatureRoute as well.
+   */
+  feature?: FeatureKey;
   aliases?: readonly string[];
 };
 
@@ -110,6 +120,7 @@ export const settingsGroups: readonly SettingsGroupDefinition[] = [
         title: "Secretary",
         icon: Bot,
         caption: "Automatic conversation summaries",
+        feature: "secretary",
         description:
           "Choose an agent to maintain summaries connected to your conversations, and track what has been summarized.",
       },
@@ -161,6 +172,7 @@ export const settingsGroups: readonly SettingsGroupDefinition[] = [
         title: "Notifications",
         icon: Bell,
         caption: "Alerts on this device",
+        feature: "notifications",
         description:
           "Choose when this browser or Android app should notify you. Each device has its own subscription.",
       },
@@ -170,6 +182,7 @@ export const settingsGroups: readonly SettingsGroupDefinition[] = [
         title: "Voice input",
         icon: Mic,
         caption: "Microphone for dictation",
+        feature: "voice_input",
         description:
           "Choose which microphone dictation uses on this device, so music in your earbuds can keep playing.",
       },
@@ -229,6 +242,7 @@ const sections = settingsGroups.flatMap((group) =>
 );
 
 function isVisible(section: SettingsSection, viewer: SettingsViewer) {
+  if (section.feature && !viewer.featureEnabled(section.feature)) return false;
   if (section.audience === "admin") return viewer.admin;
   if (section.audience === "grants") return viewer.hasGrants;
   return true;

@@ -30,6 +30,12 @@ const advancedRoutes = new Set([
   "/settings/advanced/api-keys",
   "/settings/advanced/node-registration",
 ]);
+// Entries that follow a feature flag, with every route the feature guards.
+const featureRoutes = new Map([
+  ["secretary", ["/settings/secretary", "/settings/secretary/summaries"]],
+  ["notifications", ["/settings/notifications"]],
+  ["voice_input", ["/settings/voice"]],
+]);
 
 async function openSettings(browser, viewport, account = {}) {
   const context = await browser.newContext({ viewport });
@@ -67,6 +73,16 @@ async function openSettings(browser, viewport, account = {}) {
           email: "alex@example.invalid",
           role: account.role ?? "user",
         },
+      };
+    else if (path.endsWith("/features"))
+      data = {
+        revision: 1,
+        features: Object.fromEntries(
+          (account.features ?? [...featureRoutes.keys()]).map((feature) => [
+            feature,
+            true,
+          ]),
+        ),
       };
     else if (path.endsWith("/notifications/config"))
       data = {
@@ -336,6 +352,34 @@ try {
   assert.deepEqual(errors, []);
   await context.close();
 
+  // An account with none of the features: their entries are not listed, and
+  // opening a route directly returns to the overview.
+  {
+    const { context, page, errors } = await openSettings(
+      browser,
+      { width: 1440, height: 1000 },
+      { features: [] },
+    );
+    const routes = [...featureRoutes.values()].flat();
+    for (const href of routes) {
+      assert.equal(
+        await page.locator(`a[href="${href}"]`).count(),
+        0,
+        `${href} must not be listed`,
+      );
+      await page.goto(origin + href);
+      await page.waitForURL(origin + "/settings");
+      await overviewHeading(page).waitFor();
+    }
+    assert.equal(
+      await sidebar(page).getByRole("link").count(),
+      sections.length + 1 - featureRoutes.size,
+    );
+    await page.screenshot({ path: `${output}/desktop-features-off.png` });
+    assert.deepEqual(errors, []);
+    await context.close();
+  }
+
   console.log(
     JSON.stringify({
       result: "passed",
@@ -345,6 +389,7 @@ try {
       accountMenu: true,
       mobileDirectoryAndBackNavigation: true,
       administratorAndPermissionEntries: true,
+      featureEntriesAndRoutes: true,
       noHorizontalOverflow: true,
       fixtures: true,
       screenshots: output,
