@@ -40,6 +40,8 @@ try {
             role: "user",
           },
         };
+      else if (path.endsWith("/features"))
+        data = { revision: 1, features: { voice_input: true } };
       else if (path.endsWith("/notifications/config"))
         data = {
           enabled: false,

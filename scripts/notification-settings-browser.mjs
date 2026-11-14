@@ -107,6 +107,8 @@ try {
         },
       });
     if (url.pathname.endsWith("/customer-visit")) return ok({ recorded: true });
+    if (url.pathname.endsWith("/features"))
+      return ok({ revision: 1, features: { notifications: true } });
     if (url.pathname.endsWith("/notifications/config"))
       return ok({
         enabled: true,

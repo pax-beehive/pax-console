@@ -10,18 +10,23 @@ screen size.
 | Devices & agents   | My devices                 | Everyone                                  | Connect a device, add an agent, switch between device and agent lists, filter active resources, inspect details                            | `/settings/devices` (`?view=agents` for agents) |
 | Devices & agents   | Agent sign-in & usage      | Everyone                                  | Claude subscription/Console authorization; Codex device code, API key or access token; renew expired access; plan usage                    | `/settings/agent-sign-in`                       |
 | Work               | Projects                   | Everyone                                  | Create/edit/archive projects, organize hierarchy, configure reusable agent and working-folder targets                                      | `/settings/projects`                            |
-| Work               | Secretary                  | Everyone                                  | Choose one owned agent, enable automatic summaries, inspect published coverage and remaining conversations                                 | `/settings/secretary`                           |
+| Work               | Secretary                  | Accounts with the `secretary` feature     | Choose one owned agent, enable automatic summaries, inspect published coverage and remaining conversations                                 | `/settings/secretary`                           |
 | Privacy & security | Encrypted chats            | Everyone                                  | Save/remove browser encryption keys, manage encrypted-device access and pairing                                                            | `/settings/advanced/encryption`                 |
 | Privacy & security | Allowed actions            | Accounts with a standing agent permission | Review persistent agent grants, inspect scope, revoke permission                                                                           | `/settings/advanced/permissions`                |
 | General            | Language & region          | Everyone                                  | Choose the interface language for this browser; see the account region when the deployment assigns one                                     | `/settings/language`                            |
-| General            | Notifications              | Everyone                                  | Device opt-in/out, subscription confirmation, test delivery, latest-attempt status; explanations of completed replies and manual approvals | `/settings/notifications`                       |
-| General            | Voice input                | Everyone                                  | Choose the dictation microphone for this device                                                                                            | `/settings/voice`                               |
+| General            | Notifications              | Accounts with the `notifications` feature | Device opt-in/out, subscription confirmation, test delivery, latest-attempt status; explanations of completed replies and manual approvals | `/settings/notifications`                       |
+| General            | Voice input                | Accounts with the `voice_input` feature   | Choose the dictation microphone for this device                                                                                            | `/settings/voice`                               |
 | Advanced settings  | API keys                   | Everyone                                  | Create named keys, copy the secret at creation, revoke keys                                                                                | `/settings/advanced/api-keys`                   |
 | Advanced settings  | Manual device registration | Everyone                                  | Generate registration tokens for custom installation workflows                                                                             | `/settings/advanced/node-registration`          |
 | Administrator      | Service status             | Administrators                            | Check PAX health, device/agent connection states, recent sessions, and refresh reports                                                     | `/settings/service-status`                      |
 
 Visibility is decided in one place, `use-settings-visibility.ts`:
 
+- **Feature entries** (Secretary, Notifications, Voice input) declare a
+  `feature` and are listed only while `useFeatures` reports it enabled for the
+  account, which Manager decides from the runtime feature flags. Their routes
+  are wrapped in `FeatureRoute`, so opening one without the feature returns to
+  the overview. Manager rejects the same features' API calls on its own.
 - **Administrators** follow `canSeeAdminFeatures`, so the Administrator group
   disappears while an administrator previews as a user.
 - **Allowed actions** appears only while the account has an unrevoked approval

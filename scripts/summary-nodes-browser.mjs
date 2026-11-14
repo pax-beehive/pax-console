@@ -90,6 +90,8 @@ try {
             role: "user",
           },
         });
+      if (url.pathname.endsWith("/features"))
+        return ok({ revision: 1, features: { secretary: true } });
       if (url.pathname.endsWith("/secretary/summaries"))
         return ok({
           items: [

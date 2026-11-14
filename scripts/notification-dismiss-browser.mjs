@@ -82,6 +82,9 @@ try {
         },
       });
     if (path.endsWith("/customer-visit")) return ok({ recorded: true });
+    if (path.endsWith("/features"))
+      return ok({ revision: 1, features: { notifications: true } });
+    if (path.endsWith("/voice/config")) return ok({ enabled: false });
     if (path.endsWith("/notifications/config")) return ok({ enabled: false });
     if (path.endsWith("/history")) {
       await historyGate;

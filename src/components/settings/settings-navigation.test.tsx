@@ -6,14 +6,22 @@ import { useConsoleStore } from "@/stores/console-store";
 import { SettingsSidebar } from "./settings-navigation";
 import { settingsSectionForPath } from "./settings-catalog";
 
+const everyFeature = ["secretary", "notifications", "voice_input"];
 const state = vi.hoisted(() => ({
   pathname: "/settings",
   role: "user",
   grants: [] as { approval_id: string; grant_revoked_at?: string }[],
+  features: ["secretary", "notifications", "voice_input"],
 }));
 vi.mock("next/navigation", () => ({
   usePathname: () => state.pathname,
   useRouter: () => ({ push: vi.fn() }),
+}));
+vi.mock("@/features/flags", () => ({
+  useFeatures: () => ({
+    ready: true,
+    enabled: (feature: string) => state.features.includes(feature),
+  }),
 }));
 vi.mock("@/features/auth/use-current-user", () => ({
   useCurrentUser: () => ({
@@ -29,6 +37,7 @@ afterEach(() => {
   state.pathname = "/settings";
   state.role = "user";
   state.grants = [];
+  state.features = everyFeature;
   useConsoleStore.setState({ previewAsUser: false });
 });
 
@@ -89,6 +98,27 @@ describe("settings navigation", () => {
     expect(
       screen.getByRole("link", { name: /Back to workspace/ }),
     ).toHaveAttribute("href", "/");
+  });
+
+  it("leaves out entries whose feature is not enabled for the account", () => {
+    state.features = ["voice_input"];
+    render(<SettingsSidebar />);
+    expect(
+      within(navigation())
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href")),
+    ).toEqual([
+      "/settings",
+      "/settings/devices",
+      "/settings/agent-sign-in",
+      "/settings/projects",
+      "/settings/advanced/encryption",
+      "/settings/language",
+      "/settings/voice",
+      "/settings/advanced/api-keys",
+      "/settings/advanced/node-registration",
+    ]);
+    expect(within(navigation()).getByText("Work")).toBeInTheDocument();
   });
 
   it("lists Allowed actions only while the account has a standing permission", () => {

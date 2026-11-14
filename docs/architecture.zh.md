@@ -127,6 +127,9 @@ Manual device registration）；侧栏直接列出这两项。
 status）跟随 `canSeeAdminFeatures`，管理员开启“预览用户视图”时同样隐藏；Allowed actions
 只在账户存在未撤销的 approval grant 时出现（网页端只提供一次性审批，长期授权来自提供
 更大范围选项的客户端，这里是撤销它们的入口），路由本身仍可直接访问。
+Secretary、Notifications、Voice input 在目录里声明了 `feature`，只有 `useFeatures`
+报告该功能对当前账户开启时才列出；对应路由用 `FeatureRoute` 包裹，未开启时回到总览。
+是否开启由 Manager 的功能开关决定，Manager 也会独立拒绝这些功能的接口调用。
 
 右上角账户菜单显示当前账户和账户区域（`features/region/account-region.ts`，未启用
 区域时不显示），之后依次是“语言”分组、Settings 与 Contact us、Reload 与管理员的
@@ -2470,7 +2473,7 @@ session 的目标变化不重建运行时。跳转展示当前 canonical
 
 ## Secretary 自动总结设置
 
-`/settings/secretary` 为所有登录用户提供设置入口。桌面位于专用 Settings 侧栏；
+`/settings/secretary` 为开启了 `secretary` 功能的账户提供设置入口。桌面位于专用 Settings 侧栏；
 手机通过 Settings 目录进入。页面复用共享设置页标题和手机返回链接，不增加平行导航。
 这里只选择一个已有且归当前用户所有的 agent，调用 `useAgents(userId, "owned")`，
 不隐式创建 agent，也不在打开页面或选择 agent 时自动启用。离线的 owned agent
@@ -2602,7 +2605,7 @@ session URL 仍可读取后台会话进行诊断。
 
 ### 读取总结成果
 
-所有登录用户都可以从 `/settings/secretary` 的 View summaries 进入
+开启了 `secretary` 功能的账户可以从 `/settings/secretary` 的 View summaries 进入
 `/settings/secretary/summaries`，关闭自动总结后也保留已有成果的读取入口。
 列表按当前版本发布时间倒序展示标题、预览、版本、时间及来源消息数，无需关键词。
 底层统一 Node，第一版只支持 summary；列表按稳定 `summary_id` 保留独立成果，
