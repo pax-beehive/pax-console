@@ -88,7 +88,7 @@ export const settingsGroups: readonly SettingsGroupDefinition[] = [
         caption: "Computers, servers, and their agents",
         aliases: ["/nodes", "/agents"],
         description:
-          "Connect computers and servers, manage their agents, and inspect connection details.",
+          "Connect computers and servers, and manage the agents that run on them.",
       },
       {
         id: "agentSignIn",

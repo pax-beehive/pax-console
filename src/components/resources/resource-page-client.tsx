@@ -7,7 +7,6 @@ import { ReactNode, useEffect, useMemo, useState } from "react";
 import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
-  Bot,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -15,25 +14,19 @@ import {
   KeyRound,
   Plus,
   Radio,
-  Server,
   Settings2,
   ShieldCheck,
   TerminalSquare,
-  Trash2,
 } from "lucide-react";
-import { PaxdGettingStartedGuide } from "@/components/connect/paxd-getting-started";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { MonoId, TruncatedText } from "@/components/ui/text";
 import {
   createApiKey,
   createNodeRegistrationToken,
   decideApproval,
   deleteApiKey,
-  deleteAgent,
-  deleteNode,
   listAgentSessions,
   revokeApprovalGrant,
   useAgents,
@@ -54,14 +47,10 @@ import {
 } from "@/features/e2ee/root-key-store";
 import { generateEncodedRootKey } from "@/features/e2ee/envelope";
 import {
-  AgentRow,
   agentLabel,
-  buildAgentRows,
   buildSessionRows,
   byCreatedAtDesc,
   byLastActiveDesc,
-  isActiveAgent,
-  isActiveNode,
   isActiveSession,
   isDeviceNode,
   nodeLabel,
@@ -76,11 +65,8 @@ import {
   settingsLinks,
 } from "@/components/settings/settings-navigation";
 import { settingsSection } from "@/components/settings/settings-catalog";
-import { NodeListRow } from "./node-list-row";
 
 type ResourceKind =
-  | "nodes"
-  | "agents"
   | "sessions"
   | "approvals"
   | "security"
@@ -99,16 +85,6 @@ const copy: Record<
   ResourceKind,
   { title: string; eyebrow: string; icon: ReactNode }
 > = {
-  nodes: {
-    title: "Devices",
-    eyebrow: "computers and servers",
-    icon: <Server className="h-4 w-4" />,
-  },
-  agents: {
-    title: "Agents",
-    eyebrow: "active node agents",
-    icon: <Bot className="h-4 w-4" />,
-  },
   sessions: {
     title: "Sessions",
     eyebrow: "recent work",
@@ -152,8 +128,6 @@ const copy: Record<
 };
 
 const resourceSettingsSections: Partial<Record<ResourceKind, string>> = {
-  nodes: "devices",
-  agents: "devices",
   security: "permissions",
   grants: "permissions",
   encryption: "encryption",
@@ -170,29 +144,13 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
   const { t } = useI18n();
   const [showAllResources, setShowAllResources] = useState(false);
   const [sessionPage, setSessionPage] = useState(1);
-  const nodesQuery = useNodes(
-    [
-      "nodes",
-      "agents",
-      "sessions",
-      "monitor",
-      "security",
-      "encryption",
-    ].includes(kind)
-      ? user.user_id
-      : undefined,
+  const usesFleet = ["sessions", "monitor", "security", "encryption"].includes(
+    kind,
   );
-  const shouldLoadAgents =
-    kind === "agents" ||
-    kind === "sessions" ||
-    kind === "monitor" ||
-    kind === "security" ||
-    kind === "encryption";
+  const nodesQuery = useNodes(usesFleet ? user.user_id : undefined);
   const agentsQuery = useAgents(
-    shouldLoadAgents ? user.user_id : undefined,
-    kind === "agents" || kind === "security" || kind === "encryption"
-      ? "owned"
-      : "accessible",
+    usesFleet ? user.user_id : undefined,
+    kind === "security" || kind === "encryption" ? "owned" : "accessible",
     kind === "monitor" ? 30_000 : undefined,
   );
   const allNodes = nodesQuery.data?.nodes ?? emptyNodes;
@@ -201,28 +159,10 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
       byCreatedAtDesc(allNodes.filter(isDeviceNode), (node) => node.node_id),
     [allNodes],
   );
-  const nodes = useMemo(
-    () =>
-      showAllResources
-        ? sortedNodes
-        : sortedNodes.filter((node) => isActiveNode(node)),
-    [showAllResources, sortedNodes],
-  );
   const allAgents = agentsQuery.data?.agents ?? emptyAgents;
   const sortedAgents = useMemo(
     () => byCreatedAtDesc(allAgents, (agent) => agent.agent_id),
     [allAgents],
-  );
-  const agents = useMemo(
-    () =>
-      showAllResources
-        ? sortedAgents
-        : sortedAgents.filter((agent) => isActiveAgent(agent)),
-    [showAllResources, sortedAgents],
-  );
-  const agentRows = useMemo(
-    () => buildAgentRows(agents, sortedNodes, t),
-    [agents, sortedNodes, t],
   );
   const agentsLoading = agentsQuery.isLoading;
   const sessionQueries = useQueries({
@@ -332,25 +272,6 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
           )}
         >
           <div className="flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
-            <ResourceSectionTabs kind={kind} />
-            {kind === "nodes" && (
-              <Button
-                asChild
-                icon={<Plus className="h-4 w-4" />}
-                variant="primary"
-              >
-                <Link href={settingsLinks.addDevice}>{t("Add device")}</Link>
-              </Button>
-            )}
-            {kind === "agents" && (
-              <Button
-                asChild
-                icon={<Plus className="h-4 w-4" />}
-                variant="primary"
-              >
-                <Link href={settingsLinks.addAgent}>{t("Add agent")}</Link>
-              </Button>
-            )}
             {supportsActiveFilter(kind) && (
               <ActiveFilterToggle
                 checked={showAllResources}
@@ -368,26 +289,6 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
 
         <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-5 lg:px-8 lg:py-6">
           <div className="mx-auto w-full max-w-5xl">
-            {kind === "nodes" && (
-              <NodeGrid
-                isLoading={nodesQuery.isLoading}
-                nodes={nodes}
-                totalCount={sortedNodes.length}
-                userId={user.user_id}
-              />
-            )}
-            {kind === "agents" && (
-              <AgentGrid
-                agents={agentRows}
-                isLoading={agentsLoading}
-                nodeLabel={t("{visible}/{total} nodes in scope", {
-                  visible: nodes.length,
-                  total: sortedNodes.length,
-                })}
-                totalCount={sortedAgents.length}
-                userId={user.user_id}
-              />
-            )}
             {kind === "sessions" && (
               <SessionGrid
                 filteredCount={sessionRows.length}
@@ -471,291 +372,6 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
         </div>
       </div>
     </ConsoleLayout>
-  );
-}
-
-function ResourceSectionTabs({ kind }: { kind: ResourceKind }) {
-  const { t } = useI18n();
-  const tabs =
-    kind === "nodes" || kind === "agents"
-      ? [
-          {
-            href: "/settings/devices?view=nodes",
-            label: "Devices",
-            value: "nodes",
-          },
-          {
-            href: "/settings/devices?view=agents",
-            label: "Agents",
-            value: "agents",
-          },
-        ]
-      : [];
-
-  if (!tabs.length) {
-    return null;
-  }
-
-  return (
-    <div className="grid grid-cols-2 rounded-md border border-hairline bg-surface-1 p-0.5 sm:flex">
-      {tabs.map((tab) => (
-        <Link
-          aria-current={kind === tab.value ? "page" : undefined}
-          className={`flex min-h-10 items-center justify-center rounded px-3 py-1.5 text-sm transition sm:text-xs ${
-            kind === tab.value
-              ? "bg-accent/15 text-ink"
-              : "text-ink-tertiary hover:bg-surface-2 hover:text-ink"
-          }`}
-          href={tab.href}
-          key={tab.value}
-        >
-          {t(tab.label)}
-        </Link>
-      ))}
-    </div>
-  );
-}
-
-function NodeGrid({
-  isLoading,
-  nodes,
-  totalCount,
-  userId,
-}: {
-  isLoading: boolean;
-  nodes: Node[];
-  totalCount: number;
-  userId: string;
-}) {
-  const { t } = useI18n();
-  const queryClient = useQueryClient();
-  const [deleteError, setDeleteError] = useState<Error | null>(null);
-  const [nodeToDelete, setNodeToDelete] = useState<Node | null>(null);
-  const [setupStarted, setSetupStarted] = useState(false);
-  const removeNode = useMutation({
-    mutationFn: (node: Node) => deleteNode(userId, node.node_id),
-    onError: (error) => setDeleteError(error),
-    onSuccess: () => {
-      setNodeToDelete(null);
-      setDeleteError(null);
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.user(userId),
-      });
-    },
-  });
-
-  if (isLoading) {
-    return <EmptyState label={t("Loading nodes")} />;
-  }
-
-  return (
-    <div className="grid gap-3">
-      {deleteError && <ApiNotice error={deleteError} />}
-      {setupStarted ? (
-        <PaxdGettingStartedGuide
-          userId={userId}
-          onStart={() => setSetupStarted(true)}
-        />
-      ) : nodes.length > 0 ? (
-        <div className="grid min-w-0 overflow-hidden rounded-lg border border-hairline">
-          {nodes.map((node) => (
-            <NodeListRow
-              deleting={removeNode.isPending}
-              key={node.node_id}
-              node={node}
-              onDelete={setNodeToDelete}
-              userId={userId}
-            />
-          ))}
-        </div>
-      ) : totalCount > 0 ? (
-        <EmptyState label={t("No active nodes")} />
-      ) : (
-        <PaxdGettingStartedGuide
-          userId={userId}
-          onStart={() => setSetupStarted(true)}
-        />
-      )}
-      <ConfirmDialog
-        confirmLabel={
-          removeNode.isPending ? t("Deleting...") : t("Delete node")
-        }
-        description={
-          <>
-            {t("This removes")}{" "}
-            <span className="font-medium text-ink">
-              {nodeToDelete ? nodeLabel(nodeToDelete) : ""}
-            </span>{" "}
-            {t(
-              "from the fleet view. Agents hosted on this node will be cleaned up at the same time.",
-            )}
-          </>
-        }
-        disabled={removeNode.isPending}
-        onConfirm={() => {
-          if (nodeToDelete) {
-            removeNode.mutate(nodeToDelete);
-          }
-        }}
-        onOpenChange={(open) => {
-          if (!open) {
-            setNodeToDelete(null);
-          }
-        }}
-        open={nodeToDelete !== null}
-        title={t("Delete node?")}
-      />
-    </div>
-  );
-}
-
-function AgentGrid({
-  agents,
-  isLoading,
-  nodeLabel,
-  totalCount,
-  userId,
-}: {
-  agents: AgentRow[];
-  isLoading: boolean;
-  nodeLabel?: string;
-  totalCount: number;
-  userId: string;
-}) {
-  const { t } = useI18n();
-  const queryClient = useQueryClient();
-  const [deleteError, setDeleteError] = useState<Error | null>(null);
-  const [agentToDelete, setAgentToDelete] = useState<AgentRow | null>(null);
-  const [setupStarted, setSetupStarted] = useState(false);
-  const removeAgent = useMutation({
-    mutationFn: (agent: AgentRow) => deleteAgent(userId, agent.agent_id),
-    onError: (error) => setDeleteError(error),
-    onSuccess: () => {
-      setAgentToDelete(null);
-      setDeleteError(null);
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.user(userId),
-      });
-    },
-  });
-
-  if (isLoading) {
-    return <EmptyState label={t("Loading agents")} />;
-  }
-
-  return (
-    <div className="grid gap-3">
-      {deleteError && <ApiNotice error={deleteError} />}
-      <div className="flex min-w-0 text-sm text-ink-tertiary">
-        <span className="shrink-0">{t("Scope: ")}</span>
-        <TruncatedText>{nodeLabel ?? t("No node selected")}</TruncatedText>
-      </div>
-      {setupStarted ? (
-        <PaxdGettingStartedGuide
-          userId={userId}
-          onStart={() => setSetupStarted(true)}
-        />
-      ) : agents.length > 0 ? (
-        <div className="grid min-w-0 overflow-hidden rounded-lg border border-hairline">
-          {agents.map((agent) => (
-            <article
-              className="grid min-w-0 gap-3 border-b border-hairline bg-surface-1 px-3 py-2.5 transition last:border-b-0 hover:bg-surface-2 sm:grid-cols-[minmax(0,1fr)_220px_120px_40px]"
-              key={agent.agent_id}
-            >
-              <Link
-                className="contents"
-                href={
-                  agent.node_id
-                    ? `/agents/${agent.agent_id}?nodeId=${agent.node_id}`
-                    : `/agents/${agent.agent_id}`
-                }
-              >
-                <div className="min-w-0">
-                  <TruncatedText className="text-sm font-medium">
-                    {agent.name ?? agent.agent_type ?? agent.agent_id}
-                  </TruncatedText>
-                  <TruncatedText className="mt-1 text-xs text-ink-muted">
-                    {agent.description ?? agentCardSummary(agent, t)}
-                  </TruncatedText>
-                </div>
-                <div className="grid min-w-0 content-start gap-1">
-                  <TruncatedText
-                    className="text-xs text-ink-muted"
-                    tooltip={agent.nodeLabel}
-                  >
-                    {t("Node:")} {agent.nodeLabel}
-                  </TruncatedText>
-                  <div className="flex min-w-0 flex-wrap gap-x-2 gap-y-1">
-                    <MonoId tooltip={agent.node_id ?? t("No runtime node")}>
-                      {t("node")}{" "}
-                      {compactId(agent.node_id, 10, 6, "unassigned")}
-                    </MonoId>
-                    <MonoId tooltip={agent.agent_id}>
-                      {t("agent")} {compactId(agent.agent_id)}
-                    </MonoId>
-                  </div>
-                </div>
-                <div className="flex items-start sm:justify-end">
-                  <Badge tone={agent.online ? "success" : "neutral"}>
-                    {t(agent.online ? "online" : (agent.status ?? "unknown"))}
-                  </Badge>
-                </div>
-              </Link>
-              <div className="flex items-start justify-end">
-                <ConfirmDialog
-                  confirmLabel={
-                    removeAgent.isPending ? t("Deleting...") : t("Delete agent")
-                  }
-                  description={
-                    <>
-                      {t("This removes")}{" "}
-                      <span className="font-medium text-ink">
-                        {agentToDelete?.name ??
-                          agentToDelete?.agent_type ??
-                          agentToDelete?.agent_id}
-                      </span>{" "}
-                      {t(
-                        "from the agents list. Other agents on the same node are not affected.",
-                      )}
-                    </>
-                  }
-                  disabled={removeAgent.isPending}
-                  onConfirm={() => {
-                    if (agentToDelete) {
-                      removeAgent.mutate(agentToDelete);
-                    }
-                  }}
-                  onOpenChange={(open) => {
-                    if (!open) {
-                      setAgentToDelete(null);
-                    }
-                  }}
-                  open={agentToDelete?.agent_id === agent.agent_id}
-                  title={t("Delete agent?")}
-                >
-                  <Button
-                    disabled={removeAgent.isPending}
-                    icon={<Trash2 className="h-4 w-4" />}
-                    onClick={() => setAgentToDelete(agent)}
-                    size="icon"
-                    tooltip={t("Delete agent")}
-                    type="button"
-                    variant="danger"
-                  />
-                </ConfirmDialog>
-              </div>
-            </article>
-          ))}
-        </div>
-      ) : totalCount > 0 ? (
-        <EmptyState label={t("No active agents")} />
-      ) : (
-        <PaxdGettingStartedGuide
-          userId={userId}
-          onStart={() => setSetupStarted(true)}
-        />
-      )}
-    </div>
   );
 }
 
@@ -1580,7 +1196,7 @@ function ActiveFilterToggle({
 }
 
 function supportsActiveFilter(kind: ResourceKind) {
-  return kind === "nodes" || kind === "agents" || kind === "sessions";
+  return kind === "sessions";
 }
 
 function approvalOptions(approval: AgentApproval, t: Translator) {
@@ -1628,20 +1244,4 @@ function ApiNotice({ error }: { error: Error | null }) {
 
 function firstQueryError(queries: Array<{ error: Error | null }>) {
   return queries.find((query) => query.error)?.error ?? null;
-}
-
-function agentCardSummary(agent: Agent, t: Translator) {
-  const tags = [
-    ...stringArray(agent.card?.routing_tags),
-    ...stringArray(agent.card?.skills),
-    ...stringArray(agent.card?.specialties),
-  ];
-
-  return tags.length > 0 ? tags.slice(0, 4).join(" / ") : t("No profile card");
-}
-
-function stringArray(value: unknown) {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : [];
 }

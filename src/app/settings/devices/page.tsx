@@ -1,10 +1,8 @@
-import { ResourceRoute } from "@/components/resources/resource-route";
+"use client";
 
-type DevicesPageProps = {
-  searchParams: Promise<{ view?: string }>;
-};
+import { MyDevicesPage } from "@/components/resources/my-devices-page";
+import { AuthGate } from "@/features/auth/auth-gate";
 
-export default async function DevicesPage({ searchParams }: DevicesPageProps) {
-  const { view } = await searchParams;
-  return <ResourceRoute kind={view === "agents" ? "agents" : "nodes"} />;
+export default function DevicesPage() {
+  return <AuthGate>{(user) => <MyDevicesPage user={user} />}</AuthGate>;
 }

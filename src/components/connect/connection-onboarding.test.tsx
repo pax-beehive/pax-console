@@ -473,7 +473,7 @@ describe("agent connection", () => {
     ).toBeDisabled();
     expect(
       screen.getByRole("link", { name: "Manage connections" }),
-    ).toHaveAttribute("href", "/nodes/mac");
+    ).toHaveAttribute("href", "/settings/devices");
   });
 });
 

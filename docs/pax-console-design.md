@@ -353,7 +353,7 @@ PAX Console
 |       +-- session injections
  +-- Settings (overview first; desktop adds a dedicated sidebar)
     +-- Devices & agents
-    |   +-- My devices (connection and device detail workflows)
+    |   +-- My devices (each device with the agents that run on it)
     |   +-- Agent sign-in & usage (agent accounts and plan usage)
     +-- Work
     |   +-- Projects (hierarchy and reusable workspace targets)

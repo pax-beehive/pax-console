@@ -455,9 +455,7 @@ export function AgentConnectStep({
             </Button>
           )}
           <Button asChild variant="ghost">
-            <Link href={`/nodes/${encodeURIComponent(node.node_id)}`}>
-              {t("Manage connections")}
-            </Link>
+            <Link href="/settings/devices">{t("Manage connections")}</Link>
           </Button>
         </div>
       )}

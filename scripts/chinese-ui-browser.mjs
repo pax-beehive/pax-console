@@ -165,7 +165,7 @@ try {
     await page.addStyleTag({ content: "nextjs-portal { display: none; }" });
     await page.screenshot({ path: `${output}/${viewport.width}-voice.png` });
     for (const [path, heading] of [
-      ["/settings/devices", "设备"],
+      ["/settings/devices", "我的设备"],
       ["/settings/projects", "项目"],
       ["/settings/advanced/encryption", "加密会话"],
     ]) {

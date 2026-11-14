@@ -5,8 +5,6 @@ import { ResourcePageClient } from "./resource-page-client";
 
 type ResourceRouteProps = {
   kind:
-    | "nodes"
-    | "agents"
     | "sessions"
     | "approvals"
     | "security"

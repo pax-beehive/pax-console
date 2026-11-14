@@ -138,7 +138,16 @@ from completed-reply and approval-request descriptions. Unknown notification
 state remains unknown until device confirmation completes; switching sections
 must never expose an Enable action for an already enabled subscription.
 Projects retain their own project/target panes inside the Settings workspace.
-Devices retain their Devices/Agents segmented view and detail workflows.
+My devices (`resources/my-devices-page.tsx`) lists each device as a
+`DeviceCard` with its agents inside; it has no Devices/Agents tabs and no
+active-only filter, so offline devices stay listed. Everyone can rename, update
+and delete a device, and open an agent's settings (`AgentSettingsDialog`: name,
+description, local-session syncing, session limit), sign-in page, restart and
+deletion. Syncing and the session limit live on the device, so they are editable
+only while it is online. The sign-in hint is read once per device and agent
+type and keeps only a yes/no. `/nodes/[id]` and `/agents/[id]` are runtime
+details for administrators; `ResourceDetailRoute` returns everyone else to My
+devices.
 `/settings/advanced` is the Advanced settings directory (API keys and Manual
 device registration) on every screen size; existing deep links continue to
 work, and `/settings/security` opens Allowed actions. See
@@ -1863,8 +1872,8 @@ These deep links should remain directly reachable:
 /collaboration/envelopes       Envelopes
 /collaboration/knowledge       Knowledge
 /admin/config                  Runtime configuration (administrators)
-/settings                      Desktop Notifications; mobile Settings directory
-/settings/devices              Devices; ?view=agents selects Agents
+/settings                      Settings overview, the same directory on every size
+/settings/devices              My devices: each device with its agents
 /settings/devices/add          Quick connect / Browser sign-in
 /settings/devices/agents/add   Agent setup; optional nodeId selects a computer
 /settings/projects             Project hierarchy and launch Targets
@@ -1882,7 +1891,7 @@ When adding a Settings section, add a real `src/app/**/page.tsx` route and its
 label, description, and active-route mapping in `settings/settings-catalog.ts`.
 Other workspace navigation remains in `shell/sidebar.tsx`. Settings is for
 configuration and observability; inquiries and conversations remain Home deep
-links. Devices keeps its page-local Devices/Agents segmented view. Home owns
+links. My devices shows devices and their agents on one page. Home owns
 the user-facing Sessions tab; do not add Sessions as a separate sidebar item.
 
 PAX Manager exposes Home sessions through
