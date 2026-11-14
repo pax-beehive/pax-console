@@ -7,13 +7,19 @@ import { useRef } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AuthGate } from "@/features/auth/auth-gate";
+import { FeatureRoute } from "@/features/flags";
 import { useConsoleViewport } from "@/lib/use-console-viewport";
 import { NodeBrowserVNC } from "./node-browser-vnc";
 
+/** The full-page browser view; it belongs to the browser control feature. */
 export function DockerBrowserRoute({ nodeId }: { nodeId: string }) {
   return (
     <AuthGate>
-      {(user) => <DockerBrowserPage nodeId={nodeId} userId={user.user_id} />}
+      {(user) => (
+        <FeatureRoute fallbackHref="/" feature="browser_control">
+          <DockerBrowserPage nodeId={nodeId} userId={user.user_id} />
+        </FeatureRoute>
+      )}
     </AuthGate>
   );
 }

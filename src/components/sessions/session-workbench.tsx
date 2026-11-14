@@ -267,6 +267,8 @@ export function SessionWorkbench({
 }: SessionWorkbenchProps) {
   const { t } = useI18n();
   const knowledgeCapsulesEnabled = useFeature("knowledge_capsules");
+  const browserControlEnabled = useFeature("browser_control");
+  const androidControlEnabled = useFeature("android_control");
   const queryClient = useQueryClient();
   const routeSessionId = sessionId === "new" ? undefined : sessionId;
   const [currentSessionId, setCurrentSessionId] = useState(routeSessionId);
@@ -2626,7 +2628,11 @@ export function SessionWorkbench({
     ] satisfies SessionSidePanel[]
   ).filter(
     (panel) =>
-      canSeeSessionSidePanel(panel.id, knowledgeCapsulesEnabled) &&
+      canSeeSessionSidePanel(panel.id, {
+        androidControl: androidControlEnabled,
+        browserControl: browserControlEnabled,
+        knowledgeCapsules: knowledgeCapsulesEnabled,
+      }) &&
       (panel.id !== "tool" || activeSidePanelId === "tool"),
   );
   const activeSidePanel = sidePanels.find(
@@ -2885,7 +2891,7 @@ export function SessionWorkbench({
             )}
           </div>
         </SessionHeader>
-        {activeNodeId && (
+        {activeNodeId && browserControlEnabled && (
           <SessionBrowserApprovals
             key={`${user.user_id}/${activeNodeId}`}
             nodeId={activeNodeId}
@@ -3236,14 +3242,14 @@ export function SessionWorkbench({
       >
         {workbench}
       </LocalFileFetchProvider>
-      {browserOpen && activeNodeId && (
+      {browserOpen && browserControlEnabled && activeNodeId && (
         <SessionBrowserWindow
           nodeId={activeNodeId}
           userId={user.user_id}
           onClose={() => setBrowserOpen(false)}
         />
       )}
-      {mobileOpen && activeNodeId && (
+      {mobileOpen && androidControlEnabled && activeNodeId && (
         <SessionMobileWindow
           key={JSON.stringify([user.user_id, composerDraftKey, activeNodeId])}
           nodeId={activeNodeId}

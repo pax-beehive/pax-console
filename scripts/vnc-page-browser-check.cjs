@@ -44,6 +44,8 @@ init.writeUInt32BE(name.length, 20);
           data = {
             user: { user_id: "u", display_name: "Test user", role: "user" },
           };
+        else if (p.endsWith("/features"))
+          data = { revision: 1, features: { browser_control: true } };
         else if (p.endsWith("/daemon/browser")) {
           const body = req.postDataJSON(),
             op = body.operation;
