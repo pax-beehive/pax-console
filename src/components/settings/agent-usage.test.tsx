@@ -146,6 +146,28 @@ it("reads usage for the device and harness and shows checking until it arrives",
   );
 });
 
+it("says a window resets soon as one phrase in either language", async () => {
+  fetchUsage.mockResolvedValue(
+    usage({
+      items: [
+        {
+          id: "five_hour",
+          label: "5-hour",
+          kind: "percent",
+          used_percent: 96,
+          resets_at: new Date(now + 30_000).toISOString(),
+        },
+      ],
+    }),
+  );
+  mount();
+  expect(await screen.findByText("resets soon")).toBeInTheDocument();
+  expect(screen.getByText("96% used")).toBeInTheDocument();
+  act(() => useLocaleStore.setState({ locale: "zh-CN" }));
+  expect(screen.getByText("即将重置")).toBeInTheDocument();
+  expect(screen.getByText("96% 已使用")).toBeInTheDocument();
+});
+
 it("renders percent items with an accessible meter, reset time and freshness", async () => {
   fetchUsage.mockResolvedValue(
     usage({

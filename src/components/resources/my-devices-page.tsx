@@ -24,6 +24,7 @@ import {
   DialogHeader,
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorNotice } from "@/components/ui/error-notice";
 import { Input } from "@/components/ui/form-controls";
 import { queryKeys } from "@/features/api/query-keys";
 import {
@@ -132,11 +133,7 @@ export function MyDevicesPage({ user }: { user: User }) {
 
         <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-5 lg:px-8 lg:py-6">
           <div className="mx-auto grid w-full max-w-5xl gap-4">
-            {error && (
-              <p className="text-sm text-warning" role="alert">
-                {error.message}
-              </p>
-            )}
+            <ErrorNotice error={error} />
             {nodesQuery.isLoading ? (
               <EmptyState label={t("Loading devices")} />
             ) : devices.length === 0 && otherAgents.length === 0 ? (
@@ -304,11 +301,7 @@ function RenameDeviceDialog({
             value={name}
           />
         </form>
-        {rename.error && (
-          <p className="mt-2 text-warning" role="alert">
-            {rename.error.message}
-          </p>
-        )}
+        <ErrorNotice className="mt-2" error={rename.error} />
       </DialogBody>
       <DialogFooter>
         <Button onClick={onClose} type="button" variant="ghost">

@@ -15,6 +15,7 @@ import {
   DialogFooter,
   DialogHeader,
 } from "@/components/ui/dialog";
+import { ErrorNotice } from "@/components/ui/error-notice";
 import { Input } from "@/components/ui/form-controls";
 import { Switch } from "@/components/ui/switch";
 import { queryKeys } from "@/features/api/query-keys";
@@ -183,11 +184,7 @@ export function AgentSettingsDialog({
                   )}
           </p>
         )}
-        {save.error && (
-          <p className="text-warning" role="alert">
-            {save.error.message}
-          </p>
-        )}
+        <ErrorNotice error={save.error} />
       </DialogBody>
       <DialogFooter>
         <Button onClick={onClose} type="button" variant="ghost">
