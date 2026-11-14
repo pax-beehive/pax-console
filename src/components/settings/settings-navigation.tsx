@@ -3,21 +3,26 @@ import { useI18n } from "@/features/i18n/use-i18n";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowLeft, ChevronRight, type LucideIcon } from "lucide-react";
+import {
+  ArrowLeft,
+  ChevronRight,
+  LayoutGrid,
+  Mail,
+  type LucideIcon,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { CONTACT_MAILTO } from "@/lib/contact";
 import { cn } from "@/lib/utils";
-import {
-  settingsGroups,
-  settingsLinks,
-  settingsSectionForPath,
-} from "./settings-catalog";
+import { settingsLinks, settingsSectionForPath } from "./settings-catalog";
+import { useVisibleSettingsGroups } from "./use-settings-visibility";
 
 export { settingsLinks } from "./settings-catalog";
 
 export function SettingsSidebar() {
   const { t } = useI18n();
   const pathname = usePathname();
+  const groups = useVisibleSettingsGroups();
   const selected = settingsSectionForPath(pathname);
   return (
     <aside className="flex h-full min-h-0 flex-col border-r border-hairline bg-surface-1">
@@ -42,49 +47,85 @@ export function SettingsSidebar() {
         aria-label={t("Settings")}
         className="min-h-0 flex-1 space-y-6 overflow-y-auto px-3 pb-6 pt-1"
       >
-        {settingsGroups.map((group) => (
-          <div key={group.title}>
+        <SidebarEntry
+          href={settingsLinks.home}
+          icon={LayoutGrid}
+          title="Overview"
+          active={pathname === settingsLinks.home}
+        />
+        {groups.map((group) => (
+          <div key={group.id}>
             <h3 className="mb-2 px-3 text-[11px] font-medium uppercase tracking-wider text-ink-tertiary">
               {t(group.title)}
             </h3>
             <div className="grid gap-1">
-              {group.items.map((item) => {
-                const active = selected?.id === item.id;
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.id}
-                    href={item.href}
-                    aria-current={active ? "page" : undefined}
-                    className={cn(
-                      "flex min-w-0 items-start gap-3 rounded-md px-3 py-2.5 transition focus-visible:outline-2 focus-visible:outline-primary",
-                      active
-                        ? "bg-accent/10 text-ink shadow-[inset_2px_0_0_var(--color-accent)]"
-                        : "text-ink-muted hover:bg-surface-2 hover:text-ink",
-                    )}
-                  >
-                    <Icon className="mt-0.5 h-4 w-4 shrink-0" />
-                    <span className="min-w-0">
-                      <span className="block text-sm font-medium leading-5">
-                        {t(item.title)}
-                      </span>
-                      <span
-                        className={cn(
-                          "mt-0.5 block text-[11px] leading-4",
-                          active ? "text-ink-muted" : "text-ink-tertiary",
-                        )}
-                      >
-                        {t(item.caption)}
-                      </span>
-                    </span>
-                  </Link>
-                );
-              })}
+              {group.items.map((item) => (
+                <SidebarEntry
+                  key={item.id}
+                  href={item.href}
+                  icon={item.icon}
+                  title={item.title}
+                  caption={item.caption}
+                  active={selected?.id === item.id}
+                />
+              ))}
             </div>
           </div>
         ))}
       </nav>
+      <div className="shrink-0 border-t border-hairline px-3 py-2">
+        <a
+          href={CONTACT_MAILTO}
+          className="flex min-w-0 items-center gap-3 rounded-md px-3 py-2 text-sm text-ink-muted transition hover:bg-surface-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-primary"
+        >
+          <Mail className="h-4 w-4 shrink-0" />
+          {t("Contact us")}
+        </a>
+      </div>
     </aside>
+  );
+}
+
+function SidebarEntry({
+  href,
+  icon: Icon,
+  title,
+  caption,
+  active,
+}: {
+  href: string;
+  icon: LucideIcon;
+  title: string;
+  caption?: string;
+  active: boolean;
+}) {
+  const { t } = useI18n();
+  return (
+    <Link
+      href={href}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "flex min-w-0 items-start gap-3 rounded-md px-3 py-2.5 transition focus-visible:outline-2 focus-visible:outline-primary",
+        active
+          ? "bg-accent/10 text-ink shadow-[inset_2px_0_0_var(--color-accent)]"
+          : "text-ink-muted hover:bg-surface-2 hover:text-ink",
+      )}
+    >
+      <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+      <span className="min-w-0">
+        <span className="block text-sm font-medium leading-5">{t(title)}</span>
+        {caption && (
+          <span
+            className={cn(
+              "mt-0.5 block text-[11px] leading-4",
+              active ? "text-ink-muted" : "text-ink-tertiary",
+            )}
+          >
+            {t(caption)}
+          </span>
+        )}
+      </span>
+    </Link>
   );
 }
 

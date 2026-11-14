@@ -50,7 +50,7 @@ export function SecretarySettingsPage({ user }: { user: User }) {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <SettingsPageHeader
           title={t("Secretary")}
-          category={t("Workspace")}
+          category={settingsSection("secretary").category}
           description={settingsSection("secretary").description}
           mobileHeading={
             <>

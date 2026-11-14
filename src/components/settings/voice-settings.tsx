@@ -21,7 +21,7 @@ export function VoiceSettings() {
       <div className="hidden lg:block">
         <SettingsPageHeader
           title={t("Voice input")}
-          category="Workspace"
+          category={settingsSection("voice").category}
           description={settingsSection("voice").description}
         />
       </div>

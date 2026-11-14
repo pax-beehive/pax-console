@@ -52,7 +52,7 @@ export function ProjectSettingsPage({ user }: { user: User }) {
         <div className="hidden lg:block">
           <SettingsPageHeader
             title={t("Projects")}
-            category={t("Workspace")}
+            category={settingsSection("projects").category}
             description={t(settingsSection("projects").description)}
           />
         </div>

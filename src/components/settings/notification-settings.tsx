@@ -167,7 +167,7 @@ export function NotificationSettings({ userId }: { userId: string }) {
       <div className="hidden lg:block">
         <SettingsPageHeader
           title={t("Notifications")}
-          category="Workspace"
+          category={settingsSection("notifications").category}
           description={settingsSection("notifications").description}
         />
       </div>

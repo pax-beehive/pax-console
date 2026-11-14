@@ -53,7 +53,7 @@ added to the preauthorization editor.
 
 ### Agent sign-in 与会话认证恢复
 
-`/settings/agent-sign-in` 在 Settings 的 Security & access 分组提供设备上原生 agent
+`/settings/agent-sign-in` 在 Settings 的 Devices & agents 分组提供设备上原生 agent
 CLI 的登录。Agent 类型选项来自该设备在 PAX 中已注册 agent 的 `agent_type`（`useNodeAgents`，
 即 Manager 记录）去重后的列表，不会列出或探测设备上安装的工具。Agent 类型使用 PAX id，
 如 `claude-code`、`codex`、`kimi`；旧链接中的 `harness=claude` 映射为 `claude-code`。
@@ -117,17 +117,29 @@ JSON-RPC `-32000` 不算认证失败，必须匹配已知 Authentication require
 
 ### 设置布局与导航
 
-桌面 `/settings` 默认展示通知设置内容，使用专用侧栏与右侧内容区。
-`settings-catalog.ts` 统一维护桌面四组、十项设置及用途说明。手机保留原来的 Settings
-入口列表、Advanced settings 列表与逐页返回，不增加设置选择器。`useDesktopSettings`
-使用与 `lg` 一致的 1024px 媒体查询，按视口挂载入口内容，手机入口不会挂载通知设置控件。
-桌面设置页面复用 `SettingsPageHeader`，明确标题、用途与操作范围，手机保留原有标题布局。
-设备/Agent 详情和加密配对旧路径仍保持所属分组高亮；`/settings/advanced` 在桌面直接
-展示 Allowed actions，在手机展示原有高级设置目录。
+`settings-catalog.ts` 是唯一的设置目录：六个分组、十二个入口及用途说明。桌面侧栏和
+`/settings` 总览页都由它渲染，所以桌面和手机看到的是同一份目录、同样的分组。
+`/settings` 在所有屏幕宽度下都是总览页；桌面另有专用侧栏，手机通过总览和逐页返回导航。
+Advanced settings 分组在总览里是一行，打开 `/settings/advanced` 目录（API keys、
+Manual device registration）；侧栏直接列出这两项。
+
+入口的可见性统一由 `use-settings-visibility.ts` 决定：Administrator 分组（Service
+status）跟随 `canSeeAdminFeatures`，管理员开启“预览用户视图”时同样隐藏；Allowed actions
+只在账户存在未撤销的 approval grant 时出现（网页端只提供一次性审批，长期授权来自提供
+更大范围选项的客户端，这里是撤销它们的入口），路由本身仍可直接访问。
+
+右上角账户菜单显示当前账户和账户区域（`features/region/account-region.ts`，未启用
+区域时不显示），提供 Settings、Contact us、Reload、管理员的 Preview as user 和 Sign out。
+`/settings/language` 提供界面语言选择并显示账户区域。
+
+设置页面复用 `SettingsPageHeader`，明确标题、用途与操作范围，手机保留原有标题布局。
+设备/Agent 详情和加密配对旧路径仍保持所属入口高亮。`useDesktopSettings` 只用于通知页
+在桌面和手机之间切换说明文字的布局。
 项目保留内部项目列表和工作目录目标面板，通知订阅的核对中状态保持原有防闪烁规则。
 设置项及子功能清单见 `docs/settings-inventory.md`。
-原布局浏览器回归覆盖桌面/手机九项、当前入口、手机逐页返回以及横向溢出；新增 Agent
-sign-in 另有五种登录方式的组件回归与桌面/手机流程检查。数据使用明确夹具。
+`scripts/settings-workspace-browser.mjs` 的浏览器回归覆盖桌面/手机十个入口、总览、账户
+菜单、当前入口高亮、手机逐页返回、管理员与长期授权入口以及横向溢出；Agent sign-in 另有
+五种登录方式的组件回归。数据使用明确夹具。
 
 ## 通知订阅管理看板
 
@@ -380,7 +392,7 @@ Browser --encrypted command/HTTP--> 任意 Manager
   HTTP 结果不确定时必须重发 `prepareEncryptedCommand` 产生的同一个 envelope，
   不能用相同业务 ID 重新加密出不同 nonce/ciphertext。
 - `root-key-store.ts` 在浏览器 IndexedDB 中按 agent 保存开发阶段手工共享的
-  root key。Settings / Security & access / Encrypted chats 提供保存和删除入口，key 不经过 Manager API。
+  root key。Settings / Privacy & security / Encrypted chats 提供保存和删除入口，key 不经过 Manager API。
 
 paxd 在解密并接受 `session/prompt` 时按 prompt request 建立稳定 `turn_id`，并在
 encrypted event plaintext 中以 `{ turn_id, frames }` 返回；canonical encrypted
@@ -616,8 +628,8 @@ src/components/home/project-rail.tsx
   并在编辑父级时排除自身和 descendants。
 
 src/components/resources/
-  Settings 下的资源页。Devices 聚合 Nodes / Agents；Security & access 收纳 active
-  approval grants 与 Encrypted chats，Developer tools 收纳 API keys 和手动注册 token（pending approvals 留在 Home Inbox）。
+  Settings 下的资源页。My devices 聚合 Nodes / Agents；Privacy & security 收纳 Encrypted chats 与
+  active approval grants（Allowed actions），Advanced settings 收纳 API keys 和手动注册 token（pending approvals 留在 Home Inbox）。
   Service status 公开服务、设备与 Agent 各自的状态。Inquiries 和 Conversations 属于 Home action/deep-link，
   不再伪装成系统设置。旧资源列表 URL 保留 redirect。
 
@@ -773,8 +785,8 @@ Sidebar 折叠
   Sidebar 一级入口保持粗粒度：顶部只有 Home 和 Collaboration；
   Settings 作为侧栏底部的独立入口；进入后用 272px 设置侧栏替换普通工作区导航，
   通过 Back to workspace 返回。工作区原有折叠状态保留，设置侧栏不受它影响。
-  Settings 按 Workspace、Security & access、Developer tools、Status & support 分组。
-  窄屏使用带分组的原生 select 切换设置，不增加第二层横向导航。
+  Settings 按 Devices & agents、Work、Privacy & security、General、Advanced settings、
+  Administrator 分组。窄屏从总览进入各入口并逐页返回，不增加第二层横向导航。
   Collaboration 展开时在 Sidebar 二级导航承载 Teams、Friends、Envelopes、Knowledge。
   Team invites 属于 Teams 页面里的 team action queue，不作为 Collaboration 并列二级入口。
   不要把这些全局二级 tabs 放进具体页面 header 或页面组件内部。
@@ -1063,13 +1075,14 @@ Sidebar 一级入口是粗粒度工作区（顶部 Home / Collaboration，底部
 /collaboration/friends         Friends
 /collaboration/envelopes       Envelopes
 /collaboration/knowledge       Knowledge capsules
-/settings                      桌面 Notifications；手机 Settings 目录
+/settings                      Settings 总览（桌面与手机同一份目录）
 /settings/devices              Devices; ?view=agents selects Agents
 /settings/devices/add          Quick connect / Browser sign-in
 /settings/devices/agents/add   Agent setup; optional nodeId selects a computer
 /settings/projects             Project hierarchy and launch Targets
-/settings/service-status       PAX health, devices and agents independently
-/settings/advanced             桌面 Allowed actions；手机 Advanced settings 目录
+/settings/language             Interface language and account region
+/settings/service-status       PAX health, devices and agents independently（入口仅管理员可见）
+/settings/advanced             Advanced settings 目录（API keys、Manual device registration）
 /settings/advanced/permissions Active approval grants
 /settings/advanced/encryption  Browser keys and encrypted-device pairing
 /settings/advanced/api-keys    API key management

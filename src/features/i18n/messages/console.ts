@@ -38,7 +38,6 @@ export const consoleMessages: Record<string, string> = {
     "需要管理员权限。之前加载的数据已隐藏。",
   "Advanced settings": "高级设置",
   Agent: "智能体",
-  "Agent sign-in": "智能体登录",
   "Agent type": "智能体类型",
   "Alerts bring you back to the session that needs your attention.":
     "通过提醒返回需要处理的会话。",
@@ -102,9 +101,6 @@ export const consoleMessages: Record<string, string> = {
   "Confirmed senders": "已确认发送消息的用户",
   "Confirming this device's server registration...":
     "正在确认此设备的服务端注册状态…",
-  "Connect computers or servers and manage their agents.":
-    "连接电脑或服务器，管理其中的智能体。",
-  "Connect scripts and other apps to PAX.": "将脚本和其他应用连接到 PAX。",
   Contents: "目录",
   "Continue to sign in": "继续登录",
   "Control alerts for this browser or Android app. Enabling another device is a separate choice.":
@@ -120,8 +116,6 @@ export const consoleMessages: Record<string, string> = {
     "无法加载设备，请刷新后再登录。",
   "Couldn't check the file": "无法检查文件",
   "Couldn't fetch the file": "无法获取文件",
-  "Create a registration token for custom installation workflows.":
-    "为自定义安装流程创建注册令牌。",
   "Create encrypted session": "创建加密会话",
   "Create new request": "创建新请求",
   "Created ": "创建于 ",
@@ -146,13 +140,9 @@ export const consoleMessages: Record<string, string> = {
   Device: "设备",
   "Device registrations and notification outcomes across customers.":
     "查看各客户的设备注册和通知结果。",
-  "Device versions, runtime information, browser audit, and maintenance tools live in each device's details.":
-    "设备详情中包含版本、运行信息、浏览器审计和维护工具。",
   "Dictation microphone": "语音输入麦克风",
   "E2EE Session Lab": "端到端加密会话实验室",
   "Enable notifications": "启用通知",
-  "Enable push notifications and test this device.":
-    "启用推送通知并测试此设备。",
   "Enabled means registered in Pax. Device permission is the last client report, not a live OS check. Provider accepted does not confirm display or reading. Dates use your local timezone.":
     "已启用表示已在 PAX 注册。设备权限为客户端最后上报的状态，并非系统实时检查。推送服务接收不代表已显示或已读。日期使用本地时区。",
   "Encrypted chats": "加密会话",
@@ -190,8 +180,6 @@ export const consoleMessages: Record<string, string> = {
   "Get access from the paxd computer": "在运行 paxd 的电脑上获取授权",
   "Get notified when a session needs your approval. Tap a notification to open the session and review the request. Requests handled by Pax Auto Approve or a saved approval do not trigger notifications.":
     "会话需要审批时接收通知。点击通知打开会话并查看请求。由 PAX 自动审批或已保存的授权处理的请求不会触发通知。",
-  "Give this browser or another device access to encrypted chats.":
-    "授权此浏览器或其他设备访问加密会话。",
   "Headset microphone": "耳机麦克风",
   "Hide code": "隐藏验证码",
   "Hong Kong": "香港",
@@ -223,12 +211,8 @@ export const consoleMessages: Record<string, string> = {
   "Loading summaries…": "正在加载摘要…",
   "Loading summary…": "正在加载摘要…",
   Local: "本地",
-  "Maintain automatic summaries and track conversation progress.":
-    "维护自动摘要并追踪会话进度。",
   "Manage push notifications for this browser or Android app. Each device is enabled separately.":
     "管理此浏览器或 Android 应用的推送通知，每台设备单独启用。",
-  "Manage your devices, projects, and service health.":
-    "管理设备、项目和服务状态。",
   "Manual device registration": "手动注册设备",
   "Matching device…": "正在匹配设备…",
   "Microphone on this device": "此设备的麦克风",
@@ -270,7 +254,6 @@ export const consoleMessages: Record<string, string> = {
   "Open summary": "打开摘要",
   "Open summary by ID": "通过 ID 打开摘要",
   "Opening your account region...": "正在打开账户区域…",
-  "Organize projects and their working folders.": "整理项目及其工作目录。",
   Owner: "所有者",
   "PAX Workspace": "PAX 工作区",
   "PAX could not load your account information. Retry to continue.":
@@ -282,10 +265,6 @@ export const consoleMessages: Record<string, string> = {
   "Paused · access denied": "已暂停 · 无权访问",
   "Paused · not focused": "已暂停 · 窗口未激活",
   "Permission: ": "权限：",
-  "Permissions and developer tools. Most people can leave these settings as they are.":
-    "权限和开发者工具。通常无需修改这些设置。",
-  "Permissions, encrypted access, and developer tools.":
-    "权限、加密访问和开发者工具。",
   "Plan usage": "套餐用量",
   "Plan usage could not be loaded.": "无法加载套餐用量。",
   "Plan usage could not be refreshed.": "无法刷新套餐用量。",
@@ -325,8 +304,6 @@ export const consoleMessages: Record<string, string> = {
   "Retry summary": "重试摘要",
   "Retrying with backoff": "正在退避重试",
   "Return to session": "返回会话",
-  "Review or revoke permissions previously given to agents.":
-    "查看或撤销已授予智能体的权限。",
   Revision: "修订版本",
   Rule: "规则",
   "Run on the paxd computer": "在运行 paxd 的电脑上执行",
@@ -357,8 +334,6 @@ export const consoleMessages: Record<string, string> = {
   "Show code": "显示验证码",
   "Show image at actual size": "按原始尺寸显示图片",
   "Sign in again": "重新登录",
-  "Sign in to Claude Code or Codex on a device and renew expired access.":
-    "登录设备上的 Claude Code 或 Codex，并更新已过期的访问凭据。",
   "Sign in with": "登录方式：",
   "Sign-in method": "登录方式",
   "Sign-in status could not be checked.": "无法检查登录状态。",
@@ -478,9 +453,28 @@ export const consoleMessages: Record<string, string> = {
   "About PaxWorkspace": "关于 PaxWorkspace",
   Customers: "客户",
   Workspace: "工作区",
-  "Security & access": "安全与访问",
-  "Developer tools": "开发者工具",
-  "Status & support": "状态与支持",
+  Work: "工作",
+  "Privacy & security": "隐私与安全",
+  General: "通用",
+  Administrator: "管理员",
+  Overview: "总览",
+  "Manage your devices, agents, and projects.": "管理你的设备、智能体和项目。",
+  "My devices": "我的设备",
+  "Computers, servers, and their agents": "电脑、服务器和上面的智能体",
+  "{count} online": "{count} 台在线",
+  "Agent sign-in & usage": "智能体登录与用量",
+  "Language & region": "语言与区域",
+  "Language and account region": "语言和账户区域",
+  "Choose the interface language for this browser, and see which region your account lives in.":
+    "选择此浏览器使用的界面语言，并查看你的账户所在区域。",
+  "Saved in this browser only.": "仅保存在此浏览器中。",
+  "Account region": "账户区域",
+  "Account region: {region}": "账户区域：{region}",
+  "Your projects and devices stay in this region.":
+    "你的项目和设备保存在此区域。",
+  "API keys and manual device registration": "API 密钥和手动注册设备",
+  "Tools for scripts and custom installations. Most people can leave these settings as they are.":
+    "供脚本和自定义安装使用的工具。大多数人不需要更改这些设置。",
   "Alerts on this device": "此设备的提醒",
   "Choose when this browser or Android app should notify you. Each device has its own subscription.":
     "设置此浏览器或 Android 应用的通知时机。每台设备都有独立订阅。",
@@ -488,7 +482,6 @@ export const consoleMessages: Record<string, string> = {
   "Choose which microphone dictation uses on this device, so music in your earbuds can keep playing.":
     "选择此设备用于语音输入的麦克风，让耳机中的音乐继续播放。",
   "Devices & agents": "设备与智能体",
-  "Computers, servers, and agents": "电脑、服务器和智能体",
   "Connect computers and servers, manage their agents, and inspect connection details.":
     "连接电脑和服务器，管理智能体并查看连接详情。",
   "Automatic conversation summaries": "自动会话摘要",
@@ -509,7 +502,6 @@ export const consoleMessages: Record<string, string> = {
   "Access for scripts and applications": "供脚本和应用访问",
   "Create and revoke access keys for scripts and applications that connect to PAX.":
     "创建或撤销用于连接 PAX 的脚本和应用访问密钥。",
-  "Device registration": "设备注册",
   "Tokens for custom installations": "自定义安装令牌",
   "Create a device registration token for custom installation workflows. For a guided setup, use Add device instead.":
     "为自定义安装流程创建设备注册令牌。如需引导安装，请使用添加设备。",
