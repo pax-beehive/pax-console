@@ -123,8 +123,10 @@ JSON-RPC `-32000` 不算认证失败，必须匹配已知 Authentication require
 Advanced settings 分组在总览里是一行，打开 `/settings/advanced` 目录（API keys、
 Manual device registration）；侧栏直接列出这两项。
 
-入口的可见性统一由 `use-settings-visibility.ts` 决定：Administrator 分组（Service
-status）跟随 `canSeeAdminFeatures`，管理员开启“预览用户视图”时同样隐藏；Allowed actions
+入口的可见性统一由 `use-settings-visibility.ts` 决定：Administrator 分组（Runtime
+configuration、Service status、Customers、Push subscriptions、Summary developer）跟随
+`canSeeAdminFeatures`，其中 `/admin/*` 页面算作设置路由，显示设置侧栏，工作区侧栏和手机底栏
+不再列出它们；管理员开启“预览用户视图”时同样隐藏；Allowed actions
 只在账户存在未撤销的 approval grant 时出现（网页端只提供一次性审批，长期授权来自提供
 更大范围选项的客户端，这里是撤销它们的入口），路由本身仍可直接访问。
 Secretary、Notifications、Voice input 在目录里声明了 `feature`，只有 `useFeatures`
@@ -140,7 +142,7 @@ My devices（`resources/my-devices-page.tsx`）把设备和智能体合成一页
 在线状态和智能体账户是否已登录，不显示标识符和版本；可重命名、更新、删除设备，可打开
 智能体设置（`AgentSettingsDialog`：名称、说明、同步本地会话、同时运行的会话数）、登录页、
 重启和删除。同步与会话数保存在设备上，只有设备在线时才能修改。登录状态按设备和智能体
-类型各读取一次，只保留是或否。`/nodes/[id]`、`/agents/[id]` 是只给管理员的运行信息页，
+类型各读取一次，只保留是或否；设置总览用同样的读取结果指出需要重新登录的智能体类型。`/nodes/[id]`、`/agents/[id]` 是只给管理员的运行信息页，
 `ResourceDetailRoute` 会把其他人送回 My devices。
 
 请求失败时用 `components/ui/error-notice.tsx` 的 `ErrorNotice` 展示：`features/api/public-error.ts`

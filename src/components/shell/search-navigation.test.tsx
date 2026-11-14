@@ -47,7 +47,7 @@ describe("Search navigation", () => {
     useConsoleStore.setState({ sidebarCollapsed: false, previewAsUser: true });
     render(
       <TooltipProvider>
-        <Sidebar showAdminFeatures={false} />
+        <Sidebar />
       </TooltipProvider>,
     );
     expect(screen.getByRole("link", { name: "Search" })).toHaveAttribute(
@@ -64,7 +64,7 @@ describe("Search navigation", () => {
   });
 
   it("exposes active search navigation on mobile for regular users", () => {
-    render(<MobileNav showAdminFeatures={false} />);
+    render(<MobileNav />);
     expect(screen.getByRole("link", { name: "Search" })).toHaveAttribute(
       "aria-current",
       "page",
@@ -77,16 +77,15 @@ describe("Search navigation", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("preserves customer and collaboration navigation in the admin mobile layout", () => {
+  it("keeps administrator pages out of the mobile tab bar", () => {
     flags.collaboration = true;
-    render(<MobileNav showAdminFeatures />);
+    render(<MobileNav />);
     expect(screen.getByRole("navigation", { name: "Primary" })).toHaveClass(
-      "grid-cols-5",
+      "grid-cols-4",
     );
-    expect(screen.getByRole("link", { name: "Customers" })).toHaveAttribute(
-      "href",
-      "/admin/customers",
-    );
+    expect(
+      screen.queryByRole("link", { name: "Customers" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Search" })).toBeInTheDocument();
   });
 
@@ -94,7 +93,7 @@ describe("Search navigation", () => {
     flags.collaboration = true;
     render(
       <TooltipProvider>
-        <Sidebar showAdminFeatures={false} />
+        <Sidebar />
       </TooltipProvider>,
     );
     expect(screen.getByRole("link", { name: "Collaboration" })).toHaveAttribute(
@@ -111,7 +110,7 @@ describe("Search navigation", () => {
 
   it("uses four mobile columns for a granted ordinary user without exposing administrator tools", () => {
     flags.collaboration = true;
-    render(<MobileNav showAdminFeatures={false} />);
+    render(<MobileNav />);
     expect(
       screen.getByRole("link", { name: "Collaboration" }),
     ).toBeInTheDocument();
@@ -123,18 +122,24 @@ describe("Search navigation", () => {
     );
   });
 
-  it("hides a disabled product feature even for administrators and preserves administrator links", () => {
+  it("hides a disabled product feature and leaves administrator pages to Settings", () => {
     render(
       <TooltipProvider>
-        <Sidebar showAdminFeatures />
+        <Sidebar />
       </TooltipProvider>,
     );
     expect(
       screen.queryByRole("link", { name: "Collaboration" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Customers" })).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Runtime configuration" }),
-    ).toHaveAttribute("href", "/admin/config");
+      screen.queryByRole("link", { name: "Customers" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Runtime configuration" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute(
+      "href",
+      "/settings",
+    );
   });
 });

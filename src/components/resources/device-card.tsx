@@ -49,6 +49,7 @@ import {
   paxlObservation,
 } from "@/features/devices/daemon-commands";
 import {
+  signInKey,
   useAgentSignInStates,
   type AgentSignInState,
 } from "@/features/devices/use-agent-sign-in-states";
@@ -131,9 +132,9 @@ export function DeviceCard({
   ].sort();
   const signIn = useAgentSignInStates(
     userId,
-    node.node_id,
-    signInTypes,
-    online,
+    online
+      ? signInTypes.map((agentType) => ({ nodeId: node.node_id, agentType }))
+      : [],
   );
   const restart = useMutation({
     mutationFn: async (agent: Agent) => {
@@ -330,7 +331,14 @@ export function DeviceCard({
                 restart.isPending &&
                 restart.variables?.agent_id === agent.agent_id
               }
-              signIn={signIn[normalizeAgentType(agent.agent_type) ?? ""]}
+              signIn={
+                signIn[
+                  signInKey({
+                    nodeId: node.node_id,
+                    agentType: normalizeAgentType(agent.agent_type) ?? "",
+                  })
+                ]
+              }
             />
           ))}
         </ul>

@@ -10,7 +10,7 @@ import {
   Mail,
   type LucideIcon,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { CONTACT_MAILTO } from "@/lib/contact";
 import { cn } from "@/lib/utils";
@@ -100,8 +100,15 @@ function SidebarEntry({
   active: boolean;
 }) {
   const { t } = useI18n();
+  const link = useRef<HTMLAnchorElement>(null);
+  // The sidebar is longer than a screen for administrators, and it is rebuilt
+  // on every navigation, so bring the open entry back into view.
+  useEffect(() => {
+    if (active) link.current?.scrollIntoView?.({ block: "nearest" });
+  }, [active]);
   return (
     <Link
+      ref={link}
       href={href}
       aria-current={active ? "page" : undefined}
       className={cn(

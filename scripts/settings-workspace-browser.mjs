@@ -118,6 +118,17 @@ async function openSettings(browser, viewport, account = {}) {
           role: account.role ?? "user",
         },
       };
+    else if (path.endsWith("/customer-analytics"))
+      data = {
+        regions: [
+          {
+            region: "local",
+            available: true,
+            updated_at: new Date().toISOString(),
+            users: [],
+          },
+        ],
+      };
     else if (path.endsWith("/auth/status"))
       // Codex still needs to sign in; the other agent types are signed in.
       data = {
@@ -395,6 +406,11 @@ try {
       viewport,
       fleet,
     );
+    // The overview calls out the agent type that still has to sign in.
+    await content(page, 'a[href="/settings/agent-sign-in"]')
+      .getByText("Codex needs sign-in", { exact: true })
+      .waitFor();
+    await page.screenshot({ path: `${output}/${size}-overview-sign-in.png` });
     await page.goto(origin + "/settings/devices");
     await page
       .getByRole("heading", { name: "My devices", exact: true })
@@ -481,6 +497,26 @@ try {
   // Administrators keep the manual root key tool.
   await page.goto(origin + "/settings/advanced/encryption");
   await page.getByText(rootKeyTool).waitFor();
+
+  // Administrator pages are entries in Settings and keep its sidebar.
+  for (const href of [
+    "/admin/config",
+    "/admin/customers",
+    "/admin/notifications",
+    "/admin/summaries",
+  ])
+    assert.equal(await navigation.locator(`a[href="${href}"]`).count(), 1);
+  await navigation.locator('a[href="/admin/customers"]').click();
+  await page.waitForURL(origin + "/admin/customers");
+  await navigation
+    .locator('a[href="/admin/customers"][aria-current="page"]')
+    .waitFor();
+  await navigation
+    .getByRole("link", { name: /Back to workspace/ })
+    .or(page.getByRole("link", { name: /Back to workspace/ }))
+    .first()
+    .waitFor();
+  await page.screenshot({ path: `${output}/desktop-administrator-page.png` });
   assert.deepEqual(errors, []);
   await context.close();
 
@@ -523,6 +559,7 @@ try {
       administratorAndPermissionEntries: true,
       featureEntriesAndRoutes: true,
       myDevicesAndAgentSettings: true,
+      administratorPagesInSettings: true,
       noHorizontalOverflow: true,
       fixtures: true,
       screenshots: output,

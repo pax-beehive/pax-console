@@ -5,9 +5,6 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   Activity,
-  Bell,
-  ChartNoAxesCombined,
-  FileText,
   Brain,
   ChevronDown,
   ChevronLeft,
@@ -18,7 +15,6 @@ import {
   MailPlus,
   Search,
   Settings,
-  SlidersHorizontal,
   Users,
 } from "lucide-react";
 import { LucideIcon } from "lucide-react";
@@ -80,20 +76,16 @@ const settingsNavItem: NavItem = {
   ],
 };
 
-export function Sidebar({ showAdminFeatures }: { showAdminFeatures: boolean }) {
+/**
+ * Settings and the administrator pages use the settings sidebar; everything
+ * else uses the workspace sidebar.
+ */
+export function Sidebar() {
   const pathname = usePathname();
-  return isSettingsRoute(pathname) ? (
-    <SettingsSidebar />
-  ) : (
-    <WorkspaceSidebar showAdminFeatures={showAdminFeatures} />
-  );
+  return isSettingsRoute(pathname) ? <SettingsSidebar /> : <WorkspaceSidebar />;
 }
 
-function WorkspaceSidebar({
-  showAdminFeatures,
-}: {
-  showAdminFeatures: boolean;
-}) {
+function WorkspaceSidebar() {
   const { t } = useI18n();
   const collaborationEnabled = useFeature("collaboration");
   const collapsed = useConsoleStore((state) => state.sidebarCollapsed);
@@ -168,42 +160,6 @@ function WorkspaceSidebar({
               label: "Contact us",
             }}
           />
-          {showAdminFeatures && (
-            <>
-              <NavEntry
-                collapsed={collapsed}
-                item={{
-                  href: "/admin/config",
-                  icon: SlidersHorizontal,
-                  label: "Runtime configuration",
-                }}
-              />
-              <NavEntry
-                collapsed={collapsed}
-                item={{
-                  href: "/admin/customers",
-                  icon: ChartNoAxesCombined,
-                  label: "Customers",
-                }}
-              />
-              <NavEntry
-                collapsed={collapsed}
-                item={{
-                  href: "/admin/notifications",
-                  icon: Bell,
-                  label: "Push subscriptions",
-                }}
-              />
-              <NavEntry
-                collapsed={collapsed}
-                item={{
-                  href: "/admin/summaries",
-                  icon: FileText,
-                  label: "Summary developer",
-                }}
-              />
-            </>
-          )}
           <NavEntry collapsed={collapsed} item={settingsNavItem} />
         </div>
       </nav>
