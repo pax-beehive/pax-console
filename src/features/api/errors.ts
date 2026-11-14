@@ -17,6 +17,14 @@ export class ApiError extends Error {
   }
 }
 
+/** An error whose message is already written for the person using the app. */
+export class UserMessageError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UserMessageError";
+  }
+}
+
 export function formatErrorDetail(error: Error) {
   if (error instanceof ApiError) {
     return `HTTP ${error.status}: ${error.message}`;

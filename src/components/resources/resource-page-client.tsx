@@ -6,7 +6,6 @@ import Link from "next/link";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
 import {
-  AlertCircle,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -21,6 +20,8 @@ import {
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ErrorNotice } from "@/components/ui/error-notice";
 import { MonoId, TruncatedText } from "@/components/ui/text";
 import {
   createApiKey,
@@ -37,6 +38,7 @@ import {
   useNodes,
 } from "@/features/api/resources";
 import { queryKeys } from "@/features/api/query-keys";
+import { useAdminView } from "@/features/auth/use-admin-view";
 import { selectVisibleSessions } from "@/features/sessions/session-origin";
 import { Agent, AgentApproval, Node, User } from "@/features/api/types";
 import { compactId } from "@/lib/format";
@@ -142,6 +144,7 @@ const sessionPageSize = 50;
 
 export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
   const { t } = useI18n();
+  const admin = useAdminView();
   const [showAllResources, setShowAllResources] = useState(false);
   const [sessionPage, setSessionPage] = useState(1);
   const usesFleet = ["sessions", "monitor", "security", "encryption"].includes(
@@ -308,7 +311,11 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
               kind === "encryption") && (
               <div className="grid gap-4">
                 {(kind === "security" || kind === "encryption") && (
-                  <E2EEKeysPanel agents={sortedAgents} nodes={sortedNodes} />
+                  <E2EEKeysPanel
+                    admin={admin}
+                    agents={sortedAgents}
+                    nodes={sortedNodes}
+                  />
                 )}
                 {kind !== "encryption" && (
                   <ApprovalsPanel
@@ -605,7 +612,15 @@ function NodeRegistrationPanel({ userId }: { userId: string }) {
   );
 }
 
-function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
+function E2EEKeysPanel({
+  admin,
+  agents,
+  nodes,
+}: {
+  admin: boolean;
+  agents: Agent[];
+  nodes: Node[];
+}) {
   const { t } = useI18n();
   const [agentId, setAgentId] = useState("");
   const [encodedKey, setEncodedKey] = useState("");
@@ -750,66 +765,72 @@ function E2EEKeysPanel({ agents, nodes }: { agents: Agent[]; nodes: Node[] }) {
               ))}
             </select>
           </label>
-          <details className="min-w-0 rounded-lg border border-hairline bg-canvas p-3">
-            <summary className="cursor-pointer text-sm font-medium text-ink-muted">
-              {t("Advanced: manually manage root key")}
-            </summary>
-            <p className="mt-2 text-xs leading-5 text-warning">
-              {t(
-                "Development use only. Generating a different key from paxd will make encrypted sessions unreadable on this device.",
-              )}
-            </p>
-            <label className="mt-3 grid min-w-0 gap-1 text-xs text-ink-tertiary">
-              {t("Base64 root key")}{" "}
-              <input
-                autoComplete="off"
-                className="h-9 w-full min-w-0 rounded-md border border-hairline bg-surface-1 px-3 font-mono text-base text-ink outline-none focus:border-accent sm:text-sm"
-                onChange={(event) => setEncodedKey(event.target.value)}
-                placeholder={t("32-byte base64 value")}
-                type="password"
-                value={encodedKey}
-              />
-            </label>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button
-                disabled={busy || !selectedAgentId}
-                onClick={handleGenerate}
-                type="button"
-              >
-                {t("Generate development key")}
-              </Button>
-              {encodedKey && (
+          {/* A development tool: a wrong key makes encrypted sessions unreadable. */}
+          {admin && (
+            <details className="min-w-0 rounded-lg border border-hairline bg-canvas p-3">
+              <summary className="cursor-pointer text-sm font-medium text-ink-muted">
+                {t("Advanced: manually manage root key")}
+              </summary>
+              <p className="mt-2 text-xs leading-5 text-warning">
+                {t(
+                  "Development use only. Generating a different key from paxd will make encrypted sessions unreadable on this device.",
+                )}
+              </p>
+              <label className="mt-3 grid min-w-0 gap-1 text-xs text-ink-tertiary">
+                {t("Base64 root key")}{" "}
+                <input
+                  autoComplete="off"
+                  className="h-9 w-full min-w-0 rounded-md border border-hairline bg-surface-1 px-3 font-mono text-base text-ink outline-none focus:border-accent sm:text-sm"
+                  onChange={(event) => setEncodedKey(event.target.value)}
+                  placeholder={t("32-byte base64 value")}
+                  type="password"
+                  value={encodedKey}
+                />
+              </label>
+              <div className="mt-3 flex flex-wrap gap-2">
                 <Button
-                  icon={<Copy className="h-4 w-4" />}
-                  onClick={() => void handleCopy()}
+                  disabled={busy || !selectedAgentId}
+                  onClick={handleGenerate}
                   type="button"
                 >
-                  {t("Copy")}
+                  {t("Generate development key")}
                 </Button>
-              )}
-              <Button
-                disabled={busy || !selectedAgentId || !encodedKey.trim()}
-                onClick={() => void handleSave()}
-                type="button"
-              >
-                {t("Save imported key")}
-              </Button>
-              {configured && (
+                {encodedKey && (
+                  <Button
+                    icon={<Copy className="h-4 w-4" />}
+                    onClick={() => void handleCopy()}
+                    type="button"
+                  >
+                    {t("Copy")}
+                  </Button>
+                )}
                 <Button
-                  disabled={busy}
-                  onClick={() => void handleDelete()}
-                  variant="danger"
+                  disabled={busy || !selectedAgentId || !encodedKey.trim()}
+                  onClick={() => void handleSave()}
                   type="button"
                 >
-                  {t("Remove key from this device")}
+                  {t("Save imported key")}
                 </Button>
-              )}
-            </div>
-          </details>
+                {configured && (
+                  <Button
+                    disabled={busy}
+                    onClick={() => void handleDelete()}
+                    variant="danger"
+                    type="button"
+                  >
+                    {t("Remove key from this device")}
+                  </Button>
+                )}
+              </div>
+            </details>
+          )}
         </div>
       ) : (
         <p className="text-sm text-ink-tertiary">
-          {t("Create an agent before configuring an E2EE root key.")}
+          {t("Encrypted chats need an agent.")}{" "}
+          <Link className="underline" href={settingsLinks.addAgent}>
+            {t("Add agent")}
+          </Link>
         </p>
       )}
       {status && (
@@ -858,9 +879,11 @@ function ApprovalsPanel({
       });
     },
   });
+  const [grantToRevoke, setGrantToRevoke] = useState<AgentApproval>();
   const revoke = useMutation({
     mutationFn: (grantId: string) => revokeApprovalGrant(userId, grantId),
     onSuccess: () => {
+      setGrantToRevoke(undefined);
       void queryClient.invalidateQueries({
         queryKey: queryKeys.approvals(userId),
       });
@@ -989,8 +1012,10 @@ function ApprovalsPanel({
             </div>
             <Button
               className="mt-3"
-              disabled={revoke.isPending}
-              onClick={() => revoke.mutate(grant.approval_id)}
+              disabled={
+                revoke.isPending && revoke.variables === grant.approval_id
+              }
+              onClick={() => setGrantToRevoke(grant)}
               size="sm"
               type="button"
               variant="danger"
@@ -1002,7 +1027,30 @@ function ApprovalsPanel({
         {activeGrants.length === 0 && (
           <EmptyState label={t("No active grants")} />
         )}
+        {revoke.error && <ErrorNotice error={revoke.error} />}
       </section>
+      <ConfirmDialog
+        confirmLabel={revoke.isPending ? t("Revoking...") : t("Revoke")}
+        description={
+          <>
+            <span className="font-medium text-ink">
+              {grantToRevoke?.title ??
+                grantToRevoke?.operation ??
+                grantToRevoke?.approval_id}
+            </span>{" "}
+            {t(
+              "will no longer be allowed automatically. The agent has to ask again before doing it.",
+            )}
+          </>
+        }
+        disabled={revoke.isPending}
+        onConfirm={() => {
+          if (grantToRevoke) revoke.mutate(grantToRevoke.approval_id);
+        }}
+        onOpenChange={(open) => !open && setGrantToRevoke(undefined)}
+        open={grantToRevoke !== undefined}
+        title={t("Revoke this permission?")}
+      />
     </div>
   );
 }
@@ -1036,9 +1084,14 @@ function ApiKeysPanel({
       });
     },
   });
+  const [keyToRevoke, setKeyToRevoke] = useState<{
+    key_id: string;
+    name?: string;
+  }>();
   const deleteKey = useMutation({
     mutationFn: (keyId: string) => deleteApiKey(userId, keyId),
     onSuccess: () => {
+      setKeyToRevoke(undefined);
       void queryClient.invalidateQueries({
         queryKey: queryKeys.apiKeys(userId),
       });
@@ -1121,34 +1174,58 @@ function ApiKeysPanel({
 
       <section className="grid gap-3">
         <SectionHeader count={apiKeys.length} title={t("Existing keys")} />
-        <div className="grid overflow-hidden rounded-lg border border-hairline">
-          {apiKeys.map((apiKey) => (
-            <article
-              className="flex min-w-0 items-center justify-between gap-4 border-b border-hairline bg-surface-1 px-3 py-3 last:border-b-0"
-              key={apiKey.key_id}
-            >
-              <div className="min-w-0 flex-1">
-                <TruncatedText className="text-sm font-medium">
-                  {apiKey.name ?? apiKey.key_id}
-                </TruncatedText>
-                <MonoId className="mt-1" tooltip={apiKey.key_id}>
-                  {apiKey.prefix ?? compactId(apiKey.key_id)}
-                </MonoId>
-              </div>
-              <Button
-                disabled={deleteKey.isPending}
-                onClick={() => deleteKey.mutate(apiKey.key_id)}
-                size="sm"
-                type="button"
-                variant="danger"
+        {apiKeys.length > 0 && (
+          <div className="grid overflow-hidden rounded-lg border border-hairline">
+            {apiKeys.map((apiKey) => (
+              <article
+                className="flex min-w-0 items-center justify-between gap-4 border-b border-hairline bg-surface-1 px-3 py-3 last:border-b-0"
+                key={apiKey.key_id}
               >
-                {t("Revoke")}
-              </Button>
-            </article>
-          ))}
-        </div>
+                <div className="min-w-0 flex-1">
+                  <TruncatedText className="text-sm font-medium">
+                    {apiKey.name ?? apiKey.key_id}
+                  </TruncatedText>
+                  <MonoId className="mt-1" tooltip={apiKey.key_id}>
+                    {apiKey.prefix ?? compactId(apiKey.key_id)}
+                  </MonoId>
+                </div>
+                <Button
+                  disabled={
+                    deleteKey.isPending && deleteKey.variables === apiKey.key_id
+                  }
+                  onClick={() => setKeyToRevoke(apiKey)}
+                  size="sm"
+                  type="button"
+                  variant="danger"
+                >
+                  {t("Revoke")}
+                </Button>
+              </article>
+            ))}
+          </div>
+        )}
         {apiKeys.length === 0 && <EmptyState label={t("No API keys")} />}
+        {deleteKey.error && <ErrorNotice error={deleteKey.error} />}
       </section>
+      <ConfirmDialog
+        confirmLabel={deleteKey.isPending ? t("Revoking...") : t("Revoke")}
+        description={
+          <>
+            {t("Scripts and applications that use")}{" "}
+            <span className="font-medium text-ink">
+              {keyToRevoke?.name ?? keyToRevoke?.key_id}
+            </span>{" "}
+            {t("will stop working. A revoked key cannot be restored.")}
+          </>
+        }
+        disabled={deleteKey.isPending}
+        onConfirm={() => {
+          if (keyToRevoke) deleteKey.mutate(keyToRevoke.key_id);
+        }}
+        onOpenChange={(open) => !open && setKeyToRevoke(undefined)}
+        open={keyToRevoke !== undefined}
+        title={t("Revoke this API key?")}
+      />
     </div>
   );
 }
@@ -1224,21 +1301,12 @@ function EmptyState({ label }: { label: string }) {
 }
 
 function ApiNotice({ error }: { error: Error | null }) {
-  const { t } = useI18n();
-  if (!error) {
-    return null;
-  }
-
+  if (!error) return null;
   return (
-    <div className="flex min-w-0 items-start gap-3 rounded-lg border border-hairline bg-surface-1 p-3 text-sm text-ink-muted">
-      <AlertCircle className="mt-0.5 h-4 w-4 text-warning" />
-      <div className="min-w-0">
-        <div className="font-medium text-ink">{t("API request failed")}</div>
-        <TruncatedText className="mt-1 font-mono text-xs text-ink-tertiary">
-          {error.name}: {error.message}
-        </TruncatedText>
-      </div>
-    </div>
+    <ErrorNotice
+      className="rounded-lg border border-hairline bg-surface-1 p-3"
+      error={error}
+    />
   );
 }
 

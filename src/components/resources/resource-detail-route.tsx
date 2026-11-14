@@ -1,12 +1,8 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
 import { settingsLinks } from "@/components/settings/settings-catalog";
-import type { User } from "@/features/api/types";
-import { canSeeAdminFeatures } from "@/features/auth/admin-view";
+import { AdministratorRoute } from "@/features/auth/administrator-route";
 import { AuthGate } from "@/features/auth/auth-gate";
-import { useConsoleStore } from "@/stores/console-store";
 import {
   AgentDetailPageClient,
   NodeDetailPageClient,
@@ -32,7 +28,7 @@ export function ResourceDetailRoute(props: ResourceDetailRouteProps) {
   return (
     <AuthGate>
       {(user) => (
-        <AdministratorOnly user={user}>
+        <AdministratorRoute fallbackHref={settingsLinks.devices} user={user}>
           {props.kind === "node" ? (
             <NodeDetailPageClient nodeId={props.nodeId} user={user} />
           ) : (
@@ -42,24 +38,8 @@ export function ResourceDetailRoute(props: ResourceDetailRouteProps) {
               user={user}
             />
           )}
-        </AdministratorOnly>
+        </AdministratorRoute>
       )}
     </AuthGate>
   );
-}
-
-function AdministratorOnly({
-  children,
-  user,
-}: {
-  children: ReactNode;
-  user: User;
-}) {
-  const router = useRouter();
-  const previewAsUser = useConsoleStore((state) => state.previewAsUser);
-  const allowed = canSeeAdminFeatures(user, previewAsUser);
-  useEffect(() => {
-    if (!allowed) router.replace(settingsLinks.devices);
-  }, [allowed, router]);
-  return allowed ? children : null;
 }

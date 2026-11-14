@@ -293,11 +293,15 @@ function ResetCountdown({ resetsAt, now }: { resetsAt?: string; now: number }) {
       title={compactDateTime(resetsAt)}
       className="whitespace-nowrap text-xs text-ink-tertiary"
     >
-      {/* Narrow screens show only the countdown; screen readers keep the prefix. */}
-      <span className="sr-only sm:not-sr-only">
-        {countdown === t("soon") ? t("resets ") : t("resets in ")}
-      </span>
-      {countdown}
+      {countdown === t("soon") ? (
+        t("resets soon")
+      ) : (
+        <>
+          {/* Narrow screens show only the countdown; screen readers keep the prefix. */}
+          <span className="sr-only sm:not-sr-only">{t("resets in ")}</span>
+          {countdown}
+        </>
+      )}
     </time>
   );
 }
@@ -367,8 +371,7 @@ function PercentRow({
         valueText={t("{percent}% used", { percent })}
       />
       <span className="whitespace-nowrap text-right tabular-nums text-ink-muted">
-        {percent}
-        {t("% used")}
+        {t("{percent}% used", { percent })}
       </span>
       <ResetCountdown resetsAt={item.resets_at} now={now} />
     </li>

@@ -143,6 +143,11 @@ My devices（`resources/my-devices-page.tsx`）把设备和智能体合成一页
 类型各读取一次，只保留是或否。`/nodes/[id]`、`/agents/[id]` 是只给管理员的运行信息页，
 `ResourceDetailRoute` 会把其他人送回 My devices。
 
+请求失败时用 `components/ui/error-notice.tsx` 的 `ErrorNotice` 展示：`features/api/public-error.ts`
+把错误转成用户能照着做的一句话（登录过期、已不存在、被修改、请求过多、服务异常、网络不通），
+服务端原文只给管理员看；只有 400/422 这类“输入被拒绝”的原因会展示给所有人。界面自己写好的
+提示用 `UserMessageError` 抛出，原样显示。撤销 API key 和 Allowed actions 前都要二次确认。
+
 设置页面复用 `SettingsPageHeader`，明确标题、用途与操作范围，手机保留原有标题布局。
 设备/Agent 详情和加密配对旧路径仍保持所属入口高亮。`useDesktopSettings` 只用于通知页
 在桌面和手机之间切换说明文字的布局。
@@ -446,7 +451,7 @@ Browser --encrypted command/HTTP--> 任意 Manager
   HTTP 结果不确定时必须重发 `prepareEncryptedCommand` 产生的同一个 envelope，
   不能用相同业务 ID 重新加密出不同 nonce/ciphertext。
 - `root-key-store.ts` 在浏览器 IndexedDB 中按 agent 保存开发阶段手工共享的
-  root key。Settings / Privacy & security / Encrypted chats 提供保存和删除入口，key 不经过 Manager API。
+  root key。Settings / Privacy & security / Encrypted chats 里的手动保存和删除入口是开发工具，只对管理员显示；`/e2ee` 实验页同样只给管理员（`AdministratorRoute`），其他人回到 Encrypted chats。key 不经过 Manager API。
 
 paxd 在解密并接受 `session/prompt` 时按 prompt request 建立稳定 `turn_id`，并在
 encrypted event plaintext 中以 `{ turn_id, frames }` 返回；canonical encrypted

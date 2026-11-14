@@ -582,15 +582,13 @@ function HarnessSignIn({
                 rel="noopener noreferrer"
                 referrerPolicy="no-referrer"
               >
-                {t("Open ")}
-                {provider} {t(" sign-in")}
+                {t("Open {provider} sign-in", { provider })}
               </a>
             </Button>
             {flow.view?.state === "awaiting_browser" && flow.view.user_code && (
               <div className="grid gap-1">
                 <p className="text-xs text-ink-tertiary">
-                  {t("Enter this code on the ")}
-                  {provider} {t(" page")}
+                  {t("Enter this code on the {provider} page", { provider })}
                 </p>
                 <MonoId className="text-lg text-ink">
                   {flow.view.user_code}
@@ -669,8 +667,11 @@ function HarnessSignIn({
             </Button>
             {flow.view.expires_at && (
               <p className="text-xs text-ink-tertiary">
-                {t("Expires ")}
-                {new Date(flow.view.expires_at).toLocaleTimeString(locale)}.
+                {t("Expires at {time}.", {
+                  time: new Date(flow.view.expires_at).toLocaleTimeString(
+                    locale,
+                  ),
+                })}
               </p>
             )}
           </div>

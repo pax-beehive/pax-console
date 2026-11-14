@@ -33,12 +33,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ErrorNotice } from "@/components/ui/error-notice";
 import { StatusDot } from "@/components/ui/status-dot";
 import { TruncatedText } from "@/components/ui/text";
 import {
   listNodeDaemonAgentConnections,
   restartNodeDaemonAgentConnection,
 } from "@/features/api/resources";
+import { UserMessageError } from "@/features/api/errors";
 import type { Agent, Node } from "@/features/api/types";
 import {
   activeDeviceCommand,
@@ -140,7 +142,7 @@ export function DeviceCard({
         (item) => item.cloud_agent_id === agent.agent_id,
       );
       if (!connection)
-        throw new Error(
+        throw new UserMessageError(
           t("This agent's connection was not found on the device."),
         );
       return restartNodeDaemonAgentConnection(
@@ -307,14 +309,10 @@ export function DeviceCard({
         </div>
       </header>
 
-      {restart.error && (
-        <p
-          className="border-b border-hairline px-4 py-2 text-xs text-warning"
-          role="alert"
-        >
-          {restart.error.message}
-        </p>
-      )}
+      <ErrorNotice
+        className="border-b border-hairline px-4 py-2"
+        error={restart.error}
+      />
 
       {agents.length > 0 ? (
         <ul className="divide-y divide-hairline">

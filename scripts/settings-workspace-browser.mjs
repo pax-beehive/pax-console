@@ -36,6 +36,7 @@ const featureRoutes = new Map([
   ["notifications", ["/settings/notifications"]],
   ["voice_input", ["/settings/voice"]],
 ]);
+const rootKeyTool = "Advanced: manually manage root key";
 // One online device with three agents and one offline device with one.
 const fleet = {
   nodes: [
@@ -432,6 +433,14 @@ try {
     await page.screenshot({ path: `${output}/${size}-agent-settings.png` });
     await page.keyboard.press("Escape");
     await settings.waitFor({ state: "hidden" });
+
+    // Development tools stay away from customers: no manual root key on
+    // Encrypted chats, and the encryption lab returns to that page.
+    await page.goto(origin + "/settings/advanced/encryption");
+    await page.getByRole("link", { name: "Pair this device" }).waitFor();
+    assert.equal(await page.getByText(rootKeyTool).count(), 0);
+    await page.goto(origin + "/e2ee");
+    await page.waitForURL(origin + "/settings/advanced/encryption");
     assert.deepEqual(errors, []);
     await context.close();
   }
@@ -447,6 +456,7 @@ try {
         { node_id: "node-laptop", name: "Laptop", online: true },
         { node_id: "node-server", name: "Server", online: false },
       ],
+      agents: fleet.agents,
     },
   );
   const navigation = sidebar(page);
@@ -468,6 +478,9 @@ try {
       "page",
     );
   }
+  // Administrators keep the manual root key tool.
+  await page.goto(origin + "/settings/advanced/encryption");
+  await page.getByText(rootKeyTool).waitFor();
   assert.deepEqual(errors, []);
   await context.close();
 

@@ -10,6 +10,7 @@ import { WorkstreamItemCard } from "@/components/sessions/session-event-cards";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AdministratorRoute } from "@/features/auth/administrator-route";
 import { AuthGate } from "@/features/auth/auth-gate";
 import {
   createAgentSession,
@@ -54,8 +55,20 @@ type PendingLifecycle = {
   sessionId: string;
 };
 
+/** A development lab for encrypted sessions; it is not a customer page. */
 export function E2EESessionLabRoute() {
-  return <AuthGate>{(user) => <E2EESessionLab user={user} />}</AuthGate>;
+  return (
+    <AuthGate>
+      {(user) => (
+        <AdministratorRoute
+          fallbackHref="/settings/advanced/encryption"
+          user={user}
+        >
+          <E2EESessionLab user={user} />
+        </AdministratorRoute>
+      )}
+    </AuthGate>
+  );
 }
 
 function E2EESessionLab({ user }: { user: User }) {

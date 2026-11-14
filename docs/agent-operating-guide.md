@@ -132,6 +132,13 @@ lists the Language section, Settings and Contact us, Reload and Preview as
 user, and Sign out. `/settings/language` changes the same language preference
 and shows the account region.
 
+Show a failed request with `ErrorNotice` (`components/ui/error-notice.tsx`).
+`publicErrorMessage` turns the error into a sentence the person can act on;
+the server's own wording is added for administrators only, and for everyone
+when the server rejected their input (400/422). Throw `UserMessageError` for a
+message the interface already wrote for the person. Revoking an API key or an
+allowed action asks for confirmation first.
+
 `SettingsPageHeader` gives each section a title and purpose description.
 Notification controls explain device scope and separate subscription actions
 from completed-reply and approval-request descriptions. Unknown notification
@@ -632,8 +639,9 @@ POST failure, retain the value returned by `prepareEncryptedCommand` and call
 `postEncryptedCommand` again with that exact envelope; re-encrypting the same
 business command would change its nonce/ciphertext and correctly conflict at the
 Manager. `root-key-store.ts` stores
-one development root key per agent in IndexedDB, surfaced under Settings / Privacy & security /
-Encrypted chats. Root keys must not be put in TanStack Query, localStorage, server
+one development root key per agent in IndexedDB. The manual save/remove tool under Settings /
+Privacy & security / Encrypted chats is shown to administrators only, and the `/e2ee` lab is an
+administrator route (`AdministratorRoute`); everyone else pairs devices from Encrypted chats. Root keys must not be put in TanStack Query, localStorage, server
 components, URL state, or the Manager API.
 
 Encrypted ACP event plaintext carries the paxd-projected `turn_id` beside its

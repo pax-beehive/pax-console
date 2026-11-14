@@ -9,16 +9,13 @@ export const consoleMessages: Record<string, string> = {
   " matching": " 条匹配",
   " messages · ": " 条消息 · ",
   " of ": " / ",
-  " page": " 页",
   " records.": " 条记录。",
   " rows and": " 行，",
   " shown ·": " 条已显示 ·",
-  " sign-in": " 登录",
   " source messages": " 条源消息",
   " · Recommended": " · 推荐",
   " · Signed in": " · 已登录",
   " · invalid JSON": " · JSON 无效",
-  "% used": "% 已使用",
   "API keys": "API 密钥",
   "Accepted by push service; device display is not confirmed.":
     "推送服务已接收；尚未确认设备是否显示。",
@@ -154,13 +151,11 @@ export const consoleMessages: Record<string, string> = {
   "Encryption access": "加密访问授权",
   "Enter one complete line without surrounding spaces. It is sent to the device only when you start and is then cleared from this form.":
     "请输入完整的一行，前后不要留空格。内容仅在开始时发送到设备，随后从表单清除。",
-  "Enter this code on the ": "请在以下位置输入此验证码：",
   "Existing session": "已有会话",
   "Exit artifact fullscreen": "退出文件全屏",
   "Exit fullscreen": "退出全屏",
   Expand: "展开",
   "Expand preview": "展开预览",
-  "Expires ": "过期时间：",
   "Explore PaxWorkspace ↗": "了解 PaxWorkspace ↗",
   "Fetch again": "重新获取",
   "Fetch and open": "获取并打开",
@@ -245,7 +240,6 @@ export const consoleMessages: Record<string, string> = {
   "On an authorized device, open Encryption access for this agent and enter this code.":
     "在已授权设备上打开此智能体的加密访问授权页面，并输入此验证码。",
   "Online devices": "在线设备",
-  "Open ": "打开 ",
   "Open artifact fullscreen": "全屏查看文件",
   "Open fetched copy (fetched ": "打开已获取的副本（获取于 ",
   "Open file": "打开文件",
@@ -447,7 +441,6 @@ export const consoleMessages: Record<string, string> = {
   "native session: private to paxd": "原生会话：仅 paxd 可见",
   "paxd working directory": "paxd 工作目录",
   "record ": "记录 ",
-  "resets ": "重置于 ",
   "resets in ": "重置倒计时：",
   "s · Waiting for access…": "秒 · 等待授权…",
   "About PaxWorkspace": "关于 PaxWorkspace",
@@ -651,4 +644,30 @@ export const consoleMessages: Record<string, string> = {
   operational: "正常运行",
   degraded: "服务降级",
   down: "不可用",
+  "This is no longer available. Reload the page and try again.":
+    "这项内容已不存在。请刷新页面后重试。",
+  "This changed in the meantime. Reload the page and try again.":
+    "内容已被修改。请刷新页面后重试。",
+  "Too many requests. Try again in a moment.": "请求过于频繁，请稍后再试。",
+  "PAX is having trouble right now. Try again in a moment.":
+    "PAX 暂时出了点问题，请稍后再试。",
+  "PAX did not accept this request.": "PAX 没有接受这次请求。",
+  "PAX could not be reached. Check your connection and try again.":
+    "连接不上 PAX。请检查网络后重试。",
+  "Something went wrong. Try again in a moment.": "出了点问题，请稍后再试。",
+  "Encrypted chats need an agent.": "加密会话需要先有一个智能体。",
+  "Revoking...": "正在撤销…",
+  "will no longer be allowed automatically. The agent has to ask again before doing it.":
+    "将不再自动允许。智能体下次执行前需要重新请求批准。",
+  "Revoke this permission?": "撤销这项授权？",
+  "Scripts and applications that use": "使用",
+  "will stop working. A revoked key cannot be restored.":
+    "的脚本和应用将无法继续访问。撤销后的密钥无法恢复。",
+  "Revoke this API key?": "撤销这个 API 密钥？",
+  "Open {provider} sign-in": "打开 {provider} 登录页",
+  "Enter this code on the {provider} page": "请在 {provider} 页面输入此验证码",
+  "Expires at {time}.": "{time} 过期。",
+  "resets soon": "即将重置",
+  "Your sign-in has expired. Sign in again to continue.":
+    "登录已过期，请重新登录后继续。",
 };

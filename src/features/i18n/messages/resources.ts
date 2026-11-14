@@ -106,8 +106,6 @@ export const resourcesMessages: Record<string, string> = {
   "Create a new agent from an available harness":
     "使用可用的运行工具创建智能体",
   "Create agent": "创建智能体",
-  "Create an agent before configuring an E2EE root key.":
-    "请先创建智能体，再配置端到端加密根密钥。",
   "Create key": "创建密钥",
   "Create node registration token": "创建节点注册令牌",
   "Create project": "创建项目",
