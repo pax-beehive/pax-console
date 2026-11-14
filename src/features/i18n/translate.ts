@@ -1,3 +1,4 @@
+import { configMessages } from "./messages/config";
 import { resourcesMessages } from "./messages/resources";
 import { homeMessages } from "./messages/home";
 import { consoleMessages } from "./messages/console";
@@ -17,6 +18,7 @@ const messages: Record<string, string> = {
   ...homeMessages,
   ...resourcesMessages,
   ...sessionsMessages,
+  ...configMessages,
 };
 
 export function resolveLocale(

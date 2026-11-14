@@ -1,0 +1,22 @@
+{
+  "fixtures": true,
+  "pass": true,
+  "screenshots": [
+    "config-en-1440-features.png",
+    "config-en-1440-editor-partial-conflict.png",
+    "config-en-1440-settings.png",
+    "config-en-1440-audit.png",
+    "config-en-390-features.png",
+    "config-en-390-editor-partial-conflict.png",
+    "config-en-390-settings.png",
+    "config-en-390-audit.png",
+    "config-zh-CN-1440-features.png",
+    "config-zh-CN-1440-editor-partial-conflict.png",
+    "config-zh-CN-1440-settings.png",
+    "config-zh-CN-1440-audit.png",
+    "config-zh-CN-390-features.png",
+    "config-zh-CN-390-editor-partial-conflict.png",
+    "config-zh-CN-390-settings.png",
+    "config-zh-CN-390-audit.png"
+  ]
+}

@@ -400,6 +400,73 @@ and captures desktop/mobile screenshots under `/tmp/pax-customer-audit/`.
 
 This file is for coding agents working on PAX Console. Keep it short, factual, and current. When architecture or integration behavior changes, update this file together with `docs/architecture.zh.md`.
 
+## Runtime feature flags and configuration administration
+
+Use the exports from `src/features/flags` for `FeatureKey`, `useFeatures`,
+`useFeature`, and `FeatureRoute`. Do not reproduce stage or beta-email logic in
+components. `GET /api/pax/api/v1/user/self/features` returns the current user's
+resolved booleans. TanStack Query owns this response under
+`["features", userId, previewAsUser]`, with a 60-second stale time and window-focus
+refresh. The existing Zustand `previewAsUser` state adds `?as=user`, so Manager
+computes the ordinary-user view. Loading and errors without cached data are
+disabled; a refetch error can retain cached flags. Only a 404 response enables
+the legacy `canSeeAdminFeatures` fallback for older Managers.
+
+Collaboration navigation on desktop and mobile uses `collaboration`; its route
+wrapper also checks `FeatureRoute` before mounting page queries. Session
+Knowledge capsules/injections uses `knowledge_capsules`. Keep Customers, Push
+subscriptions, Summary developer, and the preview switch on the existing
+effective-admin check. Settings organization and individual Settings entry
+gates belong to their owning modules; they can import the shared flags exports.
+`FeatureRoute` hides children while the first result loads, then redirects a
+disabled `/settings/*` route to `/settings` and other disabled routes to `/`.
+Its optional `fallbackHref` accepts only those two targets. It guards direct
+links but never replaces server authorization.
+
+`/admin/config` contains the regional feature flags, service configuration, and
+audit tabs. The sidebar entry is administrator-only; unauthorized direct visits
+return to Home. Render the Manager's registry metadata rather than maintaining
+a second registry in Console. Reuse `src/components/ui` primitives and route
+every label through `t()` with English and zh-CN translations.
+
+All configuration calls use `apiFetch` and
+`/api/pax/api/v1/admin/config`, including test, audit, reset, and revert actions.
+Append `region=us|hk` to select a target using the same server-side regional
+routing and trusted identity forwarding used by customer analytics and
+subscription administration. The browser must not fetch a Manager origin
+directly or create a second regional identity mechanism. The paired regional
+gateway must route this configuration prefix and Manager's existing
+`foreignAdminTarget` policy must permit it; deploy that support before relying
+on cross-region configuration operations.
+
+Snapshot keys are `["runtime-config", userId, region]`; paginated audit keys are
+`["runtime-config-audit", userId, region, key ?? ""]`, with 50 records per page.
+Server snapshots and audit records remain in TanStack Query. Region, tab,
+drawer selection, and other client interactions are UI state. Never copy
+resolved entries or audits into Zustand. `config-admin-store` owns region/tab;
+`config-editor-store` creates isolated, non-persisted page and drawer drafts.
+Secret inputs remain uncontrolled and are cleared before dispatch. Mutation
+variables cache only the action and retained closures cannot re-read plaintext.
+Inputs always start empty; only the Manager's masked display can be shown.
+
+Every write, reset, and revert requires a reason (at most 500 characters) and
+the target entry's `expected_version`. Reset uses DELETE to remove the database
+override; revert restores an audit record's old value, including stored secrets
+without exposing them. A 409 refreshes the current entry and shows a conflict;
+never retry with a new version automatically. Confirm changes to `off` or `ga`
+with the affected feature, regions, and user scope. Use `Badge` for `db`, `env`,
+and `default` sources and display pending-restart/vault/degraded state from the
+response.
+
+Applying to both regions performs sequential independent writes, using each
+region's version and reporting each result. Preserve a successful result when
+the other region conflicts or fails; this operation is not atomic. Explicit
+review refreshes only failed regions, and retry writes only those regions with
+their reviewed versions. Keep the completed region's success visible. Copying
+US values to HK accepts only non-secret values. Connection tests send the group
+and unsaved overrides to `/test` and never persist configuration. A test result
+belongs to its region and group; switching regions must not carry it forward.
+
 ## Public product overview
 
 `/overview` (English) and `/zh/overview` (Simplified Chinese) are public
@@ -442,7 +509,7 @@ existing text); the user reviews/sends it. Keep the node-detail entry available.
 
 Session headers keep the title, Project / Agent, and immutable workspace visible.
 Rename and runtime reset live in Session actions. One panel-right button opens
-Artifacts / Browser / Knowledge (admin-only); tool evidence is a contextual tab.
+Artifacts / Browser / Knowledge (`knowledge_capsules` flag); tool evidence is a contextual tab.
 Mobile resources use a bottom sheet; desktop keeps a right panel. Home's left
 hamburger opens recent sessions, not a duplicate horizontal tab strip.
 SessionSettings provides one modal surface for both new and existing sessions:
@@ -733,6 +800,8 @@ TanStack Query owns server data:
 
 ```txt
 current user
+resolved feature flags
+regional runtime configuration/audit records
 nodes
 agents
 sessions
@@ -767,16 +836,18 @@ Closing a top tab is UI-only: it must not archive or delete the durable session,
 stop a turn, or cancel the agent. Only the active tab mounts
 `SessionWorkbench`.
 
-Admin-only experimental UI must use the shared effective admin view. A real
-admin can enable `Preview as user` from the top-right user menu; while enabled,
-the UI must hide the same experimental controls hidden from normal users.
-Knowledge panels, fake inquiries, image attachment, and voice
-input currently follow this rule. Tool evidence and the read-only Session
+Admin-only tools and remaining experimental UI must use the shared effective
+admin view. A real admin can enable `Preview as user` from the top-right user
+menu; flagged features then use Manager's `?as=user` calculation, and
+administrator tools remain hidden. Knowledge panels use the
+`knowledge_capsules` flag; fake inquiries, image attachment, and voice input
+retain their existing effective-admin policy. Tool evidence and the read-only Session
 Artifacts panel remain available to all session users. The Artifacts panel
 supports list, refresh, signed preview, and download; it does not expose the
 legacy browser upload control.
-The Collaboration navigation group is also admin-only for the current public
-release. Both desktop and mobile navigation must honor preview-as-user mode.
+The Collaboration navigation group uses `useFeature("collaboration")` on both
+desktop and mobile. Its availability follows Manager's stage and trial list,
+including the ordinary-user preview.
 
 Workspace search is available to every authenticated user, including admins
 using Preview as user. It is an owner-scoped production feature, not an
@@ -1740,6 +1811,7 @@ These deep links should remain directly reachable:
 /collaboration/friends         Friends
 /collaboration/envelopes       Envelopes
 /collaboration/knowledge       Knowledge
+/admin/config                  Runtime configuration (administrators)
 /settings                      Desktop Notifications; mobile Settings directory
 /settings/devices              Devices; ?view=agents selects Agents
 /settings/devices/add          Quick connect / Browser sign-in
@@ -1952,6 +2024,18 @@ https://paxworkspace.net
 ```
 
 Use the Browser plugin for visible app verification when available.
+
+`.github/workflows/console-checks.yml` runs typecheck, all Console source lint,
+the configuration browser-smoke script lint, all `src` Vitest tests (four workers),
+the public-pages Worker tests, and a production build. It enforces at least 80%
+per-file lines, statements, functions, and branches for the flags hooks/route
+guard and runtime-config transport/query hooks. Match its commands for local
+verification. The lint target is `src scripts/config-admin-smoke.mjs` because
+the existing `scripts/vnc-page-browser-check.cjs` has unrelated
+`no-require-imports` errors. Vitest is scoped to `src` because the Worker's
+`.mjs` tests use `node:test` and must run separately with
+`node --test workers/public-pages/index.test.mjs`; all Console source remains
+covered by the workflow.
 
 ## Session command completion
 

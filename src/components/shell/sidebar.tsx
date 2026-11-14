@@ -18,6 +18,7 @@ import {
   MailPlus,
   Search,
   Settings,
+  SlidersHorizontal,
   Users,
 } from "lucide-react";
 import { LucideIcon } from "lucide-react";
@@ -25,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { PaxLogo } from "@/components/ui/pax-logo";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useConsoleStore } from "@/stores/console-store";
+import { useFeature } from "@/features/flags";
 import { CONTACT_MAILTO } from "@/lib/contact";
 import { isSettingsRoute } from "@/components/settings/settings-catalog";
 import { SettingsSidebar } from "@/components/settings/settings-navigation";
@@ -93,6 +95,7 @@ function WorkspaceSidebar({
   showAdminFeatures: boolean;
 }) {
   const { t } = useI18n();
+  const collaborationEnabled = useFeature("collaboration");
   const collapsed = useConsoleStore((state) => state.sidebarCollapsed);
   const setCollapsed = useConsoleStore((state) => state.setSidebarCollapsed);
 
@@ -142,7 +145,7 @@ function WorkspaceSidebar({
         <div className="grid flex-1 content-start gap-0.5 overflow-y-auto">
           {primaryNavItems
             .filter(
-              (item) => showAdminFeatures || item.label !== "Collaboration",
+              (item) => collaborationEnabled || item.label !== "Collaboration",
             )
             .map((item) => (
               <NavEntry collapsed={collapsed} item={item} key={item.label} />
@@ -167,6 +170,14 @@ function WorkspaceSidebar({
           />
           {showAdminFeatures && (
             <>
+              <NavEntry
+                collapsed={collapsed}
+                item={{
+                  href: "/admin/config",
+                  icon: SlidersHorizontal,
+                  label: "Runtime configuration",
+                }}
+              />
               <NavEntry
                 collapsed={collapsed}
                 item={{

@@ -19,6 +19,8 @@ import type { User } from "@/features/api/types";
 import type { PushReceiver } from "@/features/analytics/subscription-data";
 import { Sidebar } from "@/components/shell/sidebar";
 
+vi.mock("@/features/flags", () => ({ useFeature: () => false }));
+
 const navigation = vi.hoisted(() => ({ search: "" }));
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(navigation.search),
