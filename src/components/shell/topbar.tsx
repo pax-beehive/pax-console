@@ -63,7 +63,6 @@ export function Topbar({ user }: TopbarProps) {
         </form>
       </div>
       <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-        <LanguageSwitcher />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -94,6 +93,8 @@ export function Topbar({ user }: TopbarProps) {
                 </span>
               )}
             </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <LanguageSwitcher />
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
               <Link href="/settings">

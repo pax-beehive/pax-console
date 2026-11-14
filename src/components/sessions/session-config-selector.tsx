@@ -67,6 +67,32 @@ export function configurationModel(configuration?: SessionConfiguration) {
   );
 }
 
+export function configurationUsesDeepSeek(
+  configuration?: SessionConfiguration,
+): boolean {
+  const modelOption = configuration?.options.find(
+    (option) => isModelOption(option) && !isPermissionOption(option),
+  );
+  const current = modelOption
+    ? modelOption.current_value
+    : configuration?.legacy_models?.current_model_id;
+  if (typeof current !== "string" || !current.trim()) return false;
+
+  const selectedName = modelOption
+    ? modelOption.options?.find((candidate) => candidate.value === current)
+        ?.name
+    : configuration?.legacy_models?.available?.find(
+        (candidate) => candidate.id === current,
+      )?.name;
+  // Match an explicit provider/model name, rather than an unrelated identifier
+  // such as "notdeepseek" or another available model that is not selected.
+  const deepSeekName = /(?:^|[^a-z0-9])deepseek(?=$|[^a-z0-9])/i;
+  return (
+    deepSeekName.test(current) ||
+    Boolean(selectedName && deepSeekName.test(selectedName))
+  );
+}
+
 export function configurationSummary(configuration?: SessionConfiguration) {
   const effort = configuration?.options.find(
     (option) =>

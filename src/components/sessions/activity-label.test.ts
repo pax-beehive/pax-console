@@ -3,7 +3,11 @@ import type {
   WorkActivityEvent,
   WorkstreamItem,
 } from "@/features/runtime/session-events";
-import { liveActivityLabel, showPendingActivity } from "./activity-label";
+import {
+  isLiveThoughtActivity,
+  liveActivityLabel,
+  showPendingActivity,
+} from "./activity-label";
 const thought: WorkActivityEvent = {
   type: "progress",
   id: "thought",
@@ -27,6 +31,20 @@ const tool = (
   createdAt: "2026-09-25T00:00:01Z",
 });
 describe("live activity labels", () => {
+  it("only identifies current thought when no tool is active", () => {
+    expect(isLiveThoughtActivity([thought])).toBe(true);
+    expect(isLiveThoughtActivity([tool("Read", "done"), thought])).toBe(true);
+    expect(isLiveThoughtActivity([])).toBe(false);
+    expect(isLiveThoughtActivity([{ ...thought, streaming: false }])).toBe(
+      false,
+    );
+    expect(isLiveThoughtActivity([thought, tool("Read", "done")])).toBe(false);
+    for (const status of ["running", "queued", "called"] as const) {
+      expect(isLiveThoughtActivity([tool("Read", status), thought])).toBe(
+        false,
+      );
+    }
+  });
   it("distinguishes live thought from a gap after tools or an old thought", () => {
     expect(liveActivityLabel([thought])).toBe("Thinking…");
     expect(liveActivityLabel([{ ...thought, streaming: false }])).toBe(

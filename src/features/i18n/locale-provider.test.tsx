@@ -9,7 +9,6 @@ import {
 } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { LanguageSwitcher } from "./language-switcher";
 import { LocaleProvider } from "./locale-provider";
 import {
   initializeLocale,
@@ -20,10 +19,11 @@ import { useI18n } from "./use-i18n";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/settings" }));
 function Page() {
-  const { t } = useI18n();
+  const { t, setLocale } = useI18n();
   return (
     <>
-      <LanguageSwitcher />
+      <button onClick={() => setLocale("en")}>Use English</button>
+      <button onClick={() => setLocale("zh-CN")}>Use Chinese</button>
       <h1>{t("Home")}</h1>
       <p>My project 中文</p>
     </>
@@ -47,10 +47,7 @@ describe("Given a multilingual console", () => {
     );
     expect(screen.getByRole("heading", { name: "首页" })).toBeInTheDocument();
     expect(document.documentElement.lang).toBe("zh-CN");
-    fireEvent.change(
-      screen.getByRole("combobox", { name: "Language / 语言" }),
-      { target: { value: "en" } },
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Use English" }));
     expect(screen.getByRole("heading", { name: "Home" })).toBeInTheDocument();
     expect(window.localStorage.getItem(LOCALE_STORAGE_KEY)).toBe("en");
     expect(document.documentElement.lang).toBe("en");
@@ -70,9 +67,7 @@ describe("Given a multilingual console", () => {
         <Page />
       </LocaleProvider>,
     );
-    fireEvent.change(screen.getByRole("combobox"), {
-      target: { value: "zh-CN" },
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Use Chinese" }));
     expect(screen.getByRole("heading", { name: "首页" })).toBeInTheDocument();
     act(() =>
       window.dispatchEvent(
@@ -100,9 +95,7 @@ describe("Given a multilingual console", () => {
     vi.spyOn(navigator, "languages", "get").mockReturnValue(["en-US"]);
     expect(() => initializeLocale()).not.toThrow();
     render(<Page />);
-    fireEvent.change(screen.getByRole("combobox"), {
-      target: { value: "zh-CN" },
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Use Chinese" }));
     expect(screen.getByRole("heading", { name: "首页" })).toBeInTheDocument();
   });
   it("renders the initial English snapshot without browser storage on the server", () => {

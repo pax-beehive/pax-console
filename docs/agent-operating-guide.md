@@ -121,9 +121,10 @@ while the account has an unrevoked approval grant; its route stays reachable.
 Add an `audience` to a catalog entry rather than filtering in a component.
 
 The account menu names the signed-in account and its region
-(`features/region/account-region.ts`, absent when regions are disabled) and
-links to Settings and Contact us. `/settings/language` holds the interface
-language choice and the account region.
+(`features/region/account-region.ts`, absent when regions are disabled), then
+lists the Language section, Settings and Contact us, Reload and Preview as
+user, and Sign out. `/settings/language` changes the same language preference
+and shows the account region.
 
 `SettingsPageHeader` gives each section a title and purpose description.
 Notification controls explain device scope and separate subscription actions
@@ -1529,6 +1530,29 @@ recognized running tools use concise actions such as `Reading files…` or
 show `Using tools · N running`; queued or mixed activity is labeled accurately.
 With no active tool or latest live thought, use `Working…` without inferring
 thinking or retries. Raw tool names and payloads stay inside expanded details.
+Thinking labels have a 20px whale-girl avatar only when the current session
+model configuration explicitly identifies DeepSeek. Check the selected model
+ID/name, with modern options taking precedence over the selected legacy model.
+Unknown models hide it; ignore permission mode, unselected model candidates,
+and stored session model metadata. Propagate the flag through the timeline and
+its memo comparison so confirmed model changes update existing rows.
+The avatar rotates once every three seconds only for the current live thought.
+Share `isLiveThoughtActivity` with the label;
+tools, approvals, stale thoughts, and completed work must not animate the avatar.
+Honor reduced motion. Serve the transparent asset through Next Image at its
+display size; see [asset provenance and prompt](whale-chan-thinking-asset.md).
+Finished thoughts show `Thought for 1s` (`已深度思考1s` in Chinese), with up to
+one decimal place from observed timestamps. A following tool or approval ends
+the thought before execution or approval wait. Only pure thought groups may
+use their completion boundary; mixed-group final thoughts, legacy aggregates,
+and unavailable boundaries omit duration. Pure thought groups use the same
+finished label and, for DeepSeek, a static avatar; mixed work groups retain their
+work label. Other models keep the normal activity/disclosure icons and all
+thought labels and durations.
+Native tool summaries select the Tool evidence panel only when opening. Read
+`details.open` before the default toggle: collapsing a tool, including an
+auto-opened approval, must not reopen a closed evidence panel. Preserve native
+mouse, touch, and Enter/Space disclosure behavior.
 During streaming, retain the lightweight pending indicator after commentary
 unless the last item is an active activity row with its own feedback. Do not
 gate it on whether the turn has ever produced output. Idle, terminal, unknown,
@@ -3182,10 +3206,13 @@ than re-implementing send-while-dictating.
 
 ## Interface languages
 
-The authenticated Console supports English and Simplified Chinese. The compact
-language selector in the topbar works on desktop and mobile. `LocaleProvider`
-restores `pax-console-locale` from browser localStorage, otherwise chooses the
-first supported browser language (all `zh-*` variants use Simplified Chinese).
+The authenticated Console supports English and Simplified Chinese. On desktop
+and mobile, open the top-right user menu to find the compact Language section.
+Its English and 简体中文 radio items show the current choice with a checkmark;
+selecting one switches immediately and closes the menu. The topbar has no
+separate language control. `LocaleProvider` restores `pax-console-locale` from
+browser localStorage, otherwise chooses the first supported browser language
+(all `zh-*` variants use Simplified Chinese).
 English is the server and initial hydration snapshot. Storage failures must not
 prevent an in-memory switch. Storage events synchronize other tabs.
 

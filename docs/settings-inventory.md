@@ -34,9 +34,10 @@ that opens `/settings/advanced`, a directory of its two tools; the sidebar lists
 them directly. Contact us is in the sidebar footer, on the narrow overview, and
 in the account menu.
 
-The account menu (top right) names the signed-in account and its region, links
-to Settings and Contact us, and keeps Reload, the administrator's Preview as
-user, and Sign out.
+The account menu (top right) names the signed-in account and its region, then
+lists the language choice, Settings and Contact us, Reload and the
+administrator's Preview as user, and Sign out. Language & region and the menu
+change the same language preference.
 
 Device and agent detail pages retain runtime information, browser controls,
 maintenance, upgrades, secret channels, and deletion. These are contextual

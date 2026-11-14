@@ -13,7 +13,14 @@ import {
   vi,
 } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { SessionConfigSelector } from "./session-config-selector";
+import type {
+  SessionConfigOption,
+  SessionConfiguration,
+} from "@/features/api/types";
+import {
+  configurationUsesDeepSeek,
+  SessionConfigSelector,
+} from "./session-config-selector";
 
 beforeAll(() => {
   vi.stubGlobal(
@@ -270,5 +277,177 @@ describe("SessionConfigSelector", () => {
     expect(screen.getByText("Balanced everyday model")).toBeVisible();
     expect(screen.getByText("Most capable model")).toBeVisible();
     expect(screen.queryByText("Anthropic")).not.toBeInTheDocument();
+  });
+});
+
+describe("Given a session's confirmed model configuration", () => {
+  const configuredModel = (
+    current: string | boolean,
+    option: Partial<SessionConfigOption> = {},
+  ): SessionConfiguration => ({
+    session_id: "model-session",
+    can_set: true,
+    can_force_refresh: true,
+    options: [
+      {
+        id: "model",
+        name: "Model",
+        category: "model",
+        type: "select",
+        current_value: current,
+        options: [
+          { value: "gpt-6", name: "GPT-6" },
+          { value: "provider/deepseek-v4", name: "DeepSeek V4" },
+        ],
+        ...option,
+      },
+    ],
+  });
+
+  it.each([
+    "provider/deepseek-v4",
+    "deepseek:v4",
+    "DeepSeek V4",
+    "DEEPSEEK_v4",
+  ])("recognizes the selected DeepSeek model identifier %s", (model) => {
+    expect(configurationUsesDeepSeek(configuredModel(model))).toBe(true);
+  });
+
+  it("recognizes a selected model's display name with an opaque identifier", () => {
+    expect(
+      configurationUsesDeepSeek(
+        configuredModel("model-42", {
+          options: [{ value: "model-42", name: "DeepSeek V4" }],
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it("recognizes a DeepSeek identifier even when its display name is custom", () => {
+    expect(
+      configurationUsesDeepSeek(
+        configuredModel("deepseek:v4", {
+          options: [{ value: "deepseek:v4", name: "My reasoning model" }],
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it("does not infer DeepSeek from another unselected candidate", () => {
+    expect(configurationUsesDeepSeek(configuredModel("gpt-6"))).toBe(false);
+  });
+
+  it.each(["notdeepseek", "deepseeker", "deepseekish"])(
+    "does not mistake the unrelated identifier %s for DeepSeek",
+    (model) => {
+      expect(configurationUsesDeepSeek(configuredModel(model))).toBe(false);
+    },
+  );
+
+  it("prefers the modern current model over a stale DeepSeek legacy model", () => {
+    const configuration = configuredModel("gpt-6");
+    configuration.legacy_models = {
+      current_model_id: "deepseek:v4",
+      available: [{ id: "deepseek:v4", name: "DeepSeek V4" }],
+    };
+
+    expect(configurationUsesDeepSeek(configuration)).toBe(false);
+  });
+
+  it("uses only the selected legacy model's identifier and name", () => {
+    const configuration: SessionConfiguration = {
+      ...configuredModel("gpt-6"),
+      options: [],
+      legacy_models: {
+        current_model_id: "opaque-model",
+        available: [
+          { id: "opaque-model", name: "DeepSeek V4" },
+          { id: "gpt-6", name: "GPT-6" },
+        ],
+      },
+    };
+
+    expect(configurationUsesDeepSeek(configuration)).toBe(true);
+    expect(
+      configurationUsesDeepSeek({
+        ...configuration,
+        legacy_models: {
+          ...configuration.legacy_models,
+          current_model_id: "gpt-6",
+        },
+      }),
+    ).toBe(false);
+    expect(
+      configurationUsesDeepSeek({
+        ...configuration,
+        legacy_models: { current_model_id: "deepseek:v4" },
+      }),
+    ).toBe(true);
+  });
+
+  it.each(["", "   ", "unknown", false, true])(
+    "keeps an unknown modern model %s hidden despite a DeepSeek legacy value",
+    (current) => {
+      expect(
+        configurationUsesDeepSeek({
+          ...configuredModel(current),
+          legacy_models: { current_model_id: "deepseek:v4" },
+        }),
+      ).toBe(false);
+    },
+  );
+
+  it("ignores permission modes and unrelated configuration values", () => {
+    expect(
+      configurationUsesDeepSeek({
+        ...configuredModel("gpt-6"),
+        options: [
+          {
+            id: "mode",
+            name: "Permission mode",
+            category: "mode",
+            type: "select",
+            current_value: "deepseek:v4",
+          },
+          {
+            id: "theme",
+            name: "Theme",
+            type: "select",
+            current_value: "DeepSeek V4",
+          },
+        ],
+      }),
+    ).toBe(false);
+  });
+
+  it.each([
+    { id: "models", category: undefined },
+    { id: "provider_model", category: "model" },
+  ])("accepts the existing model option convention %s", (option) => {
+    expect(
+      configurationUsesDeepSeek(configuredModel("deepseek:v4", option)),
+    ).toBe(true);
+  });
+
+  it("responds to confirmed model changes without retaining a previous match", () => {
+    const configuration = configuredModel("provider/deepseek-v4");
+    expect(configurationUsesDeepSeek(configuration)).toBe(true);
+    configuration.options[0].current_value = "gpt-6";
+    expect(configurationUsesDeepSeek(configuration)).toBe(false);
+    configuration.options[0].current_value = "provider/deepseek-v4";
+    expect(configurationUsesDeepSeek(configuration)).toBe(true);
+  });
+
+  it("keeps absent configuration and unselected legacy models hidden", () => {
+    expect(configurationUsesDeepSeek()).toBe(false);
+    expect(
+      configurationUsesDeepSeek({
+        ...configuredModel("gpt-6"),
+        options: [],
+        legacy_models: {
+          available: [{ id: "deepseek:v4", name: "DeepSeek V4" }],
+        },
+      }),
+    ).toBe(false);
   });
 });

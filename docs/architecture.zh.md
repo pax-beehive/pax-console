@@ -129,8 +129,8 @@ status）跟随 `canSeeAdminFeatures`，管理员开启“预览用户视图”�
 更大范围选项的客户端，这里是撤销它们的入口），路由本身仍可直接访问。
 
 右上角账户菜单显示当前账户和账户区域（`features/region/account-region.ts`，未启用
-区域时不显示），提供 Settings、Contact us、Reload、管理员的 Preview as user 和 Sign out。
-`/settings/language` 提供界面语言选择并显示账户区域。
+区域时不显示），之后依次是“语言”分组、Settings 与 Contact us、Reload 与管理员的
+Preview as user、Sign out。`/settings/language` 修改的是同一个界面语言偏好，并显示账户区域。
 
 设置页面复用 `SettingsPageHeader`，明确标题、用途与操作范围，手机保留原有标题布局。
 设备/Agent 详情和加密配对旧路径仍保持所属入口高亮。`useDesktopSettings` 只用于通知页
@@ -687,9 +687,23 @@ src/components/sessions/
   活动行。明确的最新流式思考显示 Thinking…；可识别的运行工具显示 Reading files…
   等动作，未知工具显示 Using tools…，并行工具显示数量，排队不冒充执行。
   没有活跃工具和最新流式思考时显示 Working…，不推断正在思考或重试。
+  仅当前会话模型配置明确为 DeepSeek 时在思考标签前展示 20px 鲸鱼娘头像；
+  读取所选模型 ID/名称，现代配置优先于旧模型配置，不扫描未选候选、权限模式或
+  会话旧模型元数据。未知模型隐藏头像，模型确认切换后通过 timeline prop 和 memo
+  比较同步现有行；其他模型保留普通活动图标、思考文案和耗时。
+  仅当前活跃思考每 3 秒旋转一圈，
+  与标签共用 `isLiveThoughtActivity` 判断，工具、审批、历史和完成态不旋转。
+  遵循减少动态偏好，透明资源经 Next Image 按显示尺寸优化；
+  [资源来源与生成提示词](whale-chan-thinking-asset.md)保留在仓内。
+  思考结束后显示“已深度思考1s”，按可用的起止事件时间保留最多一位小数；
+  下一工具或审批即截停计时，不计入工具执行和审批等待。仅纯思考组可用组结束时间，
+  混合组末段、旧聚合格式及缺少有效边界时仅显示“已深度思考”。纯思考完成组同步
+  使用完成文案，DeepSeek 保留静态头像，含工具的完成组保持工作时长标签。
   执行中的消息尾部若没有活跃活动行，则保留呼吸灯/三点等待动画；不能因本轮曾有
   输出就永久隐藏。已有活动行动画时不重复展示，结束、取消、失败或待授权时收起。
-  原始工具名称与内容保留在展开详情中。活动段结束后显示轻量的 `› Worked for 18s`，
+  原始工具名称与内容保留在展开详情中。工具行仅在展开时选择 Tool 证据面板；
+  点击时读取原生 `details.open`，折叠（包括自动展开的待审批工具）不得重新弹出
+  已关闭的证据面板，保留原生鼠标、触摸和 Enter/Space 行为。活动段结束后显示轻量的 `› Worked for 18s`，
   无有效结束边界时仅显示 `Worked`，不再统计操作数量或显示完成勾号。单个工具也使用同一活动行；活动段
   展开后直接显示各项思考和工具记录，去掉中间的 Tool calls 分组。
   工具失败只保留在操作详情，由 agent 处理，不提供用户重试按钮、不改变 session
@@ -2726,7 +2740,9 @@ it does not add HLS packaging, transcoding, or adaptive quality selection.
 
 ## 控制台中英文界面
 
-登录后的控制台支持英语与简体中文，桌面和移动端均可在顶栏选择语言。
+登录后的控制台支持英语与简体中文。桌面和移动端均从右上角用户菜单的
+“语言”分组选择 English 或简体中文；选项用勾选标明当前语言，点击后立即
+切换并关闭菜单。顶栏不再单独显示语言控件。
 `features/i18n/locale-store.ts` 以独立 Zustand store 保存当前界面语言；
 浏览器 localStorage 的 `pax-console-locale` 仅保存显式选择，首次访问按
 浏览器语言优先级匹配，所有 `zh-*` 语言归为简体中文，其他语言回退英语。

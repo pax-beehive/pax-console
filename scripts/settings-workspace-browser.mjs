@@ -184,10 +184,19 @@ try {
     }
     await page.screenshot({ path: `${output}/${size}-overview.png` });
 
-    // The account menu names the account and reaches settings and support.
+    // The account menu names the account, holds the language choice, and
+    // reaches settings and support; the top bar has no language control.
+    assert.equal(await page.locator("header").getByRole("combobox").count(), 0);
     await page.getByRole("button", { name: "User menu", exact: true }).click();
     const menu = page.getByRole("menu");
     await menu.getByText("alex@example.invalid", { exact: true }).waitFor();
+    assert.equal(
+      await menu
+        .getByRole("menuitemradio", { name: "English", exact: true })
+        .getAttribute("aria-checked"),
+      "true",
+    );
+    await menu.getByRole("menuitemradio", { name: "简体中文" }).waitFor();
     assert.equal(
       await menu
         .getByRole("menuitem", { name: "Settings", exact: true })
