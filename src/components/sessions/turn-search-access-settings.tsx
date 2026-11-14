@@ -23,15 +23,15 @@ export function TurnSearchAccessSettings(props: Props) {
   if (settings.page.id === "home") {
     return (
       <SettingsRow
-        label={t("Expand search scope")}
+        label={t("Session search access")}
         value={
           props.disabled
             ? t("Unavailable")
             : props.value
-              ? t("Next turn")
+              ? t("Next turn preauthorized")
               : props.autoApprove
-                ? t("Auto expansion")
-                : t("Own agent")
+                ? t("Auto-approve requests")
+                : t("Only this agent")
         }
         disabled={props.disabled}
         tooltip={
@@ -42,7 +42,7 @@ export function TurnSearchAccessSettings(props: Props) {
         onClick={() =>
           settings.navigate({
             id: "turn-search",
-            title: t("Expand search scope"),
+            title: t("Session search access"),
           })
         }
       />
@@ -85,7 +85,7 @@ function SearchAccessEditor({
         </p>
       )}
       <SettingsToggle
-        label={t("Expand scope for next turn")}
+        label={t("Preauthorize next turn")}
         checked={enabled}
         disabled={disabled}
         onChange={setEnabled}
