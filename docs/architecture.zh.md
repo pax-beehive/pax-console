@@ -266,6 +266,49 @@ TanStack observer 禁用自动 mount/focus/reconnect/retry，调度器是唯一�
 历史未知值保留为 Unknown。加密消息只能确认存在活动，不推算用户发送条数。
 普通账号筛选表示排除管理员，不把权限角色当成内外部客户分类。
 
+## 运行时功能开关与配置后台
+
+`src/features/flags` 提供 `useFeatures`、`useFeature`、`FeatureRoute` 和
+`FeatureKey`，供导航、会话与设置模块复用。服务端布尔结果由 TanStack Query
+请求 `GET /api/pax/api/v1/user/self/features`，query key 为
+`["features", userId, previewAsUser]`，60 秒内保持新鲜，窗口重新聚焦时刷新。
+管理员的 `previewAsUser` 来自现有 console Zustand store，开启时传 `?as=user`，
+让 Manager 按普通用户计算，而不是在浏览器猜测试用名单或管理员阶段。
+加载中和请求失败且没有缓存时视为关闭；重新读取失败时继续使用已有缓存。
+仅 features 接口返回 404 时兼容旧 Manager，退回 `canSeeAdminFeatures` 的旧行为。
+
+桌面和手机的 Collaboration 导航使用 `collaboration`，其直接路由也在挂载页面查询前
+由 `FeatureRoute` 检查。会话工作台的 Knowledge
+capsules/injections 使用 `knowledge_capsules`。Customers、Push subscriptions、
+Summary developer 和预览开关仍是管理员工具，继续使用有效管理员视图；
+settings 的页面分类和各入口接入由对应模块负责。`FeatureRoute` 在初次解析时隐藏
+内容，确认未开启后将 `/settings/*` 跳到 `/settings`，其余路由跳到 `/`；也可显式
+指定这两个安全目标之一。它用于阻止直接访问未开启功能，不代替 Manager 的接口鉴权。
+
+`/admin/config` 是管理员的运行时配置后台，包含区域选择、功能开关、服务配置和
+修改记录。配置快照和审计记录属于 TanStack Query；区域、tab、编辑抽屉与表单等
+客户端交互属于 UI 状态。后台使用登记表返回的类型、选项、来源、版本和热更新
+能力，不在 Console 另设配置登记表。来源使用共享 `Badge` 展示。功能阶段为
+关闭、仅管理员、指定用户试用和全部开放，切到关闭或全部开放时必须再次确认影响范围。
+
+所有请求都经同源 `/api/pax/api/v1/admin/config`，通过 `region=us|hk` 指定目标。
+复用 customer-analytics 的可信服务端区域路由与身份转发，不让浏览器直接连接
+Manager，也不改变账号归属；目标 Manager 使用既有 `foreignAdminTarget` 机制
+独立验证管理员身份。两个区域应用配置时依次写入，各自使用该区的版本号并分别展示
+成功、冲突或失败；部分成功不会被显示成整体成功。检查与重试只处理失败的区域，
+保留成功结果，不重复写入已成功的区域。尝试后的操作类型与非密钥草稿保持固定，
+通过“开始新修改”刷新当前区域后才能编辑并向全部所选区域发起新操作；恢复默认的
+重试仍使用 DELETE。密钥重试需重新输入相同值。跨区复制只允许非密钥值。
+
+保存、恢复默认和回滚都要求原因，并携带 `expected_version`。409 后刷新当前值，
+保留冲突提示，不自动覆盖别人的修改；恢复默认调用 DELETE，回滚恢复指定审计记录
+中的旧值。测试连接使用当前配置与未保存改动，不写入数据库。密钥只允许输入新值，
+输入框始终不回填已有值；页面与修改记录仅展示 Manager 提供的脱敏值。
+
+`console-checks.yml` 对 Console 全部 `src` 执行类型、lint 和测试检查，并对 flags
+与 runtime-config 的 hooks/请求模块逐文件要求至少 80% 覆盖率；public-pages Worker
+的 `node:test` 测试单独运行，避免被 Vitest 当成其自身的测试集。
+
 这份文档给人读，目标是让新加入的人能快速理解：项目为什么这样分层、Cloudflare 本地开发为什么这样接、REST 和 WebSocket 后续应该怎么演进。
 
 如果你改了关键架构、认证链路、目录结构、REST/WebSocket 协议、UI primitives 或 shell 布局，请同时更新本文和 `docs/agent-operating-guide.md`。
@@ -301,7 +344,7 @@ Secret Channel 的主入口在已有 session 输入框的「＋」菜单，自�
 
 Session 标题、Project / Agent 和不可变 workspace 在顶部直接可见。重命名和
 runtime reset 在更多操作中；独立的 panel-right 入口打开 Artifacts / Browser /
-Knowledge（保留 admin 限制），工具证据按上下文进入。手机为底部面板，桌面为右栏。
+Knowledge（由 `knowledge_capsules` 功能开关控制），工具证据按上下文进入。手机为底部面板，桌面为右栏。
 轮次底部仪表盘继续按上下文已用量/容量显示，不以单轮 token 推测占用率。
 
 SessionSettings 统一承载新建/已有会话的配置和权限：手机为带遮罩的底部面板，
@@ -549,6 +592,14 @@ src/components/ui/
   EmptyState、InlineError、SectionTitle、ConfirmDialog。
   当前只把 Radix Tooltip/Slot 作为底层能力使用，还没有全面引入 shadcn 生成组件。
 
+src/features/flags/
+  用户功能开关 hooks 与 FeatureRoute；布尔结果由 Manager 解析，使用 TanStack Query
+  缓存，并支持普通用户预览和旧版 Manager 的 404 兼容。
+
+src/features/runtime-config/
+  管理员运行时配置的契约类型、同源区域请求、快照与审计查询。
+  /admin/config 的页面组合位于 src/components/admin/config/。
+
 src/components/collaboration/
   Collaboration 工作区页面。teams 和 friends 是独立路由页面
   （/collaboration/teams、/collaboration/friends），teams 页内部按
@@ -581,10 +632,10 @@ src/components/home/
   `primary_project_id` 只表达单一的主要
   启动上下文；未来 secretary agent 给一个 Session 标多个 Project 应使用独立
   多对多 label/association，不复用这个字段。admin 可在右上角用户菜单启用
-  `Preview as user`，临时隐藏所有 admin-only 实验入口，以检查公开版本。
+  `Preview as user`，隐藏管理员工具并让功能开关按普通用户计算，以检查公开版本。
   该模式属于 Zustand 客户端 UI 状态。
-  Collaboration 当前也属于 admin-only 工作区；普通用户和 `Preview as user` 模式
-  的桌面、移动导航都不显示该入口。
+  Collaboration 的桌面、移动导航都由 `useFeature("collaboration")` 控制；
+  Manager 的阶段和试用名单决定普通用户能否看到该入口。
   底部 composer 保持 clean session 默认入口，并提供 agent 选择、附件入口和
   tool-call approval 偏好；重名 agent 在 agent selector 中显示为
   `agent @ node`。nodes / agents 的详细列表仍放在 Settings 组的子页里，
@@ -668,8 +719,8 @@ src/components/sessions/
 
   公开用户的 Session 右侧上下文面板提供 Tool evidence 和只读 Artifacts；
   Artifacts 支持列表、刷新、signed URL 预览和下载，不提供旧的浏览器上传入口。
-  Knowledge、未接通的语音输入等实验入口只对 admin 展示，并受
-  `Preview as user` 开关控制。
+  Knowledge capsules/injections 由 `useFeature("knowledge_capsules")` 控制。
+  其余尚未迁移的管理员实验入口继续受有效管理员视图控制。
 
   连续的 thought/progress 与 tool call 从第 1 个事件起按原顺序聚合为默认折叠的
   活动行。明确的最新流式思考显示 Thinking…；可识别的运行工具显示 Reading files…
@@ -801,6 +852,8 @@ TanStack Query 管这些：
 
 ```txt
 current user
+resolved feature flags
+regional runtime configuration / audit records
 nodes
 agents
 sessions
@@ -1077,6 +1130,7 @@ Sidebar 一级入口是粗粒度工作区（顶部 Home / Collaboration，底部
 /collaboration/friends         Friends
 /collaboration/envelopes       Envelopes
 /collaboration/knowledge       Knowledge capsules
+/admin/config                  Runtime configuration (administrators)
 /settings                      桌面 Notifications；手机 Settings 目录
 /settings/devices              Devices; ?view=agents selects Agents
 /settings/devices/add          Quick connect / Browser sign-in

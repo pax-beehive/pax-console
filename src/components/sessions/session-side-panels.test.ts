@@ -7,7 +7,7 @@ describe("canSeeSessionSidePanel", () => {
     expect(canSeeSessionSidePanel("artifacts", false)).toBe(true);
   });
 
-  it("keeps knowledge tools admin-only", () => {
+  it("shows knowledge tools only when the knowledge capsules feature is enabled", () => {
     expect(canSeeSessionSidePanel("knowledge", false)).toBe(false);
     expect(canSeeSessionSidePanel("knowledge", true)).toBe(true);
   });

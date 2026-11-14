@@ -7,7 +7,7 @@ export type SessionSidePanelId =
 
 export function canSeeSessionSidePanel(
   panelId: SessionSidePanelId,
-  showAdminFeatures: boolean,
+  knowledgeCapsulesEnabled: boolean,
 ) {
-  return panelId !== "knowledge" || showAdminFeatures;
+  return panelId !== "knowledge" || knowledgeCapsulesEnabled;
 }

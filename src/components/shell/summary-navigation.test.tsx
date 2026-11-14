@@ -10,11 +10,15 @@ import { AdminAnalyticsNav } from "@/components/analytics/admin-analytics-nav";
 import { Sidebar } from "./sidebar";
 import { MobileNav } from "./mobile-nav";
 
+vi.mock("@/features/flags", () => ({ useFeature: () => true }));
+
+const navigation = vi.hoisted(() => ({ pathname: "/admin/summaries" }));
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/admin/summaries",
+  usePathname: () => navigation.pathname,
   useSearchParams: () => new URLSearchParams(),
 }));
 beforeEach(() => {
+  navigation.pathname = "/admin/summaries";
   vi.stubGlobal("React", React);
   useConsoleStore.setState({ sidebarCollapsed: false });
 });
@@ -57,6 +61,22 @@ describe("summary developer navigation", () => {
     ).toHaveAttribute("href", "/admin/summaries");
     expect(
       screen.getByRole("link", { name: "Summary developer" }),
+    ).toHaveAttribute("aria-current", "page");
+  });
+
+  it("keeps configuration selected in the administrator desktop and mobile navigation", () => {
+    navigation.pathname = "/admin/config";
+    render(
+      <TooltipProvider>
+        <Sidebar showAdminFeatures />
+        <MobileNav showAdminFeatures />
+      </TooltipProvider>,
+    );
+    expect(
+      screen.getByRole("link", { name: "Runtime configuration" }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(
+      screen.getAllByRole("link", { name: "Customers" })[1],
     ).toHaveAttribute("aria-current", "page");
   });
 });

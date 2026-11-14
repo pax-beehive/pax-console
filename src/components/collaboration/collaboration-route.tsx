@@ -1,33 +1,32 @@
 "use client";
 
 import { AuthGate } from "@/features/auth/auth-gate";
+import { FeatureRoute } from "@/features/flags";
 import { EnvelopesPageClient } from "./envelopes-page-client";
 import { FriendsPageClient } from "./friends-page-client";
 import { KnowledgePageClient } from "./knowledge-page-client";
 import { TeamsPageClient } from "./teams-page-client";
 
+const pageClients = {
+  envelopes: EnvelopesPageClient,
+  friends: FriendsPageClient,
+  knowledge: KnowledgePageClient,
+  teams: TeamsPageClient,
+};
+
 type CollaborationRouteProps = {
-  kind: "envelopes" | "friends" | "knowledge" | "teams";
+  kind: keyof typeof pageClients;
 };
 
 export function CollaborationRoute({ kind }: CollaborationRouteProps) {
+  const PageClient = pageClients[kind];
   return (
     <AuthGate>
-      {(user) => {
-        if (kind === "envelopes") {
-          return <EnvelopesPageClient user={user} />;
-        }
-
-        if (kind === "friends") {
-          return <FriendsPageClient user={user} />;
-        }
-
-        if (kind === "knowledge") {
-          return <KnowledgePageClient user={user} />;
-        }
-
-        return <TeamsPageClient user={user} />;
-      }}
+      {(user) => (
+        <FeatureRoute feature="collaboration">
+          <PageClient user={user} />
+        </FeatureRoute>
+      )}
     </AuthGate>
   );
 }

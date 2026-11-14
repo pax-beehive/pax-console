@@ -1,5 +1,6 @@
 "use client";
 import { useI18n } from "@/features/i18n/use-i18n";
+import { useFeature } from "@/features/flags";
 
 import Link from "next/link";
 import {
@@ -34,7 +35,12 @@ const items = [
     href: "/admin/customers",
     icon: ChartNoAxesCombined,
     label: "Customers",
-    matches: ["/admin/customers", "/admin/notifications", "/admin/summaries"],
+    matches: [
+      "/admin/customers",
+      "/admin/notifications",
+      "/admin/summaries",
+      "/admin/config",
+    ],
   },
   {
     href: "/settings",
@@ -51,40 +57,44 @@ export function MobileNav({
 }) {
   const { t } = useI18n();
   const pathname = usePathname();
+  const collaborationEnabled = useFeature("collaboration");
+  const visibleItems = items.filter((item) => {
+    if (item.label === "Collaboration") return collaborationEnabled;
+    if (item.label === "Customers") return showAdminFeatures;
+    return true;
+  });
 
   return (
     <nav
       aria-label={t("Primary")}
       className={`absolute inset-x-0 bottom-0 z-50 grid h-[var(--console-mobile-nav-height)] border-t border-hairline bg-surface-1/95 px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] backdrop-blur lg:hidden ${
-        showAdminFeatures ? "grid-cols-5" : "grid-cols-3"
+        visibleItems.length === 5
+          ? "grid-cols-5"
+          : visibleItems.length === 4
+            ? "grid-cols-4"
+            : "grid-cols-3"
       }`}
     >
-      {items
-        .filter(
-          (item) =>
-            showAdminFeatures ||
-            !["Collaboration", "Customers"].includes(item.label),
-        )
-        .map((item) => {
-          const active = item.matches.some((path) =>
-            path === "/"
-              ? pathname === "/"
-              : pathname === path || pathname.startsWith(`${path}/`),
-          );
-          return (
-            <Link
-              aria-current={active ? "page" : undefined}
-              className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-md text-[11px] transition ${
-                active ? "text-accent-bright" : "text-ink-tertiary"
-              }`}
-              href={item.href}
-              key={item.href}
-            >
-              <item.icon className="h-5 w-5" />
-              <span className="max-w-full truncate">{t(item.label)}</span>
-            </Link>
-          );
-        })}
+      {visibleItems.map((item) => {
+        const active = item.matches.some((path) =>
+          path === "/"
+            ? pathname === "/"
+            : pathname === path || pathname.startsWith(`${path}/`),
+        );
+        return (
+          <Link
+            aria-current={active ? "page" : undefined}
+            className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-md text-[11px] transition ${
+              active ? "text-accent-bright" : "text-ink-tertiary"
+            }`}
+            href={item.href}
+            key={item.href}
+          >
+            <item.icon className="h-5 w-5" />
+            <span className="max-w-full truncate">{t(item.label)}</span>
+          </Link>
+        );
+      })}
     </nav>
   );
 }
