@@ -2,11 +2,21 @@
 import { LanguageSwitcher } from "@/features/i18n/language-switcher";
 import { useI18n } from "@/features/i18n/use-i18n";
 
-import { Check, ChevronDown, LogOut, RefreshCw, UserRound } from "lucide-react";
+import Link from "next/link";
+import {
+  Check,
+  ChevronDown,
+  LogOut,
+  Mail,
+  RefreshCw,
+  Settings,
+  UserRound,
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -15,6 +25,8 @@ import { TruncatedText } from "@/components/ui/text";
 import { signOut } from "@/features/api/client";
 import { User } from "@/features/api/types";
 import { isAdminUser } from "@/features/auth/admin-view";
+import { accountRegionName } from "@/features/region/account-region";
+import { CONTACT_MAILTO } from "@/lib/contact";
 import { useConsoleStore } from "@/stores/console-store";
 
 type TopbarProps = {
@@ -26,6 +38,8 @@ export function Topbar({ user }: TopbarProps) {
   const previewAsUser = useConsoleStore((state) => state.previewAsUser);
   const setPreviewAsUser = useConsoleStore((state) => state.setPreviewAsUser);
   const isAdmin = isAdminUser(user);
+  const account = user.email ?? user.name ?? user.user_id;
+  const region = accountRegionName();
 
   return (
     <header className="mobile-safe-top flex min-h-11 min-w-0 items-center justify-between gap-2 border-b border-hairline bg-canvas/95 px-3 backdrop-blur sm:min-h-[var(--topbar-h)] sm:gap-4 sm:px-4">
@@ -61,15 +75,39 @@ export function Topbar({ user }: TopbarProps) {
                   {t("Signed in")}
                 </span>
                 <TruncatedText className="block max-w-44 text-sm text-ink-muted">
-                  {user.email ?? user.name ?? user.user_id}
+                  {account}
                 </TruncatedText>
               </span>
               <UserRound className="h-4 w-4 shrink-0 text-ink-muted sm:hidden" />
               <ChevronDown className="hidden h-4 w-4 shrink-0 text-ink-tertiary sm:block" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent>
+          <DropdownMenuContent className="min-w-56">
+            <DropdownMenuLabel className="grid gap-0.5">
+              <TruncatedText className="max-w-60 text-sm text-ink">
+                {account}
+              </TruncatedText>
+              {region && (
+                <span>
+                  {t("Account region: {region}", { region: t(region) })}
+                </span>
+              )}
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
             <LanguageSwitcher />
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href="/settings">
+                <Settings className="h-4 w-4 shrink-0" />
+                {t("Settings")}
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <a href={CONTACT_MAILTO}>
+                <Mail className="h-4 w-4 shrink-0" />
+                {t("Contact us")}
+              </a>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => window.location.reload()}>
               <RefreshCw className="h-4 w-4 shrink-0" />
@@ -87,6 +125,7 @@ export function Topbar({ user }: TopbarProps) {
                 {t("Preview as user")}
               </DropdownMenuItem>
             )}
+            <DropdownMenuSeparator />
             <DropdownMenuItem
               onSelect={() => {
                 signOut();

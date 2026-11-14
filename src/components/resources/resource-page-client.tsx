@@ -284,13 +284,8 @@ export function ResourcePageClient({ kind, user }: ResourcePageClientProps) {
   );
   const meta = copy[kind];
   const sectionId = resourceSettingsSections[kind];
-  const advancedSettings = [
-    "api-keys",
-    "node-registration",
-    "security",
-    "grants",
-    "encryption",
-  ].includes(kind);
+  // Only the advanced directory's own pages return to it on narrow screens.
+  const advancedSettings = ["api-keys", "node-registration"].includes(kind);
   const description = sectionId
     ? settingsSection(sectionId).description
     : meta.eyebrow;

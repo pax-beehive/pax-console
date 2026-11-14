@@ -104,14 +104,27 @@ Homebrew and npx wrappers remain unsupported.
 
 ## Settings workspace
 
-On desktop, `/settings` opens the actual Notifications page.
-`settings/settings-catalog.ts` owns the four desktop navigation groups, ten
-sections, descriptions, and legacy-route matching. Desktop Settings uses a dedicated 272px sidebar with a Back to workspace
-link; it replaces the ordinary app navigation rather than adding another rail.
-The workspace sidebar's persisted collapsed state is preserved and restored on
-exit. Narrow screens retain the original Settings directory, Advanced settings
-list, page headings, and back links. Navigation retains the existing authenticated
-routes and query ownership.
+`settings/settings-catalog.ts` is the one settings directory: six groups,
+twelve entries, descriptions, and legacy-route matching. The desktop sidebar and
+the `/settings` overview both render it, so every screen size lists the same
+entries in the same groups. `/settings` is the overview everywhere. Desktop
+Settings uses a dedicated 272px sidebar with a Back to workspace link; it
+replaces the ordinary app navigation rather than adding another rail. The
+workspace sidebar's persisted collapsed state is preserved and restored on
+exit. Narrow screens navigate from the overview and per-page back links.
+Navigation retains the existing authenticated routes and query ownership.
+
+`settings/use-settings-visibility.ts` decides who sees an entry. The
+Administrator group (Service status) follows `canSeeAdminFeatures`, so it is
+hidden while an administrator previews as a user. Allowed actions appears only
+while the account has an unrevoked approval grant; its route stays reachable.
+Add an `audience` to a catalog entry rather than filtering in a component.
+
+The account menu names the signed-in account and its region
+(`features/region/account-region.ts`, absent when regions are disabled), then
+lists the Language section, Settings and Contact us, Reload and Preview as
+user, and Sign out. `/settings/language` changes the same language preference
+and shows the account region.
 
 `SettingsPageHeader` gives each section a title and purpose description.
 Notification controls explain device scope and separate subscription actions
@@ -120,15 +133,21 @@ state remains unknown until device confirmation completes; switching sections
 must never expose an Enable action for an already enabled subscription.
 Projects retain their own project/target panes inside the Settings workspace.
 Devices retain their Devices/Agents segmented view and detail workflows.
-`/settings/advanced` shows Allowed actions on desktop and the original Advanced
-settings directory on mobile; existing deep links continue
-to work. See `docs/settings-inventory.md` for the feature inventory.
+`/settings/advanced` is the Advanced settings directory (API keys and Manual
+device registration) on every screen size; existing deep links continue to
+work, and `/settings/security` opens Allowed actions. See
+`docs/settings-inventory.md` for the feature inventory.
 
-`node scripts/settings-workspace-browser.mjs` checks the original nine sections at desktop
-and mobile widths, active links, legacy Advanced navigation, and overflow. It
-uses fictional account/API data and saves screenshots under
+`node scripts/settings-workspace-browser.mjs` checks the overview, the account
+menu, and the ten everyday entries at desktop and mobile widths: active links,
+the narrow-screen directory and back links, and overflow. A second pass signs in
+as an administrator with a standing grant to check Service status and Allowed
+actions. It uses fictional account/API data and saves screenshots under
 `PAX_SETTINGS_SCREENSHOTS` (default `/tmp/pax-settings-workspace`).
-`PAX_SETTINGS_PREVIEW_URL` defaults to `http://127.0.0.1:3375`.
+`PAX_SETTINGS_PREVIEW_URL` defaults to `http://127.0.0.1:3375`; against
+`next dev`, either start the server with `PAX_ALLOWED_DEV_ORIGINS=127.0.0.1` or
+point the variable at `http://localhost:3375`, because the dev server blocks
+other origins.
 The push audit retains its original mobile Settings list/back-link flow while
 keeping warm query caches. Real push-provider and OS display claims remain excluded.
 
@@ -598,7 +617,7 @@ POST failure, retain the value returned by `prepareEncryptedCommand` and call
 `postEncryptedCommand` again with that exact envelope; re-encrypting the same
 business command would change its nonce/ciphertext and correctly conflict at the
 Manager. `root-key-store.ts` stores
-one development root key per agent in IndexedDB, surfaced under Settings / Security & access /
+one development root key per agent in IndexedDB, surfaced under Settings / Privacy & security /
 Encrypted chats. Root keys must not be put in TanStack Query, localStorage, server
 components, URL state, or the Manager API.
 
@@ -1819,7 +1838,7 @@ pages do not mount desktop notification controls.
 Home             /
 Collaboration    /collaboration/teams
                  children: Teams, Friends, Envelopes, Knowledge
-Settings         bottom-pinned entry; desktop /settings opens Notifications
+Settings         bottom-pinned entry; /settings opens the settings overview
                  dedicated grouped navigation replaces the workspace sidebar
 ```
 

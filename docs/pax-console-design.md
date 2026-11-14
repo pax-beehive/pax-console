@@ -351,18 +351,24 @@ PAX Console
 |   +-- Knowledge
 |       +-- capsules
 |       +-- session injections
- +-- Settings (desktop: dedicated sidebar and content)
-    +-- Workspace
-    |   +-- Notifications (default; subscription and alert descriptions)
-    |   +-- Devices & agents (connection and device detail workflows)
+ +-- Settings (overview first; desktop adds a dedicated sidebar)
+    +-- Devices & agents
+    |   +-- My devices (connection and device detail workflows)
+    |   +-- Agent sign-in & usage (agent accounts and plan usage)
+    +-- Work
     |   +-- Projects (hierarchy and reusable workspace targets)
-    +-- Security & access
-    |   +-- Allowed actions (persistent approval grants)
+    |   +-- Secretary (automatic conversation summaries)
+    +-- Privacy & security
     |   +-- Encrypted chats (keys and pairing)
-    +-- Developer tools
+    |   +-- Allowed actions (persistent approval grants; shown when one exists)
+    +-- General
+    |   +-- Language & region
+    |   +-- Notifications (subscription and alert descriptions)
+    |   +-- Voice input (dictation microphone)
+    +-- Advanced settings
     |   +-- API keys
-    |   +-- Device registration (custom setup tokens)
-    +-- Status & support
+    |   +-- Manual device registration (custom setup tokens)
+    +-- Administrator (administrators only)
         +-- Service status (PAX, devices, agents, recent sessions)
 ```
 
@@ -372,11 +378,14 @@ rather than stacking a second navigation pane. Keep group headings quiet and
 show a short purpose below each item's label. The selected section has one
 active marker; nested device and pairing workflows retain their parent.
 A Back to workspace link restores the ordinary navigation and its prior
-collapsed state. On narrow screens, retain the existing Settings directory,
-Advanced settings list, and per-page back links. Keep their original headings,
-spacing, notification explanation layout, and project navigation.
+collapsed state. On narrow screens, the overview is the directory: one card per
+group, Advanced settings as a single row that opens its own list, and per-page
+back links. Keep page headings, spacing, notification explanation layout, and
+project navigation.
 
-Desktop Settings opens Notifications directly. Section headers explain purpose and scope;
+Settings opens on the overview at every width, with the same groups as the
+sidebar and a short live fact beside an entry where one is cheap to show
+(devices online, current language). Section headers explain purpose and scope;
 content uses readable widths, aligned spacing, and restrained section borders.
 Use separate descriptive rows for completed replies and approval alerts. Keep
 subscription actions together and preserve the checking/unknown state while

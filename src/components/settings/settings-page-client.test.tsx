@@ -1,10 +1,16 @@
 /* @vitest-environment jsdom */
 import "@testing-library/jest-dom/vitest";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { SettingsPage } from "./settings-page-client";
 
+const state = vi.hoisted(() => ({
+  role: "user",
+  region: undefined as string | undefined,
+  nodes: [] as { node_id: string; kind?: string; online?: boolean }[],
+  grants: [] as { approval_id: string }[],
+}));
 vi.mock("@/features/auth/auth-gate", () => ({
   AuthGate: ({
     children,
@@ -15,108 +21,117 @@ vi.mock("@/features/auth/auth-gate", () => ({
 vi.mock("@/components/shell/console-layout", () => ({
   ConsoleLayout: ({ children }: { children: ReactNode }) => children,
 }));
-vi.mock("./notification-settings", () => ({
-  NotificationSettings: () => <h1>Notification controls</h1>,
-}));
-vi.mock("@/components/resources/resource-page-client", () => ({
-  ResourcePageClient: ({ kind }: { kind: string }) => <h1>{kind}</h1>,
+vi.mock("@/features/auth/use-current-user", () => ({
+  useCurrentUser: () => ({
+    data: { user_id: "settings-user", role: state.role },
+  }),
 }));
 vi.mock("@/features/api/resources", () => ({
-  useNodes: () => ({ data: { nodes: [] } }),
-  useAgents: () => ({ data: { agents: [] } }),
-  useHealth: () => ({ data: { status: "ok" } }),
+  useNodes: () => ({ data: { nodes: state.nodes } }),
+  useApprovalGrants: () => ({ data: { grants: state.grants } }),
+}));
+vi.mock("@/features/region/account-region", () => ({
+  accountRegionName: () => state.region,
+}));
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/settings",
 }));
 
-let desktop = false;
-const listeners = new Set<() => void>();
-beforeEach(() => {
-  desktop = false;
-  vi.stubGlobal("matchMedia", () => ({
-    get matches() {
-      return desktop;
-    },
-    addEventListener: (_event: string, listener: () => void) =>
-      listeners.add(listener),
-    removeEventListener: (_event: string, listener: () => void) =>
-      listeners.delete(listener),
-  }));
-});
 afterEach(() => {
   cleanup();
-  listeners.clear();
-  vi.unstubAllGlobals();
+  state.role = "user";
+  state.region = undefined;
+  state.nodes = [];
+  state.grants = [];
 });
 
 describe("settings landing pages", () => {
-  it("keeps the original mobile directory without mounting notification controls", () => {
+  it("opens an overview of the same directory on every screen size", () => {
     render(<SettingsPage />);
     expect(
       screen.getByRole("heading", { name: "Settings" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent),
+    ).toEqual(["Devices & agents", "Work", "Privacy & security", "General"]);
+    expect(screen.getByRole("link", { name: /My devices/ })).toHaveAttribute(
+      "href",
+      "/settings/devices",
+    );
     expect(screen.getByRole("link", { name: /Notifications/ })).toHaveAttribute(
       "href",
       "/settings/notifications",
     );
-    expect(screen.getByRole("link", { name: /Devices/ })).toHaveAttribute(
-      "href",
-      "/settings/devices",
-    );
-    expect(screen.getByRole("link", { name: /Secretary/ })).toHaveAttribute(
-      "href",
-      "/settings/secretary",
-    );
     expect(
       screen.getByRole("link", { name: /Advanced settings/ }),
     ).toHaveAttribute("href", "/settings/advanced");
-    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
-    expect(screen.queryByText("Notification controls")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Contact us/ })).toHaveAttribute(
+      "href",
+      "mailto:kevingeng@paxtech.net",
+    );
+    expect(
+      screen.queryByRole("link", { name: /Service status/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /Allowed actions/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href"))
+        .filter((href) => href?.startsWith("/settings/advanced/")),
+    ).toEqual(["/settings/advanced/encryption"]);
   });
 
-  it("keeps the advanced directory and its Settings back link on mobile", () => {
+  it("summarizes connected devices and the language beside their entries", () => {
+    state.region = "Hong Kong";
+    state.nodes = [
+      { node_id: "laptop", online: true },
+      { node_id: "server", online: false },
+      { node_id: "cli-login", kind: "paxl", online: true },
+    ];
+    render(<SettingsPage />);
+    expect(screen.getByRole("link", { name: /My devices/ })).toHaveTextContent(
+      "1 online",
+    );
+    expect(
+      screen.getByRole("link", { name: /Language & region/ }),
+    ).toHaveTextContent("English · Hong Kong");
+  });
+
+  it("adds the entries reserved for administrators and for standing permissions", () => {
+    state.role = "admin";
+    state.grants = [{ approval_id: "standing" }];
+    render(<SettingsPage />);
+    expect(
+      screen.getByRole("heading", { name: "Administrator" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Service status/ }),
+    ).toHaveAttribute("href", "/settings/service-status");
+    expect(
+      screen.getByRole("link", { name: /Allowed actions/ }),
+    ).toHaveAttribute("href", "/settings/advanced/permissions");
+  });
+
+  it("lists only developer tools in the advanced directory, with a way back", () => {
     render(<SettingsPage advanced />);
     expect(
       screen.getByRole("heading", { name: "Advanced settings" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: /Allowed actions/ }),
-    ).toHaveAttribute("href", "/settings/advanced/permissions");
     expect(screen.getByRole("link", { name: /API keys/ })).toHaveAttribute(
       "href",
       "/settings/advanced/api-keys",
     );
+    expect(
+      screen.getByRole("link", { name: /Manual device registration/ }),
+    ).toHaveAttribute("href", "/settings/advanced/node-registration");
     expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute(
       "href",
       "/settings",
     );
-  });
-
-  it("opens notification content directly on desktop", () => {
-    desktop = true;
-    render(<SettingsPage />);
     expect(
-      screen.getByRole("heading", { name: "Notification controls" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("link", { name: /Advanced settings/ }),
+      screen.queryByRole("link", { name: /Encrypted chats/ }),
     ).not.toBeInTheDocument();
-  });
-
-  it("opens allowed actions directly for the desktop Advanced entry", () => {
-    desktop = true;
-    render(<SettingsPage advanced />);
-    expect(screen.getByRole("heading", { name: "grants" })).toBeInTheDocument();
-  });
-
-  it("returns to the mobile directory when the viewport becomes narrow", () => {
-    desktop = true;
-    render(<SettingsPage />);
-    act(() => {
-      desktop = false;
-      listeners.forEach((listener) => listener());
-    });
-    expect(
-      screen.getByRole("heading", { name: "Settings" }),
-    ).toBeInTheDocument();
-    expect(screen.queryByText("Notification controls")).not.toBeInTheDocument();
   });
 });
