@@ -137,9 +137,12 @@ try {
         user: {
           user_id: "mobile-acceptance-user",
           display_name: "Local acceptance",
-          is_admin: false,
+          // Runtime details and Android control are administrator-only for now.
+          is_admin: true,
         },
       };
+    else if (url.pathname.endsWith("/features"))
+      body = { revision: 1, features: { android_control: true } };
     else if (url.pathname.endsWith("/nodes/mobile-acceptance")) body = node;
     else if (url.pathname.endsWith("/nodes")) body = { nodes: [node] };
     else if (url.pathname.includes("/daemon/"))

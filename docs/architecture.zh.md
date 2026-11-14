@@ -309,7 +309,10 @@ TanStack observer 禁用自动 mount/focus/reconnect/retry，调度器是唯一�
 
 桌面和手机的 Collaboration 导航使用 `collaboration`，其直接路由也在挂载页面查询前
 由 `FeatureRoute` 检查。会话工作台的 Knowledge
-capsules/injections 使用 `knowledge_capsules`。Customers、Push subscriptions、
+capsules/injections 使用 `knowledge_capsules`。浏览器和 Android 控制还在开发中：会话工作台的
+Browser 面板、对话上方的浏览器访问请求、设备运行信息页的 Browser 区块和 `/nodes/[id]/browser`
+使用 `browser_control`；会话的 Android 面板和设备运行信息页的 Android 区块使用
+`android_control`。Customers、Push subscriptions、
 Summary developer 和预览开关仍是管理员工具，继续使用有效管理员视图；
 settings 的页面分类和各入口接入由对应模块负责。`FeatureRoute` 在初次解析时隐藏
 内容，确认未开启后将 `/settings/*` 跳到 `/settings`，其余路由跳到 `/`；也可显式

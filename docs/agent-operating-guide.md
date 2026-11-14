@@ -459,7 +459,11 @@ the legacy `canSeeAdminFeatures` fallback for older Managers.
 
 Collaboration navigation on desktop and mobile uses `collaboration`; its route
 wrapper also checks `FeatureRoute` before mounting page queries. Session
-Knowledge capsules/injections uses `knowledge_capsules`. Keep Customers, Push
+Knowledge capsules/injections uses `knowledge_capsules`. Browser and Android
+control are in development: the session Browser panel, the browser approval
+requests above the conversation, the device runtime Browser section and
+`/nodes/[id]/browser` use `browser_control`; the session Android panel and the
+device runtime Android section use `android_control`. Keep Customers, Push
 subscriptions, Summary developer, and the preview switch on the existing
 effective-admin check. Settings organization and individual Settings entry
 gates belong to their owning modules; they can import the shared flags exports.
@@ -557,7 +561,8 @@ existing text); the user reviews/sends it. Keep the node-detail entry available.
 
 Session headers keep the title, Project / Agent, and immutable workspace visible.
 Rename and runtime reset live in Session actions. One panel-right button opens
-Artifacts / Browser / Knowledge (`knowledge_capsules` flag); tool evidence is a contextual tab.
+Artifacts / Browser (`browser_control` flag) / Android (`android_control` flag) /
+Knowledge (`knowledge_capsules` flag); tool evidence is a contextual tab.
 Mobile resources use a bottom sheet; desktop keeps a right panel. Home's left
 hamburger opens recent sessions, not a duplicate horizontal tab strip.
 SessionSettings provides one modal surface for both new and existing sessions:

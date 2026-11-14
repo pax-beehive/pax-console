@@ -31,6 +31,7 @@ import {
   useNodes,
 } from "@/features/api/resources";
 import { queryKeys } from "@/features/api/query-keys";
+import { useFeature } from "@/features/flags";
 import { Agent, ApiRecord, Node, User } from "@/features/api/types";
 import { compactId } from "@/lib/format";
 import { nodeLabel } from "./resource-models";
@@ -58,6 +59,8 @@ export function NodeDetailPageClient({
   user,
 }: NodeDetailPageClientProps) {
   const { t } = useI18n();
+  const browserControlEnabled = useFeature("browser_control");
+  const androidControlEnabled = useFeature("android_control");
   const queryClient = useQueryClient();
   const router = useRouter();
   const [nodeDeleteOpen, setNodeDeleteOpen] = useState(false);
@@ -113,9 +116,13 @@ export function NodeDetailPageClient({
 
         <NodeDaemonControl nodeId={nodeId} userId={user.user_id} />
 
-        <NodeBrowserControl nodeId={nodeId} userId={user.user_id} />
+        {browserControlEnabled && (
+          <NodeBrowserControl nodeId={nodeId} userId={user.user_id} />
+        )}
 
-        <NodeMobileControl nodeId={nodeId} userId={user.user_id} />
+        {androidControlEnabled && (
+          <NodeMobileControl nodeId={nodeId} userId={user.user_id} />
+        )}
 
         <details className="rounded-lg border border-hairline bg-surface-1 p-4">
           <summary className="cursor-pointer text-sm font-medium">

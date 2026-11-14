@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthError } from "@/features/api/errors";
@@ -9,6 +9,18 @@ import { DockerBrowserRoute } from "./docker-browser-page";
 const mocks = vi.hoisted(() => ({
   user: vi.fn(),
   viewer: vi.fn(),
+  replace: vi.fn(),
+  browserControl: true,
+}));
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/nodes/node/browser",
+  useRouter: () => ({ replace: mocks.replace }),
+}));
+vi.mock("@/features/flags/use-feature", () => ({
+  useFeatures: () => ({
+    ready: true,
+    enabled: () => mocks.browserControl,
+  }),
 }));
 
 vi.mock("@/features/auth/use-current-user", () => ({
@@ -27,6 +39,7 @@ vi.mock("./node-browser-vnc", () => ({
 afterEach(() => {
   cleanup();
   vi.resetAllMocks();
+  mocks.browserControl = true;
 });
 
 function mount() {
@@ -66,6 +79,18 @@ it("waits for account access before mounting the remote desktop", () => {
     "/nodes/node%20%2F%201",
   );
   expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+});
+
+it("returns to the workspace when browser control is not enabled for the account", async () => {
+  mocks.browserControl = false;
+  mocks.user.mockReturnValue({
+    data: { user_id: "owner" },
+    isLoading: false,
+    isError: false,
+  });
+  mount();
+  expect(mocks.viewer).not.toHaveBeenCalled();
+  await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/"));
 });
 
 it("keeps authentication failures outside the viewer", () => {

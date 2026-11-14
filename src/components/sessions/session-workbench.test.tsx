@@ -47,6 +47,7 @@ const fixtures = vi.hoisted(() => ({
   observe: vi.fn(),
   emptyEvents: [],
   knowledgeEnabled: false,
+  disabledFeatures: [] as string[],
   readCapsules: vi.fn(),
   readInjections: vi.fn(),
   conversationEvents: [] as SessionEvent[],
@@ -69,7 +70,10 @@ const fixtures = vi.hoisted(() => ({
 }));
 
 vi.mock("@/features/flags", () => ({
-  useFeature: () => fixtures.knowledgeEnabled,
+  useFeature: (feature: string) =>
+    feature === "knowledge_capsules"
+      ? fixtures.knowledgeEnabled
+      : !fixtures.disabledFeatures.includes(feature),
 }));
 
 vi.mock("@/features/api/resources", async (importOriginal) => ({
@@ -152,7 +156,7 @@ vi.mock("@/features/e2ee/use-e2ee-session-runtime", () => ({
   }),
 }));
 vi.mock("./session-browser-approvals", () => ({
-  SessionBrowserApprovals: () => null,
+  SessionBrowserApprovals: () => <div data-testid="browser-approvals" />,
 }));
 vi.mock("./session-browser-window", () => ({
   SessionBrowserWindow: () => null,
@@ -191,6 +195,7 @@ beforeEach(() => {
     model: undefined,
   };
   fixtures.knowledgeEnabled = false;
+  fixtures.disabledFeatures = [];
   fixtures.readCapsules.mockClear();
   fixtures.readInjections.mockClear();
   fixtures.localStatus = "idle";
@@ -380,6 +385,40 @@ describe("agent sign-in recovery", () => {
     expect(
       screen.queryByRole("link", { name: "Open Agent sign-in" }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("browser and Android control in a session", () => {
+  const openPanel = () =>
+    fireEvent.click(screen.getByRole("button", { name: "Open session panel" }));
+
+  it("offers the browser and the phone, and listens for browser requests, when both features are enabled", () => {
+    render(workbench());
+    expect(screen.getByTestId("browser-approvals")).toBeInTheDocument();
+    openPanel();
+    expect(screen.getByRole("button", { name: "Browser" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Android" })).toBeVisible();
+  });
+
+  it("leaves out the browser panel and its requests when browser control is not enabled", () => {
+    fixtures.disabledFeatures = ["browser_control"];
+    render(workbench());
+    expect(screen.queryByTestId("browser-approvals")).not.toBeInTheDocument();
+    openPanel();
+    expect(
+      screen.queryByRole("button", { name: "Browser" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Android" })).toBeVisible();
+  });
+
+  it("leaves out the phone panel when Android control is not enabled", () => {
+    fixtures.disabledFeatures = ["android_control"];
+    render(workbench());
+    openPanel();
+    expect(
+      screen.queryByRole("button", { name: "Android" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Browser" })).toBeVisible();
   });
 });
 
