@@ -8,6 +8,8 @@
 
 ## 最终生成 Prompt
 
+该头像仅在当前会话模型明确识别为 DeepSeek 时显示；其他或未知模型不显示，思考文案与耗时继续保留。
+
 完整 Prompt 如下，同步保存在生成工作文件 `/tmp/pax-whale-avatar/v2-prompt.txt`。工具模式为 imagegen skill 的 built-in `image_gen`，使用用户截图作为角色与表情参考，并设置 `transparent_background: true`。
 
 ```text

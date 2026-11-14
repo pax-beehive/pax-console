@@ -55,10 +55,15 @@ afterEach(() => {
 function renderItem(
   item: WorkstreamItem,
   decision: PermissionDecisionState = permissionDecision,
+  showWhaleAvatar = false,
 ) {
   return render(
     <TooltipProvider>
-      <WorkstreamItemCard item={item} permissionDecision={decision} />
+      <WorkstreamItemCard
+        item={item}
+        permissionDecision={decision}
+        showWhaleAvatar={showWhaleAvatar}
+      />
     </TooltipProvider>,
   );
 }
@@ -329,7 +334,7 @@ describe("session event cards", () => {
   it("shows explicit live thought and counts concurrent tools in the same collapsed row", () => {
     const item = activityGroup(false);
     item.events = item.events.slice(0, 1);
-    const view = renderItem(item);
+    const view = renderItem(item, permissionDecision, true);
     expect(screen.getByText("Thinking…")).toBeVisible();
     expect(
       view.container.querySelector('[data-slot="thinking-avatar"]'),
@@ -349,6 +354,7 @@ describe("session event cards", () => {
         <WorkstreamItemCard
           item={concurrent}
           permissionDecision={permissionDecision}
+          showWhaleAvatar
         />
       </TooltipProvider>,
     );
@@ -712,7 +718,11 @@ describe("session event cards", () => {
       streaming: true,
       createdAt: "2026-11-13T20:00:00Z",
     };
-    const view = renderItem({ type: "event", id: thought.id, event: thought });
+    const view = renderItem(
+      { type: "event", id: thought.id, event: thought },
+      permissionDecision,
+      true,
+    );
     const avatar = view.container.querySelector(
       '[data-slot="thinking-avatar"]',
     );
@@ -727,6 +737,7 @@ describe("session event cards", () => {
             event: { ...thought, streaming: false },
           }}
           permissionDecision={permissionDecision}
+          showWhaleAvatar
         />
       </TooltipProvider>,
     );

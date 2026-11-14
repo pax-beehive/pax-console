@@ -96,6 +96,7 @@ type WorkstreamItemCardProps = {
   item: WorkstreamItem;
   onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
   permissionDecision: PermissionDecisionState;
+  showWhaleAvatar?: boolean;
   userId?: string;
 };
 
@@ -113,6 +114,7 @@ export const WorkstreamItemCard = memo(function WorkstreamItemCard({
   item,
   onSelectToolEvidence,
   permissionDecision,
+  showWhaleAvatar = false,
   userId,
 }: WorkstreamItemCardProps) {
   if (item.type === "work_group") {
@@ -125,6 +127,7 @@ export const WorkstreamItemCard = memo(function WorkstreamItemCard({
         events={item.events}
         onSelectToolEvidence={onSelectToolEvidence}
         permissionDecision={permissionDecision}
+        showWhaleAvatar={showWhaleAvatar}
       />
     );
   }
@@ -147,6 +150,7 @@ export const WorkstreamItemCard = memo(function WorkstreamItemCard({
       event={item.event}
       onSelectToolEvidence={onSelectToolEvidence}
       permissionDecision={permissionDecision}
+      showWhaleAvatar={showWhaleAvatar}
       userId={userId}
     />
   );
@@ -160,6 +164,7 @@ function areWorkstreamItemCardPropsEqual(
     previous.agentOwnerInfos === next.agentOwnerInfos &&
     previous.onSelectToolEvidence === next.onSelectToolEvidence &&
     previous.permissionDecision === next.permissionDecision &&
+    previous.showWhaleAvatar === next.showWhaleAvatar &&
     previous.userId === next.userId &&
     areWorkstreamItemsEqual(previous.item, next.item)
   );
@@ -334,12 +339,14 @@ function EventCard({
   event,
   onSelectToolEvidence,
   permissionDecision,
+  showWhaleAvatar,
   userId,
 }: {
   agentOwnerInfos?: Record<string, AgentOwnerInfo>;
   event: SessionEvent;
   onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
   permissionDecision: PermissionDecisionState;
+  showWhaleAvatar: boolean;
   userId?: string;
 }) {
   if (event.type === "file_change") {
@@ -347,7 +354,7 @@ function EventCard({
   }
 
   if (event.type === "progress") {
-    return <ThoughtCard event={event} />;
+    return <ThoughtCard event={event} showWhaleAvatar={showWhaleAvatar} />;
   }
 
   if (event.type === "artifact_publication") {
@@ -441,10 +448,12 @@ function ThoughtCard({
   event,
   active = Boolean(event.streaming),
   duration,
+  showWhaleAvatar,
 }: {
   event: Extract<SessionEvent, { type: "progress" }>;
   active?: boolean;
   duration?: string;
+  showWhaleAvatar: boolean;
 }) {
   const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
@@ -454,7 +463,7 @@ function ThoughtCard({
       onToggle={(event) => setExpanded(event.currentTarget.open)}
     >
       <summary className="flex cursor-pointer list-none items-center gap-2 text-sm text-ink-muted outline-none transition hover:text-ink [&::-webkit-details-marker]:hidden">
-        <WhaleThinkingIcon active={active} />
+        {showWhaleAvatar && <WhaleThinkingIcon active={active} />}
         <span>
           {active
             ? t("Thinking")
@@ -1076,6 +1085,7 @@ function WorkGroupCard({
   events,
   onSelectToolEvidence,
   permissionDecision,
+  showWhaleAvatar,
   userId,
 }: {
   approvals?: PermissionRequestEvent[];
@@ -1084,6 +1094,7 @@ function WorkGroupCard({
   events: WorkActivityEvent[];
   onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
   permissionDecision: PermissionDecisionState;
+  showWhaleAvatar: boolean;
   userId?: string;
 }) {
   const { t } = useI18n();
@@ -1173,7 +1184,7 @@ function WorkGroupCard({
               aria-hidden="true"
               className="h-4 w-4 shrink-0 text-warning"
             />
-          ) : thinking || (complete && onlyThoughts) ? (
+          ) : showWhaleAvatar && (thinking || (complete && onlyThoughts)) ? (
             <WhaleThinkingIcon active={thinking} />
           ) : !complete && !onlySubagentCompletions ? (
             <LoaderCircle
@@ -1189,7 +1200,9 @@ function WorkGroupCard({
           <TruncatedText className="min-w-0 flex-1" tooltip={label}>
             {label}
           </TruncatedText>
-          {(needsApproval || !complete || onlyThoughts) && (
+          {(needsApproval ||
+            !complete ||
+            (onlyThoughts && showWhaleAvatar)) && (
             <ChevronDown
               aria-hidden="true"
               className="h-3.5 w-3.5 shrink-0 -rotate-90 text-ink-tertiary transition group-open/work:rotate-0 motion-reduce:transition-none"
@@ -1201,6 +1214,7 @@ function WorkGroupCard({
             {events.map((event, index) =>
               event.type === "progress" ? (
                 <ThoughtCard
+                  showWhaleAvatar={showWhaleAvatar}
                   active={thinking && event === events.at(-1)}
                   duration={thoughtDurationLabel(
                     event.createdAt,

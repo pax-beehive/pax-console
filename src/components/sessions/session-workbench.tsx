@@ -64,6 +64,7 @@ import { SessionComposer } from "@/components/sessions/session-composer";
 import {
   SessionConfigSelector,
   configurationSummary,
+  configurationUsesDeepSeek,
 } from "@/components/sessions/session-config-selector";
 import { SessionHeader } from "@/components/sessions/session-header";
 import { SecureModeActivation } from "@/components/sessions/secure-mode-activation";
@@ -400,6 +401,9 @@ export function SessionWorkbench({
     activeAgentId,
     currentSessionId,
     !usesEncryptedTransport,
+  );
+  const showWhaleAvatar = configurationUsesDeepSeek(
+    sessionConfigurationQuery.data,
   );
   const activeSessionReportedRunning = isActiveSessionRunStatus(
     activeSession?.runtime_status,
@@ -2991,6 +2995,7 @@ export function SessionWorkbench({
               >
                 <WorkstreamItemCard
                   agentOwnerInfos={agentOwnerInfos}
+                  showWhaleAvatar={showWhaleAvatar}
                   item={item}
                   onSelectToolEvidence={handleSelectToolEvidence}
                   permissionDecision={permissionDecision}

@@ -17,6 +17,7 @@ import { queryKeys } from "@/features/api/query-keys";
 import type {
   AgentSession,
   HistoryMessage,
+  SessionConfiguration,
   TurnSearchAccess,
 } from "@/features/api/types";
 import { ApiError, AuthError } from "@/features/api/errors";
@@ -48,6 +49,7 @@ const fixtures = vi.hoisted(() => ({
   conversationEvents: [] as SessionEvent[],
   emptyQuery: { data: undefined, refetch: vi.fn() },
   history: [] as HistoryMessage[],
+  configuration: undefined as SessionConfiguration | undefined,
   calibratedTurnIds: [] as string[],
   refetchHistory: vi.fn().mockResolvedValue(undefined),
   readSource: vi.fn(),
@@ -77,7 +79,10 @@ vi.mock("@/features/api/resources", async (importOriginal) => ({
   }),
   useAgentSessions: () => fixtures.emptyQuery,
   useAgentPermissionCatalog: () => fixtures.emptyQuery,
-  useSessionConfiguration: () => fixtures.emptyQuery,
+  useSessionConfiguration: () => ({
+    ...fixtures.emptyQuery,
+    data: fixtures.configuration,
+  }),
   useSessionHistory: () => ({
     ...fixtures.emptyQuery,
     refetch: fixtures.refetchHistory,
@@ -170,12 +175,14 @@ beforeEach(() => {
     ...fixtures.session,
     runtime_status: "running",
     transport: "manager",
+    model: undefined,
   };
   fixtures.localStatus = "idle";
   fixtures.conversationError = null;
   fixtures.encryptedStatus = "idle";
   fixtures.conversationEvents = [];
   fixtures.history = [];
+  fixtures.configuration = undefined;
   fixtures.calibratedTurnIds = [];
   fixtures.refetchHistory.mockClear();
   fixtures.metadataError = null;
@@ -226,6 +233,107 @@ function workbench(
     </QueryClientProvider>
   );
 }
+
+describe("thinking avatar follows the current session model", () => {
+  const thought: SessionEvent = {
+    type: "progress",
+    id: "model-thought",
+    sessionId: "sess_1",
+    turnId: "model-turn",
+    content: "Checking the code",
+    streaming: true,
+    sessionUpdate: "agent_thought_chunk",
+    createdAt: "2026-11-13T20:00:00Z",
+  };
+
+  function configuration(model: string): SessionConfiguration {
+    return {
+      session_id: "sess_1",
+      options: [
+        {
+          id: "model",
+          name: "Model",
+          category: "model",
+          type: "select",
+          current_value: model,
+          options: [
+            { value: "deepseek-chat", name: "DeepSeek Chat" },
+            { value: "gpt-6", name: "GPT-6" },
+          ],
+        },
+      ],
+      can_set: true,
+      can_force_refresh: true,
+    };
+  }
+
+  it("shows the whale for the current DeepSeek model even when stored metadata names GPT", () => {
+    fixtures.session = { ...fixtures.session, model: "gpt-6" };
+    fixtures.configuration = configuration("deepseek-chat");
+    fixtures.conversationEvents = [thought];
+
+    const { container } = render(workbench());
+
+    expect(screen.getByText("Thinking…")).toBeVisible();
+    expect(
+      container.querySelector('[data-slot="thinking-avatar"]'),
+    ).toHaveClass("animate-spin");
+  });
+
+  it("updates the same completed timeline when the current model changes and retains its duration", () => {
+    fixtures.configuration = configuration("deepseek-chat");
+    const events: SessionEvent[] = [
+      thought,
+      {
+        type: "turn_done",
+        id: "model-turn-done",
+        sessionId: "sess_1",
+        turnId: "model-turn",
+        createdAt: "2026-11-13T20:00:01Z",
+      },
+    ];
+    fixtures.conversationEvents = events;
+    const view = render(workbench());
+    expect(screen.getByText("Thought for 1s")).toBeVisible();
+    expect(
+      view.container.querySelector('[data-slot="thinking-avatar"]'),
+    ).toBeInTheDocument();
+
+    for (const current of [configuration("gpt-6"), undefined]) {
+      fixtures.configuration = current;
+      view.rerender(workbench());
+
+      expect(fixtures.conversationEvents).toBe(events);
+      expect(screen.getByText("Thought for 1s")).toBeVisible();
+      expect(
+        view.container.querySelector('[data-slot="thinking-avatar"]'),
+      ).not.toBeInTheDocument();
+    }
+
+    fixtures.configuration = configuration("deepseek-chat");
+    view.rerender(workbench());
+    expect(
+      view.container.querySelector('[data-slot="thinking-avatar"]'),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Thought for 1s")).toBeVisible();
+  });
+
+  it.each(["gpt-6", undefined])(
+    "does not use stored DeepSeek metadata when the current model is %s",
+    (model) => {
+      fixtures.session = { ...fixtures.session, model: "deepseek-chat" };
+      fixtures.configuration = model ? configuration(model) : undefined;
+      fixtures.conversationEvents = [thought];
+
+      const { container } = render(workbench());
+
+      expect(screen.getByText("Thinking…")).toBeVisible();
+      expect(
+        container.querySelector('[data-slot="thinking-avatar"]'),
+      ).not.toBeInTheDocument();
+    },
+  );
+});
 
 describe("agent sign-in recovery", () => {
   it("offers Settings sign-in after an explicit agent authentication failure", () => {

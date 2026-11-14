@@ -1511,8 +1511,14 @@ recognized running tools use concise actions such as `Reading files…` or
 show `Using tools · N running`; queued or mixed activity is labeled accurately.
 With no active tool or latest live thought, use `Working…` without inferring
 thinking or retries. Raw tool names and payloads stay inside expanded details.
-Thinking labels have a 20px whale-girl avatar, rotating once every three seconds
-only for the current live thought. Share `isLiveThoughtActivity` with the label;
+Thinking labels have a 20px whale-girl avatar only when the current session
+model configuration explicitly identifies DeepSeek. Check the selected model
+ID/name, with modern options taking precedence over the selected legacy model.
+Unknown models hide it; ignore permission mode, unselected model candidates,
+and stored session model metadata. Propagate the flag through the timeline and
+its memo comparison so confirmed model changes update existing rows.
+The avatar rotates once every three seconds only for the current live thought.
+Share `isLiveThoughtActivity` with the label;
 tools, approvals, stale thoughts, and completed work must not animate the avatar.
 Honor reduced motion. Serve the transparent asset through Next Image at its
 display size; see [asset provenance and prompt](whale-chan-thinking-asset.md).
@@ -1521,7 +1527,9 @@ one decimal place from observed timestamps. A following tool or approval ends
 the thought before execution or approval wait. Only pure thought groups may
 use their completion boundary; mixed-group final thoughts, legacy aggregates,
 and unavailable boundaries omit duration. Pure thought groups use the same
-finished label and a static avatar; mixed work groups retain their work label.
+finished label and, for DeepSeek, a static avatar; mixed work groups retain their
+work label. Other models keep the normal activity/disclosure icons and all
+thought labels and durations.
 Native tool summaries select the Tool evidence panel only when opening. Read
 `details.open` before the default toggle: collapsing a tool, including an
 auto-opened approval, must not reopen a closed evidence panel. Preserve native

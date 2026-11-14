@@ -187,7 +187,7 @@ describe("Given Chinese thought indicators", () => {
       expect(screen.getByText(label)).toBeVisible();
       expect(
         container.querySelector('[data-slot="thinking-avatar"]'),
-      ).not.toHaveClass("animate-spin");
+      ).not.toBeInTheDocument();
       fireEvent.click(container.querySelector("summary")!);
       await waitFor(() => expect(screen.getAllByText(label)).toHaveLength(2));
       expect(screen.queryByText("思考中...")).not.toBeInTheDocument();
