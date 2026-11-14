@@ -224,6 +224,20 @@ recognized running tools use concise actions such as `Reading files…` or
 show `Using tools · N running`; queued or mixed activity is labeled accurately.
 With no active tool or latest live thought, use `Working…` without inferring
 thinking or retries. Raw tool names and payloads stay inside expanded details.
+Only an explicitly selected DeepSeek model uses the 20px transparent whale-girl
+avatar. Other and unknown models retain the normal thought text, timing, and
+activity/disclosure icons. Switching the current model updates existing rows.
+The avatar rotates once every three seconds only while that thought is active.
+Completed and historical DeepSeek thoughts keep a static avatar. Tool activity and approval waits retain their
+existing status icons. Respect reduced-motion preferences and keep the avatar
+decorative for screen readers. Asset details and its generation prompt live in
+[whale-chan-thinking-asset.md](whale-chan-thinking-asset.md).
+The avatar follows the supplied half-lidded, chin-resting reference. Finished
+thoughts use `Thought for 1s` / `已深度思考1s`, with a static avatar for DeepSeek and up to one
+decimal place. Measure each thought to its next observed tool or approval;
+never present tool execution or approval wait as thought duration. Only pure
+thought groups use their completion boundary, including their summary label.
+Unavailable or ambiguous legacy timing shows `Thought` / `已深度思考` alone.
 Gaps after commentary keep the quiet breathing mark and three dots while the
 turn is running. An active activity row replaces this indicator; completion
 and approval waits remove it. It carries no invented progress percentage.

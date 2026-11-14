@@ -1,22 +1,32 @@
 "use client";
 
 import { Languages } from "lucide-react";
-import { useI18n, type Locale } from "./use-i18n";
+import {
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from "@/components/ui/dropdown-menu";
+import { useI18n } from "./use-i18n";
 
+/** Language preferences are part of the existing user menu. */
 export function LanguageSwitcher() {
-  const { locale, setLocale } = useI18n();
+  const { locale, setLocale, t } = useI18n();
   return (
-    <label className="flex min-h-9 shrink-0 items-center gap-1.5 rounded-md border border-hairline bg-surface-1 px-2 text-xs text-ink-muted focus-within:ring-2 focus-within:ring-accent/25">
-      <Languages aria-hidden="true" className="h-4 w-4" />
-      <select
+    <>
+      <DropdownMenuLabel className="flex items-center gap-2">
+        <Languages aria-hidden="true" className="h-3.5 w-3.5" />
+        {t("Language")}
+      </DropdownMenuLabel>
+      <DropdownMenuRadioGroup
         aria-label="Language / 语言"
-        className="max-w-24 cursor-pointer bg-surface-1 py-1 text-ink outline-none"
         value={locale}
-        onChange={(event) => setLocale(event.target.value as Locale)}
+        onValueChange={(value) => {
+          if (value === "en" || value === "zh-CN") setLocale(value);
+        }}
       >
-        <option value="en">English</option>
-        <option value="zh-CN">简体中文</option>
-      </select>
-    </label>
+        <DropdownMenuRadioItem value="en">English</DropdownMenuRadioItem>
+        <DropdownMenuRadioItem value="zh-CN">简体中文</DropdownMenuRadioItem>
+      </DropdownMenuRadioGroup>
+    </>
   );
 }

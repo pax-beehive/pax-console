@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { type Translator, useI18n } from "@/features/i18n/use-i18n";
 import { ToolMessageDetails } from "./tool-message-details";
 import {
@@ -57,7 +58,8 @@ import {
 } from "@/features/runtime/tool-patches";
 import { cn } from "@/lib/utils";
 import { MessageAttachment } from "./message-attachment";
-import { liveActivityLabel } from "./activity-label";
+import { isLiveThoughtActivity, liveActivityLabel } from "./activity-label";
+import { thoughtDurationLabel, thoughtEndAt } from "./thought-duration";
 
 export type PermissionDecisionOption =
   | "deny"
@@ -94,6 +96,7 @@ type WorkstreamItemCardProps = {
   item: WorkstreamItem;
   onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
   permissionDecision: PermissionDecisionState;
+  showWhaleAvatar?: boolean;
   userId?: string;
 };
 
@@ -111,6 +114,7 @@ export const WorkstreamItemCard = memo(function WorkstreamItemCard({
   item,
   onSelectToolEvidence,
   permissionDecision,
+  showWhaleAvatar = false,
   userId,
 }: WorkstreamItemCardProps) {
   if (item.type === "work_group") {
@@ -123,6 +127,7 @@ export const WorkstreamItemCard = memo(function WorkstreamItemCard({
         events={item.events}
         onSelectToolEvidence={onSelectToolEvidence}
         permissionDecision={permissionDecision}
+        showWhaleAvatar={showWhaleAvatar}
       />
     );
   }
@@ -145,6 +150,7 @@ export const WorkstreamItemCard = memo(function WorkstreamItemCard({
       event={item.event}
       onSelectToolEvidence={onSelectToolEvidence}
       permissionDecision={permissionDecision}
+      showWhaleAvatar={showWhaleAvatar}
       userId={userId}
     />
   );
@@ -158,6 +164,7 @@ function areWorkstreamItemCardPropsEqual(
     previous.agentOwnerInfos === next.agentOwnerInfos &&
     previous.onSelectToolEvidence === next.onSelectToolEvidence &&
     previous.permissionDecision === next.permissionDecision &&
+    previous.showWhaleAvatar === next.showWhaleAvatar &&
     previous.userId === next.userId &&
     areWorkstreamItemsEqual(previous.item, next.item)
   );
@@ -332,12 +339,14 @@ function EventCard({
   event,
   onSelectToolEvidence,
   permissionDecision,
+  showWhaleAvatar,
   userId,
 }: {
   agentOwnerInfos?: Record<string, AgentOwnerInfo>;
   event: SessionEvent;
   onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
   permissionDecision: PermissionDecisionState;
+  showWhaleAvatar: boolean;
   userId?: string;
 }) {
   if (event.type === "file_change") {
@@ -345,7 +354,7 @@ function EventCard({
   }
 
   if (event.type === "progress") {
-    return <ThoughtCard event={event} />;
+    return <ThoughtCard event={event} showWhaleAvatar={showWhaleAvatar} />;
   }
 
   if (event.type === "artifact_publication") {
@@ -437,8 +446,14 @@ export function AgentPendingIndicator() {
 
 function ThoughtCard({
   event,
+  active = Boolean(event.streaming),
+  duration,
+  showWhaleAvatar,
 }: {
   event: Extract<SessionEvent, { type: "progress" }>;
+  active?: boolean;
+  duration?: string;
+  showWhaleAvatar: boolean;
 }) {
   const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
@@ -448,8 +463,14 @@ function ThoughtCard({
       onToggle={(event) => setExpanded(event.currentTarget.open)}
     >
       <summary className="flex cursor-pointer list-none items-center gap-2 text-sm text-ink-muted outline-none transition hover:text-ink [&::-webkit-details-marker]:hidden">
-        <PaxThoughtIcon />
-        <span>{event.streaming ? t("Thinking") : t("Thought")}</span>
+        {showWhaleAvatar && <WhaleThinkingIcon active={active} />}
+        <span>
+          {active
+            ? t("Thinking")
+            : duration
+              ? t("Thought for {duration}", { duration })
+              : t("Thought")}
+        </span>
         <ChevronDown className="ml-auto h-3.5 w-3.5 -rotate-90 text-ink-tertiary transition group-open:rotate-0" />
       </summary>
       {expanded && (
@@ -457,7 +478,7 @@ function ThoughtCard({
           className="mt-2 pl-1 text-[13px] leading-5"
           content={event.content}
           muted
-          streaming={event.streaming}
+          streaming={active}
         />
       )}
     </details>
@@ -1064,6 +1085,7 @@ function WorkGroupCard({
   events,
   onSelectToolEvidence,
   permissionDecision,
+  showWhaleAvatar,
   userId,
 }: {
   approvals?: PermissionRequestEvent[];
@@ -1072,6 +1094,7 @@ function WorkGroupCard({
   events: WorkActivityEvent[];
   onSelectToolEvidence?: (selection: ToolEvidenceSelection) => void;
   permissionDecision: PermissionDecisionState;
+  showWhaleAvatar: boolean;
   userId?: string;
 }) {
   const { t } = useI18n();
@@ -1094,6 +1117,14 @@ function WorkGroupCard({
     ).values(),
   ];
   const needsApproval = pendingPermissions.length > 0;
+  const thinking = !complete && !needsApproval && isLiveThoughtActivity(events);
+  const onlyThoughts =
+    events.length > 0 &&
+    events.every((event) => event.type === "progress") &&
+    approvals.length === 0;
+  const completedThoughtDuration = onlyThoughts
+    ? thoughtDurationLabel(events[0].createdAt, completedAt)
+    : undefined;
   const onlySubagentCompletions =
     events.length > 0 && events.every(isSubagentCompletion);
   const start = Date.parse(
@@ -1121,9 +1152,15 @@ function WorkGroupCard({
         ? t("Subagent completed")
         : t("Subagents completed")
       : complete
-        ? durationLabel
-          ? t("Worked for {duration}", { duration: durationLabel })
-          : t("Worked")
+        ? onlyThoughts
+          ? completedThoughtDuration
+            ? t("Thought for {duration}", {
+                duration: completedThoughtDuration,
+              })
+            : t("Thought")
+          : durationLabel
+            ? t("Worked for {duration}", { duration: durationLabel })
+            : t("Worked")
         : liveActivityLabel(events, t);
   const label =
     approvals.length > 0 && !needsApproval
@@ -1147,6 +1184,8 @@ function WorkGroupCard({
               aria-hidden="true"
               className="h-4 w-4 shrink-0 text-warning"
             />
+          ) : showWhaleAvatar && (thinking || (complete && onlyThoughts)) ? (
+            <WhaleThinkingIcon active={thinking} />
           ) : !complete && !onlySubagentCompletions ? (
             <LoaderCircle
               aria-hidden="true"
@@ -1161,7 +1200,9 @@ function WorkGroupCard({
           <TruncatedText className="min-w-0 flex-1" tooltip={label}>
             {label}
           </TruncatedText>
-          {(needsApproval || !complete) && (
+          {(needsApproval ||
+            !complete ||
+            (onlyThoughts && showWhaleAvatar)) && (
             <ChevronDown
               aria-hidden="true"
               className="h-3.5 w-3.5 shrink-0 -rotate-90 text-ink-tertiary transition group-open/work:rotate-0 motion-reduce:transition-none"
@@ -1170,10 +1211,16 @@ function WorkGroupCard({
         </summary>
         {expanded && (
           <div className="ml-2 mt-1 grid min-w-0 gap-1 border-l border-hairline pl-4">
-            {events.map((event) =>
+            {events.map((event, index) =>
               event.type === "progress" ? (
                 <ThoughtCard
-                  event={complete ? { ...event, streaming: false } : event}
+                  showWhaleAvatar={showWhaleAvatar}
+                  active={thinking && event === events.at(-1)}
+                  duration={thoughtDurationLabel(
+                    event.createdAt,
+                    thoughtEndAt(events, index, approvals, completedAt),
+                  )}
+                  event={event}
                   key={event.id}
                 />
               ) : (
@@ -1276,7 +1323,13 @@ function ToolEventRow({
     >
       <summary
         className="grid min-h-11 cursor-pointer list-none grid-cols-[16px_minmax(0,1fr)_auto_auto] items-center gap-2 px-3 py-1.5 outline-none transition hover:bg-canvas/70 [&::-webkit-details-marker]:hidden"
-        onClick={() => onSelectToolEvidence?.({ type: "tool", event })}
+        onClick={(clickEvent) => {
+          // Read native state before the summary's default toggle. Closing a
+          // tool must not reopen its evidence panel, including auto-opened approvals.
+          if (clickEvent.currentTarget.closest("details")?.open === false) {
+            onSelectToolEvidence?.({ type: "tool", event });
+          }
+        }}
       >
         <ToolStatusMark status={event.status} />
         <span className="min-w-0">
@@ -2530,15 +2583,21 @@ function permissionRequestPatches(
   return permissionRequestCodePatches(event);
 }
 
-function PaxThoughtIcon() {
+function WhaleThinkingIcon({ active }: { active: boolean }) {
   return (
-    <span
+    <Image
+      alt=""
       aria-hidden="true"
-      className="h-4 w-4 shrink-0 bg-primary-hover"
-      style={{
-        WebkitMask: "url('/pax-icon.svg') center / contain no-repeat",
-        mask: "url('/pax-icon.svg') center / contain no-repeat",
-      }}
+      data-slot="thinking-avatar"
+      src="/whale-chan-thinking-v2.png"
+      width={20}
+      height={20}
+      draggable={false}
+      className={cn(
+        "h-5 w-5 shrink-0 object-contain",
+        active &&
+          "animate-spin [animation-duration:3s] motion-reduce:animate-none",
+      )}
     />
   );
 }

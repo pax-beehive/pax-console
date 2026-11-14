@@ -53,6 +53,30 @@ export function DropdownMenuItem({
   );
 }
 
+export function DropdownMenuLabel({
+  className,
+  ...props
+}: ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Label>) {
+  return (
+    <DropdownMenuPrimitive.Label
+      className={cn("px-2.5 pb-1 pt-1.5 text-xs text-ink-tertiary", className)}
+      {...props}
+    />
+  );
+}
+
+export function DropdownMenuSeparator({
+  className,
+  ...props
+}: ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Separator>) {
+  return (
+    <DropdownMenuPrimitive.Separator
+      className={cn("my-1 h-px bg-hairline", className)}
+      {...props}
+    />
+  );
+}
+
 export function DropdownMenuRadioItem({
   children,
   className,
