@@ -96,6 +96,8 @@ export function ConfigEditor({
     setBoth,
     confirm,
     setConfirm,
+    attemptedAction,
+    setAttemptedAction,
     outcomes,
     setOutcomes,
     reviewed,
@@ -161,6 +163,8 @@ export function ConfigEditor({
   const mutation: UseMutationResult<Outcome[], Error, Action> = useMutation({
     // Only the action is cached. Secret payloads are read from a cleared mutable draft, never captured in mutation options or variables.
     mutationFn: async (action: Action) => {
+      if (attemptedAction && action !== attemptedAction) return outcomes;
+      setAttemptedAction(action);
       const submitted = parsed();
       const submittedReason = reason.trim();
       if (entry.secret) clearSecret();
@@ -287,11 +291,53 @@ export function ConfigEditor({
     },
     retry: false,
   });
+  const newChange = useMutation({
+    mutationFn: async () => {
+      const fresh = await refresh(region);
+      const current = fresh.entries.find((item) => item.key === entry.key);
+      if (!current) throw new Error("missing_key");
+      setVersions({ [region]: current.version });
+      setValue(current.secret ? "" : String(current.value ?? ""));
+      if (current.type === "feature") {
+        setStage(featureValue(current).stage);
+        setEmails(featureValue(current).beta_emails.join("\n"));
+      }
+      if (current.secret) clearSecret();
+      setCopied(false);
+      setOutcomes([]);
+      setAttemptedAction(undefined);
+      setReviewed(true);
+    },
+    retry: false,
+  });
   const busy =
-    mutation.isPending || test.isPending || copy.isPending || review.isPending;
+    mutation.isPending ||
+    test.isPending ||
+    copy.isPending ||
+    review.isPending ||
+    newChange.isPending;
+  const draftLocked = busy || outcomes.length > 0;
+  const primaryAction = attemptedAction ?? (audit ? "revert" : "save");
+  const secretRetry =
+    entry.secret &&
+    attemptedAction === "save" &&
+    outcomes.some((result) => result.status !== "saved");
+  const confirmRegions = outcomes.length
+    ? outcomes
+        .filter((result) => result.status !== "saved")
+        .map((result) => result.region.toUpperCase())
+        .join(" / ")
+    : both
+      ? `${region.toUpperCase()} / ${other.toUpperCase()}`
+      : region.toUpperCase();
   const canWrite = !busy && validReason && reviewed;
   function submit(action: Action) {
-    if (!canWrite || (action === "save" && !validValue)) return;
+    if (
+      !canWrite ||
+      (action === "save" && !validValue) ||
+      (attemptedAction && action !== attemptedAction)
+    )
+      return;
     if (
       action === "revert" ||
       (entry.type === "feature" &&
@@ -356,7 +402,7 @@ export function ConfigEditor({
                     <Select
                       aria-label={t("Feature stage")}
                       value={stage}
-                      disabled={busy}
+                      disabled={draftLocked}
                       onChange={(event) =>
                         setStage(event.target.value as FeatureStage)
                       }
@@ -374,7 +420,7 @@ export function ConfigEditor({
                       <Textarea
                         aria-label={t("Beta emails")}
                         value={emails}
-                        disabled={busy}
+                        disabled={draftLocked}
                         onChange={(event) => setEmails(event.target.value)}
                       />
                       <span className="text-xs text-ink-tertiary">
@@ -390,7 +436,7 @@ export function ConfigEditor({
                     <Select
                       aria-label={t("Value")}
                       value={value}
-                      disabled={busy}
+                      disabled={draftLocked}
                       onChange={(event) => setValue(event.target.value)}
                     >
                       {entry.type === "enum" &&
@@ -426,7 +472,7 @@ export function ConfigEditor({
                       ref={entry.secret ? secretInput : undefined}
                       value={entry.secret ? undefined : value}
                       defaultValue={entry.secret ? "" : undefined}
-                      disabled={busy}
+                      disabled={(draftLocked && !secretRetry) || busy}
                       placeholder={
                         entry.secret
                           ? entry.has_value
@@ -456,7 +502,7 @@ export function ConfigEditor({
                   <Button
                     variant="secondary"
                     size="sm"
-                    disabled={busy}
+                    disabled={draftLocked}
                     onClick={() => copy.mutate()}
                   >
                     {t("Copy value from US")}
@@ -597,7 +643,31 @@ export function ConfigEditor({
                 })}
             </section>
           )}
-          {review.isError && (
+          {secretRetry && (
+            <p className="text-xs text-warning">
+              {t(
+                "Re-enter the same secret to retry failed regions. Saved regions will not be changed.",
+              )}
+            </p>
+          )}
+          {outcomes.length > 0 && !audit && (
+            <div>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={busy}
+                onClick={() => newChange.mutate()}
+              >
+                {t("Start new change")}
+              </Button>
+              <p className="mt-2 text-xs text-ink-tertiary">
+                {t(
+                  "A new change includes every selected region. Successful writes remain in change history.",
+                )}
+              </p>
+            </div>
+          )}
+          {(review.isError || newChange.isError) && (
             <p role="alert" className="text-xs text-danger">
               {t(
                 "Could not refresh configuration. Check the selected region and retry.",
@@ -623,7 +693,7 @@ export function ConfigEditor({
           )}
         </DialogBody>
         <DialogFooter>
-          {!audit && entry.source === "db" && (
+          {!audit && entry.source === "db" && !attemptedAction && (
             <Button
               className="mr-auto"
               variant="ghost"
@@ -646,16 +716,20 @@ export function ConfigEditor({
             variant="primary"
             disabled={
               !canWrite ||
-              !validValue ||
-              (!audit && entry.secret && !snapshot.vault_configured)
+              (primaryAction === "save" && !validValue) ||
+              (primaryAction === "save" &&
+                entry.secret &&
+                !snapshot.vault_configured)
             }
-            onClick={() => submit(audit ? "revert" : "save")}
+            onClick={() => submit(primaryAction)}
           >
             {mutation.isPending
               ? t("Saving...")
-              : audit
+              : primaryAction === "revert"
                 ? t("Revert")
-                : t("Save")}
+                : primaryAction === "reset"
+                  ? t("Reset override")
+                  : t("Save")}
           </Button>
         </DialogFooter>
       </Dialog>
@@ -680,9 +754,7 @@ export function ConfigEditor({
                   "Reset {name} in {region} to its environment or default value? This may change access for every user.",
                   {
                     name: label,
-                    region: both
-                      ? `${region.toUpperCase()} / ${other.toUpperCase()}`
-                      : region.toUpperCase(),
+                    region: confirmRegions,
                   },
                 )
               : stage === "ga"
@@ -690,18 +762,14 @@ export function ConfigEditor({
                     "All signed-in users in {region} will have access to {name}.",
                     {
                       name: label,
-                      region: both
-                        ? `${region.toUpperCase()} / ${other.toUpperCase()}`
-                        : region.toUpperCase(),
+                      region: confirmRegions,
                     },
                   )
                 : t(
                     "No users in {region}, including administrators, will have access to {name}.",
                     {
                       name: label,
-                      region: both
-                        ? `${region.toUpperCase()} / ${other.toUpperCase()}`
-                        : region.toUpperCase(),
+                      region: confirmRegions,
                     },
                   )
         }

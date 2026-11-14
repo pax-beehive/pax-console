@@ -462,7 +462,10 @@ Applying to both regions performs sequential independent writes, using each
 region's version and reporting each result. Preserve a successful result when
 the other region conflicts or fails; this operation is not atomic. Explicit
 review refreshes only failed regions, and retry writes only those regions with
-their reviewed versions. Keep the completed region's success visible. Copying
+their reviewed versions. Lock the payload and operation during retries. Start new
+change explicitly reloads the draft and includes all selected regions again;
+reset retries remain DELETE, and secret retries require re-entering the same secret. Keep completed results
+visible until a new operation is explicitly started. Copying
 US values to HK accepts only non-secret values. Connection tests send the group
 and unsaved overrides to `/test` and never persist configuration. A test result
 belongs to its region and group; switching regions must not carry it forward.

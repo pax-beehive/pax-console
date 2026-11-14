@@ -96,6 +96,11 @@ export const configMessages: Record<string, string> = {
   "No users in {region}, including administrators, will have access to {name}.":
     "{region} 的所有用户（包括管理员）都将无法使用{name}。",
   "Saving...": "正在保存…",
+  "Start new change": "开始新修改",
+  "A new change includes every selected region. Successful writes remain in change history.":
+    "新修改会重新包含所有选中区域。已成功的修改仍保留在修改记录中。",
+  "Re-enter the same secret to retry failed regions. Saved regions will not be changed.":
+    "请重新输入同一密钥以重试失败的区域，已保存的区域不会被修改。",
   search: "搜索",
   voice: "语音",
   models: "模型",

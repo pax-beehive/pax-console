@@ -594,6 +594,134 @@ describe("runtime configuration administration", () => {
     expect(writes()[2].body?.value).toBe("https://regional-draft.example.test");
   });
 
+  it("Given a partial save, freezes its payload until a new change refreshes versions and writes both regions again", async () => {
+    intercept = (request) => {
+      if (
+        request.method === "PUT" &&
+        request.url.searchParams.get("region") === "hk" &&
+        writes().filter(({ url }) => url.searchParams.get("region") === "hk")
+          .length === 1
+      )
+        return json({}, 503);
+    };
+    renderDashboard();
+    const dialog = await openSetting();
+    changeText(dialog, "Value", "https://change-a.example.test");
+    changeText(dialog, "Reason", "Rollout A");
+    const both = within(dialog).getByRole("checkbox", {
+      name: "Also apply to HK",
+    });
+    fireEvent.click(both);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    const results = await within(dialog).findByRole("region", {
+      name: "Regional results",
+    });
+    await within(results).findByText("Failed · not saved");
+    expect(results).toHaveTextContent("USSaved · v4");
+    expect(within(dialog).getByLabelText("Value")).toBeDisabled();
+    expect(both).toBeDisabled();
+    expect(
+      within(dialog).queryByRole("button", { name: "Reset override" }),
+    ).not.toBeInTheDocument();
+    const startNew = within(dialog).getByRole("button", {
+      name: "Start new change",
+    });
+    await waitFor(() => expect(startNew).toBeEnabled());
+    const beforeStart = requests.length;
+    fireEvent.click(startNew);
+    await waitFor(() =>
+      expect(within(dialog).getByLabelText("Value")).toBeEnabled(),
+    );
+    expect(
+      requests
+        .slice(beforeStart)
+        .map(({ method, url }) => [method, url.searchParams.get("region")]),
+    ).toEqual([["GET", "us"]]);
+    expect(
+      within(dialog).queryByRole("region", { name: "Regional results" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "Reset override" }),
+    ).toBeInTheDocument();
+    expect(both).toBeEnabled();
+    expect(both).toBeChecked();
+    changeText(dialog, "Value", "https://change-b.example.test");
+    changeText(dialog, "Reason", "Rollout B");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    const newResults = await within(dialog).findByRole("region", {
+      name: "Regional results",
+    });
+    await within(newResults).findByText("Saved · v8");
+    expect(newResults).toHaveTextContent("USSaved · v5");
+    expect(newResults).toHaveTextContent("HKSaved · v8");
+    expect(
+      writes().map(({ url, body }) => [
+        url.searchParams.get("region"),
+        body?.expected_version,
+        body?.value,
+      ]),
+    ).toEqual([
+      ["us", 3, "https://change-a.example.test"],
+      ["hk", 7, "https://change-a.example.test"],
+      ["us", 4, "https://change-b.example.test"],
+      ["hk", 7, "https://change-b.example.test"],
+    ]);
+  });
+
+  it("Given a partial reset, retries the failed region with DELETE and never changes the operation to PUT", async () => {
+    intercept = (request) => {
+      if (
+        request.method === "DELETE" &&
+        request.url.searchParams.get("region") === "hk" &&
+        writes().filter(({ url }) => url.searchParams.get("region") === "hk")
+          .length === 1
+      )
+        return json({}, 503);
+    };
+    renderDashboard();
+    const dialog = await openSetting();
+    changeText(dialog, "Reason", "Restore regional environments");
+    fireEvent.click(
+      within(dialog).getByRole("checkbox", { name: "Also apply to HK" }),
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Reset override" }),
+    );
+    const results = await within(dialog).findByRole("region", {
+      name: "Regional results",
+    });
+    await within(results).findByText("Failed · not saved");
+    expect(results).toHaveTextContent("USSaved · v4");
+    expect(
+      within(dialog).queryByRole("button", { name: "Save" }),
+    ).not.toBeInTheDocument();
+    const retry = within(dialog).getByRole("button", {
+      name: "Reset override",
+    });
+    expect(retry).toBeDisabled();
+    const review = within(results).getByRole("button", {
+      name: "Review current version",
+    });
+    await waitFor(() => expect(review).toBeEnabled());
+    fireEvent.click(review);
+    await waitFor(() => expect(retry).toBeEnabled());
+    fireEvent.click(retry);
+    expect(await within(results).findByText("Saved · v8")).toBeInTheDocument();
+    expect(results).toHaveTextContent("USSaved · v4");
+    expect(
+      writes().map(({ method, url }) => [
+        method,
+        url.searchParams.get("region"),
+        url.searchParams.get("expected_version"),
+      ]),
+    ).toEqual([
+      ["DELETE", "us", "3"],
+      ["DELETE", "hk", "7"],
+      ["DELETE", "hk", "7"],
+    ]);
+    expect(writes().some(({ method }) => method === "PUT")).toBe(false);
+  });
+
   it("Given resetting an override, requires a reason and sends DELETE with the current version", async () => {
     renderDashboard();
     const dialog = await openSetting();

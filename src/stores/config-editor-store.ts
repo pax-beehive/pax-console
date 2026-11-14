@@ -17,6 +17,7 @@ type EditorDraft = {
   reason: string;
   both: boolean;
   confirm?: ConfigAction;
+  attemptedAction?: ConfigAction;
   outcomes: ConfigOutcome[];
   reviewed: boolean;
   copied: boolean;
@@ -30,6 +31,7 @@ type EditorActions = {
   setReason: (reason: string) => void;
   setBoth: (both: boolean) => void;
   setConfirm: (confirm?: ConfigAction) => void;
+  setAttemptedAction: (attemptedAction?: ConfigAction) => void;
   setOutcomes: (outcomes: ConfigOutcome[]) => void;
   setReviewed: (reviewed: boolean) => void;
   setCopied: (copied: boolean) => void;
@@ -55,6 +57,7 @@ export function createConfigEditorStore(
     setReason: (reason) => set({ reason }),
     setBoth: (both) => set({ both }),
     setConfirm: (confirm) => set({ confirm }),
+    setAttemptedAction: (attemptedAction) => set({ attemptedAction }),
     setOutcomes: (outcomes) => set({ outcomes }),
     setReviewed: (reviewed) => set({ reviewed }),
     setCopied: (copied) => set({ copied }),
