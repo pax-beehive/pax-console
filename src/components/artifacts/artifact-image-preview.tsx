@@ -166,14 +166,16 @@ export function ArtifactImagePreview({
   }
 
   return (
-    <div className={cn("flex min-h-80 flex-col", fillHeight && "h-full")}>
+    <div
+      className={cn(
+        "flex h-[min(60dvh,38rem)] min-h-0 flex-1 flex-col",
+        fillHeight && "h-full",
+      )}
+    >
       <div
         ref={canvasRef}
         aria-label={t("Image canvas")}
-        className={cn(
-          "flex h-80 overflow-auto bg-canvas p-3",
-          fillHeight && "min-h-0 flex-1",
-        )}
+        className="flex min-h-0 flex-1 overflow-auto bg-canvas p-3"
       >
         {/* Blob images use their decoded dimensions for fit and original-size zoom. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -206,7 +208,7 @@ export function ArtifactImagePreview({
           }
         />
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-hairline px-2 py-1">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-hairline px-2 py-1">
         <span className="px-1 text-xs text-ink-subtle">
           {state.width && state.height
             ? `${state.width} × ${state.height}`

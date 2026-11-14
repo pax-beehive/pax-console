@@ -752,7 +752,10 @@ function ArtifactViewer({
       {visibility !== "closed" && (
         <div
           aria-label={t("Artifact preview")}
-          className="min-h-0 flex-1 overflow-auto bg-canvas"
+          className={cn(
+            "min-h-0 flex-1 overflow-auto bg-canvas",
+            renderer.kind === "image" && "flex flex-col",
+          )}
           hidden={!expanded}
           id={bodyId}
           onScroll={(event) => {
@@ -888,7 +891,13 @@ function ArtifactViewerBody({
   }
 
   return (
-    <div className={cn("min-h-full", standalone && "h-full")}>
+    <div
+      className={cn(
+        "min-h-full",
+        standalone && "h-full",
+        rendererKind === "image" && "flex min-h-0 flex-1 flex-col",
+      )}
+    >
       {preview.truncated && (
         <div className="border-b border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
           {t("Preview truncated.")}{" "}

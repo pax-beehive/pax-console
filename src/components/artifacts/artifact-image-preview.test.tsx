@@ -14,7 +14,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function Preview() {
+function Preview({ fillHeight = false }: { fillHeight?: boolean }) {
   const [state, onChange] = useState<ArtifactImageState>({
     width: 1600,
     height: 1000,
@@ -26,7 +26,7 @@ function Preview() {
         onChange={onChange}
         src="blob:test"
         title="Diagram"
-        fillHeight={false}
+        fillHeight={fillHeight}
       />
     </TooltipProvider>
   );
@@ -98,4 +98,21 @@ describe("artifact image wheel zoom", () => {
       }).defaultPrevented,
     ).toBe(false);
   });
+});
+
+describe("artifact image canvas layout", () => {
+  it.each([false, true])(
+    "fills the canvas and keeps controls outside scrolling (fillHeight=%s)",
+    (fillHeight) => {
+      render(<Preview fillHeight={fillHeight} />);
+      const canvas = screen.getByLabelText("Image canvas");
+      expect(canvas).toHaveClass("flex-1", "min-h-0", "overflow-auto");
+      expect(canvas).not.toHaveClass("h-80");
+      expect(canvas.parentElement).toHaveClass("flex", "flex-col", "min-h-0");
+      expect(screen.getByLabelText("Image zoom").parentElement).toHaveClass(
+        "shrink-0",
+      );
+      expect(canvas).not.toContainElement(screen.getByLabelText("Image zoom"));
+    },
+  );
 });
