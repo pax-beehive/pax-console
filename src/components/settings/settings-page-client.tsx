@@ -4,19 +4,17 @@ import { useI18n } from "@/features/i18n/use-i18n";
 import { Mail, Settings2 } from "lucide-react";
 import { isDeviceNode } from "@/components/resources/resource-models";
 import { ConsoleLayout } from "@/components/shell/console-layout";
-import { useAgents, useNodes } from "@/features/api/resources";
+import { useNodes } from "@/features/api/resources";
 import type { User } from "@/features/api/types";
 import { AuthGate } from "@/features/auth/auth-gate";
-import {
-  signInKey,
-  useAgentSignInStates,
-} from "@/features/devices/use-agent-sign-in-states";
 import { languageNames } from "@/features/i18n/language-names";
 import { accountRegionName } from "@/features/region/account-region";
 import { CONTACT_EMAIL, CONTACT_MAILTO } from "@/lib/contact";
-import { cn } from "@/lib/utils";
-import { supportsAgentSignIn } from "./agent-sign-in-settings";
-import { agentTypeLabel, normalizeAgentType } from "./agent-types";
+import { agentTypeLabel } from "./agent-types";
+import {
+  agentSignInHref,
+  useAgentsNeedingSignIn,
+} from "./agents-needing-sign-in";
 import { settingsGroups } from "./settings-catalog";
 import {
   SettingsBack,
@@ -66,20 +64,14 @@ function SettingsOverview({ user }: { user: User }) {
                   {group.items.map((item) => (
                     <SettingsLink
                       key={item.id}
-                      href={item.href}
+                      href={hints[item.id]?.href ?? item.href}
                       icon={item.icon}
                       title={item.title}
                       description={item.caption}
+                      notices={hints[item.id]?.notices}
                       trailing={
-                        hints[item.id] && (
-                          <span
-                            className={cn(
-                              "shrink-0 text-xs",
-                              hints[item.id]?.warning
-                                ? "text-warning"
-                                : "text-ink-tertiary",
-                            )}
-                          >
+                        hints[item.id]?.text && (
+                          <span className="shrink-0 text-xs text-ink-tertiary">
                             {hints[item.id]?.text}
                           </span>
                         )
@@ -117,41 +109,29 @@ function SettingsOverview({ user }: { user: User }) {
   );
 }
 
-type OverviewHint = { text: string; warning?: boolean };
+type OverviewHint = {
+  /** A short fact beside the entry. */
+  text?: string;
+  /** Something to act on, under the entry's description. */
+  notices?: string[];
+  /** Where the entry leads instead of its own page, to act on the notices. */
+  href?: string;
+};
 
 /**
- * Short facts shown beside an overview entry: devices online, the current
- * language, and any agent that has to sign in again before it can work.
+ * What the overview adds to an entry: devices online, the current language,
+ * and each agent that has to sign in again, named with its device because the
+ * same agent type can be on several devices.
  */
 function useOverviewHints(
   userId: string,
 ): Record<string, OverviewHint | undefined> {
   const { t, locale } = useI18n();
   const devices = useNodes(userId, 60_000).data?.nodes?.filter(isDeviceNode);
-  const agents = useAgents(userId, "owned").data?.agents;
   const region = accountRegionName();
-  // Sign-in is per agent type on a device, and only an online device answers.
-  const targets = (devices ?? [])
-    .filter((node) => node.online)
-    .flatMap((node) =>
-      [
-        ...new Set(
-          (agents ?? [])
-            .filter((agent) => agent.node_id === node.node_id)
-            .map((agent) => normalizeAgentType(agent.agent_type))
-            .filter(
-              (type): type is string => !!type && supportsAgentSignIn(type),
-            ),
-        ),
-      ].map((agentType) => ({ nodeId: node.node_id, agentType })),
-    );
-  const signIn = useAgentSignInStates(userId, targets);
-  const signedOut = targets.filter(
-    (target) => signIn[signInKey(target)] === "signed-out",
-  );
-  const signedOutTypes = [
-    ...new Set(signedOut.map((target) => agentTypeLabel(target.agentType))),
-  ];
+  const needSignIn = useAgentsNeedingSignIn(userId);
+  // Up to three are named; beyond that two are named and the rest counted.
+  const named = needSignIn.length > 3 ? needSignIn.slice(0, 2) : needSignIn;
   return {
     devices: devices?.length
       ? {
@@ -160,20 +140,27 @@ function useOverviewHints(
           }),
         }
       : undefined,
-    agentSignIn:
-      signedOutTypes.length === 1
-        ? {
-            text: t("{agent} needs sign-in", { agent: signedOutTypes[0] }),
-            warning: true,
-          }
-        : signedOut.length > 1
-          ? {
-              text: t("{count} agents need sign-in", {
-                count: signedOut.length,
+    agentSignIn: needSignIn.length
+      ? {
+          // Opens the first one directly; the sign-in page lists the others.
+          href: agentSignInHref(needSignIn[0]),
+          notices: [
+            ...named.map((agent) =>
+              t("{agent} on {device} needs sign-in", {
+                agent: agentTypeLabel(agent.agentType),
+                device: agent.deviceName,
               }),
-              warning: true,
-            }
-          : undefined,
+            ),
+            ...(needSignIn.length > named.length
+              ? [
+                  t("{count} more agents need sign-in", {
+                    count: needSignIn.length - named.length,
+                  }),
+                ]
+              : []),
+          ],
+        }
+      : undefined,
     language: {
       text: [languageNames[locale], region && t(region)]
         .filter(Boolean)

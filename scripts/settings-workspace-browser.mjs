@@ -132,7 +132,9 @@ async function openSettings(browser, viewport, account = {}) {
     else if (path.endsWith("/auth/status"))
       // Codex still needs to sign in; the other agent types are signed in.
       data = {
-        harness_auth: { state: "idle", logged_in: !path.includes("/codex/") },
+        harness_auth: path.includes("/codex/")
+          ? { state: "logged_out", logged_in: false }
+          : { state: "logged_in", logged_in: true },
       };
     else if (path.endsWith("/daemon/agent-connections"))
       data = {
@@ -406,11 +408,32 @@ try {
       viewport,
       fleet,
     );
-    // The overview calls out the agent type that still has to sign in.
-    await content(page, 'a[href="/settings/agent-sign-in"]')
-      .getByText("Codex needs sign-in", { exact: true })
+    // The overview names the agent that still has to sign in and its device,
+    // and its entry opens the sign-in page on exactly that device and agent.
+    const signInEntry = content(
+      page,
+      'a[href="/settings/agent-sign-in?node_id=node-laptop&harness=codex"]',
+    );
+    await signInEntry
+      .getByText("Codex on MacBook Pro needs sign-in", { exact: true })
       .waitFor();
+    assert.ok(await noOverflow(page), `${size} overview with a sign-in notice`);
     await page.screenshot({ path: `${output}/${size}-overview-sign-in.png` });
+    await signInEntry.click();
+    await page.getByText("Not signed in on this device.").waitFor();
+    assert.equal(
+      await page.getByLabel("Device", { exact: true }).inputValue(),
+      "node-laptop",
+    );
+    assert.equal(await page.getByLabel("Agent type").inputValue(), "codex");
+    // The card reports it, so it is not listed again above.
+    assert.equal(
+      await page
+        .getByRole("group", { name: "Agents that need sign-in" })
+        .count(),
+      0,
+    );
+    await page.screenshot({ path: `${output}/${size}-sign-in-opened.png` });
     await page.goto(origin + "/settings/devices");
     await page
       .getByRole("heading", { name: "My devices", exact: true })

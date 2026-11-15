@@ -120,7 +120,10 @@ subscriptions, Summary developer) follows `canSeeAdminFeatures`, so it is
 hidden while an administrator previews as a user. Its `/admin/*` routes count
 as settings routes: they show the settings sidebar, and the workspace sidebar
 and mobile tab bar do not list them. The overview's Agent sign-in & usage entry
-names the agent type that has to sign in again; it asks each online device once. Allowed actions appears only
+names each agent that has to sign in again with its device ("Claude Code on
+home-server needs sign-in"; up to three, otherwise two and a count) and opens
+the sign-in page on the first one. `agents-needing-sign-in.ts` asks each online
+device once per agent type. Allowed actions appears only
 while the account has an unrevoked approval grant; its route stays reachable.
 Secretary, Notifications, and Voice input declare a `feature` and are listed
 only while `useFeatures` reports it enabled for the account; their routes are
@@ -186,7 +189,12 @@ Manager record); the page never lists or probes tools installed on the device.
 Agent types are PAX ids such as `claude-code`, `codex` or `kimi`; the legacy
 `harness=claude` URL value maps to `claude-code`. A missing or unregistered linked
 agent type falls back to the first registered one, and a device without
-registered agents shows an empty state. The page shows an account card
+registered agents shows an empty state. Without a linked device, an account
+with a single device shows that device; a linked or picked device is never
+replaced by another one. The top of the page lists the other agents that need
+sign-in, each with its device, and picking one shows it; the agent being shown
+is reported by its own card and drops out once it signs in on the page. The
+page shows an account card
 (status, account email, plan and credential badges, and the only Refresh, which
 re-reads sign-in status and plan usage) and a separate Plan usage card. Methods
 are named by account: Claude Code offers "Claude account (Pro / Max)" and
@@ -248,7 +256,8 @@ for about a minute, so values can be up to about two minutes old; `observed_at` 
 when paxd completed its read.
 
 `agent-sign-in-settings.tsx` owns device/method selection and password inputs;
-`agent-sign-in-flow.ts` owns ephemeral status, polling, cancellation and expiration.
+`agent-sign-in-flow.ts` owns ephemeral status, polling, cancellation and expiration;
+`agent-sign-in-methods.ts` is the table of sign-in methods per agent type.
 Nodes remain in TanStack Query. Login challenges, authorization codes, keys and
 tokens stay outside query/mutation caches, browser storage and durable command
 records. Inputs clear immediately on dispatch, attempt changes, terminal states

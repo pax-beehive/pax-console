@@ -18,11 +18,12 @@ import {
   Trash2,
   UserRoundCheck,
 } from "lucide-react";
-import { supportsAgentSignIn } from "@/components/settings/agent-sign-in-settings";
+import { supportsAgentSignIn } from "@/components/settings/agent-sign-in-methods";
 import {
   agentTypeLabel,
   normalizeAgentType,
 } from "@/components/settings/agent-types";
+import { agentSignInHref } from "@/components/settings/agents-needing-sign-in";
 import { settingsLinks } from "@/components/settings/settings-catalog";
 import { Button } from "@/components/ui/button";
 import {
@@ -432,7 +433,7 @@ export function AgentRow({
   const available = deviceOnline && Boolean(agent.online);
   const signInHref =
     nodeId && type && supportsAgentSignIn(type)
-      ? `${settingsLinks.agentSignIn}?${new URLSearchParams({ node_id: nodeId, harness: type })}`
+      ? agentSignInHref({ nodeId, agentType: type })
       : undefined;
   return (
     <li
