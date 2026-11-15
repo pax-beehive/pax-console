@@ -298,7 +298,15 @@ describe("thinking avatar follows the current session model", () => {
     expect(screen.getByText("Thinking…")).toBeVisible();
     expect(
       container.querySelector('[data-slot="thinking-avatar"]'),
-    ).toHaveClass("animate-spin");
+    ).not.toHaveClass("animate-spin");
+    expect(
+      container
+        .querySelector('[data-slot="thinking-avatar"]')
+        ?.closest(".animate-spin"),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-slot="thinking-spinner"]'),
+    ).toHaveClass("animate-spin", "motion-reduce:animate-none");
   });
 
   it("updates the same completed timeline when the current model changes and retains its duration", () => {
@@ -319,6 +327,12 @@ describe("thinking avatar follows the current session model", () => {
     expect(
       view.container.querySelector('[data-slot="thinking-avatar"]'),
     ).toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-slot="thinking-avatar"]'),
+    ).not.toHaveClass("animate-spin");
+    expect(
+      view.container.querySelector('[data-slot="thinking-spinner"]'),
+    ).not.toBeInTheDocument();
 
     for (const current of [configuration("gpt-6"), undefined]) {
       fixtures.configuration = current;
@@ -329,6 +343,9 @@ describe("thinking avatar follows the current session model", () => {
       expect(
         view.container.querySelector('[data-slot="thinking-avatar"]'),
       ).not.toBeInTheDocument();
+      expect(
+        view.container.querySelector('[data-slot="thinking-spinner"]'),
+      ).not.toBeInTheDocument();
     }
 
     fixtures.configuration = configuration("deepseek-chat");
@@ -336,6 +353,9 @@ describe("thinking avatar follows the current session model", () => {
     expect(
       view.container.querySelector('[data-slot="thinking-avatar"]'),
     ).toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-slot="thinking-spinner"]'),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("Thought for 1s")).toBeVisible();
   });
 
@@ -351,6 +371,9 @@ describe("thinking avatar follows the current session model", () => {
       expect(screen.getByText("Thinking…")).toBeVisible();
       expect(
         container.querySelector('[data-slot="thinking-avatar"]'),
+      ).not.toBeInTheDocument();
+      expect(
+        container.querySelector('[data-slot="thinking-spinner"]'),
       ).not.toBeInTheDocument();
     },
   );

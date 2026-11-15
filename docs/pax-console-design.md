@@ -227,8 +227,10 @@ thinking or retries. Raw tool names and payloads stay inside expanded details.
 Only an explicitly selected DeepSeek model uses the 20px transparent whale-girl
 avatar. Other and unknown models retain the normal thought text, timing, and
 activity/disclosure icons. Switching the current model updates existing rows.
-The avatar rotates once every three seconds only while that thought is active.
-Completed and historical DeepSeek thoughts keep a static avatar. Tool activity and approval waits retain their
+The avatar always stays upright, with a separate 24px loading ring rotating
+once per second around the 20px image only while that thought is active.
+Completed and historical DeepSeek thoughts keep the avatar without the ring.
+Tool activity and approval waits retain their
 existing status icons. Respect reduced-motion preferences and keep the avatar
 decorative for screen readers. Asset details and its generation prompt live in
 [whale-chan-thinking-asset.md](whale-chan-thinking-asset.md).

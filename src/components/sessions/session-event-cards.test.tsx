@@ -338,6 +338,14 @@ describe("session event cards", () => {
     expect(screen.getByText("Thinking…")).toBeVisible();
     expect(
       view.container.querySelector('[data-slot="thinking-avatar"]'),
+    ).not.toHaveClass("animate-spin");
+    expect(
+      view.container
+        .querySelector('[data-slot="thinking-avatar"]')
+        ?.closest(".animate-spin"),
+    ).toBeNull();
+    expect(
+      view.container.querySelector('[data-slot="thinking-spinner"]'),
     ).toHaveClass("animate-spin", "motion-reduce:animate-none");
     expect(screen.queryByText("Checking files")).not.toBeInTheDocument();
     const concurrent = activityGroup(false);
@@ -364,12 +372,18 @@ describe("session event cards", () => {
     expect(
       view.container.querySelector('[data-slot="thinking-avatar"]'),
     ).not.toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-slot="thinking-spinner"]'),
+    ).not.toBeInTheDocument();
     const group = view.container.querySelector("details")!;
     group.open = true;
     fireEvent(group, new Event("toggle"));
     expect(
       view.container.querySelector('[data-slot="thinking-avatar"]'),
     ).not.toHaveClass("animate-spin");
+    expect(
+      view.container.querySelector('[data-slot="thinking-spinner"]'),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps an actionable approval outside the collapsed activity list without duplicating it", () => {
@@ -709,7 +723,7 @@ describe("session event cards", () => {
     );
   });
 
-  it("stops the whale avatar when a standalone thought finishes", () => {
+  it("keeps the whale upright and removes its loading ring when a standalone thought finishes", () => {
     const thought: Extract<SessionEvent, { type: "progress" }> = {
       type: "progress",
       id: "thought-avatar",
@@ -726,8 +740,16 @@ describe("session event cards", () => {
     const avatar = view.container.querySelector(
       '[data-slot="thinking-avatar"]',
     );
-    expect(avatar).toHaveClass("animate-spin", "motion-reduce:animate-none");
+    expect(avatar).not.toHaveClass("animate-spin");
+    expect(avatar?.closest(".animate-spin")).toBeNull();
     expect(avatar).toHaveAttribute("aria-hidden", "true");
+    const spinner = view.container.querySelector(
+      '[data-slot="thinking-spinner"]',
+    );
+    expect(spinner).toHaveClass("animate-spin", "motion-reduce:animate-none");
+    expect(spinner).not.toHaveClass("[animation-duration:3s]");
+    expect(spinner).toHaveAttribute("aria-hidden", "true");
+    expect(spinner?.contains(avatar)).toBe(false);
     view.rerender(
       <TooltipProvider>
         <WorkstreamItemCard
@@ -744,6 +766,9 @@ describe("session event cards", () => {
     expect(
       view.container.querySelector('[data-slot="thinking-avatar"]'),
     ).not.toHaveClass("animate-spin");
+    expect(
+      view.container.querySelector('[data-slot="thinking-spinner"]'),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("Thought")).toBeVisible();
   });
 
