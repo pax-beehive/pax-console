@@ -1651,9 +1651,10 @@ ID/name, with modern options taking precedence over the selected legacy model.
 Unknown models hide it; ignore permission mode, unselected model candidates,
 and stored session model metadata. Propagate the flag through the timeline and
 its memo comparison so confirmed model changes update existing rows.
-The avatar rotates once every three seconds only for the current live thought.
-Share `isLiveThoughtActivity` with the label;
-tools, approvals, stale thoughts, and completed work must not animate the avatar.
+The avatar always stays upright. Only the current live thought shows a separate
+24px loading ring around the 20px image; the ring rotates once per second.
+Share `isLiveThoughtActivity` with the label; tools, approvals, stale thoughts,
+and completed work remove the ring. Neither the image nor its wrapper rotates.
 Honor reduced motion. Serve the transparent asset through Next Image at its
 display size; see [asset provenance and prompt](whale-chan-thinking-asset.md).
 Finished thoughts show `Thought for 1s` (`已深度思考1s` in Chinese), with up to

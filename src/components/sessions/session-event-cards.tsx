@@ -2585,20 +2585,29 @@ function permissionRequestPatches(
 
 function WhaleThinkingIcon({ active }: { active: boolean }) {
   return (
-    <Image
-      alt=""
+    <span
       aria-hidden="true"
-      data-slot="thinking-avatar"
-      src="/whale-chan-thinking-v2.png"
-      width={20}
-      height={20}
-      draggable={false}
-      className={cn(
-        "h-5 w-5 shrink-0 object-contain",
-        active &&
-          "animate-spin [animation-duration:3s] motion-reduce:animate-none",
+      className="relative inline-flex h-5 w-5 shrink-0 items-center justify-center"
+    >
+      {active && (
+        <LoaderCircle
+          aria-hidden="true"
+          data-slot="thinking-spinner"
+          strokeWidth={1.5}
+          className="pointer-events-none absolute -inset-0.5 h-6 w-6 animate-spin text-ink-tertiary motion-reduce:animate-none"
+        />
       )}
-    />
+      <Image
+        alt=""
+        aria-hidden="true"
+        data-slot="thinking-avatar"
+        src="/whale-chan-thinking-v2.png"
+        width={20}
+        height={20}
+        draggable={false}
+        className="h-5 w-5 object-contain"
+      />
+    </span>
   );
 }
 
