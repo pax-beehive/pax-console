@@ -61,6 +61,9 @@ describe("Given thinking without a confirmed DeepSeek model", () => {
       container.querySelector('[data-slot="thinking-avatar"]'),
     ).not.toBeInTheDocument();
     expect(
+      container.querySelector('[data-slot="thinking-spinner"]'),
+    ).not.toBeInTheDocument();
+    expect(
       screen.getByText(
         complete
           ? grouped
@@ -80,11 +83,22 @@ describe("Given thinking without a confirmed DeepSeek model", () => {
       const view = render(card(item, true));
       expect(
         view.container.querySelector('[data-slot="thinking-avatar"]'),
-      ).toHaveClass("animate-spin");
+      ).not.toHaveClass("animate-spin");
+      expect(
+        view.container
+          .querySelector('[data-slot="thinking-avatar"]')
+          ?.closest(".animate-spin"),
+      ).toBeNull();
+      expect(
+        view.container.querySelector('[data-slot="thinking-spinner"]'),
+      ).toHaveClass("animate-spin", "motion-reduce:animate-none");
 
       view.rerender(card(item, false));
       expect(
         view.container.querySelector('[data-slot="thinking-avatar"]'),
+      ).not.toBeInTheDocument();
+      expect(
+        view.container.querySelector('[data-slot="thinking-spinner"]'),
       ).not.toBeInTheDocument();
       expect(
         screen.getByText(grouped ? "Thinking…" : "Thinking"),
@@ -93,7 +107,10 @@ describe("Given thinking without a confirmed DeepSeek model", () => {
       view.rerender(card(item, true));
       expect(
         view.container.querySelector('[data-slot="thinking-avatar"]'),
-      ).toHaveClass("animate-spin");
+      ).not.toHaveClass("animate-spin");
+      expect(
+        view.container.querySelector('[data-slot="thinking-spinner"]'),
+      ).toHaveClass("animate-spin", "motion-reduce:animate-none");
     },
   );
 
@@ -103,10 +120,16 @@ describe("Given thinking without a confirmed DeepSeek model", () => {
     expect(
       view.container.querySelector('[data-slot="thinking-avatar"]'),
     ).not.toHaveClass("animate-spin");
+    expect(
+      view.container.querySelector('[data-slot="thinking-spinner"]'),
+    ).not.toBeInTheDocument();
     view.rerender(card(item, false));
     expect(screen.getByText("Thought for 1s")).toBeVisible();
     expect(
       view.container.querySelector('[data-slot="thinking-avatar"]'),
+    ).not.toBeInTheDocument();
+    expect(
+      view.container.querySelector('[data-slot="thinking-spinner"]'),
     ).not.toBeInTheDocument();
     expect(
       view.container.querySelectorAll("summary .lucide-chevron-down"),
