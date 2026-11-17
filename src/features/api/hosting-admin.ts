@@ -95,7 +95,22 @@ export type HostingAdminFilter = {
 };
 
 type Caps = { monthly_microusd: number; monthly_tokens: number };
+export type HostingProvider = "openrouter" | "openai" | "anthropic";
+
+export type HostingModelCreate = {
+  action: "model_create";
+  target_id: string;
+  provider: HostingProvider;
+  upstream_model: string;
+  moderation: HostingModelPolicy["moderation"];
+  max_output_tokens: number;
+  input_microusd_per_million: number;
+  output_microusd_per_million: number;
+  enabled?: false;
+};
+
 export type HostingAdminFields =
+  | HostingModelCreate
   | { action: "pool"; monthly_microusd: number }
   | ({ action: "defaults" } & Caps)
   | ({

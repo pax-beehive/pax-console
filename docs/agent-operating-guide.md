@@ -481,6 +481,32 @@ API keys, prompts and provider response bodies are not part of these contracts.
 Budgets use integer microdollars and monthly periods are authoritative in Manager.
 The standalone UI has no dependency on optional free-agent/sandbox lifecycle code.
 
+The pool badge describes its monetary balance (`Funded`, `Zero budget`, or
+`Exhausted`), independently of the runtime's Hosting enabled/disabled banner.
+`pool.available` also depends on runtime readiness and accounting periods, so a
+false value never establishes that dollars were spent. A separate notice explains
+when funded credit cannot currently serve requests.
+
+Add model defaults to a searchable OpenRouter catalog at the same-origin
+`GET /api/model-gateway/catalog?provider=openrouter` BFF. Each request forwards the
+existing signed Access identity to Manager's hosting-admin check before accessing
+the public fixed OpenRouter models endpoint or its five-minute server cache.
+The browser receives no provider key, route or base URL. The BFF filters compatible
+priced text models and normalizes conservative integer accounting rates/caps;
+conditional rates are identified explicitly. A failed or empty catalog never
+creates a fallback model list. OpenAI and Anthropic remain secondary manual
+provider choices using trusted server routing profiles.
+
+Selection fills the upstream ID, rates and output cap. The operator reviews the
+public alias, moderation and editable accounting fields before an explicit
+`model_create` PATCH on the same hosting-admin endpoint. Creation always sends
+`enabled: false`; Manager assigns the policy version. A saved catalog entry is
+not proof that a provider is connected or generation is ready. Duplicate identity
+409 keeps the form editable; stale revision 409 requires an explicit reload and
+retains the creation draft. Losing admin access removes the draft and catalog
+query. Deploy matching Manager creation support and trusted gateway provider
+profiles before publishing this workflow.
+
 ## Runtime feature flags and configuration administration
 
 Use the exports from `src/features/flags` for `FeatureKey`, `useFeatures`,

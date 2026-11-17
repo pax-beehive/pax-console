@@ -63,6 +63,25 @@ describe("hosting administration API", () => {
       },
     );
   });
+  it("creates a disabled model through the existing versioned self endpoint without routes or credentials", async () => {
+    const change = {
+      revision: 7,
+      action: "model_create" as const,
+      target_id: "trial-model",
+      provider: "openrouter" as const,
+      upstream_model: "vendor/model-id",
+      moderation: "openai" as const,
+      max_output_tokens: 2048,
+      input_microusd_per_million: 3_000_000,
+      output_microusd_per_million: 15_000_000,
+      enabled: false as const,
+    };
+    await changeHostingAdmin(change);
+    expect(apiFetch).toHaveBeenCalledExactlyOnceWith(
+      "/api/v1/user/self/hosting-admin",
+      { method: "PATCH", body: JSON.stringify(change) },
+    );
+  });
 });
 
 describe("exact budget input", () => {

@@ -110,6 +110,7 @@ let admin = true;
 let rejectRead = false;
 let writes = [];
 let reads = 0;
+let catalogReads = 0;
 const unexpectedAPI = [];
 const errors = [];
 const browser = await chromium.launch({
@@ -118,6 +119,12 @@ const browser = await chromium.launch({
 });
 
 async function fixture(context) {
+  await context.routeWebSocket("**/*", (socket) => {
+    const url = new URL(socket.url());
+    if (url.host === origin.host && url.pathname === "/_next/webpack-hmr")
+      socket.connectToServer();
+    else socket.close();
+  });
   await context.route("**/*", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -143,6 +150,24 @@ async function fixture(context) {
       });
     if (url.pathname === "/api/pax/api/v1/user/self/customer-visit")
       return data({ recorded: true });
+    if (url.pathname === "/api/model-gateway/catalog") {
+      catalogReads++;
+      return json({
+        source: "openrouter",
+        fetched_at: "2026-11-16T00:00:00Z",
+        models: [
+          {
+            id: "vendor/catalog-model",
+            name: "Catalog Model",
+            context_length: 200000,
+            max_output_tokens: 4096,
+            input_microusd_per_million: 3_000_001,
+            output_microusd_per_million: 15_000_001,
+            pricing_is_conservative: true,
+          },
+        ],
+      });
+    }
     if (url.pathname === "/api/pax/api/v1/user/self/hosting-admin") {
       if (request.method() === "GET") {
         reads++;
@@ -161,7 +186,30 @@ async function fixture(context) {
           { code: 409, message: "hosting_admin_revision_conflict" },
           409,
         );
-      if (change.action === "pool") {
+      if (change.action === "model_create") {
+        if (
+          state.models.some(
+            (model) =>
+              model.id === change.target_id ||
+              (model.provider === change.provider &&
+                model.upstream_model === change.upstream_model),
+          )
+        )
+          return json({ code: 409, message: "hosting_model_conflict" }, 409);
+        assert.equal(change.enabled, false);
+        state.models.push({
+          id: change.target_id,
+          provider: change.provider,
+          upstream_model: change.upstream_model,
+          moderation: change.moderation,
+          max_output_tokens: change.max_output_tokens,
+          input_microusd_per_million: change.input_microusd_per_million,
+          output_microusd_per_million: change.output_microusd_per_million,
+          enabled: false,
+          policy_version: `admin-${state.revision + 1}`,
+        });
+        state.model_bases[change.target_id] = "fixture-created-base";
+      } else if (change.action === "pool") {
         state.pool.monthly_limit_microusd = change.monthly_microusd;
         state.pool.remaining_microusd = Math.max(
           0,
@@ -328,6 +376,51 @@ try {
     ),
     false,
   );
+  // Catalog import remains a disabled administrative change, without generation.
+  await page.getByRole("button", { name: "Add model", exact: true }).click();
+  await page
+    .getByRole("button", {
+      name: "Select Catalog Model (vendor/catalog-model)",
+      exact: true,
+    })
+    .click();
+  await page.getByLabel("Model alias", { exact: true }).fill("fixture-import");
+  assert.equal(
+    await page
+      .getByLabel("Input USD / million for the new model", { exact: true })
+      .inputValue(),
+    "3.000001",
+  );
+  await page.screenshot({
+    path: path.join(output, "mobile-model-import.png"),
+    fullPage: true,
+  });
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > innerWidth,
+    ),
+    false,
+  );
+  await page.getByRole("button", { name: "Create model", exact: true }).click();
+  await page
+    .getByText(
+      "Model saved and disabled. Connect its provider before enabling it.",
+      { exact: true },
+    )
+    .waitFor();
+  assert.equal(writes.at(-1).action, "model_create");
+  assert.equal(writes.at(-1).enabled, false);
+  assert.equal(writes.at(-1).upstream_model, "vendor/catalog-model");
+  await page.locator("summary").filter({ hasText: "fixture-import" }).waitFor();
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await page
+    .getByRole("heading", { name: "Configured models", exact: true })
+    .scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: path.join(output, "desktop-model-import.png"),
+    fullPage: true,
+  });
+
   // The current Settings layout and administrator preview share one catalog.
   const readsBeforePreview = reads;
   await page.getByRole("button", { name: "User menu", exact: true }).click();
@@ -396,6 +489,7 @@ try {
       result: "passed",
       scope: "mocked local UI only",
       reads,
+      catalogReads,
       writes: writes.length,
       screenshots: output,
     }),

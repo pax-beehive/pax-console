@@ -37,6 +37,7 @@ import {
   type HostingAdminUser,
   type HostingModelPolicy,
 } from "@/features/api/hosting-admin";
+import { modelCatalogKey } from "@/features/api/model-catalog";
 import type { User } from "@/features/api/types";
 import { useConsoleStore } from "@/stores/console-store";
 import {
@@ -45,6 +46,8 @@ import {
   gatewayInputClass,
   type GatewayFormValues,
 } from "./model-gateway-form";
+
+import { AddModel } from "./model-gateway-create";
 
 type Save = (change: HostingAdminChange) => Promise<HostingAdminSnapshot>;
 const number = (value: number) => value.toLocaleString("en-US");
@@ -86,13 +89,17 @@ export function ModelGatewayAccess({ user }: { user: User }) {
 function AuthorizedGateway({ userId }: { userId: string }) {
   const client = useQueryClient();
   const [denied, setDenied] = useState(false);
-  const deny = useCallback(() => setDenied(true), []);
-  useEffect(() => {
-    return () => {
-      void client.cancelQueries({ queryKey: hostingAdminKey(userId) });
-      client.removeQueries({ queryKey: hostingAdminKey(userId) });
-    };
+  const clear = useCallback(() => {
+    for (const queryKey of [hostingAdminKey(userId), modelCatalogKey(userId)]) {
+      void client.cancelQueries({ queryKey });
+      client.removeQueries({ queryKey });
+    }
   }, [client, userId]);
+  const deny = useCallback(() => {
+    setDenied(true);
+    clear();
+  }, [clear]);
+  useEffect(() => clear, [clear]);
   if (denied) return <AccessDenied />;
   return <ModelGatewayDashboard userId={userId} onDenied={deny} />;
 }
@@ -233,6 +240,13 @@ function ModelGatewayDashboard({
                 "Provider and upstream identities come from server configuration. Credentials stay on the server.",
               )}
             >
+              <AddModel
+                revision={snapshot.revision}
+                save={save}
+                userId={userId}
+                onDenied={onDenied}
+                existingModels={snapshot.models}
+              />
               {snapshot.models.length ? (
                 snapshot.models.map((model) => (
                   <ModelSettings
@@ -438,15 +452,34 @@ function PoolSettings({
 }) {
   const { t } = useI18n();
   const { pool } = snapshot;
+  const hasBudget = pool.remaining_microusd > 0;
+  const budgetStatus =
+    pool.monthly_limit_microusd === 0
+      ? "Zero budget"
+      : hasBudget
+        ? "Funded"
+        : "Exhausted";
+  // Availability also depends on hosting readiness and the accounting period;
+  // it cannot establish whether the monetary budget has been consumed.
+  const accessNotice = !snapshot.enabled
+    ? "Free model requests are disabled. Changing the budget does not enable hosting."
+    : hasBudget && !pool.available
+      ? "Free model requests are currently unavailable despite the remaining budget."
+      : null;
   const reset = formatHostingBudgetReset(pool.period_start, pool.resets_at);
   return (
     <section aria-label={t("Platform pool")} className="min-w-0">
       <div className="mb-3 flex items-center gap-2">
         <h2 className="text-sm font-semibold text-ink">{t("Platform pool")}</h2>
-        <Badge tone={pool.available ? "success" : "warning"}>
-          {t(pool.available ? "Available" : "Exhausted")}
+        <Badge tone={hasBudget ? "success" : "warning"}>
+          {t(budgetStatus)}
         </Badge>
       </div>
+      {accessNotice ? (
+        <p className="mb-3 text-xs leading-5 text-ink-tertiary">
+          {t(accessNotice)}
+        </p>
+      ) : null}
       <dl className="mb-4 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
         {[
           ["Monthly limit", pool.monthly_limit_microusd],
