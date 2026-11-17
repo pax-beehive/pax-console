@@ -138,4 +138,60 @@ export const modelGatewayMessages: Record<string, string> = {
   "Dollar amount is too large.": "金额过大。",
   "Enter a positive whole token limit.": "请输入正整数 token 上限。",
   "Enter a nonnegative whole token limit.": "请输入非负整数 token 上限。",
+
+  "Choose a supported provider.": "请选择支持的供应商。",
+  "Add model": "新增模型",
+  "New model": "新模型",
+  "Create model": "创建模型",
+  "Model alias": "模型别名",
+  Provider: "供应商",
+  "Upstream model ID": "上游模型 ID",
+  "Safety policy for the new model": "新模型安全策略",
+  "Max output tokens for the new model": "新模型最大输出 token 数",
+  "Input USD / million for the new model":
+    "新模型每百万输入 token 价格（美元）",
+  "Output USD / million for the new model":
+    "新模型每百万输出 token 价格（美元）",
+  "Cancel adding model": "取消新增模型",
+  "New models start disabled. Connect the provider before enabling them.":
+    "新增模型默认停用；启用前需要接入对应 Provider。",
+  "Model saved and disabled. Connect its provider before enabling it.":
+    "模型已保存并停用，接入对应 Provider 后才可启用。",
+  "Use a public alias for agents and the provider's exact model ID. Prices are required; enter zero explicitly for a free rate. Credentials stay on the server.":
+    "填写 Agent 使用的公开别名与供应商的准确模型 ID。必须填写价格；免费费率请明确输入零。密钥仅保存在服务端。",
+  "This alias or provider/model is already configured. Choose a different model or alias; your other settings are preserved.":
+    "模型别名或对应供应商模型已存在，请更换模型或别名，其他设置已保留。",
+  "Enter a model alias of up to 128 letters, numbers or model ID punctuation.":
+    "请输入最多 128 个字符的模型别名，仅支持字母、数字与模型 ID 标点。",
+  "Enter an upstream model ID of up to 256 letters, numbers or model ID punctuation.":
+    "请输入最多 256 个字符的上游模型 ID，仅支持字母、数字与模型 ID 标点。",
+  "Max output tokens cannot exceed 8192.": "最大输出 token 数不能超过 8192。",
+  "A model rate cannot exceed 1000000 USD per million tokens.":
+    "模型费率不能超过每百万 token 1000000 美元。",
+  "OpenRouter model catalog": "OpenRouter 模型目录",
+  "Choose an OpenRouter model": "选择 OpenRouter 模型",
+  "Retry catalog": "重试加载目录",
+  "Refresh catalog": "刷新目录",
+  "Loading OpenRouter models…": "正在加载 OpenRouter 模型…",
+  "Could not load the OpenRouter catalog. Retry to choose a model.":
+    "无法加载 OpenRouter 模型目录，请重试后选择模型。",
+  "Search OpenRouter models": "搜索 OpenRouter 模型",
+  "Search by model name or ID": "按模型名称或 ID 搜索",
+  "OpenRouter models": "OpenRouter 模型列表",
+  "Select {name} ({id})": "选择 {name}（{id}）",
+  "Input {input} / output {output} per million tokens":
+    "每百万 token 输入 {input} / 输出 {output}",
+  "Context {context} · max output {output}":
+    "上下文 {context} · 最大输出 {output}",
+  "Showing 20 of {count} matches. Refine your search.":
+    "显示 {count} 个匹配项中的前 20 个，请细化搜索条件。",
+  "No matching unconfigured models. Change your search or review existing models.":
+    "没有匹配的未配置模型，请调整搜索条件或检查已有模型。",
+  "OpenRouter returned no compatible priced text models.":
+    "OpenRouter 未返回兼容且有定价的文本模型。",
+  "Catalog rates are estimates rounded up for accounting. Review them before saving; selecting a model does not enable it.":
+    "目录费率按记账要求向上取整，请在保存前确认。选择模型不会启用模型。",
+  "Conservative rate includes conditional token charges.":
+    "保守费率包含条件 token 费用上限。",
+  "This provider and model are already configured.": "此供应商和模型已配置。",
 };

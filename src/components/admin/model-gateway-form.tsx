@@ -21,12 +21,16 @@ export function GatewayField({
   onChange,
   disabled,
   numeric,
+  inputMode,
+  maxLength = 32,
 }: {
   label: string;
   value: string | boolean;
   onChange: (value: string) => void;
   disabled?: boolean;
   numeric?: boolean;
+  inputMode?: "text" | "decimal" | "numeric";
+  maxLength?: number;
 }) {
   const { t } = useI18n();
   return (
@@ -36,9 +40,9 @@ export function GatewayField({
         className={gatewayInputClass}
         value={String(value)}
         onChange={(event) => onChange(event.target.value)}
-        inputMode={numeric ? "numeric" : "decimal"}
+        inputMode={inputMode ?? (numeric ? "numeric" : "decimal")}
         disabled={disabled}
-        maxLength={32}
+        maxLength={maxLength}
         autoComplete="off"
       />
     </label>
@@ -53,6 +57,9 @@ export function GatewayForm({
   buildChange,
   save,
   children,
+  onSaved,
+  submitLabel,
+  preserveDraftOnReload = false,
 }: {
   label: string;
   revision: number;
@@ -62,6 +69,9 @@ export function GatewayForm({
     baseline: GatewayFormValues,
   ) => HostingAdminFields;
   save: (change: HostingAdminChange) => Promise<HostingAdminSnapshot>;
+  onSaved?: (saved: HostingAdminSnapshot) => void;
+  submitLabel?: string;
+  preserveDraftOnReload?: boolean;
   children: (
     draft: GatewayFormValues,
     change: (key: string, value: string | boolean) => void,
@@ -77,6 +87,8 @@ export function GatewayForm({
   const [validationError, setValidationError] = useState("");
   const [conflict, setConflict] = useState(false);
   const dirty = JSON.stringify(form.baseline) !== JSON.stringify(form.draft);
+  const reviewRevision =
+    conflict || (preserveDraftOnReload && form.revision !== revision);
   const sameRevisionChanged =
     revision === form.revision &&
     JSON.stringify(form.baseline) !== JSON.stringify(values);
@@ -87,7 +99,11 @@ export function GatewayForm({
   const mutation = useMutation({ mutationFn: save, retry: false });
 
   function reset() {
-    setForm({ revision, baseline: values, draft: values });
+    setForm({
+      revision,
+      baseline: values,
+      draft: reviewRevision && preserveDraftOnReload ? form.draft : values,
+    });
     setValidationError("");
     setConflict(false);
     mutation.reset();
@@ -95,7 +111,8 @@ export function GatewayForm({
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (mutation.isPending || !dirty || conflict || sameRevisionChanged) return;
+    if (mutation.isPending || !dirty || reviewRevision || sameRevisionChanged)
+      return;
     let change: HostingAdminChange;
     try {
       change = {
@@ -117,8 +134,14 @@ export function GatewayForm({
         draft: form.draft,
       });
       setConflict(false);
+      onSaved?.(saved);
     } catch (error) {
-      if (error instanceof ApiError && error.status === 409) setConflict(true);
+      if (
+        error instanceof ApiError &&
+        error.status === 409 &&
+        !(change.action === "model_create" && isModelIdentityConflict(error))
+      )
+        setConflict(true);
     }
   }
 
@@ -155,12 +178,17 @@ export function GatewayForm({
         </p>
       ) : mutation.isError ? (
         <p role="alert" className="text-xs text-warning">
-          {t("Could not save settings{status}. Your edits are preserved.", {
-            status:
-              mutation.error instanceof ApiError
-                ? ` (HTTP ${mutation.error.status})`
-                : "",
-          })}
+          {mutation.variables?.action === "model_create" &&
+          isModelIdentityConflict(mutation.error)
+            ? t(
+                "This alias or provider/model is already configured. Choose a different model or alias; your other settings are preserved.",
+              )
+            : t("Could not save settings{status}. Your edits are preserved.", {
+                status:
+                  mutation.error instanceof ApiError
+                    ? ` (HTTP ${mutation.error.status})`
+                    : "",
+              })}
         </p>
       ) : mutation.isSuccess && !dirty ? (
         <p role="status" className="text-xs text-success">
@@ -173,21 +201,25 @@ export function GatewayForm({
           size="sm"
           variant="primary"
           disabled={
-            !dirty || mutation.isPending || conflict || sameRevisionChanged
+            !dirty ||
+            mutation.isPending ||
+            reviewRevision ||
+            sameRevisionChanged
           }
         >
           {mutation.isPending
             ? t("Saving…")
-            : t("Save {label}", { label: t(label.toLowerCase()) })}
+            : (submitLabel ??
+              t("Save {label}", { label: t(label.toLowerCase()) }))}
         </Button>
-        {(dirty || conflict) && (
+        {(dirty || reviewRevision) && (
           <Button
             type="button"
             size="sm"
             disabled={mutation.isPending}
             onClick={reset}
           >
-            {t(conflict ? "Reload this form" : "Reset changes")}
+            {t(reviewRevision ? "Reload this form" : "Reset changes")}
           </Button>
         )}
         {dirty && form.revision !== revision && !conflict ? (
@@ -206,5 +238,13 @@ export function GatewayForm({
         ) : null}
       </div>
     </form>
+  );
+}
+
+function isModelIdentityConflict(error: unknown) {
+  return (
+    error instanceof ApiError &&
+    error.status === 409 &&
+    error.message === "hosting_model_conflict"
   );
 }

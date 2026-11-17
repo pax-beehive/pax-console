@@ -3,7 +3,8 @@
 The fixture checks the actual Next route on desktop and mobile, alongside the
 current Settings catalog and Runtime configuration entry. It covers explicit
 budget saves, revision conflicts, pause-only user changes, model-base
-preconditions, administrator Preview as user, denied reads, and ordinary users.
+preconditions, OpenRouter catalog import with exact rates and disabled creation,
+administrator Preview as user, denied reads, and ordinary users.
 All browser APIs use fictional data; external requests are blocked. No account
 credentials, provider request, paid generation, or cloud resource is used.
 

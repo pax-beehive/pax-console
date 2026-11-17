@@ -21,6 +21,11 @@ import {
   readHostingAdmin,
   type HostingAdminSnapshot,
 } from "@/features/api/hosting-admin";
+import {
+  readModelCatalog,
+  modelCatalogKey,
+  type ModelCatalog,
+} from "@/features/api/model-catalog";
 import type { User } from "@/features/api/types";
 import { useLocaleStore } from "@/features/i18n/locale-store";
 import { useConsoleStore } from "@/stores/console-store";
@@ -34,6 +39,45 @@ vi.mock("@/features/api/hosting-admin", async (original) => ({
   readHostingAdmin: vi.fn(),
   changeHostingAdmin: vi.fn(),
 }));
+
+vi.mock("@/features/api/model-catalog", async (original) => ({
+  ...(await original<typeof import("@/features/api/model-catalog")>()),
+  readModelCatalog: vi.fn(),
+}));
+
+function catalog(): ModelCatalog {
+  return {
+    source: "openrouter",
+    fetched_at: "2026-11-16T00:00:00Z",
+    models: [
+      {
+        id: "vendor/catalog-one",
+        name: "Catalog One",
+        context_length: 200000,
+        max_output_tokens: 4096,
+        input_microusd_per_million: 3_000_001,
+        output_microusd_per_million: 15_000_001,
+        pricing_is_conservative: true,
+      },
+      {
+        id: "vendor/catalog-two",
+        name: "Catalog Two",
+        context_length: 100000,
+        max_output_tokens: 2048,
+        input_microusd_per_million: 0,
+        output_microusd_per_million: 0,
+      },
+      {
+        id: "vendor/frontier",
+        name: "Already Configured",
+        context_length: 100000,
+        max_output_tokens: 2048,
+        input_microusd_per_million: 3_000_000,
+        output_microusd_per_million: 15_000_000,
+      },
+    ],
+  };
+}
 
 const admin: User = {
   user_id: "usr_admin",
@@ -163,6 +207,7 @@ beforeEach(() => {
   useLocaleStore.setState({ locale: "en" });
   useConsoleStore.setState({ previewAsUser: false });
   vi.mocked(readHostingAdmin).mockReset().mockResolvedValue(snapshot());
+  vi.mocked(readModelCatalog).mockReset().mockResolvedValue(catalog());
   vi.mocked(changeHostingAdmin)
     .mockReset()
     .mockResolvedValue({ ...snapshot(), revision: 8 });
@@ -252,8 +297,8 @@ describe("model gateway controls", () => {
       "Generation not started",
     );
     expect(
-      screen.queryByRole("button", { name: /add model/i }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("button", { name: /add model/i }),
+    ).toBeInTheDocument();
   });
 
   it("requires an explicit save and sends exact microusd with the loaded revision", async () => {
@@ -641,4 +686,325 @@ it("shows the funded but disabled $100 pool truthfully in Chinese", async () => 
   ).toBeInTheDocument();
   expect(screen.getByText("托管已停用")).toBeInTheDocument();
   expect(changeHostingAdmin).not.toHaveBeenCalled();
+});
+
+async function openNewModel(alias = "new-trial-model") {
+  await screen.findByLabelText("Platform monthly budget (USD)");
+  fireEvent.click(screen.getByRole("button", { name: "Add model" }));
+  fireEvent.click(
+    await screen.findByRole("button", {
+      name: "Select Catalog One (vendor/catalog-one)",
+    }),
+  );
+  fireEvent.change(screen.getByLabelText("Model alias"), {
+    target: { value: alias },
+  });
+}
+
+describe("model catalog import and creation", () => {
+  it("searches the actual catalog, prefills exact conservative rates and output cap, and reloads the server-created disabled model", async () => {
+    let current = snapshot();
+    vi.mocked(readHostingAdmin).mockImplementation(async () => current);
+    vi.mocked(changeHostingAdmin).mockImplementation(async (change) => {
+      if (change.action !== "model_create")
+        throw new Error("Expected model creation");
+      current = {
+        ...current,
+        revision: 8,
+        models: [
+          ...current.models,
+          {
+            id: change.target_id,
+            provider: change.provider,
+            upstream_model: change.upstream_model,
+            moderation: change.moderation,
+            max_output_tokens: change.max_output_tokens,
+            input_microusd_per_million: change.input_microusd_per_million,
+            output_microusd_per_million: change.output_microusd_per_million,
+            enabled: false,
+            policy_version: "admin-8",
+          },
+        ],
+        model_bases: { ...current.model_bases, [change.target_id]: "new-base" },
+      };
+      return current;
+    });
+    setup();
+    await openNewModel();
+    expect(
+      screen.queryByRole("button", { name: /Select Already Configured/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Upstream model ID")).toBeDisabled();
+    expect(screen.getByLabelText("Upstream model ID")).toHaveValue(
+      "vendor/catalog-one",
+    );
+    expect(
+      screen.getByLabelText("Input USD / million for the new model"),
+    ).toHaveValue("3.000001");
+    expect(
+      screen.getByLabelText("Output USD / million for the new model"),
+    ).toHaveValue("15.000001");
+    expect(
+      screen.getByLabelText("Max output tokens for the new model"),
+    ).toHaveValue("4096");
+    expect(
+      screen.getByText("Conservative rate includes conditional token charges."),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Search OpenRouter models"), {
+      target: { value: "catalog-one" },
+    });
+    expect(
+      screen.queryByRole("button", { name: /Select Catalog Two/ }),
+    ).not.toBeInTheDocument();
+    expect(changeHostingAdmin).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Create model" }));
+    expect(
+      await screen.findByText(
+        "Model saved and disabled. Connect its provider before enabling it.",
+      ),
+    ).toBeInTheDocument();
+    expect(changeHostingAdmin).toHaveBeenCalledExactlyOnceWith({
+      revision: 7,
+      action: "model_create",
+      target_id: "new-trial-model",
+      provider: "openrouter",
+      upstream_model: "vendor/catalog-one",
+      moderation: "openai",
+      max_output_tokens: 4096,
+      input_microusd_per_million: 3_000_001,
+      output_microusd_per_million: 15_000_001,
+      enabled: false,
+    });
+    cleanup();
+    setup();
+    expect(
+      await screen.findByText("new-trial-model", { selector: "summary span" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Disabled")).toHaveLength(1);
+  });
+
+  it("shows catalog failure and empty retry results without inventing models or sending writes", async () => {
+    vi.mocked(readModelCatalog)
+      .mockRejectedValueOnce(new ApiError("Unavailable", 503, undefined))
+      .mockResolvedValue({ ...catalog(), models: [] });
+    setup();
+    await screen.findByLabelText("Platform monthly budget (USD)");
+    expect(readModelCatalog).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Add model" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not load the OpenRouter catalog",
+    );
+    expect(
+      screen.queryByRole("button", { name: /Select Catalog/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Upstream model ID")).toHaveValue("");
+    fireEvent.click(screen.getByRole("button", { name: "Retry catalog" }));
+    expect(
+      await screen.findByText(
+        "OpenRouter returned no compatible priced text models.",
+      ),
+    ).toBeInTheDocument();
+    expect(changeHostingAdmin).not.toHaveBeenCalled();
+    expect(readModelCatalog).toHaveBeenCalledTimes(2);
+  });
+
+  it("preserves duplicate409 drafts and allows an explicit corrected alias without automatic retry", async () => {
+    vi.mocked(changeHostingAdmin)
+      .mockRejectedValueOnce(new ApiError("hosting_model_conflict", 409, {}))
+      .mockResolvedValue({ ...snapshot(), revision: 8 });
+    setup();
+    await openNewModel("free-frontier");
+    fireEvent.click(screen.getByRole("button", { name: "Create model" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "This alias or provider/model is already configured",
+    );
+    expect(screen.getByLabelText("Model alias")).toHaveValue("free-frontier");
+    expect(
+      screen.getByLabelText("Input USD / million for the new model"),
+    ).toHaveValue("3.000001");
+    expect(changeHostingAdmin).toHaveBeenCalledTimes(1);
+    fireEvent.change(screen.getByLabelText("Model alias"), {
+      target: { value: "another-alias" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create model" }));
+    await screen.findByText(
+      "Model saved and disabled. Connect its provider before enabling it.",
+    );
+    expect(changeHostingAdmin).toHaveBeenLastCalledWith(
+      expect.objectContaining({ target_id: "another-alias", enabled: false }),
+    );
+    expect(changeHostingAdmin).toHaveBeenCalledTimes(2);
+  });
+
+  it("requires explicit revision reload after stale409 while preserving the catalog selection and entered alias", async () => {
+    setup();
+    await openNewModel();
+    vi.mocked(readHostingAdmin).mockResolvedValue({
+      ...snapshot(),
+      revision: 8,
+    });
+    vi.mocked(changeHostingAdmin)
+      .mockRejectedValueOnce(
+        new ApiError("hosting_admin_revision_conflict", 409, {}),
+      )
+      .mockResolvedValue({ ...snapshot(), revision: 9 });
+    fireEvent.click(screen.getByRole("button", { name: "Create model" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Settings changed on the server",
+    );
+    expect(changeHostingAdmin).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Create model" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Reload this form" }));
+    expect(screen.getByLabelText("Model alias")).toHaveValue("new-trial-model");
+    expect(screen.getByLabelText("Upstream model ID")).toHaveValue(
+      "vendor/catalog-one",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Create model" }));
+    await screen.findByText(
+      "Model saved and disabled. Connect its provider before enabling it.",
+    );
+    expect(changeHostingAdmin).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        revision: 8,
+        target_id: "new-trial-model",
+        enabled: false,
+      }),
+    );
+    expect(changeHostingAdmin).toHaveBeenCalledTimes(2);
+  });
+
+  it("loses the catalog and creation draft when the server denies catalog access", async () => {
+    vi.mocked(readModelCatalog).mockRejectedValue(new AuthError());
+    const { client } = setup();
+    await screen.findByLabelText("Platform monthly budget (USD)");
+    fireEvent.click(screen.getByRole("button", { name: "Add model" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Access denied");
+    expect(screen.queryByLabelText("Model alias")).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        client.getQueriesData({ queryKey: modelCatalogKey(admin.user_id) }),
+      ).toEqual([]),
+    );
+    expect(
+      client.getQueriesData({ queryKey: hostingAdminKey(admin.user_id) }),
+    ).toEqual([]);
+    expect(changeHostingAdmin).not.toHaveBeenCalled();
+  });
+
+  it.each(["role", "preview"])(
+    "removes the open creation draft and catalog after losing %s access",
+    async (mode) => {
+      const { client, rerender } = setup();
+      await openNewModel();
+      if (mode === "role") rerender(ordinary);
+      else act(() => useConsoleStore.setState({ previewAsUser: true }));
+      expect(screen.getByRole("alert")).toHaveTextContent("Access denied");
+      expect(screen.queryByLabelText("Model alias")).not.toBeInTheDocument();
+      await waitFor(() =>
+        expect(
+          client.getQueriesData({ queryKey: modelCatalogKey(admin.user_id) }),
+        ).toEqual([]),
+      );
+      expect(changeHostingAdmin).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["openai", "anthropic"])(
+    "supports secondary manual %s profile entry but always creates it disabled",
+    async (provider) => {
+      setup();
+      await openNewModel();
+      fireEvent.change(screen.getByLabelText("Provider"), {
+        target: { value: provider },
+      });
+      expect(screen.getByLabelText("Upstream model ID")).toHaveValue("");
+      fireEvent.change(screen.getByLabelText("Model alias"), {
+        target: { value: "manual-model" },
+      });
+      fireEvent.change(screen.getByLabelText("Upstream model ID"), {
+        target: { value: "provider-model-id" },
+      });
+      fireEvent.change(
+        screen.getByLabelText("Input USD / million for the new model"),
+        { target: { value: "0" } },
+      );
+      fireEvent.change(
+        screen.getByLabelText("Output USD / million for the new model"),
+        { target: { value: "0" } },
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Create model" }));
+      await screen.findByText(
+        "Model saved and disabled. Connect its provider before enabling it.",
+      );
+      expect(changeHostingAdmin).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          provider,
+          upstream_model: "provider-model-id",
+          enabled: false,
+        }),
+      );
+    },
+  );
+
+  it.each([
+    ["Upstream model ID", "https://example.test/model"],
+    ["Upstream model ID", "vendor/../model"],
+    ["Max output tokens for the new model", "8193"],
+    ["Input USD / million for the new model", "1000000.000001"],
+  ])("rejects unsafe %s before submission", async (label, value) => {
+    setup();
+    await openNewModel();
+    fireEvent.change(screen.getByLabelText("Provider"), {
+      target: { value: "openai" },
+    });
+    fireEvent.change(screen.getByLabelText("Upstream model ID"), {
+      target: { value: "valid-model" },
+    });
+    fireEvent.change(
+      screen.getByLabelText("Input USD / million for the new model"),
+      { target: { value: "3" } },
+    );
+    fireEvent.change(
+      screen.getByLabelText("Output USD / million for the new model"),
+      { target: { value: "15" } },
+    );
+    fireEvent.change(screen.getByLabelText(label), { target: { value } });
+    fireEvent.click(screen.getByRole("button", { name: "Create model" }));
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(changeHostingAdmin).not.toHaveBeenCalled();
+  });
+});
+
+it("reloads a newer revision after an identity collision without discarding the corrected creation draft", async () => {
+  setup();
+  await openNewModel("new-trial-model");
+  vi.mocked(readHostingAdmin).mockResolvedValue({ ...snapshot(), revision: 8 });
+  vi.mocked(changeHostingAdmin)
+    .mockRejectedValueOnce(new ApiError("hosting_model_conflict", 409, {}))
+    .mockResolvedValue({ ...snapshot(), revision: 9 });
+  fireEvent.click(screen.getByRole("button", { name: "Create model" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "This alias or provider/model is already configured",
+  );
+  fireEvent.change(screen.getByLabelText("Model alias"), {
+    target: { value: "corrected-alias" },
+  });
+  expect(screen.getByRole("button", { name: "Create model" })).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "Reload this form" }));
+  expect(screen.getByLabelText("Model alias")).toHaveValue("corrected-alias");
+  expect(
+    screen.getByLabelText("Input USD / million for the new model"),
+  ).toHaveValue("3.000001");
+  fireEvent.click(screen.getByRole("button", { name: "Create model" }));
+  await screen.findByText(
+    "Model saved and disabled. Connect its provider before enabling it.",
+  );
+  expect(changeHostingAdmin).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      revision: 8,
+      target_id: "corrected-alias",
+      enabled: false,
+    }),
+  );
+  expect(changeHostingAdmin).toHaveBeenCalledTimes(2);
 });
