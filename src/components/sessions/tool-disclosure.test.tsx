@@ -155,7 +155,7 @@ describe("Given Chinese thought indicators", () => {
         </TooltipProvider>,
       );
       expect(
-        screen.getByText(streaming ? "思考中..." : "已深度思考"),
+        screen.getByText(streaming ? "深度思考中" : "已深度思考"),
       ).toBeVisible();
       expect(screen.queryByText("思考过程")).not.toBeInTheDocument();
     },
@@ -190,7 +190,7 @@ describe("Given Chinese thought indicators", () => {
       ).not.toBeInTheDocument();
       fireEvent.click(container.querySelector("summary")!);
       await waitFor(() => expect(screen.getAllByText(label)).toHaveLength(2));
-      expect(screen.queryByText("思考中...")).not.toBeInTheDocument();
+      expect(screen.queryByText("深度思考中")).not.toBeInTheDocument();
     },
   );
 
@@ -234,6 +234,6 @@ describe("Given Chinese thought indicators", () => {
         />
       </TooltipProvider>,
     );
-    expect(screen.getByText("思考中...")).toBeVisible();
+    expect(screen.getByText("深度思考中")).toBeVisible();
   });
 });
