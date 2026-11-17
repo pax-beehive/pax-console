@@ -325,13 +325,17 @@ TanStack Query 持有按用户和筛选条件隔离的管理快照，包括月�
 `pool.available` 同时受运行配置和账期影响，不能据此认定资金已消费；存在余额但
 不能请求时展示独立说明，不修改额度或启用状态。
 
-新增模型以 OpenRouter 实时模型目录搜索为主。浏览器仅请求同源
-`GET /api/model-gateway/catalog?provider=openrouter`，服务端每次都先将既有签名
-Access 身份交给 Manager 的 hosting-admin 鉴权，再读取固定公开 OpenRouter 模型
-接口或五分钟缓存。浏览器不接触供应商密钥、URL 或路由。服务端筛选有定价的文本
-模型，向上取整为整数记账费率和受限输出 token 数，条件定价另有提示。目录失败可
-重试，空目录如实显示，不伪造候选列表。OpenAI、Anthropic 的手填入口为次要选择，
-实际连接来自可信服务端 provider profile。
+新增模型以 OpenRouter 实时模型目录搜索为主。浏览器通过既有 `apiFetch` 请求
+`GET /api/v1/user/self/hosting-admin/catalog?provider=openrouter`，正常配置下同源
+路径为 `/api/pax/api/v1/user/self/hosting-admin/catalog`。API client 统一处理配置的
+base、凭据、取消、超时和 Manager `JsonResponse` 解包。WorkOS 会话由区域 Worker
+解密，再为准确的方法、Manager 路径和区域签署身份声明；Manager 复用管理员鉴权。
+不能绕到 Next BFF，浏览器也不自行复制 Cookie 或身份头。
+
+公开 OpenRouter 请求、文本模型筛选、整数保守费率、输出上限及五分钟缓存均由
+Manager 承担，鉴权后才读取缓存。浏览器不接触供应商密钥、URL 或路由；条件定价另有
+提示。目录失败可重试，空目录如实显示，不伪造候选列表。OpenAI、Anthropic 的手填
+入口为次要选择，实际连接来自可信服务端 provider profile。需先部署 Manager 的目录接口。
 
 选择目录模型后填入上游 ID、价格和输出上限，管理员检查别名、安全策略等字段，
 明确提交既有 hosting-admin 接口的 `model_create`。新模型始终停用，策略版本由

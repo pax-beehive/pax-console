@@ -150,9 +150,9 @@ async function fixture(context) {
       });
     if (url.pathname === "/api/pax/api/v1/user/self/customer-visit")
       return data({ recorded: true });
-    if (url.pathname === "/api/model-gateway/catalog") {
+    if (url.pathname === "/api/pax/api/v1/user/self/hosting-admin/catalog") {
       catalogReads++;
-      return json({
+      return data({
         source: "openrouter",
         fetched_at: "2026-11-16T00:00:00Z",
         models: [

@@ -487,16 +487,20 @@ The pool badge describes its monetary balance (`Funded`, `Zero budget`, or
 false value never establishes that dollars were spent. A separate notice explains
 when funded credit cannot currently serve requests.
 
-Add model defaults to a searchable OpenRouter catalog at the same-origin
-`GET /api/model-gateway/catalog?provider=openrouter` BFF. Each request forwards the
-existing signed Access identity to Manager's hosting-admin check before accessing
-the public fixed OpenRouter models endpoint or its five-minute server cache.
-The browser receives no provider key, route or base URL. The BFF filters compatible
-priced text models and normalizes conservative integer accounting rates/caps;
-conditional rates are identified explicitly. A failed or empty catalog never
-creates a fallback model list. OpenAI and Anthropic remain secondary manual
-provider choices using trusted server routing profiles.
+Add model defaults to a searchable OpenRouter catalog through
+`apiFetch<ModelCatalog>("/api/v1/user/self/hosting-admin/catalog?provider=openrouter")`.
+The configured API base (normally `/api/pax`), credentials, cancellation, deadline
+and Manager `JsonResponse` envelope are owned by the existing API client. The
+region Worker decrypts the WorkOS session and signs the exact Manager method/path;
+Manager's existing administrator guard authorizes catalog reads. Do not bypass
+this path with a Next BFF or copy cookies/identity headers in the browser.
 
+Manager owns the fixed public OpenRouter fetch, filtering, conservative integer
+accounting rates/caps, and five-minute server cache after authorization. The
+browser receives no provider key, route or base URL. Conditional rates are
+identified explicitly. A failed or empty catalog never creates a fallback model
+list. OpenAI and Anthropic remain secondary manual provider choices using trusted
+server routing profiles. Deploy Manager's catalog endpoint before this client.
 Selection fills the upstream ID, rates and output cap. The operator reviews the
 public alias, moderation and editable accounting fields before an explicit
 `model_create` PATCH on the same hosting-admin endpoint. Creation always sends
