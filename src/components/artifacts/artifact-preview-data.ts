@@ -98,8 +98,13 @@ export async function readArtifactPreviewBlob(
     throw new ArtifactPreviewTooLargeError(maxBytes);
   }
 
-  const contentType =
+  const declaredContentType =
     response.headers.get("content-type") ?? fallbackContentType ?? "";
+  const contentType =
+    /^text\/html(?:\s*;|\s*$)/i.test(declaredContentType) &&
+    !/;\s*charset\s*=/i.test(declaredContentType)
+      ? `${declaredContentType}; charset=utf-8`
+      : declaredContentType;
   if (!response.body) {
     return new Blob([], { type: contentType });
   }

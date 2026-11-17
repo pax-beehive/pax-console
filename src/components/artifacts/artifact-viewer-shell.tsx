@@ -30,6 +30,7 @@ import {
   Minus,
   MoreHorizontal,
   Plus,
+  PanelsTopLeft,
   RefreshCw,
   X,
 } from "lucide-react";
@@ -624,7 +625,7 @@ function ArtifactViewer({
                     )
                   }
                   onClick={() => void handlePreview()}
-                  size="icon"
+                  size="sm"
                   tooltip={
                     previewError || imageState.failed
                       ? t("Retry preview")
@@ -632,110 +633,111 @@ function ArtifactViewer({
                   }
                   type="button"
                   variant="ghost"
-                />
+                >
+                  {previewError || imageState.failed
+                    ? t("Retry preview")
+                    : t("Refresh")}
+                </Button>
               </>
-            )}
-            {viewerHref && (
-              <Button
-                asChild
-                size="icon"
-                tooltip={t("Open page")}
-                variant="ghost"
-              >
-                <Link aria-label={t("Open page")} href={viewerHref}>
-                  <ExternalLink className="h-4 w-4" />
-                </Link>
-              </Button>
             )}
             {artifact.downloadHref && (
               <Button
                 asChild
-                size="icon"
-                tooltip={t("Download")}
+                size="sm"
                 variant="ghost"
+                icon={<Download className="h-4 w-4" />}
               >
                 <a
                   aria-label={t("Download")}
                   href={artifact.downloadHref}
-                  download
                   rel="noreferrer"
                   target="_self"
+                  download
                 >
-                  <Download className="h-4 w-4" />
+                  {t("Download")}
                 </a>
               </Button>
             )}
-            {expanded && preview?.url && (
+            {isFullscreen && (
               <Button
-                asChild
-                size="icon"
-                tooltip={t("Open file")}
+                aria-label={t("Exit artifact fullscreen")}
+                icon={<Minimize2 className="h-4 w-4" />}
+                onClick={() => setFullscreen(false)}
+                size="sm"
                 variant="ghost"
               >
-                <a
-                  aria-label={t("Open file")}
-                  href={preview.url}
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                </a>
+                {t("Exit fullscreen")}
               </Button>
             )}
-            {expanded && allowFullscreen && (
-              <Button
-                aria-label={
-                  isFullscreen
-                    ? t("Exit artifact fullscreen")
-                    : t("Open artifact fullscreen")
-                }
-                icon={
-                  isFullscreen ? (
-                    <Minimize2 className="h-4 w-4" />
-                  ) : (
-                    <Maximize2 className="h-4 w-4" />
-                  )
-                }
-                onClick={() => setFullscreen(!isFullscreen)}
-                ref={fullscreenButtonRef}
-                size="icon"
-                tooltip={
-                  isFullscreen ? t("Exit fullscreen") : t("Open fullscreen")
-                }
-                type="button"
-                variant="ghost"
-              />
-            )}
-            {visibility !== "closed" && !standalone && (
-              <>
-                {expanded && (
+            {(viewerHref ||
+              expanded ||
+              (visibility !== "closed" && !standalone)) && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
                   <Button
-                    aria-controls={bodyId}
-                    aria-expanded={true}
-                    aria-label={t("Collapse preview")}
-                    icon={<ChevronDown className="h-4 w-4" />}
-                    onClick={() => {
-                      restoreFocusRef.current = true;
-                      setVisibility("collapsed");
-                      setFullscreen(false);
-                      if (scope) release(scope, viewerId);
-                    }}
+                    aria-label={t("More artifact actions")}
+                    icon={<MoreHorizontal className="h-4 w-4" />}
+                    ref={fullscreenButtonRef}
                     size="icon"
-                    tooltip={t("Collapse preview")}
-                    type="button"
+                    tooltip={t("More actions")}
                     variant="ghost"
                   />
-                )}
-                <Button
-                  aria-label={t("Close preview")}
-                  icon={<X className="h-4 w-4" />}
-                  onClick={closePreview}
-                  size="icon"
-                  tooltip={t("Close preview")}
-                  type="button"
-                  variant="ghost"
-                />
-              </>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  className="z-[110]"
+                  onEscapeKeyDown={(event) => event.stopPropagation()}
+                  onCloseAutoFocus={(event) => {
+                    if (!expanded) {
+                      event.preventDefault();
+                      previewButtonRef.current?.focus();
+                    }
+                  }}
+                >
+                  {viewerHref && (
+                    <DropdownMenuItem asChild>
+                      <Link href={viewerHref}>
+                        <PanelsTopLeft className="h-4 w-4" />
+                        {t("Open preview page")}
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  {expanded && preview?.url && (
+                    <DropdownMenuItem asChild>
+                      <a href={preview.url} rel="noreferrer" target="_blank">
+                        <ExternalLink className="h-4 w-4" />
+                        {t("Open file in new tab")}
+                      </a>
+                    </DropdownMenuItem>
+                  )}
+                  {expanded && allowFullscreen && !isFullscreen && (
+                    <DropdownMenuItem onSelect={() => setFullscreen(true)}>
+                      <Maximize2 className="h-4 w-4" />
+                      {t("Open fullscreen")}
+                    </DropdownMenuItem>
+                  )}
+                  {visibility !== "closed" && !standalone && (
+                    <>
+                      {expanded && (
+                        <DropdownMenuItem
+                          onSelect={() => {
+                            restoreFocusRef.current = true;
+                            setVisibility("collapsed");
+                            setFullscreen(false);
+                            if (scope) release(scope, viewerId);
+                          }}
+                        >
+                          <ChevronDown className="h-4 w-4" />
+                          {t("Collapse preview")}
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuItem onSelect={closePreview}>
+                        <X className="h-4 w-4" />
+                        {t("Close preview")}
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
         </div>
