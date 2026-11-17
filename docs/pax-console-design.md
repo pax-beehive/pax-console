@@ -206,6 +206,15 @@ Ordinary metadata such as ids, paths, timestamps, counts, endpoint names, and
 resource types should usually be muted text or monospace text, with tooltip
 access for full values.
 
+Use `src/components/ui/discrete-slider.tsx` for a small ordered set of fixed
+choices. Show a neutral rail, evenly spaced stops, and one movable thumb;
+the stops represent choices rather than completed steps. Keep preview and
+commit separate, provide keyboard control and accessible value text, and keep
+labels readable with adequate touch targets on narrow screens. Feature access
+uses this primitive through its configuration wrapper: list movement previews
+a draft, committing opens the editor, and the effective scope changes only
+after a successful save. Reuse the same rail inside the editor.
+
 Session views should treat the composer as a primary control, similar to Codex.
 The surrounding UI should help the user understand:
 

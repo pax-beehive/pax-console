@@ -5,6 +5,7 @@ import { consoleMessages } from "./messages/console";
 import { homeMessages } from "./messages/home";
 import { resourcesMessages } from "./messages/resources";
 import { sessionsMessages } from "./messages/sessions";
+import { configMessages } from "./messages/config";
 import { initializeLocale, useLocaleStore } from "./locale-store";
 
 describe("Given a language preference", () => {
@@ -64,6 +65,7 @@ describe("Given translated interface copy", () => {
       homeMessages,
       resourcesMessages,
       sessionsMessages,
+      configMessages,
     ]) {
       for (const [source, translated] of Object.entries(catalog)) {
         expect(parameters(translated), source).toEqual(parameters(source));

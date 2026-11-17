@@ -1,6 +1,6 @@
 import { createStore } from "zustand/vanilla";
 import type { Region } from "@/features/region/bootstrap";
-import type { FeatureStage } from "@/features/runtime-config";
+import type { ConfigValue, FeatureStage } from "@/features/runtime-config";
 
 export type ConfigAction = "save" | "reset" | "revert";
 export type ConfigOutcome = {
@@ -8,6 +8,13 @@ export type ConfigOutcome = {
   status: "saved" | "conflict" | "failed";
   version?: number;
   error?: string;
+};
+/** The attempted non-secret payload stays fixed until a new change starts. */
+export type ConfigSubmission = {
+  action: ConfigAction;
+  value: ConfigValue;
+  reason: string;
+  targets: Region[];
 };
 type EditorDraft = {
   value: string;
@@ -22,6 +29,8 @@ type EditorDraft = {
   reviewed: boolean;
   copied: boolean;
   secretPresent: boolean;
+  submitted?: ConfigSubmission;
+  validationAttempted: boolean;
 };
 type EditorActions = {
   setValue: (value: string) => void;
@@ -36,6 +45,8 @@ type EditorActions = {
   setReviewed: (reviewed: boolean) => void;
   setCopied: (copied: boolean) => void;
   setSecretPresent: (secretPresent: boolean) => void;
+  setSubmitted: (submitted?: ConfigSubmission) => void;
+  setValidationAttempted: (validationAttempted: boolean) => void;
 };
 
 /** One non-persisted draft per drawer. No secret plaintext or server entries. */
@@ -50,6 +61,7 @@ export function createConfigEditorStore(
     reviewed: true,
     copied: false,
     secretPresent: false,
+    validationAttempted: false,
     setValue: (value) => set({ value }),
     setStage: (stage) => set({ stage }),
     setEmails: (emails) => set({ emails }),
@@ -62,6 +74,9 @@ export function createConfigEditorStore(
     setReviewed: (reviewed) => set({ reviewed }),
     setCopied: (copied) => set({ copied }),
     setSecretPresent: (secretPresent) => set({ secretPresent }),
+    setSubmitted: (submitted) => set({ submitted }),
+    setValidationAttempted: (validationAttempted) =>
+      set({ validationAttempted }),
   }));
 }
 

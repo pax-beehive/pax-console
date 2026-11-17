@@ -170,6 +170,16 @@ function changeText(dialog: HTMLElement, label: string, value: string) {
 
 beforeEach(() => {
   vi.stubGlobal("React", React);
+  vi.stubGlobal(
+    "PointerEvent",
+    class extends MouseEvent {
+      pointerId: number;
+      constructor(type: string, init: PointerEventInit = {}) {
+        super(type, init);
+        this.pointerId = init.pointerId ?? 1;
+      }
+    },
+  );
   useLocaleStore.setState({ locale: "en" });
   useConfigAdminStore.setState({ region: "us", tab: "features" });
   useConsoleStore.setState({ previewAsUser: false });
@@ -290,17 +300,17 @@ describe("runtime configuration administration", () => {
       expect(screen.getByRole("tab", { name: label })).toBeInTheDocument();
     fireEvent.click(await screen.findByRole("button", { name: "编辑秘书" }));
     const dialog = screen.getByRole("dialog", { name: "编辑秘书" });
-    expect(within(dialog).getByLabelText("开放阶段")).toHaveDisplayValue(
-      "仅管理员",
-    );
+    expect(
+      within(dialog).getByRole("slider", { name: "开放阶段" }),
+    ).toHaveAttribute("aria-valuetext", "仅管理员");
     expect(
       within(dialog).getByRole("checkbox", { name: "同时应用到 HK" }),
     ).toBeInTheDocument();
-    fireEvent.change(within(dialog).getByLabelText("开放阶段"), {
-      target: { value: "ga" },
+    fireEvent.change(within(dialog).getByRole("slider", { name: "开放阶段" }), {
+      target: { value: "3" },
     });
     changeText(dialog, "修改原因", "向所有用户开放");
-    fireEvent.click(within(dialog).getByRole("button", { name: "保存" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "保存修改" }));
     const confirmation = screen.getByRole("dialog", {
       name: "确认功能开放范围变更",
     });
@@ -310,8 +320,88 @@ describe("runtime configuration administration", () => {
     expect(
       within(confirmation).getByRole("button", { name: "确认" }),
     ).toBeInTheDocument();
-    fireEvent.click(within(confirmation).getByRole("button", { name: "取消" }));
+    fireEvent.click(
+      within(confirmation).getByRole("button", { name: "返回编辑" }),
+    );
     expect(writes()).toHaveLength(0);
+  });
+
+  it("Given a live feature scope, Edit opens its current scope and cancelling discards the draft", async () => {
+    renderDashboard();
+    const slider = await screen.findByRole("slider", {
+      name: "Access scope for Secretary",
+    });
+    expect(slider).toHaveAttribute("aria-valuetext", "Admin only");
+    fireEvent.click(screen.getByRole("button", { name: "Edit Secretary" }));
+    const dialog = screen.getByRole("dialog", { name: "Edit Secretary" });
+    const draftSlider = within(dialog).getByRole("slider", {
+      name: "Feature stage",
+    });
+    expect(draftSlider).toHaveAttribute("aria-valuetext", "Admin only");
+    fireEvent.change(draftSlider, { target: { value: "2" } });
+    changeText(dialog, "Beta emails", "pilot@example.test");
+    changeText(dialog, "Reason", "Unsaved pilot");
+    expect(slider).toHaveAttribute("aria-valuetext", "Admin only");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(slider).toHaveAttribute("aria-valuetext", "Admin only");
+    expect(writes()).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: "Edit Secretary" }));
+    expect(screen.getByLabelText("Reason")).toHaveValue("");
+    expect(screen.queryByLabelText("Beta emails")).not.toBeInTheDocument();
+  });
+
+  it("Given a dragged scope, previews until release then opens a draft while the list keeps the effective scope", async () => {
+    renderDashboard();
+    const slider = await screen.findByRole("slider", {
+      name: "Access scope for Secretary",
+    });
+    Object.assign(slider, {
+      setPointerCapture: vi.fn(),
+      hasPointerCapture: () => true,
+      releasePointerCapture: vi.fn(),
+    });
+    fireEvent.pointerDown(slider, { pointerId: 1 });
+    fireEvent.change(slider, { target: { value: "2" } });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.pointerUp(slider, { pointerId: 1 });
+    const dialog = await screen.findByRole("dialog", {
+      name: "Edit Secretary",
+    });
+    expect(within(dialog).getByRole("slider")).toHaveAttribute(
+      "aria-valuetext",
+      "Beta",
+    );
+    expect(slider).toHaveAttribute("aria-valuetext", "Admin only");
+    expect(writes()).toHaveLength(0);
+  });
+
+  it("Given a confirmed feature save, updates the live rail only after the server accepts it", async () => {
+    renderDashboard();
+    const slider = await screen.findByRole("slider", {
+      name: "Access scope for Secretary",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Beta" }));
+    const dialog = screen.getByRole("dialog", { name: "Edit Secretary" });
+    changeText(dialog, "Beta emails", "pilot@example.test");
+    changeText(dialog, "Reason", "Pilot rollout");
+    expect(slider).toHaveAttribute("aria-valuetext", "Admin only");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Save changes" }),
+    );
+    expect(await within(dialog).findByText("Saved · v4")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(slider).toHaveAttribute("aria-valuetext", "Beta"),
+    );
+    expect(writes()[0].body).toMatchObject({
+      value: { stage: "beta", beta_emails: ["pilot@example.test"] },
+      reason: "Pilot rollout",
+      expected_version: 3,
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Finish editing" }),
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("Given a regional selection, reads that region through the same-origin proxy", async () => {
@@ -777,11 +867,16 @@ describe("runtime configuration administration", () => {
         await screen.findByRole("button", { name: "Edit Secretary" }),
       );
       const dialog = screen.getByRole("dialog", { name: "Edit Secretary" });
-      fireEvent.change(within(dialog).getByLabelText("Feature stage"), {
-        target: { value: stage },
-      });
+      fireEvent.change(
+        within(dialog).getByRole("slider", { name: "Feature stage" }),
+        {
+          target: { value: stage === "off" ? "0" : "3" },
+        },
+      );
       changeText(dialog, "Reason", "Change feature access");
-      fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Save changes" }),
+      );
       const confirmation = screen.getByRole("dialog", {
         name: "Confirm feature access change",
       });

@@ -130,6 +130,8 @@ try {
       const context = await browser.newContext({
         viewport: { width, height: width === 390 ? 844 : 1080 },
         locale,
+        isMobile: width === 390,
+        hasTouch: width === 390,
       });
       await context.addInitScript(
         (locale) => localStorage.setItem("pax-console-locale", locale),
@@ -141,6 +143,7 @@ try {
       page.on("pageerror", (error) => errors.push(error.message));
       const snapshots = { us: fixture("us"), hk: fixture("hk") };
       let writes = 0;
+      const regionWrites = { us: 0, hk: 0 };
       await page.route("**/api/region-config", (route) =>
         route.fulfill({ json: { enabled: false } }),
       );
@@ -192,7 +195,13 @@ try {
             });
           if (req.method() === "PUT") {
             writes++;
-            if (region === "hk")
+            regionWrites[region]++;
+            if (region === "hk" && regionWrites.hk === 1) {
+              const key = decodeURIComponent(url.pathname.split("/").at(-1));
+              const entry = snapshots.hk.entries.find(
+                (entry) => entry.key === key,
+              );
+              entry.version++;
               return route.fulfill({
                 status: 409,
                 json: {
@@ -201,6 +210,7 @@ try {
                   message: "version_conflict",
                 },
               });
+            }
             const key = decodeURIComponent(url.pathname.split("/").at(-1));
             const entry = snapshots[region].entries.find(
               (entry) => entry.key === key,
@@ -233,14 +243,78 @@ try {
         shots.push(filename);
       };
       await page.goto(new URL("/admin/config", origin).href);
+      // Framework development chrome is not part of the product screenshots.
+      await page.addStyleTag({
+        content: "nextjs-portal { display: none !important; }",
+      });
       await page
         .getByRole("button", { name: t("Edit Collaboration", "编辑协作") })
         .waitFor();
       await shot("features");
+      const liveScope = page.getByRole("slider", {
+        name: t("Access scope for Secretary", "秘书的开放范围"),
+        includeHidden: true,
+      });
+      await liveScope.scrollIntoViewIfNeeded();
+      const range = await liveScope.boundingBox();
+      assert(range, "Visible scope slider");
+      const travel = range.width - 20;
+      const railY = range.y + range.height / 2;
+      if (width === 390) {
+        const touch = await context.newCDPSession(page);
+        await touch.send("Input.dispatchTouchEvent", {
+          type: "touchStart",
+          touchPoints: [{ x: range.x + 10 + travel / 3, y: railY }],
+        });
+        await touch.send("Input.dispatchTouchEvent", {
+          type: "touchMove",
+          touchPoints: [{ x: range.x + 10 + (travel * 2) / 3, y: railY }],
+        });
+        assert.equal(await page.getByRole("dialog").count(), 0);
+        await touch.send("Input.dispatchTouchEvent", {
+          type: "touchCancel",
+          touchPoints: [],
+        });
+        assert.equal(
+          await liveScope.getAttribute("aria-valuetext"),
+          t("Admin only", "仅管理员"),
+        );
+        await touch.detach();
+      }
+      await page.mouse.move(range.x + 10 + travel / 3, railY);
+      await page.mouse.down();
+      await page.mouse.move(range.x + 10 + (travel * 2) / 3, railY, {
+        steps: 8,
+      });
+      assert.equal(await page.getByRole("dialog").count(), 0);
+      await page.mouse.move(range.x + 10 + (travel * 2) / 3, railY + 50);
+      await page.mouse.up();
+      let drawer = page.getByRole("dialog");
+      await drawer.waitFor();
+      assert.equal(
+        await drawer.getByRole("slider").getAttribute("aria-valuetext"),
+        t("Beta", "试用"),
+      );
+      assert.equal(
+        await liveScope.getAttribute("aria-valuetext"),
+        t("Admin only", "仅管理员"),
+      );
+      await drawer
+        .getByRole("button", { name: t("Cancel", "取消"), exact: true })
+        .click();
+      assert.equal(writes, 0, "Cancelling a scope draft never writes");
+      assert.equal(
+        await liveScope.getAttribute("aria-valuetext"),
+        t("Admin only", "仅管理员"),
+      );
+      await liveScope.press("ArrowRight");
+      await page.getByRole("dialog").waitFor();
+      await page.keyboard.press("Escape");
+      assert.equal(await page.getByRole("dialog").count(), 0);
       await page
         .getByRole("button", { name: t("Edit Collaboration", "编辑协作") })
         .click();
-      const drawer = page.getByRole("dialog");
+      drawer = page.getByRole("dialog");
       await drawer
         .getByLabel(t("Reason", "修改原因"), { exact: true })
         .fill(
@@ -249,9 +323,33 @@ try {
             "为区域试用组开放协作功能。",
           ),
         );
+      await shot("editor-draft");
+      const draftScope = drawer.getByRole("slider");
+      await draftScope.press("End");
+      await drawer
+        .getByRole("button", {
+          name: t("Save changes", "保存修改"),
+          exact: true,
+        })
+        .click();
+      const confirmation = page.getByRole("dialog", {
+        name: t("Confirm feature access change", "确认功能开放范围变更"),
+      });
+      await confirmation.waitFor();
+      await shot("impact-confirmation");
+      await page.keyboard.press("Escape");
+      assert.equal(
+        await confirmation.count(),
+        0,
+        "Escape returns to the draft",
+      );
+      await draftScope.press("ArrowLeft");
       await drawer.getByRole("checkbox").check();
       await drawer
-        .getByRole("button", { name: t("Save", "保存"), exact: true })
+        .getByRole("button", {
+          name: t("Save changes", "保存修改"),
+          exact: true,
+        })
         .click();
       await drawer
         .getByText(t("Conflict · not saved", "版本冲突 · 未保存"), {
@@ -260,9 +358,27 @@ try {
         .waitFor();
       assert.equal(writes, 2, "Sequential two-region save");
       await shot("editor-partial-conflict");
+      const retry = drawer.getByRole("button", {
+        name: t("Only retry HK", "仅重试 HK"),
+        exact: true,
+      });
+      assert.equal(await retry.isEnabled(), false, "Review is required");
       await drawer
-        .getByRole("button", { name: t("Close", "关闭"), exact: true })
+        .getByRole("button", {
+          name: t("Review current version", "检查当前版本"),
+          exact: true,
+        })
         .click();
+      await retry.click();
+      const finish = drawer.getByRole("button", {
+        name: t("Finish editing", "完成编辑"),
+        exact: true,
+      });
+      await finish.waitFor();
+      assert.equal(writes, 3, "Only the failed region is retried");
+      assert.deepEqual(regionWrites, { us: 1, hk: 2 });
+      await shot("editor-saved");
+      await finish.click();
       await page
         .getByRole("tab", { name: t("Service settings", "服务配置") })
         .click();

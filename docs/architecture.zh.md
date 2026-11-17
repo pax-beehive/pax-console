@@ -330,6 +330,16 @@ settings 的页面分类和各入口接入由对应模块负责。`FeatureRoute`
 能力，不在 Console 另设配置登记表。来源使用共享 `Badge` 展示。功能阶段为
 关闭、仅管理员、指定用户试用和全部开放，切到关闭或全部开放时必须再次确认影响范围。
 
+`FeatureStageControl`（`components/admin/config/feature-stage-control.tsx`）封装通用
+`ui/discrete-slider.tsx`，在列表和编辑抽屉中共用四档刻度滑轨，表示开放范围，不表示流程或完成度。
+列表始终以 Query 的当前生效值为准；拖动只预览，松手、点击其他档位或键盘提交后
+打开同一个编辑抽屉，Edit 则沿用当前档位。只有保存成功后才更新生效值，取消或
+关闭抽屉丢弃未保存草稿。确认弹窗的取消/Esc 只返回编辑，抽屉的取消/Esc 才关闭编辑。
+
+滑轨的手势预览使用控件独有、非持久化的 `discrete-slider-store`，不能写入 Query 或发请求；选定档位、
+试用名单、原因、双区选择等仍属于隔离且不持久化的 Zustand 编辑草稿。切离试用档位
+仅隐藏名单输入，保留同一抽屉中的名单草稿，并明确说明当前档位不使用它。
+
 所有请求都经同源 `/api/pax/api/v1/admin/config`，通过 `region=us|hk` 指定目标。
 复用 customer-analytics 的可信服务端区域路由与身份转发，不让浏览器直接连接
 Manager，也不改变账号归属；目标 Manager 使用既有 `foreignAdminTarget` 机制
@@ -628,8 +638,9 @@ src/components/
 
 src/components/ui/
   本地 UI primitives。当前包括 Button、Badge、SearchBox、Tooltip、TruncatedText、MonoId、
-  EmptyState、InlineError、SectionTitle、ConfirmDialog。
+  EmptyState、InlineError、SectionTitle、ConfirmDialog、DiscreteSlider。
   当前只把 Radix Tooltip/Slot 作为底层能力使用，还没有全面引入 shadcn 生成组件。
+  DiscreteSlider 负责固定档位、预览与提交事件；功能阶段的文案和语义由管理员配置模块封装。
 
 src/features/flags/
   用户功能开关 hooks 与 FeatureRoute；布尔结果由 Manager 解析，使用 TanStack Query

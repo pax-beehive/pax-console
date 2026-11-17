@@ -6,6 +6,7 @@ import {
   createConfigEditorStore,
   type ConfigAction as Action,
   type ConfigOutcome as Outcome,
+  type ConfigSubmission as Submission,
 } from "@/stores/config-editor-store";
 import {
   useMutation,
@@ -40,6 +41,7 @@ import {
   type ConfigValue,
   type ConfigAuditItem,
   type FeatureStage,
+  type FeatureValue,
 } from "@/features/runtime-config";
 import {
   displayValue,
@@ -47,6 +49,10 @@ import {
   featureValue,
   stages,
 } from "./config-display";
+import {
+  FeatureStageControl,
+  featureStageDescriptions,
+} from "./feature-stage-control";
 
 /** Non-persisted Zustand drafts belong to this drawer; secrets stay in the input. */
 export function ConfigEditor({
@@ -106,8 +112,14 @@ export function ConfigEditor({
     setCopied,
     secretPresent,
     setSecretPresent,
+    submitted,
+    setSubmitted,
+    validationAttempted,
+    setValidationAttempted,
   } = useStore(editorStore);
   const secretInput = useRef<HTMLInputElement>(null);
+  const reasonInput = useRef<HTMLTextAreaElement>(null);
+  const emailsInput = useRef<HTMLTextAreaElement>(null);
   const clearSecret = () => {
     if (secretInput.current) secretInput.current.value = "";
     setSecretPresent(false);
@@ -115,6 +127,8 @@ export function ConfigEditor({
   const version = versions[region] ?? entry.version;
   const other: Region = region === "us" ? "hk" : "us";
   const label = t(featureLabels[entry.key] ?? entry.label);
+  const describeFeature = (feature: FeatureValue) =>
+    `${t(stages[feature.stage])}${feature.beta_emails.length ? ` · ${feature.beta_emails.join(", ")}` : ""}`;
   const parsed = (): ConfigValue =>
     entry.type === "feature"
       ? {
@@ -139,6 +153,15 @@ export function ConfigEditor({
         ? value.trim() !== "" && Number.isSafeInteger(Number(value))
         : true);
   const validReason = reason.trim().length > 0 && reason.length <= 500;
+  const validEmails =
+    entry.type !== "feature" ||
+    stage !== "beta" ||
+    emails
+      .split(/[\n,;]/)
+      .map((email) => email.trim())
+      .filter(Boolean)
+      .every((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email));
+  const featureEdit = entry.type === "feature" && !audit;
 
   async function refresh(target: Region) {
     // Cancel older snapshots before fetching the current item/version.
@@ -163,10 +186,17 @@ export function ConfigEditor({
   const mutation: UseMutationResult<Outcome[], Error, Action> = useMutation({
     // Only the action is cached. Secret payloads are read from a cleared mutable draft, never captured in mutation options or variables.
     mutationFn: async (action: Action) => {
-      if (attemptedAction && action !== attemptedAction) return outcomes;
+      const previous = editorStore.getState().submitted;
+      if (previous && action !== previous.action) return outcomes;
       setAttemptedAction(action);
-      const submitted = parsed();
-      const submittedReason = reason.trim();
+      const submission: Submission = previous ?? {
+        action,
+        value: entry.secret ? null : parsed(),
+        reason: reason.trim(),
+        targets: both && action !== "revert" ? [region, other] : [region],
+      };
+      setSubmitted(submission);
+      const submittedValue = entry.secret ? parsed() : submission.value;
       if (entry.secret) clearSecret();
       setReviewed(false);
       const results: Outcome[] = outcomes.filter(
@@ -176,9 +206,7 @@ export function ConfigEditor({
         ? outcomes
             .filter((result) => result.status !== "saved")
             .map((result) => result.region)
-        : both && action !== "revert"
-          ? [region, other]
-          : [region];
+        : submission.targets;
       for (const target of targets) {
         let succeeded = false;
         try {
@@ -196,7 +224,7 @@ export function ConfigEditor({
             throw new Error("vault_not_configured");
           const request = {
             expected_version: versions[target] ?? targetEntry.version,
-            reason: submittedReason,
+            reason: submission.reason,
           };
           const result =
             action === "reset"
@@ -205,8 +233,17 @@ export function ConfigEditor({
                 ? await revertConfig(target, audit.id, request)
                 : await setConfig(target, entry.key, {
                     ...request,
-                    value: submitted,
+                    value: submittedValue,
                   });
+          if (
+            action === "reset" &&
+            target === region &&
+            result.type === "feature"
+          ) {
+            const effective = featureValue(result);
+            setStage(effective.stage);
+            setEmails(effective.beta_emails.join("\n"));
+          }
           succeeded = true;
           results.push({
             region: target,
@@ -306,6 +343,8 @@ export function ConfigEditor({
       setCopied(false);
       setOutcomes([]);
       setAttemptedAction(undefined);
+      setSubmitted(undefined);
+      setValidationAttempted(false);
       setReviewed(true);
     },
     retry: false,
@@ -317,6 +356,12 @@ export function ConfigEditor({
     review.isPending ||
     newChange.isPending;
   const draftLocked = busy || outcomes.length > 0;
+  const failures = outcomes.filter((result) => result.status !== "saved");
+  const allSaved = outcomes.length > 0 && failures.length === 0 && !busy;
+  const submittedStage =
+    submitted?.value && typeof submitted.value === "object"
+      ? submitted.value.stage
+      : stage;
   const primaryAction = attemptedAction ?? (audit ? "revert" : "save");
   const secretRetry =
     entry.secret &&
@@ -330,8 +375,26 @@ export function ConfigEditor({
     : both
       ? `${region.toUpperCase()} / ${other.toUpperCase()}`
       : region.toUpperCase();
-  const canWrite = !busy && validReason && reviewed;
+  const canWrite = !busy && reviewed && (featureEdit || validReason);
+  function closeEditor() {
+    if (busy || confirm) return;
+    clearSecret();
+    onClose();
+  }
   function submit(action: Action) {
+    if (featureEdit && allSaved) {
+      closeEditor();
+      return;
+    }
+    setValidationAttempted(true);
+    if (!submitted && !validReason) {
+      reasonInput.current?.focus();
+      return;
+    }
+    if (!submitted && action === "save" && !validEmails) {
+      emailsInput.current?.focus();
+      return;
+    }
     if (
       !canWrite ||
       (action === "save" && !validValue) ||
@@ -341,7 +404,9 @@ export function ConfigEditor({
     if (
       action === "revert" ||
       (entry.type === "feature" &&
-        (action === "reset" || stage === "off" || stage === "ga"))
+        (action === "reset" ||
+          submittedStage === "off" ||
+          submittedStage === "ga"))
     )
       setConfirm(action);
     else mutation.mutate(action);
@@ -352,7 +417,7 @@ export function ConfigEditor({
       <Dialog
         open
         onOpenChange={(open) => {
-          if (!open && !busy) onClose();
+          if (!open) closeEditor();
         }}
         size="drawer"
       >
@@ -370,7 +435,7 @@ export function ConfigEditor({
             size="icon"
             variant="ghost"
             disabled={busy}
-            onClick={onClose}
+            onClick={closeEditor}
           />
         </div>
         <MonoId>
@@ -397,36 +462,94 @@ export function ConfigEditor({
             <>
               {entry.type === "feature" ? (
                 <>
-                  <label className="grid gap-2 text-sm">
-                    {t("Feature stage")}
-                    <Select
-                      aria-label={t("Feature stage")}
+                  <div
+                    className="flex flex-wrap items-center gap-2 border-b border-hairline pb-4 text-xs"
+                    aria-live="polite"
+                  >
+                    {submitted ? (
+                      <span>
+                        {t("This submission: {stage}", {
+                          stage:
+                            submitted.action === "reset"
+                              ? t("Reset override")
+                              : t(stages[submittedStage]),
+                        })}
+                      </span>
+                    ) : (
+                      <>
+                        <span className="text-ink-tertiary">
+                          {t("Currently effective: {stage}", {
+                            stage: t(stages[featureValue(entry).stage]),
+                          })}
+                        </span>
+                        <span aria-hidden="true">→</span>
+                        <span className="text-ink">
+                          {t("Pending save: {stage}", {
+                            stage: t(stages[stage]),
+                          })}
+                        </span>
+                      </>
+                    )}
+                    <Badge tone={allSaved ? "success" : "neutral"}>
+                      {allSaved
+                        ? t("Saved")
+                        : failures.length &&
+                            outcomes.some((result) => result.status === "saved")
+                          ? t("Partially saved")
+                          : t("Not saved")}
+                    </Badge>
+                  </div>
+                  <div className="grid gap-2">
+                    <FeatureStageControl
                       value={stage}
+                      onValueChange={setStage}
                       disabled={draftLocked}
-                      onChange={(event) =>
-                        setStage(event.target.value as FeatureStage)
-                      }
+                      label={t("Feature stage")}
+                      aria-describedby="config-feature-stage-detail"
+                    />
+                    <p
+                      id="config-feature-stage-detail"
+                      className="text-xs text-ink-tertiary"
                     >
-                      {(Object.keys(stages) as FeatureStage[]).map((option) => (
-                        <option value={option} key={option}>
-                          {t(stages[option])}
-                        </option>
-                      ))}
-                    </Select>
-                  </label>
+                      {t(featureStageDescriptions[stage])}
+                    </p>
+                  </div>
                   {stage === "beta" && (
                     <label className="grid gap-2 text-sm">
                       {t("Beta emails")}
                       <Textarea
                         aria-label={t("Beta emails")}
+                        ref={emailsInput}
                         value={emails}
+                        aria-invalid={validationAttempted && !validEmails}
+                        aria-describedby={
+                          validationAttempted && !validEmails
+                            ? "config-emails-error"
+                            : undefined
+                        }
                         disabled={draftLocked}
                         onChange={(event) => setEmails(event.target.value)}
                       />
                       <span className="text-xs text-ink-tertiary">
                         {t("One email per line. Administrators retain access.")}
                       </span>
+                      {validationAttempted && !validEmails && (
+                        <span
+                          id="config-emails-error"
+                          role="alert"
+                          className="text-xs text-danger"
+                        >
+                          {t("Enter a valid email address on each line.")}
+                        </span>
+                      )}
                     </label>
+                  )}
+                  {stage !== "beta" && emails.trim() && (
+                    <p className="text-xs text-ink-tertiary">
+                      {t(
+                        "The beta list is retained for this draft and is not used at this stage.",
+                      )}
+                    </p>
                   )}
                 </>
               ) : (
@@ -527,15 +650,36 @@ export function ConfigEditor({
             {t("Reason")} <span className="sr-only">{t("Required")}</span>
             <Textarea
               aria-label={t("Reason")}
+              ref={reasonInput}
               required
               maxLength={500}
               value={reason}
-              disabled={busy}
+              disabled={draftLocked}
+              aria-invalid={validationAttempted && !validReason}
+              aria-describedby={
+                validationAttempted && !validReason
+                  ? "config-reason-error"
+                  : undefined
+              }
               onChange={(event) => setReason(event.target.value)}
             />
             <span className="text-xs text-ink-tertiary">
               {t("Required · up to 500 characters · saved in change history")}
             </span>
+            {featureEdit && (
+              <span className="text-xs text-ink-tertiary">
+                {reason.length} / 500
+              </span>
+            )}
+            {validationAttempted && !validReason && (
+              <span
+                id="config-reason-error"
+                role="alert"
+                className="text-xs text-danger"
+              >
+                {t("Enter a reason for this change.")}
+              </span>
+            )}
           </label>
           {!audit && (
             <label className="flex items-start gap-2 text-sm">
@@ -605,7 +749,16 @@ export function ConfigEditor({
                   )}
                 </div>
               ))}
-              {outcomes.some((outcome) => outcome.status !== "saved") && (
+              {featureEdit &&
+                failures.length > 0 &&
+                !outcomes.some((result) => result.status === "conflict") && (
+                  <p className="text-xs text-ink-tertiary">
+                    {t(
+                      "Saved regions remain active. Retry only changes failed regions.",
+                    )}
+                  </p>
+                )}
+              {failures.length > 0 && (!featureEdit || !reviewed) && (
                 <Button
                   variant="secondary"
                   size="sm"
@@ -624,21 +777,51 @@ export function ConfigEditor({
                     )
                     ?.entries.find((item) => item.key === entry.key);
                   return (
-                    <p
+                    <div
                       key={outcome.region}
                       className="break-all text-xs text-ink-tertiary"
                     >
-                      {outcome.region.toUpperCase()} ·{" "}
-                      {t("Current value: {value}", {
-                        value: current
-                          ? current.secret
-                            ? (current.display ?? t("Not set"))
-                            : current.type === "feature"
-                              ? `${t(stages[featureValue(current).stage])}${featureValue(current).beta_emails.length ? ` · ${featureValue(current).beta_emails.join(", ")}` : ""}`
-                              : (displayValue(current) ?? t("Not set"))
-                          : t("Unknown"),
-                      })}
-                    </p>
+                      <p>
+                        {featureEdit && reviewed ? (
+                          t("Latest {region}: {value} · v{version}", {
+                            region: outcome.region.toUpperCase(),
+                            value: current
+                              ? describeFeature(featureValue(current))
+                              : t("Unknown"),
+                            version: versions[outcome.region] ?? 0,
+                          })
+                        ) : (
+                          <>
+                            {outcome.region.toUpperCase()} ·{" "}
+                            {t("Current value: {value}", {
+                              value: current
+                                ? current.secret
+                                  ? (current.display ?? t("Not set"))
+                                  : current.type === "feature"
+                                    ? describeFeature(featureValue(current))
+                                    : (displayValue(current) ?? t("Not set"))
+                                : t("Unknown"),
+                            })}
+                          </>
+                        )}
+                      </p>
+                      {featureEdit &&
+                        reviewed &&
+                        submitted?.action === "save" && (
+                          <p>
+                            {t(
+                              "Pending value: {value}; retry uses the reviewed version.",
+                              {
+                                value:
+                                  submitted.value &&
+                                  typeof submitted.value === "object"
+                                    ? describeFeature(submitted.value)
+                                    : t(stages[submittedStage]),
+                              },
+                            )}
+                          </p>
+                        )}
+                    </div>
                   );
                 })}
             </section>
@@ -693,6 +876,22 @@ export function ConfigEditor({
           )}
         </DialogBody>
         <DialogFooter>
+          {featureEdit && (
+            <>
+              {!allSaved && (
+                <p className="w-full text-xs text-ink-tertiary">
+                  {failures.length
+                    ? t(
+                        "Retry keeps this submission. Start a new change to edit its contents.",
+                      )
+                    : t("Changes take effect only after a successful save.")}
+                </p>
+              )}
+              <Button variant="ghost" disabled={busy} onClick={closeEditor}>
+                {outcomes.length ? t("Close") : t("Cancel")}
+              </Button>
+            </>
+          )}
           {!audit && entry.source === "db" && !attemptedAction && (
             <Button
               className="mr-auto"
@@ -715,25 +914,37 @@ export function ConfigEditor({
           <Button
             variant="primary"
             disabled={
-              !canWrite ||
-              (primaryAction === "save" && !validValue) ||
-              (primaryAction === "save" &&
-                entry.secret &&
-                !snapshot.vault_configured)
+              !(featureEdit && allSaved) &&
+              (!canWrite ||
+                (primaryAction === "save" && !validValue) ||
+                (primaryAction === "save" &&
+                  entry.secret &&
+                  !snapshot.vault_configured))
             }
             onClick={() => submit(primaryAction)}
           >
             {mutation.isPending
               ? t("Saving...")
-              : primaryAction === "revert"
-                ? t("Revert")
-                : primaryAction === "reset"
-                  ? t("Reset override")
-                  : t("Save")}
+              : featureEdit && allSaved
+                ? t("Finish editing")
+                : featureEdit && failures.length > 0
+                  ? t("Only retry {regions}", {
+                      regions: failures
+                        .map((result) => result.region.toUpperCase())
+                        .join(" / "),
+                    })
+                  : primaryAction === "revert"
+                    ? t("Revert")
+                    : primaryAction === "reset"
+                      ? t("Reset override")
+                      : featureEdit
+                        ? t("Save changes")
+                        : t("Save")}
           </Button>
         </DialogFooter>
       </Dialog>
       <ConfirmDialog
+        cancelLabel="Back to editing"
         open={Boolean(confirm)}
         onOpenChange={(open) => {
           if (!open) setConfirm(undefined);
@@ -757,7 +968,7 @@ export function ConfigEditor({
                     region: confirmRegions,
                   },
                 )
-              : stage === "ga"
+              : submittedStage === "ga"
                 ? t(
                     "All signed-in users in {region} will have access to {name}.",
                     {
