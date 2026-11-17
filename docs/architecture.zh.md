@@ -302,6 +302,25 @@ TanStack observer 禁用自动 mount/focus/reconnect/retry，调度器是唯一�
 历史未知值保留为 Unknown。加密消息只能确认存在活动，不推算用户发送条数。
 普通账号筛选表示排除管理员，不把权限角色当成内外部客户分类。
 
+## 模型网关额度管理
+
+`/admin/model-gateway` 在当前 Settings 目录的 Administrator 组增加独立入口，
+与 Runtime configuration 并存，并复用 `AdminAnalyticsNav`。有效管理员视图控制
+导航及查询挂载，Preview as user 和普通用户不发起管理请求；页面关闭或失去权限时
+取消查询并清除对应用户缓存。现有 WorkOS 认证、区域选择、功能开关和通用配置后台不变。
+
+`src/features/api/hosting-admin.ts` 通过既有同源 `/api/pax` client 请求当前账号所属
+区域的 `GET/PATCH /api/v1/user/self/hosting-admin`。上线前需先部署配套 Manager
+路由和持久化 store；托管关闭、总池为零或全部模型停用时仍可管理，打开页面不会发起生成。
+独立 `HostingQuota` 类型和预算格式工具不依赖免费 Agent 或沙箱生命周期模块。
+
+TanStack Query 持有按用户和筛选条件隔离的管理快照，包括月度总池、用户额度、模型
+策略、请求结算和审计记录。表单仅在组件内保存未持久化草稿及起始 revision，明确保存
+才提交，不自动重试。409 刷新快照并保留草稿，重新加载表单后才能再保存。模型变更
+同时提交 `expected_model_base`，上游模型配置改变时必须重新确认。供应商与上游模型
+身份只读，密钥、提示词及供应商响应正文不进入管理接口。金额按整数微美元传输，
+月度重置周期由 Manager 决定。界面复用当前英文与简体中文翻译机制。
+
 ## 运行时功能开关与配置后台
 
 `src/features/flags` 提供 `useFeatures`、`useFeature`、`FeatureRoute` 和

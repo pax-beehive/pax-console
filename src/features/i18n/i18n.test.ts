@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createTranslator, resolveLocale } from "./translate";
+import { modelGatewayMessages } from "./messages/model-gateway";
 import { commonMessages } from "./messages/common";
 import { consoleMessages } from "./messages/console";
 import { homeMessages } from "./messages/home";
@@ -59,6 +60,7 @@ describe("Given translated interface copy", () => {
         ),
       ].sort();
     for (const catalog of [
+      modelGatewayMessages,
       commonMessages,
       consoleMessages,
       homeMessages,

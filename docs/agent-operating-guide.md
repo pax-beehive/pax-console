@@ -115,7 +115,7 @@ exit. Narrow screens navigate from the overview and per-page back links.
 Navigation retains the existing authenticated routes and query ownership.
 
 `settings/use-settings-visibility.ts` decides who sees an entry. The
-Administrator group (Runtime configuration, Service status, Customers, Push
+Administrator group (Runtime configuration, Model gateway, Service status, Customers, Push
 subscriptions, Summary developer) follows `canSeeAdminFeatures`, so it is
 hidden while an administrator previews as a user. Its `/admin/*` routes count
 as settings routes: they show the settings sidebar, and the workspace sidebar
@@ -453,6 +453,33 @@ fictional accounts, verifies two minutes without focus produce zero requests,
 and captures desktop/mobile screenshots under `/tmp/pax-customer-audit/`.
 
 This file is for coding agents working on PAX Console. Keep it short, factual, and current. When architecture or integration behavior changes, update this file together with `docs/architecture.zh.md`.
+
+## Model gateway administration
+
+`/admin/model-gateway` is a separate Administrator entry in the shared Settings
+catalog, beside Runtime configuration; it also appears in `AdminAnalyticsNav`.
+It follows the current effective-admin check and disappears in Preview as user.
+The page does not mount its query for a non-admin or preview user, and removes
+its user-scoped cache when that view closes or authorization is lost.
+
+`src/features/api/hosting-admin.ts` owns GET/PATCH
+`/api/v1/user/self/hosting-admin` through the existing same-origin `/api/pax`
+client. It targets the signed-in account's current regional Manager; it does
+not change regional routing or WorkOS authentication. Install the matching
+Manager hosting administration routes and persistent store before publishing
+the page. Administration remains available with hosting disabled, a zero pool,
+and disabled models; opening it never sends a generation request.
+
+TanStack Query owns the snapshot, monthly pool/user ledger, model policies,
+request outcomes and audit records under `["hosting-admin", userId, filters]`.
+Forms own unpersisted drafts and their original revision. Writes require an
+explicit Save, never automatically retry, and preserve drafts after errors.
+A 409 refreshes server state and requires Reload this form before resubmission.
+Model updates include `expected_model_base`, so upstream configuration changes
+cannot silently approve a new provider/model. Provider identities are read-only;
+API keys, prompts and provider response bodies are not part of these contracts.
+Budgets use integer microdollars and monthly periods are authoritative in Manager.
+The standalone UI has no dependency on optional free-agent/sandbox lifecycle code.
 
 ## Runtime feature flags and configuration administration
 
