@@ -150,6 +150,32 @@ describe("settings navigation", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("keeps the model gateway in Settings beside existing administration and hides it in user preview", () => {
+    state.role = "admin";
+    state.pathname = "/admin/model-gateway";
+    const view = render(<SettingsSidebar />);
+    expect(screen.getByRole("link", { name: /Model gateway/ })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(settingsSectionForPath(state.pathname)?.id).toBe("modelGateway");
+    for (const [name, href] of [
+      [/Runtime configuration/, "/admin/config"],
+      [/Customers/, "/admin/customers"],
+      [/Push subscriptions/, "/admin/notifications"],
+      [/Summary developer/, "/admin/summaries"],
+    ] as const)
+      expect(screen.getByRole("link", { name })).toHaveAttribute("href", href);
+    useConsoleStore.setState({ previewAsUser: true });
+    view.rerender(<SettingsSidebar />);
+    expect(
+      screen.queryByRole("link", { name: /Model gateway/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /Runtime configuration/ }),
+    ).not.toBeInTheDocument();
+  });
+
   it("keeps My devices selected while connecting an agent", () => {
     state.pathname = "/settings/devices/agents/add";
     render(<SettingsSidebar />);
