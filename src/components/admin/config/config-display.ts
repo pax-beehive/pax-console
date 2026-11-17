@@ -28,7 +28,6 @@ export function featureValue(entry: ConfigEntry): FeatureValue {
   };
 }
 export function displayValue(entry: ConfigEntry) {
-  if (entry.secret) return entry.display;
   if (entry.type === "feature") return stages[featureValue(entry).stage];
   return entry.display ?? (entry.value == null ? null : String(entry.value));
 }

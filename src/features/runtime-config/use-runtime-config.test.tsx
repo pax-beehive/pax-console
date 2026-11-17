@@ -33,7 +33,6 @@ function wrapper() {
 const snapshot = (region: "us" | "hk", revision = 1): ConfigSnapshot => ({
   region,
   revision,
-  vault_configured: true,
   health: {
     last_refresh_at: "2026-11-13T12:00:00Z",
     refresh_failures: 0,

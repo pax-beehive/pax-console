@@ -42,16 +42,16 @@ describe("runtime config regional transport", () => {
   });
 
   it("Given an update, preserves the contract value, optimistic version and reason", async () => {
-    const entry = { key: "search.api_key", version: 4, value: null };
+    const entry = { key: "search.url", version: 4, value: "http://es:9200" };
     const fetch = respond(entry);
     const request = {
-      value: "new-secret",
+      value: "http://es:9200",
       expected_version: 3,
       reason: "HK rollout",
     };
-    expect(await setConfig("hk", "search.api_key", request)).toEqual(entry);
+    expect(await setConfig("hk", "search.url", request)).toEqual(entry);
     expect(fetch).toHaveBeenCalledWith(
-      "/api/pax/api/v1/admin/config/search.api_key?region=hk",
+      "/api/pax/api/v1/admin/config/search.url?region=hk",
       expect.objectContaining({
         method: "PUT",
         body: JSON.stringify(request),
@@ -77,7 +77,7 @@ describe("runtime config regional transport", () => {
     const fetch = respond(result);
     const request = {
       group: "search",
-      overrides: { "search.api_key": "new-secret" },
+      overrides: { "search.url": "http://es:9200" },
     };
     expect(await testConfig("hk", request)).toEqual(result);
     expect(fetch).toHaveBeenCalledWith(

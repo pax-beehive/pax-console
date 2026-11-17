@@ -160,13 +160,6 @@ export function ConfigDashboard({ userId }: { userId: string }) {
                       time: date(snapshot.health.last_refresh_at),
                     })}
                   </span>
-                  <Badge
-                    tone={snapshot.vault_configured ? "success" : "warning"}
-                  >
-                    {snapshot.vault_configured
-                      ? t("Vault configured")
-                      : t("Vault not configured")}
-                  </Badge>
                   {snapshot.health.refresh_failures > 0 && (
                     <span>
                       {t("Refresh failures: {count}", {
@@ -307,6 +300,10 @@ export function ConfigDashboard({ userId }: { userId: string }) {
                     {t(
                       "Changes apply only to the selected region unless you choose both.",
                     )}
+                    <br />
+                    {t(
+                      "API keys are configured through environment variables only and never appear here.",
+                    )}
                   </p>
                 </>
               )}
@@ -348,7 +345,7 @@ export function ConfigDashboard({ userId }: { userId: string }) {
                               })}
                               onClick={() => setEdit({ key: entry.key })}
                             >
-                              {entry.secret ? t("Set") : t("Edit")}
+                              {t("Edit")}
                             </Button>
                           </div>
                         </div>

@@ -21,7 +21,6 @@ type EditorDraft = {
   outcomes: ConfigOutcome[];
   reviewed: boolean;
   copied: boolean;
-  secretPresent: boolean;
 };
 type EditorActions = {
   setValue: (value: string) => void;
@@ -35,10 +34,9 @@ type EditorActions = {
   setOutcomes: (outcomes: ConfigOutcome[]) => void;
   setReviewed: (reviewed: boolean) => void;
   setCopied: (copied: boolean) => void;
-  setSecretPresent: (secretPresent: boolean) => void;
 };
 
-/** One non-persisted draft per drawer. No secret plaintext or server entries. */
+/** One non-persisted draft per drawer. No server entries. */
 export function createConfigEditorStore(
   initial: Pick<EditorDraft, "value" | "stage" | "emails" | "versions">,
 ) {
@@ -49,7 +47,6 @@ export function createConfigEditorStore(
     outcomes: [],
     reviewed: true,
     copied: false,
-    secretPresent: false,
     setValue: (value) => set({ value }),
     setStage: (stage) => set({ stage }),
     setEmails: (emails) => set({ emails }),
@@ -61,7 +58,6 @@ export function createConfigEditorStore(
     setOutcomes: (outcomes) => set({ outcomes }),
     setReviewed: (reviewed) => set({ reviewed }),
     setCopied: (copied) => set({ copied }),
-    setSecretPresent: (secretPresent) => set({ secretPresent }),
   }));
 }
 
