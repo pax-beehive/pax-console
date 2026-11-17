@@ -204,12 +204,18 @@ export function SettingsLink({
   description,
   icon: Icon,
   trailing,
+  notices,
 }: {
   href: string;
   title: string;
   description: string;
   icon: LucideIcon;
   trailing?: ReactNode;
+  /**
+   * Things the user has to act on, already translated, one line each. They
+   * get the full width under the description because they name a device.
+   */
+  notices?: readonly string[];
 }) {
   const { t } = useI18n();
   return (
@@ -223,6 +229,16 @@ export function SettingsLink({
         <span className="mt-1 block text-xs text-ink-tertiary">
           {t(description)}
         </span>
+        {notices && notices.length > 0 && (
+          <span className="mt-1.5 grid gap-0.5 text-xs text-warning">
+            {/* Two devices can share a name, so lines are not unique. */}
+            {notices.map((notice, index) => (
+              <span key={index} className="block break-words">
+                {notice}
+              </span>
+            ))}
+          </span>
+        )}
       </span>
       {trailing}
       <ChevronRight className="h-4 w-4 shrink-0 text-ink-tertiary" />

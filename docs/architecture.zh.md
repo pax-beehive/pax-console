@@ -57,7 +57,11 @@ added to the preauthorization editor.
 CLI 的登录。Agent 类型选项来自该设备在 PAX 中已注册 agent 的 `agent_type`（`useNodeAgents`，
 即 Manager 记录）去重后的列表，不会列出或探测设备上安装的工具。Agent 类型使用 PAX id，
 如 `claude-code`、`codex`、`kimi`；旧链接中的 `harness=claude` 映射为 `claude-code`。
-深链指定的类型未注册时选第一个已注册类型；设备没有已注册 agent 时显示空状态。页面分为账号卡（状态、邮箱、
+深链指定的类型未注册时选第一个已注册类型；设备没有已注册 agent 时显示空状态。链接没有指定设备、
+账户又只有一台设备时直接显示这台设备；链接指定的或用户选过的设备不会被换成别的设备。
+`agents-needing-sign-in.ts` 在页面打开时按在线设备和智能体类型各读取一次登录状态，页面顶部
+列出其他需要登录的"设备上的智能体"，点一下切换过去；正在显示的那一个由下方卡片报告，
+在本页登录成功后不再列出。页面分为账号卡（状态、邮箱、
 套餐与凭证方式标签，以及唯一的 Refresh，同时刷新登录状态和用量）与单独的 Plan usage 卡。
 登录方式按账号命名：Claude Code 为 "Claude account (Pro / Max)" 与 "Anthropic Console (API
 billing)"；Codex 为 "ChatGPT account"（device code）、"OpenAI API key" 与 "Access token"，
@@ -96,7 +100,7 @@ Re-authenticate；切换设备或 Agent 类型不会显示上一台设备的用�
 一分钟，数值最多可能延迟约两分钟；`observed_at` 是 paxd 完成读取的时间。
 
 `agent-sign-in-settings.tsx` 管理选择和密码输入，`agent-sign-in-flow.ts` 管理当前页面
-临时状态和轮询。普通设备数据仍由 TanStack Query 管理；登录 challenge URL、设备码、
+临时状态和轮询，`agent-sign-in-methods.ts` 是各智能体类型支持的登录方式表。普通设备数据仍由 TanStack Query 管理；登录 challenge URL、设备码、
 授权码、API key 和 access token 不进入 Query/Mutation cache、Zustand 持久化、
 浏览器存储或 durable command。密码输入在发送前立即清空；状态/attempt 变化、错误和卸载
 也会清除。只展示已知错误文案，链接仅允许原生流程支持的 HTTPS provider host/path，
@@ -142,7 +146,9 @@ My devices（`resources/my-devices-page.tsx`）把设备和智能体合成一页
 在线状态和智能体账户是否已登录，不显示标识符和版本；可重命名、更新、删除设备，可打开
 智能体设置（`AgentSettingsDialog`：名称、说明、同步本地会话、同时运行的会话数）、登录页、
 重启和删除。同步与会话数保存在设备上，只有设备在线时才能修改。登录状态按设备和智能体
-类型各读取一次，只保留是或否；设置总览用同样的读取结果指出需要重新登录的智能体类型。`/nodes/[id]`、`/agents/[id]` 是只给管理员的运行信息页，
+类型各读取一次，只保留是或否；设置总览和登录页用同样的读取结果（`agents-needing-sign-in.ts`）
+指出哪台设备上的哪个智能体需要重新登录：总览逐条写出"智能体 on 设备"（最多三条，更多时写两条
+加剩余数量），该入口直接打开第一条对应的设备和智能体类型。`/nodes/[id]`、`/agents/[id]` 是只给管理员的运行信息页，
 `ResourceDetailRoute` 会把其他人送回 My devices。
 
 请求失败时用 `components/ui/error-notice.tsx` 的 `ErrorNotice` 展示：`features/api/public-error.ts`

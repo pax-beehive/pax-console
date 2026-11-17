@@ -670,8 +670,12 @@ export const consoleMessages: Record<string, string> = {
   "resets soon": "即将重置",
   "Your sign-in has expired. Sign in again to continue.":
     "登录已过期，请重新登录后继续。",
-  "{agent} needs sign-in": "{agent} 需要登录",
-  "{count} agents need sign-in": "{count} 个智能体需要登录",
+  "{agent} on {device} needs sign-in": "{device} 上的 {agent} 需要登录",
+  "{count} more agents need sign-in": "另有 {count} 个智能体需要登录",
+  "Agents that need sign-in": "需要登录的智能体",
+  "Needs sign-in:": "需要登录：",
+  "Choose a device first": "请先选择设备",
+  "{agent} on {device}": "{device} 上的 {agent}",
   "Feature flags and service settings": "功能开关和服务配置",
   "Open features to administrators, trial users or everyone, and change service settings for each region without a restart.":
     "按区域把功能开放给管理员、试用用户或所有人，并在不重启的情况下修改服务配置。",

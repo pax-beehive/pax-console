@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   loginNodeHarness: vi.fn(),
   useNodeHarnessUsage: vi.fn(),
   useNodeAgents: vi.fn(),
+  useAgents: vi.fn(),
 }));
 vi.mock("@/features/api/resources", () => mocks);
 
@@ -58,7 +59,24 @@ beforeEach(() => {
   mocks.loginNodeHarness.mockResolvedValue({ harness_auth: awaitingCode });
   mocks.useNodeHarnessUsage.mockReturnValue(usageQuery());
   mocks.useNodeAgents.mockReturnValue(agentsQuery());
+  // No agents across devices by default, so nothing else is checked for
+  // sign-in beyond the selected card.
+  mocks.useAgents.mockReturnValue({ data: { agents: [] } });
 });
+
+/** Every device answers; only the listed device/agent pairs are signed out. */
+function signedOutOn(...pairs: string[]) {
+  mocks.useAgents.mockReturnValue({ data: { agents: registeredAgents } });
+  mocks.getNodeHarnessAuth.mockImplementation(
+    async (_userId: string, nodeId: string, harness: string) => ({
+      harness_auth: pairs.includes(`${nodeId}/${harness}`)
+        ? { harness, state: "logged_out", logged_in: false }
+        : { harness, state: "logged_in", logged_in: true },
+    }),
+  );
+}
+const needsSignIn = () =>
+  screen.queryByRole("group", { name: "Agents that need sign-in" });
 
 function usageQuery(overrides: Record<string, unknown> = {}) {
   return {
@@ -920,4 +938,96 @@ it("given server account details, when showing Chinese credential labels, then p
   await screen.findByText("person@example.test");
   expect(screen.getByText("Settings")).toBeVisible();
   expect(screen.getByText("API 密钥")).toBeVisible();
+});
+
+it("names the device of each agent that needs sign-in and opens the one that is picked", async () => {
+  signedOutOn("node-two/codex");
+  const user = userEvent.setup();
+  mount({ initialNodeId: undefined });
+  expect(screen.getByLabelText("Device")).toHaveValue("");
+  const pick = await screen.findByRole("button", { name: "Codex on Server" });
+  expect(within(needsSignIn()!).getAllByRole("button")).toHaveLength(1);
+  // Offline devices cannot answer, so they are not asked.
+  expect(mocks.getNodeHarnessAuth).not.toHaveBeenCalledWith(
+    "self",
+    "offline",
+    expect.anything(),
+    undefined,
+    expect.any(AbortSignal),
+  );
+
+  await user.click(pick);
+  expect(screen.getByLabelText("Device")).toHaveValue("node-two");
+  expect(screen.getByLabelText("Agent type")).toHaveValue("codex");
+  expect(
+    await screen.findByText("Not signed in on this device."),
+  ).toBeVisible();
+  // The card now reports it, so it is not listed a second time.
+  expect(needsSignIn()).not.toBeInTheDocument();
+  expect(mocks.loginNodeHarness).not.toHaveBeenCalled();
+});
+
+it("leaves out the agent being shown and one that signs in on this page", async () => {
+  signedOutOn("node-one/claude-code", "node-two/codex");
+  const user = userEvent.setup();
+  mount({ initialNodeId: "node-one", initialHarness: "claude-code" });
+  await screen.findByText("Not signed in on this device.");
+  const other = await screen.findByRole("button", { name: "Codex on Server" });
+  expect(
+    screen.queryByRole("button", { name: "Claude Code on Laptop" }),
+  ).not.toBeInTheDocument();
+
+  // Showing another agent brings the first one into the list.
+  await user.selectOptions(screen.getByLabelText("Agent type"), "codex");
+  expect(
+    await screen.findByRole("button", { name: "Claude Code on Laptop" }),
+  ).toBeVisible();
+  await user.selectOptions(screen.getByLabelText("Agent type"), "claude-code");
+  await screen.findByText("Not signed in on this device.");
+
+  // It signs in here; the list was read when the page opened.
+  signedOutOn("node-two/codex");
+  await user.click(screen.getByRole("button", { name: "Refresh" }));
+  await within(
+    screen.getByRole("region", { name: "Claude Code sign-in" }),
+  ).findByText(/Signed in/);
+  await user.click(other);
+  expect(screen.getByLabelText("Device")).toHaveValue("node-two");
+  await screen.findByText("Not signed in on this device.");
+  expect(needsSignIn()).not.toBeInTheDocument();
+});
+
+it("shows the only device right away, but never in place of a linked or cleared one", async () => {
+  mocks.useNodes.mockReturnValue({
+    data: { nodes: [nodes[0], nodes[3]] },
+    refetch: vi.fn(),
+  });
+  const user = userEvent.setup();
+  const first = mount({ initialNodeId: undefined });
+  expect(screen.getByLabelText("Device")).toHaveValue("node-one");
+  expect(
+    await screen.findByText("Not signed in on this device."),
+  ).toBeVisible();
+  await user.selectOptions(screen.getByLabelText("Device"), "");
+  expect(screen.getByLabelText("Device")).toHaveValue("");
+  expect(
+    screen.getByText("Choose a device to check its sign-in status."),
+  ).toBeVisible();
+  first.unmount();
+
+  mount({ initialNodeId: "missing" });
+  expect(
+    screen.getByText(/This device is unavailable to your account/),
+  ).toBeInTheDocument();
+  expect(screen.getByLabelText("Device")).toHaveValue("missing");
+});
+
+it("given Chinese, when agents need sign-in, then names the device first", async () => {
+  signedOutOn("node-two/codex");
+  useLocaleStore.setState({ locale: "zh-CN" });
+  mount({ initialNodeId: undefined });
+  expect(
+    await screen.findByRole("button", { name: "Server 上的 Codex" }),
+  ).toBeVisible();
+  expect(screen.getByText("需要登录：")).toBeVisible();
 });

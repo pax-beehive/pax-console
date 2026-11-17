@@ -9,7 +9,12 @@ const everyFeature = ["secretary", "notifications", "voice_input"];
 const state = vi.hoisted(() => ({
   role: "user",
   region: undefined as string | undefined,
-  nodes: [] as { node_id: string; kind?: string; online?: boolean }[],
+  nodes: [] as {
+    node_id: string;
+    name?: string;
+    kind?: string;
+    online?: boolean;
+  }[],
   grants: [] as { approval_id: string }[],
   features: ["secretary", "notifications", "voice_input"],
   agents: [] as { agent_id: string; agent_type: string; node_id: string }[],
@@ -134,10 +139,10 @@ describe("settings landing pages", () => {
     ).toBeInTheDocument();
   });
 
-  it("calls out the agent that has to sign in again, asking only online devices", async () => {
+  it("names the device of the agent that has to sign in again and opens it directly, asking only online devices", async () => {
     state.nodes = [
-      { node_id: "laptop", online: true },
-      { node_id: "server", online: false },
+      { node_id: "laptop", name: "Work laptop", online: true },
+      { node_id: "server", name: "Home server", online: false },
     ];
     state.agents = [
       { agent_id: "a1", agent_type: "claude-code", node_id: "laptop" },
@@ -147,22 +152,99 @@ describe("settings landing pages", () => {
     state.signedOut = ["laptop/codex", "server/codex"];
     render(<SettingsPage />);
     const entry = screen.getByRole("link", { name: /Agent sign-in & usage/ });
-    await waitFor(() => expect(entry).toHaveTextContent("Codex needs sign-in"));
+    expect(entry).toHaveAttribute("href", "/settings/agent-sign-in");
+    await waitFor(() =>
+      expect(entry).toHaveTextContent("Codex on Work laptop needs sign-in"),
+    );
+    expect(entry).toHaveAttribute(
+      "href",
+      "/settings/agent-sign-in?node_id=laptop&harness=codex",
+    );
+    expect(entry).not.toHaveTextContent("Home server");
+    expect(entry).not.toHaveTextContent("Claude Code");
   });
 
-  it("counts the agents when more than one kind has to sign in", async () => {
-    state.nodes = [{ node_id: "laptop", online: true }];
+  it("tells apart the same agent type on two devices", async () => {
+    state.nodes = [
+      { node_id: "server", name: "Home server", online: true },
+      { node_id: "laptop", name: "Work laptop", online: true },
+      { node_id: "unnamed-device-id", online: true },
+    ];
+    state.agents = [
+      { agent_id: "a1", agent_type: "claude-code", node_id: "laptop" },
+      { agent_id: "a2", agent_type: "claude-code", node_id: "server" },
+      {
+        agent_id: "a3",
+        agent_type: "claude-code",
+        node_id: "unnamed-device-id",
+      },
+    ];
+    state.signedOut = ["laptop/claude-code", "unnamed-device-id/claude-code"];
+    render(<SettingsPage />);
+    const entry = screen.getByRole("link", { name: /Agent sign-in & usage/ });
+    await waitFor(() =>
+      expect(entry).toHaveTextContent(
+        "Claude Code on Work laptop needs sign-in",
+      ),
+    );
+    // A device without a name is known by its id, as on the devices page.
+    expect(entry).toHaveTextContent(
+      "Claude Code on unnamed-device-id needs sign-in",
+    );
+    expect(entry).not.toHaveTextContent("Home server");
+    // The link opens the first one; the sign-in page lists the other.
+    expect(entry).toHaveAttribute(
+      "href",
+      "/settings/agent-sign-in?node_id=unnamed-device-id&harness=claude-code",
+    );
+  });
+
+  it("names up to three agents, then names two and counts the rest", async () => {
+    state.nodes = [
+      { node_id: "laptop", name: "Work laptop", online: true },
+      { node_id: "server", name: "Home server", online: true },
+    ];
     state.agents = [
       { agent_id: "a1", agent_type: "claude-code", node_id: "laptop" },
       { agent_id: "a2", agent_type: "codex", node_id: "laptop" },
+      { agent_id: "a3", agent_type: "claude-code", node_id: "server" },
+      { agent_id: "a4", agent_type: "codex", node_id: "server" },
     ];
-    state.signedOut = ["laptop/codex", "laptop/claude-code"];
+    state.signedOut = [
+      "laptop/claude-code",
+      "laptop/codex",
+      "server/claude-code",
+    ];
+    const view = render(<SettingsPage />);
+    const entry = () =>
+      screen.getByRole("link", { name: /Agent sign-in & usage/ });
+    await waitFor(() =>
+      expect(entry()).toHaveTextContent("Codex on Work laptop needs sign-in"),
+    );
+    expect(entry()).toHaveTextContent(
+      "Claude Code on Home server needs sign-in",
+    );
+    expect(entry()).toHaveTextContent(
+      "Claude Code on Work laptop needs sign-in",
+    );
+    expect(entry()).not.toHaveTextContent("more agents");
+    // Ordered by device name, then agent name.
+    expect(entry()).toHaveAttribute(
+      "href",
+      "/settings/agent-sign-in?node_id=server&harness=claude-code",
+    );
+    view.unmount();
+
+    state.signedOut = [...state.signedOut, "server/codex"];
     render(<SettingsPage />);
     await waitFor(() =>
-      expect(
-        screen.getByRole("link", { name: /Agent sign-in & usage/ }),
-      ).toHaveTextContent("2 agents need sign-in"),
+      expect(entry()).toHaveTextContent("2 more agents need sign-in"),
     );
+    expect(entry()).toHaveTextContent(
+      "Claude Code on Home server needs sign-in",
+    );
+    expect(entry()).toHaveTextContent("Codex on Home server needs sign-in");
+    expect(entry()).not.toHaveTextContent("Work laptop");
   });
 
   it("adds the entries reserved for administrators and for standing permissions", () => {

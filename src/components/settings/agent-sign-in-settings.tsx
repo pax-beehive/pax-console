@@ -2,7 +2,7 @@
 import { useI18n } from "@/features/i18n/use-i18n";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, ExternalLink, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import {
   isDeviceNode,
   nodeLabel,
 } from "@/components/resources/resource-models";
+import { signInKey } from "@/features/devices/use-agent-sign-in-states";
 import { SettingsBack, SettingsPageHeader } from "./settings-navigation";
 import { settingsSection } from "./settings-catalog";
 import {
@@ -28,8 +29,10 @@ import {
   useAgentSignIn,
   validLoginSecret,
 } from "./agent-sign-in-flow";
+import { methodOptions } from "./agent-sign-in-methods";
 import { HarnessUsagePanel } from "./agent-usage";
 import { agentTypeLabel, registeredAgentTypes } from "./agent-types";
+import { useAgentsNeedingSignIn } from "./agents-needing-sign-in";
 
 const fieldClass =
   "min-h-11 min-w-0 w-full rounded-md border border-hairline bg-surface-2 px-3 py-2 text-sm text-ink focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50";
@@ -51,11 +54,18 @@ export function AgentSignInSettings({
 }: AgentSignInProps) {
   const { t } = useI18n();
   const nodes = useNodes(userId);
-  const [nodeId, setNodeId] = useState(initialNodeId);
+  // The device named by the link or picked here. Undefined until either.
+  const [chosenNodeId, setNodeId] = useState<string | undefined>(
+    initialNodeId || undefined,
+  );
   const [preferredHarness, setHarness] = useState(initialHarness);
   const devices = nodes.error
     ? []
     : (nodes.data?.nodes ?? []).filter(isDeviceNode);
+  // With one device there is nothing to choose, so it is shown right away. A
+  // linked or picked device is never replaced by another one.
+  const nodeId =
+    chosenNodeId ?? (devices.length === 1 ? devices[0].node_id : "");
   const selected = devices.find((node) => node.node_id === nodeId);
   const available = selected && isActiveNode(selected);
   // Agent types come from agents registered in PAX for this device only.
@@ -68,6 +78,23 @@ export function AgentSignInSettings({
       ? preferredHarness
       : agentTypes[0];
   const section = settingsSection("agentSignIn");
+  // Read when the page opens. An agent signed in here afterwards is dropped
+  // from the list by what its own card reports.
+  const needSignIn = useAgentsNeedingSignIn(userId);
+  const [signedInHere, setSignedInHere] = useState<readonly string[]>([]);
+  const markSignedIn = useCallback(
+    (key: string) =>
+      setSignedInHere((current) =>
+        current.includes(key) ? current : [...current, key],
+      ),
+    [],
+  );
+  // The card below already reports the agent being shown.
+  const othersNeedingSignIn = needSignIn.filter(
+    (agent) =>
+      !signedInHere.includes(signInKey(agent)) &&
+      !(agent.nodeId === nodeId && agent.agentType === harness),
+  );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -88,6 +115,32 @@ export function AgentSignInSettings({
                   {t("Return to session")}
                 </Link>
               </Button>
+            </div>
+          )}
+          {othersNeedingSignIn.length > 0 && (
+            <div
+              role="group"
+              aria-label={t("Agents that need sign-in")}
+              className="grid gap-2 rounded-xl border border-hairline bg-surface-1 p-4"
+            >
+              <p className="text-sm text-warning">{t("Needs sign-in:")}</p>
+              <div className="flex min-w-0 flex-wrap gap-2">
+                {othersNeedingSignIn.map((agent) => (
+                  <Button
+                    key={signInKey(agent)}
+                    size="sm"
+                    onClick={() => {
+                      setNodeId(agent.nodeId);
+                      setHarness(agent.agentType);
+                    }}
+                  >
+                    {t("{agent} on {device}", {
+                      agent: agentTypeLabel(agent.agentType),
+                      device: agent.deviceName,
+                    })}
+                  </Button>
+                ))}
+              </div>
             </div>
           )}
           <div className="grid gap-4 sm:grid-cols-2">
@@ -124,9 +177,11 @@ export function AgentSignInSettings({
               >
                 {agentTypes.length === 0 && (
                   <option value="">
-                    {selected && agents.isLoading
-                      ? t("Loading agents…")
-                      : t("No registered agents")}
+                    {!selected
+                      ? t("Choose a device first")
+                      : agents.isLoading
+                        ? t("Loading agents…")
+                        : t("No registered agents")}
                   </option>
                 )}
                 {agentTypes.map((type) => (
@@ -205,6 +260,7 @@ export function AgentSignInSettings({
               userId={userId}
               nodeId={nodeId}
               harness={harness}
+              onSignedIn={markSignedIn}
             />
           ) : (
             <p className="text-sm text-ink-tertiary">
@@ -230,50 +286,6 @@ const stateLabels: Record<string, string> = {
   cancelled: "Sign-in was cancelled.",
   expired: "Sign-in expired. Start again to get a new link or code.",
   failed: "Sign-in failed. Start again to get a new link or code.",
-};
-
-type MethodOption = {
-  value: HarnessLoginMethod;
-  label: string;
-  hint: string;
-};
-
-/** Whether PAX can sign this agent type in on a device. */
-export function supportsAgentSignIn(agentType: string) {
-  return Object.hasOwn(methodOptions, agentType);
-}
-
-/** Native sign-in methods, named by the account the user signs in with. */
-const methodOptions: Record<string, MethodOption[]> = {
-  "claude-code": [
-    {
-      value: "subscription",
-      label: "Claude account (Pro / Max)",
-      hint: "Opens claude.ai to approve this device.",
-    },
-    {
-      value: "console",
-      label: "Anthropic Console (API billing)",
-      hint: "Uses your Console organization's API credits.",
-    },
-  ],
-  codex: [
-    {
-      value: "device",
-      label: "ChatGPT account",
-      hint: "Opens a ChatGPT page. Enter the code shown here to approve this device.",
-    },
-    {
-      value: "api-key",
-      label: "OpenAI API key",
-      hint: "Paste a key from platform.openai.com.",
-    },
-    {
-      value: "access-token",
-      label: "Access token",
-      hint: "For tokens issued by your organization.",
-    },
-  ],
 };
 
 /**
@@ -315,10 +327,13 @@ function HarnessSignIn({
   userId,
   nodeId,
   harness,
+  onSignedIn,
 }: {
   userId: string;
   nodeId: string;
   harness: LoginHarness;
+  /** Told the device and agent type key once credentials are present. */
+  onSignedIn: (key: string) => void;
 }) {
   const { t, locale } = useI18n();
   const flow = useAgentSignIn(userId, nodeId, harness);
@@ -346,6 +361,10 @@ function HarnessSignIn({
   const signedIn =
     flow.view?.state === "logged_in" || flow.view?.state === "succeeded";
   const credentialsDetected = signedIn && !flow.error && !flow.busy;
+  useEffect(() => {
+    if (credentialsDetected)
+      onSignedIn(signInKey({ nodeId, agentType: harness }));
+  }, [credentialsDetected, harness, nodeId, onSignedIn]);
   // Agent types without native sign-in support on the device.
   const unsupported = flow.view?.state === "unsupported" && !flow.error;
   const secretMethod = method === "api-key" || method === "access-token";
