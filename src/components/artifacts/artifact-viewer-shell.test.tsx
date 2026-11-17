@@ -58,6 +58,30 @@ afterEach(() => {
   window.history.replaceState({}, "", "/");
 });
 
+async function openActions() {
+  const trigger = screen
+    .getAllByRole("button", { name: "More artifact actions" })
+    .at(-1)!;
+  if (vi.isFakeTimers()) {
+    fireEvent.keyDown(trigger, { key: "ArrowDown" });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+  } else {
+    await userEvent.click(trigger);
+  }
+}
+
+async function selectAction(name: string) {
+  await openActions();
+  const item = screen.getByRole("menuitem", { name });
+  if (vi.isFakeTimers()) {
+    fireEvent.click(item);
+  } else {
+    await userEvent.click(item);
+  }
+}
+
 describe("ArtifactViewerShell", () => {
   it.each([
     { standalone: false, sourceType: "session_artifact" as const },
@@ -125,7 +149,7 @@ describe("ArtifactViewerShell", () => {
     const region = screen.getByRole("region", { name: "Artifact preview" });
     region.scrollTop = 140;
     fireEvent.scroll(region);
-    fireEvent.click(screen.getByRole("button", { name: "Collapse preview" }));
+    await selectAction("Collapse preview");
     expect(region).not.toBeVisible();
     expect(
       screen.getByRole("button", { name: "Expand preview" }),
@@ -157,7 +181,7 @@ describe("ArtifactViewerShell", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Preview" }));
-    fireEvent.click(screen.getByRole("button", { name: "Close preview" }));
+    await selectAction("Close preview");
     await act(async () =>
       resolvePreview({ url: "https://signed.example/late" }),
     );
@@ -169,7 +193,7 @@ describe("ArtifactViewerShell", () => {
     expect(screen.getByRole("button", { name: "Preview" })).toBeEnabled();
   });
 
-  it("does not reopen when automatic loading was scheduled before closing", () => {
+  it("does not reopen when automatic loading was scheduled before closing", async () => {
     let scheduled!: FrameRequestCallback;
     vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
       scheduled = callback;
@@ -188,7 +212,7 @@ describe("ArtifactViewerShell", () => {
         />
       </TooltipProvider>,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Close preview" }));
+    await selectAction("Close preview");
     act(() => scheduled(0));
     expect(loadPreview).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Preview" })).toBeVisible();
@@ -218,7 +242,7 @@ describe("ArtifactViewerShell", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByRole("button", { name: "Close preview" }));
+    await selectAction("Close preview");
     await act(async () => resolveResponse(new Response(new Uint8Array([1]))));
     expect(createURL).not.toHaveBeenCalled();
     expect(screen.queryByRole("img")).toBeNull();
@@ -291,9 +315,12 @@ describe("ArtifactViewerShell", () => {
     expect(
       screen.getByRole("region", { name: "Artifact preview" }),
     ).toBeVisible();
-    fireEvent.keyDown(screen.getByRole("button", { name: "Close preview" }), {
-      key: "Escape",
-    });
+    fireEvent.keyDown(
+      screen.getByRole("button", { name: "More artifact actions" }),
+      {
+        key: "Escape",
+      },
+    );
     expect(
       screen.queryByRole("region", { name: "Artifact preview" }),
     ).toBeNull();
@@ -378,14 +405,13 @@ describe("ArtifactViewerShell", () => {
         referrerPolicy: "no-referrer",
       },
     );
-    expect(screen.getByRole("link", { name: "Open file" })).toHaveAttribute(
-      "href",
-      "https://signed.example/result.json",
-    );
-    expect(screen.getByRole("link", { name: "Open page" })).toHaveAttribute(
-      "href",
-      "/artifacts/files/artifact_1?ref=main",
-    );
+    await openActions();
+    expect(
+      screen.getByRole("menuitem", { name: "Open file in new tab" }),
+    ).toHaveAttribute("href", "https://signed.example/result.json");
+    expect(
+      screen.getByRole("menuitem", { name: "Open preview page" }),
+    ).toHaveAttribute("href", "/artifacts/files/artifact_1?ref=main");
   });
 
   it("renders markdown filenames as documents despite generic text metadata", async () => {
@@ -560,9 +586,7 @@ describe("ArtifactViewerShell", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     await screen.findByText("42");
-    fireEvent.click(
-      screen.getByRole("button", { name: "Open artifact fullscreen" }),
-    );
+    await selectAction("Open fullscreen");
     expect(
       screen.getByRole("dialog", { name: "Artifact viewer: Result" }),
     ).toBeInTheDocument();
@@ -621,10 +645,11 @@ describe("ArtifactViewerShell", () => {
       "src",
       "blob:pax-preview-1",
     );
-    expect(screen.getByRole("link", { name: "Open file" })).toHaveAttribute(
-      "href",
-      "blob:pax-preview-1",
-    );
+    await openActions();
+    expect(
+      screen.getByRole("menuitem", { name: "Open file in new tab" }),
+    ).toHaveAttribute("href", "blob:pax-preview-1");
+    await userEvent.keyboard("{Escape}");
     expect(fetchMock).toHaveBeenLastCalledWith(
       "https://signed.example/image?X-Amz-Signature=top-secret",
       {
@@ -685,15 +710,13 @@ describe("ArtifactViewerShell", () => {
     expect(image).toHaveClass("max-h-full", "max-w-full");
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
     expect(image).toHaveStyle({ width: "2000px", height: "1250px" });
-    fireEvent.click(screen.getByRole("button", { name: "Collapse preview" }));
+    await selectAction("Collapse preview");
     fireEvent.click(screen.getByRole("button", { name: "Expand preview" }));
     expect(screen.getByRole("img")).toBe(image);
     expect(
       screen.getByRole("button", { name: "Show image at actual size" }),
     ).toHaveTextContent("125%");
-    fireEvent.click(
-      screen.getByRole("button", { name: "Open artifact fullscreen" }),
-    );
+    await selectAction("Open fullscreen");
     expect(screen.getByRole("img")).toHaveStyle({ width: "2000px" });
     fireEvent.keyDown(
       screen.getByRole("button", { name: "Show image at actual size" }),
@@ -779,7 +802,7 @@ describe("ArtifactViewerShell", () => {
       </TooltipProvider>,
     );
     await screen.findByRole("img");
-    fireEvent.click(screen.getByRole("button", { name: "Close preview" }));
+    await selectAction("Close preview");
     expect(revoke).toHaveBeenCalledWith("blob:first");
     expect(screen.queryByRole("img")).toBeNull();
     expect(screen.getByRole("button", { name: "Preview" })).toHaveFocus();
@@ -1064,14 +1087,14 @@ describe("media artifact preview", () => {
         configurable: true,
         value: false,
       });
-      fireEvent.click(screen.getByRole("button", { name: "Collapse preview" }));
+      await selectAction("Collapse preview");
       expect(pause).toHaveBeenCalledOnce();
       fireEvent.click(screen.getByRole("button", { name: "Expand preview" }));
       fireEvent.error(player);
       expect(await screen.findByRole("alert")).toHaveTextContent(
         "Unable to play this media",
       );
-      fireEvent.click(screen.getByRole("button", { name: "Close preview" }));
+      await selectAction("Close preview");
       expect(revokeObjectURL).not.toHaveBeenCalled();
     },
   );
@@ -1166,9 +1189,7 @@ describe("media artifact fullscreen", () => {
     first.currentTime = 12;
     first.volume = 0.4;
     first.playbackRate = 1.25;
-    fireEvent.click(
-      screen.getByRole("button", { name: "Open artifact fullscreen" }),
-    );
+    await selectAction("Open fullscreen");
     const fullscreen = (await screen.findByLabelText(
       "Video player: Result",
     )) as HTMLVideoElement;
@@ -1214,7 +1235,7 @@ describe("media preview lifetime", () => {
       configurable: true,
       value: false,
     });
-    fireEvent.click(screen.getByRole("button", { name: "Close preview" }));
+    await selectAction("Close preview");
     fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     const second = (await screen.findByLabelText(
       "Video player: Result",
@@ -1319,7 +1340,7 @@ describe("signed media source renewal", () => {
       await vi.advanceTimersByTimeAsync(30_000);
     });
     expect(loadPreview).toHaveBeenCalledTimes(2);
-    fireEvent.click(screen.getByRole("button", { name: "Close preview" }));
+    await selectAction("Close preview");
     await act(async () => {
       resolveRenewal({
         url: "https://signed.example/new",

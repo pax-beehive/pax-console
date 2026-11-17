@@ -72,6 +72,44 @@ describe("readArtifactPreviewText", () => {
 });
 
 describe("readArtifactPreviewBlob", () => {
+  it.each([
+    ["text/html", "text/html; charset=utf-8"],
+    ["text/html; charset=gbk", "text/html; charset=gbk"],
+    ["text/html; CHARSET=iso-8859-1", "text/html; charset=iso-8859-1"],
+    ["image/png", "image/png"],
+  ])(
+    "defaults only HTML without a charset: %s",
+    async (contentType, expected) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          new Response(new TextEncoder().encode("<h1>功能开关</h1>"), {
+            headers: { "content-type": contentType },
+          }),
+        ),
+      );
+
+      const blob = await readArtifactPreviewBlob("https://signed.test");
+
+      expect(blob.type).toBe(expected);
+    },
+  );
+
+  it("defaults HTML charset from the fallback content type", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(new Uint8Array([1]))),
+    );
+
+    const blob = await readArtifactPreviewBlob(
+      "https://signed.test",
+      10,
+      "text/html",
+    );
+
+    expect(blob.type).toBe("text/html; charset=utf-8");
+  });
+
   it("fetches signed binary content without credentials or redirects", async () => {
     const signedUrl =
       "https://objects.example.test/image?X-Amz-Signature=top-secret";
