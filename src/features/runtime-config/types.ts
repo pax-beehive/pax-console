@@ -9,7 +9,7 @@ export type FeatureValue = {
 export type ConfigValue = string | number | boolean | FeatureValue | null;
 export type ConfigSource = "db" | "env" | "default";
 
-/** The Manager registry supplies the editable fields; secret values are null. */
+/** The Manager registry supplies the editable fields. */
 export type ConfigEntry = {
   key: string;
   kind: "feature" | "setting";
@@ -18,6 +18,7 @@ export type ConfigEntry = {
   description: string;
   type: "string" | "url" | "bool" | "int" | "duration" | "enum" | "feature";
   options: string[] | null;
+  /** Always false: API keys are environment-only and never listed. */
   secret: boolean;
   value: ConfigValue;
   display: string | null;
@@ -36,7 +37,6 @@ export type ConfigEntry = {
 export type ConfigSnapshot = {
   region: Region;
   revision: number;
-  vault_configured: boolean;
   health: {
     last_refresh_at: string | null;
     refresh_failures: number;

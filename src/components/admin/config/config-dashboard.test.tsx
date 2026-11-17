@@ -74,7 +74,6 @@ function snapshot(region: "us" | "hk"): ConfigSnapshot {
   return {
     region,
     revision: 42,
-    vault_configured: true,
     health: {
       last_refresh_at: "2026-11-13T12:00:00Z",
       refresh_failures: 0,
@@ -99,18 +98,6 @@ function snapshot(region: "us" | "hk"): ConfigSnapshot {
         value: `https://${region}-search.example.test`,
         display: `https://${region}-search.example.test`,
         version: region === "us" ? 3 : 7,
-      },
-      {
-        ...baseEntry,
-        key: "search.api_key",
-        label: "Search API key",
-        description: "Search credential",
-        type: "string",
-        value: null,
-        display: "sk-…a3f2",
-        secret: true,
-        version: 2,
-        env_var: "SEARCH_API_KEY",
       },
     ],
   };
@@ -204,12 +191,9 @@ beforeEach(() => {
       const entry = snapshots[region].entries.find((item) => item.key === key)!;
       const updated = { ...entry, version: entry.version + 1 };
       if (request.method === "PUT") {
-        updated.value = updated.secret
-          ? null
-          : (request.body?.value as ConfigEntry["value"]);
-        updated.display = updated.secret
-          ? "sk-…new1"
-          : typeof updated.value === "string"
+        updated.value = request.body?.value as ConfigEntry["value"];
+        updated.display =
+          typeof updated.value === "string"
             ? updated.value
             : JSON.stringify(updated.value);
       }
@@ -800,82 +784,22 @@ describe("runtime configuration administration", () => {
     },
   );
 
-  it("Given a secret replacement, starts empty, clears the draft, and keeps plaintext out of Query and Mutation data", async () => {
-    const { client } = renderDashboard();
-    const dialog = await openSetting("Search API key");
-    expect(within(dialog).getByLabelText("Value")).toHaveValue("");
-    expect(within(dialog).getByLabelText("Value")).toHaveAttribute(
-      "type",
-      "password",
-    );
-    expect(within(dialog).getByLabelText("Value")).toHaveAttribute(
-      "placeholder",
-      "Already set sk-…a3f2; enter a new value to replace",
-    );
-    changeText(dialog, "Value", "private-token-for-test");
-    changeText(dialog, "Reason", "Rotate search credential");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
-    expect(await within(dialog).findByText("Saved · v3")).toBeInTheDocument();
-    expect(within(dialog).getByLabelText("Value")).toHaveValue("");
-    expect(writes()[0].body?.value).toBe("private-token-for-test");
+  it("Given environment-only API keys, shows no vault state and explains where keys live", async () => {
+    renderDashboard();
+    await screen.findByRole("button", { name: "Edit Secretary" });
+    expect(screen.queryByText(/vault/i)).not.toBeInTheDocument();
     expect(
-      JSON.stringify(
-        client
-          .getQueryCache()
-          .getAll()
-          .map((query) => query.state),
+      screen.getByText(
+        /API keys are configured through environment variables only/,
       ),
-    ).not.toContain("private-token-for-test");
-    expect(
-      JSON.stringify(
-        client
-          .getMutationCache()
-          .getAll()
-          .map((mutation) => mutation.state),
-      ),
-    ).not.toContain("private-token-for-test");
-  });
-
-  it("Given a secret connection test, a retained mutation function cannot resend the cleared secret", async () => {
-    const { client } = renderDashboard();
-    const dialog = await openSetting("Search API key");
-    changeText(dialog, "Value", "closure-secret-for-test");
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Test connection" }),
-    );
-    const retainedMutation = client
-      .getMutationCache()
-      .getAll()
-      .find((mutation) => mutation.state.status === "pending");
-    expect(retainedMutation?.options.mutationFn).toBeTypeOf("function");
-    const retainedFunction = retainedMutation!.options.mutationFn!;
-    expect(
-      await within(dialog).findByText("Connection succeeded (180 ms)"),
     ).toBeInTheDocument();
-    expect(within(dialog).getByLabelText("Value")).toHaveValue("");
-    expect(writes()[0].body).toEqual({
-      group: "search",
-      overrides: { "search.api_key": "closure-secret-for-test" },
-    });
-
-    await act(async () => {
-      await retainedFunction(undefined, {
-        client,
-        meta: undefined,
-        mutationKey: undefined,
-      });
-    });
-    expect(writes()).toHaveLength(2);
-    expect(writes()[1].body).toEqual({
-      group: "search",
-      overrides: { "search.api_key": "" },
-    });
-    expect(JSON.stringify(writes()[1].body)).not.toContain(
-      "closure-secret-for-test",
-    );
+    fireEvent.click(screen.getByRole("tab", { name: "Service settings" }));
+    expect(
+      screen.queryByRole("button", { name: /API key/ }),
+    ).not.toBeInTheDocument();
   });
 
-  it("Given HK copying a US value, copies only into the non-secret draft until saved", async () => {
+  it("Given HK copying a US value, copies only into the draft until saved", async () => {
     useConfigAdminStore.setState({ region: "hk" });
     renderDashboard();
     const dialog = await openSetting();
@@ -888,18 +812,5 @@ describe("runtime configuration administration", () => {
       ),
     );
     expect(writes()).toHaveLength(0);
-    fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
-    fireEvent.click(
-      screen.getByRole("button", { name: "Edit Search API key" }),
-    );
-    const secretDialog = screen.getByRole("dialog", {
-      name: "Edit Search API key",
-    });
-    expect(
-      within(secretDialog).queryByRole("button", {
-        name: "Copy value from US",
-      }),
-    ).not.toBeInTheDocument();
-    expect(within(secretDialog).getByLabelText("Value")).toHaveValue("");
   });
 });

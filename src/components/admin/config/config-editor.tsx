@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useStore } from "zustand";
 import {
   createConfigEditorStore,
@@ -48,7 +48,7 @@ import {
   stages,
 } from "./config-display";
 
-/** Non-persisted Zustand drafts belong to this drawer; secrets stay in the input. */
+/** Non-persisted Zustand drafts belong to this drawer. API keys are environment-only and never edited here. */
 export function ConfigEditor({
   userId,
   region,
@@ -70,7 +70,7 @@ export function ConfigEditor({
   const client = useQueryClient();
   const [editorStore] = useState(() =>
     createConfigEditorStore({
-      value: entry.secret ? "" : String(entry.value ?? ""),
+      value: String(entry.value ?? ""),
       stage:
         initialStage ??
         (entry.type === "feature" ? featureValue(entry).stage : "admin"),
@@ -104,14 +104,7 @@ export function ConfigEditor({
     setReviewed,
     copied,
     setCopied,
-    secretPresent,
-    setSecretPresent,
   } = useStore(editorStore);
-  const secretInput = useRef<HTMLInputElement>(null);
-  const clearSecret = () => {
-    if (secretInput.current) secretInput.current.value = "";
-    setSecretPresent(false);
-  };
   const version = versions[region] ?? entry.version;
   const other: Region = region === "us" ? "hk" : "us";
   const label = t(featureLabels[entry.key] ?? entry.label);
@@ -128,16 +121,12 @@ export function ConfigEditor({
         ? value === "true"
         : entry.type === "int"
           ? Number(value)
-          : entry.secret
-            ? (secretInput.current?.value ?? "")
-            : value;
+          : value;
   const validValue =
     audit ||
-    (entry.secret
-      ? secretPresent
-      : entry.type === "int"
-        ? value.trim() !== "" && Number.isSafeInteger(Number(value))
-        : true);
+    (entry.type === "int"
+      ? value.trim() !== "" && Number.isSafeInteger(Number(value))
+      : true);
   const validReason = reason.trim().length > 0 && reason.length <= 500;
 
   async function refresh(target: Region) {
@@ -161,13 +150,11 @@ export function ConfigEditor({
     ]);
   }
   const mutation: UseMutationResult<Outcome[], Error, Action> = useMutation({
-    // Only the action is cached. Secret payloads are read from a cleared mutable draft, never captured in mutation options or variables.
     mutationFn: async (action: Action) => {
       if (attemptedAction && action !== attemptedAction) return outcomes;
       setAttemptedAction(action);
       const submitted = parsed();
       const submittedReason = reason.trim();
-      if (entry.secret) clearSecret();
       setReviewed(false);
       const results: Outcome[] = outcomes.filter(
         (result) => result.status === "saved",
@@ -188,12 +175,6 @@ export function ConfigEditor({
             (item) => item.key === entry.key,
           );
           if (!targetEntry) throw new Error("missing_key");
-          if (
-            entry.secret &&
-            action === "save" &&
-            !targetSnapshot.vault_configured
-          )
-            throw new Error("vault_not_configured");
           const request = {
             expected_version: versions[target] ?? targetEntry.version,
             reason: submittedReason,
@@ -222,13 +203,9 @@ export function ConfigEditor({
             error:
               error instanceof AuthError
                 ? "Access denied"
-                : details.status === 412 ||
-                    (error instanceof Error &&
-                      error.message === "vault_not_configured")
-                  ? "Vault not configured"
-                  : details.status === 400
-                    ? "Validation failed. Check the value and reason."
-                    : "Could not save this region. Retry after reviewing its current value.",
+                : details.status === 400
+                  ? "Validation failed. Check the value and reason."
+                  : "Could not save this region. Retry after reviewing its current value.",
           });
           if (conflict) {
             try {
@@ -251,7 +228,6 @@ export function ConfigEditor({
   const test = useMutation({
     mutationFn: async () => {
       const overrides = { [entry.key]: parsed() };
-      if (entry.secret) clearSecret();
       try {
         return await testConfig(region, { group: entry.group, overrides });
       } catch {
@@ -264,8 +240,7 @@ export function ConfigEditor({
     mutationFn: async () => {
       const source = await getConfig("us");
       const original = source.entries.find((item) => item.key === entry.key);
-      if (!original || original.secret || original.value == null)
-        throw new Error("not_copyable");
+      if (!original || original.value == null) throw new Error("not_copyable");
       if (original.type === "feature") {
         const feature = featureValue(original);
         setStage(feature.stage);
@@ -297,12 +272,11 @@ export function ConfigEditor({
       const current = fresh.entries.find((item) => item.key === entry.key);
       if (!current) throw new Error("missing_key");
       setVersions({ [region]: current.version });
-      setValue(current.secret ? "" : String(current.value ?? ""));
+      setValue(String(current.value ?? ""));
       if (current.type === "feature") {
         setStage(featureValue(current).stage);
         setEmails(featureValue(current).beta_emails.join("\n"));
       }
-      if (current.secret) clearSecret();
       setCopied(false);
       setOutcomes([]);
       setAttemptedAction(undefined);
@@ -318,10 +292,6 @@ export function ConfigEditor({
     newChange.isPending;
   const draftLocked = busy || outcomes.length > 0;
   const primaryAction = attemptedAction ?? (audit ? "revert" : "save");
-  const secretRetry =
-    entry.secret &&
-    attemptedAction === "save" &&
-    outcomes.some((result) => result.status !== "saved");
   const confirmRegions = outcomes.length
     ? outcomes
         .filter((result) => result.status !== "saved")
@@ -461,43 +431,20 @@ export function ConfigEditor({
                       aria-label={t("Value")}
                       autoComplete="off"
                       type={
-                        entry.secret
-                          ? "password"
-                          : entry.type === "int"
-                            ? "number"
-                            : entry.type === "url"
-                              ? "url"
-                              : "text"
+                        entry.type === "int"
+                          ? "number"
+                          : entry.type === "url"
+                            ? "url"
+                            : "text"
                       }
-                      ref={entry.secret ? secretInput : undefined}
-                      value={entry.secret ? undefined : value}
-                      defaultValue={entry.secret ? "" : undefined}
-                      disabled={(draftLocked && !secretRetry) || busy}
-                      placeholder={
-                        entry.secret
-                          ? entry.has_value
-                            ? t(
-                                "Already set {display}; enter a new value to replace",
-                                { display: entry.display ?? "" },
-                              )
-                            : t("Enter a new secret")
-                          : undefined
-                      }
-                      onChange={(event) => {
-                        if (entry.secret) {
-                          setSecretPresent(Boolean(event.target.value.trim()));
-                        } else setValue(event.target.value);
-                      }}
+                      value={value}
+                      disabled={draftLocked}
+                      onChange={(event) => setValue(event.target.value)}
                     />
-                  )}
-                  {entry.secret && (
-                    <span className="text-xs text-ink-tertiary">
-                      {t("Write only. Secret values cannot be read or copied.")}
-                    </span>
                   )}
                 </label>
               )}
-              {region === "hk" && !entry.secret && (
+              {region === "hk" && (
                 <div>
                   <Button
                     variant="secondary"
@@ -558,13 +505,6 @@ export function ConfigEditor({
                 </span>
               </span>
             </label>
-          )}
-          {entry.secret && !snapshot.vault_configured && (
-            <p role="alert" className="text-xs text-warning">
-              {t(
-                "Vault not configured. Secret writes are unavailable in this region.",
-              )}
-            </p>
           )}
           {entry.pending_restart && (
             <Badge tone="warning">{t("Restart required")}</Badge>
@@ -631,24 +571,15 @@ export function ConfigEditor({
                       {outcome.region.toUpperCase()} ·{" "}
                       {t("Current value: {value}", {
                         value: current
-                          ? current.secret
-                            ? (current.display ?? t("Not set"))
-                            : current.type === "feature"
-                              ? `${t(stages[featureValue(current).stage])}${featureValue(current).beta_emails.length ? ` · ${featureValue(current).beta_emails.join(", ")}` : ""}`
-                              : (displayValue(current) ?? t("Not set"))
+                          ? current.type === "feature"
+                            ? `${t(stages[featureValue(current).stage])}${featureValue(current).beta_emails.length ? ` · ${featureValue(current).beta_emails.join(", ")}` : ""}`
+                            : (displayValue(current) ?? t("Not set"))
                           : t("Unknown"),
                       })}
                     </p>
                   );
                 })}
             </section>
-          )}
-          {secretRetry && (
-            <p className="text-xs text-warning">
-              {t(
-                "Re-enter the same secret to retry failed regions. Saved regions will not be changed.",
-              )}
-            </p>
           )}
           {outcomes.length > 0 && !audit && (
             <div>
@@ -714,13 +645,7 @@ export function ConfigEditor({
           )}
           <Button
             variant="primary"
-            disabled={
-              !canWrite ||
-              (primaryAction === "save" && !validValue) ||
-              (primaryAction === "save" &&
-                entry.secret &&
-                !snapshot.vault_configured)
-            }
+            disabled={!canWrite || (primaryAction === "save" && !validValue)}
             onClick={() => submit(primaryAction)}
           >
             {mutation.isPending

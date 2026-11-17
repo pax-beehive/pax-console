@@ -15,16 +15,14 @@ export const configMessages: Record<string, string> = {
   "Revision {revision}": "修订号 {revision}",
   "Last refresh: {time}": "最近刷新：{time}",
   "Refresh failures: {count}": "刷新失败次数：{count}",
-  "Vault configured": "密钥保险箱已配置",
-  "Vault not configured": "密钥保险箱未配置",
-  "Vault not configured. Secret writes are unavailable in this region.":
-    "密钥保险箱未配置，此区域暂不能写入密钥。",
   "Could not refresh configuration. Check the selected region and retry.":
     "无法刷新配置，请检查所选区域并重试。",
   "Opening or disabling a feature for everyone requires confirmation.":
     "全部开放或关闭功能前，需要二次确认影响范围。",
   "Changes apply only to the selected region unless you choose both.":
     "默认仅修改所选区域；可在编辑时选择同时应用到另一区域。",
+  "API keys are configured through environment variables only and never appear here.":
+    "API key 只通过环境变量配置，不会出现在此页面。",
   "Could not load change history.": "无法加载修改记录。",
   "No changes recorded.": "暂无修改记录。",
   "Admin override": "后台",
@@ -51,11 +49,6 @@ export const configMessages: Record<string, string> = {
   Required: "必填",
   "Required · up to 500 characters · saved in change history":
     "必填 · 最多 500 字符 · 记录在修改历史中",
-  "Already set {display}; enter a new value to replace":
-    "已设置 {display}，输入新值替换",
-  "Enter a new secret": "输入新密钥",
-  "Write only. Secret values cannot be read or copied.":
-    "密钥只能写入，无法读取或复制。",
   "Also apply to {region}": "同时应用到 {region}",
   "Each region is saved separately and reports its own result.":
     "各区域分别保存，并单独显示结果。",
@@ -99,8 +92,6 @@ export const configMessages: Record<string, string> = {
   "Start new change": "开始新修改",
   "A new change includes every selected region. Successful writes remain in change history.":
     "新修改会重新包含所有选中区域。已成功的修改仍保留在修改记录中。",
-  "Re-enter the same secret to retry failed regions. Saved regions will not be changed.":
-    "请重新输入同一密钥以重试失败的区域，已保存的区域不会被修改。",
   search: "搜索",
   voice: "语音",
   models: "模型",
