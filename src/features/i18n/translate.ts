@@ -1,3 +1,4 @@
+import { modelGatewayMessages } from "./messages/model-gateway";
 import { configMessages } from "./messages/config";
 import { resourcesMessages } from "./messages/resources";
 import { homeMessages } from "./messages/home";
@@ -19,6 +20,7 @@ const messages: Record<string, string> = {
   ...resourcesMessages,
   ...sessionsMessages,
   ...configMessages,
+  ...modelGatewayMessages,
 };
 
 export function resolveLocale(

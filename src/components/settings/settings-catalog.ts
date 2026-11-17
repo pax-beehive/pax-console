@@ -7,6 +7,7 @@ import {
   FileText,
   FolderTree,
   KeyRound,
+  Gauge,
   Languages,
   LockKeyhole,
   Mic,
@@ -235,6 +236,16 @@ export const settingsGroups: readonly SettingsGroupDefinition[] = [
         audience: "admin",
         description:
           "Open features to administrators, trial users or everyone, and change service settings for each region without a restart.",
+      },
+      {
+        id: "modelGateway",
+        href: "/admin/model-gateway",
+        title: "Model gateway",
+        icon: Gauge,
+        caption: "Free model budgets, access, and usage",
+        audience: "admin",
+        description:
+          "Manage the regional free model pool, monthly user allowances, and model safety policies.",
       },
       {
         id: "status",
