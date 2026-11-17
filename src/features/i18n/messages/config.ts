@@ -43,6 +43,38 @@ export const configMessages: Record<string, string> = {
   "Applies after restart": "重启后生效",
   "Beta emails": "试用邮箱名单",
   "Feature stage": "开放阶段",
+  "Current access scope": "当前生效的开放范围",
+  "Access scope for {name}": "{name}的开放范围",
+  "Unavailable to all users, including administrators.":
+    "所有用户（包括管理员）均不可使用。",
+  "Available to administrators only.": "仅管理员可使用。",
+  "Available to administrators and users on the beta list.":
+    "管理员和试用名单中的用户可使用。",
+  "Available to all signed-in users.": "所有登录用户均可使用。",
+  "Currently effective: {stage}": "当前生效：{stage}",
+  "Pending save: {stage}": "待保存：{stage}",
+  "This submission: {stage}": "本次提交：{stage}",
+  "Not saved": "未保存",
+  "Partially saved": "部分保存",
+  Saved: "已保存",
+  "The beta list is retained for this draft and is not used at this stage.":
+    "试用名单已保留，当前档位不使用。",
+  "Enter a reason for this change.": "请填写修改原因。",
+  "Enter a valid email address on each line.": "请每行填写有效邮箱。",
+  "Only retry {regions}": "仅重试 {regions}",
+  "Save changes": "保存修改",
+  "Finish editing": "完成编辑",
+  "Back to editing": "返回编辑",
+  "Changes take effect only after a successful save.":
+    "保存成功后才会更新生效档位。",
+  "Retry keeps this submission. Start a new change to edit its contents.":
+    "重试沿用本次提交；需要改内容，请开始新修改。",
+  "Latest {region}: {value} · v{version}":
+    "{region} 最新：{value} · v{version}",
+  "Pending value: {value}; retry uses the reviewed version.":
+    "本次待写入：{value}；将使用核对后的版本重试。",
+  "Saved regions remain active. Retry only changes failed regions.":
+    "已成功区域保持生效，重试只处理失败区域。",
   "One email per line. Administrators retain access.":
     "每行一个邮箱；管理员仍可使用。",
   "Edit {name}": "编辑{name}",

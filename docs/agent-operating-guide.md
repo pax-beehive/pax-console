@@ -487,6 +487,17 @@ return to Home. Render the Manager's registry metadata rather than maintaining
 a second registry in Console. Reuse `src/components/ui` primitives and route
 every label through `t()` with English and zh-CN translations.
 
+Feature stages use `FeatureStageControl` in `components/admin/config`, wrapping
+the shared `ui/discrete-slider.tsx` four-stop rail in the list and editor. The stops
+describe access scope, not workflow progress. Keep the list's effective value
+derived from Query: pointer movement previews only; release, a different stop
+label, or a keyboard commit opens the editor with that proposed stage. Edit
+opens the same editor at the effective stage. Do not send writes from a slider
+event. Cancelling the drawer discards its draft and restores the list; cancelling
+or pressing Escape in the impact confirmation returns to the editor first.
+Leaving Beta hides the email field but retains its draft for this editor, with
+an explicit notice that the list is not used by the selected stage.
+
 All configuration calls use `apiFetch` and
 `/api/pax/api/v1/admin/config`, including test, audit, reset, and revert actions.
 Append `region=us|hk` to select a target using the same server-side regional
@@ -1831,7 +1842,7 @@ src/components/collaboration/*
 
 src/components/ui/*
   local UI primitives such as Button, Badge, SearchBox, Tooltip, TruncatedText,
-  PaxLogo, EmptyState, InlineError, SectionTitle, ConfirmDialog
+  PaxLogo, EmptyState, InlineError, SectionTitle, ConfirmDialog, DiscreteSlider
 
 src/features/*
   API, auth, runtime, stateful business boundaries
@@ -1844,6 +1855,13 @@ Use `src/components/ui/button.tsx` for command buttons, `badge.tsx` for compact 
 `Button asChild` may render an icon beside its delegated child because the
 primitive marks that child with Radix `Slottable`. Callers must still provide
 one React element, such as an anchor, as the delegated child.
+
+`DiscreteSlider` owns neutral fixed stops and one thumb, with separate preview
+and commit callbacks; its non-persisted `discrete-slider-store` owns only the
+active gesture and preview. Callers supply labels and accessible value text; the
+administrator configuration wrapper supplies feature-stage meanings. Preserve
+keyboard operation, visible focus, pointer cancellation, and readable labels
+at phone widths. It must not imply completed steps or use a progress fill.
 
 The UI direction is Codex-like dark workbench, not a generic dashboard. Prefer split panes, compact rows, timelines, and evidence panels over large hero sections, KPI-card grids, and floating card sections. Cards are reserved for selectable entities, modals, and isolated tools. Ordinary metadata should be muted text or monospace text; use `Badge` for states that need scanning or action, such as connected, running, failed, approval required, revoked, or offline.
 

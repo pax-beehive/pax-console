@@ -22,15 +22,17 @@ import {
   useConfigAudit,
   testConfig,
   type ConfigEntry,
-  type FeatureStage,
 } from "@/features/runtime-config";
 import { ConfigEditor } from "./config-editor";
+import {
+  FeatureStageControl,
+  featureStageDescriptions,
+} from "./feature-stage-control";
 import {
   displayValue,
   featureLabels,
   featureValue,
   sources,
-  stages,
 } from "./config-display";
 
 const tabLabels: Record<ConfigTab, string> = {
@@ -237,7 +239,7 @@ export function ConfigDashboard({ userId }: { userId: string }) {
               role="tabpanel"
               id="config-panel"
               aria-labelledby={`config-tab-${tab}`}
-              className="min-w-0"
+              className="@container min-w-0"
             >
               {tab !== "audit" && (
                 <SearchBox
@@ -250,53 +252,46 @@ export function ConfigDashboard({ userId }: { userId: string }) {
               )}
               {tab === "features" && (
                 <>
+                  <p className="mb-2 text-xs text-ink-tertiary">
+                    {t("Current access scope")}
+                  </p>
                   {filtered
                     .filter((entry) => entry.kind === "feature")
                     .map((entry) => (
                       <div
                         key={entry.key}
-                        className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline py-4"
+                        className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-3 border-b border-hairline py-5 @2xl:grid-cols-[minmax(0,1fr)_minmax(20rem,26rem)_auto] @2xl:items-center"
                       >
                         <EntrySummary entry={entry} />
-                        <div
-                          className="flex max-w-full flex-wrap items-center gap-1"
-                          role="group"
-                          aria-label={t(
-                            featureLabels[entry.key] ?? entry.label,
-                          )}
-                        >
-                          {(Object.keys(stages) as FeatureStage[]).map(
-                            (stage) => (
-                              <Button
-                                size="sm"
-                                variant={
-                                  featureValue(entry).stage === stage
-                                    ? "secondary"
-                                    : "ghost"
-                                }
-                                key={stage}
-                                aria-pressed={
-                                  featureValue(entry).stage === stage
-                                }
-                                onClick={() =>
-                                  setEdit({ key: entry.key, stage })
-                                }
-                              >
-                                {t(stages[stage])}
-                              </Button>
-                            ),
-                          )}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            aria-label={t("Edit {name}", {
+                        <div className="col-span-2 row-start-2 min-w-0 @2xl:col-span-1 @2xl:col-start-2 @2xl:row-start-1">
+                          <FeatureStageControl
+                            value={featureValue(entry).stage}
+                            label={t("Access scope for {name}", {
                               name: t(featureLabels[entry.key] ?? entry.label),
                             })}
-                            onClick={() => setEdit({ key: entry.key })}
-                          >
-                            {t("Edit")}
-                          </Button>
+                            onValueCommit={(stage) =>
+                              setEdit({ key: entry.key, stage })
+                            }
+                          />
+                          <p className="mt-2 text-xs text-ink-subtle">
+                            {t(
+                              featureStageDescriptions[
+                                featureValue(entry).stage
+                              ],
+                            )}
+                          </p>
                         </div>
+                        <Button
+                          className="col-start-2 row-start-1 @2xl:col-start-3"
+                          size="sm"
+                          variant="ghost"
+                          aria-label={t("Edit {name}", {
+                            name: t(featureLabels[entry.key] ?? entry.label),
+                          })}
+                          onClick={() => setEdit({ key: entry.key })}
+                        >
+                          {t("Edit")}
+                        </Button>
                       </div>
                     ))}
                   <p className="mt-4 text-xs leading-6 text-ink-tertiary">
