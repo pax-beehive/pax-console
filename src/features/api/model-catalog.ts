@@ -1,4 +1,5 @@
-import { ApiError, AuthError } from "./errors";
+import { apiFetch } from "./client";
+import { ApiError } from "./errors";
 
 export type ModelCatalogItem = {
   id: string;
@@ -19,52 +20,21 @@ export type ModelCatalog = {
 export const modelCatalogKey = (userId: string) =>
   ["model-catalog", userId, "openrouter"] as const;
 
-/** Direct JSON from the same-origin BFF; provider credentials never enter this client. */
+/** Reuse the authenticated Worker/Manager API path and standard response envelope. */
 export async function readModelCatalog(
   signal?: AbortSignal,
 ): Promise<ModelCatalog> {
-  const controller = new AbortController();
-  const cancel = () => controller.abort(signal?.reason);
-  if (signal?.aborted) cancel();
-  else signal?.addEventListener("abort", cancel, { once: true });
-  const timeout = globalThis.setTimeout(
-    () =>
-      controller.abort(
-        new DOMException("Model catalog request timed out", "TimeoutError"),
-      ),
-    12_000,
+  const catalog = await apiFetch<ModelCatalog>(
+    "/api/v1/user/self/hosting-admin/catalog?provider=openrouter",
+    { signal, cache: "no-store" },
   );
-  try {
-    const response = await fetch(
-      "/api/model-gateway/catalog?provider=openrouter",
-      {
-        credentials: "same-origin",
-        cache: "no-store",
-        signal: controller.signal,
-      },
-    );
-    if (response.status === 401 || response.status === 403)
-      throw new AuthError();
-    if (!response.ok)
-      throw new ApiError(
-        "Model catalog is unavailable",
-        response.status,
-        undefined,
-      );
-    const catalog = (await response.json()) as ModelCatalog;
-    if (
-      catalog.source !== "openrouter" ||
-      !Array.isArray(catalog.models) ||
-      typeof catalog.fetched_at !== "string"
-    ) {
-      throw new ApiError("Model catalog is unavailable", 503, undefined);
-    }
-    return catalog;
-  } catch (error) {
-    if (controller.signal.aborted) throw controller.signal.reason;
-    throw error;
-  } finally {
-    globalThis.clearTimeout(timeout);
-    signal?.removeEventListener("abort", cancel);
+  if (
+    !catalog ||
+    catalog.source !== "openrouter" ||
+    !Array.isArray(catalog.models) ||
+    typeof catalog.fetched_at !== "string"
+  ) {
+    throw new ApiError("Model catalog is unavailable", 503, undefined);
   }
+  return catalog;
 }

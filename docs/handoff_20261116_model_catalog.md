@@ -1,5 +1,11 @@
 # Model catalog import and pool status correction
 
+Historical PR #295 handoff: its Next BFF prototype was replaced before deployment
+by the existing authenticated Worker/Manager API path. The BFF code and its tests
+were removed from Console. Current routing and validation are documented in
+`docs/handoff_20261116_catalog_auth_routing.md`; the counts below describe the
+original prototype validation, not production WorkOS authentication.
+
 Source baseline is the freshly verified live Console revision
 `9a8efd041de1ad67481faa6b52b35a10c49b9300` (PR #293). The initial pool-only fix
 is independently committed as `3aef0d6bb65d43727234341154a6e4930058be59`.
