@@ -8,6 +8,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { SessionArtifact } from "@/features/api/types";
@@ -70,10 +71,18 @@ it("opens the selected preview in place, without loading a hidden default artifa
     screen.getByRole("button", { name: "Back to artifacts" }),
   ).toHaveFocus();
   await waitFor(() => expect(load).toHaveBeenCalledWith(artifacts[16]));
-  expect(screen.getByRole("link", { name: "Open page" })).toHaveAttribute(
-    "href",
-    "/artifacts/files/artifact_16?ref=main",
+  expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  await userEvent.click(
+    screen.getByRole("button", { name: "More artifact actions" }),
   );
+  expect(
+    screen.getByRole("menuitem", { name: "Open preview page" }),
+  ).toHaveAttribute("href", "/artifacts/files/artifact_16?ref=main");
+  await userEvent.keyboard("{Escape}");
+  expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("region", { name: "Artifact viewer: Prototype 16" }),
+  ).toBeVisible();
 });
 it("returns to the same scroll position and selected row", () => {
   view();
