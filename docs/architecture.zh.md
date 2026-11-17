@@ -814,7 +814,8 @@ src/components/sessions/
   其余尚未迁移的管理员实验入口继续受有效管理员视图控制。
 
   连续的 thought/progress 与 tool call 从第 1 个事件起按原顺序聚合为默认折叠的
-  活动行。明确的最新流式思考显示 Thinking…；可识别的运行工具显示 Reading files…
+  活动行。明确的最新流式思考显示 Thinking…（中文为“深度思考中”，与展开后的
+  思考详情一致）；可识别的运行工具显示 Reading files…
   等动作，未知工具显示 Using tools…，并行工具显示数量，排队不冒充执行。
   没有活跃工具和最新流式思考时显示 Working…，不推断正在思考或重试。
   仅当前会话模型配置明确为 DeepSeek 时在思考标签前展示 20px 鲸鱼娘头像；
