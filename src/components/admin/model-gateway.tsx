@@ -438,15 +438,34 @@ function PoolSettings({
 }) {
   const { t } = useI18n();
   const { pool } = snapshot;
+  const hasBudget = pool.remaining_microusd > 0;
+  const budgetStatus =
+    pool.monthly_limit_microusd === 0
+      ? "Zero budget"
+      : hasBudget
+        ? "Funded"
+        : "Exhausted";
+  // Availability also depends on hosting readiness and the accounting period;
+  // it cannot establish whether the monetary budget has been consumed.
+  const accessNotice = !snapshot.enabled
+    ? "Free model requests are disabled. Changing the budget does not enable hosting."
+    : hasBudget && !pool.available
+      ? "Free model requests are currently unavailable despite the remaining budget."
+      : null;
   const reset = formatHostingBudgetReset(pool.period_start, pool.resets_at);
   return (
     <section aria-label={t("Platform pool")} className="min-w-0">
       <div className="mb-3 flex items-center gap-2">
         <h2 className="text-sm font-semibold text-ink">{t("Platform pool")}</h2>
-        <Badge tone={pool.available ? "success" : "warning"}>
-          {t(pool.available ? "Available" : "Exhausted")}
+        <Badge tone={hasBudget ? "success" : "warning"}>
+          {t(budgetStatus)}
         </Badge>
       </div>
+      {accessNotice ? (
+        <p className="mb-3 text-xs leading-5 text-ink-tertiary">
+          {t(accessNotice)}
+        </p>
+      ) : null}
       <dl className="mb-4 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
         {[
           ["Monthly limit", pool.monthly_limit_microusd],

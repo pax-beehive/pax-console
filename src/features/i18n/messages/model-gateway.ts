@@ -114,6 +114,12 @@ export const modelGatewayMessages: Record<string, string> = {
   "Monthly limit": "月度上限",
   Spent: "已消费",
   Remaining: "剩余",
+  Funded: "有余额",
+  "Zero budget": "预算为零",
+  "Free model requests are disabled. Changing the budget does not enable hosting.":
+    "免费模型请求尚未启用。调整预算不会启用托管。",
+  "Free model requests are currently unavailable despite the remaining budget.":
+    "当前仍有余额，但免费模型请求暂不可用。",
   Exhausted: "已耗尽",
   "Hosting enabled": "托管已启用",
   "Hosting disabled": "托管已停用",

@@ -503,7 +503,7 @@ it("keeps administration available with hosting disabled and a zero pool, withou
   vi.mocked(readHostingAdmin).mockResolvedValue(closed);
   setup();
   expect(await screen.findByText("Hosting disabled")).toBeInTheDocument();
-  expect(screen.getByText("Exhausted")).toBeInTheDocument();
+  expect(screen.getByText("Zero budget")).toBeInTheDocument();
   expect(screen.getByLabelText("Platform monthly budget (USD)")).toHaveValue(
     "0",
   );
@@ -526,5 +526,119 @@ it("translates administration controls while preserving provider and model ident
   expect(screen.getByText("供应商：openrouter")).toBeInTheDocument();
   expect(screen.getByText("上游模型：vendor/frontier")).toBeInTheDocument();
   expect(screen.getByLabelText("free-frontier 安全策略")).toHaveValue("openai");
+  expect(changeHostingAdmin).not.toHaveBeenCalled();
+});
+
+it.each([
+  {
+    name: "funded and enabled",
+    enabled: true,
+    available: true,
+    limit: 100_000_000,
+    spent: 0,
+    reserved: 0,
+    remaining: 100_000_000,
+    status: "Funded",
+    notice: false,
+  },
+  {
+    name: "funded but unavailable",
+    enabled: true,
+    available: false,
+    limit: 100_000_000,
+    spent: 0,
+    reserved: 0,
+    remaining: 100_000_000,
+    status: "Funded",
+    notice: true,
+  },
+  {
+    name: "zero budget",
+    enabled: true,
+    available: false,
+    limit: 0,
+    spent: 0,
+    reserved: 0,
+    remaining: 0,
+    status: "Zero budget",
+    notice: false,
+  },
+  {
+    name: "spent budget",
+    enabled: true,
+    available: false,
+    limit: 100_000_000,
+    spent: 100_000_000,
+    reserved: 0,
+    remaining: 0,
+    status: "Exhausted",
+    notice: false,
+  },
+  {
+    name: "fully reserved budget",
+    enabled: true,
+    available: false,
+    limit: 100_000_000,
+    spent: 0,
+    reserved: 100_000_000,
+    remaining: 0,
+    status: "Exhausted",
+    notice: false,
+  },
+])(
+  "shows the monetary pool status for $name without changing access or credit",
+  async (example) => {
+    const current = snapshot();
+    current.enabled = example.enabled;
+    current.pool = {
+      ...current.pool,
+      available: example.available,
+      monthly_limit_microusd: example.limit,
+      spent_microusd: example.spent,
+      reserved_microusd: example.reserved,
+      remaining_microusd: example.remaining,
+    };
+    vi.mocked(readHostingAdmin).mockResolvedValue(current);
+    setup();
+    await screen.findByLabelText("Platform monthly budget (USD)");
+    const pool = within(screen.getByRole("region", { name: "Platform pool" }));
+    expect(pool.getByText(example.status)).toBeInTheDocument();
+    const notice = pool.queryByText(
+      "Free model requests are currently unavailable despite the remaining budget.",
+    );
+    if (example.notice) expect(notice).toBeInTheDocument();
+    else expect(notice).not.toBeInTheDocument();
+    expect(changeHostingAdmin).not.toHaveBeenCalled();
+  },
+);
+
+it("shows the funded but disabled $100 pool truthfully in Chinese", async () => {
+  useLocaleStore.setState({ locale: "zh-CN" });
+  const current = snapshot();
+  current.enabled = false;
+  current.pool = {
+    ...current.pool,
+    available: false,
+    monthly_limit_microusd: 100_000_000,
+    spent_microusd: 0,
+    reserved_microusd: 0,
+    remaining_microusd: 100_000_000,
+  };
+  current.models = current.models.map((model) => ({
+    ...model,
+    enabled: false,
+  }));
+  vi.mocked(readHostingAdmin).mockResolvedValue(current);
+  setup();
+  expect(await screen.findByLabelText("平台月度预算（美元）")).toHaveValue(
+    "100",
+  );
+  const pool = within(screen.getByRole("region", { name: "平台总池" }));
+  expect(pool.getByText("有余额")).toBeInTheDocument();
+  expect(pool.queryByText("已耗尽")).not.toBeInTheDocument();
+  expect(
+    pool.getByText("免费模型请求尚未启用。调整预算不会启用托管。"),
+  ).toBeInTheDocument();
+  expect(screen.getByText("托管已停用")).toBeInTheDocument();
   expect(changeHostingAdmin).not.toHaveBeenCalled();
 });
