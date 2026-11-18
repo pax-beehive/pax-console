@@ -22,6 +22,29 @@ import {
   type GatewayFormValues,
 } from "./model-gateway-form";
 
+function defaultAlias(provider: string, upstreamModel: string): string {
+  const model = upstreamModel.trim();
+  return model ? `${provider}/${model}` : "";
+}
+
+function changeModelIdentity(
+  draft: GatewayFormValues,
+  change: (key: string, value: string | boolean) => void,
+  provider: string,
+  upstreamModel: string,
+) {
+  const alias = String(draft.target_id);
+  const previousDefault = defaultAlias(
+    String(draft.provider),
+    String(draft.upstream_model),
+  );
+  if (!alias.trim() || alias === previousDefault) {
+    change("target_id", defaultAlias(provider, upstreamModel));
+  }
+  change("provider", provider);
+  change("upstream_model", upstreamModel);
+}
+
 function createFields(
   draft: GatewayFormValues,
   existingModels: HostingModelPolicy[],
@@ -40,6 +63,11 @@ function createFields(
   ) {
     throw new Error(
       "Enter a model alias of up to 128 letters, numbers or model ID punctuation.",
+    );
+  }
+  if (existingModels.some((model) => model.id === targetId)) {
+    throw new Error(
+      "This model alias is already configured. Choose a different alias.",
     );
   }
   if (
@@ -157,8 +185,12 @@ export function AddModel({
                       className={gatewayInputClass}
                       value={String(draft.provider)}
                       onChange={(event) => {
-                        change("provider", event.target.value);
-                        change("upstream_model", "");
+                        changeModelIdentity(
+                          draft,
+                          change,
+                          event.target.value,
+                          "",
+                        );
                         change("input", "");
                         change("output", "");
                         change("max_output_tokens", "2048");
@@ -176,7 +208,12 @@ export function AddModel({
                       existingModels={existingModels}
                       onDenied={onDenied}
                       onSelect={(item) => {
-                        change("upstream_model", item.id);
+                        changeModelIdentity(
+                          draft,
+                          change,
+                          String(draft.provider),
+                          item.id,
+                        );
                         change(
                           "input",
                           microusdToDollars(item.input_microusd_per_million),
@@ -198,7 +235,14 @@ export function AddModel({
                     inputMode="text"
                     maxLength={256}
                     value={draft.upstream_model}
-                    onChange={(value) => change("upstream_model", value)}
+                    onChange={(value) =>
+                      changeModelIdentity(
+                        draft,
+                        change,
+                        String(draft.provider),
+                        value,
+                      )
+                    }
                   />
                   <label className="grid min-w-0 gap-1 text-xs text-ink-muted">
                     {t("Safety policy for the new model")}
@@ -243,7 +287,7 @@ export function AddModel({
                 </div>
                 <p className="text-xs leading-5 text-ink-tertiary">
                   {t(
-                    "Use a public alias for agents and the provider's exact model ID. Prices are required; enter zero explicitly for a free rate. Credentials stay on the server.",
+                    "The default alias combines the provider and upstream model ID. You can edit it before saving. Prices are required; enter zero explicitly for a free rate. Credentials stay on the server.",
                   )}
                 </p>
                 <Button

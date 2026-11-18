@@ -793,6 +793,186 @@ async function openNewModel(alias = "new-trial-model") {
 }
 
 describe("model catalog import and creation", () => {
+  it.each([
+    ["openrouter", "openai/gpt-6.1-sol", "openrouter/openai/gpt-6.1-sol"],
+    [
+      "openrouter",
+      "anthropic/claude-opus-5.5",
+      "openrouter/anthropic/claude-opus-5.5",
+    ],
+    ["openai", "gpt-6.1-sol", "openai/gpt-6.1-sol"],
+    ["anthropic", "claude-opus-5.5", "anthropic/claude-opus-5.5"],
+  ])(
+    "defaults %s model %s to the provider-qualified alias %s",
+    async (provider, upstream, alias) => {
+      vi.mocked(readModelCatalog).mockResolvedValue({
+        ...catalog(),
+        models: [{ ...catalog().models[0], id: upstream }],
+      });
+      setup();
+      await screen.findByLabelText("Platform monthly budget (USD)");
+      fireEvent.click(screen.getByRole("button", { name: "Add model" }));
+      if (provider === "openrouter") {
+        fireEvent.click(
+          await screen.findByRole("button", {
+            name: `Select Catalog One (${upstream})`,
+          }),
+        );
+      } else {
+        fireEvent.change(screen.getByLabelText("Provider"), {
+          target: { value: provider },
+        });
+        fireEvent.change(screen.getByLabelText("Upstream model ID"), {
+          target: { value: upstream },
+        });
+        for (const field of ["Input", "Output"]) {
+          fireEvent.change(
+            screen.getByLabelText(`${field} USD / million for the new model`),
+            { target: { value: "0" } },
+          );
+        }
+      }
+      expect(screen.getByLabelText("Model alias")).toHaveValue(alias);
+      fireEvent.click(screen.getByRole("button", { name: "Create model" }));
+      await screen.findByText(
+        "Model saved and disabled. Connect its provider before enabling it.",
+      );
+      expect(changeHostingAdmin).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          action: "model_create",
+          target_id: alias,
+          provider,
+          upstream_model: upstream,
+          enabled: false,
+        }),
+      );
+    },
+  );
+
+  it("updates generated aliases as the selected model and provider change", async () => {
+    setup();
+    await screen.findByLabelText("Platform monthly budget (USD)");
+    fireEvent.click(screen.getByRole("button", { name: "Add model" }));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Select Catalog One (vendor/catalog-one)",
+      }),
+    );
+    expect(screen.getByLabelText("Model alias")).toHaveValue(
+      "openrouter/vendor/catalog-one",
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Select Catalog Two (vendor/catalog-two)",
+      }),
+    );
+    expect(screen.getByLabelText("Model alias")).toHaveValue(
+      "openrouter/vendor/catalog-two",
+    );
+    fireEvent.change(screen.getByLabelText("Provider"), {
+      target: { value: "openai" },
+    });
+    expect(screen.getByLabelText("Model alias")).toHaveValue("");
+    fireEvent.change(screen.getByLabelText("Upstream model ID"), {
+      target: { value: "gpt-6.1" },
+    });
+    expect(screen.getByLabelText("Model alias")).toHaveValue("openai/gpt-6.1");
+    fireEvent.change(screen.getByLabelText("Upstream model ID"), {
+      target: { value: "gpt-6.1-sol" },
+    });
+    expect(screen.getByLabelText("Model alias")).toHaveValue(
+      "openai/gpt-6.1-sol",
+    );
+    expect(changeHostingAdmin).not.toHaveBeenCalled();
+  });
+
+  it("keeps a custom alias until it is cleared and a model is entered again", async () => {
+    setup();
+    await openNewModel("my-model");
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Select Catalog Two (vendor/catalog-two)",
+      }),
+    );
+    expect(screen.getByLabelText("Model alias")).toHaveValue("my-model");
+    fireEvent.change(screen.getByLabelText("Provider"), {
+      target: { value: "anthropic" },
+    });
+    fireEvent.change(screen.getByLabelText("Upstream model ID"), {
+      target: { value: "claude-opus-5.5" },
+    });
+    expect(screen.getByLabelText("Model alias")).toHaveValue("my-model");
+    fireEvent.change(screen.getByLabelText("Model alias"), {
+      target: { value: "" },
+    });
+    fireEvent.change(screen.getByLabelText("Upstream model ID"), {
+      target: { value: "claude-opus-5.5-latest" },
+    });
+    expect(screen.getByLabelText("Model alias")).toHaveValue(
+      "anthropic/claude-opus-5.5-latest",
+    );
+    expect(changeHostingAdmin).not.toHaveBeenCalled();
+  });
+
+  it("requires a unique alias before sending a model creation request", async () => {
+    setup();
+    await openNewModel("free-frontier");
+    fireEvent.click(screen.getByRole("button", { name: "Create model" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "This model alias is already configured. Choose a different alias.",
+    );
+    expect(screen.getByLabelText("Model alias")).toHaveValue("free-frontier");
+    expect(changeHostingAdmin).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Model alias"), {
+      target: { value: "another-unique-alias" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create model" }));
+    await screen.findByText(
+      "Model saved and disabled. Connect its provider before enabling it.",
+    );
+    expect(changeHostingAdmin).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ target_id: "another-unique-alias" }),
+    );
+  });
+
+  it("keeps a long upstream ID intact and asks for a shorter alias instead of truncating it", async () => {
+    const upstream = `vendor/${"x".repeat(120)}`;
+    vi.mocked(readModelCatalog).mockResolvedValue({
+      ...catalog(),
+      models: [{ ...catalog().models[0], id: upstream }],
+    });
+    setup();
+    await screen.findByLabelText("Platform monthly budget (USD)");
+    fireEvent.click(screen.getByRole("button", { name: "Add model" }));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: `Select Catalog One (${upstream})`,
+      }),
+    );
+    expect(screen.getByLabelText("Model alias")).toHaveValue(
+      `openrouter/${upstream}`,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Create model" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Enter a model alias of up to 128 letters",
+    );
+    expect(screen.getByLabelText("Upstream model ID")).toHaveValue(upstream);
+    expect(changeHostingAdmin).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Model alias"), {
+      target: { value: "openrouter/short-model-alias" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create model" }));
+    await screen.findByText(
+      "Model saved and disabled. Connect its provider before enabling it.",
+    );
+    expect(changeHostingAdmin).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        target_id: "openrouter/short-model-alias",
+        upstream_model: upstream,
+      }),
+    );
+  });
+
   it("searches the actual catalog, prefills exact conservative rates and output cap, and reloads the server-created disabled model", async () => {
     let current = snapshot();
     vi.mocked(readHostingAdmin).mockImplementation(async () => current);
@@ -904,12 +1084,14 @@ describe("model catalog import and creation", () => {
       .mockRejectedValueOnce(new ApiError("hosting_model_conflict", 409, {}))
       .mockResolvedValue({ ...snapshot(), revision: 8 });
     setup();
-    await openNewModel("free-frontier");
+    await openNewModel("concurrent-alias");
     fireEvent.click(screen.getByRole("button", { name: "Create model" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "This alias or provider/model is already configured",
     );
-    expect(screen.getByLabelText("Model alias")).toHaveValue("free-frontier");
+    expect(screen.getByLabelText("Model alias")).toHaveValue(
+      "concurrent-alias",
+    );
     expect(
       screen.getByLabelText("Input USD / million for the new model"),
     ).toHaveValue("3.000001");
