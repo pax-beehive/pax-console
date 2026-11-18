@@ -24,7 +24,9 @@ import {
 
 function defaultAlias(provider: string, upstreamModel: string): string {
   const model = upstreamModel.trim();
-  return model ? `${provider}/${model}` : "";
+  if (!model) return "";
+  if (model.includes("/")) return model;
+  return provider === "openrouter" ? "" : `${provider}/${model}`;
 }
 
 function changeModelIdentity(
@@ -287,7 +289,7 @@ export function AddModel({
                 </div>
                 <p className="text-xs leading-5 text-ink-tertiary">
                   {t(
-                    "The default alias combines the provider and upstream model ID. You can edit it before saving. Prices are required; enter zero explicitly for a free rate. Credentials stay on the server.",
+                    "The default alias uses the model vendor and model ID, such as openai/gpt-6.1-sol. You can edit it before saving. Prices are required; enter zero explicitly for a free rate. Credentials stay on the server.",
                   )}
                 </p>
                 <Button

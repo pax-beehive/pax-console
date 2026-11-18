@@ -794,16 +794,14 @@ async function openNewModel(alias = "new-trial-model") {
 
 describe("model catalog import and creation", () => {
   it.each([
-    ["openrouter", "openai/gpt-6.1-sol", "openrouter/openai/gpt-6.1-sol"],
-    [
-      "openrouter",
-      "anthropic/claude-opus-5.5",
-      "openrouter/anthropic/claude-opus-5.5",
-    ],
+    ["openrouter", "openai/gpt-6.1-sol", "openai/gpt-6.1-sol"],
+    ["openrouter", "anthropic/claude-opus-5.5", "anthropic/claude-opus-5.5"],
     ["openai", "gpt-6.1-sol", "openai/gpt-6.1-sol"],
     ["anthropic", "claude-opus-5.5", "anthropic/claude-opus-5.5"],
+    ["openai", "openai/gpt-6.1-sol", "openai/gpt-6.1-sol"],
+    ["anthropic", "anthropic/claude-opus-5.5", "anthropic/claude-opus-5.5"],
   ])(
-    "defaults %s model %s to the provider-qualified alias %s",
+    "defaults %s model %s to the vendor-qualified public alias %s",
     async (provider, upstream, alias) => {
       vi.mocked(readModelCatalog).mockResolvedValue({
         ...catalog(),
@@ -859,7 +857,7 @@ describe("model catalog import and creation", () => {
       }),
     );
     expect(screen.getByLabelText("Model alias")).toHaveValue(
-      "openrouter/vendor/catalog-one",
+      "vendor/catalog-one",
     );
     fireEvent.click(
       screen.getByRole("button", {
@@ -867,7 +865,7 @@ describe("model catalog import and creation", () => {
       }),
     );
     expect(screen.getByLabelText("Model alias")).toHaveValue(
-      "openrouter/vendor/catalog-two",
+      "vendor/catalog-two",
     );
     fireEvent.change(screen.getByLabelText("Provider"), {
       target: { value: "openai" },
@@ -935,8 +933,68 @@ describe("model catalog import and creation", () => {
     );
   });
 
+  it("detects a public alias already used through another connection provider", async () => {
+    const current = snapshot();
+    current.models = [
+      {
+        ...current.models[0],
+        id: "openai/gpt-6.1-sol",
+        provider: "openrouter",
+        upstream_model: "openai/gpt-6.1-sol",
+      },
+    ];
+    vi.mocked(readHostingAdmin).mockResolvedValue(current);
+    setup();
+    await screen.findByLabelText("Platform monthly budget (USD)");
+    fireEvent.click(screen.getByRole("button", { name: "Add model" }));
+    fireEvent.change(screen.getByLabelText("Provider"), {
+      target: { value: "openai" },
+    });
+    fireEvent.change(screen.getByLabelText("Upstream model ID"), {
+      target: { value: "gpt-6.1-sol" },
+    });
+    for (const field of ["Input", "Output"]) {
+      fireEvent.change(
+        screen.getByLabelText(`${field} USD / million for the new model`),
+        { target: { value: "0" } },
+      );
+    }
+    expect(screen.getByLabelText("Model alias")).toHaveValue(
+      "openai/gpt-6.1-sol",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Create model" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "This model alias is already configured. Choose a different alias.",
+    );
+    expect(screen.getByLabelText("Upstream model ID")).toHaveValue(
+      "gpt-6.1-sol",
+    );
+    expect(changeHostingAdmin).not.toHaveBeenCalled();
+  });
+
+  it("requires an explicit alias when an OpenRouter catalog ID omits its model vendor", async () => {
+    vi.mocked(readModelCatalog).mockResolvedValue({
+      ...catalog(),
+      models: [{ ...catalog().models[0], id: "unqualified-model" }],
+    });
+    setup();
+    await screen.findByLabelText("Platform monthly budget (USD)");
+    fireEvent.click(screen.getByRole("button", { name: "Add model" }));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Select Catalog One (unqualified-model)",
+      }),
+    );
+    expect(screen.getByLabelText("Model alias")).toHaveValue("");
+    fireEvent.click(screen.getByRole("button", { name: "Create model" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Enter a model alias of up to 128 letters",
+    );
+    expect(changeHostingAdmin).not.toHaveBeenCalled();
+  });
+
   it("keeps a long upstream ID intact and asks for a shorter alias instead of truncating it", async () => {
-    const upstream = `vendor/${"x".repeat(120)}`;
+    const upstream = `vendor/${"x".repeat(130)}`;
     vi.mocked(readModelCatalog).mockResolvedValue({
       ...catalog(),
       models: [{ ...catalog().models[0], id: upstream }],
@@ -949,9 +1007,7 @@ describe("model catalog import and creation", () => {
         name: `Select Catalog One (${upstream})`,
       }),
     );
-    expect(screen.getByLabelText("Model alias")).toHaveValue(
-      `openrouter/${upstream}`,
-    );
+    expect(screen.getByLabelText("Model alias")).toHaveValue(upstream);
     fireEvent.click(screen.getByRole("button", { name: "Create model" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Enter a model alias of up to 128 letters",
@@ -959,7 +1015,7 @@ describe("model catalog import and creation", () => {
     expect(screen.getByLabelText("Upstream model ID")).toHaveValue(upstream);
     expect(changeHostingAdmin).not.toHaveBeenCalled();
     fireEvent.change(screen.getByLabelText("Model alias"), {
-      target: { value: "openrouter/short-model-alias" },
+      target: { value: "vendor/short-model-alias" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Create model" }));
     await screen.findByText(
@@ -967,7 +1023,7 @@ describe("model catalog import and creation", () => {
     );
     expect(changeHostingAdmin).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
-        target_id: "openrouter/short-model-alias",
+        target_id: "vendor/short-model-alias",
         upstream_model: upstream,
       }),
     );
