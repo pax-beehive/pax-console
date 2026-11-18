@@ -160,8 +160,10 @@ export const modelGatewayMessages: Record<string, string> = {
     "新增模型默认停用；启用前需要接入对应 Provider。",
   "Model saved and disabled. Connect its provider before enabling it.":
     "模型已保存并停用，接入对应 Provider 后才可启用。",
-  "Use a public alias for agents and the provider's exact model ID. Prices are required; enter zero explicitly for a free rate. Credentials stay on the server.":
-    "填写 Agent 使用的公开别名与供应商的准确模型 ID。必须填写价格；免费费率请明确输入零。密钥仅保存在服务端。",
+  "The default alias uses the model vendor and model ID, such as openai/gpt-6.1-sol. You can edit it before saving. Prices are required; enter zero explicitly for a free rate. Credentials stay on the server.":
+    "默认别名使用模型厂商和模型 ID，例如 openai/gpt-6.1-sol。保存前可以修改。必须填写价格，免费费率请明确填写 0。密钥仅保存在服务端。",
+  "This model alias is already configured. Choose a different alias.":
+    "此模型别名已被使用，请选择其他别名。",
   "This alias or provider/model is already configured. Choose a different model or alias; your other settings are preserved.":
     "模型别名或对应供应商模型已存在，请更换模型或别名，其他设置已保留。",
   "Enter a model alias of up to 128 letters, numbers or model ID punctuation.":
