@@ -6,9 +6,11 @@ export type HostingQuota = {
   spent_microusd: number;
   reserved_microusd: number;
   remaining_microusd: number;
+  /** Zero means unlimited monthly tokens; monetary budgets remain enforced. */
   granted_tokens: number;
   spent_tokens: number;
   reserved_tokens: number;
+  /** Zero is a sentinel when granted_tokens is zero, not an exhausted balance. */
   remaining_tokens: number;
   period_start?: string;
   resets_at?: string;

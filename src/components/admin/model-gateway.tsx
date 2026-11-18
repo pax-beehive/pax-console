@@ -545,7 +545,7 @@ function DefaultSettings({
       </h2>
       <p className="mt-2 mb-4 text-xs leading-5 text-ink-tertiary">
         {t(
-          "Applies to new free users and future monthly resets without a user override. Both the dollar and token limits apply. Zero disables that allowance.",
+          "Applies to new free users and future monthly resets without a user override. Dollar budgets still apply.",
         )}
       </p>
       <GatewayForm
@@ -565,19 +565,26 @@ function DefaultSettings({
         save={save}
       >
         {(draft, change) => (
-          <div className="grid min-w-0 gap-3 sm:grid-cols-2">
-            <GatewayField
-              label={t("Default monthly budget (USD)")}
-              value={draft.monthly_microusd}
-              onChange={(value) => change("monthly_microusd", value)}
-            />
-            <GatewayField
-              numeric
-              label={t("Default monthly tokens")}
-              value={draft.monthly_tokens}
-              onChange={(value) => change("monthly_tokens", value)}
-            />
-          </div>
+          <>
+            <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+              <GatewayField
+                label={t("Default monthly budget (USD)")}
+                value={draft.monthly_microusd}
+                onChange={(value) => change("monthly_microusd", value)}
+              />
+              <GatewayField
+                numeric
+                label={t("Default monthly tokens")}
+                value={draft.monthly_tokens}
+                onChange={(value) => change("monthly_tokens", value)}
+              />
+            </div>
+            <p className="text-xs leading-5 text-ink-tertiary">
+              {t(
+                "Set monthly tokens to 0 for unlimited tokens. Dollar budgets still apply.",
+              )}
+            </p>
+          </>
         )}
       </GatewayForm>
     </section>
@@ -745,10 +752,14 @@ function UserSettings({
             })}
           </p>
           <p>
-            {t("Remaining {remaining} · {tokens} tokens", {
-              remaining: money(user.quota.remaining_microusd),
-              tokens: number(user.quota.remaining_tokens),
-            })}
+            {user.quota.granted_tokens === 0
+              ? t("Remaining {remaining} · Unlimited tokens", {
+                  remaining: money(user.quota.remaining_microusd),
+                })
+              : t("Remaining {remaining} · {tokens} tokens", {
+                  remaining: money(user.quota.remaining_microusd),
+                  tokens: number(user.quota.remaining_tokens),
+                })}
           </p>
           <p>
             {t("Tokens: {spent} spent · {reserved} reserved", {
@@ -804,6 +815,11 @@ function UserSettings({
                   onChange={(value) => change("monthly_tokens", value)}
                 />
               </div>
+              <p className="text-xs leading-5 text-ink-tertiary">
+                {t(
+                  "Set monthly tokens to 0 for unlimited tokens. Dollar budgets still apply.",
+                )}
+              </p>
               <SettingsToggle
                 label={t("Pause free model access")}
                 ariaLabel={t("Pause free access for {id}", {

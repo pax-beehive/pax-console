@@ -481,6 +481,13 @@ API keys, prompts and provider response bodies are not part of these contracts.
 Budgets use integer microdollars and monthly periods are authoritative in Manager.
 The standalone UI has no dependency on optional free-agent/sandbox lifecycle code.
 
+Monthly token caps are optional: zero means unlimited tokens. User allowance
+summaries derive that state from `quota.granted_tokens === 0`, display Unlimited
+tokens instead of an exhausted zero balance, and retain spent/reserved token
+counts. A zero `remaining_tokens` is only a sentinel for unlimited grants.
+Dollar budgets and the shared pool remain enforced. Positive token caps retain
+their existing meaning, and the editors explain zero for defaults and overrides.
+
 The pool badge describes its monetary balance (`Funded`, `Zero budget`, or
 `Exhausted`), independently of the runtime's Hosting enabled/disabled banner.
 `pool.available` also depends on runtime readiness and accounting periods, so a
