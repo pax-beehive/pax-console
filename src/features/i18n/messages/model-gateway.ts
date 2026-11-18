@@ -6,8 +6,10 @@ export const modelGatewayMessages: Record<string, string> = {
   "A user override takes effect immediately and persists into future months. Reducing a cap preserves spend and reservations. Pausing access stops new free model requests.":
     "用户单独额度立即生效，并沿用至后续月份。降低上限不会清除已消费及预留金额。暂停访问将阻止新的免费模型请求。",
   "Access paused": "已暂停访问",
-  "Applies to new free users and future monthly resets without a user override. Both the dollar and token limits apply. Zero disables that allowance.":
-    "适用于新免费用户，以及未单独设置额度的用户后续月度重置。金额与 token 上限同时生效，设为零即停用该额度。",
+  "Applies to new free users and future monthly resets without a user override. Dollar budgets still apply.":
+    "适用于新免费用户，以及未单独设置额度的用户后续月度重置。金额预算仍然生效。",
+  "Set monthly tokens to 0 for unlimited tokens. Dollar budgets still apply.":
+    "月度 token 设为 0 表示不限 token，金额预算仍然生效。",
   "Configuration audit": "配置审计",
   "Configuration revision {revision}": "配置修订号 {revision}",
   "Configured models": "已配置模型",
@@ -69,6 +71,7 @@ export const modelGatewayMessages: Record<string, string> = {
   "Refresh settings": "刷新设置",
   "Remaining {remaining} · {tokens} tokens":
     "剩余 {remaining} · {tokens} token",
+  "Remaining {remaining} · Unlimited tokens": "剩余 {remaining} · token 不限",
   "Request status": "请求状态",
   "Requests to this model skip the OpenAI safety check.":
     "此模型的请求将跳过 OpenAI 安全检测。",

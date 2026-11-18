@@ -115,7 +115,7 @@ describe("exact budget input", () => {
     "rejects invalid token input %s",
     (value) => expect(() => parseTokenLimit(value)).toThrow(),
   );
-  it("allows zero monthly allowances but requires positive output caps", () => {
+  it("accepts zero for an unlimited monthly token cap but requires positive output caps", () => {
     expect(parseTokenLimit("0")).toBe(0);
     expect(() => parseTokenLimit("0", 1)).toThrow();
     expect(formatHostingDollars(1)).toBe("$0.000001");

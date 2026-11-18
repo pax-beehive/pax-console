@@ -284,6 +284,9 @@ describe("model gateway controls", () => {
     await screen.findByText("trial@example.com");
     expect(screen.getByText("$98.50")).toBeInTheDocument();
     expect(
+      screen.getByText("Remaining $3.50 · 198,000 tokens"),
+    ).toBeInTheDocument();
+    expect(
       within(screen.getByRole("region", { name: "Platform pool" })).getByText(
         /Resets Dec 1, 2026 \(UTC\)/,
       ),
@@ -299,6 +302,79 @@ describe("model gateway controls", () => {
     expect(
       screen.getByRole("button", { name: /add model/i }),
     ).toBeInTheDocument();
+  });
+
+  it("shows unlimited monthly tokens without hiding money or token usage", async () => {
+    const unlimited = snapshot();
+    unlimited.defaults.monthly_tokens = 0;
+    unlimited.users[0].monthly_tokens = 0;
+    unlimited.users[0].quota.granted_tokens = 0;
+    unlimited.users[0].quota.remaining_tokens = 0;
+    vi.mocked(readHostingAdmin).mockResolvedValue(unlimited);
+    setup();
+    await screen.findByText("trial@example.com");
+    expect(
+      screen.getByText("Remaining $3.50 · Unlimited tokens"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Tokens: 1,000 spent · 1,000 reserved"),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Default monthly tokens")).toHaveValue("0");
+    expect(screen.getByLabelText("Monthly tokens for usr_trial")).toHaveValue(
+      "0",
+    );
+    expect(
+      screen.queryByText("Remaining $3.50 · 0 tokens"),
+    ).not.toBeInTheDocument();
+  });
+
+  it.each(["defaults", "user"])(
+    "saves zero as the unlimited %s token cap without increasing money",
+    async (target) => {
+      setup();
+      await screen.findByText("trial@example.com");
+      const label =
+        target === "defaults"
+          ? "Default monthly tokens"
+          : "Monthly tokens for usr_trial";
+      const button =
+        target === "defaults"
+          ? "Save default allowance"
+          : "Save user usr_trial";
+      if (target === "user")
+        fireEvent.click(screen.getByText("trial@example.com"));
+      fireEvent.change(screen.getByLabelText(label), {
+        target: { value: "0" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: button }));
+      await waitFor(() =>
+        expect(changeHostingAdmin).toHaveBeenCalledExactlyOnceWith({
+          revision: 7,
+          action: target,
+          monthly_tokens: 0,
+          ...(target === "defaults"
+            ? { monthly_microusd: 5_000_000 }
+            : { target_id: "usr_trial" }),
+        }),
+      );
+    },
+  );
+
+  it("keeps a zero dollar balance visible when monthly tokens are unlimited", async () => {
+    const exhausted = snapshot();
+    exhausted.pool.monthly_limit_microusd = 0;
+    exhausted.pool.remaining_microusd = 0;
+    exhausted.pool.available = false;
+    exhausted.users[0].quota.granted_tokens = 0;
+    exhausted.users[0].quota.remaining_tokens = 0;
+    exhausted.users[0].quota.remaining_microusd = 0;
+    vi.mocked(readHostingAdmin).mockResolvedValue(exhausted);
+    setup();
+    expect(await screen.findByText("Zero budget")).toBeInTheDocument();
+    expect(
+      screen.getByText("Remaining $0.00 · Unlimited tokens"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Funded")).not.toBeInTheDocument();
   });
 
   it("requires an explicit save and sends exact microusd with the loaded revision", async () => {
@@ -572,6 +648,21 @@ it("translates administration controls while preserving provider and model ident
   expect(screen.getByText("上游模型：vendor/frontier")).toBeInTheDocument();
   expect(screen.getByLabelText("free-frontier 安全策略")).toHaveValue("openai");
   expect(changeHostingAdmin).not.toHaveBeenCalled();
+});
+
+it("translates unlimited token summaries and explains both monthly token editors", async () => {
+  const unlimited = snapshot();
+  unlimited.users[0].quota.granted_tokens = 0;
+  unlimited.users[0].quota.remaining_tokens = 0;
+  vi.mocked(readHostingAdmin).mockResolvedValue(unlimited);
+  useLocaleStore.setState({ locale: "zh-CN" });
+  setup();
+  expect(
+    await screen.findByText("剩余 $3.50 · token 不限"),
+  ).toBeInTheDocument();
+  expect(
+    screen.getAllByText("月度 token 设为 0 表示不限 token，金额预算仍然生效。"),
+  ).toHaveLength(2);
 });
 
 it.each([
