@@ -2190,10 +2190,10 @@ describe("FleetOverview session rail", () => {
     );
     await openSettings();
     await user.click(
-      screen.getByRole("button", { name: /Expand search scope/ }),
+      screen.getByRole("button", { name: /Session search access/ }),
     );
     await user.click(
-      screen.getByRole("switch", { name: "Expand scope for next turn" }),
+      screen.getByRole("switch", { name: "Preauthorize next turn" }),
     );
     await user.click(
       screen.getByRole("button", { name: "Apply for next turn" }),

@@ -13,9 +13,11 @@ conversation request's `search_access` preauthorization field.
 `TurnSearchAccess` carries `queries`, `agent_ids` and `session_ids`, each a single
 `*` or a bounded explicit list. Agent scope also accepts `self`. Expansion scopes
 and old authorization records missing `agent_ids` default to all the user's
-agents, matching Manager. `TurnSearchAccessSettings` appears as Expand search
-scope in Home and SessionComposer; its unexpanded state reads Own agent or
-Auto expansion when explicit PAX auto approve handles requests.
+agents, matching Manager. `TurnSearchAccessSettings` appears as Session search
+access (会话搜索授权) in Home and SessionComposer. Its summary reads Only this
+agent (仅当前智能体), Auto-approve requests (按需自动授权), or Next turn
+preauthorized (下一轮已预授权). The automatic state requires an explicit agent
+request; entering settings leaves next-turn preauthorization off.
 The selection is local draft state for the next prompt, not a session permission
 or a browser credential. Home passes it to SessionWorkbench. Normal sends,
 queued prompts, queued edits and steering carry `search_access`; initialization

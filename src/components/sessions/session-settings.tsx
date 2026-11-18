@@ -125,7 +125,7 @@ export function SessionSettings({
                 : page.id === "permissions"
                   ? t("Permissions")
                   : page.id === "turn-search"
-                    ? t("Expand search scope")
+                    ? t("Session search access")
                     : page.title}
             </Dialog.Title>
             <Dialog.Close asChild>

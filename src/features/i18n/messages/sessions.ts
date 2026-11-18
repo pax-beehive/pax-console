@@ -263,16 +263,17 @@ export const sessionsMessages: Record<string, string> = {
   "Reload details": "重新加载详情",
   "Load more": "加载更多",
   Unavailable: "不可用",
-  "Next turn": "下一轮",
-  "Auto expansion": "自动扩展",
-  "Own agent": "当前智能体",
+  "Session search access": "会话搜索授权",
+  "Next turn preauthorized": "下一轮已预授权",
+  "Auto-approve requests": "按需自动授权",
+  "Only this agent": "仅当前智能体",
   "Search scope expansion is unavailable in encrypted sessions.":
     "加密会话无法扩展搜索范围。",
   "Agents can search their own sessions by default. Preauthorize a wider scope for the next prompt. Extra access ends when that turn finishes or is stopped.":
-    "智能体默认可以搜索自己的会话。你可以为下一条指令预先授权更大的范围。额外访问权在该轮次完成或停止时失效。",
+    "默认可搜索当前智能体的全部会话。你可以为下一轮预先授权更大的搜索范围；额外授权在该轮结束或停止后失效。",
   "Without preauthorization, search stays within the calling agent. PAX auto approve approves expansion requests when the agent asks.":
-    "未经预先授权时，搜索仅限发起请求的智能体。PAX 自动批准会在智能体提出扩展请求时批准。",
-  "Expand scope for next turn": "为下一轮扩展范围",
+    "未预授权时，搜索仍限于当前智能体的会话。智能体申请扩大搜索范围时，PAX 会自动批准申请。",
+  "Preauthorize next turn": "预先授权下一轮",
   "These limits apply to extra access. The calling agent can still search its own sessions.":
     "这些限制适用于额外访问权。发起请求的智能体仍可搜索自己的会话。",
   "Allowed queries": "允许的查询",

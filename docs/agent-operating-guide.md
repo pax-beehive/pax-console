@@ -9,7 +9,7 @@ ordinary tool search supplies `scope: {agent_ids: ["self"], session_ids: ["*"]}`
 Manager resolves `self` from the authenticated caller. Searching other agents
 or the entire workspace requires temporary access for the active turn.
 
-Session settings includes Expand search scope for preauthorizing the next
+Session settings includes Session search access for preauthorizing the next
 prompt. Queries, agent IDs and session IDs accept either a single `*` or one
 explicit value per line. Agent scope also accepts `self`. A query entry is a
 complete search query, not one term authorizing unrelated additional terms.
@@ -29,7 +29,10 @@ Explicit `search_access` preauthorization creates the extra grant before dispatc
 Without it, search starts within the calling agent, including under PAX auto
 approve (`pax:auto_approve`). A wider search without a matching grant returns 403. PAX auto approve immediately approves an explicit `workspace_request_access`
 request; it never creates a whole-workspace grant merely because a turn starts.
-The unexpanded automatic setting reads Auto expansion. Agent-native permissions
+The summary states are Only this agent, Auto-approve requests, and Next turn
+preauthorized. Chinese uses 会话搜索授权 with 仅当前智能体, 按需自动授权,
+and 下一轮已预授权. The automatic state describes approval after an explicit
+request; opening settings does not preauthorize anything. Agent-native permissions
 or a legacy approval mode alone do not promise that policy. Mid-turn expansion
 requests appear in a separate panel. It uses server-side workspace/search and
 current agent/session/turn filters with a separate turn-scoped cache, and submits
