@@ -9,6 +9,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useLocaleStore } from "@/features/i18n/locale-store";
 import { queryKeys } from "@/features/api/query-keys";
 import type {
+  HostedSandboxStatus,
   HostedStarterStatus,
   Node,
   NodeDaemonAgentConnection,
@@ -23,6 +24,8 @@ let connection: NodeDaemonAgentConnection | undefined;
 let expiresAt: string;
 let discoveryError: boolean;
 let createError: boolean;
+let hostedSandbox: HostedSandboxStatus | undefined;
+let sandboxStartError: boolean;
 let hostedStarter: HostedStarterStatus | undefined;
 let starterError: boolean;
 let wakeError: boolean;
@@ -74,6 +77,8 @@ beforeEach(() => {
   expiresAt = new Date(Date.now() + 3600_000).toISOString();
   discoveryError = false;
   createError = false;
+  hostedSandbox = undefined;
+  sandboxStartError = false;
   hostedStarter = undefined;
   starterError = false;
   wakeError = false;
@@ -89,6 +94,13 @@ beforeEach(() => {
       let data;
       if (path.endsWith("/node-registration-tokens")) {
         data = { token: "one-use-secret", expires_at: expiresAt };
+      } else if (path.endsWith("/sandbox")) {
+        if (!hostedSandbox) return Response.json({}, { status: 404 });
+        if (method === "POST") {
+          if (sandboxStartError) return Response.json({}, { status: 503 });
+          hostedSandbox = { sandbox: { status: "queued" } };
+        }
+        data = hostedSandbox;
       } else if (path.endsWith("/starter")) {
         if (starterError)
           return Response.json({ message: "Unavailable" }, { status: 503 });
@@ -165,6 +177,75 @@ function setup(
   );
   return { client, user: userEvent.setup() };
 }
+
+const sandboxPath = "/api/pax/api/v1/sandbox";
+
+describe("hosted sandbox creation", () => {
+  it("keeps computer pairing available if the regional sandbox endpoint is unavailable", async () => {
+    const { client } = setup({ intent: "device" });
+    await waitFor(() =>
+      expect(client.getQueryData(queryKeys.hostedSandbox("user"))).toBeNull(),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Create sandbox" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Quick connect (Recommended)" }),
+    ).toBeEnabled();
+  });
+
+  it("queues once, polls for the exact Node, and leaves agent selection to the user", async () => {
+    nodes = [mac];
+    hostedSandbox = { sandbox: null };
+    const { user } = setup({ intent: "device" });
+
+    await user.dblClick(
+      await screen.findByRole("button", { name: "Create sandbox" }),
+    );
+    expect(await screen.findByText("Starting sandbox…")).toBeVisible();
+    expect(screen.queryByRole("link", { name: "Add agent" })).toBeNull();
+
+    hostedSandbox = { sandbox: { status: "ready", node_id: "sandbox-node" } };
+    expect(
+      await screen.findByText("Sandbox connected", undefined, {
+        timeout: 4000,
+      }),
+    ).toBeVisible();
+    expect(screen.getByRole("link", { name: "Open device" })).toHaveAttribute(
+      "href",
+      "/nodes/sandbox-node",
+    );
+    expect(screen.getByRole("link", { name: "Add agent" })).toHaveAttribute(
+      "href",
+      "/settings/devices/agents/add?nodeId=sandbox-node",
+    );
+    expect(requests.filter(({ method }) => method === "POST")).toEqual([
+      { path: sandboxPath, method: "POST" },
+    ]);
+    expect(
+      requests.some(({ path }) => path.includes("/harnesses/discover")),
+    ).toBe(false);
+  });
+
+  it("lets the user retry a failed start of a saved sandbox", async () => {
+    sandboxStartError = true;
+    hostedSandbox = {
+      sandbox: { status: "sleeping", node_id: "sandbox-node" },
+    };
+    const { user } = setup({ intent: "device" });
+    await user.click(
+      await screen.findByRole("button", { name: "Start sandbox" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not start the sandbox. Try again.",
+    );
+
+    sandboxStartError = false;
+    await user.click(screen.getByRole("button", { name: "Start sandbox" }));
+    expect(await screen.findByText("Starting sandbox…")).toBeVisible();
+    expect(requests.filter(({ method }) => method === "POST")).toHaveLength(2);
+  });
+});
 
 async function refresh(client: QueryClient, key: readonly string[]) {
   await act(async () => {

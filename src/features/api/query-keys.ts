@@ -3,6 +3,8 @@ export const queryKeys = {
   me: () => ["me"] as const,
   voiceConfig: () => ["voice-config"] as const,
   user: (userId: string) => ["users", userId] as const,
+  hostedSandbox: (userId: string) =>
+    ["users", userId, "hosted-sandbox"] as const,
   hostedStarter: (userId: string) => ["users", userId, "starter"] as const,
   apiKeys: (userId: string) => ["users", userId, "api-keys"] as const,
   envelopes: (userId: string, filters?: Record<string, string | undefined>) =>

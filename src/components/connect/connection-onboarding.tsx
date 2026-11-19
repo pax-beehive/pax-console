@@ -12,6 +12,7 @@ import {
 import { useNodes } from "@/features/api/resources";
 import { AgentConnectStep } from "./agent-connect-step";
 import { DeviceConnectStep } from "./device-connect-step";
+import { HostedSandboxCreate } from "./hosted-sandbox-create";
 
 export function ConnectionOnboarding({
   userId,
@@ -85,6 +86,7 @@ export function ConnectionOnboarding({
       )}
       {deviceStep ? (
         <>
+          {intent === "device" && <HostedSandboxCreate userId={userId} />}
           <DeviceConnectStep
             userId={userId}
             onStart={() => {
