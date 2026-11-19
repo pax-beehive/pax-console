@@ -40,6 +40,9 @@ export const sessionsMessages: Record<string, string> = {
   "No artifacts for this session": "此会话暂无产物",
   "Back to artifacts": "返回产物列表",
   "Sign-in required": "需要登录",
+  "Model access required": "需要配置模型",
+  "Configure a model provider for Pi on this device, then retry your message.":
+    "请在此设备上为 Pi 配置模型服务，然后重试这条消息。",
   "The agent needs you to sign in again on this device. Complete sign-in in Settings, then return here and retry your message.":
     "智能体需要你在此设备上重新登录。请前往设置完成登录，再返回这里重新发送消息。",
   "Open Agent sign-in": "前往智能体登录",

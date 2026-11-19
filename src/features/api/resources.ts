@@ -40,6 +40,7 @@ import {
   Envelope,
   Friend,
   Health,
+  HostedStarterStatus,
   HarnessAuthData,
   HarnessLoginInput,
   HarnessUsageData,
@@ -77,6 +78,25 @@ import {
   UserAPIKey,
   CreatedNodeDaemonAgentConnection,
 } from "./types";
+
+export async function readHostedStarter(
+  signal?: AbortSignal,
+): Promise<HostedStarterStatus> {
+  try {
+    return await apiFetch<HostedStarterStatus>("/api/v1/starter", { signal });
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404)
+      return { enabled: false };
+    throw error;
+  }
+}
+
+export function activateHostedPi(nodeId: string, agentId: string) {
+  return apiFetch<HostedStarterStatus>("/api/v1/starter/wake", {
+    method: "POST",
+    body: JSON.stringify({ node_id: nodeId, agent_id: agentId }),
+  });
+}
 
 type NodeListData = {
   nodes: Node[];

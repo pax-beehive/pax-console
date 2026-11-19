@@ -255,6 +255,21 @@ export const homeMessages: Record<string, string> = {
   "The request may have reached your computer. Check its connections before creating another agent.":
     "请求可能已到达你的计算机。创建另一个智能体前，请先检查现有连接。",
   "Start a conversation": "开始对话",
+  "Couldn’t check free model access.": "无法检查免费模型访问状态。",
+  "Free model access is paused.": "免费模型访问已暂停。",
+  "Free model access is unavailable.": "免费模型暂时不可用。",
+  "Free model access is assigned to another agent in this sandbox.":
+    "此沙箱的免费模型访问已分配给另一个智能体。",
+  "Setting up free model access…": "正在开通免费模型访问…",
+  "Couldn’t enable free model access.": "无法开通免费模型访问。",
+  "The shared free model budget is exhausted.": "共享免费模型预算已用完。",
+  "Your free model budget is exhausted.": "你的免费模型预算已用完。",
+  "Use existing agent: {value1}": "使用现有智能体：{value1}",
+  "Retry free model setup": "重试开通免费模型",
+  "Use Pax free quota": "使用 Pax 免费额度",
+  "Pax free quota is ready.": "Pax 免费额度已就绪。",
+  "To use your own provider, run pi in the sandbox terminal, then use /login or configure an API key.":
+    "要使用自己的模型服务，请在沙箱终端运行 pi，再输入 /login 或配置 API Key。",
   "Manage connections": "管理连接",
   Copied: "已复制",
   "Copy command": "复制命令",

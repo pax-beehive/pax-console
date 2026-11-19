@@ -9,6 +9,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useLocaleStore } from "@/features/i18n/locale-store";
 import { queryKeys } from "@/features/api/query-keys";
 import type {
+  HostedStarterStatus,
   Node,
   NodeDaemonAgentConnection,
   NodeDaemonHarness,
@@ -22,12 +23,43 @@ let connection: NodeDaemonAgentConnection | undefined;
 let expiresAt: string;
 let discoveryError: boolean;
 let createError: boolean;
+let hostedStarter: HostedStarterStatus | undefined;
+let starterError: boolean;
+let wakeError: boolean;
 let requests: {
   path: string;
   method: string;
   body?: Record<string, unknown>;
 }[];
 let clients: QueryClient[];
+
+function connectionFixture(
+  harness: string,
+  name: string,
+  observed: number,
+): NodeDaemonAgentConnection {
+  return {
+    id: "connection",
+    agent_type: harness,
+    harness,
+    name,
+    cloud_agent_id: "agent",
+    command: [`${harness}-acp`],
+    desired_acp_slots: 2,
+    desired_state: "running",
+    enabled: true,
+    generation: 2,
+    instance_id: "default",
+    remote_id: "remote",
+    restart_nonce: 0,
+    status: {
+      connection_id: "connection",
+      phase: "running",
+      observed_generation: observed,
+      observed_restart_nonce: 0,
+    },
+  };
+}
 
 beforeEach(() => {
   nodes = [];
@@ -42,6 +74,9 @@ beforeEach(() => {
   expiresAt = new Date(Date.now() + 3600_000).toISOString();
   discoveryError = false;
   createError = false;
+  hostedStarter = undefined;
+  starterError = false;
+  wakeError = false;
   requests = [];
   clients = [];
   vi.stubGlobal(
@@ -54,6 +89,21 @@ beforeEach(() => {
       let data;
       if (path.endsWith("/node-registration-tokens")) {
         data = { token: "one-use-secret", expires_at: expiresAt };
+      } else if (path.endsWith("/starter")) {
+        if (starterError)
+          return Response.json({ message: "Unavailable" }, { status: 503 });
+        if (!hostedStarter)
+          return Response.json({ message: "Unavailable" }, { status: 404 });
+        data = hostedStarter;
+      } else if (path.endsWith("/starter/wake") && hostedStarter?.starter) {
+        if (wakeError)
+          return Response.json({ message: "Unavailable" }, { status: 503 });
+        hostedStarter.starter.state = "queued";
+        hostedStarter.starter.agent_id = String(body?.agent_id);
+        data = {
+          ...hostedStarter,
+          starter: { ...hostedStarter.starter, state: "ready" },
+        };
       } else if (path.endsWith("/nodes")) {
         data = { nodes };
       } else if (path.endsWith("/harnesses/discover")) {
@@ -68,29 +118,13 @@ beforeEach(() => {
         };
       } else if (path.includes("/agent-connections")) {
         if (method === "POST") {
+          connection = connectionFixture(
+            String(body?.harness),
+            String(body?.name),
+            1,
+          );
           if (createError)
             return Response.json({ message: "Response lost" }, { status: 502 });
-          connection = {
-            id: "connection",
-            agent_type: "codex",
-            harness: "codex",
-            name: "Codex",
-            cloud_agent_id: "agent",
-            command: ["codex-acp"],
-            desired_acp_slots: 2,
-            desired_state: "running",
-            enabled: true,
-            generation: 2,
-            instance_id: "default",
-            remote_id: "remote",
-            restart_nonce: 0,
-            status: {
-              connection_id: "connection",
-              phase: "running",
-              observed_generation: 1,
-              observed_restart_nonce: 0,
-            },
-          };
           data = {
             command_id: "create",
             command_status: "received",
@@ -474,6 +508,230 @@ describe("agent connection", () => {
     expect(
       screen.getByRole("link", { name: "Manage connections" }),
     ).toHaveAttribute("href", "/settings/devices");
+    connection = {
+      ...connection!,
+      status: { ...connection!.status!, observed_generation: 2 },
+    };
+    await user.click(screen.getByRole("button", { name: "Check again" }));
+    expect(await screen.findByText("Codex is connected")).toBeVisible();
+    expect(
+      requests.filter(
+        ({ path, method }) =>
+          method === "POST" && path.includes("/agent-connections"),
+      ),
+    ).toHaveLength(1);
+  });
+});
+
+describe("free model access for enrolled Pi", () => {
+  beforeEach(() => {
+    nodes = [mac];
+    inventory = [
+      {
+        harness: "pi",
+        display_name: "Pi",
+        state: "available",
+        command: ["pi-acp"],
+      },
+    ];
+    hostedStarter = {
+      enabled: true,
+      enrolled_node: true,
+      pool_available: true,
+      user_budget_available: true,
+      starter: {
+        node_id: "mac",
+        state: "sleeping",
+      },
+    };
+  });
+
+  const wakeRequests = () =>
+    requests.filter(({ path }) => path.endsWith("/starter/wake"));
+
+  async function choosePi(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(await screen.findByRole("button", { name: "More" }));
+    await user.click(await screen.findByRole("button", { name: "Pi" }));
+  }
+
+  it("keeps Pi creation independent and activates free quota only after an explicit click", async () => {
+    const { user, client } = setup();
+    await choosePi(user);
+    const connect = await screen.findByRole("button", { name: "Connect Pi" });
+    await waitFor(() => expect(connect).toBeEnabled());
+    await user.click(connect);
+    expect(await screen.findByText("Connecting Pi…")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Use Pax free quota" }),
+    ).not.toBeInTheDocument();
+    expect(wakeRequests()).toHaveLength(0);
+
+    connection!.status!.observed_generation = 2;
+    await refresh(client, queryKeys.nodeDaemonAgentConnections("user", "mac"));
+    const conversation = await screen.findByRole("link", {
+      name: "Start a conversation",
+    });
+    expect(conversation).toHaveAttribute("href", "/?agentId=agent");
+    const activate = await screen.findByRole("button", {
+      name: "Use Pax free quota",
+    });
+    expect(wakeRequests()).toHaveLength(0);
+    await user.dblClick(activate);
+    expect(
+      await screen.findByText("Setting up free model access…"),
+    ).toBeVisible();
+    await waitFor(() =>
+      expect(wakeRequests()).toEqual([
+        {
+          path: "/api/pax/api/v1/starter/wake",
+          method: "POST",
+          body: { node_id: "mac", agent_id: "agent" },
+        },
+      ]),
+    );
+    expect(conversation).toBeVisible();
+    expect(
+      screen.queryByText("Pax free quota is ready."),
+    ).not.toBeInTheDocument();
+
+    hostedStarter!.starter!.state = "ready";
+    await refresh(client, queryKeys.hostedStarter("user"));
+    expect(await screen.findByText("Pax free quota is ready.")).toBeVisible();
+
+    hostedStarter!.starter!.state = "sleeping";
+    await refresh(client, queryKeys.hostedStarter("user"));
+    expect(
+      await screen.findByRole("button", { name: "Use Pax free quota" }),
+    ).toBeVisible();
+    expect(wakeRequests()).toHaveLength(1);
+  });
+
+  it("reuses a running Pi and only enables its free models after confirmation", async () => {
+    connection = connectionFixture("pi", "Pi already connected", 2);
+    const { user, client } = setup();
+    await choosePi(user);
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Use existing agent: Pi already connected",
+      }),
+    );
+    expect(wakeRequests()).toHaveLength(0);
+    const enable = await screen.findByRole("button", {
+      name: "Use Pax free quota",
+    });
+    await user.click(enable);
+    await waitFor(() => expect(wakeRequests()).toHaveLength(1));
+    expect(
+      requests.filter(
+        ({ path, method }) =>
+          path.endsWith("/agent-connections") && method === "POST",
+      ),
+    ).toHaveLength(0);
+
+    hostedStarter!.starter!.state = "ready";
+    hostedStarter!.starter!.agent_id = "another-agent";
+    await refresh(client, queryKeys.hostedStarter("user"));
+    expect(
+      await screen.findByText(
+        "Free model access is assigned to another agent in this sandbox.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Start a conversation" }),
+    ).toBeVisible();
+
+    hostedStarter!.starter!.agent_id = "agent";
+    hostedStarter!.pool_available = false;
+    await refresh(client, queryKeys.hostedStarter("user"));
+    expect(
+      await screen.findByText("The shared free model budget is exhausted."),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Start a conversation" }),
+    ).toBeVisible();
+
+    hostedStarter!.pool_available = true;
+    hostedStarter!.user_budget_available = false;
+    await refresh(client, queryKeys.hostedStarter("user"));
+    expect(
+      await screen.findByText("Your free model budget is exhausted."),
+    ).toBeVisible();
+  });
+
+  it("keeps the normal conversation available when the quota request fails and allows retry", async () => {
+    connection = connectionFixture("pi", "Pi already connected", 2);
+    wakeError = true;
+    const { user } = setup();
+    await choosePi(user);
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Use existing agent: Pi already connected",
+      }),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Use Pax free quota" }),
+    );
+    expect(
+      await screen.findByText("Couldn’t enable free model access."),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Start a conversation" }),
+    ).toBeVisible();
+
+    wakeError = false;
+    await user.click(
+      screen.getByRole("button", { name: "Retry free model setup" }),
+    );
+    expect(
+      await screen.findByText("Setting up free model access…"),
+    ).toBeVisible();
+    expect(wakeRequests()).toHaveLength(2);
+  });
+
+  it("shows the opt-in and personal provider instructions in Chinese", async () => {
+    useLocaleStore.setState({ locale: "zh-CN" });
+    connection = connectionFixture("pi", "Pi 已连接", 2);
+    const { user } = setup();
+    await user.click(await screen.findByRole("button", { name: "更多" }));
+    await user.click(await screen.findByRole("button", { name: "Pi" }));
+    await user.click(
+      await screen.findByRole("button", { name: "使用现有智能体：Pi 已连接" }),
+    );
+    expect(await screen.findByRole("link", { name: "开始对话" })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "使用 Pax 免费额度" }),
+    ).toBeVisible();
+    expect(screen.getByText(/在沙箱终端运行 pi，再输入 \/login/)).toBeVisible();
+    expect(wakeRequests()).toHaveLength(0);
+  });
+
+  it.each([
+    "no host enrollment",
+    "different node",
+    "feature unavailable",
+    "starter API error",
+  ])("keeps the normal Pi flow with %s", async (reason) => {
+    if (reason === "no host enrollment") delete hostedStarter!.enrolled_node;
+    if (reason === "different node")
+      hostedStarter!.starter!.node_id = "other-node";
+    if (reason === "feature unavailable") hostedStarter = undefined;
+    if (reason === "starter API error") starterError = true;
+
+    const { user, client } = setup();
+    await choosePi(user);
+    const connect = await screen.findByRole("button", { name: "Connect Pi" });
+    await waitFor(() => expect(connect).toBeEnabled());
+    await user.click(connect);
+    expect(await screen.findByText("Connecting Pi…")).toBeVisible();
+    connection!.status!.observed_generation = 2;
+    await refresh(client, queryKeys.nodeDaemonAgentConnections("user", "mac"));
+    expect(
+      await screen.findByRole("link", { name: "Start a conversation" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Use Pax free quota" }),
+    ).not.toBeInTheDocument();
+    expect(wakeRequests()).toHaveLength(0);
   });
 });
 

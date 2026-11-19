@@ -24,6 +24,25 @@ export function SessionAuthenticationNotice({
   const harness = normalizeAgentType(agentType);
   if (!nodeId || !harness || !isAgentAuthenticationError(error)) return null;
 
+  if (harness === "pi") {
+    return (
+      <div
+        className="flex min-w-0 items-start gap-3 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm"
+        role="alert"
+      >
+        <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+        <div className="min-w-0">
+          <p className="font-medium text-ink">{t("Model access required")}</p>
+          <p className="mt-1 text-ink-muted">
+            {t(
+              "Configure a model provider for Pi on this device, then retry your message.",
+            )}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const params = new URLSearchParams({ node_id: nodeId, harness });
   if (sessionId) params.set("session_id", sessionId);
 

@@ -2659,6 +2659,18 @@ failures. Browser sign-in uses the same complete installer command, explicitly
 clears any inherited `PAX_REGISTRATION_TOKEN`, and retains paxd's terminal login
 link and `/connect` pairing flow. It needs no preinstalled CLI.
 
+For a sandbox registered by its host, connect or reuse Pi through the agent
+onboarding screen. The conversation link appears after the matching ACP
+connection is running and reports its Agent ID. The screen checks host
+enrollment with authenticated same-origin `GET /api/v1/starter`.
+
+On a matching enrolled Node, select **Use Pax free quota** to send the
+`node_id` and `agent_id` to `POST /api/v1/starter/wake`. The screen reports
+readiness after GET confirms that Agent's ready lease and available quota.
+For a personal model provider, run `pi` in the sandbox terminal and use
+`/login` or configure an API key. The conversation link is available throughout.
+The ingress routes these requests to the signed-in owner's regional Manager.
+
 The one-use token stays only in mounted component state, expires at the server's
 expiry (one-hour fallback), and can be regenerated. Never log it, put it in a
 URL, or store it in Query/mutation caches. Both methods snapshot online devices
