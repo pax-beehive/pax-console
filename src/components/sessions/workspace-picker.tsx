@@ -10,7 +10,10 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { isSupportedSessionWorkspace } from "@/features/runtime/workspace-path";
+import {
+  DEFAULT_SESSION_WORKSPACE,
+  isSupportedSessionWorkspace,
+} from "@/features/runtime/workspace-path";
 import { cn } from "@/lib/utils";
 
 type Target = { target_id: string; cwd: string; is_default?: boolean };
@@ -66,10 +69,7 @@ export function WorkspacePicker({
           <span className="truncate font-mono text-xs">
             {loading
               ? t("Loading workspaces…")
-              : value ||
-                (canSave
-                  ? t("Choose a workspace")
-                  : t("Agent default directory"))}
+              : value || DEFAULT_SESSION_WORKSPACE}
           </span>
           <ChevronDown className="ml-auto h-3.5 w-3.5 shrink-0" />
         </Button>

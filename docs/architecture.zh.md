@@ -725,7 +725,8 @@ src/components/home/
   和 cwd intent，支持同一
   Project/Agent 下多个不同 cwd、编辑、启用/禁用和唯一 enabled default。
   Home composer 不直接暴露 Target，而是让用户选择可选 Project、Agent 并输入
-  Workspace 路径。若已有相同 Project/Agent/cwd 的 enabled Target，则复用并在
+  Workspace 路径。没有自动匹配或手动选择的 Workspace 时，新会话使用 `/tmp`，
+  并保留已选的 Project。若已有相同 Project/Agent/cwd 的 enabled Target，则复用并在
   Conversation 请求中携带 `project_target_id`；否则请求只携带
   `primary_project_id` 和 cwd，只有用户勾选 Save as workspace target，才在 native session 分配成功后创建 Target。
   后端先创建 native ACP session，成功后才把 Agent、cwd 和
