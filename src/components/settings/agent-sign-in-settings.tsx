@@ -7,10 +7,15 @@ import { CheckCircle2, ExternalLink, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MonoId, TruncatedText } from "@/components/ui/text";
+import {
+  HostedPiAccess,
+  useHostedStarter,
+} from "@/components/connect/hosted-pi-access";
 import { compactId } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useNodeAgents, useNodes } from "@/features/api/resources";
 import type {
+  Agent,
   HarnessAuthAccount,
   HarnessLoginMethod,
   LoginHarness,
@@ -254,6 +259,13 @@ export function AgentSignInSettings({
                 "No agents are registered on this device. Add an agent to it in PAX before signing in.",
               )}
             </p>
+          ) : available && harness === "pi" ? (
+            <PiSignIn
+              key={`${userId}:${nodeId}`}
+              userId={userId}
+              nodeId={nodeId}
+              agents={agents.data?.agents ?? []}
+            />
           ) : available && harness ? (
             <HarnessSignIn
               key={`${userId}:${nodeId}:${harness}`}
@@ -270,6 +282,81 @@ export function AgentSignInSettings({
         </div>
       </div>
     </div>
+  );
+}
+
+function PiSignIn({
+  userId,
+  nodeId,
+  agents,
+}: {
+  userId: string;
+  nodeId: string;
+  agents: Agent[];
+}) {
+  const { t } = useI18n();
+  const [chosenAgent, setChosenAgent] = useState("");
+  const piAgents = agents.filter(
+    (agent) =>
+      agent.node_id === nodeId && agent.agent_id && agent.agent_type === "pi",
+  );
+  const status = useHostedStarter(userId, nodeId, piAgents.length > 0);
+  const starter = status.data?.starter;
+  const enrolled =
+    piAgents.length > 0 &&
+    status.data?.enrolled_node === true &&
+    starter?.node_id === nodeId;
+  const activeLease =
+    starter?.state === "queued" ||
+    starter?.state === "starting" ||
+    starter?.state === "ready";
+  const agent =
+    piAgents.find((agent) => agent.agent_id === chosenAgent) ??
+    (piAgents.length === 1
+      ? piAgents[0]
+      : piAgents.find(
+          (agent) => activeLease && agent.agent_id === starter?.agent_id,
+        ));
+
+  return (
+    <section className={cardClass} aria-label="Pi">
+      <h2 className="text-base font-medium text-ink">Pi</h2>
+      <p className="text-sm text-ink-muted">
+        {t(
+          "To use your own provider, run pi on this device, then use /login or configure an API key.",
+        )}
+      </p>
+      {enrolled && piAgents.length > 1 && (
+        <label className="grid min-w-0 gap-2 text-sm text-ink-muted">
+          {t("Pi agent")}
+          <select
+            className={fieldClass}
+            value={agent?.agent_id ?? ""}
+            onChange={(event) => setChosenAgent(event.target.value)}
+          >
+            <option value="" disabled>
+              {t("Select an agent")}
+            </option>
+            {piAgents.map((agent) => (
+              <option key={agent.agent_id} value={agent.agent_id}>
+                {agent.name ?? compactId(agent.agent_id)}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {enrolled && agent && (
+        <div className="justify-self-start">
+          <HostedPiAccess
+            key={agent.agent_id}
+            userId={userId}
+            nodeId={nodeId}
+            agentId={agent.agent_id}
+            status={status}
+          />
+        </div>
+      )}
+    </section>
   );
 }
 

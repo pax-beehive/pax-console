@@ -1,5 +1,6 @@
 /* @vitest-environment jsdom */
 import "@testing-library/jest-dom/vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -18,6 +19,8 @@ const mocks = vi.hoisted(() => ({
   useNodeHarnessUsage: vi.fn(),
   useNodeAgents: vi.fn(),
   useAgents: vi.fn(),
+  readHostedStarter: vi.fn(),
+  activateHostedPi: vi.fn(),
 }));
 vi.mock("@/features/api/resources", () => mocks);
 
@@ -62,6 +65,8 @@ beforeEach(() => {
   // No agents across devices by default, so nothing else is checked for
   // sign-in beyond the selected card.
   mocks.useAgents.mockReturnValue({ data: { agents: [] } });
+  mocks.readHostedStarter.mockResolvedValue({ enabled: false });
+  mocks.activateHostedPi.mockReset();
 });
 
 /** Every device answers; only the listed device/agent pairs are signed out. */
@@ -95,10 +100,19 @@ afterEach(() => {
 });
 
 function mount(props: Partial<Parameters<typeof AgentSignInSettings>[0]> = {}) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+  });
   return render(
-    <TooltipProvider>
-      <AgentSignInSettings userId="self" initialNodeId="node-one" {...props} />
-    </TooltipProvider>,
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <AgentSignInSettings
+          userId="self"
+          initialNodeId="node-one"
+          {...props}
+        />
+      </TooltipProvider>
+    </QueryClientProvider>,
   );
 }
 
@@ -134,6 +148,129 @@ it("never falls back from a missing or offline linked device to another device",
   expect(screen.getByText(/This device is offline/)).toBeInTheDocument();
   expect(mocks.getNodeHarnessAuth).not.toHaveBeenCalled();
   expect(mocks.loginNodeHarness).not.toHaveBeenCalled();
+});
+
+const enrolledPi = {
+  enabled: true,
+  enrolled_node: true,
+  starter: { node_id: "node-one", state: "sleeping" },
+};
+const sandboxPi = {
+  agent_id: "sandbox-pi",
+  node_id: "node-one",
+  agent_type: "pi",
+  name: "Sandbox Pi",
+  online: true,
+};
+
+it("opens Pax quota for the selected sandbox Pi only after an explicit click", async () => {
+  const user = userEvent.setup();
+  mocks.useNodeAgents.mockReturnValue(
+    agentsQuery([
+      { ...sandboxPi, agent_id: "other-pi", node_id: "node-two" },
+      sandboxPi,
+    ]),
+  );
+  mocks.readHostedStarter.mockResolvedValue(enrolledPi);
+  mocks.activateHostedPi.mockImplementation(async () => {
+    const ready = {
+      ...enrolledPi,
+      starter: {
+        ...enrolledPi.starter,
+        state: "ready",
+        agent_id: sandboxPi.agent_id,
+      },
+    };
+    mocks.readHostedStarter.mockResolvedValue(ready);
+    return ready;
+  });
+
+  mount({ initialHarness: "pi" });
+  const useQuota = await screen.findByRole("button", {
+    name: "Use Pax free quota",
+  });
+  expect(screen.getByText(/\/login/)).toBeInTheDocument();
+  expect(mocks.getNodeHarnessAuth).not.toHaveBeenCalled();
+  expect(mocks.activateHostedPi).not.toHaveBeenCalled();
+
+  await user.click(useQuota);
+
+  expect(mocks.activateHostedPi).toHaveBeenCalledExactlyOnceWith(
+    "node-one",
+    sandboxPi.agent_id,
+  );
+  expect(
+    await screen.findByText("Pax free quota is ready."),
+  ).toBeInTheDocument();
+
+  await user.selectOptions(screen.getByLabelText("Device"), "node-two");
+  expect(screen.getByText(/\/login/)).toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Use Pax free quota" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByText("Pax free quota is ready."),
+  ).not.toBeInTheDocument();
+  expect(mocks.activateHostedPi).toHaveBeenCalledTimes(1);
+});
+
+it("does not offer Pax quota on a device without confirmed sandbox enrollment", async () => {
+  mocks.useNodeAgents.mockReturnValue(agentsQuery([sandboxPi]));
+  mocks.readHostedStarter.mockResolvedValue({
+    ...enrolledPi,
+    enrolled_node: false,
+  });
+
+  mount({ initialHarness: "pi" });
+
+  expect(await screen.findByText(/\/login/)).toBeInTheDocument();
+  expect(mocks.readHostedStarter).toHaveBeenCalled();
+  expect(
+    screen.queryByRole("button", { name: "Use Pax free quota" }),
+  ).not.toBeInTheDocument();
+  expect(mocks.activateHostedPi).not.toHaveBeenCalled();
+});
+
+it("does not offer Pax quota when the selected sandbox is offline", async () => {
+  const offlinePi = { ...sandboxPi, node_id: "offline" };
+  mocks.useNodeAgents.mockReturnValue(agentsQuery([offlinePi]));
+  mocks.readHostedStarter.mockResolvedValue({
+    ...enrolledPi,
+    starter: { ...enrolledPi.starter, node_id: "offline" },
+  });
+
+  mount({ initialNodeId: "offline", initialHarness: "pi" });
+
+  expect(screen.getByText(/This device is offline/)).toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Use Pax free quota" }),
+  ).not.toBeInTheDocument();
+  expect(mocks.activateHostedPi).not.toHaveBeenCalled();
+});
+
+it("requires choosing the Pi when the sandbox has more than one without an active lease", async () => {
+  const user = userEvent.setup();
+  const secondPi = { ...sandboxPi, agent_id: "second-pi", name: "Second Pi" };
+  mocks.useNodeAgents.mockReturnValue(agentsQuery([sandboxPi, secondPi]));
+  mocks.readHostedStarter.mockResolvedValue(enrolledPi);
+  mocks.activateHostedPi.mockResolvedValue(enrolledPi);
+
+  mount({ initialHarness: "pi" });
+
+  const agent = await screen.findByLabelText("Pi agent");
+  expect(agent).toHaveValue("");
+  expect(
+    screen.queryByRole("button", { name: "Use Pax free quota" }),
+  ).not.toBeInTheDocument();
+  await user.selectOptions(agent, secondPi.agent_id);
+  expect(mocks.activateHostedPi).not.toHaveBeenCalled();
+
+  await user.click(screen.getByRole("button", { name: "Use Pax free quota" }));
+
+  expect(mocks.activateHostedPi).toHaveBeenCalledExactlyOnceWith(
+    "node-one",
+    secondPi.agent_id,
+  );
 });
 
 it.each(["subscription", "console"])(
