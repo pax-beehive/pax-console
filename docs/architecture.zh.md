@@ -2217,7 +2217,14 @@ ACP prompt 成功。
 
 发现和连接状态查询串行，遵守 paxd 每节点只有一个在途查询的限制。创建 ACK 后
 按 connection ID、observed generation/restart nonce 和 running phase 确认，成功后
-才显示 Start a conversation。离线时阻止操作；runtime 失败重试同一个 connection；
+才继续。已验证由宿主机登记的沙箱，通过已认证的同源 `GET /api/v1/starter`
+匹配当前设备的 `enrolled_node` 和 `starter.node_id`。创建或复用 Pi 后，ACP runtime
+确认 running 且返回 Agent ID，即可选择「开始对话」。使用自己的模型服务时，在
+沙箱终端运行 `pi`，再输入 `/login` 或配置 API Key。
+登记过的沙箱会在 Pi 连接后提供独立的「使用 Pax 免费额度」按钮。只有点击按钮才
+调用 `POST /api/v1/starter/wake`，传递 `node_id` 和 `agent_id`。GET 确认同一 Pi 的
+租约 ready、访问未暂停且有额度后，才显示免费额度已就绪；这一步不影响对话入口。
+离线时阻止操作；runtime 失败重试同一个 connection；
 创建响应不确定时引导到设备设置检查，避免重复创建。自动轮询超过 90 秒停止并
 提供手动检查。部署 Console 前需先上线支持组合安装与 `--registration-token-env`
 的 paxd installer/binary。功能迁移记录见 `settings-migration.md`。

@@ -18,8 +18,13 @@ import {
   listNodeDaemonAgentConnections,
   restartNodeDaemonAgentConnection,
 } from "@/features/api/resources";
-import type { Node, NodeDaemonCommandData } from "@/features/api/types";
+import type {
+  Node,
+  NodeDaemonAgentConnection,
+  NodeDaemonCommandData,
+} from "@/features/api/types";
 import { CommandBlock } from "./command-block";
+import { HostedPiAccess, useHostedStarter } from "./hosted-pi-access";
 
 const recipes: Record<
   string,
@@ -52,11 +57,20 @@ export function AgentConnectStep({
   const [selected, setSelected] = useState("");
   const [more, setMore] = useState(false);
   const [target, setTarget] = useState<NodeDaemonRuntimeTarget>();
-  const [agentId, setAgentId] = useState("");
   const [commandError, setCommandError] = useState<string>();
   const [slow, setSlow] = useState(false);
   const createLock = useRef(false);
   const online = node.online === true;
+  const piSelected = selected === "pi";
+  const starterStatus = useHostedStarter(
+    userId,
+    node.node_id,
+    online && piSelected,
+  );
+  const enrolledPi =
+    piSelected &&
+    starterStatus.data?.enrolled_node === true &&
+    starterStatus.data.starter?.node_id === node.node_id;
   // Only one daemon query may be in flight for a node. Discovery runs first;
   // connection polling starts after creation and discovery stays disabled.
   const inventory = useQuery({
@@ -88,7 +102,7 @@ export function AgentConnectStep({
         );
       return result;
     },
-    enabled: online && !!target && !inventory.isFetching,
+    enabled: online && (!!target || enrolledPi) && !inventory.isFetching,
     refetchOnWindowFocus: false,
     retry: false,
     refetchInterval: (query) => {
@@ -102,6 +116,19 @@ export function AgentConnectStep({
     },
   });
   const items = inventory.data?.harnesses?.items ?? [];
+  const existingPi = enrolledPi
+    ? (connections.data?.agent_connections?.items ?? []).filter(
+        (item) =>
+          item.harness === "pi" &&
+          item.agent_type === "pi" &&
+          item.enabled &&
+          item.desired_state === "running" &&
+          !!item.cloud_agent_id,
+      )
+    : [];
+  const checkingPi =
+    enrolledPi &&
+    (connections.isPending || connections.isFetching || !!connections.error);
   const choice = items.find((item) => item.harness === selected);
   const recipe = recipes[selected];
   const label = recipe?.label ?? choice?.display_name ?? selected;
@@ -116,7 +143,53 @@ export function AgentConnectStep({
   const current = connections.data?.agent_connections?.items.find(
     (item) => item.id === target?.connectionId,
   );
+  const agentId = current?.cloud_agent_id;
   const ready = online && outcome === "running" && !connections.error;
+  const connectionName = `${label} on ${nodeLabel(node)}`;
+  const startConversation = (
+    <Button asChild variant="primary">
+      <Link href={`/?agentId=${encodeURIComponent(agentId ?? "")}`}>
+        {t("Start a conversation")}
+      </Link>
+    </Button>
+  );
+
+  async function checkExistingConnection() {
+    if (!commandError && !create.isError) {
+      if (enrolledPi && connections.isError) {
+        await connections.refetch();
+        return;
+      }
+      await inventory.refetch();
+      return;
+    }
+    try {
+      const result = await listNodeDaemonAgentConnections(userId, node.node_id);
+      const matches = (result.agent_connections?.items ?? []).filter(
+        (item) =>
+          item.harness === selected &&
+          item.name === connectionName &&
+          item.enabled &&
+          !!item.cloud_agent_id,
+      );
+      if (result.error || matches.length !== 1) return;
+      selectExistingConnection(matches[0]);
+      create.reset();
+    } catch {
+      // An inconclusive read must not trigger another create.
+    }
+  }
+
+  function selectExistingConnection(existing: NodeDaemonAgentConnection) {
+    if (!existing.cloud_agent_id) return;
+    setTarget({
+      action: "create",
+      connectionId: existing.id,
+      desiredGeneration: existing.generation,
+    });
+    setCommandError(undefined);
+    setSlow(false);
+  }
 
   function record(
     data: NodeDaemonCommandData,
@@ -151,14 +224,11 @@ export function AgentConnectStep({
       createNodeDaemonAgentConnection(userId, node.node_id, {
         agent_type: selected,
         harness: selected,
-        name: `${label} on ${nodeLabel(node)}`,
+        name: connectionName,
         desired_slots: 2,
       }),
     retry: false,
-    onSuccess: (data) => {
-      setAgentId(data.agent_id);
-      record(data, "create");
-    },
+    onSuccess: (data) => record(data, "create"),
   });
   const restart = useMutation({
     mutationFn: () =>
@@ -346,16 +416,38 @@ export function AgentConnectStep({
           )}
           <div className="flex flex-wrap gap-2">
             <Button
-              disabled={!online || inventory.isFetching || locked}
-              onClick={() => void inventory.refetch()}
+              disabled={
+                !online ||
+                inventory.isFetching ||
+                create.isPending ||
+                (enrolledPi && connections.isFetching)
+              }
+              onClick={() => void checkExistingConnection()}
             >
               {t("Check again")}
             </Button>
-            {available && (
+            {existingPi.map((item) => (
+              <Button
+                key={item.id}
+                variant="primary"
+                disabled={!online || checkingPi || locked}
+                onClick={() => {
+                  onStart?.();
+                  selectExistingConnection(item);
+                }}
+              >
+                {t("Use existing agent: {value1}", { value1: item.name })}
+              </Button>
+            ))}
+            {available && existingPi.length === 0 && (
               <Button
                 variant="primary"
                 disabled={
-                  !online || inventory.isFetching || !!inventory.error || locked
+                  !online ||
+                  inventory.isFetching ||
+                  !!inventory.error ||
+                  locked ||
+                  checkingPi
                 }
                 onClick={() => {
                   if (createLock.current) return;
@@ -446,17 +538,31 @@ export function AgentConnectStep({
         </p>
       )}
       {(target || commandError || create.isError) && (
-        <div className="flex flex-wrap gap-2">
-          {ready && agentId && (
-            <Button asChild variant="primary">
-              <Link href={`/?agentId=${encodeURIComponent(agentId)}`}>
-                {t("Start a conversation")}
-              </Link>
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            {ready && agentId && startConversation}
+            <Button asChild variant="ghost">
+              <Link href="/settings/devices">{t("Manage connections")}</Link>
             </Button>
+          </div>
+          {ready && agentId && current?.harness === "pi" && (
+            <>
+              <HostedPiAccess
+                key={agentId}
+                userId={userId}
+                nodeId={node.node_id}
+                agentId={agentId}
+                status={starterStatus}
+              />
+              {enrolledPi && (
+                <p className="text-sm text-ink-muted">
+                  {t(
+                    "To use your own provider, run pi in the sandbox terminal, then use /login or configure an API key.",
+                  )}
+                </p>
+              )}
+            </>
           )}
-          <Button asChild variant="ghost">
-            <Link href="/settings/devices">{t("Manage connections")}</Link>
-          </Button>
         </div>
       )}
     </section>

@@ -79,4 +79,14 @@ describe("session agent sign-in notice", () => {
       screen.getByRole("link", { name: "Open Agent sign-in" }),
     ).toHaveAttribute("href", expect.stringContaining("harness=codex"));
   });
+
+  it("shows model provider setup for Pi without linking to Agent sign-in", () => {
+    render(notice(new Error("Authentication required"), "node_1", "pi"));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Model access required",
+    );
+    expect(
+      screen.queryByRole("link", { name: "Open Agent sign-in" }),
+    ).not.toBeInTheDocument();
+  });
 });

@@ -1,5 +1,18 @@
 export type ApiRecord = Record<string, unknown>;
 
+export type HostedStarterStatus = {
+  enabled: boolean;
+  pool_available?: boolean;
+  enrolled_node?: boolean;
+  user_budget_available?: boolean;
+  starter?: {
+    node_id?: string;
+    agent_id?: string;
+    state: "sleeping" | "queued" | "starting" | "ready" | "failed";
+    access_paused?: boolean;
+  } | null;
+};
+
 export type User = {
   user_id: string;
   email?: string;
