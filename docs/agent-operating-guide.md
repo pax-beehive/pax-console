@@ -1371,7 +1371,8 @@ Content-Type: application/json
 ```
 
 On creation screens, sending with no text or attachments initializes an empty
-session immediately. There is no separate Advanced / Create empty action.
+session immediately. If no workspace is selected automatically or manually,
+the new session uses `/tmp` and keeps any selected project. There is no separate Advanced / Create empty action.
 Use a leading-edge 500 ms repeat guard plus an in-flight lock shared by keyboard
 and button submission. Existing sessions never send an empty user message.
 Manager transport uses `initialize_only: true` with creation-only workspace,

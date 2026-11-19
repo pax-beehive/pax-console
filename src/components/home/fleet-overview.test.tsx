@@ -1376,6 +1376,9 @@ describe("FleetOverview session rail", () => {
         );
         await userEvent.keyboard("{Escape}");
       }
+      expect(
+        screen.getByRole("button", { name: "Choose workspace" }),
+      ).toHaveTextContent("/tmp");
       const form = screen
         .getByPlaceholderText(
           transport === "e2ee"
@@ -1388,6 +1391,10 @@ describe("FleetOverview session rail", () => {
       expect(await screen.findByTestId("session-workbench")).toHaveAttribute(
         "data-initial-initialize-only",
         "true",
+      );
+      expect(screen.getByTestId("session-workbench")).toHaveAttribute(
+        "data-initial-cwd",
+        "/tmp",
       );
       expect(screen.getByTestId("session-workbench")).toHaveAttribute(
         "data-initial-transport",
@@ -1529,7 +1536,7 @@ describe("FleetOverview session rail", () => {
     expect(screen.getByRole("textbox", { name: "Workspace" })).toHaveValue("");
     expect(
       screen.getByRole("button", { name: "Start session" }),
-    ).toBeDisabled();
+    ).toBeEnabled();
     await userEvent.type(
       screen.getByRole("textbox", { name: "Workspace" }),
       "~/new-project",
@@ -1624,10 +1631,10 @@ describe("FleetOverview session rail", () => {
     await userEvent.click(screen.getByRole("button", { name: "Second agent" }));
     expect(
       screen.getByRole("button", { name: "Choose workspace" }),
-    ).toHaveTextContent("Choose a workspace");
+    ).toHaveTextContent("/tmp");
     expect(
       screen.getByRole("button", { name: "Start session" }),
-    ).toBeDisabled();
+    ).toBeEnabled();
     await userEvent.click(screen.getByRole("button", { name: "Second agent" }));
     await userEvent.click(screen.getByRole("button", { name: "Pi agent" }));
     expect(
@@ -1650,7 +1657,7 @@ describe("FleetOverview session rail", () => {
     );
   });
 
-  it("asks for a workspace when several match the agent without a default", async () => {
+  it("allows choosing among several workspaces without a default", async () => {
     mocks.useProjectTargets.mockReturnValue({
       data: {
         targets: [
@@ -1689,7 +1696,7 @@ describe("FleetOverview session rail", () => {
     );
     expect(
       screen.getByRole("button", { name: "Start session" }),
-    ).toBeDisabled();
+    ).toBeEnabled();
     await userEvent.click(
       screen.getByRole("button", { name: "Choose workspace" }),
     );
@@ -1700,6 +1707,34 @@ describe("FleetOverview session rail", () => {
     expect(
       screen.getByRole("button", { name: "Choose workspace" }),
     ).toHaveTextContent("~/two");
+  });
+
+  it("starts in /tmp while keeping the selected project", async () => {
+    mocks.useProjectTargets.mockReturnValue({
+      data: { targets: [] },
+      isPending: false,
+    });
+    renderOverview();
+    await userEvent.selectOptions(
+      await screen.findByRole("combobox", { name: "Project" }),
+      "project_1",
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Choose workspace" }),
+    ).toHaveTextContent("/tmp");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Start session" }),
+    );
+
+    const workbench = await screen.findByTestId("session-workbench");
+    expect(workbench).toHaveAttribute("data-primary-project-id", "project_1");
+    expect(workbench).toHaveAttribute("data-initial-cwd", "/tmp");
+    expect(workbench).not.toHaveAttribute("data-project-target-id");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Assign native session" }),
+    );
+    expect(mocks.createProjectTarget).not.toHaveBeenCalled();
   });
 
   it("allows choosing a saved location while editing a nonempty directory", async () => {

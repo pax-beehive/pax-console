@@ -166,7 +166,10 @@ import {
   useTimelineMessageTarget,
 } from "@/features/runtime/use-timeline-message-target";
 import { SessionMessageTargetNotice } from "./session-message-target-notice";
-import { isSupportedSessionWorkspace } from "@/features/runtime/workspace-path";
+import {
+  DEFAULT_SESSION_WORKSPACE,
+  isSupportedSessionWorkspace,
+} from "@/features/runtime/workspace-path";
 import {
   PAX_AUTO_APPROVE_CHOICE_ID,
   PAX_MANUAL_CHOICE_ID,
@@ -377,10 +380,10 @@ export function SessionWorkbench({
   const [permissionDecisions, setPermissionDecisions] = useState<
     Record<string, PermissionDecisionResult>
   >({});
-  const normalizedNewSessionCwd = newSessionCwd.trim();
+  const normalizedNewSessionCwd =
+    newSessionCwd.trim() || DEFAULT_SESSION_WORKSPACE;
   const newSessionCwdInvalid =
     isNewSession &&
-    normalizedNewSessionCwd.length > 0 &&
     !isSupportedSessionWorkspace(normalizedNewSessionCwd);
   const activeSession = useMemo(
     () =>
@@ -559,11 +562,11 @@ export function SessionWorkbench({
         { primaryProjectId: initialPrimaryProjectId },
       );
       setPendingSessionPaxConfig({
-        cwd: normalizedNewSessionCwd || undefined,
+        cwd: normalizedNewSessionCwd,
         approval_mode: newSessionApprovalMode,
       });
       setPendingEncryptedBootstrap({
-        cwd: normalizedNewSessionCwd || "/tmp",
+        cwd: normalizedNewSessionCwd,
         prompt,
         attachments: [...composerAttachments],
         sessionId: session.session_id,
@@ -1984,7 +1987,7 @@ export function SessionWorkbench({
     const sourceDraftKey = composerDraftKey;
     setSendError(null);
     setPendingSessionPaxConfig({
-      cwd: normalizedNewSessionCwd || undefined,
+      cwd: normalizedNewSessionCwd,
       approval_mode: effectiveNewSessionApprovalMode,
     });
     try {
@@ -1994,7 +1997,7 @@ export function SessionWorkbench({
       }
       const result = await initializeConversationSession({
         approvalMode: effectiveNewSessionApprovalMode,
-        cwd: normalizedNewSessionCwd || undefined,
+        cwd: normalizedNewSessionCwd,
         permissionChoiceId:
           effectiveNewSessionPermissionChoiceId === PAX_MANUAL_CHOICE_ID
             ? undefined
@@ -2132,7 +2135,7 @@ export function SessionWorkbench({
 
         if (isNewSession) {
           setPendingSessionPaxConfig({
-            cwd: normalizedNewSessionCwd || undefined,
+            cwd: normalizedNewSessionCwd,
             approval_mode: effectiveNewSessionApprovalMode,
           });
         }
@@ -2142,7 +2145,7 @@ export function SessionWorkbench({
           ...(isNewSession
             ? {
                 approvalMode: effectiveNewSessionApprovalMode,
-                cwd: normalizedNewSessionCwd || undefined,
+                cwd: normalizedNewSessionCwd,
                 permissionChoiceId:
                   effectiveNewSessionPermissionChoiceId === PAX_MANUAL_CHOICE_ID
                     ? undefined
@@ -2362,7 +2365,7 @@ export function SessionWorkbench({
 
       setSendError(null);
       setPendingSessionPaxConfig({
-        cwd: normalizedNewSessionCwd || undefined,
+        cwd: normalizedNewSessionCwd,
         approval_mode: initialPromptPermission.approvalMode,
       });
       const attachmentIds = composerAttachments.map(
@@ -2372,7 +2375,7 @@ export function SessionWorkbench({
       void sendConversationMessage(content, {
         searchAccess: initialSearchAccess,
         approvalMode: initialPromptPermission.approvalMode,
-        cwd: normalizedNewSessionCwd || undefined,
+        cwd: normalizedNewSessionCwd,
         permissionChoiceId:
           initialPromptPermission.choiceId === PAX_MANUAL_CHOICE_ID
             ? undefined

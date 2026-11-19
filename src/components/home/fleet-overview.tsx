@@ -130,7 +130,10 @@ import {
 import { compactId } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { canSeeAdminFeatures } from "@/features/auth/admin-view";
-import { isSupportedSessionWorkspace } from "@/features/runtime/workspace-path";
+import {
+  DEFAULT_SESSION_WORKSPACE,
+  isSupportedSessionWorkspace,
+} from "@/features/runtime/workspace-path";
 import {
   PAX_MANUAL_CHOICE_ID,
   approvalModeForPermissionChoice,
@@ -807,7 +810,6 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     if (
       !activeAgent?.agent_id ||
       !activeAgent.node_id ||
-      (selectedProjectId && !normalizedNewSessionCwd) ||
       encryptionBlocked ||
       workspaceLoading ||
       newSessionCwdInvalid ||
@@ -833,11 +835,13 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       initialSearchAccess:
         newSessionTransport === "manager" ? searchAccess : undefined,
       initialAttachments: composerAttachments,
-      initialCwd: normalizedNewSessionCwd || undefined,
+      initialCwd: normalizedNewSessionCwd || DEFAULT_SESSION_WORKSPACE,
       initialPrompt: initialPrompt || undefined,
       initialInitializeOnly: !initialPrompt && composerAttachments.length === 0,
       saveWorkspaceTarget:
-        workspaceDraft?.key === workspaceKey && Boolean(workspaceDraft.save),
+        Boolean(normalizedNewSessionCwd) &&
+        workspaceDraft?.key === workspaceKey &&
+        Boolean(workspaceDraft.save),
       initialTransport: newSessionTransport,
       key: `new:${nonce}`,
       nodeId: activeAgent.node_id,
@@ -1608,8 +1612,6 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                           )}
                           disabled={
                             !activeAgent?.agent_id ||
-                            (Boolean(selectedProjectId) &&
-                              !normalizedNewSessionCwd) ||
                             encryptionBlocked ||
                             workspaceLoading ||
                             newSessionCwdInvalid ||
