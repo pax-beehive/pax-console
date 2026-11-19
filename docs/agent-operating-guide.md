@@ -182,6 +182,13 @@ keeping warm query caches. Real push-provider and OS display claims remain exclu
 
 ### Agent sign-in and session authentication recovery
 
+For a registered sandbox, open **Settings → Agent sign-in & usage**, select
+the sandbox and choose **Pi**. **Use Pax free quota** is available here after
+initial setup. With multiple Pi Agents, choose the Agent that should receive the
+lease. The screen verifies enrollment for the selected Node before offering the
+button. The Pi card also describes how to sign in to a personal provider on the
+device.
+
 Settings > Agent sign-in (`/settings/agent-sign-in`) signs in native agent CLIs on
 an owned, connected device. The Agent type options are the distinct `agent_type`
 values of agents registered in PAX for the selected device (`useNodeAgents`, a

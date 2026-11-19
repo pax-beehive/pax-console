@@ -73,6 +73,11 @@ access_token），需要粘贴 key/token 时先展开输入框，否则直接开
 即使本地返回 logged_in，也保留 Re-authenticate，因为这不能证明 provider 会接受请求。
 设备来自用户授权的 `useNodes`；深链指定的设备不存在或离线时不会改选其他设备。
 
+「智能体登录与用量」中选中在线设备的 Pi 时，会说明如何在该设备配置个人模型服务。
+此页用同源 `GET /api/v1/starter` 验证当前 Node 的宿主登记。登记匹配时显示
+「使用 Pax 免费额度」，多个 Pi 可指定目标智能体。开通仅由按钮触发，使用
+`POST /api/v1/starter/wake` 提交当前 `node_id` 和所选 `agent_id`。
+
 成功状态可选携带原生工具返回的 `account`：`email`、`display_name`、`organization` 和
 `plan`。绿色凭据状态下优先展示账号邮箱，否则展示姓名；组织与套餐为可选次要说明。
 不能拿 PAX 用户或 auth_method 推断登录身份。API key / access token 未提供账号时明确
