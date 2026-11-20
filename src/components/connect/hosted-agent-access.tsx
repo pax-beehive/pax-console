@@ -22,11 +22,34 @@ const leaseStates = new Set<SandboxModelAccessAgent["state"]>([
   "failed",
 ]);
 
+function setupErrorMessage(reason?: string) {
+  switch (reason) {
+    case "acp_probe_timeout":
+      return "The agent took too long to start a free model session.";
+    case "acp_session_failed":
+      return "The agent could not start a free model session.";
+    case "lease_expired":
+      return "Free model access expired. Set it up again.";
+    case "lease_ended":
+      return "Free model access ended. Set it up again.";
+    case "host_capacity":
+      return "The sandbox host is full. Try again later.";
+    case "host_environment_limit":
+      return "The sandbox host has reached its limit for saved sandboxes.";
+    case "container_exited":
+      return "The sandbox stopped before its device connected.";
+    case "node_connection_timeout":
+      return "The sandbox device did not connect in time.";
+    default:
+      return "Couldn’t enable free model access.";
+  }
+}
+
 type HostedAgentEligibility = {
   state: SandboxModelAccess["state"];
   agentId?: string;
   accessPaused: boolean;
-  agentStates?: Map<string, SandboxModelAccessAgent["state"]>;
+  agents?: Map<string, SandboxModelAccessAgent>;
 };
 
 export function hostedAgentAccess(
@@ -51,7 +74,7 @@ export function hostedAgentAccess(
     ) {
       return undefined;
     }
-    let agentStates: HostedAgentEligibility["agentStates"];
+    let agents: HostedAgentEligibility["agents"];
     if (sandbox.agents !== undefined) {
       if (
         !Array.isArray(sandbox.agents) ||
@@ -60,24 +83,24 @@ export function hostedAgentAccess(
       ) {
         return undefined;
       }
-      agentStates = new Map();
+      agents = new Map();
       for (const agent of sandbox.agents) {
         if (
           typeof agent?.agent_id !== "string" ||
           !agent.agent_id ||
           !leaseStates.has(agent.state) ||
-          agentStates.has(agent.agent_id)
+          agents.has(agent.agent_id)
         ) {
           return undefined;
         }
-        agentStates.set(agent.agent_id, agent.state);
+        agents.set(agent.agent_id, agent);
       }
     }
     return {
       state: sandbox.state,
       agentId: sandbox.agent_id,
       accessPaused: starter?.access_paused === true,
-      agentStates,
+      agents,
     };
   }
   if (
@@ -115,12 +138,14 @@ export function HostedAgentAccess({
   agentId,
   harness,
   status,
+  showReady = true,
 }: {
   userId: string;
   nodeId: string;
   agentId: string;
   harness: string;
   status: ReturnType<typeof useHostedStarter>;
+  showReady?: boolean;
 }) {
   const { t } = useI18n();
   const queryClient = useQueryClient();
@@ -175,8 +200,9 @@ export function HostedAgentAccess({
       </p>
     );
   }
-  const state = access.agentStates?.get(agentId) ?? access.state;
-  const assignedAgent = access.agentStates ? agentId : access.agentId;
+  const agent = access.agents?.get(agentId);
+  const state = agent?.state ?? access.state;
+  const assignedAgent = access.agents ? agentId : access.agentId;
   const isStarting = state === "queued" || state === "starting";
   if (
     assignedAgent &&
@@ -197,11 +223,11 @@ export function HostedAgentAccess({
     );
   }
   if (state === "ready" && assignedAgent === agentId) {
-    return (
+    return showReady ? (
       <p role="status" className="text-sm text-ink-muted">
         {t("Pax free quota is ready.")}
       </p>
-    );
+    ) : null;
   }
 
   const failed = activate.isError || state === "failed";
@@ -209,7 +235,11 @@ export function HostedAgentAccess({
     <div className="space-y-2">
       {failed && (
         <p role="alert" className="text-sm text-warning">
-          {t("Couldn’t enable free model access.")}
+          {t(
+            setupErrorMessage(
+              state === "failed" ? agent?.reason_code : undefined,
+            ),
+          )}
         </p>
       )}
       <Button
