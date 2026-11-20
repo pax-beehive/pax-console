@@ -211,7 +211,8 @@ keeping warm query caches. Real push-provider and OS display claims remain exclu
 To restart an existing Pax sandbox, select its device in **Settings → Agent
 sign-in & usage** and click **Start sandbox**. This action appears if that
 account's sandbox is sleeping or its last start failed. The page follows startup
-and refreshes the device list when the sandbox is ready.
+and refreshes the device list when the sandbox is ready. It also checks a ready
+sandbox every 15 seconds while the page is visible to detect when it sleeps.
 
 To enable Pax free quota, open **Settings → Agent sign-in & usage**, select the
 sandbox and choose the Agent type. If several Agents of that type are connected,

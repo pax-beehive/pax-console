@@ -42,7 +42,12 @@ function failureMessage(reason?: string) {
   }
 }
 
-export function useHostedSandboxStatus(userId: string) {
+export function useHostedSandboxStatus(
+  userId: string,
+  {
+    readyRefetchInterval = false,
+  }: { readyRefetchInterval?: number | false } = {},
+) {
   const queryClient = useQueryClient();
   const status = useQuery({
     queryKey: queryKeys.hostedSandbox(userId),
@@ -50,7 +55,8 @@ export function useHostedSandboxStatus(userId: string) {
     retry: false,
     refetchInterval: (query) => {
       const state = query.state.data?.sandbox?.status;
-      return state === "queued" || state === "starting" ? 2000 : false;
+      if (state === "queued" || state === "starting") return 2000;
+      return state === "ready" ? readyRefetchInterval : false;
     },
   });
   const sandbox = status.data?.sandbox;

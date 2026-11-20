@@ -275,6 +275,30 @@ it("shows a restart and a safe failure reason on a deep-linked owned sandbox", a
   expect(mocks.getNodeHarnessAuth).not.toHaveBeenCalled();
 });
 
+it("offers to start the sandbox if it goes to sleep while the page is open", async () => {
+  vi.useFakeTimers();
+  mocks.readHostedSandbox.mockResolvedValue({
+    sandbox: { node_id: "offline", status: "ready" },
+  });
+  mount({ initialNodeId: "offline" });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1);
+  });
+  expect(screen.getByText("Sandbox connected")).toBeVisible();
+  expect(mocks.readHostedSandbox).toHaveBeenCalledTimes(1);
+
+  mocks.readHostedSandbox.mockResolvedValue({
+    sandbox: { node_id: "offline", status: "sleeping" },
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(15_001);
+  });
+  expect(screen.queryByText("Sandbox connected")).toBeNull();
+  expect(screen.getByRole("button", { name: "Start sandbox" })).toBeEnabled();
+  expect(mocks.readHostedSandbox).toHaveBeenCalledTimes(2);
+  expect(mocks.startHostedSandbox).not.toHaveBeenCalled();
+});
+
 it("keeps an unrelated offline device's normal reconnect state", async () => {
   mocks.readHostedSandbox.mockResolvedValue({
     sandbox: { node_id: "node-two", status: "sleeping" },

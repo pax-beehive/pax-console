@@ -69,7 +69,9 @@ export function AgentSignInSettings({
 }: AgentSignInProps) {
   const { t } = useI18n();
   const nodes = useNodes(userId);
-  const sandboxStatus = useHostedSandboxStatus(userId);
+  const sandboxStatus = useHostedSandboxStatus(userId, {
+    readyRefetchInterval: 15_000,
+  });
   // The device named by the link or picked here. Undefined until either.
   const [chosenNodeId, setNodeId] = useState<string | undefined>(
     initialNodeId || undefined,
