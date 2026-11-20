@@ -11,15 +11,8 @@ import {
   startHostedSandbox,
 } from "@/features/api/resources";
 import { useI18n } from "@/features/i18n/use-i18n";
-import { cn } from "@/lib/utils";
 
-export function HostedSandboxCreate({
-  userId,
-  className,
-}: {
-  userId: string;
-  className?: string;
-}) {
+export function HostedSandboxCreate({ userId }: { userId: string }) {
   const { t } = useI18n();
   const queryClient = useQueryClient();
   const queryKey = queryKeys.hostedSandbox(userId);
@@ -61,12 +54,7 @@ export function HostedSandboxCreate({
   const needsRefresh = status.isError || sandbox?.status === "ready";
 
   return (
-    <section
-      className={cn(
-        "grid min-w-0 gap-3 rounded-lg border border-hairline bg-canvas p-4",
-        className,
-      )}
-    >
+    <section className="grid min-w-0 gap-3 rounded-lg border border-hairline bg-canvas p-4">
       <h2 className="text-lg font-medium">{t("Pax sandbox")}</h2>
       {nodeId ? (
         <>

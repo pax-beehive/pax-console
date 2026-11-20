@@ -84,9 +84,11 @@ export function ConnectionOnboarding({
           </div>
         </>
       )}
+      {(intent === "first-agent" || (intent === "device" && deviceStep)) && (
+        <HostedSandboxCreate userId={userId} />
+      )}
       {deviceStep ? (
         <>
-          {intent === "device" && <HostedSandboxCreate userId={userId} />}
           <DeviceConnectStep
             userId={userId}
             onStart={() => {
