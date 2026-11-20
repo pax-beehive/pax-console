@@ -11,6 +11,36 @@ import {
   startHostedSandbox,
 } from "@/features/api/resources";
 import { useI18n } from "@/features/i18n/use-i18n";
+import type { HostedSandboxStatus } from "@/features/api/types";
+
+function progressMessage(
+  sandbox: HostedSandboxStatus["sandbox"],
+  requesting: boolean,
+) {
+  switch (sandbox?.status) {
+    case "queued":
+      return sandbox.reason_code === "waiting_for_capacity"
+        ? "The sandbox host is full. Waiting for an available slot…"
+        : "Sandbox queued. Waiting for a host…";
+    case "starting":
+      return "Starting sandbox…";
+    default:
+      return requesting ? "Requesting sandbox…" : null;
+  }
+}
+
+function failureMessage(reason?: string) {
+  switch (reason) {
+    case "host_environment_limit":
+      return "The sandbox host has reached its limit for saved sandboxes.";
+    case "container_exited":
+      return "The sandbox stopped before its device connected.";
+    case "node_connection_timeout":
+      return "The sandbox device did not connect in time.";
+    default:
+      return "Could not start the sandbox. Try again.";
+  }
+}
 
 export function HostedSandboxCreate({ userId }: { userId: string }) {
   const { t } = useI18n();
@@ -47,16 +77,30 @@ export function HostedSandboxCreate({ userId }: { userId: string }) {
 
   if (!status.data) return null;
 
-  const pending =
-    start.isPending ||
-    sandbox?.status === "queued" ||
-    sandbox?.status === "starting";
-  const needsRefresh = status.isError || sandbox?.status === "ready";
+  const progress = progressMessage(status.data.sandbox, start.isPending);
+  const failed = sandbox?.status === "failed" || start.isError;
+  const needsRefresh =
+    status.isError || (sandbox?.status === "ready" && !nodeId);
 
   return (
     <section className="grid min-w-0 gap-3 rounded-lg border border-hairline bg-canvas p-4">
       <h2 className="text-lg font-medium">{t("Pax sandbox")}</h2>
-      {nodeId ? (
+      {needsRefresh ? (
+        <>
+          <p role="status" className="text-sm text-warning">
+            {t("Could not confirm sandbox status.")}
+          </p>
+          <div>
+            <Button
+              type="button"
+              disabled={status.isFetching}
+              onClick={() => void status.refetch()}
+            >
+              {t("Refresh sandbox status")}
+            </Button>
+          </div>
+        </>
+      ) : nodeId ? (
         <>
           <p role="status" className="text-sm text-ink-muted">
             {t("Sandbox connected")}
@@ -76,30 +120,15 @@ export function HostedSandboxCreate({ userId }: { userId: string }) {
             </Button>
           </div>
         </>
-      ) : pending && !status.isError ? (
+      ) : progress ? (
         <p role="status" className="text-sm text-ink-muted">
-          {t("Starting sandbox…")}
+          {t(progress)}
         </p>
-      ) : needsRefresh ? (
-        <>
-          <p role="status" className="text-sm text-warning">
-            {t("Could not confirm sandbox status.")}
-          </p>
-          <div>
-            <Button
-              type="button"
-              disabled={status.isFetching}
-              onClick={() => void status.refetch()}
-            >
-              {t("Refresh sandbox status")}
-            </Button>
-          </div>
-        </>
       ) : (
         <>
-          {(start.isError || sandbox?.status === "failed") && (
+          {failed && (
             <p role="alert" className="text-sm text-warning">
-              {t("Could not start the sandbox. Try again.")}
+              {t(failureMessage(sandbox?.reason_code))}
             </p>
           )}
           <div>
@@ -112,10 +141,10 @@ export function HostedSandboxCreate({ userId }: { userId: string }) {
                 start.mutate();
               }}
             >
-              {sandbox?.status === "sleeping"
-                ? t("Start sandbox")
-                : sandbox?.status === "failed" || start.isError
-                  ? t("Try again")
+              {failed
+                ? t("Try again")
+                : sandbox?.status === "sleeping"
+                  ? t("Start sandbox")
                   : t("Create sandbox")}
             </Button>
           </div>

@@ -17,6 +17,7 @@ export type HostedSandboxStatus = {
   sandbox: {
     status: "queued" | "starting" | "ready" | "sleeping" | "failed";
     node_id?: string;
+    reason_code?: string;
   } | null;
 };
 

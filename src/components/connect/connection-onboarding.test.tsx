@@ -26,6 +26,7 @@ let discoveryError: boolean;
 let createError: boolean;
 let hostedSandbox: HostedSandboxStatus | undefined;
 let sandboxStartError: boolean;
+let sandboxReadError: boolean;
 let hostedStarter: HostedStarterStatus | undefined;
 let starterError: boolean;
 let wakeError: boolean;
@@ -79,6 +80,7 @@ beforeEach(() => {
   createError = false;
   hostedSandbox = undefined;
   sandboxStartError = false;
+  sandboxReadError = false;
   hostedStarter = undefined;
   starterError = false;
   wakeError = false;
@@ -99,6 +101,8 @@ beforeEach(() => {
         if (method === "POST") {
           if (sandboxStartError) return Response.json({}, { status: 503 });
           hostedSandbox = { sandbox: { status: "queued" } };
+        } else if (sandboxReadError) {
+          return Response.json({}, { status: 503 });
         }
         data = hostedSandbox;
       } else if (path.endsWith("/starter")) {
@@ -197,13 +201,30 @@ describe("hosted sandbox creation", () => {
   it("queues once, polls for the exact Node, and leaves agent selection to the user", async () => {
     nodes = [mac];
     hostedSandbox = { sandbox: null };
-    const { user } = setup({ intent: "device" });
+    const { client, user } = setup({ intent: "device" });
 
     await user.dblClick(
       await screen.findByRole("button", { name: "Create sandbox" }),
     );
-    expect(await screen.findByText("Starting sandbox…")).toBeVisible();
+    expect(
+      await screen.findByText("Sandbox queued. Waiting for a host…"),
+    ).toBeVisible();
     expect(screen.queryByRole("link", { name: "Add agent" })).toBeNull();
+
+    hostedSandbox = {
+      sandbox: { status: "queued", reason_code: "waiting_for_capacity" },
+    };
+    await refresh(client, queryKeys.hostedSandbox("user"));
+    expect(
+      await screen.findByText(
+        "The sandbox host is full. Waiting for an available slot…",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText("Starting sandbox…")).toBeNull();
+
+    hostedSandbox = { sandbox: { status: "starting" } };
+    await refresh(client, queryKeys.hostedSandbox("user"));
+    expect(await screen.findByText("Starting sandbox…")).toBeVisible();
 
     hostedSandbox = { sandbox: { status: "ready", node_id: "sandbox-node" } };
     expect(
@@ -241,9 +262,53 @@ describe("hosted sandbox creation", () => {
     );
 
     sandboxStartError = false;
-    await user.click(screen.getByRole("button", { name: "Start sandbox" }));
-    expect(await screen.findByText("Starting sandbox…")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(
+      await screen.findByText("Sandbox queued. Waiting for a host…"),
+    ).toBeVisible();
     expect(requests.filter(({ method }) => method === "POST")).toHaveLength(2);
+  });
+
+  it.each([
+    [
+      "host_environment_limit",
+      "The sandbox host has reached its limit for saved sandboxes.",
+    ],
+    ["container_exited", "The sandbox stopped before its device connected."],
+    ["node_connection_timeout", "The sandbox device did not connect in time."],
+    [undefined, "Could not start the sandbox. Try again."],
+    ["unrecognized-host-error", "Could not start the sandbox. Try again."],
+  ])(
+    "shows an actionable error for a failed sandbox (%s)",
+    async (reason, message) => {
+      hostedSandbox = { sandbox: { status: "failed", reason_code: reason } };
+      setup({ intent: "device" });
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(message);
+      expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled();
+      expect(screen.queryByText("unrecognized-host-error")).toBeNull();
+    },
+  );
+
+  it("offers a refresh if a previously ready sandbox cannot be confirmed", async () => {
+    hostedSandbox = { sandbox: { status: "ready", node_id: "sandbox-node" } };
+    const { client, user } = setup({ intent: "device" });
+    expect(await screen.findByText("Sandbox connected")).toBeVisible();
+
+    sandboxReadError = true;
+    await refresh(client, queryKeys.hostedSandbox("user"));
+    expect(
+      await screen.findByText("Could not confirm sandbox status."),
+    ).toBeVisible();
+    expect(screen.queryByRole("link", { name: "Open device" })).toBeNull();
+
+    sandboxReadError = false;
+    await user.click(
+      screen.getByRole("button", { name: "Refresh sandbox status" }),
+    );
+    expect(
+      await screen.findByRole("link", { name: "Open device" }),
+    ).toBeVisible();
   });
 });
 
