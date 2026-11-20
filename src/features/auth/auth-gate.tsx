@@ -2,7 +2,6 @@
 import { useI18n } from "@/features/i18n/use-i18n";
 
 import { ReactNode } from "react";
-import { API_BASE_URL } from "@/features/api/client";
 import { AuthError } from "@/features/api/errors";
 import { User } from "@/features/api/types";
 import { Button } from "@/components/ui/button";
@@ -41,17 +40,11 @@ export function AuthGate({ children }: AuthGateProps) {
           <h1 className="mt-3 text-3xl font-semibold leading-tight">
             {t("Unable to load your account.")}
           </h1>
-          <p className="mt-3 text-sm leading-6 text-ink-muted">
+          <p role="alert" className="mt-3 text-sm leading-6 text-ink-muted">
             {t(
               "PAX could not load your account information. Retry to continue.",
             )}
           </p>
-          <div
-            role="alert"
-            className="mt-5 rounded-lg border border-hairline bg-canvas p-3 font-mono text-xs leading-5 text-ink-subtle"
-          >
-            {formatAccountError(currentUser.error)}
-          </div>
           <Button
             className="mt-5"
             disabled={currentUser.isFetching}
@@ -66,12 +59,4 @@ export function AuthGate({ children }: AuthGateProps) {
   }
 
   return children(currentUser.data);
-}
-
-function formatAccountError(error: Error | null) {
-  if (!error) {
-    return "No user profile returned from /api/v1/user/self/me.";
-  }
-
-  return `${error.name}: ${error.message}; API base: ${API_BASE_URL}`;
 }

@@ -62,6 +62,7 @@ const mocks = vi.hoisted(() => ({
   useAgentPermissionCatalog: vi.fn(),
   useApprovals: vi.fn(),
   useEnvelopes: vi.fn(),
+  useFeature: vi.fn(),
   useNodes: vi.fn(),
   useProject: vi.fn(),
   useProjects: vi.fn(),
@@ -98,6 +99,11 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/components/shell/console-layout", () => ({
   ConsoleLayout: ({ children }: { children: React.ReactNode }) => children,
+}));
+
+vi.mock("@/features/flags", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/features/flags")>()),
+  useFeature: mocks.useFeature,
 }));
 
 vi.mock("@/components/sessions/session-workbench", () => ({
@@ -344,6 +350,7 @@ beforeEach(() => {
     isPending: false,
   });
   mocks.useEnvelopes.mockReturnValue(emptyQueryData("envelopes"));
+  mocks.useFeature.mockReset().mockReturnValue(false);
   mocks.useTeamInvites.mockReturnValue(emptyQueryData("invites"));
 });
 
@@ -2679,5 +2686,67 @@ describe("Given Home uses Chinese", () => {
     expect(
       screen.getByRole("group", { name: "按节点筛选" }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("FleetOverview collaboration requests", () => {
+  it.each([false, true])(
+    "loads invitations and envelopes only when collaboration is enabled (%s)",
+    (enabled) => {
+      mocks.useFeature.mockReturnValue(enabled);
+      const userId = enabled ? "user_1" : undefined;
+
+      renderOverview();
+
+      expect(mocks.useFeature).toHaveBeenCalledWith("collaboration");
+      expect(mocks.useTeamInvites).toHaveBeenLastCalledWith(userId);
+      expect(mocks.useEnvelopes).toHaveBeenLastCalledWith(userId, {
+        direction: "received",
+        status: "pending",
+      });
+    },
+  );
+
+  it("keeps Home usable when the server disables a cached feature", () => {
+    mocks.useFeature.mockReturnValue(true);
+    const error = new ApiError("feature unavailable", 404, {
+      data: { error: "feature_unavailable", feature: "collaboration" },
+    });
+    mocks.useTeamInvites.mockReturnValue({
+      ...emptyQueryData("invites"),
+      error,
+    });
+    mocks.useEnvelopes.mockReturnValue({
+      ...emptyQueryData("envelopes"),
+      error,
+    });
+
+    renderOverview();
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByText(/feature unavailable/i)).not.toBeInTheDocument();
+  });
+
+  it("shows a public message for other request failures during a feature change", () => {
+    mocks.useFeature.mockReturnValue(true);
+    mocks.useEnvelopes.mockReturnValue({
+      ...emptyQueryData("envelopes"),
+      error: new ApiError("feature unavailable", 404, {
+        data: { error: "feature_unavailable", feature: "collaboration" },
+      }),
+    });
+    mocks.useTeamInvites.mockReturnValue({
+      ...emptyQueryData("invites"),
+      error: new ApiError("private invitation lookup details", 404, {}),
+    });
+
+    renderOverview();
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "This is no longer available. Reload the page and try again.",
+    );
+    expect(
+      screen.queryByText(/private invitation lookup details/i),
+    ).not.toBeInTheDocument();
   });
 });

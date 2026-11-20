@@ -41,7 +41,6 @@ import { motion } from "motion/react";
 import {
   Archive,
   ArchiveRestore,
-  AlertCircle,
   ArrowUp,
   Bot,
   Check,
@@ -89,6 +88,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ErrorNotice } from "@/components/ui/error-notice";
 import { TruncatedText } from "@/components/ui/text";
 import {
   Popover,
@@ -131,6 +131,7 @@ import {
 import { compactId } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { canSeeAdminFeatures } from "@/features/auth/admin-view";
+import { useFeature } from "@/features/flags";
 import {
   DEFAULT_SESSION_WORKSPACE,
   isSupportedSessionWorkspace,
@@ -526,11 +527,14 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     [queriedSessions],
   );
   const approvalsQuery = useApprovals(user.user_id);
-  const envelopesQuery = useEnvelopes(user.user_id, {
+  const collaborationUserId = useFeature("collaboration")
+    ? user.user_id
+    : undefined;
+  const envelopesQuery = useEnvelopes(collaborationUserId, {
     direction: "received",
     status: "pending",
   });
-  const invitesQuery = useTeamInvites(user.user_id);
+  const invitesQuery = useTeamInvites(collaborationUserId);
   const showMockInquiries = showAdminFeatures;
 
   const workItems = useMemo(
@@ -676,6 +680,11 @@ export function FleetOverview({ user }: FleetOverviewProps) {
       }
     },
   });
+  const collaborationError = collaborationUserId
+    ? [envelopesQuery.error, invitesQuery.error].find(
+        (error) => error && !isFeatureUnavailable(error),
+      )
+    : undefined;
   const apiError =
     nodesQuery.error ??
     agentsQuery.error ??
@@ -685,9 +694,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     sessionsQuery.error ??
     updateSessionArchived.error ??
     approvalsQuery.error ??
-    envelopesQuery.error ??
-    invitesQuery.error ??
-    null;
+    collaborationError;
   const fleetSetupGuideKind =
     nodes.length === 0 ? "node" : agents.length === 0 ? "agent" : null;
   const mobileDetailOpen = Boolean(
@@ -2506,17 +2513,24 @@ function ContextLine({ label, value }: { label: string; value: string }) {
 }
 
 function ApiState({ error }: { error: Error }) {
-  const { t } = useI18n();
   return (
-    <div className="mx-5 mt-4 flex items-start gap-3 rounded-lg border border-hairline bg-surface-1 p-3 text-sm text-ink-muted">
-      <AlertCircle className="mt-0.5 h-4 w-4 text-warning" />
-      <div>
-        <div className="font-medium text-ink">{t("API request failed")}</div>
-        <div className="mt-1 font-mono text-xs text-ink-tertiary">
-          {error.name}: {error.message}
-        </div>
-      </div>
-    </div>
+    <ErrorNotice
+      className="mx-5 mt-4 rounded-lg border border-hairline bg-surface-1 p-3"
+      error={error}
+    />
+  );
+}
+
+function isFeatureUnavailable(error: unknown): boolean {
+  if (!(error instanceof ApiError) || error.status !== 404) return false;
+  const body = error.body;
+  if (!body || typeof body !== "object" || !("data" in body)) return false;
+  const data = body.data;
+  return Boolean(
+    data &&
+    typeof data === "object" &&
+    "error" in data &&
+    data.error === "feature_unavailable",
   );
 }
 
