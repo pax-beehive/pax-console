@@ -360,31 +360,45 @@ afterEach(() => {
 });
 
 describe("FleetOverview hosted sandbox", () => {
-  it.each([false, true])(
-    "shows sandbox creation on signed-in Home with existing devices %s",
-    async (hasDevices) => {
-      if (!hasDevices) {
-        mocks.useNodes.mockReturnValue({
-          ...emptyQueryData("nodes"),
-          isSuccess: true,
-        });
-        mocks.listAgents.mockResolvedValue({ agents: [] });
-      }
-      mocks.readHostedSandbox.mockResolvedValue({ sandbox: null });
-      renderOverview();
+  function showFirstAgentSetup() {
+    mocks.useNodes.mockReturnValue({
+      ...emptyQueryData("nodes"),
+      isSuccess: true,
+    });
+    mocks.listAgents.mockResolvedValue({ agents: [] });
+  }
 
-      const create = await screen.findByRole("button", {
-        name: "Create sandbox",
-      });
-      expect(create).toBeVisible();
-      expect(screen.getByTestId("home-composer-pane")).not.toContainElement(
-        create,
-      );
-      expect(mocks.startHostedSandbox).not.toHaveBeenCalled();
-    },
-  );
+  it("shows sandbox creation inside the first-agent setup guide", async () => {
+    showFirstAgentSetup();
+    mocks.readHostedSandbox.mockResolvedValue({ sandbox: null });
+    renderOverview();
+
+    const heading = await screen.findByRole("heading", {
+      name: "Connect your first agent",
+    });
+    const guide = within(heading.closest("section")!);
+    expect(
+      await guide.findByRole("button", { name: "Create sandbox" }),
+    ).toBeVisible();
+    expect(
+      guide.getByRole("button", { name: "Quick connect (Recommended)" }),
+    ).toBeVisible();
+    expect(mocks.startHostedSandbox).not.toHaveBeenCalled();
+  });
+
+  it("omits the sandbox banner and status request on an established Home", async () => {
+    mocks.readHostedSandbox.mockResolvedValue({ sandbox: null });
+    renderOverview();
+
+    expect(await screen.findByText("Session one")).toBeVisible();
+    expect(
+      screen.queryByRole("heading", { name: "Pax sandbox" }),
+    ).not.toBeInTheDocument();
+    expect(mocks.readHostedSandbox).not.toHaveBeenCalled();
+  });
 
   it("opens the connected sandbox and leaves agent selection to the user", async () => {
+    showFirstAgentSetup();
     const status = {
       sandbox: { status: "ready", node_id: "sandbox_node" },
     };
@@ -409,13 +423,16 @@ describe("FleetOverview hosted sandbox", () => {
   });
 
   it("omits the sandbox action when the regional API returns 404", async () => {
+    showFirstAgentSetup();
     renderOverview();
 
     await waitFor(() => expect(mocks.readHostedSandbox).toHaveBeenCalled());
     expect(
       screen.queryByRole("heading", { name: "Pax sandbox" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "New session" })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Quick connect (Recommended)" }),
+    ).toBeVisible();
   });
 });
 
