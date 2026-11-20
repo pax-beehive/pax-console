@@ -61,6 +61,7 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { HostedSandboxCreate } from "@/components/connect/hosted-sandbox-create";
 import { PaxdGettingStartedGuide } from "@/components/connect/paxd-getting-started";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import {
@@ -962,6 +963,12 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     <ConsoleLayout user={user}>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-canvas">
         {apiError && <ApiState error={apiError} />}
+        {!activeSessionTarget && (
+          <HostedSandboxCreate
+            className="mx-3 mt-3 shrink-0 sm:mx-5 sm:flex sm:items-center sm:justify-between"
+            userId={user.user_id}
+          />
+        )}
 
         <main className="relative grid min-h-0 flex-1 overflow-hidden lg:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]">
           {mobilePaneOpen && mobileRailOpen && (
