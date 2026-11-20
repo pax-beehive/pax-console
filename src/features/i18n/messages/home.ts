@@ -279,12 +279,21 @@ export const homeMessages: Record<string, string> = {
   "Pax sandbox": "Pax 沙箱",
   "Create sandbox": "创建沙箱",
   "Start sandbox": "启动沙箱",
+  "Requesting sandbox…": "正在提交沙箱启动请求…",
+  "Sandbox queued. Waiting for a host…": "沙箱已排队，正在等待宿主接单…",
+  "The sandbox host is full. Waiting for an available slot…":
+    "沙箱宿主的运行名额已满，空出名额后会自动启动。",
   "Starting sandbox…": "正在启动沙箱…",
   "Sandbox connected": "沙箱已连接",
   "Open device": "打开设备",
   "Could not confirm sandbox status.": "无法确认沙箱状态。",
   "Refresh sandbox status": "刷新沙箱状态",
   "Could not start the sandbox. Try again.": "无法启动沙箱，请重试。",
+  "The sandbox host has reached its limit for saved sandboxes.":
+    "宿主已达到可保留的沙箱数量上限。",
+  "The sandbox stopped before its device connected.":
+    "沙箱在设备连上前退出了。",
+  "The sandbox device did not connect in time.": "沙箱的设备连接超时。",
   "Connect your first agent": "连接你的第一个智能体",
   "Connect a computer, then choose the agent you want to use.":
     "连接一台计算机，然后选择你要使用的智能体。",

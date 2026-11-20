@@ -110,7 +110,9 @@ the authenticated regional Manager serves `/api/v1/sandbox` with a same-origin
 GET. Creating or resuming the sandbox
 requires an explicit click and sends a POST without client-supplied Node or
 Agent IDs. Poll queued and starting requests and use the Node ID in the
-Manager's ready response. The success state links to the device and to Add
+Manager's ready response. Queued requests wait for a host, and a confirmed full
+host shows that it is waiting for a slot. Startup failures display a localized
+reason and a retry action. The success state links to the device and to Add
 agent so the user can choose when to connect a harness.
 
 `settings/settings-catalog.ts` is the one settings directory: six groups,
