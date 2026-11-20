@@ -44,6 +44,7 @@ import {
 import { UserMessageError } from "@/features/api/errors";
 import type { Agent, Node } from "@/features/api/types";
 import {
+  acceptedDaemonCommand,
   activeDeviceCommand,
   deviceCommandNote,
   DeviceCommandKind,
@@ -147,10 +148,13 @@ export function DeviceCard({
         throw new UserMessageError(
           t("This agent's connection was not found on the device."),
         );
-      return restartNodeDaemonAgentConnection(
-        userId,
-        node.node_id,
-        connection.id,
+      return acceptedDaemonCommand(
+        await restartNodeDaemonAgentConnection(
+          userId,
+          node.node_id,
+          connection.id,
+        ),
+        t,
       );
     },
   });

@@ -25,6 +25,7 @@ import {
   useNodeDaemonAgentConnections,
 } from "@/features/api/resources";
 import type { Agent, Node } from "@/features/api/types";
+import { acceptedDaemonCommand } from "@/features/devices/daemon-commands";
 import { nodeLabel } from "./resource-models";
 
 const maxSlots = 16;
@@ -85,13 +86,16 @@ export function AgentSettingsDialog({
           description: nextDescription,
         });
       if (connection && deviceChanged)
-        await updateNodeDaemonAgentConnection(userId, nodeId, connection.id, {
-          desired_slots: slots,
-          harness: connection.harness,
-          name: connection.name,
-          report_local_sessions: sync,
-          working_dir: connection.working_dir,
-        });
+        acceptedDaemonCommand(
+          await updateNodeDaemonAgentConnection(userId, nodeId, connection.id, {
+            desired_slots: slots,
+            harness: connection.harness,
+            name: connection.name,
+            report_local_sessions: sync,
+            working_dir: connection.working_dir,
+          }),
+          t,
+        );
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.user(userId) });

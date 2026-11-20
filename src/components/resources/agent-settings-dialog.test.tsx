@@ -111,6 +111,29 @@ describe("agent settings", () => {
     );
   });
 
+  it("stays open and says so when the change did not reach the device", async () => {
+    api.connections = [connection];
+    api.updateConnection.mockResolvedValueOnce({
+      command_id: "cmd_update",
+      dispatch_error: "node control tunnel disconnected",
+      dispatch_status: "unknown",
+    });
+    const user = userEvent.setup();
+    const onClose = open({ node_id: "node_one", name: "Laptop", online: true });
+
+    await user.click(
+      screen.getByRole("switch", { name: "Sync local sessions" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "PAX could not confirm that the device received this. Check that the device is online, then try again.",
+    );
+    expect(api.updateConnection).toHaveBeenCalledOnce();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+  });
+
   it("leaves the device settings alone while the device is offline", async () => {
     api.connections = [connection];
     const user = userEvent.setup();

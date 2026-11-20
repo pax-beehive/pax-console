@@ -2,7 +2,7 @@
 
 import { useI18n, type Translator } from "@/features/i18n/use-i18n";
 
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import Link from "next/link";
 import { settingsLinks } from "@/components/settings/settings-navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -41,6 +41,7 @@ import {
   NodeDaemonHarness,
 } from "@/features/api/types";
 import { compactId } from "@/lib/format";
+import { acceptedDaemonCommand } from "@/features/devices/daemon-commands";
 import {
   nodeDaemonRuntimeOutcome,
   NodeDaemonRuntimeTarget,
@@ -49,6 +50,11 @@ import {
 type NodeDaemonControlProps = {
   agentId?: string;
   nodeId: string;
+  /**
+   * Called once paxd has removed the connection of `agentId`. PAX deletes an
+   * agent whose connection its device removed, so the agent is gone as well.
+   */
+  onAgentRemoved?: () => void;
   userId: string;
 };
 
@@ -69,6 +75,7 @@ type DiscoverFeedback = {
 export function NodeDaemonControl({
   agentId,
   nodeId,
+  onAgentRemoved,
   userId,
 }: NodeDaemonControlProps) {
   const { t, locale } = useI18n();
@@ -127,6 +134,12 @@ export function NodeDaemonControl({
     });
   }, [lastCommand?.id, nodeId, queryClient, runtimeOutcome, userId]);
 
+  const agentRemoved = Boolean(agentId) && runtimeOutcome === "removed";
+  const notifyAgentRemoved = useEffectEvent(() => onAgentRemoved?.());
+  useEffect(() => {
+    if (agentRemoved) notifyAgentRemoved();
+  }, [agentRemoved]);
+
   const recordCommand = (
     data: NodeDaemonCommandData,
     action: NodeDaemonRuntimeTarget["action"],
@@ -150,15 +163,20 @@ export function NodeDaemonControl({
     });
   };
 
+  // A command that paxd did not take is a failure here, not a pending change.
   const create = useMutation({
-    mutationFn: (input: {
+    mutationFn: async (input: {
       agent_type: string;
       desired_slots: number;
       harness: string;
       instance_id?: string;
       name: string;
       working_dir?: string;
-    }) => createNodeDaemonAgentConnection(userId, nodeId, input),
+    }) =>
+      acceptedDaemonCommand(
+        await createNodeDaemonAgentConnection(userId, nodeId, input),
+        t,
+      ),
     onSuccess: (data) => {
       setCreateOpen(false);
       recordCommand(data, "create");
@@ -184,7 +202,7 @@ export function NodeDaemonControl({
     },
   });
   const update = useMutation({
-    mutationFn: (input: {
+    mutationFn: async (input: {
       connectionId: string;
       desired_slots: number;
       harness: string;
@@ -192,13 +210,21 @@ export function NodeDaemonControl({
       report_local_sessions: boolean;
       working_dir?: string;
     }) =>
-      updateNodeDaemonAgentConnection(userId, nodeId, input.connectionId, {
-        harness: input.harness,
-        name: input.name,
-        report_local_sessions: input.report_local_sessions,
-        working_dir: input.working_dir,
-        desired_slots: input.desired_slots,
-      }),
+      acceptedDaemonCommand(
+        await updateNodeDaemonAgentConnection(
+          userId,
+          nodeId,
+          input.connectionId,
+          {
+            harness: input.harness,
+            name: input.name,
+            report_local_sessions: input.report_local_sessions,
+            working_dir: input.working_dir,
+            desired_slots: input.desired_slots,
+          },
+        ),
+        t,
+      ),
     onSuccess: async (data, input) => {
       setEditing(undefined);
       const connection = connections.find(
@@ -215,13 +241,17 @@ export function NodeDaemonControl({
     },
   });
   const action = useMutation({
-    mutationFn: ({
+    mutationFn: async ({
       connection,
       type,
     }: {
       connection: NodeDaemonAgentConnection;
       type: ConnectionAction;
-    }) => runConnectionAction(type, userId, nodeId, connection.id),
+    }) =>
+      acceptedDaemonCommand(
+        await runConnectionAction(type, userId, nodeId, connection.id),
+        t,
+      ),
     onSuccess: (data, { connection, type }) => {
       setRemoveTarget(undefined);
       recordCommand(
@@ -432,7 +462,10 @@ export function NodeDaemonControl({
               editLabel={agentId ? t("Edit settings") : undefined}
               key={connection.id}
               onEdit={() => setEditing(connection)}
-              onRemove={() => setRemoveTarget(connection)}
+              onRemove={() => {
+                action.reset();
+                setRemoveTarget(connection);
+              }}
               onRestart={() => action.mutate({ connection, type: "restart" })}
               onStart={() => action.mutate({ connection, type: "start" })}
               onStop={() => action.mutate({ connection, type: "stop" })}
@@ -475,10 +508,13 @@ export function NodeDaemonControl({
             <span className="font-medium text-ink">
               {removeTarget?.name ?? removeTarget?.id}
             </span>
-            {t(". The cloud agent record is retained.")}
+            {removeTarget?.cloud_agent_id
+              ? t(". Its agent is removed from PAX as well.")
+              : t(". It is not linked to an agent in PAX.")}
           </>
         }
         disabled={action.isPending}
+        error={action.variables?.type === "remove" ? action.error : undefined}
         onConfirm={() => {
           if (removeTarget) {
             action.mutate({ connection: removeTarget, type: "remove" });

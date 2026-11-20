@@ -170,6 +170,16 @@ My devices（`resources/my-devices-page.tsx`）把设备和智能体合成一页
 服务端原文只给管理员看；只有 400/422 这类“输入被拒绝”的原因会展示给所有人。界面自己写好的
 提示用 `UserMessageError` 抛出，原样显示。撤销 API key 和 Allowed actions 前都要二次确认。
 
+确认后的操作失败时，把错误传给 `ConfirmDialog` 的 `error`：对话框保持打开，并在内部用
+`ErrorNotice` 说明原因。操作成功但页面上只是少了一行时，用 `components/ui/success-notice.tsx`
+的 `SuccessNotice` 说明结果；My devices 删除设备或智能体后显示“已删除 X”，直到开始下一个操作。
+
+Manager 对 paxd 命令一律返回 202，paxd 是否接受只写在响应体里（`dispatch_error`、
+`command_status`）。agent connection 类命令的响应要在 mutation 里经过
+`features/devices/daemon-commands.ts` 的 `acceptedDaemonCommand`：无法确认设备收到，或设备
+拒绝时，它抛出 `UserMessageError`，失败因此和请求失败一样走 `ErrorNotice`。自己跟踪命令记录的
+流程（paxd 重启与升级、harness 升级、连接引导步骤）仍自行读取响应体。
+
 设置页面复用 `SettingsPageHeader`，明确标题、用途与操作范围，手机保留原有标题布局。
 设备/Agent 详情和加密配对旧路径仍保持所属入口高亮。`useDesktopSettings` 只用于通知页
 在桌面和手机之间切换说明文字的布局。
@@ -698,7 +708,8 @@ src/components/
 
 src/components/ui/
   本地 UI primitives。当前包括 Button、Badge、SearchBox、Tooltip、TruncatedText、MonoId、
-  EmptyState、InlineError、SectionTitle、ConfirmDialog、DiscreteSlider。
+  EmptyState、InlineError、ErrorNotice、SuccessNotice、SectionTitle、ConfirmDialog、
+  DiscreteSlider。
   当前只把 Radix Tooltip/Slot 作为底层能力使用，还没有全面引入 shadcn 生成组件。
   DiscreteSlider 负责固定档位、预览与提交事件；功能阶段的文案和语义由管理员配置模块封装。
 
@@ -1342,6 +1353,11 @@ connection 查询包含 disabled 条目，也可能返回软删除历史。列�
 `desired_state: deleted`，删除收敛接受记录消失或进入 deleted 状态，不再等待
 历史行物理删除；旧 runtime phase 不能覆盖删除状态。正常 stopped/disabled 连接
 仍保留在列表中。
+
+Manager 以 paxd 上报的连接为准：连接被移除后，绑定的云端 agent 也会被删除，移除确认框
+会说明这一点（未绑定 agent 的连接则说明 PAX 中没有对应记录）。Agent 详情页通过
+`onAgentRemoved` 在移除收敛后回到 My devices。反过来，删除 agent 时由 Manager 通知
+paxd 移除对应连接，设备离线时在它重新连上后补做。
 
 agent connection 创建和编辑支持 `desired_slots`（范围 1–16），新建默认值为
 `2`；connection 列表展示的是期望 slot 数，不代表当前已 running 的 slot 数。

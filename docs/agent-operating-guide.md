@@ -155,6 +155,21 @@ when the server rejected their input (400/422). Throw `UserMessageError` for a
 message the interface already wrote for the person. Revoking an API key or an
 allowed action asks for confirmation first.
 
+A confirmed action that fails keeps its `ConfirmDialog` open: pass the error as
+`error` and the dialog shows it with `ErrorNotice`. When the only visible result
+of a successful action is a row disappearing, say what happened with
+`SuccessNotice` (`components/ui/success-notice.tsx`); My devices does this after
+deleting a device or an agent, until the next action starts.
+
+Manager answers a paxd command with 202 whether or not paxd took it; the outcome
+is in the body (`dispatch_error`, `command_status`). Pass the response of an
+agent connection command through `acceptedDaemonCommand`
+(`features/devices/daemon-commands.ts`) inside the mutation. It throws a
+`UserMessageError` when the device could not be confirmed to have received the
+command or refused it, so the failure reaches the same `ErrorNotice` as a failed
+request. Flows that track a command record of their own (paxd restart and
+upgrade, harness upgrade, the connect step) read the body themselves.
+
 `SettingsPageHeader` gives each section a title and purpose description.
 Notification controls explain device scope and separate subscription actions
 from completed-reply and approval-request descriptions. Unknown notification
@@ -1925,7 +1940,8 @@ src/components/collaboration/*
 
 src/components/ui/*
   local UI primitives such as Button, Badge, SearchBox, Tooltip, TruncatedText,
-  PaxLogo, EmptyState, InlineError, SectionTitle, ConfirmDialog, DiscreteSlider
+  PaxLogo, EmptyState, InlineError, ErrorNotice, SuccessNotice, SectionTitle,
+  ConfirmDialog, DiscreteSlider
 
 src/features/*
   API, auth, runtime, stateful business boundaries

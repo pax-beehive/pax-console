@@ -1,11 +1,18 @@
 /* @vitest-environment jsdom */
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ApiError } from "@/features/api/errors";
 import type { Agent, Node } from "@/features/api/types";
 import { MyDevicesPage } from "./my-devices-page";
 
@@ -39,6 +46,12 @@ const agents: Agent[] = [
   { agent_id: "a2", agent_type: "codex", node_id: "node_server" },
   { agent_id: "a3", agent_type: "codex", name: "stray" },
 ];
+const named: Agent = {
+  agent_id: "a1",
+  agent_type: "claude-code",
+  name: "cloud-code-pro",
+  node_id: "node_laptop",
+};
 
 function open() {
   render(
@@ -146,6 +159,70 @@ describe("My devices", () => {
     await waitFor(() =>
       expect(api.deleteAgent).toHaveBeenCalledWith("user_1", "a1"),
     );
+  });
+
+  it("says what was deleted, until the next action starts", async () => {
+    api.nodes = [laptop];
+    api.agents = [named];
+    const user = open();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Actions for cloud-code-pro" }),
+    );
+    await user.click(screen.getByRole("menuitem", { name: "Delete agent…" }));
+    await user.click(screen.getByRole("button", { name: "Delete agent" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Deleted cloud-code-pro.",
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Actions for Laptop" }),
+    );
+    await user.click(screen.getByRole("menuitem", { name: "Delete device…" }));
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Delete device" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Deleted Laptop.",
+    );
+  });
+
+  it("keeps the dialog open and explains a delete that failed", async () => {
+    api.nodes = [laptop];
+    api.agents = [named];
+    api.deleteAgent.mockRejectedValueOnce(
+      new ApiError("node control tunnel is not connected", 503, undefined),
+    );
+    const user = open();
+
+    await user.click(
+      screen.getByRole("button", { name: "Actions for cloud-code-pro" }),
+    );
+    await user.click(screen.getByRole("menuitem", { name: "Delete agent…" }));
+    await user.click(screen.getByRole("button", { name: "Delete agent" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Delete agent?" });
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "PAX is having trouble right now. Try again in a moment.",
+    );
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete agent" })).toBeEnabled();
+
+    // Asking again starts clean and can succeed.
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(
+      screen.getByRole("button", { name: "Actions for cloud-code-pro" }),
+    );
+    await user.click(screen.getByRole("menuitem", { name: "Delete agent…" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Delete agent" }));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Deleted cloud-code-pro.",
+    );
+    expect(api.deleteAgent).toHaveBeenCalledTimes(2);
   });
 
   it("opens an agent's settings from its menu", async () => {
