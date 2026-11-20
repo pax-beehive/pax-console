@@ -63,6 +63,10 @@ TanStack Query 缓存中，`queued` 和 `starting` 分开显示并轮询。API �
 
 ### Agent sign-in 与会话认证恢复
 
+「智能体登录与用量」也复用托管沙箱的状态查询与启动请求。已选设备与当前账号的沙箱 `node_id`
+一致时，可在休眠或启动失败后点击「启动沙箱」。页面跟踪排队和启动进度，沙箱就绪时刷新设备列表，
+设备重新在线后即可继续为该设备上的智能体登录。页面可见时每 15 秒检查就绪沙箱是否进入休眠。
+
 `/settings/agent-sign-in` 在 Settings 的 Devices & agents 分组提供设备上原生 agent
 CLI 的登录。Agent 类型选项来自该设备在 PAX 中已注册 agent 的 `agent_type`（`useNodeAgents`，
 即 Manager 记录）去重后的列表，不会列出或探测设备上安装的工具。Agent 类型使用 PAX id，

@@ -12,6 +12,10 @@ import {
   hostedAgentAccess,
   useHostedStarter,
 } from "@/components/connect/hosted-agent-access";
+import {
+  HostedSandboxControls,
+  useHostedSandboxStatus,
+} from "@/components/connect/hosted-sandbox-create";
 import { compactId } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useNodeAgents, useNodes } from "@/features/api/resources";
@@ -65,6 +69,9 @@ export function AgentSignInSettings({
 }: AgentSignInProps) {
   const { t } = useI18n();
   const nodes = useNodes(userId);
+  const sandboxStatus = useHostedSandboxStatus(userId, {
+    readyRefetchInterval: 15_000,
+  });
   // The device named by the link or picked here. Undefined until either.
   const [chosenNodeId, setNodeId] = useState<string | undefined>(
     initialNodeId || undefined,
@@ -79,6 +86,15 @@ export function AgentSignInSettings({
     chosenNodeId ?? (devices.length === 1 ? devices[0].node_id : "");
   const selected = devices.find((node) => node.node_id === nodeId);
   const available = selected && isActiveNode(selected);
+  const sandbox = sandboxStatus.data?.sandbox;
+  const showSandbox =
+    selected &&
+    sandbox?.node_id === nodeId &&
+    (sandbox.status === "sleeping" ||
+      sandbox.status === "failed" ||
+      sandbox.status === "queued" ||
+      sandbox.status === "starting" ||
+      (sandbox.status === "ready" && !available));
   // Agent types come from agents registered in PAX for this device only.
   const agents = useNodeAgents(userId, selected ? nodeId : undefined);
   const agentTypes = agents.data
@@ -240,6 +256,13 @@ export function AgentSignInSettings({
                 "This device is unavailable to your account. Select a device you own.",
               )}
             </p>
+          ) : showSandbox ? (
+            <HostedSandboxControls
+              key={`${userId}:${nodeId}`}
+              userId={userId}
+              status={sandboxStatus}
+              resumeNodeId={nodeId}
+            />
           ) : selected && !available ? (
             <p role="status" className="text-sm text-ink-muted">
               {t(
