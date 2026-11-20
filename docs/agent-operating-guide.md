@@ -64,9 +64,9 @@ queries. Preserve the relative path, query and hash. A tab-scoped 15-second
 redirect guard prevents rapid callback loops; the visible sign-in link remains
 available. Successful bootstrap clears the guard. Outages retain retry controls.
 AuthGate treats current-user HTTP 5xx, timeout, network and empty-profile failures
-as account-loading errors with a Retry action. These failures must not offer
-sign-in as their recovery path or claim that the session expired. Confirmed
-authentication failures still use SignInRedirect before rendering account data.
+as account-loading errors. Show the localized account error and a Retry action.
+Confirmed authentication failures still use SignInRedirect before rendering
+account data. Keep raw server messages and API paths out of the account screen.
 
 Production AuthKit branding is versioned in `branding/workos/`. Build its non-secret
 `updateAppBranding` payload with `node scripts/workos-branding-payload.mjs`; this
@@ -546,8 +546,10 @@ disabled; a refetch error can retain cached flags. Only a 404 response enables
 the legacy `canSeeAdminFeatures` fallback for older Managers.
 
 Collaboration navigation on desktop and mobile uses `collaboration`; its route
-wrapper also checks `FeatureRoute` before mounting page queries. Session
-Knowledge capsules/injections uses `knowledge_capsules`. Browser and Android
+wrapper also checks `FeatureRoute` before mounting page queries. Home polls
+received envelopes and team invites only when collaboration is enabled and
+silently handles a feature denial from a stale flag.
+Session Knowledge capsules/injections uses `knowledge_capsules`. Browser and Android
 control are in development: the session Browser panel, the browser approval
 requests above the conversation, the device runtime Browser section and
 `/nodes/[id]/browser` use `browser_control`; the session Android panel and the

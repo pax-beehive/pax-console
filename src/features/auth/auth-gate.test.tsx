@@ -52,6 +52,7 @@ describe("account access failures", () => {
   it.each([
     ["HTTP 500", new ApiError("Internal service error", 500, null)],
     ["HTTP 503", new ApiError("Region temporarily unavailable", 503, null)],
+    ["HTTP 404", new ApiError("feature unavailable", 404, null)],
     ["timeout", new DOMException("Request timed out", "TimeoutError")],
     ["network failure", new TypeError("Failed to fetch")],
   ])(
@@ -64,7 +65,11 @@ describe("account access failures", () => {
           name: "Unable to load your account.",
         }),
       ).toBeInTheDocument();
-      expect(screen.getByRole("alert")).toHaveTextContent(error.message);
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "PAX could not load your account information. Retry to continue.",
+      );
+      expect(screen.queryByText(error.message, { exact: false })).toBeNull();
+      expect(screen.queryByText(/API base:/i)).toBeNull();
       expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
       expect(
         screen.queryByRole("link", { name: /sign in/i }),
@@ -125,8 +130,9 @@ describe("account access failures", () => {
       await screen.findByRole("button", { name: "Retry" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "No user profile returned",
+      "PAX could not load your account information. Retry to continue.",
     );
+    expect(screen.queryByText(/\/api\/v1\/user\/self\/me/)).toBeNull();
     expect(
       screen.queryByText("Redirecting to sign in"),
     ).not.toBeInTheDocument();

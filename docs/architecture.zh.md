@@ -262,10 +262,10 @@ Worker 使用 getNotifications/close 精确关闭匹配 tag，在 IndexedDB 中�
 保留相对路径、查询串和 hash，登录前不挂载账号请求。sessionStorage 中仅存储跳转时间戳，
 15 秒内避免自动重复跳转；手动登录链接始终可用。区域初始化成功后清除该标记。
 区域服务故障仍保留错误信息和重试按钮。
-AuthGate also shows account-loading errors with Retry for current-user HTTP 5xx,
-timeouts, network failures and missing profiles. These failures do not imply an
-expired session and do not offer sign-in as recovery. Confirmed authentication
-failures still use SignInRedirect before account data is rendered.
+AuthGate 遇到账户查询失败或缺少账户资料时，显示本地化提示和「重试」按钮。
+底层错误文案和 API 路径留给诊断。确认认证失败时才由 SignInRedirect 发起登录跳转。
+首页按当前账号的协作权限轮询收到的信封和团队邀请。权限缓存过期时，首页会静默处理
+这两项可选请求的功能拒绝。
 
 AuthKit 生产品牌源文件位于 `branding/workos/`，通过
 `node scripts/workos-branding-payload.mjs` 构建无密钥的 updateAppBranding JSON，
