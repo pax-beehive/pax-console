@@ -1624,7 +1624,9 @@ describe("FleetOverview session rail", () => {
     );
     await openPath();
     expect(screen.getByRole("textbox", { name: "Workspace" })).toHaveValue("");
-    expect(screen.getByRole("button", { name: "Start session" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Start session" }),
+    ).toBeEnabled();
     await userEvent.type(
       screen.getByRole("textbox", { name: "Workspace" }),
       "~/new-project",
@@ -1720,7 +1722,9 @@ describe("FleetOverview session rail", () => {
     expect(
       screen.getByRole("button", { name: "Choose workspace" }),
     ).toHaveTextContent("/tmp");
-    expect(screen.getByRole("button", { name: "Start session" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Start session" }),
+    ).toBeEnabled();
     await userEvent.click(screen.getByRole("button", { name: "Second agent" }));
     await userEvent.click(screen.getByRole("button", { name: "Pi agent" }));
     expect(
@@ -1780,7 +1784,9 @@ describe("FleetOverview session rail", () => {
       await screen.findByRole("combobox", { name: "Project" }),
       "project_1",
     );
-    expect(screen.getByRole("button", { name: "Start session" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Start session" }),
+    ).toBeEnabled();
     await userEvent.click(
       screen.getByRole("button", { name: "Choose workspace" }),
     );
