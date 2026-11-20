@@ -110,7 +110,7 @@ export async function readHostedStarter(
   }
 }
 
-export function activateHostedPi(nodeId: string, agentId: string) {
+export function activateHostedAgent(nodeId: string, agentId: string) {
   return apiFetch<HostedStarterStatus>("/api/v1/starter/wake", {
     method: "POST",
     body: JSON.stringify({ node_id: nodeId, agent_id: agentId }),

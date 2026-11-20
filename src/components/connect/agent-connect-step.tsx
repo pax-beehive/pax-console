@@ -24,7 +24,11 @@ import type {
   NodeDaemonCommandData,
 } from "@/features/api/types";
 import { CommandBlock } from "./command-block";
-import { HostedPiAccess, useHostedStarter } from "./hosted-pi-access";
+import {
+  HostedAgentAccess,
+  hostedAgentAccess,
+  useHostedStarter,
+} from "./hosted-agent-access";
 
 const recipes: Record<
   string,
@@ -65,12 +69,11 @@ export function AgentConnectStep({
   const starterStatus = useHostedStarter(
     userId,
     node.node_id,
-    online && piSelected,
+    online && (piSelected || target) ? selected : undefined,
   );
-  const enrolledPi =
-    piSelected &&
-    starterStatus.data?.enrolled_node === true &&
-    starterStatus.data.starter?.node_id === node.node_id;
+  const enrolledPi = Boolean(
+    piSelected && hostedAgentAccess(starterStatus.data, node.node_id, "pi"),
+  );
   // Only one daemon query may be in flight for a node. Discovery runs first;
   // connection polling starts after creation and discovery stays disabled.
   const inventory = useQuery({
@@ -545,24 +548,28 @@ export function AgentConnectStep({
               <Link href="/settings/devices">{t("Manage connections")}</Link>
             </Button>
           </div>
-          {ready && agentId && current?.harness === "pi" && (
-            <>
-              <HostedPiAccess
-                key={agentId}
-                userId={userId}
-                nodeId={node.node_id}
-                agentId={agentId}
-                status={starterStatus}
-              />
-              {enrolledPi && (
-                <p className="text-sm text-ink-muted">
-                  {t(
-                    "To use your own provider, run pi in the sandbox terminal, then use /login or configure an API key.",
-                  )}
-                </p>
-              )}
-            </>
-          )}
+          {ready &&
+            agentId &&
+            current &&
+            current.harness === current.agent_type && (
+              <>
+                <HostedAgentAccess
+                  key={agentId}
+                  userId={userId}
+                  nodeId={node.node_id}
+                  agentId={agentId}
+                  harness={current.harness}
+                  status={starterStatus}
+                />
+                {enrolledPi && (
+                  <p className="text-sm text-ink-muted">
+                    {t(
+                      "To use your own provider, run pi in the sandbox terminal, then use /login or configure an API key.",
+                    )}
+                  </p>
+                )}
+              </>
+            )}
         </div>
       )}
     </section>

@@ -111,15 +111,22 @@ beforeEach(() => {
         if (!hostedStarter)
           return Response.json({ message: "Unavailable" }, { status: 404 });
         data = hostedStarter;
-      } else if (path.endsWith("/starter/wake") && hostedStarter?.starter) {
+      } else if (path.endsWith("/starter/wake") && hostedStarter) {
         if (wakeError)
           return Response.json({ message: "Unavailable" }, { status: 503 });
-        hostedStarter.starter.state = "queued";
-        hostedStarter.starter.agent_id = String(body?.agent_id);
-        data = {
-          ...hostedStarter,
-          starter: { ...hostedStarter.starter, state: "ready" },
-        };
+        const awsAccess = hostedStarter.sandbox_model_access;
+        if (awsAccess && awsAccess.node_id === body?.node_id) {
+          awsAccess.state = "queued";
+          awsAccess.agent_id = String(body?.agent_id);
+          data = hostedStarter;
+        } else if (hostedStarter.starter) {
+          hostedStarter.starter.state = "queued";
+          hostedStarter.starter.agent_id = String(body?.agent_id);
+          data = {
+            ...hostedStarter,
+            starter: { ...hostedStarter.starter, state: "ready" },
+          };
+        } else return Response.json({}, { status: 404 });
       } else if (path.endsWith("/nodes")) {
         data = { nodes };
       } else if (path.endsWith("/harnesses/discover")) {
@@ -667,6 +674,56 @@ describe("agent connection", () => {
       ),
     ).toHaveLength(1);
   });
+});
+
+it("offers AWS sandbox quota during Codex onboarding after the Agent is connected", async () => {
+  nodes = [mac];
+  hostedStarter = {
+    enabled: true,
+    sandbox_model_access: {
+      node_id: "mac",
+      harnesses: ["codex"],
+      state: "available",
+    },
+  };
+  const { user, client } = setup();
+  await user.click(await screen.findByRole("button", { name: "Codex" }));
+  const connect = await screen.findByRole("button", { name: "Connect Codex" });
+  await waitFor(() => expect(connect).toBeEnabled());
+  await user.click(connect);
+  expect(await screen.findByText("Connecting Codex…")).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Use Pax free quota" }),
+  ).not.toBeInTheDocument();
+
+  connection!.status!.observed_generation = 2;
+  await refresh(client, queryKeys.nodeDaemonAgentConnections("user", "mac"));
+  expect(
+    await screen.findByRole("link", { name: "Start a conversation" }),
+  ).toBeVisible();
+  const quota = await screen.findByRole("button", {
+    name: "Use Pax free quota",
+  });
+  expect(
+    requests.filter(({ path }) => path.endsWith("/starter/wake")),
+  ).toHaveLength(0);
+  await user.click(quota);
+  expect(
+    await screen.findByText("Setting up free model access…"),
+  ).toBeVisible();
+  expect(requests.filter(({ path }) => path.endsWith("/starter/wake"))).toEqual(
+    [
+      {
+        path: "/api/pax/api/v1/starter/wake",
+        method: "POST",
+        body: { node_id: "mac", agent_id: "agent" },
+      },
+    ],
+  );
+
+  hostedStarter.sandbox_model_access!.state = "ready";
+  await refresh(client, queryKeys.hostedStarter("user"));
+  expect(await screen.findByText("Pax free quota is ready.")).toBeVisible();
 });
 
 describe("free model access for enrolled Pi", () => {

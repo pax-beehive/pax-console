@@ -1,10 +1,19 @@
 /* @vitest-environment jsdom */
 import "@testing-library/jest-dom/vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, cleanup, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ApiError } from "@/features/api/errors";
+import { queryKeys } from "@/features/api/query-keys";
+import type { HostedStarterStatus } from "@/features/api/types";
 import { useLocaleStore } from "@/features/i18n/locale-store";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import {
@@ -20,7 +29,7 @@ const mocks = vi.hoisted(() => ({
   useNodeAgents: vi.fn(),
   useAgents: vi.fn(),
   readHostedStarter: vi.fn(),
-  activateHostedPi: vi.fn(),
+  activateHostedAgent: vi.fn(),
 }));
 vi.mock("@/features/api/resources", () => mocks);
 
@@ -66,7 +75,7 @@ beforeEach(() => {
   // sign-in beyond the selected card.
   mocks.useAgents.mockReturnValue({ data: { agents: [] } });
   mocks.readHostedStarter.mockResolvedValue({ enabled: false });
-  mocks.activateHostedPi.mockReset();
+  mocks.activateHostedAgent.mockReset();
 });
 
 /** Every device answers; only the listed device/agent pairs are signed out. */
@@ -103,7 +112,7 @@ function mount(props: Partial<Parameters<typeof AgentSignInSettings>[0]> = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Infinity } },
   });
-  return render(
+  const view = render(
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AgentSignInSettings
@@ -114,6 +123,7 @@ function mount(props: Partial<Parameters<typeof AgentSignInSettings>[0]> = {}) {
       </TooltipProvider>
     </QueryClientProvider>,
   );
+  return { ...view, queryClient };
 }
 
 it("preselects exactly the linked device and checks without starting a login", async () => {
@@ -172,7 +182,7 @@ it("opens Pax quota for the selected sandbox Pi only after an explicit click", a
     ]),
   );
   mocks.readHostedStarter.mockResolvedValue(enrolledPi);
-  mocks.activateHostedPi.mockImplementation(async () => {
+  mocks.activateHostedAgent.mockImplementation(async () => {
     const ready = {
       ...enrolledPi,
       starter: {
@@ -191,11 +201,11 @@ it("opens Pax quota for the selected sandbox Pi only after an explicit click", a
   });
   expect(screen.getByText(/\/login/)).toBeInTheDocument();
   expect(mocks.getNodeHarnessAuth).not.toHaveBeenCalled();
-  expect(mocks.activateHostedPi).not.toHaveBeenCalled();
+  expect(mocks.activateHostedAgent).not.toHaveBeenCalled();
 
   await user.click(useQuota);
 
-  expect(mocks.activateHostedPi).toHaveBeenCalledExactlyOnceWith(
+  expect(mocks.activateHostedAgent).toHaveBeenCalledExactlyOnceWith(
     "node-one",
     sandboxPi.agent_id,
   );
@@ -211,7 +221,7 @@ it("opens Pax quota for the selected sandbox Pi only after an explicit click", a
   expect(
     screen.queryByText("Pax free quota is ready."),
   ).not.toBeInTheDocument();
-  expect(mocks.activateHostedPi).toHaveBeenCalledTimes(1);
+  expect(mocks.activateHostedAgent).toHaveBeenCalledTimes(1);
 });
 
 it("does not offer Pax quota on a device without confirmed sandbox enrollment", async () => {
@@ -228,7 +238,7 @@ it("does not offer Pax quota on a device without confirmed sandbox enrollment", 
   expect(
     screen.queryByRole("button", { name: "Use Pax free quota" }),
   ).not.toBeInTheDocument();
-  expect(mocks.activateHostedPi).not.toHaveBeenCalled();
+  expect(mocks.activateHostedAgent).not.toHaveBeenCalled();
 });
 
 it("does not offer Pax quota when the selected sandbox is offline", async () => {
@@ -245,7 +255,7 @@ it("does not offer Pax quota when the selected sandbox is offline", async () => 
   expect(
     screen.queryByRole("button", { name: "Use Pax free quota" }),
   ).not.toBeInTheDocument();
-  expect(mocks.activateHostedPi).not.toHaveBeenCalled();
+  expect(mocks.activateHostedAgent).not.toHaveBeenCalled();
 });
 
 it("requires choosing the Pi when the sandbox has more than one without an active lease", async () => {
@@ -253,7 +263,7 @@ it("requires choosing the Pi when the sandbox has more than one without an activ
   const secondPi = { ...sandboxPi, agent_id: "second-pi", name: "Second Pi" };
   mocks.useNodeAgents.mockReturnValue(agentsQuery([sandboxPi, secondPi]));
   mocks.readHostedStarter.mockResolvedValue(enrolledPi);
-  mocks.activateHostedPi.mockResolvedValue(enrolledPi);
+  mocks.activateHostedAgent.mockResolvedValue(enrolledPi);
 
   mount({ initialHarness: "pi" });
 
@@ -263,14 +273,204 @@ it("requires choosing the Pi when the sandbox has more than one without an activ
     screen.queryByRole("button", { name: "Use Pax free quota" }),
   ).not.toBeInTheDocument();
   await user.selectOptions(agent, secondPi.agent_id);
-  expect(mocks.activateHostedPi).not.toHaveBeenCalled();
+  expect(mocks.activateHostedAgent).not.toHaveBeenCalled();
 
   await user.click(screen.getByRole("button", { name: "Use Pax free quota" }));
 
-  expect(mocks.activateHostedPi).toHaveBeenCalledExactlyOnceWith(
+  expect(mocks.activateHostedAgent).toHaveBeenCalledExactlyOnceWith(
     "node-one",
     secondPi.agent_id,
   );
+});
+
+const awsModelAccess = {
+  enabled: true,
+  pool_available: true,
+  user_budget_available: true,
+  sandbox_model_access: {
+    node_id: "node-one",
+    harnesses: ["pi", "codex", "claude-code", "dscode"],
+    state: "available",
+  },
+} satisfies HostedStarterStatus;
+
+it.each(["codex", "claude-code", "dscode"])(
+  "offers Pax quota to a Manager-approved AWS sandbox %s while preserving native sign-in",
+  async (harness) => {
+    const user = userEvent.setup();
+    const agentId = `sandbox-${harness}`;
+    mocks.useNodeAgents.mockReturnValue(
+      agentsQuery([
+        { agent_id: agentId, node_id: "node-one", agent_type: harness },
+      ]),
+    );
+    mocks.readHostedStarter.mockResolvedValue(awsModelAccess);
+    mocks.getNodeHarnessAuth.mockResolvedValue({
+      harness_auth: { harness, state: "logged_out", logged_in: false },
+    });
+    const queued = {
+      ...awsModelAccess,
+      sandbox_model_access: {
+        ...awsModelAccess.sandbox_model_access,
+        agent_id: agentId,
+        state: "queued",
+      },
+    };
+    mocks.activateHostedAgent.mockImplementation(async () => {
+      mocks.readHostedStarter.mockResolvedValue(queued);
+      return queued;
+    });
+    const { queryClient } = mount({ initialHarness: harness });
+    const useQuota = await screen.findByRole("button", {
+      name: "Use Pax free quota",
+    });
+    if (harness === "codex" || harness === "claude-code") {
+      expect(await screen.findByLabelText("Sign-in method")).toBeEnabled();
+    }
+    expect(mocks.activateHostedAgent).not.toHaveBeenCalled();
+    await user.dblClick(useQuota);
+    expect(
+      await screen.findByText("Setting up free model access…"),
+    ).toBeVisible();
+    expect(mocks.activateHostedAgent).toHaveBeenCalledExactlyOnceWith(
+      "node-one",
+      agentId,
+    );
+    expect(mocks.loginNodeHarness).not.toHaveBeenCalled();
+
+    mocks.readHostedStarter.mockResolvedValue({
+      ...queued,
+      sandbox_model_access: { ...queued.sandbox_model_access, state: "ready" },
+    });
+    await act(async () => {
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.hostedStarter("self"),
+      });
+    });
+    expect(await screen.findByText("Pax free quota is ready.")).toBeVisible();
+  },
+);
+
+it("binds the AWS lease to the exact selected agent instead of another agent using the same harness", async () => {
+  const user = userEvent.setup();
+  const agent = { ...sandboxPi, agent_type: "codex", name: "First Codex" };
+  const second = { ...agent, agent_id: "second", name: "Second Codex" };
+  mocks.useNodeAgents.mockReturnValue(agentsQuery([agent, second]));
+  mocks.readHostedStarter.mockResolvedValue({
+    ...awsModelAccess,
+    sandbox_model_access: {
+      ...awsModelAccess.sandbox_model_access,
+      state: "ready",
+      agent_id: second.agent_id,
+    },
+  });
+
+  mount({ initialHarness: "codex" });
+
+  const picker = await screen.findByLabelText("Codex agent");
+  expect(picker).toHaveValue(second.agent_id);
+  expect(screen.getByText("Pax free quota is ready.")).toBeVisible();
+  await user.selectOptions(picker, agent.agent_id);
+  expect(
+    screen.getByText(
+      "Free model access is assigned to another agent in this sandbox.",
+    ),
+  ).toBeVisible();
+  expect(
+    screen.queryByText("Pax free quota is ready."),
+  ).not.toBeInTheDocument();
+  expect(mocks.activateHostedAgent).not.toHaveBeenCalled();
+});
+
+it("allows two AWS agents on the same sandbox to activate quota independently", async () => {
+  const user = userEvent.setup();
+  const first = { ...sandboxPi, agent_type: "codex", name: "First Codex" };
+  const second = { ...first, agent_id: "second", name: "Second Codex" };
+  mocks.useNodeAgents.mockReturnValue(agentsQuery([first, second]));
+  const result: HostedStarterStatus = {
+    ...awsModelAccess,
+    sandbox_model_access: {
+      ...awsModelAccess.sandbox_model_access,
+      agents: [],
+    },
+  };
+  mocks.readHostedStarter.mockImplementation(async () =>
+    structuredClone(result),
+  );
+  mocks.activateHostedAgent.mockImplementation(async (_nodeId, agentId) => {
+    result.sandbox_model_access!.agents!.push({
+      agent_id: agentId,
+      state: agentId === first.agent_id ? "ready" : "queued",
+    });
+    return structuredClone(result);
+  });
+
+  const { queryClient } = mount({ initialHarness: "codex" });
+  const picker = await screen.findByLabelText("Codex agent");
+  await user.selectOptions(picker, first.agent_id);
+  await user.click(
+    await screen.findByRole("button", { name: "Use Pax free quota" }),
+  );
+  expect(await screen.findByText("Pax free quota is ready.")).toBeVisible();
+
+  await user.selectOptions(picker, second.agent_id);
+  await user.click(
+    await screen.findByRole("button", { name: "Use Pax free quota" }),
+  );
+  expect(
+    await screen.findByText("Setting up free model access…"),
+  ).toBeVisible();
+  expect(mocks.activateHostedAgent.mock.calls).toEqual([
+    ["node-one", first.agent_id],
+    ["node-one", second.agent_id],
+  ]);
+
+  await user.selectOptions(picker, first.agent_id);
+  expect(screen.getByText("Pax free quota is ready.")).toBeVisible();
+  await user.selectOptions(picker, second.agent_id);
+  expect(screen.getByText("Setting up free model access…")).toBeVisible();
+
+  result.sandbox_model_access!.agents![1].state = "ready";
+  await act(async () => {
+    await queryClient.invalidateQueries({
+      queryKey: queryKeys.hostedStarter("self"),
+    });
+  });
+  expect(await screen.findByText("Pax free quota is ready.")).toBeVisible();
+});
+
+it.each([
+  { node_id: "node-two" },
+  { harnesses: ["pi"] },
+  { harnesses: ["codex", 42] },
+  { state: "unknown" },
+  { state: "ready" },
+  { agents: [{ agent_id: "node-one-codex", state: "unknown" }] },
+  {
+    agents: [
+      { agent_id: "node-one-codex", state: "ready" },
+      { agent_id: "node-one-codex", state: "failed" },
+    ],
+  },
+])("does not offer AWS quota for unverified eligibility %o", async (fields) => {
+  const status = {
+    ...awsModelAccess,
+    sandbox_model_access: { ...awsModelAccess.sandbox_model_access, ...fields },
+  };
+  mocks.readHostedStarter.mockResolvedValue(status);
+  const { queryClient } = mount({ initialHarness: "codex" });
+  await waitFor(() => {
+    expect(queryClient.getQueryData(queryKeys.hostedStarter("self"))).toEqual(
+      status,
+    );
+  });
+  expect(
+    screen.queryByRole("button", { name: "Use Pax free quota" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByText("Pax free quota is ready."),
+  ).not.toBeInTheDocument();
+  expect(mocks.activateHostedAgent).not.toHaveBeenCalled();
 });
 
 it.each(["subscription", "console"])(

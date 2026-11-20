@@ -220,7 +220,7 @@ export const consoleMessages: Record<string, string> = {
   "No accounts match these filters.": "没有符合筛选条件的账户。",
   "No agents are registered on this device. Add an agent to it in PAX before signing in.":
     "此设备尚未注册智能体，请先在 PAX 中添加智能体再登录。",
-  "Pi agent": "Pi 智能体",
+  "{agent} agent": "{agent} 智能体",
   "To use your own provider, run pi on this device, then use /login or configure an API key.":
     "要使用自己的模型服务，请在此设备上运行 pi，再输入 /login 或配置 API Key。",
   "No agents available.": "没有可用的智能体。",

@@ -8,9 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MonoId, TruncatedText } from "@/components/ui/text";
 import {
-  HostedPiAccess,
+  HostedAgentAccess,
+  hostedAgentAccess,
   useHostedStarter,
-} from "@/components/connect/hosted-pi-access";
+} from "@/components/connect/hosted-agent-access";
 import { compactId } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useNodeAgents, useNodes } from "@/features/api/resources";
@@ -21,6 +22,7 @@ import type {
   LoginHarness,
 } from "@/features/api/types";
 import {
+  isActiveAgent,
   isActiveNode,
   isDeviceNode,
   nodeLabel,
@@ -36,7 +38,11 @@ import {
 } from "./agent-sign-in-flow";
 import { methodOptions } from "./agent-sign-in-methods";
 import { HarnessUsagePanel } from "./agent-usage";
-import { agentTypeLabel, registeredAgentTypes } from "./agent-types";
+import {
+  agentTypeLabel,
+  normalizeAgentType,
+  registeredAgentTypes,
+} from "./agent-types";
 import { useAgentsNeedingSignIn } from "./agents-needing-sign-in";
 
 const fieldClass =
@@ -259,21 +265,25 @@ export function AgentSignInSettings({
                 "No agents are registered on this device. Add an agent to it in PAX before signing in.",
               )}
             </p>
-          ) : available && harness === "pi" ? (
-            <PiSignIn
-              key={`${userId}:${nodeId}`}
-              userId={userId}
-              nodeId={nodeId}
-              agents={agents.data?.agents ?? []}
-            />
           ) : available && harness ? (
-            <HarnessSignIn
-              key={`${userId}:${nodeId}:${harness}`}
-              userId={userId}
-              nodeId={nodeId}
-              harness={harness}
-              onSignedIn={markSignedIn}
-            />
+            <div className="grid gap-4" key={`${userId}:${nodeId}:${harness}`}>
+              <HostedAgentSignIn
+                userId={userId}
+                nodeId={nodeId}
+                harness={harness}
+                agents={agents.data?.agents ?? []}
+              />
+              {harness === "pi" ? (
+                <PiSignIn />
+              ) : (
+                <HarnessSignIn
+                  userId={userId}
+                  nodeId={nodeId}
+                  harness={harness}
+                  onSignedIn={markSignedIn}
+                />
+              )}
+            </div>
           ) : (
             <p className="text-sm text-ink-tertiary">
               {t("Choose a device to check its sign-in status.")}
@@ -285,38 +295,8 @@ export function AgentSignInSettings({
   );
 }
 
-function PiSignIn({
-  userId,
-  nodeId,
-  agents,
-}: {
-  userId: string;
-  nodeId: string;
-  agents: Agent[];
-}) {
+function PiSignIn() {
   const { t } = useI18n();
-  const [chosenAgent, setChosenAgent] = useState("");
-  const piAgents = agents.filter(
-    (agent) =>
-      agent.node_id === nodeId && agent.agent_id && agent.agent_type === "pi",
-  );
-  const status = useHostedStarter(userId, nodeId, piAgents.length > 0);
-  const starter = status.data?.starter;
-  const enrolled =
-    piAgents.length > 0 &&
-    status.data?.enrolled_node === true &&
-    starter?.node_id === nodeId;
-  const activeLease =
-    starter?.state === "queued" ||
-    starter?.state === "starting" ||
-    starter?.state === "ready";
-  const agent =
-    piAgents.find((agent) => agent.agent_id === chosenAgent) ??
-    (piAgents.length === 1
-      ? piAgents[0]
-      : piAgents.find(
-          (agent) => activeLease && agent.agent_id === starter?.agent_id,
-        ));
 
   return (
     <section className={cardClass} aria-label="Pi">
@@ -326,9 +306,63 @@ function PiSignIn({
           "To use your own provider, run pi on this device, then use /login or configure an API key.",
         )}
       </p>
-      {enrolled && piAgents.length > 1 && (
+    </section>
+  );
+}
+
+function HostedAgentSignIn({
+  userId,
+  nodeId,
+  harness,
+  agents,
+}: {
+  userId: string;
+  nodeId: string;
+  harness: string;
+  agents: Agent[];
+}) {
+  const { t } = useI18n();
+  const [chosenAgent, setChosenAgent] = useState("");
+  const registeredAgents = agents.filter(
+    (agent) =>
+      agent.node_id === nodeId &&
+      agent.agent_id &&
+      normalizeAgentType(agent.agent_type) === harness,
+  );
+  const status = useHostedStarter(
+    userId,
+    nodeId,
+    registeredAgents.length > 0 ? harness : undefined,
+  );
+  const access = hostedAgentAccess(status.data, nodeId, harness);
+  if (!access) return null;
+
+  const activating = access.state === "queued" || access.state === "starting";
+  const activeLease = activating || access.state === "ready";
+  const eligibleAgents = registeredAgents.filter((agent) => {
+    const agentState = access.agentStates?.get(agent.agent_id);
+    return (
+      isActiveAgent(agent) ||
+      agentState === "queued" ||
+      agentState === "starting" ||
+      (activating && agent.agent_id === access.agentId)
+    );
+  });
+  if (eligibleAgents.length === 0) return null;
+
+  const agent = chosenAgent
+    ? eligibleAgents.find((agent) => agent.agent_id === chosenAgent)
+    : eligibleAgents.length === 1
+      ? eligibleAgents[0]
+      : eligibleAgents.find(
+          (agent) => activeLease && agent.agent_id === access.agentId,
+        );
+
+  return (
+    <div className={cardClass}>
+      {(eligibleAgents.length > 1 || !agent) && (
         <label className="grid min-w-0 gap-2 text-sm text-ink-muted">
-          {t("Pi agent")}
+          {t("{agent} agent", { agent: agentTypeLabel(harness) })}
           <select
             className={fieldClass}
             value={agent?.agent_id ?? ""}
@@ -337,7 +371,7 @@ function PiSignIn({
             <option value="" disabled>
               {t("Select an agent")}
             </option>
-            {piAgents.map((agent) => (
+            {eligibleAgents.map((agent) => (
               <option key={agent.agent_id} value={agent.agent_id}>
                 {agent.name ?? compactId(agent.agent_id)}
               </option>
@@ -345,18 +379,19 @@ function PiSignIn({
           </select>
         </label>
       )}
-      {enrolled && agent && (
+      {agent && (
         <div className="justify-self-start">
-          <HostedPiAccess
+          <HostedAgentAccess
             key={agent.agent_id}
             userId={userId}
             nodeId={nodeId}
             agentId={agent.agent_id}
+            harness={harness}
             status={status}
           />
         </div>
       )}
-    </section>
+    </div>
   );
 }
 
