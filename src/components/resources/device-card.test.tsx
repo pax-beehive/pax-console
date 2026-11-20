@@ -311,6 +311,26 @@ it("restarts an agent through its connection on the device", async () => {
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 });
 
+it("says so when the restart did not reach the device", async () => {
+  const fetch = api.fetch.getMockImplementation()!;
+  api.fetch.mockImplementation(async (path: string, init?: RequestInit) =>
+    path.endsWith("/restart")
+      ? {
+          command_id: "cmd_restart",
+          dispatch_error: "node control tunnel disconnected",
+          dispatch_status: "unknown",
+        }
+      : fetch(path, init),
+  );
+  renderCard(device());
+  await openMenu("reviewer");
+  await userEvent.click(screen.getByRole("menuitem", { name: "Restart" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "PAX could not confirm that the device received this. Check that the device is online, then try again.",
+  );
+});
+
 it("says so when the device no longer has the agent's connection", async () => {
   renderCard(device());
   await openMenu("Codex");

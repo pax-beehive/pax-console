@@ -5,6 +5,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { AlertCircle } from "lucide-react";
 import { ReactNode } from "react";
 import { Button } from "./button";
+import { ErrorNotice } from "./error-notice";
 
 type ConfirmDialogProps = {
   cancelLabel?: string;
@@ -13,6 +14,8 @@ type ConfirmDialogProps = {
   confirmDisabled?: boolean;
   description: ReactNode;
   disabled?: boolean;
+  /** Why the confirmed action failed. Shown in the dialog, which stays open. */
+  error?: unknown;
   onConfirm: () => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
@@ -26,6 +29,7 @@ export function ConfirmDialog({
   confirmDisabled,
   description,
   disabled,
+  error,
   onConfirm,
   onOpenChange,
   open,
@@ -51,6 +55,7 @@ export function ConfirmDialog({
                   {description}
                 </div>
               </Dialog.Description>
+              {Boolean(error) && <ErrorNotice className="mt-3" error={error} />}
             </div>
           </div>
           <div className="flex justify-end gap-2 border-t border-hairline pt-3">

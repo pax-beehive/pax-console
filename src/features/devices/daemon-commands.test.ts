@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { UserMessageError } from "@/features/api/errors";
 import type { DaemonCommandRecord, Node } from "@/features/api/types";
+import { createTranslator } from "@/features/i18n/translate";
 import {
+  acceptedDaemonCommand,
   daemonCommandSnapshot,
   daemonCommandSteps,
   deviceCommandNote,
@@ -262,5 +265,67 @@ describe("deviceCommandNote", () => {
       ),
     ).toBeUndefined();
     expect(deviceCommandNote({ node_id: "node_1" })).toBeUndefined();
+  });
+});
+
+describe("acceptedDaemonCommand", () => {
+  const t = createTranslator("en");
+
+  it("returns the response of a command the device took", () => {
+    for (const response of [
+      { command_id: "cmd_1" },
+      { command_id: "cmd_1", command_status: "received" },
+      { command_id: "cmd_1", command_status: "applied", connection_id: "c1" },
+    ]) {
+      expect(acceptedDaemonCommand(response, t)).toBe(response);
+    }
+  });
+
+  it("fails a command that Manager could not confirm reached the device", () => {
+    const run = () =>
+      acceptedDaemonCommand(
+        {
+          command_id: "cmd_1",
+          dispatch_error: "node control tunnel disconnected",
+          dispatch_status: "unknown",
+        },
+        t,
+      );
+    expect(run).toThrow(UserMessageError);
+    expect(run).toThrow(
+      "PAX could not confirm that the device received this. Check that the device is online, then try again.",
+    );
+  });
+
+  it("fails a command the device refused, with its reason when it gave one", () => {
+    expect(() =>
+      acceptedDaemonCommand(
+        {
+          command_ack: {
+            error: { code: "conflict", message: " name already exists " },
+          },
+          command_id: "cmd_1",
+          command_status: "rejected",
+        },
+        t,
+      ),
+    ).toThrow("The device did not accept this: name already exists");
+    for (const command_ack of [undefined, {}, { error: "nope" }]) {
+      expect(() =>
+        acceptedDaemonCommand(
+          { command_ack, command_id: "cmd_1", command_status: "failed" },
+          t,
+        ),
+      ).toThrow("The device did not accept this.");
+    }
+  });
+
+  it("words the failure in the chosen language", () => {
+    expect(() =>
+      acceptedDaemonCommand(
+        { command_id: "cmd_1", dispatch_error: "timeout" },
+        createTranslator("zh-CN"),
+      ),
+    ).toThrow("PAX 无法确认设备已收到这次操作。请确认设备在线后重试。");
   });
 });

@@ -283,6 +283,12 @@ export function AgentDetailPageClient({
             agentId={agentId}
             key={`${activeNodeId}:${agentId}`}
             nodeId={activeNodeId}
+            onAgentRemoved={() => {
+              void queryClient.invalidateQueries({
+                queryKey: queryKeys.user(user.user_id),
+              });
+              router.push("/settings/devices?view=agents");
+            }}
             userId={user.user_id}
           />
         )}

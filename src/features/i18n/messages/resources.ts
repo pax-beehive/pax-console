@@ -471,7 +471,9 @@ export const resourcesMessages: Record<string, string> = {
   "{value1} {value2} {value3} verified": "{value1} {value2} {value3} 已验证",
   "· generation": "· 配置代次",
   " · last discover {time}": " · 上次发现 {time}",
-  ". The cloud agent record is retained.": "。云端智能体记录会保留。",
+  ". Its agent is removed from PAX as well.":
+    "。对应的智能体也会从 PAX 中移除。",
+  ". It is not linked to an agent in PAX.": "。它没有关联 PAX 中的智能体。",
   "Agent runtime node is not loaded yet. Sessions and profile edits will appear once the agent detail is available.":
     "智能体的运行节点尚未加载。智能体详情可用后，将显示会话和资料编辑功能。",
   "Agent runtime node is not loaded.": "智能体运行节点尚未加载。",
@@ -693,6 +695,11 @@ export const resourcesMessages: Record<string, string> = {
   "from PAX, together with the agents that run on it.":
     "，它上面运行的智能体也会一并从 PAX 中移除。",
   "Delete device?": "删除设备？",
+  "Deleted {name}.": "已删除 {name}。",
+  "PAX could not confirm that the device received this. Check that the device is online, then try again.":
+    "PAX 无法确认设备已收到这次操作。请确认设备在线后重试。",
+  "The device did not accept this: {reason}": "设备拒绝了这次操作：{reason}",
+  "The device did not accept this.": "设备拒绝了这次操作。",
   "from PAX. Other agents on the same device are not affected.":
     "，同一台设备上的其他智能体不受影响。",
   "Rename device": "重命名设备",

@@ -26,6 +26,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorNotice } from "@/components/ui/error-notice";
 import { Input } from "@/components/ui/form-controls";
+import { SuccessNotice } from "@/components/ui/success-notice";
 import { queryKeys } from "@/features/api/query-keys";
 import {
   deleteAgent,
@@ -61,6 +62,7 @@ export function MyDevicesPage({ user }: { user: User }) {
   const nodesQuery = useNodes(userId);
   const agentsQuery = useAgents(userId, "owned");
   const [pending, setPending] = useState<Pending>();
+  const [deletedName, setDeletedName] = useState<string>();
   const close = () => setPending(undefined);
 
   const { devices, agentsByDevice, otherAgents } = useMemo(() => {
@@ -87,26 +89,31 @@ export function MyDevicesPage({ user }: { user: User }) {
     return { devices, agentsByDevice, otherAgents };
   }, [agentsQuery.data, nodesQuery.data]);
 
-  const refresh = () => {
+  // A deleted row just disappears, so say what was deleted.
+  const deleted = (name: string) => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.user(userId) });
+    setDeletedName(name);
     close();
   };
   const removeDevice = useMutation({
     mutationFn: (node: Node) => deleteNode(userId, node.node_id),
-    onSuccess: refresh,
+    onSuccess: (_result, node) => deleted(nodeLabel(node)),
   });
   const removeAgent = useMutation({
     mutationFn: (agent: Agent) => deleteAgent(userId, agent.agent_id),
-    onSuccess: refresh,
+    onSuccess: (_result, agent) => deleted(agentLabel(agent)),
   });
-  const error =
-    nodesQuery.error ??
-    agentsQuery.error ??
-    removeDevice.error ??
-    removeAgent.error;
+  // Starting something new retires the outcome of the previous action.
+  const begin = (next: Pending) => {
+    setDeletedName(undefined);
+    removeDevice.reset();
+    removeAgent.reset();
+    setPending(next);
+  };
+  const error = nodesQuery.error ?? agentsQuery.error;
   const rowActions = {
-    onDelete: (agent: Agent) => setPending({ kind: "delete-agent", agent }),
-    onSettings: (agent: Agent) => setPending({ kind: "agent-settings", agent }),
+    onDelete: (agent: Agent) => begin({ kind: "delete-agent", agent }),
+    onSettings: (agent: Agent) => begin({ kind: "agent-settings", agent }),
   };
 
   return (
@@ -134,6 +141,9 @@ export function MyDevicesPage({ user }: { user: User }) {
         <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-5 lg:px-8 lg:py-6">
           <div className="mx-auto grid w-full max-w-5xl gap-4">
             <ErrorNotice error={error} />
+            <SuccessNotice>
+              {deletedName && t("Deleted {name}.", { name: deletedName })}
+            </SuccessNotice>
             {nodesQuery.isLoading ? (
               <EmptyState label={t("Loading devices")} />
             ) : devices.length === 0 && otherAgents.length === 0 ? (
@@ -162,9 +172,9 @@ export function MyDevicesPage({ user }: { user: User }) {
                   onAgentSettings={rowActions.onSettings}
                   onDeleteAgent={rowActions.onDelete}
                   onDeleteDevice={(node) =>
-                    setPending({ kind: "delete-device", node })
+                    begin({ kind: "delete-device", node })
                   }
-                  onRename={(node) => setPending({ kind: "rename", node })}
+                  onRename={(node) => begin({ kind: "rename", node })}
                   userId={userId}
                 />
               ))
@@ -226,6 +236,7 @@ export function MyDevicesPage({ user }: { user: User }) {
           </>
         }
         disabled={removeDevice.isPending}
+        error={removeDevice.error}
         onConfirm={() => {
           if (pending?.kind === "delete-device")
             removeDevice.mutate(pending.node);
@@ -250,6 +261,7 @@ export function MyDevicesPage({ user }: { user: User }) {
           </>
         }
         disabled={removeAgent.isPending}
+        error={removeAgent.error}
         onConfirm={() => {
           if (pending?.kind === "delete-agent")
             removeAgent.mutate(pending.agent);

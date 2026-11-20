@@ -1,10 +1,13 @@
+import { UserMessageError } from "@/features/api/errors";
 import type {
   DaemonCommandRecord,
   DaemonCommandState,
   Node,
+  NodeDaemonCommandData,
   NodeDaemonQueryResult,
   PaxlObservation,
 } from "@/features/api/types";
+import type { Translator } from "@/features/i18n/translate";
 
 /** Maintenance commands the device list and dialogs track. */
 export type DeviceCommandKind =
@@ -290,6 +293,44 @@ export function versionsEqual(a?: string, b?: string) {
   const normalize = (version: string) =>
     version.trim().toLowerCase().replace(/^v/, "");
   return normalize(a) === normalize(b);
+}
+
+/**
+ * Manager answers 202 whether or not paxd took a command, so the outcome is
+ * only in the response body. Returns the response when the device accepted the
+ * command; otherwise throws what to tell the person, so callers that only
+ * handle failed requests handle these as well.
+ */
+export function acceptedDaemonCommand<T extends NodeDaemonCommandData>(
+  response: T,
+  t: Translator,
+): T {
+  if (response.dispatch_error) {
+    throw new UserMessageError(
+      t(
+        "PAX could not confirm that the device received this. Check that the device is online, then try again.",
+      ),
+    );
+  }
+  if (
+    response.command_status === "rejected" ||
+    response.command_status === "failed"
+  ) {
+    const ackError = response.command_ack?.error;
+    const reason =
+      ackError &&
+      typeof ackError === "object" &&
+      "message" in ackError &&
+      typeof ackError.message === "string"
+        ? ackError.message.trim()
+        : "";
+    throw new UserMessageError(
+      reason
+        ? t("The device did not accept this: {reason}", { reason })
+        : t("The device did not accept this."),
+    );
+  }
+  return response;
 }
 
 /** The in-progress record of a kind, used to resume its dialog. */
