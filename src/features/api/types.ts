@@ -1,10 +1,16 @@
 export type ApiRecord = Record<string, unknown>;
 
+export type SandboxModelAccessAgent = {
+  agent_id: string;
+  state: "queued" | "starting" | "ready" | "failed";
+};
+
 export type SandboxModelAccess = {
   node_id: string;
   harnesses: string[];
-  state: "available" | "queued" | "starting" | "ready" | "failed";
+  state: "available" | SandboxModelAccessAgent["state"];
   agent_id?: string;
+  agents?: SandboxModelAccessAgent[];
 };
 
 export type HostedStarterStatus = {

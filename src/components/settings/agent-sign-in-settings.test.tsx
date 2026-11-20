@@ -382,12 +382,76 @@ it("binds the AWS lease to the exact selected agent instead of another agent usi
   expect(mocks.activateHostedAgent).not.toHaveBeenCalled();
 });
 
+it("allows two AWS agents on the same sandbox to activate quota independently", async () => {
+  const user = userEvent.setup();
+  const first = { ...sandboxPi, agent_type: "codex", name: "First Codex" };
+  const second = { ...first, agent_id: "second", name: "Second Codex" };
+  mocks.useNodeAgents.mockReturnValue(agentsQuery([first, second]));
+  const result: HostedStarterStatus = {
+    ...awsModelAccess,
+    sandbox_model_access: {
+      ...awsModelAccess.sandbox_model_access,
+      agents: [],
+    },
+  };
+  mocks.readHostedStarter.mockImplementation(async () =>
+    structuredClone(result),
+  );
+  mocks.activateHostedAgent.mockImplementation(async (_nodeId, agentId) => {
+    result.sandbox_model_access!.agents!.push({
+      agent_id: agentId,
+      state: agentId === first.agent_id ? "ready" : "queued",
+    });
+    return structuredClone(result);
+  });
+
+  const { queryClient } = mount({ initialHarness: "codex" });
+  const picker = await screen.findByLabelText("Codex agent");
+  await user.selectOptions(picker, first.agent_id);
+  await user.click(
+    await screen.findByRole("button", { name: "Use Pax free quota" }),
+  );
+  expect(await screen.findByText("Pax free quota is ready.")).toBeVisible();
+
+  await user.selectOptions(picker, second.agent_id);
+  await user.click(
+    await screen.findByRole("button", { name: "Use Pax free quota" }),
+  );
+  expect(
+    await screen.findByText("Setting up free model access…"),
+  ).toBeVisible();
+  expect(mocks.activateHostedAgent.mock.calls).toEqual([
+    ["node-one", first.agent_id],
+    ["node-one", second.agent_id],
+  ]);
+
+  await user.selectOptions(picker, first.agent_id);
+  expect(screen.getByText("Pax free quota is ready.")).toBeVisible();
+  await user.selectOptions(picker, second.agent_id);
+  expect(screen.getByText("Setting up free model access…")).toBeVisible();
+
+  result.sandbox_model_access!.agents![1].state = "ready";
+  await act(async () => {
+    await queryClient.invalidateQueries({
+      queryKey: queryKeys.hostedStarter("self"),
+    });
+  });
+  expect(await screen.findByText("Pax free quota is ready.")).toBeVisible();
+});
+
 it.each([
   { node_id: "node-two" },
   { harnesses: ["pi"] },
   { harnesses: ["codex", 42] },
   { state: "unknown" },
   { state: "ready" },
+  { agents: [{ agent_id: "node-one-codex", state: "unknown" }] },
+  {
+    agents: [
+      { agent_id: "node-one-codex", state: "ready" },
+      { agent_id: "node-one-codex", state: "failed" },
+    ],
+  },
 ])("does not offer AWS quota for unverified eligibility %o", async (fields) => {
   const status = {
     ...awsModelAccess,

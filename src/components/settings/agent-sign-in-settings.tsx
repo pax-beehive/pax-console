@@ -339,10 +339,15 @@ function HostedAgentSignIn({
 
   const activating = access.state === "queued" || access.state === "starting";
   const activeLease = activating || access.state === "ready";
-  const eligibleAgents = registeredAgents.filter(
-    (agent) =>
-      isActiveAgent(agent) || (activating && agent.agent_id === access.agentId),
-  );
+  const eligibleAgents = registeredAgents.filter((agent) => {
+    const agentState = access.agentStates?.get(agent.agent_id);
+    return (
+      isActiveAgent(agent) ||
+      agentState === "queued" ||
+      agentState === "starting" ||
+      (activating && agent.agent_id === access.agentId)
+    );
+  });
   if (eligibleAgents.length === 0) return null;
 
   const agent = chosenAgent

@@ -86,7 +86,8 @@ access_token），需要粘贴 key/token 时先展开输入框，否则直接开
 「智能体登录与用量」和 Agent 连接引导共用免费额度控件。通过同源 `GET /api/v1/starter`
 读取区域 Manager 返回的 `sandbox_model_access`。仅当 Node 匹配、当前 harness 在允许列表中，
 且所选 Agent 已连接时提供「使用 Pax 免费额度」。旧 Manager 的 `enrolled_node` 和 `starter`
-仍支持已登记沙箱的 Pi。多个同类 Agent 时可选择租约目标，点击后才用
+仍支持已登记沙箱的 Pi。`sandbox_model_access.agents` 分别报告各 Agent 的状态，同一账户的
+Agent 共用额度上限。多个同类 Agent 时可选择租约目标，点击后才用
 `POST /api/v1/starter/wake` 提交 `node_id` 和 `agent_id`。TanStack Query 按用户缓存并刷新状态，
 直到 Manager 确认所选 Agent 已就绪。个人服务商登录独立保留，模型凭证由托管运行时持有。
 

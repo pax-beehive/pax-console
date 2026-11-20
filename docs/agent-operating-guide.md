@@ -2699,8 +2699,9 @@ Onboarding shows the conversation link when the matching ACP connection is
 running and reports its Agent ID. The authenticated regional Manager supplies
 quota eligibility through same-origin `GET /api/v1/starter`. The optional
 `sandbox_model_access` identifies the hosted Node, approved harnesses and lease
-state. Managers that return the legacy `enrolled_node` and `starter` fields
-continue to support Pi on the enrolled Node.
+state. Its `agents` list reports each activation independently while quota
+limits apply to the account. A response with the older single `agent_id` and
+state remains supported, as do Pi-only `enrolled_node` and `starter` responses.
 
 Click **Use Pax free quota** to send the selected `node_id` and `agent_id` to
 `POST /api/v1/starter/wake`. The Console confirms readiness through GET for that

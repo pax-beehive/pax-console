@@ -11,22 +11,29 @@ import {
 import type {
   HostedStarterStatus,
   SandboxModelAccess,
+  SandboxModelAccessAgent,
 } from "@/features/api/types";
 import { useI18n } from "@/features/i18n/use-i18n";
 
-const accessStates = new Set<SandboxModelAccess["state"]>([
-  "available",
+const leaseStates = new Set<SandboxModelAccessAgent["state"]>([
   "queued",
   "starting",
   "ready",
   "failed",
 ]);
 
+type HostedAgentEligibility = {
+  state: SandboxModelAccess["state"];
+  agentId?: string;
+  accessPaused: boolean;
+  agentStates?: Map<string, SandboxModelAccessAgent["state"]>;
+};
+
 export function hostedAgentAccess(
   status: HostedStarterStatus | undefined,
   nodeId: string,
   harness: string,
-) {
+): HostedAgentEligibility | undefined {
   const sandbox = status?.sandbox_model_access;
   const starter = status?.starter;
   if (sandbox?.node_id === nodeId) {
@@ -34,7 +41,7 @@ export function hostedAgentAccess(
       !Array.isArray(sandbox.harnesses) ||
       sandbox.harnesses.some((name) => typeof name !== "string") ||
       !sandbox.harnesses.includes(harness) ||
-      !accessStates.has(sandbox.state) ||
+      (sandbox.state !== "available" && !leaseStates.has(sandbox.state)) ||
       (sandbox.agent_id !== undefined &&
         (typeof sandbox.agent_id !== "string" || !sandbox.agent_id)) ||
       ((sandbox.state === "queued" ||
@@ -44,10 +51,33 @@ export function hostedAgentAccess(
     ) {
       return undefined;
     }
+    let agentStates: HostedAgentEligibility["agentStates"];
+    if (sandbox.agents !== undefined) {
+      if (
+        !Array.isArray(sandbox.agents) ||
+        sandbox.state !== "available" ||
+        sandbox.agent_id !== undefined
+      ) {
+        return undefined;
+      }
+      agentStates = new Map();
+      for (const agent of sandbox.agents) {
+        if (
+          typeof agent?.agent_id !== "string" ||
+          !agent.agent_id ||
+          !leaseStates.has(agent.state) ||
+          agentStates.has(agent.agent_id)
+        ) {
+          return undefined;
+        }
+        agentStates.set(agent.agent_id, agent.state);
+      }
+    }
     return {
       state: sandbox.state,
       agentId: sandbox.agent_id,
       accessPaused: starter?.access_paused === true,
+      agentStates,
     };
   }
   if (
@@ -58,8 +88,7 @@ export function hostedAgentAccess(
     return undefined;
   }
   return {
-    state:
-      starter.state === "sleeping" ? ("available" as const) : starter.state,
+    state: starter.state === "sleeping" ? "available" : starter.state,
     agentId: starter.agent_id,
     accessPaused: starter.access_paused === true,
   };
@@ -146,11 +175,13 @@ export function HostedAgentAccess({
       </p>
     );
   }
-  const isStarting = access.state === "queued" || access.state === "starting";
+  const state = access.agentStates?.get(agentId) ?? access.state;
+  const assignedAgent = access.agentStates ? agentId : access.agentId;
+  const isStarting = state === "queued" || state === "starting";
   if (
-    access.agentId &&
-    access.agentId !== agentId &&
-    (isStarting || access.state === "ready")
+    assignedAgent &&
+    assignedAgent !== agentId &&
+    (isStarting || state === "ready")
   ) {
     return (
       <p role="status" className="text-sm text-ink-muted">
@@ -165,7 +196,7 @@ export function HostedAgentAccess({
       </p>
     );
   }
-  if (access.state === "ready" && access.agentId === agentId) {
+  if (state === "ready" && assignedAgent === agentId) {
     return (
       <p role="status" className="text-sm text-ink-muted">
         {t("Pax free quota is ready.")}
@@ -173,7 +204,7 @@ export function HostedAgentAccess({
     );
   }
 
-  const failed = activate.isError || access.state === "failed";
+  const failed = activate.isError || state === "failed";
   return (
     <div className="space-y-2">
       {failed && (
@@ -183,8 +214,7 @@ export function HostedAgentAccess({
       )}
       <Button
         disabled={
-          status.isFetching ||
-          (access.state !== "available" && access.state !== "failed")
+          status.isFetching || (state !== "available" && state !== "failed")
         }
         onClick={() => {
           if (activationLock.current) return;
