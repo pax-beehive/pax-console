@@ -22,6 +22,7 @@ import type {
   TurnSearchAccess,
 } from "@/features/api/types";
 import { ApiError, AuthError } from "@/features/api/errors";
+import { useLocaleStore } from "@/features/i18n/locale-store";
 import { mergeEvents } from "@/features/runtime/merge-session-events";
 import { normalizeTunnelFrame } from "@/features/runtime/normalize-tunnel-frame";
 import type { SessionEvent } from "@/features/runtime/session-events";
@@ -241,6 +242,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  useLocaleStore.setState({ locale: "en" });
   queryClient.clear();
   vi.clearAllMocks();
   vi.unstubAllGlobals();
@@ -359,30 +361,48 @@ describe("sandbox model access in a session", () => {
     ).toBeNull();
   });
 
-  it("shows a safe reason when an existing managed grant expired", async () => {
-    fixtures.agentType = "codex";
-    fixtures.readHostedStarter.mockResolvedValue({
-      ...access,
-      sandbox_model_access: {
-        ...access.sandbox_model_access,
-        agents: [
-          {
-            agent_id: "agent_1",
-            state: "failed",
-            reason_code: "lease_expired",
-          },
-        ],
-      },
-    });
-    render(workbench());
-    const retry = await screen.findByRole("button", {
-      name: "Retry free model setup",
-    });
-    expect(retry).toBeEnabled();
-    expect(
-      screen.getByText("Free model access expired. Set it up again."),
-    ).toBeVisible();
-  });
+  it.each([
+    [
+      "lease_expired",
+      "Free model access expired. Set it up again.",
+      "免费模型访问已过期，请重新开通。",
+    ],
+    [
+      "acp_probe_timeout",
+      "The agent took too long to start a free model session.",
+      "智能体启动免费模型会话超时。",
+    ],
+    [
+      "acp_session_failed",
+      "The agent could not start a free model session.",
+      "智能体未能启动免费模型会话。",
+    ],
+  ])(
+    "localizes model setup failure %s and offers a retry",
+    async (reason, english, chinese) => {
+      fixtures.agentType = "codex";
+      fixtures.readHostedStarter.mockResolvedValue({
+        ...access,
+        sandbox_model_access: {
+          ...access.sandbox_model_access,
+          agents: [
+            { agent_id: "agent_1", state: "failed", reason_code: reason },
+          ],
+        },
+      });
+      render(workbench());
+      expect(await screen.findByText(english)).toBeVisible();
+      expect(
+        screen.getByRole("button", { name: "Retry free model setup" }),
+      ).toBeEnabled();
+
+      act(() => useLocaleStore.setState({ locale: "zh-CN" }));
+      expect(screen.getByText(chinese)).toBeVisible();
+      expect(
+        screen.getByRole("button", { name: "重试开通免费模型" }),
+      ).toBeEnabled();
+    },
+  );
 });
 
 it("shows the active observer's session error next to the composer", () => {

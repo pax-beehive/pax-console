@@ -24,6 +24,10 @@ const leaseStates = new Set<SandboxModelAccessAgent["state"]>([
 
 function setupErrorMessage(reason?: string) {
   switch (reason) {
+    case "acp_probe_timeout":
+      return "The agent took too long to start a free model session.";
+    case "acp_session_failed":
+      return "The agent could not start a free model session.";
     case "lease_expired":
       return "Free model access expired. Set it up again.";
     case "lease_ended":

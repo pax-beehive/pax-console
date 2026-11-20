@@ -262,6 +262,10 @@ export const homeMessages: Record<string, string> = {
     "此沙箱的免费模型访问已分配给另一个智能体。",
   "Setting up free model access…": "正在开通免费模型访问…",
   "Couldn’t enable free model access.": "无法开通免费模型访问。",
+  "The agent took too long to start a free model session.":
+    "智能体启动免费模型会话超时。",
+  "The agent could not start a free model session.":
+    "智能体未能启动免费模型会话。",
   "Free model access expired. Set it up again.":
     "免费模型访问已过期，请重新开通。",
   "Free model access ended. Set it up again.":
