@@ -46,6 +46,7 @@ import {
   HarnessUsageData,
   LoginHarness,
   HistoryMessage,
+  HostedSandboxStatus,
   KnowledgeCapsule,
   MailboxMessage,
   Node,
@@ -78,6 +79,24 @@ import {
   UserAPIKey,
   CreatedNodeDaemonAgentConnection,
 } from "./types";
+
+export async function readHostedSandbox(
+  signal?: AbortSignal,
+): Promise<HostedSandboxStatus | null> {
+  try {
+    return await apiFetch<HostedSandboxStatus>("/api/v1/sandbox", {
+      cache: "no-store",
+      signal,
+    });
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+export function startHostedSandbox() {
+  return apiFetch<HostedSandboxStatus>("/api/v1/sandbox", { method: "POST" });
+}
 
 export async function readHostedStarter(
   signal?: AbortSignal,

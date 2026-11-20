@@ -13,6 +13,13 @@ export type HostedStarterStatus = {
   } | null;
 };
 
+export type HostedSandboxStatus = {
+  sandbox: {
+    status: "queued" | "starting" | "ready" | "sleeping" | "failed";
+    node_id?: string;
+  } | null;
+};
+
 export type User = {
   user_id: string;
   email?: string;

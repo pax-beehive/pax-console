@@ -276,6 +276,15 @@ export const homeMessages: Record<string, string> = {
   "Copy is unavailable. Select the command and copy it manually.":
     "无法复制。请选中命令并手动复制。",
   "Connect a device": "连接设备",
+  "Pax sandbox": "Pax 沙箱",
+  "Create sandbox": "创建沙箱",
+  "Start sandbox": "启动沙箱",
+  "Starting sandbox…": "正在启动沙箱…",
+  "Sandbox connected": "沙箱已连接",
+  "Open device": "打开设备",
+  "Could not confirm sandbox status.": "无法确认沙箱状态。",
+  "Refresh sandbox status": "刷新沙箱状态",
+  "Could not start the sandbox. Try again.": "无法启动沙箱，请重试。",
   "Connect your first agent": "连接你的第一个智能体",
   "Connect a computer, then choose the agent you want to use.":
     "连接一台计算机，然后选择你要使用的智能体。",

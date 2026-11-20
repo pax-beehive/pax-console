@@ -51,6 +51,14 @@ added to the preauthorization editor.
 
 ## Settings 设置工作区
 
+### 一键创建托管沙箱
+
+`/settings/devices/add` 上的创建入口通过同源 `/api/pax/api/v1/sandbox` 请求区域
+Manager。GET 返回 404 时隐藏入口，返回 `{ "sandbox": null }` 时允许创建。用户点击后
+发送无参数 POST，由 Manager 按当前账号排队、恢复并绑定 Node。状态保存在按用户区分的
+TanStack Query 缓存中，`queued` 和 `starting` 时轮询。只有 `ready` 带确切的 `node_id`
+时显示成功，刷新设备列表，并提供打开该设备或稍后添加 Agent 的链接。
+
 ### Agent sign-in 与会话认证恢复
 
 `/settings/agent-sign-in` 在 Settings 的 Devices & agents 分组提供设备上原生 agent
