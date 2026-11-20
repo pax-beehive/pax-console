@@ -54,6 +54,8 @@ const mocks = vi.hoisted(() => ({
   loadRootKey: vi.fn(),
   listAgents: vi.fn(),
   listUserSessions: vi.fn(),
+  readHostedSandbox: vi.fn(),
+  startHostedSandbox: vi.fn(),
   updateAgentSession: vi.fn(),
   routerPush: vi.fn(),
   uploadUserAttachmentFile: vi.fn(),
@@ -182,6 +184,8 @@ vi.mock("@/features/api/resources", async (importOriginal) => {
     createUserAttachment: mocks.createUserAttachment,
     listAgents: mocks.listAgents,
     listUserSessions: mocks.listUserSessions,
+    readHostedSandbox: mocks.readHostedSandbox,
+    startHostedSandbox: mocks.startHostedSandbox,
     updateAgentSession: mocks.updateAgentSession,
     uploadUserAttachmentFile: mocks.uploadUserAttachmentFile,
     useAgentPermissionCatalog: mocks.useAgentPermissionCatalog,
@@ -205,6 +209,8 @@ beforeEach(() => {
   mocks.createProjectTarget.mockReset();
   mocks.createUserAttachment.mockReset();
   mocks.routerPush.mockReset();
+  mocks.readHostedSandbox.mockReset().mockResolvedValue(null);
+  mocks.startHostedSandbox.mockReset();
   mocks.retrySession.mockReset();
   mocks.useUserSession.mockReset().mockReturnValue({
     data: undefined,
@@ -344,6 +350,66 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   useLocaleStore.setState({ locale: "en" });
+});
+
+describe("FleetOverview hosted sandbox", () => {
+  it.each([false, true])(
+    "shows sandbox creation on signed-in Home with existing devices %s",
+    async (hasDevices) => {
+      if (!hasDevices) {
+        mocks.useNodes.mockReturnValue({
+          ...emptyQueryData("nodes"),
+          isSuccess: true,
+        });
+        mocks.listAgents.mockResolvedValue({ agents: [] });
+      }
+      mocks.readHostedSandbox.mockResolvedValue({ sandbox: null });
+      renderOverview();
+
+      const create = await screen.findByRole("button", {
+        name: "Create sandbox",
+      });
+      expect(create).toBeVisible();
+      expect(screen.getByTestId("home-composer-pane")).not.toContainElement(
+        create,
+      );
+      expect(mocks.startHostedSandbox).not.toHaveBeenCalled();
+    },
+  );
+
+  it("opens the connected sandbox and leaves agent selection to the user", async () => {
+    const status = {
+      sandbox: { status: "ready", node_id: "sandbox_node" },
+    };
+    mocks.readHostedSandbox.mockResolvedValueOnce({ sandbox: null });
+    mocks.readHostedSandbox.mockResolvedValue(status);
+    mocks.startHostedSandbox.mockResolvedValue(status);
+    renderOverview();
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Create sandbox" }),
+    );
+    expect(await screen.findByText("Sandbox connected")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Open device" })).toHaveAttribute(
+      "href",
+      "/nodes/sandbox_node",
+    );
+    expect(screen.getByRole("link", { name: "Add agent" })).toHaveAttribute(
+      "href",
+      "/settings/devices/agents/add?nodeId=sandbox_node",
+    );
+    expect(mocks.startHostedSandbox).toHaveBeenCalledTimes(1);
+  });
+
+  it("omits the sandbox action when the regional API returns 404", async () => {
+    renderOverview();
+
+    await waitFor(() => expect(mocks.readHostedSandbox).toHaveBeenCalled());
+    expect(
+      screen.queryByRole("heading", { name: "Pax sandbox" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "New session" })).toBeVisible();
+  });
 });
 
 describe("FleetOverview session rail", () => {

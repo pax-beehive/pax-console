@@ -104,13 +104,14 @@ Homebrew and npx wrappers remain unsupported.
 
 ## Settings workspace
 
-Devices → Add device offers **Create sandbox** when the authenticated regional
-Manager serves `/api/v1/sandbox`. The page checks availability and status with
-a same-origin GET. Creating or resuming the sandbox requires an explicit click
-and sends a POST without client-supplied Node or Agent IDs. Poll queued and
-starting requests and use the Node ID in the Manager's ready response. The
-success state links to the device and to Add agent so the user can choose when
-to connect a harness.
+Signed-in Home offers **Create sandbox** before the desktop and mobile layouts
+split when no conversation is open. Devices → Add device also offers the
+action. Both check whether the authenticated regional Manager serves
+`/api/v1/sandbox` with a same-origin GET. Creating or resuming the sandbox
+requires an explicit click and sends a POST without client-supplied Node or
+Agent IDs. Poll queued and starting requests and use the Node ID in the
+Manager's ready response. The success state links to the device and to Add
+agent so the user can choose when to connect a harness.
 
 `settings/settings-catalog.ts` is the one settings directory: six groups,
 twelve entries, descriptions, and legacy-route matching. The desktop sidebar and

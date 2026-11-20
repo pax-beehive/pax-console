@@ -53,7 +53,8 @@ added to the preauthorization editor.
 
 ### 一键创建托管沙箱
 
-`/settings/devices/add` 上的创建入口通过同源 `/api/pax/api/v1/sandbox` 请求区域
+用户登录后的首页在未打开会话时显示创建入口，位置在桌面和手机布局分支之前。
+`/settings/devices/add` 也提供该入口。两处通过同源 `/api/pax/api/v1/sandbox` 请求区域
 Manager。GET 返回 404 时隐藏入口，返回 `{ "sandbox": null }` 时允许创建。用户点击后
 发送无参数 POST，由 Manager 按当前账号排队、恢复并绑定 Node。状态保存在按用户区分的
 TanStack Query 缓存中，`queued` 和 `starting` 时轮询。只有 `ready` 带确切的 `node_id`
