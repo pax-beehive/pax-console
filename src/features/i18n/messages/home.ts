@@ -262,6 +262,11 @@ export const homeMessages: Record<string, string> = {
     "此沙箱的免费模型访问已分配给另一个智能体。",
   "Setting up free model access…": "正在开通免费模型访问…",
   "Couldn’t enable free model access.": "无法开通免费模型访问。",
+  "Free model access expired. Set it up again.":
+    "免费模型访问已过期，请重新开通。",
+  "Free model access ended. Set it up again.":
+    "免费模型访问已结束，请重新开通。",
+  "The sandbox host is full. Try again later.": "沙箱宿主已满载，请稍后重试。",
   "The shared free model budget is exhausted.": "共享免费模型预算已用完。",
   "Your free model budget is exhausted.": "你的免费模型预算已用完。",
   "Use existing agent: {value1}": "使用现有智能体：{value1}",

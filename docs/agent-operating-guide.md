@@ -213,6 +213,9 @@ sandbox and choose the Agent type. If several Agents of that type are connected,
 select the Agent that should receive the lease. The button is also available
 after connecting an eligible Agent during onboarding. Personal provider sign-in
 remains available independently, including Pi's terminal `/login` instructions.
+In a sandbox conversation, model setup and any retry action appear above the
+composer for the selected Agent. The user can still send a prompt using personal
+provider credentials.
 
 Settings > Agent sign-in (`/settings/agent-sign-in`) signs in native agent CLIs on
 an owned, connected device. The Agent type options are the distinct `agent_type`

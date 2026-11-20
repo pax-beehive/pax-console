@@ -3,6 +3,7 @@ export type ApiRecord = Record<string, unknown>;
 export type SandboxModelAccessAgent = {
   agent_id: string;
   state: "queued" | "starting" | "ready" | "failed";
+  reason_code?: string;
 };
 
 export type SandboxModelAccess = {

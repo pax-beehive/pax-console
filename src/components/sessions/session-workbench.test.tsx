@@ -8,6 +8,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ComponentProps } from "react";
@@ -39,12 +40,16 @@ const fixtures = vi.hoisted(() => ({
   } as AgentSession,
   localStatus: "idle" as ConversationRunStatus,
   conversationError: null as Error | null,
+  observerError: null as Error | null,
+  agentType: "claude-code",
   encryptedStatus: "idle" as ConversationRunStatus,
   sendMessage: vi.fn().mockResolvedValue({ sessionId: "sess_1" }),
   sendEncryptedMessage: vi.fn().mockResolvedValue(undefined),
   queueTurn: vi.fn().mockResolvedValue(undefined),
   steerTurn: vi.fn().mockResolvedValue(undefined),
   observe: vi.fn(),
+  readHostedStarter: vi.fn(),
+  activateHostedAgent: vi.fn(),
   emptyEvents: [],
   knowledgeEnabled: false,
   disabledFeatures: [] as string[],
@@ -86,7 +91,7 @@ vi.mock("@/features/api/resources", async (importOriginal) => ({
     data: { nodes: [{ node_id: "node_1", online: fixtures.nodeOnline }] },
   }),
   useNodeAgents: () => ({
-    data: { agents: [{ agent_id: "agent_1", agent_type: "claude-code" }] },
+    data: { agents: [{ agent_id: "agent_1", agent_type: fixtures.agentType }] },
   }),
   useAgentSessions: () => fixtures.emptyQuery,
   useAgentPermissionCatalog: () => fixtures.emptyQuery,
@@ -116,6 +121,8 @@ vi.mock("@/features/api/resources", async (importOriginal) => ({
   queueSessionTurn: fixtures.queueTurn,
   steerSessionTurn: fixtures.steerTurn,
   createUserAttachment: fixtures.createAttachment,
+  readHostedStarter: fixtures.readHostedStarter,
+  activateHostedAgent: fixtures.activateHostedAgent,
 }));
 vi.mock("@/features/api/workspace-search", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/features/api/workspace-search")>()),
@@ -133,7 +140,11 @@ vi.mock("@/features/runtime/use-conversation-run", () => ({
 vi.mock("@/features/runtime/session-observer", () => ({
   useSessionObserver: (options: unknown) => {
     fixtures.observe(options);
-    return { events: fixtures.emptyEvents, status: "observing" };
+    return {
+      events: fixtures.emptyEvents,
+      error: fixtures.observerError,
+      status: fixtures.observerError ? "error" : "observing",
+    };
   },
 }));
 vi.mock("@/features/runtime/use-session-history-sync", () => ({
@@ -200,6 +211,10 @@ beforeEach(() => {
   fixtures.readInjections.mockClear();
   fixtures.localStatus = "idle";
   fixtures.conversationError = null;
+  fixtures.observerError = null;
+  fixtures.agentType = "claude-code";
+  fixtures.readHostedStarter.mockReset().mockResolvedValue({ enabled: false });
+  fixtures.activateHostedAgent.mockReset();
   fixtures.encryptedStatus = "idle";
   fixtures.conversationEvents = [];
   fixtures.history = [];
@@ -254,6 +269,132 @@ function workbench(
     </QueryClientProvider>
   );
 }
+
+describe("sandbox model access in a session", () => {
+  const access = {
+    enabled: true,
+    sandbox_model_access: {
+      node_id: "node_1",
+      harnesses: ["codex"],
+      state: "available",
+      agents: [{ agent_id: "agent_1", state: "failed" }],
+    },
+  };
+
+  it("shows failure before sending, retries only on demand, and follows setup until ready", async () => {
+    fixtures.agentType = "codex";
+    fixtures.session = { ...fixtures.session, runtime_status: "idle" };
+    fixtures.readHostedStarter.mockResolvedValue(access);
+    fixtures.activateHostedAgent.mockImplementation(async () => {
+      fixtures.readHostedStarter.mockResolvedValue({
+        ...access,
+        sandbox_model_access: {
+          ...access.sandbox_model_access,
+          agents: [{ agent_id: "agent_1", state: "starting" }],
+        },
+      });
+      return {};
+    });
+    render(workbench());
+
+    const retry = await screen.findByRole("button", {
+      name: "Retry free model setup",
+    });
+    expect(
+      screen.getByText("Couldn’t enable free model access."),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Send prompt" })).toBeEnabled();
+    expect(fixtures.activateHostedAgent).not.toHaveBeenCalled();
+    fireEvent.click(retry);
+    await screen.findByText("Setting up free model access…");
+    expect(fixtures.activateHostedAgent).toHaveBeenCalledWith(
+      "node_1",
+      "agent_1",
+    );
+
+    fixtures.readHostedStarter.mockResolvedValue({
+      ...access,
+      sandbox_model_access: {
+        ...access.sandbox_model_access,
+        agents: [
+          { agent_id: "agent_1", state: "ready" },
+          { agent_id: "agent_2", state: "failed" },
+        ],
+      },
+    });
+    await act(() =>
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.hostedStarter("user_1"),
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByText("Setting up free model access…")).toBeNull(),
+    );
+    expect(screen.queryByText("Pax free quota is ready.")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Retry free model setup" }),
+    ).toBeNull();
+  });
+
+  it("does not show another node's sandbox failure", async () => {
+    fixtures.agentType = "codex";
+    fixtures.readHostedStarter.mockResolvedValue({
+      ...access,
+      sandbox_model_access: {
+        ...access.sandbox_model_access,
+        node_id: "other",
+      },
+    });
+    render(workbench());
+    await waitFor(() =>
+      expect(
+        queryClient.getQueryState(queryKeys.hostedStarter("user_1"))?.status,
+      ).toBe("success"),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Retry free model setup" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Use Pax free quota" }),
+    ).toBeNull();
+  });
+
+  it("shows a safe reason when an existing managed grant expired", async () => {
+    fixtures.agentType = "codex";
+    fixtures.readHostedStarter.mockResolvedValue({
+      ...access,
+      sandbox_model_access: {
+        ...access.sandbox_model_access,
+        agents: [
+          {
+            agent_id: "agent_1",
+            state: "failed",
+            reason_code: "lease_expired",
+          },
+        ],
+      },
+    });
+    render(workbench());
+    const retry = await screen.findByRole("button", {
+      name: "Retry free model setup",
+    });
+    expect(retry).toBeEnabled();
+    expect(
+      screen.getByText("Free model access expired. Set it up again."),
+    ).toBeVisible();
+  });
+});
+
+it("shows the active observer's session error next to the composer", () => {
+  fixtures.observerError = new Error("Could not reconnect to the turn");
+  render(workbench());
+  const notice = screen.getByRole("alert");
+  expect(
+    within(notice).getByText(/Could not reconnect to the turn/),
+  ).toBeVisible();
+  expect(notice.nextElementSibling).toBeNull();
+  expect(notice.parentElement?.nextElementSibling?.tagName).toBe("FORM");
+});
 
 describe("thinking avatar follows the current session model", () => {
   const thought: SessionEvent = {

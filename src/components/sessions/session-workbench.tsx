@@ -4,6 +4,11 @@ import { useI18n } from "@/features/i18n/use-i18n";
 
 import { ExternalSessionNotice } from "./external-session-notice";
 import { SessionAuthenticationNotice } from "./session-authentication-notice";
+import {
+  HostedAgentAccess,
+  useHostedStarter,
+} from "@/components/connect/hosted-agent-access";
+import { normalizeAgentType } from "@/components/settings/agent-types";
 import { CronOriginBadge } from "@/components/sessions/cron-origin-badge";
 import { cronSessionOrigin } from "@/features/sessions/session-origin";
 import { stageEncryptedAttachment } from "@/features/e2ee/attachments";
@@ -298,6 +303,12 @@ export function SessionWorkbench({
     ? (sessionMetadata?.agent_id ?? agentId)
     : (agentId ?? agents[0]?.agent_id);
   const activeAgent = agents.find((agent) => agent.agent_id === activeAgentId);
+  const activeHarness = normalizeAgentType(activeAgent?.agent_type);
+  const hostedStarter = useHostedStarter(
+    user.user_id,
+    activeNodeId ?? "",
+    activeNodeId && activeAgentId ? activeHarness : undefined,
+  );
   const permissionCatalogQuery = useAgentPermissionCatalog(
     user.user_id,
     activeAgentId,
@@ -383,8 +394,7 @@ export function SessionWorkbench({
   const normalizedNewSessionCwd =
     newSessionCwd.trim() || DEFAULT_SESSION_WORKSPACE;
   const newSessionCwdInvalid =
-    isNewSession &&
-    !isSupportedSessionWorkspace(normalizedNewSessionCwd);
+    isNewSession && !isSupportedSessionWorkspace(normalizedNewSessionCwd);
   const activeSession = useMemo(
     () =>
       sessionMetadata ??
@@ -2976,13 +2986,6 @@ export function SessionWorkbench({
                   : (historyQuery.error ?? historySync.error)
               }
               missingRouteState={!activeNodeId || !activeAgentId}
-              sendError={
-                encryptedKeyError ??
-                sendError ??
-                (usesEncryptedTransport
-                  ? encryptedRuntime.error
-                  : (queuedTurnQuery.error ?? conversationRun.error))
-              }
             />
             {workstreamItems.map((item) => (
               <div
@@ -3080,6 +3083,30 @@ export function SessionWorkbench({
             </Button>
           </div>
         )}
+        <div className="mx-auto grid w-full max-w-4xl gap-2 px-3 py-2 empty:hidden">
+          {activeNodeId && activeAgentId && activeHarness && (
+            <HostedAgentAccess
+              key={`${user.user_id}:${activeNodeId}:${activeAgentId}`}
+              userId={user.user_id}
+              nodeId={activeNodeId}
+              agentId={activeAgentId}
+              harness={activeHarness}
+              status={hostedStarter}
+              showReady={false}
+            />
+          )}
+          <SessionErrors
+            sendError={
+              encryptedKeyError ??
+              sendError ??
+              (usesEncryptedTransport
+                ? encryptedRuntime.error
+                : (conversationRun.error ??
+                  sessionObserver.error ??
+                  queuedTurnQuery.error))
+            }
+          />
+        </div>
         <SessionComposer
           userId={user.user_id}
           availableCommands={
@@ -3470,13 +3497,13 @@ function agentOwnerLookupsFromInvocations(events: SessionEvent[]) {
 }
 
 function SessionErrors({
-  messagesError,
-  missingRouteState,
-  sendError,
+  messagesError = null,
+  missingRouteState = false,
+  sendError = null,
 }: {
-  messagesError: Error | null;
-  missingRouteState: boolean;
-  sendError: Error | null;
+  messagesError?: Error | null;
+  missingRouteState?: boolean;
+  sendError?: Error | null;
 }) {
   const { t } = useI18n();
   if (!messagesError && !missingRouteState && !sendError) {
@@ -3486,7 +3513,10 @@ function SessionErrors({
   const error = messagesError ?? sendError;
 
   return (
-    <div className="flex min-w-0 items-start gap-3 rounded-lg border border-hairline bg-surface-1 p-3 text-sm text-ink-muted">
+    <div
+      role={error ? "alert" : undefined}
+      className="flex min-w-0 items-start gap-3 rounded-lg border border-hairline bg-surface-1 p-3 text-sm text-ink-muted"
+    >
       <AlertCircle className="mt-0.5 h-4 w-4 text-warning" />
       <div className="min-w-0">
         <div className="font-medium text-ink">

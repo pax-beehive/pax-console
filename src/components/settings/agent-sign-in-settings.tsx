@@ -340,7 +340,7 @@ function HostedAgentSignIn({
   const activating = access.state === "queued" || access.state === "starting";
   const activeLease = activating || access.state === "ready";
   const eligibleAgents = registeredAgents.filter((agent) => {
-    const agentState = access.agentStates?.get(agent.agent_id);
+    const agentState = access.agents?.get(agent.agent_id)?.state;
     return (
       isActiveAgent(agent) ||
       agentState === "queued" ||
