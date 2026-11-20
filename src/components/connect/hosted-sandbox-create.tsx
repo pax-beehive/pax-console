@@ -42,13 +42,10 @@ function failureMessage(reason?: string) {
   }
 }
 
-export function HostedSandboxCreate({ userId }: { userId: string }) {
-  const { t } = useI18n();
+export function useHostedSandboxStatus(userId: string) {
   const queryClient = useQueryClient();
-  const queryKey = queryKeys.hostedSandbox(userId);
-  const submitting = useRef(false);
   const status = useQuery({
-    queryKey,
+    queryKey: queryKeys.hostedSandbox(userId),
     queryFn: ({ signal }) => readHostedSandbox(signal),
     retry: false,
     refetchInterval: (query) => {
@@ -58,6 +55,34 @@ export function HostedSandboxCreate({ userId }: { userId: string }) {
   });
   const sandbox = status.data?.sandbox;
   const nodeId = sandbox?.status === "ready" ? sandbox.node_id : undefined;
+
+  useEffect(() => {
+    if (nodeId) {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.nodes(userId) });
+    }
+  }, [nodeId, queryClient, userId]);
+
+  return status;
+}
+
+export function HostedSandboxCreate({ userId }: { userId: string }) {
+  const status = useHostedSandboxStatus(userId);
+  return <HostedSandboxControls userId={userId} status={status} />;
+}
+
+export function HostedSandboxControls({
+  userId,
+  status,
+  resumeNodeId,
+}: {
+  userId: string;
+  status: ReturnType<typeof useHostedSandboxStatus>;
+  resumeNodeId?: string;
+}) {
+  const { t } = useI18n();
+  const queryClient = useQueryClient();
+  const queryKey = queryKeys.hostedSandbox(userId);
+  const submitting = useRef(false);
   const start = useMutation({
     mutationFn: startHostedSandbox,
     retry: false,
@@ -69,14 +94,12 @@ export function HostedSandboxCreate({ userId }: { userId: string }) {
     },
   });
 
-  useEffect(() => {
-    if (nodeId) {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.nodes(userId) });
-    }
-  }, [nodeId, queryClient, userId]);
+  const sandbox = status.data?.sandbox;
+  if (!status.data || (resumeNodeId && sandbox?.node_id !== resumeNodeId)) {
+    return null;
+  }
 
-  if (!status.data) return null;
-
+  const nodeId = sandbox?.status === "ready" ? sandbox.node_id : undefined;
   const progress = progressMessage(status.data.sandbox, start.isPending);
   const failed = sandbox?.status === "failed" || start.isError;
   const needsRefresh =
@@ -105,20 +128,22 @@ export function HostedSandboxCreate({ userId }: { userId: string }) {
           <p role="status" className="text-sm text-ink-muted">
             {t("Sandbox connected")}
           </p>
-          <div className="flex flex-wrap gap-2">
-            <Button asChild>
-              <Link href={`/nodes/${encodeURIComponent(nodeId)}`}>
-                {t("Open device")}
-              </Link>
-            </Button>
-            <Button asChild variant="ghost">
-              <Link
-                href={`${settingsLinks.addAgent}?nodeId=${encodeURIComponent(nodeId)}`}
-              >
-                {t("Add agent")}
-              </Link>
-            </Button>
-          </div>
+          {!resumeNodeId && (
+            <div className="flex flex-wrap gap-2">
+              <Button asChild>
+                <Link href={`/nodes/${encodeURIComponent(nodeId)}`}>
+                  {t("Open device")}
+                </Link>
+              </Button>
+              <Button asChild variant="ghost">
+                <Link
+                  href={`${settingsLinks.addAgent}?nodeId=${encodeURIComponent(nodeId)}`}
+                >
+                  {t("Add agent")}
+                </Link>
+              </Button>
+            </div>
+          )}
         </>
       ) : progress ? (
         <p role="status" className="text-sm text-ink-muted">
@@ -136,14 +161,22 @@ export function HostedSandboxCreate({ userId }: { userId: string }) {
               type="button"
               variant="primary"
               onClick={() => {
-                if (submitting.current) return;
+                const current = queryClient.getQueryState(queryKey);
+                // A fast response can update the cache before the button rerenders.
+                if (
+                  submitting.current ||
+                  current?.status !== "success" ||
+                  current.data !== status.data
+                ) {
+                  return;
+                }
                 submitting.current = true;
                 start.mutate();
               }}
             >
-              {failed
+              {failed && !resumeNodeId
                 ? t("Try again")
-                : sandbox?.status === "sleeping"
+                : resumeNodeId || sandbox?.status === "sleeping"
                   ? t("Start sandbox")
                   : t("Create sandbox")}
             </Button>

@@ -13,7 +13,10 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ApiError } from "@/features/api/errors";
 import { queryKeys } from "@/features/api/query-keys";
-import type { HostedStarterStatus } from "@/features/api/types";
+import type {
+  HostedSandboxStatus,
+  HostedStarterStatus,
+} from "@/features/api/types";
 import { useLocaleStore } from "@/features/i18n/locale-store";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import {
@@ -28,6 +31,8 @@ const mocks = vi.hoisted(() => ({
   useNodeHarnessUsage: vi.fn(),
   useNodeAgents: vi.fn(),
   useAgents: vi.fn(),
+  readHostedSandbox: vi.fn(),
+  startHostedSandbox: vi.fn(),
   readHostedStarter: vi.fn(),
   activateHostedAgent: vi.fn(),
 }));
@@ -74,6 +79,8 @@ beforeEach(() => {
   // No agents across devices by default, so nothing else is checked for
   // sign-in beyond the selected card.
   mocks.useAgents.mockReturnValue({ data: { agents: [] } });
+  mocks.readHostedSandbox.mockReset().mockResolvedValue(null);
+  mocks.startHostedSandbox.mockReset();
   mocks.readHostedStarter.mockResolvedValue({ enabled: false });
   mocks.activateHostedAgent.mockReset();
 });
@@ -158,6 +165,129 @@ it("never falls back from a missing or offline linked device to another device",
   expect(screen.getByText(/This device is offline/)).toBeInTheDocument();
   expect(mocks.getNodeHarnessAuth).not.toHaveBeenCalled();
   expect(mocks.loginNodeHarness).not.toHaveBeenCalled();
+});
+
+it("starts the selected sleeping sandbox and restores agent sign-in when it reconnects", async () => {
+  const user = userEvent.setup();
+  let sandbox: HostedSandboxStatus["sandbox"] = {
+    node_id: "offline",
+    status: "sleeping",
+  };
+  mocks.readHostedSandbox.mockImplementation(async () => ({ sandbox }));
+  mocks.startHostedSandbox.mockImplementation(async () => {
+    sandbox = {
+      ...sandbox,
+      status: "queued",
+      reason_code: "waiting_for_capacity",
+    };
+    return { sandbox };
+  });
+  mocks.useNodes.mockImplementation(() => ({
+    data: {
+      nodes: nodes.map((node) =>
+        node.node_id === "offline" && sandbox?.status === "ready"
+          ? { ...node, online: true }
+          : node,
+      ),
+    },
+  }));
+  mocks.useNodeAgents.mockReturnValue(
+    agentsQuery([
+      ...registeredAgents,
+      { agent_id: "sandbox-codex", node_id: "offline", agent_type: "codex" },
+    ]),
+  );
+  const { queryClient } = mount({ initialNodeId: "", initialHarness: "codex" });
+  const hostedQuery = { queryKey: queryKeys.hostedSandbox("self") };
+  const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+  const device = screen.getByLabelText("Device");
+  expect(device).toHaveValue("");
+  await user.selectOptions(device, "offline");
+  expect(device).toHaveValue("offline");
+  expect(mocks.startHostedSandbox).not.toHaveBeenCalled();
+  expect(mocks.getNodeHarnessAuth).not.toHaveBeenCalled();
+
+  await user.dblClick(
+    await screen.findByRole("button", { name: "Start sandbox" }),
+  );
+  expect(mocks.startHostedSandbox).toHaveBeenCalledTimes(1);
+  await screen.findByText(
+    "The sandbox host is full. Waiting for an available slot…",
+  );
+  expect(screen.queryByRole("button", { name: "Start sandbox" })).toBeNull();
+
+  await user.selectOptions(device, "node-one");
+  await screen.findByRole("button", { name: "Sign in" });
+  expect(screen.queryByText(/Waiting for an available slot/)).toBeNull();
+  await user.selectOptions(device, "offline");
+  expect(screen.getByText(/Waiting for an available slot/)).toBeVisible();
+
+  sandbox = { node_id: "offline", status: "starting" };
+  await act(() => queryClient.invalidateQueries(hostedQuery));
+  await screen.findByText("Starting sandbox…");
+  sandbox = { node_id: "offline", status: "ready" };
+  await act(() => queryClient.invalidateQueries(hostedQuery));
+  await screen.findByRole("button", { name: "Sign in" });
+  expect(invalidate).toHaveBeenCalledWith({
+    queryKey: queryKeys.nodes("self"),
+  });
+  expect(device).toHaveValue("offline");
+  expect(mocks.getNodeHarnessAuth).toHaveBeenCalledWith(
+    "self",
+    "offline",
+    "codex",
+    undefined,
+    expect.any(AbortSignal),
+  );
+});
+
+it("shows a restart and a safe failure reason on a deep-linked owned sandbox", async () => {
+  const user = userEvent.setup();
+  mocks.readHostedSandbox.mockResolvedValue({
+    sandbox: {
+      node_id: "offline",
+      status: "failed",
+      reason_code: "node_connection_timeout",
+    },
+  });
+  mocks.startHostedSandbox.mockRejectedValue(new Error("private host error"));
+  const { queryClient } = mount({ initialNodeId: "offline" });
+  await screen.findByText("The sandbox device did not connect in time.");
+  expect(screen.getByLabelText("Device")).toHaveValue("offline");
+
+  await user.click(screen.getByRole("button", { name: "Start sandbox" }));
+  expect(
+    await screen.findByRole("button", { name: "Start sandbox" }),
+  ).toBeEnabled();
+  expect(screen.queryByText("private host error")).toBeNull();
+
+  mocks.readHostedSandbox.mockRejectedValue(new Error("private read error"));
+  await act(() =>
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.hostedSandbox("self"),
+    }),
+  );
+  await screen.findByText("Could not confirm sandbox status.");
+  expect(screen.queryByRole("button", { name: "Start sandbox" })).toBeNull();
+  expect(
+    screen.getByRole("button", { name: "Refresh sandbox status" }),
+  ).toBeEnabled();
+  expect(mocks.getNodeHarnessAuth).not.toHaveBeenCalled();
+});
+
+it("keeps an unrelated offline device's normal reconnect state", async () => {
+  mocks.readHostedSandbox.mockResolvedValue({
+    sandbox: { node_id: "node-two", status: "sleeping" },
+  });
+  const { queryClient } = mount({ initialNodeId: "offline" });
+  await waitFor(() =>
+    expect(
+      queryClient.getQueryState(queryKeys.hostedSandbox("self"))?.status,
+    ).toBe("success"),
+  );
+  expect(screen.getByText(/This device is offline/)).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Start sandbox" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Create sandbox" })).toBeNull();
 });
 
 const enrolledPi = {
