@@ -1,10 +1,18 @@
 export type ApiRecord = Record<string, unknown>;
 
+export type SandboxModelAccess = {
+  node_id: string;
+  harnesses: string[];
+  state: "available" | "queued" | "starting" | "ready" | "failed";
+  agent_id?: string;
+};
+
 export type HostedStarterStatus = {
   enabled: boolean;
   pool_available?: boolean;
   enrolled_node?: boolean;
   user_budget_available?: boolean;
+  sandbox_model_access?: SandboxModelAccess;
   starter?: {
     node_id?: string;
     agent_id?: string;

@@ -208,12 +208,11 @@ keeping warm query caches. Real push-provider and OS display claims remain exclu
 
 ### Agent sign-in and session authentication recovery
 
-For a registered sandbox, open **Settings → Agent sign-in & usage**, select
-the sandbox and choose **Pi**. **Use Pax free quota** is available here after
-initial setup. With multiple Pi Agents, choose the Agent that should receive the
-lease. The screen verifies enrollment for the selected Node before offering the
-button. The Pi card also describes how to sign in to a personal provider on the
-device.
+To enable Pax free quota, open **Settings → Agent sign-in & usage**, select the
+sandbox and choose the Agent type. If several Agents of that type are connected,
+select the Agent that should receive the lease. The button is also available
+after connecting an eligible Agent during onboarding. Personal provider sign-in
+remains available independently, including Pi's terminal `/login` instructions.
 
 Settings > Agent sign-in (`/settings/agent-sign-in`) signs in native agent CLIs on
 an owned, connected device. The Agent type options are the distinct `agent_type`
@@ -2696,17 +2695,18 @@ failures. Browser sign-in uses the same complete installer command, explicitly
 clears any inherited `PAX_REGISTRATION_TOKEN`, and retains paxd's terminal login
 link and `/connect` pairing flow. It needs no preinstalled CLI.
 
-For a sandbox registered by its host, connect or reuse Pi through the agent
-onboarding screen. The conversation link appears after the matching ACP
-connection is running and reports its Agent ID. The screen checks host
-enrollment with authenticated same-origin `GET /api/v1/starter`.
+Onboarding shows the conversation link when the matching ACP connection is
+running and reports its Agent ID. The authenticated regional Manager supplies
+quota eligibility through same-origin `GET /api/v1/starter`. The optional
+`sandbox_model_access` identifies the hosted Node, approved harnesses and lease
+state. Managers that return the legacy `enrolled_node` and `starter` fields
+continue to support Pi on the enrolled Node.
 
-On a matching enrolled Node, select **Use Pax free quota** to send the
-`node_id` and `agent_id` to `POST /api/v1/starter/wake`. The screen reports
-readiness after GET confirms that Agent's ready lease and available quota.
-For a personal model provider, run `pi` in the sandbox terminal and use
-`/login` or configure an API key. The conversation link is available throughout.
-The ingress routes these requests to the signed-in owner's regional Manager.
+Click **Use Pax free quota** to send the selected `node_id` and `agent_id` to
+`POST /api/v1/starter/wake`. The Console confirms readiness through GET for that
+Agent and keeps the existing shared and per-user budget checks. The conversation
+link remains available during setup. Model credentials stay with the hosted
+runtime.
 
 The one-use token stays only in mounted component state, expires at the server's
 expiry (one-hour fallback), and can be regenerated. Never log it, put it in a
