@@ -7,6 +7,10 @@ import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import {
+  HostedSandboxControls,
+  useHostedSandboxStatus,
+} from "@/components/connect/hosted-sandbox-create";
+import {
   settingsLinks,
   settingsSection,
 } from "@/components/settings/settings-catalog";
@@ -61,6 +65,10 @@ export function MyDevicesPage({ user }: { user: User }) {
   const admin = canSeeAdminFeatures(user, previewAsUser);
   const nodesQuery = useNodes(userId);
   const agentsQuery = useAgents(userId, "owned");
+  const sandboxStatus = useHostedSandboxStatus(userId, {
+    readyRefetchInterval: 15_000,
+  });
+  const sandbox = sandboxStatus.data?.sandbox;
   const [pending, setPending] = useState<Pending>();
   const [deletedName, setDeletedName] = useState<string>();
   const close = () => setPending(undefined);
@@ -133,9 +141,20 @@ export function MyDevicesPage({ user }: { user: User }) {
           }
           title={section.title}
         >
-          <Button asChild icon={<Plus className="h-4 w-4" />} variant="primary">
-            <Link href={settingsLinks.addDevice}>{t("Add device")}</Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {sandbox && (
+              <Button asChild>
+                <Link href="/sandbox">{t("My sandbox")}</Link>
+              </Button>
+            )}
+            <Button
+              asChild
+              icon={<Plus className="h-4 w-4" />}
+              variant="primary"
+            >
+              <Link href={settingsLinks.addDevice}>{t("Add device")}</Link>
+            </Button>
+          </div>
         </SettingsPageHeader>
 
         <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-5 lg:px-8 lg:py-6">
@@ -175,6 +194,17 @@ export function MyDevicesPage({ user }: { user: User }) {
                     begin({ kind: "delete-device", node })
                   }
                   onRename={(node) => begin({ kind: "rename", node })}
+                  sandboxRecovery={
+                    sandbox?.node_id === node.node_id ? (
+                      <HostedSandboxControls
+                        dedicated
+                        nodeOnline={nodesQuery.error ? undefined : node.online}
+                        status={sandboxStatus}
+                        targetNodeId={node.node_id}
+                        userId={userId}
+                      />
+                    ) : undefined
+                  }
                   userId={userId}
                 />
               ))
