@@ -169,7 +169,7 @@ export function HostedAgentAccess({
   agentId,
   harness,
   status,
-  showReady = true,
+  showAuthorization = true,
   sandboxReady = true,
 }: {
   userId: string;
@@ -177,7 +177,7 @@ export function HostedAgentAccess({
   agentId: string;
   harness: string;
   status: ReturnType<typeof useHostedStarter>;
-  showReady?: boolean;
+  showAuthorization?: boolean;
   sandboxReady?: boolean;
 }) {
   const { t } = useI18n();
@@ -198,6 +198,7 @@ export function HostedAgentAccess({
   const access = hostedAgentAccess(status.data, nodeId, harness);
   const agent = access?.agents?.get(agentId);
   const authorized = agent?.enabled === true;
+  const showAuthorizedControls = showAuthorization && authorized;
   if (!status.data || !access || (!access.canActivate && !authorized))
     return null;
 
@@ -268,7 +269,7 @@ export function HostedAgentAccess({
     ) {
       notice = "Setting up free model access…";
     } else if (state === "ready" && assignedAgent === agentId) {
-      if (showReady || authorized) notice = "Pax free quota is ready.";
+      if (showAuthorization) notice = "Pax free quota is ready.";
     } else {
       const failed = requestFailed || state === "failed";
       const failure = requestFailed
@@ -297,10 +298,10 @@ export function HostedAgentAccess({
     }
   }
 
-  if (!notice && !activation && !authorized) return null;
+  if (!notice && !activation && !showAuthorizedControls) return null;
   return (
     <div className="space-y-2">
-      {authorized && (
+      {showAuthorizedControls && (
         <p className="text-sm font-medium">
           {t("Pax free quota is authorized.")}
         </p>
@@ -311,7 +312,7 @@ export function HostedAgentAccess({
         </p>
       )}
       {activation}
-      {authorized && (
+      {showAuthorizedControls && (
         <>
           {changeAccess.isError && changeAccess.variables === "revoke" && (
             <p role="alert" className="text-sm text-warning">
