@@ -98,6 +98,20 @@ export function startHostedSandbox() {
   return apiFetch<HostedSandboxStatus>("/api/v1/sandbox", { method: "POST" });
 }
 
+export function resumeHostedSandbox(nodeId: string) {
+  return apiFetch<HostedSandboxStatus>("/api/v1/sandbox/resume", {
+    method: "POST",
+    body: JSON.stringify({ node_id: nodeId }),
+  });
+}
+
+export function restartHostedSandbox(nodeId: string, generation: number) {
+  return apiFetch<HostedSandboxStatus>("/api/v1/sandbox/restart", {
+    method: "POST",
+    body: JSON.stringify({ node_id: nodeId, generation }),
+  });
+}
+
 export async function readHostedStarter(
   signal?: AbortSignal,
 ): Promise<HostedStarterStatus> {
@@ -112,6 +126,13 @@ export async function readHostedStarter(
 
 export function activateHostedAgent(nodeId: string, agentId: string) {
   return apiFetch<HostedStarterStatus>("/api/v1/starter/wake", {
+    method: "POST",
+    body: JSON.stringify({ node_id: nodeId, agent_id: agentId }),
+  });
+}
+
+export function revokeHostedAgent(nodeId: string, agentId: string) {
+  return apiFetch<HostedStarterStatus>("/api/v1/starter/revoke", {
     method: "POST",
     body: JSON.stringify({ node_id: nodeId, agent_id: agentId }),
   });

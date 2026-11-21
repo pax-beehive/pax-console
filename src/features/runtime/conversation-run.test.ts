@@ -106,7 +106,13 @@ describe("streamConversationRun", () => {
 
   it("sends search preauthorization for new and existing turns but not initialization or permission resumes", async () => {
     const fetchMock = vi.fn(
-      async () => new Response(streamFromChunks([]), { status: 200 }),
+      async () =>
+        new Response(
+          streamFromChunks([
+            'data: {"type":"done","node_id":"node_1","agent_id":"agent_1","session_id":"sess_1"}\n\n',
+          ]),
+          { status: 200 },
+        ),
     );
     vi.stubGlobal("fetch", fetchMock);
     const base = {
@@ -139,6 +145,35 @@ describe("streamConversationRun", () => {
     expect(bodies[1].search_access).toEqual(base.searchAccess);
     expect(bodies[2]).not.toHaveProperty("search_access");
     expect(bodies[3]).not.toHaveProperty("search_access");
+  });
+
+  it("reports the message connection when the stream ends without a terminal event", async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          streamFromChunks([
+            'data: {"type":"session","node_id":"node_1","agent_id":"agent_1","session_id":"sess_1"}\n\n',
+          ]),
+          { status: 200 },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const onEnvelope = vi.fn();
+
+    await expect(
+      streamConversationRun({
+        agentId: "agent_1",
+        input: "hello",
+        nodeId: "node_1",
+        onEnvelope,
+        sessionId: "sess_1",
+        userId: "self",
+      }),
+    ).rejects.toThrow(
+      "Message connection ended before the agent finished this turn.",
+    );
+    expect(onEnvelope).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 
   it("posts initialize_only without manufacturing prompt content", async () => {

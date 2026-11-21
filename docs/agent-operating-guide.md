@@ -104,12 +104,16 @@ Homebrew and npx wrappers remain unsupported.
 
 ## Settings workspace
 
-Home offers **Create sandbox** within the first-agent setup guide on desktop
-and mobile. **Devices → Add device** also offers the action. Both check whether
+Home offers **Create sandbox** alongside the first-agent setup on desktop
+and mobile. **My sandbox** in Home opens `/sandbox` for the same account.
+**Devices → Add device** handles computer pairing. The sandbox controls check whether
 the authenticated regional Manager serves `/api/v1/sandbox` with a same-origin
-GET. Creating or resuming the sandbox
-requires an explicit click and sends a POST without client-supplied Node or
-Agent IDs. Poll queued and starting requests and use the Node ID in the
+GET. Creating requires an explicit click and sends `POST /api/v1/sandbox`
+without a Node or Agent ID. My sandbox, Agent sign-in, and the selected sandbox
+conversation resume an existing sandbox with `POST /api/v1/sandbox/resume`
+and its Node ID. When Manager reports the same sandbox ready with a generation
+but the device is offline, `POST /api/v1/sandbox/restart` includes that generation
+and the existing Node ID. Poll queued and starting requests and use the Node ID in the
 Manager's ready response. Queued requests wait for a host, and a confirmed full
 host shows that it is waiting for a slot. Startup failures display a localized
 reason and a retry action. The success state links to the device and to Add
@@ -216,6 +220,8 @@ remains available independently, including Pi's terminal `/login` instructions.
 In a sandbox conversation, model setup and any retry action appear above the
 composer for the selected Agent. The user can still send a prompt using personal
 provider credentials.
+Authorization remains active across sandbox restarts. **Disable Pax free quota**
+revokes the selected Agent's authorization even while its sandbox is offline.
 
 Settings > Agent sign-in (`/settings/agent-sign-in`) signs in native agent CLIs on
 an owned, connected device. The Agent type options are the distinct `agent_type`

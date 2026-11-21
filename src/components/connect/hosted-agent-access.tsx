@@ -1,12 +1,13 @@
 "use client";
 
-import { useRef } from "react";
+import { type ReactNode, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { queryKeys } from "@/features/api/query-keys";
 import {
   activateHostedAgent,
   readHostedStarter,
+  revokeHostedAgent,
 } from "@/features/api/resources";
 import type {
   HostedStarterStatus,
@@ -16,6 +17,7 @@ import type {
 import { useI18n } from "@/features/i18n/use-i18n";
 
 const leaseStates = new Set<SandboxModelAccessAgent["state"]>([
+  "available",
   "queued",
   "starting",
   "ready",
@@ -25,23 +27,47 @@ const leaseStates = new Set<SandboxModelAccessAgent["state"]>([
 function setupErrorMessage(reason?: string) {
   switch (reason) {
     case "acp_probe_timeout":
-      return "The agent took too long to start a free model session.";
+      return [
+        "Agent model session startup",
+        "The agent took too long to start a free model session.",
+      ];
     case "acp_session_failed":
-      return "The agent could not start a free model session.";
+      return [
+        "Agent model session startup",
+        "The agent could not start a free model session.",
+      ];
     case "lease_expired":
-      return "Free model access expired. Set it up again.";
+      return [
+        "Free model authorization",
+        "Free model access expired. Set it up again.",
+      ];
     case "lease_ended":
-      return "Free model access ended. Set it up again.";
+      return [
+        "Free model authorization",
+        "Free model access ended. Set it up again.",
+      ];
     case "host_capacity":
-      return "The sandbox host is full. Try again later.";
+      return [
+        "Sandbox host capacity",
+        "The sandbox host is full. Try again later.",
+      ];
     case "host_environment_limit":
-      return "The sandbox host has reached its limit for saved sandboxes.";
+      return [
+        "Sandbox host capacity",
+        "The sandbox host has reached its limit for saved sandboxes.",
+      ];
     case "container_exited":
-      return "The sandbox stopped before its device connected.";
+      return [
+        "Sandbox container startup",
+        "The sandbox stopped before its device connected.",
+      ];
     case "node_connection_timeout":
-      return "The sandbox device did not connect in time.";
+      return [
+        "Sandbox device connection",
+        "The sandbox device did not connect in time.",
+      ];
     default:
-      return "Couldn’t enable free model access.";
+      return ["Free model setup", "Couldn’t enable free model access."];
   }
 }
 
@@ -49,6 +75,7 @@ type HostedAgentEligibility = {
   state: SandboxModelAccess["state"];
   agentId?: string;
   accessPaused: boolean;
+  canActivate: boolean;
   agents?: Map<string, SandboxModelAccessAgent>;
 };
 
@@ -63,8 +90,7 @@ export function hostedAgentAccess(
     if (
       !Array.isArray(sandbox.harnesses) ||
       sandbox.harnesses.some((name) => typeof name !== "string") ||
-      !sandbox.harnesses.includes(harness) ||
-      (sandbox.state !== "available" && !leaseStates.has(sandbox.state)) ||
+      !leaseStates.has(sandbox.state) ||
       (sandbox.agent_id !== undefined &&
         (typeof sandbox.agent_id !== "string" || !sandbox.agent_id)) ||
       ((sandbox.state === "queued" ||
@@ -89,6 +115,7 @@ export function hostedAgentAccess(
           typeof agent?.agent_id !== "string" ||
           !agent.agent_id ||
           !leaseStates.has(agent.state) ||
+          (agent.enabled !== undefined && typeof agent.enabled !== "boolean") ||
           agents.has(agent.agent_id)
         ) {
           return undefined;
@@ -96,10 +123,13 @@ export function hostedAgentAccess(
         agents.set(agent.agent_id, agent);
       }
     }
+    const canActivate = sandbox.harnesses.includes(harness);
+    if (!canActivate && !agents?.size) return undefined;
     return {
       state: sandbox.state,
       agentId: sandbox.agent_id,
       accessPaused: starter?.access_paused === true,
+      canActivate,
       agents,
     };
   }
@@ -114,6 +144,7 @@ export function hostedAgentAccess(
     state: starter.state === "sleeping" ? "available" : starter.state,
     agentId: starter.agent_id,
     accessPaused: starter.access_paused === true,
+    canActivate: true,
   };
 }
 
@@ -139,6 +170,7 @@ export function HostedAgentAccess({
   harness,
   status,
   showReady = true,
+  sandboxReady = true,
 }: {
   userId: string;
   nodeId: string;
@@ -146,26 +178,36 @@ export function HostedAgentAccess({
   harness: string;
   status: ReturnType<typeof useHostedStarter>;
   showReady?: boolean;
+  sandboxReady?: boolean;
 }) {
   const { t } = useI18n();
   const queryClient = useQueryClient();
-  const activationLock = useRef(false);
+  const submitting = useRef(false);
   const queryKey = queryKeys.hostedStarter(userId);
-  const activate = useMutation({
-    mutationFn: () => activateHostedAgent(nodeId, agentId),
+  const changeAccess = useMutation({
+    mutationFn: (action: "enable" | "revoke") =>
+      action === "enable"
+        ? activateHostedAgent(nodeId, agentId)
+        : revokeHostedAgent(nodeId, agentId),
     retry: false,
     onSettled: () =>
       queryClient.invalidateQueries({ queryKey }).finally(() => {
-        activationLock.current = false;
+        submitting.current = false;
       }),
   });
   const access = hostedAgentAccess(status.data, nodeId, harness);
-  if (!status.data || !access) return null;
+  const agent = access?.agents?.get(agentId);
+  const authorized = agent?.enabled === true;
+  if (!status.data || !access || (!access.canActivate && !authorized))
+    return null;
 
   if (status.isError) {
     return (
       <div className="space-y-2">
         <p role="alert" className="text-sm text-warning">
+          <span className="block font-medium">
+            {t("Free model status check")}
+          </span>
           {t("Couldn’t check free model access.")}
         </p>
         <Button
@@ -177,85 +219,121 @@ export function HostedAgentAccess({
       </div>
     );
   }
-  if (status.data.enabled !== true || access.accessPaused) {
-    return (
-      <p role="status" className="text-sm text-ink-muted">
-        {access.accessPaused
-          ? t("Free model access is paused.")
-          : t("Free model access is unavailable.")}
-      </p>
-    );
-  }
-  if (status.data.pool_available === false) {
-    return (
-      <p role="status" className="text-sm text-ink-muted">
-        {t("The shared free model budget is exhausted.")}
-      </p>
-    );
-  }
-  if (status.data.user_budget_available === false) {
-    return (
-      <p role="status" className="text-sm text-ink-muted">
-        {t("Your free model budget is exhausted.")}
-      </p>
-    );
-  }
-  const agent = access.agents?.get(agentId);
-  const state = agent?.state ?? access.state;
+
+  const state =
+    agent?.enabled === false ? "available" : (agent?.state ?? access.state);
   const assignedAgent = access.agents ? agentId : access.agentId;
   const isStarting = state === "queued" || state === "starting";
-  if (
-    assignedAgent &&
-    assignedAgent !== agentId &&
-    (isStarting || state === "ready")
-  ) {
-    return (
-      <p role="status" className="text-sm text-ink-muted">
-        {t("Free model access is assigned to another agent in this sandbox.")}
-      </p>
-    );
-  }
-  if (activate.isPending || isStarting) {
-    return (
-      <p role="status" className="text-sm text-ink-muted">
-        {t("Setting up free model access…")}
-      </p>
-    );
-  }
-  if (state === "ready" && assignedAgent === agentId) {
-    return showReady ? (
-      <p role="status" className="text-sm text-ink-muted">
-        {t("Pax free quota is ready.")}
-      </p>
-    ) : null;
+  const denied = access.accessPaused
+    ? "Free model access is paused."
+    : status.data.enabled !== true
+      ? "Free model access is unavailable."
+      : status.data.pool_available === false
+        ? "The shared free model budget is exhausted."
+        : status.data.user_budget_available === false
+          ? "Your free model budget is exhausted."
+          : undefined;
+
+  function submit(action: "enable" | "revoke") {
+    const latest = queryClient.getQueryState(queryKey);
+    if (
+      submitting.current ||
+      latest?.status !== "success" ||
+      latest.data !== status.data
+    )
+      return;
+    submitting.current = true;
+    changeAccess.mutate(action);
   }
 
-  const failed = activate.isError || state === "failed";
+  let notice: string | undefined = denied;
+  let activation: ReactNode;
+  const requestFailed =
+    changeAccess.isError && changeAccess.variables === "enable";
+  if (!notice) {
+    if (!sandboxReady || !access.canActivate) {
+      if (authorized)
+        notice = "Waiting for the sandbox to set up free model access.";
+    } else if (
+      assignedAgent &&
+      assignedAgent !== agentId &&
+      (isStarting || state === "ready")
+    ) {
+      notice =
+        "Free model access is assigned to another agent in this sandbox.";
+    } else if (
+      (changeAccess.isPending && changeAccess.variables === "enable") ||
+      isStarting ||
+      (authorized && state === "available" && !requestFailed)
+    ) {
+      notice = "Setting up free model access…";
+    } else if (state === "ready" && assignedAgent === agentId) {
+      if (showReady || authorized) notice = "Pax free quota is ready.";
+    } else {
+      const failed = requestFailed || state === "failed";
+      const failure = requestFailed
+        ? ["Free model setup request", "Couldn’t enable free model access."]
+        : setupErrorMessage(agent?.reason_code);
+      activation = (
+        <>
+          {failed && (
+            <p role="alert" className="text-sm text-warning">
+              <span className="block font-medium">{t(failure[0])}</span>
+              {t(failure[1])}
+            </p>
+          )}
+          <Button
+            disabled={
+              status.isFetching ||
+              changeAccess.isPending ||
+              (state !== "available" && state !== "failed")
+            }
+            onClick={() => submit("enable")}
+          >
+            {t(failed ? "Retry free model setup" : "Use Pax free quota")}
+          </Button>
+        </>
+      );
+    }
+  }
+
+  if (!notice && !activation && !authorized) return null;
   return (
     <div className="space-y-2">
-      {failed && (
-        <p role="alert" className="text-sm text-warning">
-          {t(
-            setupErrorMessage(
-              state === "failed" ? agent?.reason_code : undefined,
-            ),
-          )}
+      {authorized && (
+        <p className="text-sm font-medium">
+          {t("Pax free quota is authorized.")}
         </p>
       )}
-      <Button
-        disabled={
-          status.isFetching || (state !== "available" && state !== "failed")
-        }
-        onClick={() => {
-          if (activationLock.current) return;
-          const latest = queryClient.getQueryData<typeof status.data>(queryKey);
-          if (latest !== status.data) return;
-          activationLock.current = true;
-          activate.mutate();
-        }}
-      >
-        {t(failed ? "Retry free model setup" : "Use Pax free quota")}
-      </Button>
+      {notice && (
+        <p role="status" className="text-sm text-ink-muted">
+          {t(notice)}
+        </p>
+      )}
+      {activation}
+      {authorized && (
+        <>
+          {changeAccess.isError && changeAccess.variables === "revoke" && (
+            <p role="alert" className="text-sm text-warning">
+              <span className="block font-medium">
+                {t("Free model authorization")}
+              </span>
+              {t("Couldn’t disable Pax free quota.")}
+            </p>
+          )}
+          <Button
+            variant="secondary"
+            disabled={status.isFetching || changeAccess.isPending}
+            onClick={() => submit("revoke")}
+          >
+            {t(
+              changeAccess.isPending && changeAccess.variables === "revoke"
+                ? "Disabling Pax free quota…"
+                : "Disable Pax free quota",
+            )}
+          </Button>
+        </>
+      )}
     </div>
   );
 }

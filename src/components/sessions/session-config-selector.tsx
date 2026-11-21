@@ -54,10 +54,50 @@ function optionValueLabel(option: SessionConfigOption) {
   );
 }
 
+export function configurationWithAllowedModels(
+  configuration: SessionConfiguration | undefined,
+  modelIds: readonly string[] | undefined,
+): SessionConfiguration | undefined {
+  if (!configuration || modelIds === undefined) return configuration;
+  const allowed = new Set(modelIds);
+  const options = configuration.options.flatMap((option) => {
+    if (!isModelOption(option)) return [option];
+    const available = option.options?.filter(({ value }) => allowed.has(value));
+    if (!available?.length) return [];
+    return [
+      {
+        ...option,
+        current_value: available.some(
+          ({ value }) => value === option.current_value,
+        )
+          ? option.current_value
+          : "",
+        options: available,
+      },
+    ];
+  });
+  const legacy = configuration.legacy_models;
+  const available = legacy?.available?.filter(({ id }) => allowed.has(id));
+  return {
+    ...configuration,
+    options,
+    legacy_models: available?.length
+      ? {
+          available,
+          current_model_id: available.some(
+            ({ id }) => id === legacy?.current_model_id,
+          )
+            ? legacy?.current_model_id
+            : undefined,
+        }
+      : undefined,
+  };
+}
+
 export function configurationModel(configuration?: SessionConfiguration) {
   const modelOption = configuration?.options.find(isModelOption);
   if (modelOption) {
-    return optionValueLabel(modelOption);
+    return optionValueLabel(modelOption) || undefined;
   }
   const current = configuration?.legacy_models?.current_model_id;
   return (
@@ -166,17 +206,17 @@ function SessionConfigFields({
         </p>
       );
     const candidates = option.options ?? [];
-    const values = candidates.some(
-      (candidate) => candidate.value === option.current_value,
-    )
-      ? candidates
-      : [
-          {
-            name: String(option.current_value),
-            value: String(option.current_value),
-          },
-          ...candidates,
-        ];
+    const values =
+      option.current_value === "" ||
+      candidates.some((candidate) => candidate.value === option.current_value)
+        ? candidates
+        : [
+            {
+              name: String(option.current_value),
+              value: String(option.current_value),
+            },
+            ...candidates,
+          ];
     return (
       <>
         {option.description && (

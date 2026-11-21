@@ -19,6 +19,7 @@ import type {
 } from "@/features/api/types";
 import {
   configurationUsesDeepSeek,
+  configurationWithAllowedModels,
   SessionConfigSelector,
 } from "./session-config-selector";
 
@@ -39,6 +40,51 @@ afterEach(() => cleanup());
 function renderWithTooltip(ui: Parameters<typeof render>[0]) {
   return render(<TooltipProvider>{ui}</TooltipProvider>);
 }
+
+it("keeps only approved Pax model IDs in both advertised selectors", () => {
+  const configuration: SessionConfiguration = {
+    session_id: "session",
+    can_set: true,
+    can_force_refresh: true,
+    options: [
+      {
+        id: "model",
+        name: "Model",
+        type: "select",
+        current_value: "native-sol",
+        options: [
+          { value: "native-sol", name: "Native Sol" },
+          { value: "openai/gpt-6.1-sol", name: "Pax Sol" },
+          { value: "openai/gpt-6.2-astra", name: "Pax Astra" },
+        ],
+      },
+    ],
+    legacy_models: {
+      current_model_id: "native-sol",
+      available: [
+        { id: "native-sol", name: "Native Sol" },
+        { id: "openai/gpt-6.1-sol", name: "Pax Sol" },
+      ],
+    },
+  };
+  const allowed = ["openai/gpt-6.1-sol", "openai/gpt-6.2-astra"];
+
+  expect(configurationWithAllowedModels(configuration, undefined)).toBe(
+    configuration,
+  );
+  expect(configurationWithAllowedModels(configuration, [])?.options).toEqual(
+    [],
+  );
+  const scoped = configurationWithAllowedModels(configuration, allowed);
+  expect(scoped?.options[0]?.current_value).toBe("");
+  expect(scoped?.options[0]?.options?.map(({ value }) => value)).toEqual(
+    allowed,
+  );
+  expect(scoped?.legacy_models?.current_model_id).toBeUndefined();
+  expect(scoped?.legacy_models?.available?.map(({ id }) => id)).toEqual([
+    allowed[0],
+  ]);
+});
 
 describe("SessionConfigSelector", () => {
   it("shows current model and changes dynamic model, thought, and boolean options", async () => {

@@ -53,7 +53,7 @@ export function isConversationObserverRecoverableError(error?: Error | null) {
   if (isConversationIdleTimeout(error) || error.name === "TypeError") {
     return true;
   }
-  return /failed to fetch|load failed|network(?:error| error| request failed)/i.test(
+  return /failed to fetch|load failed|network(?:error| error| request failed)|message connection ended before/i.test(
     error.message,
   );
 }

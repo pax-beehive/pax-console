@@ -53,10 +53,13 @@ added to the preauthorization editor.
 
 ### 一键创建托管沙箱
 
-桌面和手机首页在首次连接智能体的引导里显示创建入口。
-`/settings/devices/add` 也提供该入口。两处通过同源 `/api/pax/api/v1/sandbox` 请求区域
+桌面和手机首页在首次连接智能体的引导旁显示创建入口。首页的「我的沙箱」进入 `/sandbox`。
+`/settings/devices/add` 提供普通设备配对。沙箱入口通过同源 `/api/pax/api/v1/sandbox` 请求区域
 Manager。GET 返回 404 时隐藏入口，返回 `{ "sandbox": null }` 时允许创建。用户点击后
-发送无参数 POST，由 Manager 按当前账号排队、恢复并绑定 Node。状态保存在按用户区分的
+发送无参数 POST，由 Manager 按当前账号排队并绑定 Node。「我的沙箱」、Agent 登录页和对应会话
+使用原 Node 通过 `POST /api/v1/sandbox/resume` 恢复休眠或失败的沙箱。Manager 显示就绪而设备
+确定离线时，`POST /api/v1/sandbox/restart` 带原 Node 和 Manager 返回的 generation 请求重启。
+状态保存在按用户区分的
 TanStack Query 缓存中，`queued` 和 `starting` 分开显示并轮询。API 确认宿主满载时显示等待运行名额，
 启动失败时将 `reason_code` 映射为本地化提示，并提供重试。只有 `ready` 带确切的 `node_id`
 时显示成功，刷新设备列表，并提供打开该设备或稍后添加 Agent 的链接。
@@ -90,7 +93,8 @@ access_token），需要粘贴 key/token 时先展开输入框，否则直接开
 Agent 共用额度上限。多个同类 Agent 时可选择租约目标，点击后才用
 `POST /api/v1/starter/wake` 提交 `node_id` 和 `agent_id`。TanStack Query 按用户缓存并刷新状态，
 直到 Manager 确认所选 Agent 已就绪。个人服务商登录独立保留，模型凭证由托管运行时持有。
-会话只展示所选 Agent 需要处理或等待的额度状态，正常就绪后自动收起。
+会话展示所选 Agent 的授权、进度、失败原因和处理入口。`agents[].enabled` 记录持久授权，
+与当前运行实例的状态独立。`POST /api/v1/starter/revoke` 使用同一 Node 和 Agent，沙箱离线时也可撤销。
 
 成功状态可选携带原生工具返回的 `account`：`email`、`display_name`、`organization` 和
 `plan`。绿色凭据状态下优先展示账号邮箱，否则展示姓名；组织与套餐为可选次要说明。

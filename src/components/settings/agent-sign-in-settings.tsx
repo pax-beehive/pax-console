@@ -12,6 +12,10 @@ import {
   hostedAgentAccess,
   useHostedStarter,
 } from "@/components/connect/hosted-agent-access";
+import {
+  HostedSandboxControls,
+  useHostedSandboxStatus,
+} from "@/components/connect/hosted-sandbox-create";
 import { compactId } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useNodeAgents, useNodes } from "@/features/api/resources";
@@ -65,6 +69,9 @@ export function AgentSignInSettings({
 }: AgentSignInProps) {
   const { t } = useI18n();
   const nodes = useNodes(userId);
+  const sandboxStatus = useHostedSandboxStatus(userId, {
+    readyRefetchInterval: 15_000,
+  });
   // The device named by the link or picked here. Undefined until either.
   const [chosenNodeId, setNodeId] = useState<string | undefined>(
     initialNodeId || undefined,
@@ -79,6 +86,8 @@ export function AgentSignInSettings({
     chosenNodeId ?? (devices.length === 1 ? devices[0].node_id : "");
   const selected = devices.find((node) => node.node_id === nodeId);
   const available = selected && isActiveNode(selected);
+  const sandbox = sandboxStatus.data?.sandbox;
+  const isOwnedSandbox = sandbox?.node_id === nodeId;
   // Agent types come from agents registered in PAX for this device only.
   const agents = useNodeAgents(userId, selected ? nodeId : undefined);
   const agentTypes = agents.data
@@ -221,6 +230,27 @@ export function AgentSignInSettings({
               "Credentials apply to the system account running PAX on this device. Other accounts or configurations may need a separate sign-in.",
             )}
           </p>
+          {selected && (
+            <HostedSandboxControls
+              key={nodeId}
+              userId={userId}
+              status={sandboxStatus}
+              targetNodeId={nodeId}
+              nodeOnline={selected.online}
+            />
+          )}
+          {selected && harness && (available || isOwnedSandbox) && (
+            <HostedAgentSignIn
+              key={`free-quota:${userId}:${nodeId}:${harness}`}
+              userId={userId}
+              nodeId={nodeId}
+              harness={harness}
+              agents={agents.data?.agents ?? []}
+              sandboxReady={Boolean(
+                available && (!isOwnedSandbox || sandbox?.status === "ready"),
+              )}
+            />
+          )}
           {nodes.isLoading ? (
             <p role="status" className="text-sm text-ink-tertiary">
               {t("Loading devices…")}
@@ -240,7 +270,8 @@ export function AgentSignInSettings({
                 "This device is unavailable to your account. Select a device you own.",
               )}
             </p>
-          ) : selected && !available ? (
+          ) : selected && !available && isOwnedSandbox ? null : selected &&
+            !available ? (
             <p role="status" className="text-sm text-ink-muted">
               {t(
                 "This device is offline. Reconnect it before checking or changing its sign-in.",
@@ -267,12 +298,6 @@ export function AgentSignInSettings({
             </p>
           ) : available && harness ? (
             <div className="grid gap-4" key={`${userId}:${nodeId}:${harness}`}>
-              <HostedAgentSignIn
-                userId={userId}
-                nodeId={nodeId}
-                harness={harness}
-                agents={agents.data?.agents ?? []}
-              />
               {harness === "pi" ? (
                 <PiSignIn />
               ) : (
@@ -315,11 +340,13 @@ function HostedAgentSignIn({
   nodeId,
   harness,
   agents,
+  sandboxReady,
 }: {
   userId: string;
   nodeId: string;
   harness: string;
   agents: Agent[];
+  sandboxReady: boolean;
 }) {
   const { t } = useI18n();
   const [chosenAgent, setChosenAgent] = useState("");
@@ -340,11 +367,12 @@ function HostedAgentSignIn({
   const activating = access.state === "queued" || access.state === "starting";
   const activeLease = activating || access.state === "ready";
   const eligibleAgents = registeredAgents.filter((agent) => {
-    const agentState = access.agents?.get(agent.agent_id)?.state;
+    const grant = access.agents?.get(agent.agent_id);
     return (
-      isActiveAgent(agent) ||
-      agentState === "queued" ||
-      agentState === "starting" ||
+      (access.canActivate && isActiveAgent(agent)) ||
+      grant?.enabled === true ||
+      grant?.state === "queued" ||
+      grant?.state === "starting" ||
       (activating && agent.agent_id === access.agentId)
     );
   });
@@ -388,6 +416,7 @@ function HostedAgentSignIn({
             agentId={agent.agent_id}
             harness={harness}
             status={status}
+            sandboxReady={sandboxReady}
           />
         </div>
       )}

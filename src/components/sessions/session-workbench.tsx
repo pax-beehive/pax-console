@@ -8,6 +8,10 @@ import {
   HostedAgentAccess,
   useHostedStarter,
 } from "@/components/connect/hosted-agent-access";
+import {
+  HostedSandboxControls,
+  useHostedSandboxStatus,
+} from "@/components/connect/hosted-sandbox-create";
 import { normalizeAgentType } from "@/components/settings/agent-types";
 import { CronOriginBadge } from "@/components/sessions/cron-origin-badge";
 import { cronSessionOrigin } from "@/features/sessions/session-origin";
@@ -70,6 +74,7 @@ import {
   SessionConfigSelector,
   configurationSummary,
   configurationUsesDeepSeek,
+  configurationWithAllowedModels,
 } from "@/components/sessions/session-config-selector";
 import { SessionHeader } from "@/components/sessions/session-header";
 import { SecureModeActivation } from "@/components/sessions/secure-mode-activation";
@@ -304,11 +309,34 @@ export function SessionWorkbench({
     : (agentId ?? agents[0]?.agent_id);
   const activeAgent = agents.find((agent) => agent.agent_id === activeAgentId);
   const activeHarness = normalizeAgentType(activeAgent?.agent_type);
+  const sandboxStatus = useHostedSandboxStatus(user.user_id, {
+    enabled: Boolean(activeNodeId),
+    readyRefetchInterval: 15_000,
+  });
+  const sessionSandbox = sandboxStatus.data?.sandbox;
+  const sandboxReady =
+    sessionSandbox?.node_id !== activeNodeId ||
+    (sessionSandbox?.status === "ready" && activeNode?.online === true);
   const hostedStarter = useHostedStarter(
     user.user_id,
     activeNodeId ?? "",
     activeNodeId && activeAgentId ? activeHarness : undefined,
   );
+  const sandboxModelAccess = hostedStarter.data?.sandbox_model_access;
+  const hostedGrant =
+    sandboxModelAccess?.node_id === activeNodeId
+      ? sandboxModelAccess?.agents?.find(
+          ({ agent_id }) => agent_id === activeAgentId,
+        )
+      : undefined;
+  const hostedCodex = activeHarness === "codex" ? hostedGrant : undefined;
+  const submissionBlocked =
+    !sandboxReady ||
+    (hostedGrant?.enabled === true &&
+      (hostedGrant.state !== "ready" ||
+        hostedStarter.data?.user_budget_available === false ||
+        hostedStarter.data?.pool_available === false ||
+        hostedStarter.data?.starter?.access_paused === true));
   const permissionCatalogQuery = useAgentPermissionCatalog(
     user.user_id,
     activeAgentId,
@@ -416,9 +444,41 @@ export function SessionWorkbench({
     currentSessionId,
     !usesEncryptedTransport,
   );
-  const showWhaleAvatar = configurationUsesDeepSeek(
+  const sessionConfiguration = configurationWithAllowedModels(
     sessionConfigurationQuery.data,
+    hostedCodex?.enabled ? (hostedCodex.model_ids ?? []) : undefined,
   );
+  const showWhaleAvatar = configurationUsesDeepSeek(sessionConfiguration);
+  const hostedModelState =
+    hostedCodex?.enabled === undefined
+      ? undefined
+      : `${hostedCodex.enabled}:${hostedCodex.state}:${hostedCodex.model_ids?.join(",") ?? ""}`;
+  useEffect(() => {
+    if (
+      !hostedModelState ||
+      !activeNodeId ||
+      !activeAgentId ||
+      !currentSessionId ||
+      usesEncryptedTransport
+    )
+      return;
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.sessionConfiguration(
+        user.user_id,
+        activeNodeId,
+        activeAgentId,
+        currentSessionId,
+      ),
+    });
+  }, [
+    activeNodeId,
+    activeAgentId,
+    currentSessionId,
+    hostedModelState,
+    queryClient,
+    user.user_id,
+    usesEncryptedTransport,
+  ]);
   const activeSessionReportedRunning = isActiveSessionRunStatus(
     activeSession?.runtime_status,
   );
@@ -2088,6 +2148,7 @@ export function SessionWorkbench({
   const submitDraft = useCallback(
     async (content: string, onAccepted?: () => void) => {
       if (
+        submissionBlocked ||
         (!content && composerAttachments.length === 0) ||
         !activeAgentId ||
         !activeNodeId ||
@@ -2209,6 +2270,7 @@ export function SessionWorkbench({
       queueDraft,
       recoverPermissionCatalogAfterCreateFailure,
       sendEncryptedMessage,
+      submissionBlocked,
       t,
       sendConversationMessage,
     ],
@@ -3084,6 +3146,15 @@ export function SessionWorkbench({
           </div>
         )}
         <div className="mx-auto grid w-full max-w-4xl gap-2 px-3 py-2 empty:hidden">
+          {activeNodeId && (
+            <HostedSandboxControls
+              key={activeNodeId}
+              userId={user.user_id}
+              status={sandboxStatus}
+              targetNodeId={activeNodeId}
+              nodeOnline={nodesQuery.error ? undefined : activeNode?.online}
+            />
+          )}
           {activeNodeId && activeAgentId && activeHarness && (
             <HostedAgentAccess
               key={`${user.user_id}:${activeNodeId}:${activeAgentId}`}
@@ -3093,6 +3164,7 @@ export function SessionWorkbench({
               harness={activeHarness}
               status={hostedStarter}
               showReady={false}
+              sandboxReady={sandboxReady}
             />
           )}
           <SessionErrors
@@ -3159,14 +3231,14 @@ export function SessionWorkbench({
           permissionChoices={permissionChoices}
           configurationSummary={
             !usesEncryptedTransport
-              ? configurationSummary(sessionConfigurationQuery.data)
+              ? configurationSummary(sessionConfiguration)
               : undefined
           }
           configurationControl={
             currentSessionId &&
             !usesEncryptedTransport && (
               <SessionConfigSelector
-                configuration={sessionConfigurationQuery.data}
+                configuration={sessionConfiguration}
                 errorMessage={
                   sessionConfigurationQuery.error instanceof Error
                     ? formatErrorDetail(sessionConfigurationQuery.error)
@@ -3183,6 +3255,7 @@ export function SessionWorkbench({
             )
           }
           secure={usesEncryptedTransport}
+          submissionBlocked={submissionBlocked}
           steerTurnPending={steerTurn.isPending}
           stopTurnPending={stopTurn.isPending}
           supportsQueuedTurns={!usesEncryptedTransport}

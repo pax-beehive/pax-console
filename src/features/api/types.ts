@@ -2,8 +2,10 @@ export type ApiRecord = Record<string, unknown>;
 
 export type SandboxModelAccessAgent = {
   agent_id: string;
-  state: "queued" | "starting" | "ready" | "failed";
+  state: "available" | "queued" | "starting" | "ready" | "failed";
+  enabled?: boolean;
   reason_code?: string;
+  model_ids?: string[];
 };
 
 export type SandboxModelAccess = {
@@ -32,6 +34,7 @@ export type HostedSandboxStatus = {
   sandbox: {
     status: "queued" | "starting" | "ready" | "sleeping" | "failed";
     node_id?: string;
+    generation?: number;
     reason_code?: string;
   } | null;
 };

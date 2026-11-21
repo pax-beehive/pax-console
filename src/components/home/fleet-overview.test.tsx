@@ -368,7 +368,7 @@ describe("FleetOverview hosted sandbox", () => {
     mocks.listAgents.mockResolvedValue({ agents: [] });
   }
 
-  it("shows sandbox creation inside the first-agent setup guide", async () => {
+  it("shows sandbox creation separately from computer pairing on first Home", async () => {
     showFirstAgentSetup();
     mocks.readHostedSandbox.mockResolvedValue({ sandbox: null });
     renderOverview();
@@ -378,15 +378,16 @@ describe("FleetOverview hosted sandbox", () => {
     });
     const guide = within(heading.closest("section")!);
     expect(
-      await guide.findByRole("button", { name: "Create sandbox" }),
+      await screen.findByRole("button", { name: "Create sandbox" }),
     ).toBeVisible();
+    expect(guide.queryByRole("button", { name: "Create sandbox" })).toBeNull();
     expect(
       guide.getByRole("button", { name: "Quick connect (Recommended)" }),
     ).toBeVisible();
     expect(mocks.startHostedSandbox).not.toHaveBeenCalled();
   });
 
-  it("omits the sandbox banner and status request on an established Home", async () => {
+  it("links to My sandbox without showing a setup card on an established Home", async () => {
     mocks.readHostedSandbox.mockResolvedValue({ sandbox: null });
     renderOverview();
 
@@ -394,7 +395,9 @@ describe("FleetOverview hosted sandbox", () => {
     expect(
       screen.queryByRole("heading", { name: "Pax sandbox" }),
     ).not.toBeInTheDocument();
-    expect(mocks.readHostedSandbox).not.toHaveBeenCalled();
+    expect(
+      await screen.findByRole("link", { name: "My sandbox" }),
+    ).toHaveAttribute("href", "/sandbox");
   });
 
   it("opens the connected sandbox and leaves agent selection to the user", async () => {
@@ -404,7 +407,13 @@ describe("FleetOverview hosted sandbox", () => {
     };
     mocks.readHostedSandbox.mockResolvedValueOnce({ sandbox: null });
     mocks.readHostedSandbox.mockResolvedValue(status);
-    mocks.startHostedSandbox.mockResolvedValue(status);
+    mocks.startHostedSandbox.mockImplementation(async () => {
+      mocks.useNodes.mockReturnValue({
+        data: { nodes: [{ node_id: "sandbox_node", online: true }] },
+        isSuccess: true,
+      });
+      return status;
+    });
     renderOverview();
 
     await userEvent.click(
@@ -431,7 +440,9 @@ describe("FleetOverview hosted sandbox", () => {
       screen.queryByRole("heading", { name: "Pax sandbox" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Quick connect (Recommended)" }),
+      await screen.findByRole("button", {
+        name: "Quick connect (Recommended)",
+      }),
     ).toBeVisible();
   });
 });
