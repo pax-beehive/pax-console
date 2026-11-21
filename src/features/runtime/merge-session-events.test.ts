@@ -6,6 +6,22 @@ import { mergeEvents } from "./merge-session-events";
 import { SessionEvent } from "./session-events";
 
 describe("mergeEvents", () => {
+  it("clears a retry when new text continues an existing streaming message", () => {
+    const retry: SessionEvent = {
+      type: "run_status",
+      id: "retry-1",
+      sessionId: "session-1",
+      turnId: "turn-1",
+      status: "running",
+      retrying: true,
+      createdAt: "2026-11-04T23:19:01Z",
+    };
+    const stalled = mergeEvents([answerChunk("Hello"), retry]);
+    expect(stalled).toContain(retry);
+    const resumed = mergeEvents([...stalled, answerChunk(" again")]);
+    expect(resumed).toEqual([answerChunk("Hello again")]);
+  });
+
   it("keeps punctuation-ending strong emphasis when live text continues across a completion", () => {
     const events = mergeEvents([
       answerChunk("这是**说明：**"),

@@ -311,6 +311,7 @@ export const sessionsMessages: Record<string, string> = {
   Success: "成功",
   "file change": "文件更改",
   "Waiting for agent": "等待智能体",
+  "Agent is retrying…": "智能体正在重试…",
   Thinking: "深度思考中",
   Thought: "已深度思考",
   "Thought for {duration}": "已深度思考{duration}",

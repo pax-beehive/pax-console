@@ -533,6 +533,58 @@ it("shows the active observer's session error next to the composer", () => {
   expect(notice.parentElement?.nextElementSibling?.tagName).toBe("FORM");
 });
 
+it("shows replayed retry feedback for the active turn until the agent resumes", () => {
+  fixtures.agentType = "codex";
+  fixtures.session = {
+    ...fixtures.session,
+    runtime_status: "running",
+    runtime_turn_instance_id: "current_turn",
+  };
+  const replayedRetry = (turnId: string, sequence: number): HistoryMessage => ({
+    message_id: `retry_${sequence}`,
+    session_id: "sess_1",
+    turn_id: turnId,
+    session_seq: sequence,
+    message_type: "session_info_update",
+    raw_json: {
+      method: "session/update",
+      params: {
+        sessionId: "sess_1",
+        update: {
+          sessionUpdate: "session_info_update",
+          _meta: {
+            codex: { error: { willRetry: true, message: "Internal detail" } },
+          },
+        },
+      },
+    },
+  });
+  fixtures.history = [replayedRetry("previous_turn", 1)];
+  const view = render(workbench());
+  expect(screen.queryByText("Agent is retrying…")).not.toBeInTheDocument();
+
+  fixtures.history = [...fixtures.history, replayedRetry("current_turn", 2)];
+  view.rerender(workbench());
+  expect(screen.getByText("Agent is retrying…")).toBeVisible();
+  expect(screen.queryByText("Internal detail")).not.toBeInTheDocument();
+
+  fixtures.history = [
+    ...fixtures.history,
+    {
+      message_id: "recovered_reply",
+      session_id: "sess_1",
+      turn_id: "current_turn",
+      session_seq: 3,
+      role: "assistant",
+      message_type: "agent_message_chunk",
+      parts: [{ id: 3, part_index: 0, part_type: "text", text: "Recovered" }],
+    },
+  ];
+  view.rerender(workbench());
+  expect(screen.queryByText("Agent is retrying…")).not.toBeInTheDocument();
+  expect(screen.getByText("Recovered")).toBeVisible();
+});
+
 describe("thinking avatar follows the current session model", () => {
   const thought: SessionEvent = {
     type: "progress",

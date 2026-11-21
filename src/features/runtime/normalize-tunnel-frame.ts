@@ -178,12 +178,20 @@ export function normalizeTunnelFrame(
   }
 
   if (kind?.includes("status") || kind === "session_info_update") {
+    const willRetry =
+      kind === "session_info_update"
+        ? valueFrom(
+            valueFrom(valueFrom(frame._meta, "codex"), "error"),
+            "willRetry",
+          )
+        : undefined;
     return [
       {
         type: "run_status",
         id,
         sessionId,
         status: normalizeRunStatus(frame.status),
+        ...(typeof willRetry === "boolean" ? { retrying: willRetry } : {}),
         createdAt,
       },
     ];
