@@ -182,7 +182,27 @@ export async function streamConversationRun({
     );
   }
 
-  await streamSseResponse(response, parseConversationRunSseBlock, onEnvelope);
+  let terminal = false;
+  await streamSseResponse(
+    response,
+    parseConversationRunSseBlock,
+    (envelope) => {
+      if (
+        envelope.type === "done" ||
+        envelope.type === "turn_done" ||
+        envelope.type === "interrupted" ||
+        envelope.type === "error"
+      ) {
+        terminal = true;
+      }
+      onEnvelope(envelope);
+    },
+  );
+  if (!terminal && !signal?.aborted) {
+    throw new Error(
+      "Message connection ended before the agent finished this turn.",
+    );
+  }
 }
 
 export function parseConversationRunSseBlock(block: string) {

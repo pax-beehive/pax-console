@@ -237,7 +237,10 @@ export function useConversationRun({
 
         const nextError =
           caught instanceof Error ? caught : new Error(String(caught));
-        if (isConversationObserverRecoverableError(nextError)) {
+        if (
+          sessionIdRef.current &&
+          isConversationObserverRecoverableError(nextError)
+        ) {
           setError(nextError);
           setTransportInterrupted(true);
           return { sessionId: sessionIdRef.current };
