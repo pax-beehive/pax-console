@@ -3,7 +3,7 @@
 import { useI18n } from "@/features/i18n/use-i18n";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useMutation } from "@tanstack/react-query";
 import {
   AlertCircle,
@@ -87,6 +87,7 @@ export function DeviceCard({
   onDeleteAgent,
   onDeleteDevice,
   onRename,
+  sandboxRecovery,
   userId,
 }: {
   admin: boolean;
@@ -96,6 +97,7 @@ export function DeviceCard({
   onDeleteAgent: (agent: Agent) => void;
   onDeleteDevice: (node: Node) => void;
   onRename: (node: Node) => void;
+  sandboxRecovery?: ReactNode;
   userId: string;
 }) {
   const { t } = useI18n();
@@ -314,6 +316,10 @@ export function DeviceCard({
           </DropdownMenu>
         </div>
       </header>
+
+      {sandboxRecovery && (
+        <div className="px-3 py-2 empty:hidden sm:px-4">{sandboxRecovery}</div>
+      )}
 
       <ErrorNotice
         className="border-b border-hairline px-4 py-2"

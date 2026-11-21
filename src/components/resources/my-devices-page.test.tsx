@@ -13,7 +13,7 @@ import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ApiError } from "@/features/api/errors";
-import type { Agent, Node } from "@/features/api/types";
+import type { Agent, HostedSandboxStatus, Node } from "@/features/api/types";
 import { MyDevicesPage } from "./my-devices-page";
 
 const api = vi.hoisted(() => ({
@@ -22,12 +22,20 @@ const api = vi.hoisted(() => ({
   deleteNode: vi.fn(async () => ({})),
   deleteAgent: vi.fn(async () => ({})),
   updateNodeProfile: vi.fn(async () => ({})),
+  readHostedSandbox: vi.fn(
+    async (): Promise<HostedSandboxStatus | null> => null,
+  ),
+  resumeHostedSandbox: vi.fn(async () => ({ sandbox: null })),
+  restartHostedSandbox: vi.fn(async () => ({ sandbox: null })),
 }));
 vi.mock("@/features/api/resources", async (original) => ({
   ...(await original<typeof import("@/features/api/resources")>()),
   deleteAgent: api.deleteAgent,
   deleteNode: api.deleteNode,
   getNodeHarnessAuth: async () => ({ harness_auth: { state: "idle" } }),
+  readHostedSandbox: api.readHostedSandbox,
+  resumeHostedSandbox: api.resumeHostedSandbox,
+  restartHostedSandbox: api.restartHostedSandbox,
   updateNodeProfile: api.updateNodeProfile,
   useAgents: () => ({ data: { agents: api.agents }, isLoading: false }),
   useNodes: () => ({ data: { nodes: api.nodes }, isLoading: false }),
@@ -69,6 +77,7 @@ afterEach(() => {
   api.nodes = [];
   api.agents = [];
   vi.clearAllMocks();
+  api.readHostedSandbox.mockResolvedValue(null);
 });
 
 describe("My devices", () => {
@@ -105,7 +114,58 @@ describe("My devices", () => {
     ).toBeVisible();
     expect(screen.getAllByRole("link", { name: "Add device" })).toHaveLength(2);
     expect(screen.queryByTestId("device-card")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "My sandbox" })).toBeNull();
   });
+
+  it.each([
+    { status: "sleeping", label: "Start sandbox" },
+    { status: "ready", label: "Restart sandbox" },
+  ] as const)(
+    "offers $label on the matching device when the sandbox is $status",
+    async ({ status, label }) => {
+      api.nodes = [
+        { ...server, online: false },
+        { ...laptop, online: false },
+      ];
+      api.readHostedSandbox.mockResolvedValue({
+        sandbox: { status, node_id: server.node_id, generation: 4 },
+      });
+      const user = open();
+
+      expect(
+        await screen.findByRole("link", { name: "My sandbox" }),
+      ).toHaveAttribute("href", "/sandbox");
+      expect(
+        within(screen.getByRole("article", { name: "Laptop" })).queryByRole(
+          "button",
+          { name: label },
+        ),
+      ).toBeNull();
+      await user.click(
+        within(screen.getByRole("article", { name: "Build server" })).getByRole(
+          "button",
+          { name: label },
+        ),
+      );
+
+      if (status === "sleeping") {
+        await waitFor(() =>
+          expect(api.resumeHostedSandbox).toHaveBeenCalledExactlyOnceWith(
+            server.node_id,
+          ),
+        );
+        expect(api.restartHostedSandbox).not.toHaveBeenCalled();
+      } else {
+        await waitFor(() =>
+          expect(api.restartHostedSandbox).toHaveBeenCalledExactlyOnceWith(
+            server.node_id,
+            4,
+          ),
+        );
+        expect(api.resumeHostedSandbox).not.toHaveBeenCalled();
+      }
+    },
+  );
 
   it("renames a device from its menu", async () => {
     api.nodes = [laptop];

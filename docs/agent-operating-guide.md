@@ -105,8 +105,10 @@ Homebrew and npx wrappers remain unsupported.
 ## Settings workspace
 
 Home offers **Create sandbox** alongside the first-agent setup on desktop
-and mobile. **My sandbox** in Home opens `/sandbox` for the same account.
-**Devices → Add device** handles computer pairing. The sandbox controls check whether
+and mobile. **My sandbox** in Home and **Settings → Devices** opens `/sandbox`
+for the same account. The matching hosted device card also shows the sandbox
+recovery action and its status. **Devices → Add device** handles computer pairing.
+The sandbox controls check whether
 the authenticated regional Manager serves `/api/v1/sandbox` with a same-origin
 GET. Creating requires an explicit click and sends `POST /api/v1/sandbox`
 without a Node or Agent ID. My sandbox, Agent sign-in, and the selected sandbox
