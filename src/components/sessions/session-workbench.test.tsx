@@ -53,7 +53,6 @@ const fixtures = vi.hoisted(() => ({
   readHostedSandbox: vi.fn(),
   activateHostedAgent: vi.fn(),
   resumeHostedSandbox: vi.fn(),
-  revokeHostedAgent: vi.fn(),
   emptyEvents: [],
   knowledgeEnabled: false,
   disabledFeatures: [] as string[],
@@ -129,7 +128,6 @@ vi.mock("@/features/api/resources", async (importOriginal) => ({
   readHostedSandbox: fixtures.readHostedSandbox,
   activateHostedAgent: fixtures.activateHostedAgent,
   resumeHostedSandbox: fixtures.resumeHostedSandbox,
-  revokeHostedAgent: fixtures.revokeHostedAgent,
 }));
 vi.mock("@/features/api/workspace-search", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/features/api/workspace-search")>()),
@@ -224,7 +222,6 @@ beforeEach(() => {
   fixtures.readHostedSandbox.mockReset().mockResolvedValue(null);
   fixtures.activateHostedAgent.mockReset();
   fixtures.resumeHostedSandbox.mockReset();
-  fixtures.revokeHostedAgent.mockReset();
   fixtures.encryptedStatus = "idle";
   fixtures.conversationEvents = [];
   fixtures.history = [];
@@ -324,23 +321,29 @@ describe("sandbox model access in a session", () => {
       }),
     );
     await waitFor(() => expect(button).toBeEnabled());
+    expect(screen.queryByText("Setting up free model access…")).toBeNull();
+    expect(screen.queryByText("Pax free quota is authorized.")).toBeNull();
+    expect(screen.queryByText("Pax free quota is ready.")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Disable Pax free quota" }),
+    ).toBeNull();
   });
 
-  it("resumes the session's existing sandbox and can revoke its saved authorization while offline", async () => {
+  it("resumes the existing sandbox and shows when authorized access is waiting", async () => {
     fixtures.agentType = "codex";
     fixtures.nodeOnline = false;
     fixtures.readHostedSandbox.mockResolvedValue({
       sandbox: { node_id: "node_1", status: "sleeping", generation: 2 },
     });
-    const grant = (enabled: boolean) => ({
+    const grant = {
       ...access,
       sandbox_model_access: {
         ...access.sandbox_model_access,
         harnesses: [],
-        agents: [{ agent_id: "agent_1", enabled, state: "available" }],
+        agents: [{ agent_id: "agent_1", enabled: true, state: "available" }],
       },
-    });
-    fixtures.readHostedStarter.mockResolvedValue(grant(true));
+    };
+    fixtures.readHostedStarter.mockResolvedValue(grant);
     fixtures.resumeHostedSandbox.mockImplementation(async () => {
       const queued = {
         sandbox: { node_id: "node_1", status: "queued", generation: 3 },
@@ -348,14 +351,16 @@ describe("sandbox model access in a session", () => {
       fixtures.readHostedSandbox.mockResolvedValue(queued);
       return queued;
     });
-    fixtures.revokeHostedAgent.mockImplementation(async () => {
-      fixtures.readHostedStarter.mockResolvedValue(grant(false));
-      return grant(false);
-    });
     render(workbench());
     expect(
-      await screen.findByText("Pax free quota is authorized."),
+      await screen.findByText(
+        "Waiting for the sandbox to set up free model access.",
+      ),
     ).toBeVisible();
+    expect(screen.queryByText("Pax free quota is authorized.")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Disable Pax free quota" }),
+    ).toBeNull();
     expect(
       screen.queryByRole("button", { name: "Use Pax free quota" }),
     ).toBeNull();
@@ -367,17 +372,32 @@ describe("sandbox model access in a session", () => {
       "node_1",
     );
     expect(fixtures.sendMessage).not.toHaveBeenCalled();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Disable Pax free quota" }),
-    );
-    await waitFor(() =>
-      expect(screen.queryByText("Pax free quota is authorized.")).toBeNull(),
-    );
-    expect(fixtures.revokeHostedAgent).toHaveBeenCalledExactlyOnceWith(
-      "node_1",
-      "agent_1",
-    );
     expect(fixtures.activateHostedAgent).not.toHaveBeenCalled();
+  });
+
+  it("offers free quota activation in the composer", async () => {
+    fixtures.agentType = "codex";
+    fixtures.readHostedStarter.mockResolvedValue({
+      ...access,
+      sandbox_model_access: {
+        ...access.sandbox_model_access,
+        agents: [{ agent_id: "agent_1", enabled: false, state: "available" }],
+      },
+    });
+    fixtures.activateHostedAgent.mockResolvedValue({});
+    render(workbench());
+
+    const activate = await screen.findByRole("button", {
+      name: "Use Pax free quota",
+    });
+    expect(fixtures.activateHostedAgent).not.toHaveBeenCalled();
+    fireEvent.click(activate);
+    await waitFor(() =>
+      expect(fixtures.activateHostedAgent).toHaveBeenCalledExactlyOnceWith(
+        "node_1",
+        "agent_1",
+      ),
+    );
   });
 
   it("shows failure before sending, retries only on demand, and follows setup until ready", async () => {

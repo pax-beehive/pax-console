@@ -31,6 +31,7 @@ const mocks = vi.hoisted(() => ({
   readHostedSandbox: vi.fn(),
   readHostedStarter: vi.fn(),
   activateHostedAgent: vi.fn(),
+  revokeHostedAgent: vi.fn(),
 }));
 vi.mock("@/features/api/resources", () => mocks);
 
@@ -78,6 +79,7 @@ beforeEach(() => {
   mocks.readHostedStarter.mockResolvedValue({ enabled: false });
   mocks.readHostedSandbox.mockResolvedValue(null);
   mocks.activateHostedAgent.mockReset();
+  mocks.revokeHostedAgent.mockReset();
 });
 
 /** Every device answers; only the listed device/agent pairs are signed out. */
@@ -295,6 +297,46 @@ const awsModelAccess = {
     state: "available",
   },
 } satisfies HostedStarterStatus;
+
+it("can revoke a saved Pax quota authorization from settings while the sandbox sleeps", async () => {
+  const user = userEvent.setup();
+  const agent = { ...sandboxPi, agent_type: "codex", online: false };
+  mocks.useNodes.mockReturnValue({
+    data: { nodes: [{ ...nodes[0], online: false }] },
+    refetch: vi.fn(),
+  });
+  mocks.useNodeAgents.mockReturnValue(agentsQuery([agent]));
+  mocks.readHostedSandbox.mockResolvedValue({
+    sandbox: { node_id: agent.node_id, status: "sleeping", generation: 3 },
+  });
+  const grant = (enabled: boolean): HostedStarterStatus => ({
+    ...awsModelAccess,
+    sandbox_model_access: {
+      ...awsModelAccess.sandbox_model_access,
+      harnesses: [],
+      agents: [{ agent_id: agent.agent_id, enabled, state: "available" }],
+    },
+  });
+  mocks.readHostedStarter.mockResolvedValue(grant(true));
+  mocks.revokeHostedAgent.mockImplementation(async () => {
+    const revoked = grant(false);
+    mocks.readHostedStarter.mockResolvedValue(revoked);
+    return revoked;
+  });
+  mount({ initialHarness: "codex" });
+
+  const disable = await screen.findByRole("button", {
+    name: "Disable Pax free quota",
+  });
+  expect(screen.getByText("Pax free quota is authorized.")).toBeVisible();
+  await user.click(disable);
+  await waitFor(() => expect(disable).not.toBeInTheDocument());
+  expect(screen.queryByText("Pax free quota is authorized.")).toBeNull();
+  expect(mocks.revokeHostedAgent).toHaveBeenCalledExactlyOnceWith(
+    agent.node_id,
+    agent.agent_id,
+  );
+});
 
 it.each(["codex", "claude-code", "dscode"])(
   "offers Pax quota to a Manager-approved AWS sandbox %s while preserving native sign-in",

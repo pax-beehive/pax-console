@@ -3163,7 +3163,7 @@ export function SessionWorkbench({
               agentId={activeAgentId}
               harness={activeHarness}
               status={hostedStarter}
-              showReady={false}
+              showAuthorization={false}
               sandboxReady={sandboxReady}
             />
           )}
