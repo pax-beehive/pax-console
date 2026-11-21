@@ -8,6 +8,10 @@ import {
   HostedAgentAccess,
   useHostedStarter,
 } from "@/components/connect/hosted-agent-access";
+import {
+  HostedSandboxControls,
+  useHostedSandboxStatus,
+} from "@/components/connect/hosted-sandbox-create";
 import { normalizeAgentType } from "@/components/settings/agent-types";
 import { CronOriginBadge } from "@/components/sessions/cron-origin-badge";
 import { cronSessionOrigin } from "@/features/sessions/session-origin";
@@ -304,6 +308,14 @@ export function SessionWorkbench({
     : (agentId ?? agents[0]?.agent_id);
   const activeAgent = agents.find((agent) => agent.agent_id === activeAgentId);
   const activeHarness = normalizeAgentType(activeAgent?.agent_type);
+  const sandboxStatus = useHostedSandboxStatus(user.user_id, {
+    enabled: Boolean(activeNodeId),
+    readyRefetchInterval: 15_000,
+  });
+  const sessionSandbox = sandboxStatus.data?.sandbox;
+  const sandboxReady =
+    sessionSandbox?.node_id !== activeNodeId ||
+    (sessionSandbox?.status === "ready" && activeNode?.online === true);
   const hostedStarter = useHostedStarter(
     user.user_id,
     activeNodeId ?? "",
@@ -3084,6 +3096,15 @@ export function SessionWorkbench({
           </div>
         )}
         <div className="mx-auto grid w-full max-w-4xl gap-2 px-3 py-2 empty:hidden">
+          {activeNodeId && (
+            <HostedSandboxControls
+              key={activeNodeId}
+              userId={user.user_id}
+              status={sandboxStatus}
+              targetNodeId={activeNodeId}
+              nodeOnline={nodesQuery.error ? undefined : activeNode?.online}
+            />
+          )}
           {activeNodeId && activeAgentId && activeHarness && (
             <HostedAgentAccess
               key={`${user.user_id}:${activeNodeId}:${activeAgentId}`}
@@ -3093,6 +3114,7 @@ export function SessionWorkbench({
               harness={activeHarness}
               status={hostedStarter}
               showReady={false}
+              sandboxReady={sandboxReady}
             />
           )}
           <SessionErrors

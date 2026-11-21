@@ -61,6 +61,10 @@ import {
   X,
 } from "lucide-react";
 import { PaxdGettingStartedGuide } from "@/components/connect/paxd-getting-started";
+import {
+  HostedSandboxCreate,
+  useHostedSandboxStatus,
+} from "@/components/connect/hosted-sandbox-create";
 import { ConsoleLayout } from "@/components/shell/console-layout";
 import {
   type ComposerAttachment,
@@ -297,6 +301,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     );
   const [selectedWorkItemId, setSelectedWorkItemId] = useState("");
   const [setupStarted, setSetupStarted] = useState(false);
+  const sandboxStatus = useHostedSandboxStatus(user.user_id);
 
   const nodesQuery = useNodes(user.user_id);
   const nodes = sortOnlineFirst(
@@ -1013,6 +1018,11 @@ export function FleetOverview({ user }: FleetOverviewProps) {
                     {t("New session")}
                   </Link>
                 </Button>
+                {sandboxStatus.data && (
+                  <Button asChild size="sm" variant="ghost">
+                    <Link href="/sandbox">{t("My sandbox")}</Link>
+                  </Button>
+                )}
                 <div className="flex shrink-0 items-center gap-1">
                   <Button
                     aria-label={t("Close sidebar")}
@@ -1188,7 +1198,8 @@ export function FleetOverview({ user }: FleetOverviewProps) {
               />
             ) : setupStarted || fleetSetupGuideKind ? (
               <div className="flex min-h-0 flex-1 items-center overflow-auto p-3 sm:p-5">
-                <div className="mx-auto w-full max-w-4xl">
+                <div className="mx-auto grid w-full max-w-4xl gap-6">
+                  <HostedSandboxCreate userId={user.user_id} />
                   {setupStarted ||
                   (nodesQuery.isSuccess && agentsQuery.isSuccess) ? (
                     <PaxdGettingStartedGuide

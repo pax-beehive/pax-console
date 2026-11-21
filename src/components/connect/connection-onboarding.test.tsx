@@ -16,6 +16,7 @@ import type {
   NodeDaemonHarness,
 } from "@/features/api/types";
 import { ConnectionOnboarding } from "./connection-onboarding";
+import { HostedSandboxCreate } from "./hosted-sandbox-create";
 
 const mac: Node = { node_id: "mac", name: "Kevin’s Mac", online: true };
 let nodes: Node[];
@@ -96,11 +97,13 @@ beforeEach(() => {
       let data;
       if (path.endsWith("/node-registration-tokens")) {
         data = { token: "one-use-secret", expires_at: expiresAt };
-      } else if (path.endsWith("/sandbox")) {
+      } else if (/\/sandbox(?:\/(?:resume|restart))?$/.test(path)) {
         if (!hostedSandbox) return Response.json({}, { status: 404 });
         if (method === "POST") {
           if (sandboxStartError) return Response.json({}, { status: 503 });
-          hostedSandbox = { sandbox: { status: "queued" } };
+          hostedSandbox = {
+            sandbox: { ...hostedSandbox.sandbox, status: "queued" },
+          };
         } else if (sandboxReadError) {
           return Response.json({}, { status: 503 });
         }
@@ -174,6 +177,7 @@ afterEach(() => {
 
 function setup(
   props: Partial<React.ComponentProps<typeof ConnectionOnboarding>> = {},
+  manageSandbox = false,
 ) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -182,7 +186,11 @@ function setup(
   render(
     <QueryClientProvider client={client}>
       <TooltipProvider>
-        <ConnectionOnboarding userId="user" {...props} />
+        {manageSandbox ? (
+          <HostedSandboxCreate userId="user" dedicated />
+        ) : (
+          <ConnectionOnboarding userId="user" {...props} />
+        )}
       </TooltipProvider>
     </QueryClientProvider>,
   );
@@ -192,11 +200,10 @@ function setup(
 const sandboxPath = "/api/pax/api/v1/sandbox";
 
 describe("hosted sandbox creation", () => {
-  it("keeps computer pairing available if the regional sandbox endpoint is unavailable", async () => {
-    const { client } = setup({ intent: "device" });
-    await waitFor(() =>
-      expect(client.getQueryData(queryKeys.hostedSandbox("user"))).toBeNull(),
-    );
+  it("keeps Add device focused on pairing even for a sandbox-eligible owner", () => {
+    hostedSandbox = { sandbox: null };
+    setup({ intent: "device" });
+    expect(requests.some(({ path }) => path === sandboxPath)).toBe(false);
     expect(
       screen.queryByRole("button", { name: "Create sandbox" }),
     ).not.toBeInTheDocument();
@@ -208,7 +215,7 @@ describe("hosted sandbox creation", () => {
   it("queues once, polls for the exact Node, and leaves agent selection to the user", async () => {
     nodes = [mac];
     hostedSandbox = { sandbox: null };
-    const { client, user } = setup({ intent: "device" });
+    const { client, user } = setup({}, true);
 
     await user.dblClick(
       await screen.findByRole("button", { name: "Create sandbox" }),
@@ -233,6 +240,7 @@ describe("hosted sandbox creation", () => {
     await refresh(client, queryKeys.hostedSandbox("user"));
     expect(await screen.findByText("Starting sandbox…")).toBeVisible();
 
+    nodes = [...nodes, { node_id: "sandbox-node", online: true }];
     hostedSandbox = { sandbox: { status: "ready", node_id: "sandbox-node" } };
     expect(
       await screen.findByText("Sandbox connected", undefined, {
@@ -260,46 +268,71 @@ describe("hosted sandbox creation", () => {
     hostedSandbox = {
       sandbox: { status: "sleeping", node_id: "sandbox-node" },
     };
-    const { user } = setup({ intent: "device" });
+    const { user } = setup({}, true);
     await user.click(
       await screen.findByRole("button", { name: "Start sandbox" }),
     );
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Could not start the sandbox. Try again.",
+      "Could not confirm the sandbox start request.",
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Sandbox start request",
     );
 
     sandboxStartError = false;
-    await user.click(screen.getByRole("button", { name: "Try again" }));
+    await user.click(screen.getByRole("button", { name: "Start sandbox" }));
     expect(
       await screen.findByText("Sandbox queued. Waiting for a host…"),
     ).toBeVisible();
-    expect(requests.filter(({ method }) => method === "POST")).toHaveLength(2);
+    expect(requests.filter(({ method }) => method === "POST")).toEqual(
+      [0, 1].map(() => ({
+        path: sandboxPath + "/resume",
+        method: "POST",
+        body: { node_id: "sandbox-node" },
+      })),
+    );
   });
 
   it.each([
     [
       "host_environment_limit",
+      "Sandbox host capacity",
       "The sandbox host has reached its limit for saved sandboxes.",
     ],
-    ["container_exited", "The sandbox stopped before its device connected."],
-    ["node_connection_timeout", "The sandbox device did not connect in time."],
-    [undefined, "Could not start the sandbox. Try again."],
-    ["unrecognized-host-error", "Could not start the sandbox. Try again."],
+    [
+      "container_exited",
+      "Sandbox container startup",
+      "The sandbox stopped before its device connected.",
+    ],
+    [
+      "node_connection_timeout",
+      "Sandbox device connection",
+      "The sandbox device did not connect in time.",
+    ],
+    [undefined, "Sandbox startup", "Could not start the sandbox. Try again."],
+    [
+      "unrecognized-host-error",
+      "Sandbox startup",
+      "Could not start the sandbox. Try again.",
+    ],
   ])(
     "shows an actionable error for a failed sandbox (%s)",
-    async (reason, message) => {
+    async (reason, stage, message) => {
       hostedSandbox = { sandbox: { status: "failed", reason_code: reason } };
-      setup({ intent: "device" });
+      setup({}, true);
 
-      expect(await screen.findByRole("alert")).toHaveTextContent(message);
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent(stage);
+      expect(alert).toHaveTextContent(message);
       expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled();
       expect(screen.queryByText("unrecognized-host-error")).toBeNull();
     },
   );
 
   it("offers a refresh if a previously ready sandbox cannot be confirmed", async () => {
+    nodes = [...nodes, { node_id: "sandbox-node", online: true }];
     hostedSandbox = { sandbox: { status: "ready", node_id: "sandbox-node" } };
-    const { client, user } = setup({ intent: "device" });
+    const { client, user } = setup({}, true);
     expect(await screen.findByText("Sandbox connected")).toBeVisible();
 
     sandboxReadError = true;
@@ -316,6 +349,38 @@ describe("hosted sandbox creation", () => {
     expect(
       await screen.findByRole("link", { name: "Open device" }),
     ).toBeVisible();
+  });
+  it("restarts the exact reported offline Node and generation", async () => {
+    nodes = [{ node_id: "sandbox-node", online: false }];
+    hostedSandbox = {
+      sandbox: { status: "ready", node_id: "sandbox-node", generation: 8 },
+    };
+    const { user } = setup({}, true);
+    await user.click(
+      await screen.findByRole("button", { name: "Restart sandbox" }),
+    );
+    await screen.findByText("Sandbox queued. Waiting for a host…");
+    expect(requests.filter(({ method }) => method === "POST")).toEqual([
+      {
+        path: sandboxPath + "/restart",
+        method: "POST",
+        body: { node_id: "sandbox-node", generation: 8 },
+      },
+    ]);
+  });
+
+  it("offers refresh while the sandbox device status is missing", async () => {
+    hostedSandbox = {
+      sandbox: { status: "ready", node_id: "sandbox-node", generation: 8 },
+    };
+    setup({}, true);
+    await screen.findByText("Waiting for the sandbox device to reconnect…");
+    expect(
+      screen.queryByRole("button", { name: "Restart sandbox" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Refresh sandbox status" }),
+    ).toBeEnabled();
   });
 });
 

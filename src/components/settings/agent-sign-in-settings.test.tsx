@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   useNodeHarnessUsage: vi.fn(),
   useNodeAgents: vi.fn(),
   useAgents: vi.fn(),
+  readHostedSandbox: vi.fn(),
   readHostedStarter: vi.fn(),
   activateHostedAgent: vi.fn(),
 }));
@@ -75,6 +76,7 @@ beforeEach(() => {
   // sign-in beyond the selected card.
   mocks.useAgents.mockReturnValue({ data: { agents: [] } });
   mocks.readHostedStarter.mockResolvedValue({ enabled: false });
+  mocks.readHostedSandbox.mockResolvedValue(null);
   mocks.activateHostedAgent.mockReset();
 });
 

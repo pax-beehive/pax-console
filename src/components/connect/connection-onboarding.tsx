@@ -12,7 +12,6 @@ import {
 import { useNodes } from "@/features/api/resources";
 import { AgentConnectStep } from "./agent-connect-step";
 import { DeviceConnectStep } from "./device-connect-step";
-import { HostedSandboxCreate } from "./hosted-sandbox-create";
 
 export function ConnectionOnboarding({
   userId,
@@ -83,9 +82,6 @@ export function ConnectionOnboarding({
             </Button>
           </div>
         </>
-      )}
-      {(intent === "first-agent" || (intent === "device" && deviceStep)) && (
-        <HostedSandboxCreate userId={userId} />
       )}
       {deviceStep ? (
         <>
