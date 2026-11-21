@@ -416,7 +416,7 @@ export const sessionsMessages: Record<string, string> = {
   "Edited {count} files": "已编辑 {count} 个文件",
   "Using tools · {count} running": "使用工具 · {count} 项运行中",
   "Using tools · {count} queued": "使用工具 · {count} 项排队中",
-  "Using tools · {count} active": "使用工具 · {count} 项活动中",
+  "Using tools · {count} active": "正在处理 {count} 项工具调用",
   "Tool queued…": "工具已排队…",
   "Using tools…": "正在使用工具…",
   "Thinking…": "深度思考中",

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { translators } from "@/features/i18n/translate";
 import type {
   WorkActivityEvent,
   WorkstreamItem,
@@ -97,6 +98,12 @@ describe("live activity labels", () => {
     expect(liveActivityLabel([tool("Read"), tool("Grep", "queued")])).toBe(
       "Using tools · 2 active",
     );
+    expect(
+      liveActivityLabel(
+        [tool("Read"), tool("Grep", "queued")],
+        translators["zh-CN"],
+      ),
+    ).toBe("正在处理 2 项工具调用");
     expect(
       liveActivityLabel([tool("Read", "queued"), tool("Grep", "queued")]),
     ).toBe("Using tools · 2 queued");
