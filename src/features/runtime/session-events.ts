@@ -190,6 +190,7 @@ export type SessionEvent = (
       id: string;
       sessionId: string;
       status: "idle" | "running" | "waiting_approval" | "done" | "error";
+      retrying?: boolean;
       createdAt: string;
     }
   | {

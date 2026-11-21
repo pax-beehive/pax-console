@@ -417,11 +417,16 @@ function FileChangeCard({
 }
 
 // A quiet wait indicator for an active turn without an animated activity row.
-export function AgentPendingIndicator() {
+export function AgentPendingIndicator({
+  retrying = false,
+}: {
+  retrying?: boolean;
+}) {
   const { t } = useI18n();
+  const label = t(retrying ? "Agent is retrying…" : "Waiting for agent");
   return (
     <div
-      aria-label={t("Waiting for agent")}
+      aria-label={label}
       className="flex items-center gap-2 py-1"
       role="status"
     >
@@ -440,6 +445,7 @@ export function AgentPendingIndicator() {
           />
         ))}
       </span>
+      {retrying && <span className="text-sm text-ink-muted">{label}</span>}
     </div>
   );
 }

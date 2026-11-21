@@ -5,6 +5,33 @@ import { normalizeTunnelFrame } from "./normalize-tunnel-frame";
 import { SessionEvent } from "./session-events";
 
 describe("normalizeTunnelFrame", () => {
+  it.each([true, false, "true"])(
+    "only reads a boolean Codex retry flag (%s)",
+    (willRetry) => {
+      const [event] = normalizeTunnelFrame({
+        method: "session/update",
+        params: {
+          sessionId: "sess_1",
+          update: {
+            sessionUpdate: "session_info_update",
+            _meta: {
+              codex: { error: { willRetry, message: "Internal detail" } },
+            },
+          },
+        },
+      });
+      expect(event).toMatchObject({
+        type: "run_status",
+        sessionId: "sess_1",
+        status: "running",
+      });
+      expect(event && "retrying" in event ? event.retrying : undefined).toBe(
+        typeof willRetry === "boolean" ? willRetry : undefined,
+      );
+      expect(JSON.stringify(event)).not.toContain("Internal detail");
+    },
+  );
+
   it("normalizes ACP streaming thought and message chunks from session/update", () => {
     const streamId = "sess_1:turn:1";
     const firstThought = normalizeTunnelFrame(

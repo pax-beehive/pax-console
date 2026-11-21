@@ -1756,6 +1756,19 @@ export function SessionWorkbench({
     timelineRuntime,
   ]);
   const { timeline } = reconciledTimeline;
+  const activeTurnId = activeTimelineTurnId(timelineRuntime);
+  const isAgentRetrying =
+    displayedRunStatus === "streaming" &&
+    Boolean(currentSessionId && activeTurnId) &&
+    !conversationRun.error &&
+    !sessionObserver.error &&
+    timeline.some(
+      (event) =>
+        event.type === "run_status" &&
+        event.retrying === true &&
+        event.sessionId === currentSessionId &&
+        event.turnId === activeTurnId,
+    );
   const voiceConfig = useVoiceConfig().data;
   const voiceInput = useMemo(
     () =>
@@ -3104,6 +3117,7 @@ export function SessionWorkbench({
               <SessionPendingActivity
                 status={displayedRunStatus}
                 items={workstreamItems}
+                retrying={isAgentRetrying}
                 scopeKey={JSON.stringify([
                   currentSessionId,
                   latestRuntimeTurnId(timeline),

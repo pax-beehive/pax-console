@@ -14,6 +14,7 @@ export function mergeEvents(events: SessionEvent[]) {
   const lastTextChunkIndexByKey = new Map<string, number>();
   const streamSegmentCounts = new Map<string, number>();
   const hiddenEventIds = new Set<string>();
+  const activeRetries = new Map<string, string>();
 
   for (const event of events) {
     if (hiddenEventIds.has(event.id)) {
@@ -21,6 +22,14 @@ export function mergeEvents(events: SessionEvent[]) {
     }
 
     const eventKey = eventMergeKey(event);
+
+    // Clear a retry before merging later text into an earlier chunk position.
+    const retryScope = `${event.sessionId}:${turnScope(event)}`;
+    if (event.type === "run_status" && event.retrying === true) {
+      activeRetries.set(retryScope, event.id);
+    } else if (activeRetries.has(retryScope) && clearsRetry(event)) {
+      activeRetries.delete(retryScope);
+    }
 
     if (event.type === "run_status") {
       closeOpenToolCallsForRunStatus(merged, event.status);
@@ -135,8 +144,27 @@ export function mergeEvents(events: SessionEvent[]) {
 
   return reconcilePermissionDecisions(
     attachAdjacentPermissionsToTools(
-      merged.filter((event) => !hiddenEventIds.has(event.id)),
+      merged.filter(
+        (event) =>
+          !hiddenEventIds.has(event.id) &&
+          (event.type !== "run_status" ||
+            event.retrying !== true ||
+            activeRetries.get(`${event.sessionId}:${turnScope(event)}`) ===
+              event.id),
+      ),
     ),
+  );
+}
+
+function clearsRetry(event: SessionEvent) {
+  return (
+    event.type === "agent_message" ||
+    event.type === "progress" ||
+    event.type === "tool_call" ||
+    event.type === "permission_request" ||
+    event.type === "turn_done" ||
+    (event.type === "run_status" &&
+      (event.retrying === false || event.status !== "running"))
   );
 }
 

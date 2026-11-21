@@ -27,6 +27,32 @@ afterEach(() => {
 });
 
 describe("session output gap feedback", () => {
+  it.each(["done", "error"] as const)(
+    "clears retry feedback when the turn is %s",
+    (status) => {
+      const { rerender } = render(
+        <SessionPendingActivity
+          status="streaming"
+          items={[]}
+          scopeKey="s:t"
+          retrying
+        />,
+      );
+      expect(screen.getByText("Agent is retrying…")).toBeVisible();
+      expect(waiting()).not.toBeInTheDocument();
+
+      rerender(
+        <SessionPendingActivity
+          status={status}
+          items={[]}
+          scopeKey="s:t"
+          retrying
+        />,
+      );
+      expect(screen.queryByText("Agent is retrying…")).not.toBeInTheDocument();
+    },
+  );
+
   it("acknowledges the send immediately, hides during text deltas, and returns only after 1.5s of silence", () => {
     const { rerender } = render(
       <SessionPendingActivity status="streaming" items={[]} scopeKey="s:t" />,

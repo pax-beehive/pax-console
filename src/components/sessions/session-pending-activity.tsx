@@ -10,11 +10,16 @@ export function SessionPendingActivity({
   status,
   items,
   scopeKey,
+  retrying = false,
 }: {
   status: SessionDisplayStatus;
   items: readonly WorkstreamItem[];
   scopeKey: string;
+  retrying?: boolean;
 }) {
+  if (retrying && status === "streaming") {
+    return <AgentPendingIndicator retrying />;
+  }
   if (!showPendingActivity(status, items)) return null;
   const last = items.at(-1);
   // Before the first output, acknowledge the pending send immediately.
