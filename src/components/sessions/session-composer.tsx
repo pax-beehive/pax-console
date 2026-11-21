@@ -110,6 +110,7 @@ type SessionComposerProps = {
   configurationControl?: ReactNode;
   configurationSummary?: string;
   secure?: boolean;
+  submissionBlocked?: boolean;
   steerTurnPending: boolean;
   stopTurnPending: boolean;
   supportsQueuedTurns?: boolean;
@@ -159,6 +160,7 @@ export const SessionComposer = memo(function SessionComposer({
   configurationControl,
   configurationSummary,
   secure = false,
+  submissionBlocked = false,
   steerTurnPending,
   stopTurnPending,
   supportsQueuedTurns = true,
@@ -201,6 +203,7 @@ export const SessionComposer = memo(function SessionComposer({
   const { dictating, sendPending: sendAfterDictation } = voice;
   const hasAttachments = attachments.length > 0;
   const canSendDictation =
+    !submissionBlocked &&
     dictating &&
     !sendAfterDictation &&
     !newSessionCwdInvalid &&
@@ -219,6 +222,7 @@ export const SessionComposer = memo(function SessionComposer({
     !attachmentUploadPending &&
     !steerTurnPending;
   const canSend =
+    !submissionBlocked &&
     Boolean(activeAgentId && activeNodeId) &&
     !isTurnRunning &&
     !newSessionCwdInvalid &&
@@ -226,6 +230,7 @@ export const SessionComposer = memo(function SessionComposer({
     !dictating &&
     (hasContent || hasAttachments);
   const canQueueTurn =
+    !submissionBlocked &&
     isTurnRunning &&
     supportsQueuedTurns &&
     Boolean(activeAgentId && currentSessionId) &&
@@ -246,6 +251,7 @@ export const SessionComposer = memo(function SessionComposer({
     Boolean(activeAgentId && currentSessionId) &&
     !stopTurnPending;
   const canCreateEmptySession =
+    !submissionBlocked &&
     isNewSession &&
     Boolean(activeAgentId && activeNodeId && onCreateEmptySession) &&
     !isTurnRunning &&

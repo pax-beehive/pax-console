@@ -5,6 +5,7 @@ export type SandboxModelAccessAgent = {
   state: "available" | "queued" | "starting" | "ready" | "failed";
   enabled?: boolean;
   reason_code?: string;
+  model_ids?: string[];
 };
 
 export type SandboxModelAccess = {

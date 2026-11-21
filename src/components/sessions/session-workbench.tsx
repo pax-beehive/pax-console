@@ -74,6 +74,7 @@ import {
   SessionConfigSelector,
   configurationSummary,
   configurationUsesDeepSeek,
+  configurationWithAllowedModels,
 } from "@/components/sessions/session-config-selector";
 import { SessionHeader } from "@/components/sessions/session-header";
 import { SecureModeActivation } from "@/components/sessions/secure-mode-activation";
@@ -321,6 +322,21 @@ export function SessionWorkbench({
     activeNodeId ?? "",
     activeNodeId && activeAgentId ? activeHarness : undefined,
   );
+  const sandboxModelAccess = hostedStarter.data?.sandbox_model_access;
+  const hostedGrant =
+    sandboxModelAccess?.node_id === activeNodeId
+      ? sandboxModelAccess?.agents?.find(
+          ({ agent_id }) => agent_id === activeAgentId,
+        )
+      : undefined;
+  const hostedCodex = activeHarness === "codex" ? hostedGrant : undefined;
+  const submissionBlocked =
+    !sandboxReady ||
+    (hostedGrant?.enabled === true &&
+      (hostedGrant.state !== "ready" ||
+        hostedStarter.data?.user_budget_available === false ||
+        hostedStarter.data?.pool_available === false ||
+        hostedStarter.data?.starter?.access_paused === true));
   const permissionCatalogQuery = useAgentPermissionCatalog(
     user.user_id,
     activeAgentId,
@@ -428,9 +444,41 @@ export function SessionWorkbench({
     currentSessionId,
     !usesEncryptedTransport,
   );
-  const showWhaleAvatar = configurationUsesDeepSeek(
+  const sessionConfiguration = configurationWithAllowedModels(
     sessionConfigurationQuery.data,
+    hostedCodex?.enabled ? (hostedCodex.model_ids ?? []) : undefined,
   );
+  const showWhaleAvatar = configurationUsesDeepSeek(sessionConfiguration);
+  const hostedModelState =
+    hostedCodex?.enabled === undefined
+      ? undefined
+      : `${hostedCodex.enabled}:${hostedCodex.state}:${hostedCodex.model_ids?.join(",") ?? ""}`;
+  useEffect(() => {
+    if (
+      !hostedModelState ||
+      !activeNodeId ||
+      !activeAgentId ||
+      !currentSessionId ||
+      usesEncryptedTransport
+    )
+      return;
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.sessionConfiguration(
+        user.user_id,
+        activeNodeId,
+        activeAgentId,
+        currentSessionId,
+      ),
+    });
+  }, [
+    activeNodeId,
+    activeAgentId,
+    currentSessionId,
+    hostedModelState,
+    queryClient,
+    user.user_id,
+    usesEncryptedTransport,
+  ]);
   const activeSessionReportedRunning = isActiveSessionRunStatus(
     activeSession?.runtime_status,
   );
@@ -2100,6 +2148,7 @@ export function SessionWorkbench({
   const submitDraft = useCallback(
     async (content: string, onAccepted?: () => void) => {
       if (
+        submissionBlocked ||
         (!content && composerAttachments.length === 0) ||
         !activeAgentId ||
         !activeNodeId ||
@@ -2221,6 +2270,7 @@ export function SessionWorkbench({
       queueDraft,
       recoverPermissionCatalogAfterCreateFailure,
       sendEncryptedMessage,
+      submissionBlocked,
       t,
       sendConversationMessage,
     ],
@@ -3181,14 +3231,14 @@ export function SessionWorkbench({
           permissionChoices={permissionChoices}
           configurationSummary={
             !usesEncryptedTransport
-              ? configurationSummary(sessionConfigurationQuery.data)
+              ? configurationSummary(sessionConfiguration)
               : undefined
           }
           configurationControl={
             currentSessionId &&
             !usesEncryptedTransport && (
               <SessionConfigSelector
-                configuration={sessionConfigurationQuery.data}
+                configuration={sessionConfiguration}
                 errorMessage={
                   sessionConfigurationQuery.error instanceof Error
                     ? formatErrorDetail(sessionConfigurationQuery.error)
@@ -3205,6 +3255,7 @@ export function SessionWorkbench({
             )
           }
           secure={usesEncryptedTransport}
+          submissionBlocked={submissionBlocked}
           steerTurnPending={steerTurn.isPending}
           stopTurnPending={stopTurn.isPending}
           supportsQueuedTurns={!usesEncryptedTransport}

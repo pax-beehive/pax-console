@@ -292,6 +292,40 @@ describe("sandbox model access in a session", () => {
     },
   };
 
+  it("holds the draft while a saved Pax authorization is reconnecting", async () => {
+    fixtures.agentType = "codex";
+    fixtures.session = { ...fixtures.session, runtime_status: "idle" };
+    fixtures.nodeOnline = true;
+    fixtures.readHostedSandbox.mockResolvedValue({
+      sandbox: { node_id: "node_1", status: "ready", generation: 3 },
+    });
+    const grant = (state: "starting" | "ready") => ({
+      ...access,
+      sandbox_model_access: {
+        ...access.sandbox_model_access,
+        agents: [{ agent_id: "agent_1", enabled: true, state }],
+      },
+    });
+    fixtures.readHostedStarter.mockResolvedValue(grant("starting"));
+    render(workbench());
+
+    await screen.findByText("Setting up free model access…");
+    const button = screen.getByRole("button", { name: "Send prompt" });
+    expect(button).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Message" })).toHaveValue(
+      "next prompt",
+    );
+    expect(fixtures.sendMessage).not.toHaveBeenCalled();
+
+    fixtures.readHostedStarter.mockResolvedValue(grant("ready"));
+    await act(() =>
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.hostedStarter("user_1"),
+      }),
+    );
+    await waitFor(() => expect(button).toBeEnabled());
+  });
+
   it("resumes the session's existing sandbox and can revoke its saved authorization while offline", async () => {
     fixtures.agentType = "codex";
     fixtures.nodeOnline = false;
