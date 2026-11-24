@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   act,
   cleanup,
+  fireEvent,
   render,
   screen,
   waitFor,
@@ -297,6 +298,79 @@ const awsModelAccess = {
     state: "available",
   },
 } satisfies HostedStarterStatus;
+
+it("recovers a lost quota offer and retains the failed activation for the same sandbox", async () => {
+  vi.useFakeTimers();
+  mocks.readHostedStarter.mockResolvedValue(awsModelAccess);
+  mocks.activateHostedAgent.mockImplementation(async () => {
+    mocks.readHostedStarter.mockResolvedValue({ enabled: true });
+    throw new Error("Activation failed");
+  });
+  mount({ initialHarness: "codex" });
+  await act(() => vi.advanceTimersByTimeAsync(10));
+  fireEvent.click(screen.getByRole("button", { name: "Use Pax free quota" }));
+  await act(() => vi.advanceTimersByTimeAsync(10));
+  expect(
+    screen.queryByRole("button", { name: /free (quota|model setup)/i }),
+  ).toBeNull();
+  expect(screen.getByText("Couldn’t enable free model access.")).toBeVisible();
+
+  mocks.readHostedStarter.mockResolvedValue(awsModelAccess);
+  await act(() => vi.advanceTimersByTimeAsync(5100));
+  expect(
+    screen.getByRole("button", { name: "Retry free model setup" }),
+  ).toBeEnabled();
+  expect(mocks.activateHostedAgent).toHaveBeenCalledExactlyOnceWith(
+    "node-one",
+    "node-one-codex",
+  );
+});
+
+it("does not poll an unmanaged device for another device’s quota", async () => {
+  vi.useFakeTimers();
+  mocks.readHostedStarter.mockResolvedValue(awsModelAccess);
+  mount({ initialNodeId: "node-two", initialHarness: "codex" });
+  await act(() => vi.advanceTimersByTimeAsync(10));
+  expect(mocks.readHostedStarter).toHaveBeenCalledOnce();
+  await act(() => vi.advanceTimersByTimeAsync(15000));
+  expect(mocks.readHostedStarter).toHaveBeenCalledOnce();
+  expect(screen.queryByText("Checking free model availability…")).toBeNull();
+  expect(
+    screen.queryByRole("button", { name: "Use Pax free quota" }),
+  ).toBeNull();
+});
+
+it("rechecks eligibility without authorizing from an older status", async () => {
+  mocks.readHostedStarter.mockResolvedValue(awsModelAccess);
+  const { queryClient } = mount({ initialHarness: "codex" });
+  const activate = await screen.findByRole("button", {
+    name: "Use Pax free quota",
+  });
+  const key = queryKeys.hostedStarter("self");
+  act(() => {
+    queryClient.setQueryData(key, { enabled: true });
+    fireEvent.click(activate);
+  });
+  expect(
+    await screen.findByText("Checking free model availability…"),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Use Pax free quota" }),
+  ).toBeNull();
+  expect(mocks.activateHostedAgent).not.toHaveBeenCalled();
+
+  act(() => {
+    queryClient.setQueryData(key, awsModelAccess);
+  });
+  expect(
+    await screen.findByText(
+      "Free model status changed. Review it and try again.",
+    ),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "Use Pax free quota" }),
+  ).toBeEnabled();
+});
 
 it("can revoke a saved Pax quota authorization from settings while the sandbox sleeps", async () => {
   const user = userEvent.setup();

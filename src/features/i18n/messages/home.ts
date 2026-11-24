@@ -283,6 +283,9 @@ export const homeMessages: Record<string, string> = {
   "Couldn’t disable Pax free quota.": "无法关闭 Pax 免费额度。",
   "Waiting for the sandbox to set up free model access.":
     "正在等待沙箱开通免费模型访问。",
+  "Checking free model availability…": "正在检查免费模型是否可用…",
+  "Free model status changed. Review it and try again.":
+    "免费模型状态已更新，请确认后重试。",
   "Free model status check": "检查免费模型状态",
   "Free model setup request": "提交免费模型开通请求",
   "Free model setup": "开通免费模型",

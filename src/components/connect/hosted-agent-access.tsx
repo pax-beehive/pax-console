@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useRef } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { queryKeys } from "@/features/api/query-keys";
@@ -153,14 +153,51 @@ export function useHostedStarter(
   nodeId: string,
   harness?: string,
 ) {
-  return useQuery({
+  const target = JSON.stringify([userId, nodeId, harness]);
+  const [lastEligible, setLastEligible] = useState<{
+    target: string;
+    data: HostedStarterStatus;
+  }>();
+  const previouslyEligible = Boolean(
+    harness && lastEligible?.target === target,
+  );
+  const query = useQuery({
     queryKey: queryKeys.hostedStarter(userId),
     queryFn: ({ signal }) => readHostedStarter(signal),
     enabled: Boolean(harness),
     retry: false,
     refetchInterval: ({ state }) =>
-      harness && hostedAgentAccess(state.data, nodeId, harness) ? 5000 : false,
+      harness &&
+      (previouslyEligible || hostedAgentAccess(state.data, nodeId, harness))
+        ? 5000
+        : false,
   });
+  const access = harness
+    ? hostedAgentAccess(query.data, nodeId, harness)
+    : undefined;
+  if (
+    query.data &&
+    access?.canActivate &&
+    (!previouslyEligible || lastEligible?.data !== query.data)
+  ) {
+    setLastEligible({ target, data: query.data });
+  }
+
+  // Keep the target mounted while eligibility is being rechecked. Actions and
+  // grant state must always come from the current regional status.
+  const waitingForEligibility = previouslyEligible && !access?.canActivate;
+  return {
+    data: query.data,
+    isError: query.isError,
+    isFetching: query.isFetching,
+    refetch: query.refetch,
+    waitingForEligibility,
+    selectionAccess:
+      access ??
+      (waitingForEligibility && harness && lastEligible
+        ? hostedAgentAccess(lastEligible.data, nodeId, harness)
+        : undefined),
+  };
 }
 
 export function HostedAgentAccess({
@@ -183,6 +220,7 @@ export function HostedAgentAccess({
   const { t } = useI18n();
   const queryClient = useQueryClient();
   const submitting = useRef(false);
+  const [statusChanged, setStatusChanged] = useState(false);
   const queryKey = queryKeys.hostedStarter(userId);
   const changeAccess = useMutation({
     mutationFn: (action: "enable" | "revoke") =>
@@ -199,8 +237,25 @@ export function HostedAgentAccess({
   const agent = access?.agents?.get(agentId);
   const authorized = agent?.enabled === true;
   const showAuthorizedControls = showAuthorization && authorized;
-  if (!status.data || !access || (!access.canActivate && !authorized))
-    return null;
+  if (!status.data || !access || (!access.canActivate && !authorized)) {
+    if (!status.waitingForEligibility) return null;
+    if (changeAccess.isError) {
+      return (
+        <p role="alert" className="text-sm text-warning">
+          {t(
+            changeAccess.variables === "revoke"
+              ? "Couldn’t disable Pax free quota."
+              : "Couldn’t enable free model access.",
+          )}
+        </p>
+      );
+    }
+    return (
+      <p role="status" className="text-sm text-ink-muted">
+        {t("Checking free model availability…")}
+      </p>
+    );
+  }
 
   if (status.isError) {
     return (
@@ -237,12 +292,12 @@ export function HostedAgentAccess({
 
   function submit(action: "enable" | "revoke") {
     const latest = queryClient.getQueryState(queryKey);
-    if (
-      submitting.current ||
-      latest?.status !== "success" ||
-      latest.data !== status.data
-    )
+    if (submitting.current) return;
+    if (latest?.status !== "success" || latest.data !== status.data) {
+      setStatusChanged(true);
       return;
+    }
+    setStatusChanged(false);
     submitting.current = true;
     changeAccess.mutate(action);
   }
@@ -309,6 +364,11 @@ export function HostedAgentAccess({
       {notice && (
         <p role="status" className="text-sm text-ink-muted">
           {t(notice)}
+        </p>
+      )}
+      {statusChanged && (activation || showAuthorizedControls) && (
+        <p role="status" className="text-sm text-ink-muted">
+          {t("Free model status changed. Review it and try again.")}
         </p>
       )}
       {activation}
