@@ -2947,7 +2947,4 @@ it does not add HLS packaging, transcoding, or adaptive quality selection.
 
 ## Connection onboarding destination
 
-The connected-agent “Start a conversation” link opens `/?agentId=...`.
-Home initializes its composer agent selection from this parameter and retains
-the normal session rail. If the agent is unavailable in the inventory, Home
-uses its existing default-agent fallback.
+已连接 Agent 的 “Start a conversation” 链接指向 `/?agentId=...`。首页在首次加载和同页导航时都会读取该参数，结束当前接入引导，并在保留会话列表的同时打开所选 Agent 的输入框。若 Agent 不在设备清单中，首页沿用默认 Agent 的回退逻辑。

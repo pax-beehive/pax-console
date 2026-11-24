@@ -475,6 +475,57 @@ describe("FleetOverview session rail", () => {
     ).toBeVisible();
   });
 
+  it("leaves an in-progress Home setup when the connected agent link changes the URL", async () => {
+    mocks.useNodes.mockReturnValue({
+      data: { nodes: [{ node_id: "node_1", online: true }] },
+      isSuccess: true,
+    });
+    mocks.listAgents.mockResolvedValue({ agents: [] });
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const home = () => <FleetOverview user={{ user_id: "user_1" } as User} />;
+    const { rerender } = render(home(), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={client}>
+          <TooltipProvider>{children}</TooltipProvider>
+        </QueryClientProvider>
+      ),
+    });
+
+    await userEvent.click(await screen.findByRole("button", { name: "Codex" }));
+    await act(async () => {
+      client.setQueryData(queryKeys.userAgents("user_1"), {
+        agents: [
+          {
+            agent_id: "first",
+            node_id: "node_1",
+            name: "A first agent",
+            online: true,
+          },
+          {
+            agent_id: "connected",
+            node_id: "node_1",
+            name: "Connected Codex",
+            online: true,
+          },
+        ],
+      });
+    });
+    expect(
+      screen.getByRole("heading", { name: "Connect your first agent" }),
+    ).toBeVisible();
+
+    window.history.pushState(null, "", "/?agentId=connected");
+    rerender(home());
+    expect(
+      await screen.findByPlaceholderText("Ask an agent to do something"),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Connected Codex" }),
+    ).toBeVisible();
+  });
+
   it("hides internal Secretary sessions from list responses while retaining ordinary conversations", async () => {
     mocks.listUserSessions.mockResolvedValue({
       pagination: { page_num: 1, page_size: 20, total: 3, total_pages: 1 },

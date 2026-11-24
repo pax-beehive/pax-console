@@ -3505,7 +3505,8 @@ with native Web Storage, run tests with
 
 ## Connection onboarding destination
 
-The connected-agent “Start a conversation” link opens `/?agentId=...`.
-Home initializes its composer agent selection from this parameter and retains
-the normal session rail. If the agent is unavailable in the inventory, Home
-uses its existing default-agent fallback.
+The connected-agent “Start a conversation” link opens `/?agentId=...`. Home
+applies the agent selection on both a fresh visit and same-page navigation.
+Following the link exits the active setup guide and opens the composer with
+the session rail visible on desktop. If the agent is unavailable in the
+inventory, Home uses its existing default-agent fallback.
