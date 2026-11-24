@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { MonoId, TruncatedText } from "@/components/ui/text";
 import {
   HostedAgentAccess,
-  hostedAgentAccess,
   useHostedStarter,
 } from "@/components/connect/hosted-agent-access";
 import {
@@ -361,7 +360,7 @@ function HostedAgentSignIn({
     nodeId,
     registeredAgents.length > 0 ? harness : undefined,
   );
-  const access = hostedAgentAccess(status.data, nodeId, harness);
+  const access = status.selectionAccess;
   if (!access) return null;
 
   const activating = access.state === "queued" || access.state === "starting";
@@ -369,7 +368,8 @@ function HostedAgentSignIn({
   const eligibleAgents = registeredAgents.filter((agent) => {
     const grant = access.agents?.get(agent.agent_id);
     return (
-      (access.canActivate && isActiveAgent(agent)) ||
+      ((access.canActivate || status.waitingForEligibility) &&
+        isActiveAgent(agent)) ||
       grant?.enabled === true ||
       grant?.state === "queued" ||
       grant?.state === "starting" ||

@@ -242,9 +242,9 @@ export function FleetOverview({ user }: FleetOverviewProps) {
   const urlMessageId = urlSessionId
     ? searchParams.get("message_id") || undefined
     : undefined;
-  const [appliedUrlTarget, setAppliedUrlTarget] = useState(
-    JSON.stringify([urlSessionId, urlMessageId]),
-  );
+  const urlAgentId = urlSessionId ? "" : (searchParams.get("agentId") ?? "");
+  const urlTargetKey = JSON.stringify([urlSessionId, urlMessageId, urlAgentId]);
+  const [appliedUrlTarget, setAppliedUrlTarget] = useState(urlTargetKey);
   const [composerMode, setComposerMode] = useState<ComposerMode>("clean");
   const homeDraftKey = `home:${user.user_id}`;
   const setComposerDraft = useConsoleStore((state) => state.setComposerDraft);
@@ -319,9 +319,7 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     (agent) => agent.online,
     agentLabel,
   );
-  const [selectedAgentId, setSelectedAgentId] = useState(
-    () => searchParams.get("agentId") ?? "",
-  );
+  const [selectedAgentId, setSelectedAgentId] = useState(urlAgentId);
   const sessionAgentFilterOptions = useMemo(
     () => buildSessionAgentFilterOptions(discoveredAgents, nodes),
     [discoveredAgents, nodes],
@@ -732,10 +730,16 @@ export function FleetOverview({ user }: FleetOverviewProps) {
     }
   }, [canonicalUrlSessionId, legacyUrlSessionId, urlMessageId]);
 
-  const urlTargetKey = JSON.stringify([urlSessionId, urlMessageId]);
   if (appliedUrlTarget !== urlTargetKey) {
     setAppliedUrlTarget(urlTargetKey);
-    if (
+    if (urlAgentId) {
+      setSetupStarted(false);
+      setSelectedAgentId(urlAgentId);
+      setSelectedWorkItemId("");
+      setEmbeddedSessionTarget(null);
+      setMobileComposerOpen(true);
+      setMobileRailOpen(false);
+    } else if (
       urlSessionId &&
       (activeSessionTarget?.sessionId !== urlSessionId ||
         activeSessionTarget.messageId !== urlMessageId)

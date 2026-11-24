@@ -2717,7 +2717,11 @@ state remains supported, as do Pi-only `enrolled_node` and `starter` responses.
 
 Click **Use Pax free quota** to send the selected `node_id` and `agent_id` to
 `POST /api/v1/starter/wake`. The Console confirms readiness through GET for that
-Agent and keeps the existing shared and per-user budget checks. The conversation
+Agent and keeps the existing shared and per-user budget checks. While a previously
+eligible device and harness are open, the Console continues checking the regional
+status every five seconds if the offer disappears. The latest status controls
+activation, and a failed request remains visible while eligibility is rechecked.
+The conversation
 link remains available during setup. Model credentials stay with the hosted
 runtime.
 
@@ -3505,7 +3509,8 @@ with native Web Storage, run tests with
 
 ## Connection onboarding destination
 
-The connected-agent “Start a conversation” link opens `/?agentId=...`.
-Home initializes its composer agent selection from this parameter and retains
-the normal session rail. If the agent is unavailable in the inventory, Home
-uses its existing default-agent fallback.
+The connected-agent “Start a conversation” link opens `/?agentId=...`. Home
+applies the agent selection on both a fresh visit and same-page navigation.
+Following the link exits the active setup guide and opens the composer with
+the session rail visible on desktop. If the agent is unavailable in the
+inventory, Home uses its existing default-agent fallback.

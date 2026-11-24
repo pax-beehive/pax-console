@@ -93,6 +93,7 @@ access_token），需要粘贴 key/token 时先展开输入框，否则直接开
 Agent 共用额度上限。多个同类 Agent 时可选择租约目标，点击后才用
 `POST /api/v1/starter/wake` 提交 `node_id` 和 `agent_id`。TanStack Query 按用户缓存并刷新状态，
 直到 Manager 确认所选 Agent 已就绪。个人服务商登录独立保留，模型凭证由托管运行时持有。
+免费额度按用户、设备、运行框架确认可用性。已确认的目标在当前视图中暂时失去资格时继续每 5 秒查询，以便恢复入口并保留正在处理的操作反馈。界面只依据当前区域返回的状态允许开通或撤销。
 会话输入框上方展示所选 Agent 的开通入口、配置进度以及失败时的处理入口。
 「智能体登录与用量」显示 `agents[].enabled` 持久授权，与当前运行实例的状态独立。
 `POST /api/v1/starter/revoke` 使用同一 Node 和 Agent，沙箱离线时也可撤销。
@@ -2947,7 +2948,4 @@ it does not add HLS packaging, transcoding, or adaptive quality selection.
 
 ## Connection onboarding destination
 
-The connected-agent “Start a conversation” link opens `/?agentId=...`.
-Home initializes its composer agent selection from this parameter and retains
-the normal session rail. If the agent is unavailable in the inventory, Home
-uses its existing default-agent fallback.
+已连接 Agent 的 “Start a conversation” 链接指向 `/?agentId=...`。首页在首次加载和同页导航时都会读取该参数，结束当前接入引导，并在保留会话列表的同时打开所选 Agent 的输入框。若 Agent 不在设备清单中，首页沿用默认 Agent 的回退逻辑。
