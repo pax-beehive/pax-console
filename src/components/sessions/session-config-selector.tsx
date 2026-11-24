@@ -133,13 +133,32 @@ export function configurationUsesDeepSeek(
   );
 }
 
-export function configurationSummary(configuration?: SessionConfiguration) {
-  const effort = configuration?.options.find(
-    (option) =>
-      option.type === "select" &&
-      (option.category?.toLowerCase() === "thought_level" ||
-        option.id.toLowerCase() === "reasoning_effort"),
+function isThoughtLevelOption(option: SessionConfigOption) {
+  return (
+    option.type === "select" &&
+    (option.category?.toLowerCase() === "thought_level" ||
+      option.id.toLowerCase() === "thought_level" ||
+      option.id.toLowerCase() === "reasoning_effort")
   );
+}
+
+function optionForSettingsMenu(
+  option: SessionConfigOption,
+): SessionConfigOption {
+  if (!isThoughtLevelOption(option) || !option.options) return option;
+  // Pi includes the setting name in each level. The menu already names it.
+  return {
+    ...option,
+    options: option.options.map((choice) =>
+      choice.name === `Thinking: ${choice.value}`
+        ? { ...choice, name: choice.value }
+        : choice,
+    ),
+  };
+}
+
+export function configurationSummary(configuration?: SessionConfiguration) {
+  const effort = configuration?.options.find(isThoughtLevelOption);
   return [configurationModel(configuration), effort && optionValueLabel(effort)]
     .filter(Boolean)
     .join(" · ");
@@ -188,8 +207,9 @@ function SessionConfigFields({
   const { t } = useI18n();
   const settings = useSessionSettings()!;
   const options =
-    configuration?.options.filter((option) => !isPermissionOption(option)) ??
-    [];
+    configuration?.options
+      .filter((option) => !isPermissionOption(option))
+      .map(optionForSettingsMenu) ?? [];
   const option = options.find(
     (option) => settings.page.id === `config:${option.id}`,
   );
