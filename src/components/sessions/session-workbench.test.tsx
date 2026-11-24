@@ -329,6 +329,38 @@ describe("sandbox model access in a session", () => {
     ).toBeNull();
   });
 
+  it.each([true, false])(
+    "clears the setup notice for a ready Pi grant even when new grants are unavailable (node online: %s)",
+    async (online) => {
+      fixtures.agentType = "pi";
+      fixtures.nodeOnline = online;
+      fixtures.readHostedSandbox.mockResolvedValue({
+        sandbox: { node_id: "node_1", status: "ready", generation: 3 },
+      });
+      const grant = (state: "starting" | "ready") => ({
+        ...access,
+        sandbox_model_access: {
+          ...access.sandbox_model_access,
+          harnesses: [],
+          agents: [{ agent_id: "agent_1", enabled: true, state }],
+        },
+      });
+      fixtures.readHostedStarter.mockResolvedValue(grant("starting"));
+      render(workbench());
+      const waiting = "Waiting for the sandbox to set up free model access.";
+      expect(await screen.findByText(waiting)).toBeVisible();
+
+      fixtures.readHostedStarter.mockResolvedValue(grant("ready"));
+      await act(() =>
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.hostedStarter("user_1"),
+        }),
+      );
+      await waitFor(() => expect(screen.queryByText(waiting)).toBeNull());
+      expect(screen.queryByText("Pax free quota is ready.")).toBeNull();
+    },
+  );
+
   it("resumes the existing sandbox and shows when authorized access is waiting", async () => {
     fixtures.agentType = "codex";
     fixtures.nodeOnline = false;

@@ -252,7 +252,10 @@ export function HostedAgentAccess({
   const requestFailed =
     changeAccess.isError && changeAccess.variables === "enable";
   if (!notice) {
-    if (!sandboxReady || !access.canActivate) {
+    if (state === "ready" && assignedAgent === agentId) {
+      if (showAuthorization && sandboxReady)
+        notice = "Pax free quota is ready.";
+    } else if (!sandboxReady || !access.canActivate) {
       if (authorized)
         notice = "Waiting for the sandbox to set up free model access.";
     } else if (
@@ -268,8 +271,6 @@ export function HostedAgentAccess({
       (authorized && state === "available" && !requestFailed)
     ) {
       notice = "Setting up free model access…";
-    } else if (state === "ready" && assignedAgent === agentId) {
-      if (showAuthorization) notice = "Pax free quota is ready.";
     } else {
       const failed = requestFailed || state === "failed";
       const failure = requestFailed
