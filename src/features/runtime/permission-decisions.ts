@@ -9,7 +9,9 @@ import type {
 export function reconcilePermissionDecisions(
   events: SessionEvent[],
   sources: SessionEvent[] = events,
+  waitingTurn?: { sessionId: string; turnId: string },
 ) {
+  const pending = new Map<string, PermissionRequestEvent>();
   const decisions = new Map<
     string,
     { decision: PermissionDecision; decidedAt?: string }
@@ -34,6 +36,14 @@ export function reconcilePermissionDecisions(
           : [];
     for (const request of requests) {
       if (
+        waitingTurn &&
+        request.sessionId === waitingTurn.sessionId &&
+        request.turnId === waitingTurn.turnId &&
+        request.approvalId
+      ) {
+        pending.set(key(request), request);
+      }
+      if (
         request.decision &&
         request.decision.decisionOption !== "auto_approved"
       ) {
@@ -45,14 +55,41 @@ export function reconcilePermissionDecisions(
     }
   }
   const apply = (request: PermissionRequestEvent) => {
-    const result = decisions.get(key(request));
-    return result ? { ...request, ...result } : request;
+    const id = key(request);
+    const confirmed = pending.get(id);
+    pending.delete(id);
+    const decision = decisions.get(id);
+    return confirmed || decision
+      ? { ...request, ...confirmed, ...decision }
+      : request;
   };
-  return events.map((event): SessionEvent => {
+  const visible = events.map((event): SessionEvent => {
     if (event.type === "permission_request") return apply(event);
     if (event.type === "tool_call" && event.permissions?.length) {
       return { ...event, permissions: event.permissions.map(apply) };
     }
     return event;
   });
+  // A transcript snapshot may predate the manager's unresolved approval.
+  for (const [id, request] of pending) {
+    if (decisions.has(id) || request.decision) continue;
+    const index = visible.findIndex(
+      (event) =>
+        event.type === "tool_call" &&
+        event.sessionId === request.sessionId &&
+        event.turnId === request.turnId &&
+        request.toolCallId !== undefined &&
+        event.toolCallId === request.toolCallId,
+    );
+    const tool = visible[index];
+    if (tool?.type === "tool_call") {
+      visible[index] = {
+        ...tool,
+        permissions: [...(tool.permissions ?? []), request],
+      };
+    } else {
+      visible.push(request);
+    }
+  }
+  return visible;
 }

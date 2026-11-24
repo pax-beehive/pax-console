@@ -49,6 +49,61 @@ const args = {
 };
 
 describe("history calibration", () => {
+  it("recovers a pending approval on metadata refresh without marking the waiting turn complete", async () => {
+    const prompt = message("prompt", 1, "turn", "user");
+    const approval = message(
+      "approval",
+      7,
+      "turn",
+      "session/request_permission",
+    );
+    const read = vi.fn().mockResolvedValue(page([prompt, approval]));
+    const result = await syncSessionHistory({
+      ...args,
+      history: [prompt],
+      session: {
+        ...session,
+        runtime_status: "waiting_approval",
+        runtime_turn_instance_id: "turn",
+      },
+      read,
+    });
+    expect(result.messages).toContainEqual(approval);
+    expect(result.calibratedTurnIds).toEqual([]);
+    expect(result.snapshotTurnIds).toEqual([]);
+  });
+  it("uses the incremental tail while an approval waits, including requests persisted after the first read", async () => {
+    const recent = [message("tool", 5), message("input", 6)];
+    const approval = message(
+      "approval",
+      7,
+      "turn",
+      "session/request_permission",
+    );
+    const decision = message("decision", 8, "turn", "permission_response");
+    const another = message("another", 9, "turn", "session/request_permission");
+    const waiting = {
+      ...session,
+      runtime_status: "waiting_approval" as const,
+      runtime_turn_instance_id: "turn",
+    };
+    const read = vi
+      .fn()
+      .mockResolvedValueOnce(page(recent))
+      .mockResolvedValueOnce(page([recent[1], approval]))
+      .mockResolvedValueOnce(page([approval, decision, another]));
+    const input = { ...args, session: waiting, read };
+    const first = await syncSessionHistory(input);
+    const second = await syncSessionHistory({ ...input, current: first });
+    const third = await syncSessionHistory({ ...input, current: second });
+    expect(read.mock.calls.map((call) => call[3])).toEqual([
+      { turnId: "turn", beforeSeq: 0 },
+      { afterSeq: 5 },
+      { afterSeq: 6 },
+    ]);
+    expect(third.messages).toEqual([...recent, approval, decision, another]);
+  });
+
   it.each([false, true])(
     "keeps a late artifact at its source position after sync (snapshot: %s)",
     (snapshot) => {

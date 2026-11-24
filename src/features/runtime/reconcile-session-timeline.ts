@@ -67,6 +67,7 @@ export function reconcileSessionTimeline(
   calibratedTurnIds?: string[],
   historySnapshotTurnIds: string[] = [],
   activeTurnId?: string,
+  waitingSessionId?: string,
 ): ReconciledSessionTimeline {
   const mergedHistory = mergeEvents(historyEvents);
   const mergedConversation = mergeEvents(conversationEvents);
@@ -191,11 +192,13 @@ export function reconcileSessionTimeline(
   return {
     historyEvents: visibleHistory,
     liveEvents: visibleRuntime,
-    timeline: reconcilePermissionDecisions(mergeEvents(finalTimeline), [
-      ...mergedConversation,
-      ...mergedObserver,
-      ...mergedHistory,
-    ]),
+    timeline: reconcilePermissionDecisions(
+      mergeEvents(finalTimeline),
+      [...mergedConversation, ...mergedObserver, ...mergedHistory],
+      waitingSessionId && pinActiveTurn
+        ? { sessionId: waitingSessionId, turnId: activeTurnId }
+        : undefined,
+    ),
   };
 }
 
