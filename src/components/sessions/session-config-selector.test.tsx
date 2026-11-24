@@ -18,6 +18,7 @@ import type {
   SessionConfiguration,
 } from "@/features/api/types";
 import {
+  configurationSummary,
   configurationUsesDeepSeek,
   configurationWithAllowedModels,
   SessionConfigSelector,
@@ -146,6 +147,65 @@ describe("SessionConfigSelector", () => {
     await userEvent.click(screen.getByRole("switch", { name: "Fast mode" }));
     expect(onChange).toHaveBeenCalledWith("fast", true);
     expect(onChange).toHaveBeenCalledWith("reasoning_effort", "high");
+  });
+
+  it("shows Pi thinking levels in context and preserves provider-qualified model names", async () => {
+    const model = "pax/openai/gpt-6.1-sol";
+    const configuration: SessionConfiguration = {
+      session_id: "pi",
+      can_set: true,
+      can_force_refresh: false,
+      options: [
+        {
+          id: "model",
+          name: "Model",
+          type: "select",
+          current_value: model,
+          options: [{ name: model, value: model }],
+        },
+        {
+          id: "thought_level",
+          category: "thought_level",
+          name: "Thinking Level",
+          type: "select",
+          current_value: "medium",
+          options: [
+            { name: "Thinking: medium", value: "medium" },
+            { name: "Thinking: high", value: "high" },
+            { name: "Custom depth", value: "custom" },
+          ],
+        },
+      ],
+    };
+    const onChange = vi.fn();
+    renderWithTooltip(
+      <SessionConfigSelector
+        configuration={configuration}
+        onChange={onChange}
+        onRefresh={vi.fn()}
+      />,
+    );
+    expect(configurationSummary(configuration)).toBe(
+      `${model} · Thinking: medium`,
+    );
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: `Session configuration, model ${model}`,
+      }),
+    );
+    expect(
+      screen.getByRole("button", { name: `Model: ${model}` }),
+    ).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Thinking Level: medium" }),
+    );
+    expect(screen.getByRole("radio", { name: "medium" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(screen.getByRole("radio", { name: "Custom depth" })).toBeVisible();
+    await userEvent.click(screen.getByRole("radio", { name: "high" }));
+    expect(onChange).toHaveBeenCalledWith("thought_level", "high");
   });
 
   it("keeps legacy models read-only when Manager exposes no selectable option", async () => {
