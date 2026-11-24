@@ -6,6 +6,8 @@ export const queryKeys = {
   hostedSandbox: (userId: string) =>
     ["users", userId, "hosted-sandbox"] as const,
   hostedStarter: (userId: string) => ["users", userId, "starter"] as const,
+  hostedAgentChange: (userId: string, nodeId?: string, agentId?: string) =>
+    ["users", userId, "starter", nodeId, agentId, "change"] as const,
   apiKeys: (userId: string) => ["users", userId, "api-keys"] as const,
   envelopes: (userId: string, filters?: Record<string, string | undefined>) =>
     ["users", userId, "envelopes", filters ?? {}] as const,

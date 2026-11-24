@@ -219,6 +219,7 @@ sandbox and choose the Agent type. If several Agents of that type are connected,
 select the Agent that should receive the lease. The button is also available
 after connecting an eligible Agent during onboarding. Personal provider sign-in
 remains available independently, including Pi's terminal `/login` instructions.
+A Home launch retains its first message while the selected Agent’s Pax grant is being configured. The workbench sends it once when the grant becomes ready. A rejected send restores the editable draft for an explicit retry.
 In a sandbox conversation, the composer shows activation, setup progress, and
 any failure or retry action for the selected Agent. The user can still send a
 prompt using personal provider credentials.

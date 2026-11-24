@@ -45,6 +45,7 @@ const fixtures = vi.hoisted(() => ({
   agentType: "claude-code",
   encryptedStatus: "idle" as ConversationRunStatus,
   sendMessage: vi.fn().mockResolvedValue({ sessionId: "sess_1" }),
+  initializeSession: vi.fn().mockResolvedValue({ sessionId: "sess_1" }),
   sendEncryptedMessage: vi.fn().mockResolvedValue(undefined),
   queueTurn: vi.fn().mockResolvedValue(undefined),
   steerTurn: vi.fn().mockResolvedValue(undefined),
@@ -139,6 +140,7 @@ vi.mock("@/features/runtime/use-conversation-run", () => ({
     error: fixtures.conversationError,
     events: fixtures.conversationEvents,
     sendMessage: fixtures.sendMessage,
+    initializeSession: fixtures.initializeSession,
     completedTurnVersion: 0,
   }),
 }));
@@ -277,6 +279,180 @@ function workbench(
     </QueryClientProvider>
   );
 }
+
+function launchPiFromHome(prompt?: string) {
+  fixtures.agentType = "pi";
+  fixtures.session = { ...fixtures.session, runtime_status: "idle" };
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <SessionWorkbench
+          embedded
+          sessionId="new"
+          nodeId="node_1"
+          agentId="agent_1"
+          user={{ user_id: "user_1" }}
+          initialPrompt={prompt}
+          initialInitializeOnly={!prompt}
+        />
+      </TooltipProvider>
+    </QueryClientProvider>,
+  );
+}
+
+describe("starting a conversation with a sandbox Agent from Home", () => {
+  const sandbox = {
+    sandbox: { node_id: "node_1", status: "ready", generation: 1 },
+  };
+  const status = (state: string, agentId = "agent_1", enabled = true) => ({
+    enabled: true,
+    sandbox_model_access: {
+      node_id: "node_1",
+      harnesses: ["pi"],
+      state: "available",
+      agents: [{ agent_id: agentId, state, enabled }],
+    },
+  });
+
+  it.each(["prompt", "empty"])(
+    "waits for the Pi grant before launching a %s session exactly once",
+    async (mode) => {
+      const message = "What time is it?";
+      fixtures.readHostedSandbox.mockResolvedValue(sandbox);
+      let releaseStatus!: (data: ReturnType<typeof status>) => void;
+      const initialRead = new Promise((resolve) => {
+        releaseStatus = resolve;
+      });
+      fixtures.readHostedStarter.mockReturnValue(initialRead);
+      // A previous generation was ready. Refresh it before dispatching this new Home launch.
+      queryClient.setQueryData(
+        queryKeys.hostedStarter("user_1"),
+        status("ready"),
+      );
+      launchPiFromHome(mode === "prompt" ? message : undefined);
+      const launch =
+        mode === "prompt" ? fixtures.sendMessage : fixtures.initializeSession;
+      await waitFor(() =>
+        expect(fixtures.readHostedStarter).toHaveBeenCalled(),
+      );
+      await act(() => new Promise<void>((resolve) => setTimeout(resolve, 10)));
+      expect(launch).not.toHaveBeenCalled();
+      await act(() => releaseStatus(status("starting")));
+      await screen.findByText("Setting up free model access…");
+      if (mode === "prompt") expect(screen.getByText(message)).toBeVisible();
+      expect(launch).not.toHaveBeenCalled();
+      fixtures.readHostedStarter.mockResolvedValue(status("ready"));
+      await act(() =>
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.hostedStarter("user_1"),
+        }),
+      );
+      await waitFor(() => expect(launch).toHaveBeenCalledTimes(1));
+      if (mode === "prompt") expect(launch.mock.calls[0][0]).toBe(message);
+      await act(() =>
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.hostedStarter("user_1"),
+        }),
+      );
+      expect(launch).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("keeps a known Pi grant pending across a failed read and a missing grant until explicit revoke", async () => {
+    fixtures.readHostedSandbox.mockResolvedValue(sandbox);
+    fixtures.readHostedStarter.mockResolvedValue(status("starting"));
+    launchPiFromHome("retain across missing reads");
+    await screen.findByText("Setting up free model access…");
+    const refresh = () =>
+      act(() =>
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.hostedStarter("user_1"),
+        }),
+      );
+    fixtures.readHostedStarter.mockRejectedValue(new Error("unavailable"));
+    await refresh();
+    await screen.findByText("Couldn’t check free model access.");
+    expect(fixtures.sendMessage).not.toHaveBeenCalled();
+    fixtures.readHostedStarter.mockResolvedValue({ enabled: true });
+    await refresh();
+    await screen.findByText(
+      "Waiting for the sandbox to set up free model access.",
+    );
+    expect(fixtures.sendMessage).not.toHaveBeenCalled();
+    fixtures.readHostedStarter.mockResolvedValue(
+      status("available", "agent_1", false),
+    );
+    await refresh();
+    await waitFor(() => expect(fixtures.sendMessage).toHaveBeenCalledTimes(1));
+    expect(fixtures.sendMessage.mock.calls[0][0]).toBe(
+      "retain across missing reads",
+    );
+  });
+
+  it("recovers the original draft after a rejected first dispatch and waits for an explicit retry", async () => {
+    fixtures.readHostedSandbox.mockResolvedValue(sandbox);
+    fixtures.readHostedStarter.mockResolvedValue(status("starting"));
+    fixtures.sendMessage.mockRejectedValueOnce(new Error("unaccepted request"));
+    launchPiFromHome("keep my draft");
+    await screen.findByText("Setting up free model access…");
+    fixtures.readHostedStarter.mockResolvedValue(status("ready"));
+    const refresh = () =>
+      act(() =>
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.hostedStarter("user_1"),
+        }),
+      );
+    await refresh();
+    const draft = screen.getByRole("textbox", { name: "Message" });
+    await waitFor(() => expect(draft).toHaveValue("keep my draft"));
+    await refresh();
+    expect(fixtures.sendMessage).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Send prompt" }));
+    await waitFor(() => expect(fixtures.sendMessage).toHaveBeenCalledTimes(2));
+    expect(fixtures.sendMessage.mock.calls[1][0]).toBe("keep my draft");
+  });
+
+  it("uses a ready Pi grant when the host has temporarily stopped advertising new activations", async () => {
+    fixtures.readHostedSandbox.mockResolvedValue(sandbox);
+    const ready = status("ready");
+    ready.sandbox_model_access.harnesses = [];
+    fixtures.readHostedStarter.mockResolvedValue(ready);
+    launchPiFromHome("use the ready grant");
+    await waitFor(() => expect(fixtures.sendMessage).toHaveBeenCalledTimes(1));
+    expect(
+      screen.queryByText(
+        "Waiting for the sandbox to set up free model access.",
+      ),
+    ).toBeNull();
+    expect(screen.queryByText("Setting up free model access…")).toBeNull();
+  });
+
+  it("opens a personal device even while the unrelated starter query is pending", async () => {
+    fixtures.readHostedSandbox.mockResolvedValue({
+      sandbox: { ...sandbox.sandbox, node_id: "another_node" },
+    });
+    fixtures.readHostedStarter.mockReturnValue(new Promise(() => {}));
+    launchPiFromHome("use my device");
+    await waitFor(() => expect(fixtures.sendMessage).toHaveBeenCalledTimes(1));
+    expect(fixtures.sendMessage.mock.calls[0][0]).toBe("use my device");
+  });
+
+  it.each([
+    status("starting", "different_agent"),
+    status("available", "agent_1", false),
+  ])(
+    "allows a Pi Agent without its own active grant to use its own credentials",
+    async (response) => {
+      fixtures.readHostedSandbox.mockResolvedValue(sandbox);
+      fixtures.readHostedStarter.mockResolvedValue(response);
+      launchPiFromHome("use my model");
+      await waitFor(() =>
+        expect(fixtures.sendMessage).toHaveBeenCalledTimes(1),
+      );
+      expect(fixtures.sendMessage.mock.calls[0][0]).toBe("use my model");
+    },
+  );
+});
 
 describe("sandbox model access in a session", () => {
   const access = {
@@ -426,6 +602,7 @@ describe("sandbox model access in a session", () => {
     expect(fixtures.activateHostedAgent).not.toHaveBeenCalled();
     fireEvent.click(retry);
     await screen.findByText("Setting up free model access…");
+    expect(screen.getByRole("button", { name: "Send prompt" })).toBeDisabled();
     expect(fixtures.activateHostedAgent).toHaveBeenCalledWith(
       "node_1",
       "agent_1",

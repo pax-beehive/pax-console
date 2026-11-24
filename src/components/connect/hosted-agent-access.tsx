@@ -152,14 +152,21 @@ export function useHostedStarter(
   userId: string,
   nodeId: string,
   harness?: string,
+  {
+    checkBeforeLaunch = false,
+    keepPolling = false,
+  }: { checkBeforeLaunch?: boolean; keepPolling?: boolean } = {},
 ) {
   return useQuery({
     queryKey: queryKeys.hostedStarter(userId),
     queryFn: ({ signal }) => readHostedStarter(signal),
-    enabled: Boolean(harness),
+    enabled: Boolean(harness) || checkBeforeLaunch,
+    refetchOnMount: checkBeforeLaunch ? "always" : true,
     retry: false,
     refetchInterval: ({ state }) =>
-      harness && hostedAgentAccess(state.data, nodeId, harness) ? 5000 : false,
+      keepPolling || (harness && hostedAgentAccess(state.data, nodeId, harness))
+        ? 5000
+        : false,
   });
 }
 
@@ -171,6 +178,7 @@ export function HostedAgentAccess({
   status,
   showAuthorization = true,
   sandboxReady = true,
+  waitingForConfirmedGrant = false,
 }: {
   userId: string;
   nodeId: string;
@@ -179,12 +187,14 @@ export function HostedAgentAccess({
   status: ReturnType<typeof useHostedStarter>;
   showAuthorization?: boolean;
   sandboxReady?: boolean;
+  waitingForConfirmedGrant?: boolean;
 }) {
   const { t } = useI18n();
   const queryClient = useQueryClient();
   const submitting = useRef(false);
   const queryKey = queryKeys.hostedStarter(userId);
   const changeAccess = useMutation({
+    mutationKey: queryKeys.hostedAgentChange(userId, nodeId, agentId),
     mutationFn: (action: "enable" | "revoke") =>
       action === "enable"
         ? activateHostedAgent(nodeId, agentId)
@@ -199,7 +209,12 @@ export function HostedAgentAccess({
   const agent = access?.agents?.get(agentId);
   const authorized = agent?.enabled === true;
   const showAuthorizedControls = showAuthorization && authorized;
-  if (!status.data || !access || (!access.canActivate && !authorized))
+  const missingGrant =
+    waitingForConfirmedGrant && !agent && access?.agentId !== agentId;
+  if (
+    !missingGrant &&
+    (!status.data || !access || (!access.canActivate && !authorized))
+  )
     return null;
 
   if (status.isError) {
@@ -221,6 +236,14 @@ export function HostedAgentAccess({
     );
   }
 
+  if (missingGrant) {
+    return (
+      <p role="status" className="text-sm text-ink-muted">
+        {t("Waiting for the sandbox to set up free model access.")}
+      </p>
+    );
+  }
+  if (!status.data || !access) return null;
   const state =
     agent?.enabled === false ? "available" : (agent?.state ?? access.state);
   const assignedAgent = access.agents ? agentId : access.agentId;
@@ -252,7 +275,9 @@ export function HostedAgentAccess({
   const requestFailed =
     changeAccess.isError && changeAccess.variables === "enable";
   if (!notice) {
-    if (!sandboxReady || !access.canActivate) {
+    if (sandboxReady && state === "ready" && assignedAgent === agentId) {
+      if (showAuthorization) notice = "Pax free quota is ready.";
+    } else if (!sandboxReady || !access.canActivate) {
       if (authorized)
         notice = "Waiting for the sandbox to set up free model access.";
     } else if (
@@ -268,8 +293,6 @@ export function HostedAgentAccess({
       (authorized && state === "available" && !requestFailed)
     ) {
       notice = "Setting up free model access…";
-    } else if (state === "ready" && assignedAgent === agentId) {
-      if (showAuthorization) notice = "Pax free quota is ready.";
     } else {
       const failed = requestFailed || state === "failed";
       const failure = requestFailed
