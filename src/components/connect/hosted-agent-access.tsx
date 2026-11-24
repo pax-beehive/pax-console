@@ -306,8 +306,9 @@ export function HostedAgentAccess({
   let activation: ReactNode;
   const requestFailed =
     changeAccess.isError && changeAccess.variables === "enable";
+  const canActivate = sandboxReady && access.canActivate;
   if (!notice) {
-    if (!sandboxReady || !access.canActivate) {
+    if (!canActivate && !(authorized && state === "failed")) {
       if (authorized)
         notice = "Waiting for the sandbox to set up free model access.";
     } else if (
@@ -327,9 +328,10 @@ export function HostedAgentAccess({
       if (showAuthorization) notice = "Pax free quota is ready.";
     } else {
       const failed = requestFailed || state === "failed";
-      const failure = requestFailed
-        ? ["Free model setup request", "Couldn’t enable free model access."]
-        : setupErrorMessage(agent?.reason_code);
+      const failure =
+        state === "failed"
+          ? setupErrorMessage(agent?.reason_code)
+          : ["Free model setup request", "Couldn’t enable free model access."];
       activation = (
         <>
           {failed && (
@@ -340,6 +342,7 @@ export function HostedAgentAccess({
           )}
           <Button
             disabled={
+              !canActivate ||
               status.isFetching ||
               changeAccess.isPending ||
               (state !== "available" && state !== "failed")

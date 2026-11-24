@@ -340,6 +340,48 @@ it("does not poll an unmanaged device for another device’s quota", async () =>
   ).toBeNull();
 });
 
+it("keeps the failed grant visible and only allows a retry when its harness is available", async () => {
+  vi.useFakeTimers();
+  const failed = (harnesses: string[]): HostedStarterStatus => ({
+    ...awsModelAccess,
+    sandbox_model_access: {
+      ...awsModelAccess.sandbox_model_access,
+      harnesses,
+      agents: [
+        {
+          agent_id: "node-one-codex",
+          enabled: true,
+          state: "failed",
+          reason_code: "acp_probe_timeout",
+        },
+      ],
+    },
+  });
+  mocks.readHostedStarter.mockResolvedValue(failed([]));
+  mount({ initialHarness: "codex" });
+  await act(() => vi.advanceTimersByTimeAsync(10));
+  const failure = "The agent took too long to start a free model session.";
+  const retry = () =>
+    screen.getByRole("button", { name: "Retry free model setup" });
+  expect(screen.getByText(failure)).toBeVisible();
+  expect(retry()).toBeDisabled();
+  fireEvent.click(retry());
+
+  for (const harnesses of [["codex"], [], ["codex"]]) {
+    mocks.readHostedStarter.mockResolvedValue(failed(harnesses));
+    await act(() => vi.advanceTimersByTimeAsync(5100));
+    expect(screen.getByText(failure)).toBeVisible();
+    expect(retry()).toHaveProperty("disabled", harnesses.length === 0);
+  }
+  expect(mocks.activateHostedAgent).not.toHaveBeenCalled();
+  fireEvent.click(retry());
+  await act(() => vi.advanceTimersByTimeAsync(10));
+  expect(mocks.activateHostedAgent).toHaveBeenCalledExactlyOnceWith(
+    "node-one",
+    "node-one-codex",
+  );
+});
+
 it("rechecks eligibility without authorizing from an older status", async () => {
   mocks.readHostedStarter.mockResolvedValue(awsModelAccess);
   const { queryClient } = mount({ initialHarness: "codex" });
