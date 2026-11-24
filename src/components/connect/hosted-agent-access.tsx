@@ -225,6 +225,8 @@ export function HostedAgentAccess({
     agent?.enabled === false ? "available" : (agent?.state ?? access.state);
   const assignedAgent = access.agents ? agentId : access.agentId;
   const isStarting = state === "queued" || state === "starting";
+  const canSetUp = sandboxReady && access.canActivate;
+  const ownGrantFailed = assignedAgent === agentId && state === "failed";
   const denied = access.accessPaused
     ? "Free model access is paused."
     : status.data.enabled !== true
@@ -255,7 +257,7 @@ export function HostedAgentAccess({
     if (state === "ready" && assignedAgent === agentId) {
       if (showAuthorization && sandboxReady)
         notice = "Pax free quota is ready.";
-    } else if (!sandboxReady || !access.canActivate) {
+    } else if (!canSetUp && !ownGrantFailed) {
       if (authorized)
         notice = "Waiting for the sandbox to set up free model access.";
     } else if (
@@ -286,6 +288,7 @@ export function HostedAgentAccess({
           )}
           <Button
             disabled={
+              !canSetUp ||
               status.isFetching ||
               changeAccess.isPending ||
               (state !== "available" && state !== "failed")

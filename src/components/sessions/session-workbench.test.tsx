@@ -487,6 +487,41 @@ describe("sandbox model access in a session", () => {
     ).toBeNull();
   });
 
+  it("shows Claude Code setup failure while new activations are unavailable", async () => {
+    fixtures.agentType = "claude-code";
+    const grant = (harnesses: string[]) => ({
+      ...access,
+      sandbox_model_access: {
+        ...access.sandbox_model_access,
+        harnesses,
+        agents: [{ agent_id: "agent_1", enabled: true, state: "failed" }],
+      },
+    });
+    fixtures.readHostedStarter.mockResolvedValue(grant([]));
+    render(workbench());
+    expect(
+      await screen.findByText("Couldn’t enable free model access."),
+    ).toBeVisible();
+    const retry = screen.getByRole("button", {
+      name: "Retry free model setup",
+    });
+    expect(retry).toBeDisabled();
+    expect(
+      screen.queryByText(
+        "Waiting for the sandbox to set up free model access.",
+      ),
+    ).toBeNull();
+
+    fixtures.readHostedStarter.mockResolvedValue(grant(["claude-code"]));
+    await act(() =>
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.hostedStarter("user_1"),
+      }),
+    );
+    await waitFor(() => expect(retry).toBeEnabled());
+    expect(fixtures.activateHostedAgent).not.toHaveBeenCalled();
+  });
+
   it("does not show another node's sandbox failure", async () => {
     fixtures.agentType = "codex";
     fixtures.readHostedStarter.mockResolvedValue({
