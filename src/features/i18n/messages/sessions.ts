@@ -82,6 +82,7 @@ export const sessionsMessages: Record<string, string> = {
   "Delivery could not be confirmed. Check the conversation before sending again. Deleting this entry does not cancel a message already received by paxd.":
     "无法确认消息是否送达。请先检查对话，再重新发送。删除此条目不会取消 paxd 已收到的消息。",
   "Queued message": "排队消息",
+  "Waiting to send": "等待发送",
   Cancel: "取消",
   Save: "保存",
   "Queued files": "排队文件",

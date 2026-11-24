@@ -93,7 +93,7 @@ access_token），需要粘贴 key/token 时先展开输入框，否则直接开
 Agent 共用额度上限。多个同类 Agent 时可选择租约目标，点击后才用
 `POST /api/v1/starter/wake` 提交 `node_id` 和 `agent_id`。TanStack Query 按用户缓存并刷新状态，
 直到 Manager 确认所选 Agent 已就绪。个人服务商登录独立保留，模型凭证由托管运行时持有。
-会话输入框上方展示所选 Agent 的开通入口、配置进度以及失败时的处理入口。
+会话输入框上方展示所选 Agent 的开通入口、配置进度以及失败时的处理入口。首页带来的首条消息和空白新会话共用发送前的授权检查。已确认正在开通的授权按账号、节点和 Agent 跟踪；状态短暂缺失时继续轮询并保留待发送文本。
 「智能体登录与用量」显示 `agents[].enabled` 持久授权，与当前运行实例的状态独立。
 `POST /api/v1/starter/revoke` 使用同一 Node 和 Agent，沙箱离线时也可撤销。
 

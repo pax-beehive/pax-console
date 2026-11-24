@@ -6,6 +6,7 @@ import { ExternalSessionNotice } from "./external-session-notice";
 import { SessionAuthenticationNotice } from "./session-authentication-notice";
 import {
   HostedAgentAccess,
+  hostedAgentAccess,
   useHostedStarter,
 } from "@/components/connect/hosted-agent-access";
 import {
@@ -27,7 +28,12 @@ import {
   useRef,
   useState,
 } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useIsMutating,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   AlertCircle,
   ArrowLeft,
@@ -317,10 +323,21 @@ export function SessionWorkbench({
   const sandboxReady =
     sessionSandbox?.node_id !== activeNodeId ||
     (sessionSandbox?.status === "ready" && activeNode?.online === true);
+  const grantTarget = JSON.stringify([
+    user.user_id,
+    activeNodeId,
+    activeAgentId,
+  ]);
+  const [waitingGrantTarget, setWaitingGrantTarget] = useState<string>();
+  const waitingForGrant = waitingGrantTarget === grantTarget;
   const hostedStarter = useHostedStarter(
     user.user_id,
     activeNodeId ?? "",
     activeNodeId && activeAgentId ? activeHarness : undefined,
+    {
+      checkBeforeLaunch: isNewSession && Boolean(activeNodeId && activeAgentId),
+      keepPolling: waitingForGrant,
+    },
   );
   const sandboxModelAccess = hostedStarter.data?.sandbox_model_access;
   const hostedGrant =
@@ -330,11 +347,53 @@ export function SessionWorkbench({
         )
       : undefined;
   const hostedCodex = activeHarness === "codex" ? hostedGrant : undefined;
+  const legacyAccess =
+    activeNodeId && activeHarness && !sandboxModelAccess?.agents
+      ? hostedAgentAccess(hostedStarter.data, activeNodeId, activeHarness)
+      : undefined;
+  const assignedState =
+    hostedGrant?.enabled === false
+      ? undefined
+      : (hostedGrant?.state ??
+        (activeAgentId && legacyAccess?.agentId === activeAgentId
+          ? legacyAccess.state
+          : undefined));
+  const pendingGrant =
+    assignedState === "queued" ||
+    assignedState === "starting" ||
+    (hostedGrant?.enabled === true && hostedGrant.state !== "ready");
+  const grantReleased =
+    hostedStarter.isSuccess &&
+    (assignedState === "ready" || hostedGrant?.enabled === false);
+  if (pendingGrant && !waitingForGrant) setWaitingGrantTarget(grantTarget);
+  else if (waitingGrantTarget && (!waitingForGrant || grantReleased))
+    setWaitingGrantTarget(undefined);
+  // A missing grant or failed read is inconclusive after this exact Agent reported setup.
+  const waitingForConfirmedGrant = waitingForGrant && !grantReleased;
+  const enablingGrant =
+    useIsMutating({
+      mutationKey: queryKeys.hostedAgentChange(
+        user.user_id,
+        activeNodeId,
+        activeAgentId,
+      ),
+      exact: true,
+      predicate: (mutation) => mutation.state.variables === "enable",
+    }) > 0;
+  // The first prompt can arrive from Home before either regional query has returned.
+  const checkingLaunchAccess =
+    isNewSession &&
+    hostedStarter.isFetching &&
+    !hostedStarter.isFetchedAfterMount &&
+    (sandboxStatus.isPending || sessionSandbox?.node_id === activeNodeId);
   const submissionBlocked =
+    checkingLaunchAccess ||
+    enablingGrant ||
+    pendingGrant ||
+    waitingForConfirmedGrant ||
     !sandboxReady ||
     (hostedGrant?.enabled === true &&
-      (hostedGrant.state !== "ready" ||
-        hostedStarter.data?.user_budget_available === false ||
+      (hostedStarter.data?.user_budget_available === false ||
         hostedStarter.data?.pool_available === false ||
         hostedStarter.data?.starter?.access_paused === true));
   const permissionCatalogQuery = useAgentPermissionCatalog(
@@ -369,7 +428,7 @@ export function SessionWorkbench({
   const [searchAccess, setSearchAccess] = useState<
     TurnSearchAccess | undefined
   >(initialSearchAccess);
-  const pendingInitialPromptRef = useRef(
+  const [pendingInitialPrompt, setPendingInitialPrompt] = useState(() =>
     readInitialPrompt(initialPrompt, initialPromptKey),
   );
   const initialPromptSentRef = useRef(false);
@@ -2060,7 +2119,12 @@ export function SessionWorkbench({
   const initializeConversationSession = conversationRun.initializeSession;
   const emptyCreationRef = useRef({ pending: false, lastStartedAt: -Infinity });
   const createEmptySession = useCallback(async () => {
-    if (!activeAgentId || !activeNodeId || newSessionCwdInvalid) {
+    if (
+      submissionBlocked ||
+      !activeAgentId ||
+      !activeNodeId ||
+      newSessionCwdInvalid
+    ) {
       return false;
     }
     const guard = emptyCreationRef.current;
@@ -2118,6 +2182,7 @@ export function SessionWorkbench({
     initialPrimaryProjectId,
     initialProjectTargetId,
     initializeConversationSession,
+    submissionBlocked,
     beginEncryptedSession,
     usesEncryptedTransport,
     newSessionCwdInvalid,
@@ -2129,6 +2194,9 @@ export function SessionWorkbench({
     if (
       !initialInitializeOnly ||
       !isNewSession ||
+      !activeAgentId ||
+      !activeNodeId ||
+      submissionBlocked ||
       (usesEncryptedTransport && encryptedRuntime.keyLoading) ||
       initialEmptySessionStartedRef.current
     ) {
@@ -2138,6 +2206,9 @@ export function SessionWorkbench({
     void createEmptySession();
   }, [
     createEmptySession,
+    activeAgentId,
+    activeNodeId,
+    submissionBlocked,
     initialInitializeOnly,
     encryptedRuntime.keyLoading,
     isNewSession,
@@ -2398,9 +2469,10 @@ export function SessionWorkbench({
   );
 
   useEffect(() => {
-    const content = pendingInitialPromptRef.current.trim();
+    const content = pendingInitialPrompt.trim();
     if (
       initialPromptSentRef.current ||
+      submissionBlocked ||
       sessionId !== "new" ||
       (!content && composerAttachments.length === 0) ||
       !activeAgentId ||
@@ -2435,6 +2507,7 @@ export function SessionWorkbench({
       }
 
       initialPromptSentRef.current = true;
+      setPendingInitialPrompt("");
       if (usesEncryptedTransport) {
         void submitDraft(content).then((accepted) => {
           if (accepted) {
@@ -2495,7 +2568,6 @@ export function SessionWorkbench({
               ),
             );
           }
-          pendingInitialPromptRef.current = "";
           initialPromptPermissionRef.current = null;
           // Keep automatic delivery latched off. The recovered draft is sent
           // only after an explicit retry.
@@ -2520,6 +2592,7 @@ export function SessionWorkbench({
     composerDraftKey,
     encryptedRuntime.keyLoading,
     initialPromptKey,
+    pendingInitialPrompt,
     initialSearchAccess,
     initialPermissionChoiceId,
     initialPrimaryProjectId,
@@ -2532,6 +2605,7 @@ export function SessionWorkbench({
     permissionCatalogQuery.isPending,
     recoverPermissionCatalogAfterCreateFailure,
     sendConversationMessage,
+    submissionBlocked,
     submitDraft,
     usesEncryptedTransport,
   ]);
@@ -3160,6 +3234,14 @@ export function SessionWorkbench({
           </div>
         )}
         <div className="mx-auto grid w-full max-w-4xl gap-2 px-3 py-2 empty:hidden">
+          {isNewSession && submissionBlocked && pendingInitialPrompt && (
+            <div className="rounded-lg border border-hairline px-3 py-2 text-sm">
+              <p className="text-xs text-ink-muted">{t("Waiting to send")}</p>
+              <p className="max-h-24 overflow-auto whitespace-pre-wrap break-words">
+                {pendingInitialPrompt}
+              </p>
+            </div>
+          )}
           {activeNodeId && (
             <HostedSandboxControls
               key={activeNodeId}
@@ -3179,6 +3261,7 @@ export function SessionWorkbench({
               status={hostedStarter}
               showAuthorization={false}
               sandboxReady={sandboxReady}
+              waitingForConfirmedGrant={waitingForConfirmedGrant}
             />
           )}
           <SessionErrors
