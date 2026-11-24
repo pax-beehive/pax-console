@@ -6,6 +6,7 @@ export type HistorySyncState = {
   messages: HistoryMessage[];
   calibratedTurnIds: string[];
   snapshotTurnIds?: string[];
+  waitingTurnId?: string;
 };
 
 export const emptyHistorySync: HistorySyncState = {
@@ -63,6 +64,13 @@ export async function syncSessionHistory({
   );
   const targets = new Set(requestedTurns);
   const idle = session?.runtime_status === "idle";
+  const waiting = session?.runtime_status === "waiting_approval";
+  const waitingTurnId = waiting ? session.runtime_turn_instance_id : undefined;
+  // Read the whole waiting turn once, then follow late requests and decisions
+  // through the existing tail cursor on subsequent metadata refreshes.
+  const newWaitingTurn =
+    waitingTurnId && waitingTurnId !== current.waitingTurnId;
+  if (newWaitingTurn) targets.add(waitingTurnId);
   if (idle && session.latest_turn_id) targets.add(session.latest_turn_id);
   const missingHead =
     idle &&
@@ -71,7 +79,12 @@ export async function syncSessionHistory({
 
   // Head IDs/seqs are ordering keys, not content versions. Legacy idle
   // sessions without a turn head must re-read the tail even when IDs match.
-  if (refreshTail || missingHead || (idle && !session.latest_turn_id)) {
+  if (
+    refreshTail ||
+    missingHead ||
+    (waiting && !newWaitingTurn) ||
+    (idle && !session.latest_turn_id)
+  ) {
     const seqs = [...new Set(known.map((m) => m.session_seq ?? 0))].sort(
       (a, b) => a - b,
     );
@@ -135,17 +148,22 @@ export async function syncSessionHistory({
     const complete = turnMessages.some((m) => m.message_type === "turn_done");
     // A fully paginated idle snapshot is usable history even when the API
     // has no synthetic completion row. Keep runtime completion separate.
-    if (!complete && (!idle || turnMessages.length === 0)) continue;
+    if (
+      !complete &&
+      ((!idle && turnId !== waitingTurnId) || turnMessages.length === 0)
+    )
+      continue;
     messages = [
       ...messages.filter((m) => m.turn_id !== turnId),
       ...turnMessages,
     ];
-    snapshots.add(turnId);
+    if (complete || idle) snapshots.add(turnId);
     if (complete) calibrated.add(turnId);
   }
   return {
     messages,
     calibratedTurnIds: [...calibrated],
     snapshotTurnIds: [...snapshots],
+    ...(waitingTurnId ? { waitingTurnId } : {}),
   };
 }

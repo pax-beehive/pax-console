@@ -46,6 +46,125 @@ function nestedRequest(events: SessionEvent[]) {
 }
 
 describe("permission decisions", () => {
+  it.each(["history", "conversation", "observer", "reopen"] as const)(
+    "keeps a single actionable request from %s for the waiting session and turn",
+    (source) => {
+      const persisted = normalizeHistoryMessage({
+        message_id: "pending",
+        session_id: request.sessionId,
+        turn_id: request.turnId,
+        message_type: "session/request_permission",
+        role: "assistant",
+        created_at: request.createdAt,
+        raw_json: {
+          jsonrpc: "2.0",
+          id: 0,
+          method: "session/request_permission",
+          params: {
+            sessionId: request.sessionId,
+            approval_id: request.approvalId,
+            toolCall: {
+              toolCallId: tool.toolCallId,
+              title: "Run command",
+              status: "pending",
+            },
+            options: [
+              {
+                optionId: "allow_once",
+                kind: "allow_once",
+                name: "Allow once",
+              },
+            ],
+          },
+        },
+      });
+      const queued = {
+        ...tool,
+        sessionUpdate: "tool_call_update",
+        status: "queued" as const,
+      };
+      const complete = [queued, ...persisted];
+      const result = reconcileSessionTimeline(
+        source === "conversation" ? [queued] : complete,
+        source === "reopen"
+          ? []
+          : source === "conversation"
+            ? complete
+            : [queued],
+        source === "observer"
+          ? complete
+          : source === "conversation"
+            ? [queued]
+            : [],
+        source === "observer" || source === "conversation"
+          ? [request.turnId!]
+          : [],
+        [],
+        [],
+        request.turnId,
+        request.sessionId,
+      );
+      const permissions = result.timeline.flatMap((event) =>
+        event.type === "permission_request"
+          ? [event]
+          : event.type === "tool_call"
+            ? (event.permissions ?? [])
+            : [],
+      );
+      expect(permissions).toHaveLength(1);
+      expect(permissions[0]).toMatchObject({
+        requestId: "0",
+        approvalId: request.approvalId,
+      });
+      expect(permissions[0].decision).toBeUndefined();
+    },
+  );
+
+  it.each(["allow_once", "deny"] as const)(
+    "does not restore a hidden request after the explicit %s response",
+    (decisionOption) => {
+      const decided = {
+        ...response,
+        decision: {
+          ...response.decision,
+          decisionOption,
+          status:
+            decisionOption === "deny"
+              ? ("denied" as const)
+              : ("approved" as const),
+        },
+      };
+      const visible = [tool];
+      const result = reconcileSessionTimeline(
+        [request, decided],
+        visible,
+        visible,
+        [request.turnId!],
+        [],
+        [],
+        request.turnId,
+        request.sessionId,
+      );
+      expect(result.timeline).toEqual(visible);
+    },
+  );
+
+  it("does not attach a pending request from another session to the visible tool", () => {
+    const unrelated = { ...request, sessionId: "other-session" };
+    expect(mergeEvents([tool, unrelated])).toEqual([tool, unrelated]);
+    const result = reconcileSessionTimeline(
+      [unrelated],
+      [tool],
+      [tool],
+      [request.turnId!],
+      [],
+      [],
+      request.turnId,
+      request.sessionId,
+    );
+    expect(result.timeline).toEqual([tool]);
+  });
+
   it("recovers the stored response into a live tool card without an approval API fallback", () => {
     const storedResponse = normalizeHistoryMessage({
       message_id: "stored-response",

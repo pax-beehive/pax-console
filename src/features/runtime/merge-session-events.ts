@@ -377,12 +377,19 @@ function settleImplicitAutoApprovals(
     Extract<SessionEvent, { type: "tool_call" }>["permissions"]
   >,
 ) {
-  if (tool.sessionUpdate !== "tool_call_update" || tool.status === "error") {
+  if (
+    tool.sessionUpdate !== "tool_call_update" ||
+    tool.status === "queued" ||
+    tool.status === "error" ||
+    (tool.status !== "done" && tool.output === undefined)
+  ) {
     return permissions;
   }
 
+  // Manager-issued approvals have an explicit response. Tool updates, including
+  // pre-permission input updates, cannot authorize or dismiss those requests.
   return permissions.map((permission) =>
-    permission.decision
+    permission.decision || permission.approvalId
       ? permission
       : {
           ...permission,
@@ -400,7 +407,10 @@ function shouldAttachPermissionToTool(
   tool: Extract<SessionEvent, { type: "tool_call" }>,
   permission: Extract<SessionEvent, { type: "permission_request" }>,
 ) {
-  if (tool.turnId && permission.turnId && tool.turnId !== permission.turnId) {
+  if (
+    tool.sessionId !== permission.sessionId ||
+    (tool.turnId && permission.turnId && tool.turnId !== permission.turnId)
+  ) {
     return false;
   }
 

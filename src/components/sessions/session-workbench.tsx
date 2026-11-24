@@ -1743,11 +1743,16 @@ export function SessionWorkbench({
       historySync.calibratedTurnIds,
       historySnapshotsForTimeline(historySync.snapshotTurnIds, timelineRuntime),
       activeTimelineTurnId(timelineRuntime),
+      timelineRuntime.sessionStatus === "waiting_approval" ||
+        timelineRuntime.localStatus === "waiting_approval"
+        ? currentSessionId
+        : undefined,
     );
   }, [
     conversationRun.events,
     encryptedRuntime.events,
     historyEvents,
+    currentSessionId,
     usesEncryptedTransport,
     sessionObserver.events,
     sessionObserver.snapshotTurnIds,

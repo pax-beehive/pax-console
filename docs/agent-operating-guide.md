@@ -1888,6 +1888,10 @@ without an initiating conversation stream. Observer/history frames must carry
 the durable approval ID. Serialize decision submissions, but once the decision
 is saved, a still-pending resumed conversation must not disable a different
 permission request's buttons.
+While a turn waits, the workbench recovers its Manager-issued approval from
+history and keeps it actionable across partial transcript snapshots. The first
+read covers the waiting turn. Later metadata refreshes follow the history tail
+for additional requests and explicit decisions.
 
 Only Deny and Allow once are currently exposed in timeline and Home approval
 actions. Keep the other decision values compatible with existing history, but
